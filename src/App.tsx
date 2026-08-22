@@ -191,7 +191,7 @@ interface Expense {
 interface VendorExpense {
   id: string;
   vendorName: string;
-  category: 'stationery' | 'solar_energy' | 'electricity' | 'water' | 'taxes' | 'insurance' | 'security_guarding' | 'facility_maintenance' | 'catering' | 'training' | 'social_events' | 'exam_def' | 'exam_bac' | 'internet' | 'cleaning' | 'furniture' | 'social_cases' | string;
+  category: 'stationery' | 'solar_energy' | 'electricity' | 'water' | 'taxes' | 'insurance' | 'security_maintenance' | 'security_guarding' | 'facility_maintenance' | 'catering' | 'training' | 'social_events' | 'exam_def' | 'exam_bac' | 'internet' | 'cleaning' | 'furniture' | 'social_cases' | string;
   amount: number;
   dueDate: string;
   paymentStatus: 'paid' | 'unpaid' | 'partial';
@@ -382,6 +382,7 @@ const translations = {
     water: "Borehole Maintenance & Water",
     taxes: "Taxes & Fiscal Duties",
     insurance: "Insurance",
+    security_maintenance: "Guarding & Campus Maintenance",
     security_guarding: "Security & Guarding Services",
     facility_maintenance: "Campus & Facility Maintenance",
     catering: "Catering & Meals",
@@ -665,6 +666,7 @@ const translations = {
     water: "Entretien de forage",
     taxes: "Impôts & Taxes",
     insurance: "Assurances",
+    security_maintenance: "Gardiennage & Entretien de l'établissement",
     security_guarding: "Frais de gardiennage",
     facility_maintenance: "Entretien de l'établissement",
     catering: "Restauration & Cantine",
@@ -5615,8 +5617,7 @@ export default function App() {
                             <option value="water">{t.water}</option>
                             <option value="taxes">{t.taxes}</option>
                             <option value="insurance">{t.insurance}</option>
-                            <option value="security_guarding">{t.security_guarding}</option>
-                            <option value="facility_maintenance">{t.facility_maintenance}</option>
+                            <option value="security_maintenance">{t.security_maintenance}</option>
                             <option value="catering">{t.catering}</option>
                             <option value="training">{t.training}</option>
                             <option value="social_events">{t.social_events}</option>
@@ -5681,8 +5682,9 @@ export default function App() {
                                     case 'water': return <Droplet size={14} className="text-sky-500" />;
                                     case 'taxes': return <Landmark size={14} className="text-rose-500" />;
                                     case 'insurance': return <ShieldCheck size={14} className="text-blue-500" />;
-                                    case 'security_guarding': return <Shield size={14} className="text-emerald-600" />;
-                                    case 'facility_maintenance': return <Wrench size={14} className="text-slate-500" />;
+                                    case 'security_maintenance':
+                                    case 'security_guarding':
+                                    case 'facility_maintenance': return <Shield size={14} className="text-emerald-600" />;
                                     case 'catering': return <Utensils size={14} className="text-orange-500" />;
                                     case 'training': return <Award size={14} className="text-emerald-500" />;
                                     case 'social_events': return <Sparkles size={14} className="text-pink-500" />;
@@ -7548,8 +7550,7 @@ export default function App() {
                       <option value="water">{t.water}</option>
                       <option value="taxes">{t.taxes}</option>
                       <option value="insurance">{t.insurance}</option>
-                      <option value="security_guarding">{t.security_guarding}</option>
-                      <option value="facility_maintenance">{t.facility_maintenance}</option>
+                      <option value="security_maintenance">{t.security_maintenance}</option>
                       <option value="catering">{t.catering}</option>
                       <option value="training">{t.training}</option>
                       <option value="social_events">{t.social_events}</option>

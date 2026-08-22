@@ -28,6 +28,7 @@ const CATEGORY_LABELS_FR: Record<string, string> = {
   water: 'Entretien de forage',
   taxes: 'Impôts & Taxes',
   insurance: 'Assurances',
+  security_maintenance: "Gardiennage & Entretien de l'établissement",
   security_guarding: 'Frais de gardiennage',
   facility_maintenance: "Entretien de l'établissement",
   catering: 'Restauration & Cantine',
@@ -58,6 +59,7 @@ const CATEGORY_LABELS_EN: Record<string, string> = {
   water: 'Borehole Maintenance & Water',
   taxes: 'Taxes & Fiscal Duties',
   insurance: 'Insurance',
+  security_maintenance: 'Guarding & Campus Maintenance',
   security_guarding: 'Security & Guarding Services',
   facility_maintenance: 'Campus & Facility Maintenance',
   catering: 'Catering & Meals',
@@ -83,8 +85,8 @@ function matchesCategory(expenseCategory: string, filterCategory: string): boole
 
   if ((c2 === 'supplies' || c2 === 'fournitures' || c2 === 'stationery') && (c1 === 'supplies' || c1 === 'fournitures' || c1 === 'stationery')) return true;
   if ((c2 === 'insurance' || c2 === 'assurances' || c2 === 'assurance') && (c1 === 'insurance' || c1 === 'assurances' || c1 === 'assurance')) return true;
-  if ((c2 === 'security_guarding' || c2 === 'gardiennage' || c2 === 'securite' || c2 === 'sécurité') && (c1 === 'security_guarding' || c1.includes('gardien') || c1.includes('securit') || c1.includes('sécurit') || c1.includes('guard'))) return true;
-  if ((c2 === 'facility_maintenance' || c2 === 'entretien de l\'etablissement' || c2 === 'entretien de l\'établissement') && (c1 === 'facility_maintenance' || c1.includes('etablissement') || c1.includes('établissement') || c1.includes('facility') || c1.includes('campus'))) return true;
+  if ((c2 === 'security_maintenance' || c2 === 'security_guarding' || c2 === 'facility_maintenance' || c2 === 'gardiennage' || c2 === 'securite' || c2 === 'sécurité' || c2.includes('entretien de l\'etablissement') || c2.includes('gardiennage')) && 
+      (c1 === 'security_maintenance' || c1 === 'security_guarding' || c1 === 'facility_maintenance' || c1.includes('gardien') || c1.includes('securit') || c1.includes('sécurit') || c1.includes('guard') || c1.includes('etablissement') || c1.includes('établissement'))) return true;
   if ((c2 === 'taxes' || c2 === 'impots' || c2 === 'impôts' || c2 === 'fisc') && (c1 === 'taxes' || c1.includes('impot') || c1.includes('impôt') || c1.includes('taxe') || c1.includes('fisc'))) return true;
   if ((c2 === 'solar_energy' || c2 === 'panneaux' || c2 === 'batteries' || c2 === 'solaire') && (c1 === 'solar_energy' || c1.includes('solar') || c1.includes('panneau') || c1.includes('batteri') || c1.includes('solair'))) return true;
   if ((c2 === 'catering' || c2 === 'restauration' || c2 === 'cantine' || c2 === 'repas') && (c1 === 'catering' || c1.includes('restaur') || c1.includes('cantin') || c1.includes('repas') || c1.includes('cater'))) return true;
