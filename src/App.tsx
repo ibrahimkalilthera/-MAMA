@@ -1607,32 +1607,6 @@ export default function App() {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [editingVendorExpense, setEditingVendorExpense] = useState<VendorExpense | null>(null);
 
-  const expenseCategoryList = useMemo(() => {
-    const keys = [
-      'insurance',
-      'social_cases',
-      'exam_bac',
-      'exam_def',
-      'electricity',
-      'water',
-      'social_events',
-      'internet',
-      'stationery',
-      'security_maintenance',
-      'machine_management',
-      'taxes',
-      'furniture',
-      'solar_energy',
-      'reforestation',
-      'catering',
-      'works_renovation',
-      'training'
-    ];
-    return keys
-      .map(key => ({ key, label: (t as any)[key] || key }))
-      .sort((a, b) => a.label.localeCompare(b.label, lang === 'en' ? 'en' : 'fr', { sensitivity: 'base' }));
-  }, [t, lang]);
-
   // todos are now provided by useSupabaseData hook above
   const [todoInput, setTodoInput] = useState('');
   const [showTodoSidebar, setShowTodoSidebar] = useState(false);
@@ -1709,6 +1683,32 @@ export default function App() {
   const t = translations[lang];
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = new Date().getMonth();
+
+  const expenseCategoryList = useMemo(() => {
+    const keys = [
+      'insurance',
+      'social_cases',
+      'exam_bac',
+      'exam_def',
+      'electricity',
+      'water',
+      'social_events',
+      'internet',
+      'stationery',
+      'security_maintenance',
+      'machine_management',
+      'taxes',
+      'furniture',
+      'solar_energy',
+      'reforestation',
+      'catering',
+      'works_renovation',
+      'training'
+    ];
+    return keys
+      .map(key => ({ key, label: (t as any)[key] || key }))
+      .sort((a, b) => a.label.localeCompare(b.label, lang === 'en' ? 'en' : 'fr', { sensitivity: 'base' }));
+  }, [t, lang]);
 
   // --- Theme Logic ---
   useEffect(() => {
