@@ -1607,6 +1607,32 @@ export default function App() {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [editingVendorExpense, setEditingVendorExpense] = useState<VendorExpense | null>(null);
 
+  const expenseCategoryList = useMemo(() => {
+    const keys = [
+      'insurance',
+      'social_cases',
+      'exam_bac',
+      'exam_def',
+      'electricity',
+      'water',
+      'social_events',
+      'internet',
+      'stationery',
+      'security_maintenance',
+      'machine_management',
+      'taxes',
+      'furniture',
+      'solar_energy',
+      'reforestation',
+      'catering',
+      'works_renovation',
+      'training'
+    ];
+    return keys
+      .map(key => ({ key, label: (t as any)[key] || key }))
+      .sort((a, b) => a.label.localeCompare(b.label, lang === 'en' ? 'en' : 'fr', { sensitivity: 'base' }));
+  }, [t, lang]);
+
   // todos are now provided by useSupabaseData hook above
   const [todoInput, setTodoInput] = useState('');
   const [showTodoSidebar, setShowTodoSidebar] = useState(false);
@@ -5620,24 +5646,9 @@ export default function App() {
                             className={`px-3 py-2 rounded-xl border text-xs focus:outline-none ${currentTheme.input}`}
                           >
                             <option value="all">{lang === 'en' ? "All Categories" : "Toutes catégories"}</option>
-                            <option value="stationery">{t.stationery}</option>
-                            <option value="solar_energy">{t.solar_energy}</option>
-                            <option value="electricity">{t.electricity}</option>
-                            <option value="water">{t.water}</option>
-                            <option value="taxes">{t.taxes}</option>
-                            <option value="insurance">{t.insurance}</option>
-                            <option value="security_maintenance">{t.security_maintenance}</option>
-                            <option value="works_renovation">{t.works_renovation}</option>
-                            <option value="machine_management">{t.machine_management}</option>
-                            <option value="reforestation">{t.reforestation}</option>
-                            <option value="catering">{t.catering}</option>
-                            <option value="training">{t.training}</option>
-                            <option value="social_events">{t.social_events}</option>
-                            <option value="exam_def">{t.exam_def}</option>
-                            <option value="exam_bac">{t.exam_bac}</option>
-                            <option value="internet">{t.internet}</option>
-                            <option value="furniture">{t.furniture}</option>
-                            <option value="social_cases">{t.social_cases}</option>
+                            {expenseCategoryList.map(item => (
+                              <option key={item.key} value={item.key}>{item.label}</option>
+                            ))}
                           </select>
                         </div>
                         {/* Status Filter */}
@@ -7559,24 +7570,9 @@ export default function App() {
                       onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, category: e.target.value as any })}
                       className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
                     >
-                      <option value="stationery">{t.stationery}</option>
-                      <option value="solar_energy">{t.solar_energy}</option>
-                      <option value="electricity">{t.electricity}</option>
-                      <option value="water">{t.water}</option>
-                      <option value="taxes">{t.taxes}</option>
-                      <option value="insurance">{t.insurance}</option>
-                      <option value="security_maintenance">{t.security_maintenance}</option>
-                      <option value="works_renovation">{t.works_renovation}</option>
-                      <option value="machine_management">{t.machine_management}</option>
-                      <option value="reforestation">{t.reforestation}</option>
-                      <option value="catering">{t.catering}</option>
-                      <option value="training">{t.training}</option>
-                      <option value="social_events">{t.social_events}</option>
-                      <option value="exam_def">{t.exam_def}</option>
-                      <option value="exam_bac">{t.exam_bac}</option>
-                      <option value="internet">{t.internet}</option>
-                      <option value="furniture">{t.furniture}</option>
-                      <option value="social_cases">{t.social_cases}</option>
+                      {expenseCategoryList.map(item => (
+                        <option key={item.key} value={item.key}>{item.label}</option>
+                      ))}
                     </select>
                   </div>
 
