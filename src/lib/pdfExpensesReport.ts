@@ -22,7 +22,8 @@ const CATEGORY_LABELS_FR: Record<string, string> = {
   Entretien: 'Maintenance & Entretien',
   Other: 'Autres charges',
   Autre: 'Autres charges',
-  stationery: 'Papeterie & Fournitures',
+  stationery: 'Fournitures & Papeterie',
+  insurance: 'Assurances',
   furniture: 'Mobilier & Équipements',
   internet: 'Internet & Télécoms',
   electricity: 'Électricité EDM-SA',
@@ -41,8 +42,9 @@ const CATEGORY_LABELS_EN: Record<string, string> = {
   Entretien: 'Maintenance',
   Other: 'Other Expenses',
   Autre: 'Other Expenses',
-  stationery: 'Stationery Suppliers',
-  furniture: 'Furniture Vendors',
+  stationery: 'Supplies & Stationery',
+  insurance: 'Insurance',
+  furniture: 'Furniture & Equipment',
   internet: 'Internet Providers',
   electricity: 'EDM-SA Electricity',
   water: 'SOMAGEP Water',
@@ -60,6 +62,7 @@ function matchesCategory(expenseCategory: string, filterCategory: string): boole
   if (c1 === c2) return true;
 
   if ((c2 === 'supplies' || c2 === 'fournitures' || c2 === 'stationery') && (c1 === 'supplies' || c1 === 'fournitures' || c1 === 'stationery')) return true;
+  if ((c2 === 'insurance' || c2 === 'assurances' || c2 === 'assurance') && (c1 === 'insurance' || c1 === 'assurances' || c1 === 'assurance')) return true;
   if ((c2 === 'utilities' || c2 === 'services publics' || c2 === 'electricity' || c2 === 'water') && (c1 === 'utilities' || c1 === 'services publics' || c1 === 'electricity' || c1 === 'water')) return true;
   if ((c2 === 'maintenance' || c2 === 'entretien' || c2 === 'cleaning') && (c1 === 'maintenance' || c1 === 'entretien' || c1 === 'cleaning')) return true;
   if ((c2 === 'other' || c2 === 'autre') && (c1 === 'other' || c1 === 'autre')) return true;

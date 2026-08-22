@@ -185,7 +185,7 @@ interface Expense {
 interface VendorExpense {
   id: string;
   vendorName: string;
-  category: 'stationery' | 'furniture' | 'internet' | 'electricity' | 'water' | 'cleaning' | 'social_cases';
+  category: 'stationery' | 'furniture' | 'insurance' | 'internet' | 'electricity' | 'water' | 'cleaning' | 'social_cases';
   amount: number;
   dueDate: string;
   paymentStatus: 'paid' | 'unpaid' | 'partial';
@@ -357,25 +357,26 @@ const translations = {
     income: "Income",
     exportData: "Export All Data to CSV",
     backupSettings: "Backup & Data Management",
-    vendorExpenses: "Vendor & Utility Expenses",
+    vendorExpenses: "General Expenses",
     generalExpenses: "General Expenses",
-    totalVendorBills: "Total Vendor Bills",
+    totalVendorBills: "Total Expenses / Bills",
     paidPortions: "Paid Portions",
     outstandingBalanceVendor: "Outstanding Balance",
     overdueUnpaid: "Overdue Unpaid",
     billsCountLabel: "Bills",
-    vendorName: "Vendor Name",
+    vendorName: "Vendor / Payee Name",
     paymentStatus: "Payment Status",
-    addVendorExpense: "Add Vendor/Utility Expense",
-    editVendorExpense: "Edit Vendor/Utility Expense",
+    addVendorExpense: "Add Expense",
+    editVendorExpense: "Edit Expense",
     amountPaid: "Amount Paid",
     overdueWarning: "Overdue unpaid expenses shown in bright red",
-    stationery: "Stationery Suppliers",
-    furniture: "Furniture Vendors",
+    stationery: "Supplies & Stationery",
+    insurance: "Insurance",
+    furniture: "Furniture & Equipment",
     internet: "Internet Providers",
     electricity: "EDM-SA Electricity",
     water: "SOMAGEP Water",
-    cleaning: "Cleaning Services",
+    cleaning: "Cleaning & Maintenance",
     social_cases: "Cas Sociaux",
     prise_en_charge: "Tuition Waiver",
     kits_fournitures: "Supplies Support",
@@ -630,26 +631,27 @@ const translations = {
     income: "Revenus",
     exportData: "Exporter toutes les données en CSV",
     backupSettings: "Sauvegarde et Gestion des Données",
-    vendorExpenses: "Dépenses Fournisseurs & Services",
+    vendorExpenses: "Dépenses Générales",
     generalExpenses: "Dépenses Générales",
-    totalVendorBills: "Total Factures Fournisseurs",
+    totalVendorBills: "Total Dépenses & Factures",
     paidPortions: "Montants Réglés",
     outstandingBalanceVendor: "Solde Restant Dû",
     overdueUnpaid: "Factures en Retard",
     billsCountLabel: "Factures",
-    vendorName: "Nom du Fournisseur",
+    vendorName: "Bénéficiaire / Fournisseur",
     paymentStatus: "Statut de Paiement",
-    addVendorExpense: "Ajouter Dépense Fournisseur",
-    editVendorExpense: "Modifier Dépense Fournisseur",
+    addVendorExpense: "Ajouter une Dépense",
+    editVendorExpense: "Modifier la Dépense",
     amountPaid: "Montant Payé",
     overdueWarning: "Les dépenses impayées en retard sont affichées en rouge vif",
-    stationery: "Fournisseurs de papeterie",
-    furniture: "Fournisseurs de mobilier",
+    stationery: "Fournitures & Papeterie",
+    insurance: "Assurances",
+    furniture: "Mobilier & Équipements",
     internet: "Fournisseurs d'accès Internet",
     electricity: "Électricité EDM-SA",
     water: "Eau SOMAGEP",
-    cleaning: "Services de nettoyage",
-    social_cases: "Cas Sociaux",
+    cleaning: "Entretien & Nettoyage",
+    social_cases: "Cas Sociaux & Aides",
     prise_en_charge: "Prise en charge Scolarité",
     kits_fournitures: "Kits Scolaires & Fournitures",
     aide_urgence: "Aide d'Urgence",
@@ -5421,7 +5423,7 @@ export default function App() {
           </div>
         )}
 
-      {/* --- Expenses View --- */}
+      {/* --- Expenses View (Unified General Expenses) --- */}
         {activeTab === 'expenses' && (
           <div className="space-y-8">
             {/* Print-Only Official Header */}
@@ -5431,16 +5433,11 @@ export default function App() {
                   <h1 className="text-2xl font-black">COMPLEXE SCOLAIRE MAMA THERA</h1>
                   <p className="text-sm opacity-90">
                     {lang === 'en' 
-                      ? `EXPENSES & OPERATING OUTFLOWS REPORT — ${selectedYear} (${vendorExpensesTab === 'general' ? 'General Expenses' : 'Vendors & Services'})` 
-                      : `RAPPORT DES DÉPENSES & CHARGES — ${selectedYear} (${vendorExpensesTab === 'general' ? 'Dépenses Générales' : 'Fournisseurs & Services'})`}
-                    {vendorExpensesTab === 'general' && generalExpenseCategoryFilter !== 'all' && (
+                      ? `GENERAL OPERATING EXPENSES REPORT — ${selectedYear}` 
+                      : `RAPPORT DES DÉPENSES GÉNÉRALES & CHARGES D'EXPLOITATION — ${selectedYear}`}
+                    {vendorCategoryFilter !== 'all' && (
                       <span className="ml-2 px-2 py-0.5 bg-white/20 rounded font-bold">
-                        [{lang === 'en' ? `Category: ${generalExpenseCategoryFilter}` : `Catégorie : ${generalExpenseCategoryFilter}`}]
-                      </span>
-                    )}
-                    {vendorExpensesTab === 'vendors' && vendorCategoryFilter !== 'all' && (
-                      <span className="ml-2 px-2 py-0.5 bg-white/20 rounded font-bold">
-                        [{lang === 'en' ? `Category: ${vendorCategoryFilter}` : `Catégorie : ${vendorCategoryFilter}`}]
+                        [{lang === 'en' ? `Category: ${t[vendorCategoryFilter] || vendorCategoryFilter}` : `Catégorie : ${t[vendorCategoryFilter] || vendorCategoryFilter}`}]
                       </span>
                     )}
                   </p>
@@ -5452,519 +5449,323 @@ export default function App() {
               </div>
             </div>
 
-            {/* Sub-tab Navigation */}
-            <div className="flex gap-4 border-b border-slate-100 pb-4 no-print">
-              <button 
-                onClick={() => setVendorExpensesTab('general')}
-                className={`px-6 py-3 rounded-2xl font-black text-sm transition-all ${vendorExpensesTab === 'general' ? (currentTheme.isDark ? 'bg-emerald-600 text-white shadow-lg' : `${currentTheme.accentBg} text-white shadow-lg ${currentTheme.accentShadow}`) : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                {t.generalExpenses}
-              </button>
-              <button 
-                onClick={() => setVendorExpensesTab('vendors')}
-                className={`px-6 py-3 rounded-2xl font-black text-sm transition-all ${vendorExpensesTab === 'vendors' ? (currentTheme.isDark ? 'bg-emerald-600 text-white shadow-lg' : `${currentTheme.accentBg} text-white shadow-lg ${currentTheme.accentShadow}`) : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                {t.vendorExpenses}
-              </button>
-            </div>
+            <div className="space-y-8">
+              {/* Summary Cards */}
+              {(() => {
+                const academicYearVendorExpenses = vendorExpenses.filter(v => !selectedYear || !v.academicYear || v.academicYear === selectedYear);
+                const totalVendorAmount = academicYearVendorExpenses.reduce((sum, v) => sum + v.amount, 0);
+                const totalVendorPaid = academicYearVendorExpenses.reduce((sum, v) => {
+                  if (v.paymentStatus === 'paid') return sum + v.amount;
+                  if (v.paymentStatus === 'partial') return sum + (v.amountPaid || 0);
+                  return sum;
+                }, 0);
+                const totalVendorOutstanding = academicYearVendorExpenses.reduce((sum, v) => {
+                  if (v.paymentStatus === 'paid') return sum;
+                  if (v.paymentStatus === 'partial') return sum + Math.max(0, v.amount - (v.amountPaid || 0));
+                  return sum + v.amount;
+                }, 0);
+                const overdueVendorCount = academicYearVendorExpenses.filter(v => v.paymentStatus === 'unpaid' && v.dueDate < today).length;
 
-            {vendorExpensesTab === 'general' ? (
-              <div className="space-y-8">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <h3 className={`text-2xl font-bold tracking-tight ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.generalExpenses}</h3>
-                  <div className="flex items-center gap-3 no-print">
-                    <button
-                      onClick={() => generateExpensesReportPdf({
-                        expenses,
-                        vendorExpenses,
-                        selectedYear,
-                        subTab: 'general',
-                        selectedCategory: generalExpenseCategoryFilter,
-                        searchQuery: generalExpenseSearch,
-                        lang,
-                      })}
-                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
-                      title={lang === 'en' ? 'Download Expenses PDF Report (Filtered)' : 'Télécharger le Rapport des Dépenses en PDF (Filtré)'}
-                    >
-                      <FileText size={16} />
-                      <span>{lang === 'en' ? 'Export PDF' : 'Exporter PDF'}</span>
-                    </button>
-                    <button
-                      onClick={handlePrint}
-                      className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.text} hover:bg-slate-50 transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm active:scale-95`}
-                      title={t.printReport}
-                    >
-                      <Printer size={16} />
-                      <span className="hidden sm:inline">{lang === 'en' ? 'Print' : 'Imprimer'}</span>
-                    </button>
-                    <button 
-                      onClick={() => setShowExpenseModal(true)}
-                      className="bg-rose-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-rose-600 transition-all flex items-center gap-2 shadow-lg shadow-rose-500/20"
-                    >
-                      <Plus size={16} />
-                      {t.addExpense}
-                    </button>
-                  </div>
-                </div>
+                const filteredVendorExpensesList = vendorExpenses.filter(v => {
+                  if (selectedYear && v.academicYear && v.academicYear !== selectedYear) return false;
+                  const matchesSearch = v.vendorName.toLowerCase().includes(vendorSearch.toLowerCase()) || 
+                                        (v.description || '').toLowerCase().includes(vendorSearch.toLowerCase());
+                  if (!matchesSearch) return false;
+                  if (vendorCategoryFilter !== 'all' && v.category !== vendorCategoryFilter) return false;
+                  if (vendorStatusFilter !== 'all' && v.paymentStatus !== vendorStatusFilter) return false;
+                  return true;
+                });
 
-                {(() => {
-                  const academicYearExpenses = expenses.filter(e => !selectedYear || e.academicYear === selectedYear);
-                  return (
-                    <>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {/* Expense Stats */}
-                        <div className={`${currentTheme.isDark ? 'bg-[#334155]' : 'bg-rose-50'} p-8 rounded-[2rem] border ${currentTheme.border} shadow-xl shadow-rose-200/20`}>
-                          <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${currentTheme.isDark ? 'text-rose-400' : 'text-rose-400'}`}>{t.totalExpenses}</p>
-                          <h3 className={`text-4xl font-black ${currentTheme.isDark ? 'text-rose-400' : 'text-rose-600'}`}>{formatCurrency(academicYearExpenses.reduce((acc, e) => acc + e.amount, 0))}</h3>
-                        </div>
-                        <div className={`${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-xl shadow-slate-200/20 col-span-2 flex items-center justify-around`}>
-                          <div className="text-center">
-                            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${currentTheme.muted}`}>{t.supplies}</p>
-                            <p className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
-                              {formatCurrency(academicYearExpenses.filter(e => e.category === 'Supplies' || e.category === 'Fournitures' || e.category.toLowerCase() === 'supplies' || e.category.toLowerCase() === 'fournitures').reduce((acc, e) => acc + e.amount, 0))}
-                            </p>
-                          </div>
-                          <div className={`w-px h-12 ${currentTheme.border}`}></div>
-                          <div className="text-center">
-                            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${currentTheme.muted}`}>{t.utilities}</p>
-                            <p className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
-                              {formatCurrency(academicYearExpenses.filter(e => e.category === 'Utilities' || e.category === 'Services Publics' || e.category.toLowerCase() === 'utilities' || e.category.toLowerCase() === 'services publics').reduce((acc, e) => acc + e.amount, 0))}
-                            </p>
-                          </div>
-                          <div className={`w-px h-12 ${currentTheme.border}`}></div>
-                          <div className="text-center">
-                            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${currentTheme.muted}`}>{t.maintenance}</p>
-                            <p className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
-                              {formatCurrency(academicYearExpenses.filter(e => e.category === 'Maintenance' || e.category === 'Entretien' || e.category.toLowerCase() === 'maintenance' || e.category.toLowerCase() === 'entretien').reduce((acc, e) => acc + e.amount, 0))}
-                            </p>
-                          </div>
+                return (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <h3 className={`text-2xl font-bold tracking-tight ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.generalExpenses}</h3>
+                      <div className="flex items-center gap-3 no-print">
+                        <button
+                          onClick={() => generateExpensesReportPdf({
+                            expenses,
+                            vendorExpenses,
+                            selectedYear,
+                            subTab: 'vendors',
+                            selectedCategory: vendorCategoryFilter,
+                            selectedStatus: vendorStatusFilter,
+                            searchQuery: vendorSearch,
+                            lang,
+                          })}
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
+                          title={lang === 'en' ? 'Download Expenses PDF Report (Filtered)' : 'Télécharger le Rapport des Dépenses en PDF (Filtré)'}
+                        >
+                          <FileText size={16} />
+                          <span>{lang === 'en' ? 'Export PDF' : 'Exporter PDF'}</span>
+                        </button>
+                        <button
+                          onClick={handlePrint}
+                          className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.text} hover:bg-slate-50 transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm active:scale-95`}
+                          title={t.printReport}
+                        >
+                          <Printer size={16} />
+                          <span className="hidden sm:inline">{lang === 'en' ? 'Print' : 'Imprimer'}</span>
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setEditingVendorExpense(null);
+                            setVendorExpenseForm({
+                              vendorName: '',
+                              category: 'stationery',
+                              amount: '',
+                              dueDate: new Date().toISOString().split('T')[0],
+                              paymentStatus: 'unpaid',
+                              amountPaid: '',
+                              description: '',
+                              aidType: '' as any,
+                              beneficiaryStudentName: '',
+                              beneficiaryStudentGrade: '',
+                            });
+                            setShowVendorExpenseModal(true);
+                          }}
+                          className={`${currentTheme.isDark ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg`}
+                        >
+                          <Plus size={16} />
+                          {t.addVendorExpense}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Overdue Alert Banner if active overdue items exist */}
+                    {overdueVendorCount > 0 && (
+                      <div className="bg-rose-50 border border-rose-200 text-rose-800 p-6 rounded-3xl flex items-center gap-4 animate-pulse">
+                        <AlertCircle size={28} className="text-rose-600 flex-shrink-0" />
+                        <div>
+                          <h4 className="font-bold text-base">
+                            {lang === 'en' ? `${overdueVendorCount} Overdue Payments Detected!` : `${overdueVendorCount} Paiements en retard détectés !`}
+                          </h4>
+                          <p className="text-sm opacity-90">{t.overdueWarning}</p>
                         </div>
                       </div>
+                    )}
 
-                      {/* Search & Category Filter for General Expenses */}
-                      <div className={`${currentTheme.card} p-6 rounded-3xl border ${currentTheme.border} shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between no-print`}>
-                        <div className="relative w-full md:w-80">
-                          <Search size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
-                          <input 
-                            type="text" 
-                            placeholder={lang === 'en' ? "Search general expenses..." : "Rechercher dépenses..."}
-                            value={generalExpenseSearch}
-                            onChange={(e) => setGeneralExpenseSearch(e.target.value)}
-                            className={`w-full pl-11 pr-4 py-3 rounded-xl border text-sm focus:outline-none ${currentTheme.input}`}
-                          />
-                        </div>
-                        <div className="flex items-center gap-2 w-full md:w-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className={`${currentTheme.card} p-6 rounded-[2rem] border ${currentTheme.border} shadow-md`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${currentTheme.muted}`}>{t.totalVendorBills}</p>
+                        <h4 className={`text-2xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(totalVendorAmount)}</h4>
+                      </div>
+                      <div className="bg-emerald-50/50 p-6 rounded-[2rem] border border-emerald-100 shadow-sm">
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-emerald-600">{t.paidPortions}</p>
+                        <h4 className="text-2xl font-black text-emerald-700">{formatCurrency(totalVendorPaid)}</h4>
+                      </div>
+                      <div className="bg-amber-50/50 p-6 rounded-[2rem] border border-amber-100 shadow-sm">
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-amber-600">{t.outstandingBalanceVendor}</p>
+                        <h4 className="text-2xl font-black text-amber-700">{formatCurrency(totalVendorOutstanding)}</h4>
+                      </div>
+                      <div className={`${overdueVendorCount > 0 ? 'bg-rose-100 border-rose-200' : 'bg-slate-50 border-slate-100'} p-6 rounded-[2rem] border shadow-sm transition-all`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${overdueVendorCount > 0 ? 'text-rose-600' : 'text-slate-500'}`}>{t.overdueUnpaid}</p>
+                        <h4 className={`text-2xl font-black ${overdueVendorCount > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{overdueVendorCount} {t.billsCountLabel}</h4>
+                      </div>
+                    </div>
+
+                    {/* Search & Filters */}
+                    <div className={`${currentTheme.card} p-6 rounded-3xl border ${currentTheme.border} shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between no-print`}>
+                      <div className="relative w-full md:w-80">
+                        <Search size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
+                        <input 
+                          type="text" 
+                          placeholder={lang === 'en' ? "Search expenses..." : "Rechercher dépenses..."}
+                          value={vendorSearch}
+                          onChange={(e) => setVendorSearch(e.target.value)}
+                          className={`w-full pl-11 pr-4 py-3 rounded-xl border text-sm focus:outline-none ${currentTheme.input}`}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-4 w-full md:w-auto">
+                        {/* Category Filter */}
+                        <div className="flex items-center gap-2">
                           <span className={`text-xs ${currentTheme.muted}`}>{t.category}:</span>
                           <select 
-                            value={generalExpenseCategoryFilter}
-                            onChange={(e) => setGeneralExpenseCategoryFilter(e.target.value)}
+                            value={vendorCategoryFilter}
+                            onChange={(e) => setVendorCategoryFilter(e.target.value)}
                             className={`px-3 py-2 rounded-xl border text-xs focus:outline-none ${currentTheme.input}`}
                           >
                             <option value="all">{lang === 'en' ? "All Categories" : "Toutes catégories"}</option>
-                            <option value="Supplies">{t.supplies}</option>
-                            <option value="Utilities">{t.utilities}</option>
-                            <option value="Maintenance">{t.maintenance}</option>
-                            <option value="Other">{t.other}</option>
+                            <option value="stationery">{t.stationery}</option>
+                            <option value="insurance">{t.insurance}</option>
+                            <option value="electricity">{t.electricity}</option>
+                            <option value="water">{t.water}</option>
+                            <option value="internet">{t.internet}</option>
+                            <option value="cleaning">{t.cleaning}</option>
+                            <option value="furniture">{t.furniture}</option>
+                            <option value="social_cases">{t.social_cases}</option>
+                          </select>
+                        </div>
+                        {/* Status Filter */}
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs ${currentTheme.muted}`}>{t.paymentStatus}:</span>
+                          <select 
+                            value={vendorStatusFilter}
+                            onChange={(e) => setVendorStatusFilter(e.target.value)}
+                            className={`px-3 py-2 rounded-xl border text-xs focus:outline-none ${currentTheme.input}`}
+                          >
+                            <option value="all">{lang === 'en' ? "All Statuses" : "Tous statuts"}</option>
+                            <option value="paid">{t.fullyPaid}</option>
+                            <option value="partial">{t.partialPaid}</option>
+                            <option value="unpaid">{t.unpaid}</option>
                           </select>
                         </div>
                       </div>
+                    </div>
 
-                      <div className={`${currentTheme.card} rounded-[2rem] border ${currentTheme.border} shadow-xl overflow-hidden`}>
-                        <div className={`p-8 border-b ${currentTheme.border} flex justify-between items-center`}>
-                          <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{t.expenseLog}</h3>
-                          {generalExpenseCategoryFilter !== 'all' && (
-                            <span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-full text-xs font-bold">
-                              {generalExpenseCategoryFilter === 'Supplies' ? t.supplies : (generalExpenseCategoryFilter === 'Utilities' ? t.utilities : (generalExpenseCategoryFilter === 'Maintenance' ? t.maintenance : generalExpenseCategoryFilter))}
-                            </span>
-                          )}
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left border-collapse">
-                            <thead>
-                              <tr className={`${currentTheme.tableHeader} text-[10px] font-black uppercase tracking-[0.2em]`}>
-                                <th className="px-8 py-6">{t.category}</th>
-                                <th className="px-8 py-6">{t.description}</th>
-                                <th className="px-8 py-6">{t.date}</th>
-                                <th className="px-8 py-6 text-right">{t.amount}</th>
-                              </tr>
-                            </thead>
-                            <tbody className={`divide-y ${currentTheme.border}`}>
-                              {(() => {
-                                const filteredList = academicYearExpenses.filter(e => {
-                                  if (generalExpenseCategoryFilter !== 'all') {
-                                    const c1 = e.category.trim().toLowerCase();
-                                    const c2 = generalExpenseCategoryFilter.trim().toLowerCase();
-                                    if (c1 !== c2) {
-                                      if ((c2 === 'supplies' || c2 === 'fournitures') && c1 !== 'supplies' && c1 !== 'fournitures') return false;
-                                      if ((c2 === 'utilities' || c2 === 'services publics') && c1 !== 'utilities' && c1 !== 'services publics') return false;
-                                      if ((c2 === 'maintenance' || c2 === 'entretien') && c1 !== 'maintenance' && c1 !== 'entretien') return false;
-                                      if ((c2 === 'other' || c2 === 'autre') && c1 !== 'other' && c1 !== 'autre') return false;
-                                    }
+                    {/* Expenses Table */}
+                    <div className={`${currentTheme.card} rounded-[2rem] border ${currentTheme.border} shadow-xl overflow-hidden`}>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className={`${currentTheme.tableHeader} text-[10px] font-black uppercase tracking-[0.2em]`}>
+                              <th className="px-8 py-6">{t.category}</th>
+                              <th className="px-8 py-6">{t.vendorName}</th>
+                              <th className="px-8 py-6 text-right">{t.amount}</th>
+                              <th className="px-8 py-6 text-right">{t.amountPaid}</th>
+                              <th className="px-8 py-6">{lang === 'en' ? "Due Date" : "Date d'échéance"}</th>
+                              <th className="px-8 py-6">{t.paymentStatus}</th>
+                              <th className="px-8 py-6 text-right no-print">{lang === 'en' ? "Actions" : "Actions"}</th>
+                            </tr>
+                          </thead>
+                          <tbody className={`divide-y ${currentTheme.border}`}>
+                            {(() => {
+                              const list = filteredVendorExpensesList;
+                              if (list.length === 0) {
+                                return (
+                                  <tr>
+                                    <td colSpan={7} className="px-8 py-16 text-center text-slate-400 italic">
+                                      {lang === 'en' ? "No expenses found matching the selected filter" : "Aucune dépense trouvée pour ce filtre"}
+                                    </td>
+                                  </tr>
+                                );
+                              }
+                              return list.map(v => {
+                                const isOverdue = v.paymentStatus === 'unpaid' && v.dueDate < today;
+                                const categoryIcon = (() => {
+                                  switch (v.category) {
+                                    case 'stationery': return <BookOpen size={14} className="text-purple-500" />;
+                                    case 'furniture': return <FileText size={14} className="text-amber-500" />;
+                                    case 'insurance': return <ShieldCheck size={14} className="text-blue-500" />;
+                                    case 'internet': return <Wifi size={14} className="text-cyan-500" />;
+                                    case 'electricity': return <Zap size={14} className="text-yellow-500" />;
+                                    case 'water': return <Droplet size={14} className="text-sky-500" />;
+                                    case 'cleaning': return <Sparkles size={14} className="text-emerald-500" />;
+                                    case 'social_cases': return <Heart size={14} className="text-rose-500 fill-rose-500/10" />;
+                                    default: return <Receipt size={14} className="text-slate-500" />;
                                   }
-                                  if (generalExpenseSearch) {
-                                    const q = generalExpenseSearch.toLowerCase();
-                                    if (!e.description.toLowerCase().includes(q) && !e.category.toLowerCase().includes(q)) return false;
-                                  }
-                                  return true;
-                                });
+                                })();
 
-                                if (filteredList.length === 0) {
-                                  return (
-                                    <tr>
-                                      <td colSpan={4} className="px-8 py-12 text-center text-slate-400 italic">
-                                        {lang === 'en' ? 'No expenses match the selected filter' : 'Aucune dépense ne correspond au filtre sélectionné'}
-                                      </td>
-                                    </tr>
-                                  );
-                                }
-
-                                return filteredList.map(e => (
-                                  <tr key={e.id} className={`${currentTheme.rowHover} transition-all`}>
+                                return (
+                                  <tr key={v.id} className={`${currentTheme.rowHover} transition-all ${isOverdue ? 'bg-rose-50/10 hover:bg-rose-50/20' : ''}`}>
                                     <td className="px-8 py-6">
-                                      <span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-full text-[10px] font-black uppercase tracking-widest">
-                                        {(() => {
-                                          const cat = e.category;
-                                          if (cat === 'Supplies' || cat === 'Fournitures') return t.supplies;
-                                          if (cat === 'Utilities' || cat === 'Services Publics') return t.utilities;
-                                          if (cat === 'Maintenance' || cat === 'Entretien') return t.maintenance;
-                                          if (cat === 'Other' || cat === 'Autre') return t.other;
-                                          return cat;
-                                        })()}
+                                      <span className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-700">
+                                        {categoryIcon}
+                                        {t[v.category] || v.category}
                                       </span>
                                     </td>
                                     <td className="px-8 py-6">
-                                      <span className={`text-sm font-bold ${currentTheme.isDark ? 'text-[#E2E8F0]' : 'text-slate-700'}`}>{e.description}</span>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                      <span className={`text-sm ${currentTheme.muted}`}>{e.date}</span>
+                                      <div className="flex flex-col">
+                                        <span className={`text-sm font-bold ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{v.vendorName}</span>
+                                        {v.category === 'social_cases' && (
+                                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                                            {v.aidType && (
+                                              <span className="inline-block px-2 py-0.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-extrabold rounded-md text-[10px] tracking-wider uppercase">
+                                                ❤️ {t[v.aidType] || v.aidType}
+                                              </span>
+                                            )}
+                                            {v.beneficiaryStudentName && (
+                                              <span className={`${currentTheme.muted} font-medium`}>
+                                                {lang === 'en' ? 'Student: ' : 'Élève : '}<strong>{v.beneficiaryStudentName}</strong>
+                                                {v.beneficiaryStudentGrade && ` (${getGradeDisplay(v.beneficiaryStudentGrade, lang)})`}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                        {v.description && <span className={`text-xs ${currentTheme.muted} mt-0.5`}>{v.description}</span>}
+                                      </div>
                                     </td>
                                     <td className="px-8 py-6 text-right">
-                                      <span className="text-sm font-black text-rose-600">{formatCurrency(e.amount)}</span>
+                                      <span className={`text-sm font-black ${currentTheme.isDark ? 'text-[#E2E8F0]' : 'text-slate-700'}`}>{formatCurrency(v.amount)}</span>
+                                    </td>
+                                    <td className="px-8 py-6 text-right">
+                                      <span className="text-sm text-slate-500">{formatCurrency(v.amountPaid || 0)}</span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                      <span className={`text-sm font-bold flex items-center gap-1.5 ${isOverdue ? 'text-rose-600 font-extrabold' : (currentTheme.isDark ? 'text-[#CBD5E1]' : 'text-slate-600')}`}>
+                                        {isOverdue && <AlertCircle size={14} className="animate-bounce" />}
+                                        {v.dueDate}
+                                        {isOverdue && <span className="text-[10px] uppercase font-black tracking-widest ml-1">{lang === 'en' ? 'OVERDUE' : 'EN RETARD'}</span>}
+                                      </span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                      {v.paymentStatus === 'paid' && (
+                                        <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                          {t.fullyPaid}
+                                        </span>
+                                      )}
+                                      {v.paymentStatus === 'partial' && (
+                                        <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                          {t.partialPaid}
+                                        </span>
+                                      )}
+                                      {v.paymentStatus === 'unpaid' && (
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${isOverdue ? 'bg-rose-500 text-white border-rose-600 animate-pulse' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
+                                          {t.unpaid}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="px-8 py-6 text-right no-print">
+                                      <div className="flex justify-end gap-3">
+                                        <button 
+                                          onClick={() => {
+                                            setEditingVendorExpense(v);
+                                            setVendorExpenseForm({
+                                              vendorName: v.vendorName,
+                                              category: v.category,
+                                              amount: v.amount.toString(),
+                                              dueDate: v.dueDate,
+                                              paymentStatus: v.paymentStatus,
+                                              amountPaid: (v.amountPaid || 0).toString(),
+                                              description: v.description || '',
+                                              aidType: v.aidType || '' as any,
+                                              beneficiaryStudentName: v.beneficiaryStudentName || '',
+                                              beneficiaryStudentGrade: v.beneficiaryStudentGrade || '',
+                                            });
+                                            setShowVendorExpenseModal(true);
+                                          }}
+                                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded-xl transition-all"
+                                          title={lang === 'en' ? "Edit Expense" : "Modifier la dépense"}
+                                        >
+                                          <FileText size={16} />
+                                        </button>
+                                        <button 
+                                          onClick={() => {
+                                            const confirmMsg = lang === 'en'
+                                              ? `Are you sure you want to delete this expense for "${v.vendorName}"?`
+                                              : `Êtes-vous sûr de vouloir supprimer cette dépense pour "${v.vendorName}" ?`;
+                                            if (confirm(confirmMsg)) {
+                                              deleteVendorExpense(v.id);
+                                            }
+                                          }}
+                                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                          title={lang === 'en' ? "Delete Expense" : "Supprimer la dépense"}
+                                        >
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
-                                ));
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {/* Vendor Summary Cards */}
-                {(() => {
-                  const academicYearVendorExpenses = vendorExpenses.filter(v => !selectedYear || !v.academicYear || v.academicYear === selectedYear);
-                  const totalVendorAmount = academicYearVendorExpenses.reduce((sum, v) => sum + v.amount, 0);
-                  const totalVendorPaid = academicYearVendorExpenses.reduce((sum, v) => {
-                    if (v.paymentStatus === 'paid') return sum + v.amount;
-                    if (v.paymentStatus === 'partial') return sum + (v.amountPaid || 0);
-                    return sum;
-                  }, 0);
-                  const totalVendorOutstanding = academicYearVendorExpenses.reduce((sum, v) => {
-                    if (v.paymentStatus === 'paid') return sum;
-                    if (v.paymentStatus === 'partial') return sum + Math.max(0, v.amount - (v.amountPaid || 0));
-                    return sum + v.amount;
-                  }, 0);
-                  const overdueVendorCount = academicYearVendorExpenses.filter(v => v.paymentStatus === 'unpaid' && v.dueDate < today).length;
-
-                  const filteredVendorExpensesList = vendorExpenses.filter(v => {
-                    if (selectedYear && v.academicYear && v.academicYear !== selectedYear) return false;
-                    const matchesSearch = v.vendorName.toLowerCase().includes(vendorSearch.toLowerCase()) || 
-                                          (v.description || '').toLowerCase().includes(vendorSearch.toLowerCase());
-                    if (!matchesSearch) return false;
-                    if (vendorCategoryFilter !== 'all' && v.category !== vendorCategoryFilter) return false;
-                    if (vendorStatusFilter !== 'all' && v.paymentStatus !== vendorStatusFilter) return false;
-                    return true;
-                  });
-
-                  return (
-                    <>
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <h3 className={`text-2xl font-bold tracking-tight ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.vendorExpenses}</h3>
-                        <div className="flex items-center gap-3 no-print">
-                          <button
-                            onClick={() => generateExpensesReportPdf({
-                              expenses,
-                              vendorExpenses,
-                              selectedYear,
-                              subTab: 'vendors',
-                              selectedCategory: vendorCategoryFilter,
-                              selectedStatus: vendorStatusFilter,
-                              searchQuery: vendorSearch,
-                              lang,
-                            })}
-                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
-                            title={lang === 'en' ? 'Download Vendor Expenses PDF Report (Filtered)' : 'Télécharger le Rapport Fournisseurs en PDF (Filtré)'}
-                          >
-                            <FileText size={16} />
-                            <span>{lang === 'en' ? 'Export PDF' : 'Exporter PDF'}</span>
-                          </button>
-                          <button
-                            onClick={handlePrint}
-                            className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.text} hover:bg-slate-50 transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm active:scale-95`}
-                            title={t.printReport}
-                          >
-                            <Printer size={16} />
-                            <span className="hidden sm:inline">{lang === 'en' ? 'Print' : 'Imprimer'}</span>
-                          </button>
-                          <button 
-                            onClick={() => {
-                              setEditingVendorExpense(null);
-                              setVendorExpenseForm({
-                                vendorName: '',
-                                category: 'stationery',
-                                amount: '',
-                                dueDate: new Date().toISOString().split('T')[0],
-                                paymentStatus: 'unpaid',
-                                amountPaid: '',
-                                description: '',
-                                aidType: '' as any,
-                                beneficiaryStudentName: '',
-                                beneficiaryStudentGrade: '',
+                                );
                               });
-                              setShowVendorExpenseModal(true);
-                            }}
-                            className={`${currentTheme.isDark ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg`}
-                          >
-                            <Plus size={16} />
-                            {t.addVendorExpense}
-                          </button>
-                        </div>
+                            })()}
+                          </tbody>
+                        </table>
                       </div>
-
-                      {/* Overdue Alert Banner if active overdue items exist */}
-                      {overdueVendorCount > 0 && (
-                        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-6 rounded-3xl flex items-center gap-4 animate-pulse">
-                          <AlertCircle size={28} className="text-rose-600 flex-shrink-0" />
-                          <div>
-                            <h4 className="font-bold text-base">
-                              {lang === 'en' ? `${overdueVendorCount} Overdue Payments Detected!` : `${overdueVendorCount} Paiements en retard détectés !`}
-                            </h4>
-                            <p className="text-sm opacity-90">{t.overdueWarning}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div className={`${currentTheme.card} p-6 rounded-[2rem] border ${currentTheme.border} shadow-md`}>
-                          <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${currentTheme.muted}`}>{t.totalVendorBills}</p>
-                          <h4 className={`text-2xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(totalVendorAmount)}</h4>
-                        </div>
-                        <div className="bg-emerald-50/50 p-6 rounded-[2rem] border border-emerald-100 shadow-sm">
-                          <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-emerald-600">{t.paidPortions}</p>
-                          <h4 className="text-2xl font-black text-emerald-700">{formatCurrency(totalVendorPaid)}</h4>
-                        </div>
-                        <div className="bg-amber-50/50 p-6 rounded-[2rem] border border-amber-100 shadow-sm">
-                          <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-amber-600">{t.outstandingBalanceVendor}</p>
-                          <h4 className="text-2xl font-black text-amber-700">{formatCurrency(totalVendorOutstanding)}</h4>
-                        </div>
-                        <div className={`${overdueVendorCount > 0 ? 'bg-rose-100 border-rose-200' : 'bg-slate-50 border-slate-100'} p-6 rounded-[2rem] border shadow-sm transition-all`}>
-                          <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${overdueVendorCount > 0 ? 'text-rose-600' : 'text-slate-500'}`}>{t.overdueUnpaid}</p>
-                          <h4 className={`text-2xl font-black ${overdueVendorCount > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{overdueVendorCount} {t.billsCountLabel}</h4>
-                        </div>
-                      </div>
-
-                      {/* Search & Filters */}
-                      <div className={`${currentTheme.card} p-6 rounded-3xl border ${currentTheme.border} shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between no-print`}>
-                        <div className="relative w-full md:w-80">
-                          <Search size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
-                          <input 
-                            type="text" 
-                            placeholder={lang === 'en' ? "Search vendors..." : "Rechercher fournisseurs..."}
-                            value={vendorSearch}
-                            onChange={(e) => setVendorSearch(e.target.value)}
-                            className={`w-full pl-11 pr-4 py-3 rounded-xl border text-sm focus:outline-none ${currentTheme.input}`}
-                          />
-                        </div>
-                        <div className="flex flex-wrap gap-4 w-full md:w-auto">
-                          {/* Category Filter */}
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs ${currentTheme.muted}`}>{t.category}:</span>
-                            <select 
-                              value={vendorCategoryFilter}
-                              onChange={(e) => setVendorCategoryFilter(e.target.value)}
-                              className={`px-3 py-2 rounded-xl border text-xs focus:outline-none ${currentTheme.input}`}
-                            >
-                              <option value="all">{lang === 'en' ? "All Categories" : "Toutes catégories"}</option>
-                              <option value="stationery">{t.stationery}</option>
-                              <option value="furniture">{t.furniture}</option>
-                              <option value="internet">{t.internet}</option>
-                              <option value="electricity">{t.electricity}</option>
-                              <option value="water">{t.water}</option>
-                              <option value="cleaning">{t.cleaning}</option>
-                              <option value="social_cases">{t.social_cases}</option>
-                            </select>
-                          </div>
-                          {/* Status Filter */}
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs ${currentTheme.muted}`}>{t.paymentStatus}:</span>
-                            <select 
-                              value={vendorStatusFilter}
-                              onChange={(e) => setVendorStatusFilter(e.target.value)}
-                              className={`px-3 py-2 rounded-xl border text-xs focus:outline-none ${currentTheme.input}`}
-                            >
-                              <option value="all">{lang === 'en' ? "All Statuses" : "Tous statuts"}</option>
-                              <option value="paid">{t.fullyPaid}</option>
-                              <option value="partial">{t.partialPaid}</option>
-                              <option value="unpaid">{t.unpaid}</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Vendor Table */}
-                      <div className={`${currentTheme.card} rounded-[2rem] border ${currentTheme.border} shadow-xl overflow-hidden`}>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left border-collapse">
-                            <thead>
-                              <tr className={`${currentTheme.tableHeader} text-[10px] font-black uppercase tracking-[0.2em]`}>
-                                <th className="px-8 py-6">{t.category}</th>
-                                <th className="px-8 py-6">{t.vendorName}</th>
-                                <th className="px-8 py-6 text-right">{t.amount}</th>
-                                <th className="px-8 py-6 text-right">{t.amountPaid}</th>
-                                <th className="px-8 py-6">{lang === 'en' ? "Due Date" : "Date d'échéance"}</th>
-                                <th className="px-8 py-6">{t.paymentStatus}</th>
-                                <th className="px-8 py-6 text-right no-print">{lang === 'en' ? "Actions" : "Actions"}</th>
-                              </tr>
-                            </thead>
-                            <tbody className={`divide-y ${currentTheme.border}`}>
-                              {(() => {
-                                const list = filteredVendorExpensesList;
-                                if (list.length === 0) {
-                                  return (
-                                    <tr>
-                                      <td colSpan={7} className="px-8 py-16 text-center text-slate-400 italic">
-                                        {lang === 'en' ? "No vendor expenses found" : "Aucune dépense fournisseur trouvée"}
-                                      </td>
-                                    </tr>
-                                  );
-                                }
-                                return list.map(v => {
-                                  const isOverdue = v.paymentStatus === 'unpaid' && v.dueDate < today;
-                                  const categoryIcon = (() => {
-                                    switch (v.category) {
-                                      case 'stationery': return <BookOpen size={14} className="text-purple-500" />;
-                                      case 'furniture': return <FileText size={14} className="text-amber-500" />;
-                                      case 'internet': return <Wifi size={14} className="text-blue-500" />;
-                                      case 'electricity': return <Zap size={14} className="text-yellow-500" />;
-                                      case 'water': return <Droplet size={14} className="text-sky-500" />;
-                                      case 'cleaning': return <Sparkles size={14} className="text-emerald-500" />;
-                                      case 'social_cases': return <Heart size={14} className="text-rose-500 fill-rose-500/10" />;
-                                      default: return <Receipt size={14} className="text-slate-500" />;
-                                    }
-                                  })();
-
-                                  return (
-                                    <tr key={v.id} className={`${currentTheme.rowHover} transition-all ${isOverdue ? 'bg-rose-50/10 hover:bg-rose-50/20' : ''}`}>
-                                      <td className="px-8 py-6">
-                                        <span className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-700">
-                                          {categoryIcon}
-                                          {t[v.category] || v.category}
-                                        </span>
-                                      </td>
-                                      <td className="px-8 py-6">
-                                        <div className="flex flex-col">
-                                          <span className={`text-sm font-bold ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{v.vendorName}</span>
-                                          {v.category === 'social_cases' && (
-                                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                                              {v.aidType && (
-                                                <span className="inline-block px-2 py-0.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-extrabold rounded-md text-[10px] tracking-wider uppercase">
-                                                  ❤️ {t[v.aidType] || v.aidType}
-                                                </span>
-                                              )}
-                                              {v.beneficiaryStudentName && (
-                                                <span className={`${currentTheme.muted} font-medium`}>
-                                                  {lang === 'en' ? 'Student: ' : 'Élève : '}<strong>{v.beneficiaryStudentName}</strong>
-                                                  {v.beneficiaryStudentGrade && ` (${getGradeDisplay(v.beneficiaryStudentGrade, lang)})`}
-                                                </span>
-                                              )}
-                                            </div>
-                                          )}
-                                          {v.description && <span className={`text-xs ${currentTheme.muted} mt-0.5`}>{v.description}</span>}
-                                        </div>
-                                      </td>
-                                      <td className="px-8 py-6 text-right">
-                                        <span className={`text-sm font-black ${currentTheme.isDark ? 'text-[#E2E8F0]' : 'text-slate-700'}`}>{formatCurrency(v.amount)}</span>
-                                      </td>
-                                      <td className="px-8 py-6 text-right">
-                                        <span className="text-sm text-slate-500">{formatCurrency(v.amountPaid || 0)}</span>
-                                      </td>
-                                      <td className="px-8 py-6">
-                                        <span className={`text-sm font-bold flex items-center gap-1.5 ${isOverdue ? 'text-rose-600 font-extrabold' : (currentTheme.isDark ? 'text-[#CBD5E1]' : 'text-slate-600')}`}>
-                                          {isOverdue && <AlertCircle size={14} className="animate-bounce" />}
-                                          {v.dueDate}
-                                          {isOverdue && <span className="text-[10px] uppercase font-black tracking-widest ml-1">{lang === 'en' ? 'OVERDUE' : 'EN RETARD'}</span>}
-                                        </span>
-                                      </td>
-                                      <td className="px-8 py-6">
-                                        {v.paymentStatus === 'paid' && (
-                                          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-widest">
-                                            {t.fullyPaid}
-                                          </span>
-                                        )}
-                                        {v.paymentStatus === 'partial' && (
-                                          <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-[10px] font-black uppercase tracking-widest">
-                                            {t.partialPaid}
-                                          </span>
-                                        )}
-                                        {v.paymentStatus === 'unpaid' && (
-                                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${isOverdue ? 'bg-rose-500 text-white border-rose-600 animate-pulse' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
-                                            {t.unpaid}
-                                          </span>
-                                        )}
-                                      </td>
-                                      <td className="px-8 py-6 text-right no-print">
-                                        <div className="flex justify-end gap-3">
-                                          {/* Quick settle button */}
-                                          {v.paymentStatus !== 'paid' && (
-                                            <button 
-                                              onClick={() => {
-                                                // Automatically marks as paid
-                                                setVendorExpenses(prev => prev.map(item => item.id === v.id ? {
-                                                  ...item,
-                                                  paymentStatus: 'paid',
-                                                  amountPaid: item.amount
-                                                } : item));
-                                                showToast();
-                                              }}
-                                              title={lang === 'en' ? "Mark as paid" : "Marquer comme payé"}
-                                              className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-all text-xs font-bold"
-                                            >
-                                              {lang === 'en' ? "Settle" : "Régler"}
-                                            </button>
-                                          )}
-                                          <button 
-                                            onClick={() => handleEditVendorExpense(v)}
-                                            className="p-2 hover:bg-slate-100 rounded-lg transition-all text-blue-600"
-                                          >
-                                            <Edit2 size={14} />
-                                          </button>
-                                          {(currentUser?.role === 'admin' || currentUser?.role === 'dev') && (
-                                            <button 
-                                              onClick={() => handleDeleteVendorExpense(v.id)}
-                                              className="p-2 hover:bg-slate-100 rounded-lg transition-all text-rose-600"
-                                            >
-                                              <Trash2 size={14} />
-                                            </button>
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                });
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         )}
 
@@ -7702,11 +7503,12 @@ export default function App() {
                       className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
                     >
                       <option value="stationery">{t.stationery}</option>
-                      <option value="furniture">{t.furniture}</option>
-                      <option value="internet">{t.internet}</option>
+                      <option value="insurance">{t.insurance}</option>
                       <option value="electricity">{t.electricity}</option>
                       <option value="water">{t.water}</option>
+                      <option value="internet">{t.internet}</option>
                       <option value="cleaning">{t.cleaning}</option>
+                      <option value="furniture">{t.furniture}</option>
                       <option value="social_cases">{t.social_cases}</option>
                     </select>
                   </div>
