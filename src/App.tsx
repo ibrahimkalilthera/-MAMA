@@ -97,7 +97,10 @@ import {
   Landmark,
   Award,
   Wrench,
-  Shield
+  Shield,
+  Cpu,
+  Sprout,
+  Hammer
 } from 'lucide-react';
 
 // --- Types ---
@@ -191,7 +194,7 @@ interface Expense {
 interface VendorExpense {
   id: string;
   vendorName: string;
-  category: 'stationery' | 'solar_energy' | 'electricity' | 'water' | 'taxes' | 'insurance' | 'security_maintenance' | 'security_guarding' | 'facility_maintenance' | 'catering' | 'training' | 'social_events' | 'exam_def' | 'exam_bac' | 'internet' | 'cleaning' | 'furniture' | 'social_cases' | string;
+  category: 'stationery' | 'solar_energy' | 'electricity' | 'water' | 'taxes' | 'insurance' | 'security_maintenance' | 'security_guarding' | 'facility_maintenance' | 'works_renovation' | 'machine_management' | 'reforestation' | 'catering' | 'training' | 'social_events' | 'exam_def' | 'exam_bac' | 'internet' | 'cleaning' | 'furniture' | 'social_cases' | string;
   amount: number;
   dueDate: string;
   paymentStatus: 'paid' | 'unpaid' | 'partial';
@@ -383,6 +386,9 @@ const translations = {
     taxes: "Taxes & Fiscal Duties",
     insurance: "Insurance",
     security_maintenance: "Guarding & Campus Maintenance",
+    works_renovation: "Works & Improvements",
+    machine_management: "Machinery & Equipment Management",
+    reforestation: "Reforestation & Green Spaces",
     security_guarding: "Security & Guarding Services",
     facility_maintenance: "Campus & Facility Maintenance",
     catering: "Catering & Meals",
@@ -667,6 +673,9 @@ const translations = {
     taxes: "Impôts & Taxes",
     insurance: "Assurances",
     security_maintenance: "Gardiennage & Entretien de l'établissement",
+    works_renovation: "Travaux et Aménagements",
+    machine_management: "Gestion Machine",
+    reforestation: "Reboisement & Espaces Verts",
     security_guarding: "Frais de gardiennage",
     facility_maintenance: "Entretien de l'établissement",
     catering: "Restauration & Cantine",
@@ -5618,6 +5627,9 @@ export default function App() {
                             <option value="taxes">{t.taxes}</option>
                             <option value="insurance">{t.insurance}</option>
                             <option value="security_maintenance">{t.security_maintenance}</option>
+                            <option value="works_renovation">{t.works_renovation}</option>
+                            <option value="machine_management">{t.machine_management}</option>
+                            <option value="reforestation">{t.reforestation}</option>
                             <option value="catering">{t.catering}</option>
                             <option value="training">{t.training}</option>
                             <option value="social_events">{t.social_events}</option>
@@ -5685,6 +5697,9 @@ export default function App() {
                                     case 'security_maintenance':
                                     case 'security_guarding':
                                     case 'facility_maintenance': return <Shield size={14} className="text-emerald-600" />;
+                                    case 'works_renovation': return <Hammer size={14} className="text-amber-600" />;
+                                    case 'machine_management': return <Cpu size={14} className="text-teal-500" />;
+                                    case 'reforestation': return <Sprout size={14} className="text-emerald-500" />;
                                     case 'catering': return <Utensils size={14} className="text-orange-500" />;
                                     case 'training': return <Award size={14} className="text-emerald-500" />;
                                     case 'social_events': return <Sparkles size={14} className="text-pink-500" />;
@@ -7551,6 +7566,9 @@ export default function App() {
                       <option value="taxes">{t.taxes}</option>
                       <option value="insurance">{t.insurance}</option>
                       <option value="security_maintenance">{t.security_maintenance}</option>
+                      <option value="works_renovation">{t.works_renovation}</option>
+                      <option value="machine_management">{t.machine_management}</option>
+                      <option value="reforestation">{t.reforestation}</option>
                       <option value="catering">{t.catering}</option>
                       <option value="training">{t.training}</option>
                       <option value="social_events">{t.social_events}</option>
