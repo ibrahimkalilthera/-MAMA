@@ -101,7 +101,7 @@ export interface Expense {
 export interface VendorExpense {
   id: string;
   vendorName: string;
-  category: 'stationery' | 'furniture' | 'internet' | 'electricity' | 'water' | 'cleaning' | 'insurance' | 'exams' | 'taxes' | 'solar_energy' | 'catering' | 'training' | 'social_events' | 'social_cases' | string;
+  category: 'stationery' | 'solar_energy' | 'electricity' | 'water' | 'taxes' | 'insurance' | 'security_guarding' | 'facility_maintenance' | 'catering' | 'training' | 'social_events' | 'exam_def' | 'exam_bac' | 'internet' | 'cleaning' | 'furniture' | 'social_cases' | string;
   amount: number;
   dueDate: string;
   paymentStatus: 'paid' | 'unpaid' | 'partial';

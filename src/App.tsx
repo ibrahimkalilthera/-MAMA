@@ -96,7 +96,8 @@ import {
   Utensils,
   Landmark,
   Award,
-  Wrench
+  Wrench,
+  Shield
 } from 'lucide-react';
 
 // --- Types ---
@@ -190,7 +191,7 @@ interface Expense {
 interface VendorExpense {
   id: string;
   vendorName: string;
-  category: 'stationery' | 'solar_energy' | 'electricity' | 'water' | 'taxes' | 'insurance' | 'catering' | 'training' | 'social_events' | 'exams' | 'internet' | 'cleaning' | 'furniture' | 'social_cases' | string;
+  category: 'stationery' | 'solar_energy' | 'electricity' | 'water' | 'taxes' | 'insurance' | 'security_guarding' | 'facility_maintenance' | 'catering' | 'training' | 'social_events' | 'exam_def' | 'exam_bac' | 'internet' | 'cleaning' | 'furniture' | 'social_cases' | string;
   amount: number;
   dueDate: string;
   paymentStatus: 'paid' | 'unpaid' | 'partial';
@@ -381,12 +382,13 @@ const translations = {
     water: "Borehole Maintenance & Water",
     taxes: "Taxes & Fiscal Duties",
     insurance: "Insurance",
+    security_guarding: "Security & Guarding Services",
+    facility_maintenance: "Campus & Facility Maintenance",
     catering: "Catering & Meals",
     training: "Staff Training & Workshops",
     social_events: "Social Events & Ceremonies",
-    exams: "National Exams (DEF & BAC)",
-    exam_def: "DEF Exam (Grade 9)",
-    exam_bac: "BAC Exam (Terminale)",
+    exam_def: "DEF Examination Expenses",
+    exam_bac: "BAC Examination Expenses",
     furniture: "Furniture & Equipment",
     internet: "Internet Providers",
     cleaning: "Cleaning & Maintenance",
@@ -663,12 +665,13 @@ const translations = {
     water: "Entretien de forage",
     taxes: "Impôts & Taxes",
     insurance: "Assurances",
+    security_guarding: "Frais de gardiennage",
+    facility_maintenance: "Entretien de l'établissement",
     catering: "Restauration & Cantine",
     training: "Volet Formation",
     social_events: "Événements Sociaux",
-    exams: "Examens Nationaux (DEF & BAC)",
-    exam_def: "Examen DEF (9ème Année)",
-    exam_bac: "Examen BAC (Terminale)",
+    exam_def: "Dépenses liées au DEF",
+    exam_bac: "Dépenses liées au BAC",
     furniture: "Mobilier & Équipements",
     internet: "Fournisseurs d'accès Internet",
     cleaning: "Entretien & Nettoyage",
@@ -5612,12 +5615,14 @@ export default function App() {
                             <option value="water">{t.water}</option>
                             <option value="taxes">{t.taxes}</option>
                             <option value="insurance">{t.insurance}</option>
+                            <option value="security_guarding">{t.security_guarding}</option>
+                            <option value="facility_maintenance">{t.facility_maintenance}</option>
                             <option value="catering">{t.catering}</option>
                             <option value="training">{t.training}</option>
                             <option value="social_events">{t.social_events}</option>
-                            <option value="exams">{t.exams}</option>
+                            <option value="exam_def">{t.exam_def}</option>
+                            <option value="exam_bac">{t.exam_bac}</option>
                             <option value="internet">{t.internet}</option>
-                            <option value="cleaning">{t.cleaning}</option>
                             <option value="furniture">{t.furniture}</option>
                             <option value="social_cases">{t.social_cases}</option>
                           </select>
@@ -5676,12 +5681,14 @@ export default function App() {
                                     case 'water': return <Droplet size={14} className="text-sky-500" />;
                                     case 'taxes': return <Landmark size={14} className="text-rose-500" />;
                                     case 'insurance': return <ShieldCheck size={14} className="text-blue-500" />;
+                                    case 'security_guarding': return <Shield size={14} className="text-emerald-600" />;
+                                    case 'facility_maintenance': return <Wrench size={14} className="text-slate-500" />;
                                     case 'catering': return <Utensils size={14} className="text-orange-500" />;
                                     case 'training': return <Award size={14} className="text-emerald-500" />;
                                     case 'social_events': return <Sparkles size={14} className="text-pink-500" />;
-                                    case 'exams': return <GraduationCap size={14} className="text-indigo-600" />;
+                                    case 'exam_def': return <GraduationCap size={14} className="text-indigo-600" />;
+                                    case 'exam_bac': return <GraduationCap size={14} className="text-violet-600" />;
                                     case 'internet': return <Wifi size={14} className="text-cyan-500" />;
-                                    case 'cleaning': return <Wrench size={14} className="text-slate-500" />;
                                     case 'furniture': return <FileText size={14} className="text-amber-600" />;
                                     case 'social_cases': return <Heart size={14} className="text-rose-500 fill-rose-500/10" />;
                                     default: return <Receipt size={14} className="text-slate-500" />;
@@ -7541,12 +7548,14 @@ export default function App() {
                       <option value="water">{t.water}</option>
                       <option value="taxes">{t.taxes}</option>
                       <option value="insurance">{t.insurance}</option>
+                      <option value="security_guarding">{t.security_guarding}</option>
+                      <option value="facility_maintenance">{t.facility_maintenance}</option>
                       <option value="catering">{t.catering}</option>
                       <option value="training">{t.training}</option>
                       <option value="social_events">{t.social_events}</option>
-                      <option value="exams">{t.exams}</option>
+                      <option value="exam_def">{t.exam_def}</option>
+                      <option value="exam_bac">{t.exam_bac}</option>
                       <option value="internet">{t.internet}</option>
-                      <option value="cleaning">{t.cleaning}</option>
                       <option value="furniture">{t.furniture}</option>
                       <option value="social_cases">{t.social_cases}</option>
                     </select>
