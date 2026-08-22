@@ -3371,8 +3371,8 @@ export default function App() {
               </div>
             )}
             <div>
-              <h1 className="font-bold text-base leading-tight tracking-tight">{t.title}</h1>
-              <p className="text-[9px] uppercase tracking-[0.12em] text-white/40 font-semibold mt-0.5">{t.subtitle}</p>
+              <h1 className="font-bold text-base leading-tight tracking-tight" style={{ color: '#FFFFFF' }}>{t.title}</h1>
+              <p className="text-[9px] uppercase tracking-[0.12em] font-semibold mt-0.5" style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{t.subtitle}</p>
             </div>
           </div>
         </div>
