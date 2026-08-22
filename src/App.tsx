@@ -185,7 +185,7 @@ interface Expense {
 interface VendorExpense {
   id: string;
   vendorName: string;
-  category: 'stationery' | 'furniture' | 'insurance' | 'internet' | 'electricity' | 'water' | 'cleaning' | 'social_cases';
+  category: 'stationery' | 'furniture' | 'insurance' | 'exams' | 'internet' | 'electricity' | 'water' | 'cleaning' | 'social_cases';
   amount: number;
   dueDate: string;
   paymentStatus: 'paid' | 'unpaid' | 'partial';
@@ -372,6 +372,9 @@ const translations = {
     overdueWarning: "Overdue unpaid expenses shown in bright red",
     stationery: "Supplies & Stationery",
     insurance: "Insurance",
+    exams: "National Exams (DEF & BAC)",
+    exam_def: "DEF Exam (Grade 9)",
+    exam_bac: "BAC Exam (Terminale)",
     furniture: "Furniture & Equipment",
     internet: "Internet Providers",
     electricity: "EDM-SA Electricity",
@@ -646,6 +649,9 @@ const translations = {
     overdueWarning: "Les dépenses impayées en retard sont affichées en rouge vif",
     stationery: "Fournitures & Papeterie",
     insurance: "Assurances",
+    exams: "Examens Nationaux (DEF & BAC)",
+    exam_def: "Examen DEF (9ème Année)",
+    exam_bac: "Examen BAC (Terminale)",
     furniture: "Mobilier & Équipements",
     internet: "Fournisseurs d'accès Internet",
     electricity: "Électricité EDM-SA",
@@ -5587,6 +5593,7 @@ export default function App() {
                             <option value="all">{lang === 'en' ? "All Categories" : "Toutes catégories"}</option>
                             <option value="stationery">{t.stationery}</option>
                             <option value="insurance">{t.insurance}</option>
+                            <option value="exams">{t.exams}</option>
                             <option value="electricity">{t.electricity}</option>
                             <option value="water">{t.water}</option>
                             <option value="internet">{t.internet}</option>
@@ -5646,6 +5653,7 @@ export default function App() {
                                     case 'stationery': return <BookOpen size={14} className="text-purple-500" />;
                                     case 'furniture': return <FileText size={14} className="text-amber-500" />;
                                     case 'insurance': return <ShieldCheck size={14} className="text-blue-500" />;
+                                    case 'exams': return <GraduationCap size={14} className="text-indigo-600" />;
                                     case 'internet': return <Wifi size={14} className="text-cyan-500" />;
                                     case 'electricity': return <Zap size={14} className="text-yellow-500" />;
                                     case 'water': return <Droplet size={14} className="text-sky-500" />;
@@ -7504,6 +7512,7 @@ export default function App() {
                     >
                       <option value="stationery">{t.stationery}</option>
                       <option value="insurance">{t.insurance}</option>
+                      <option value="exams">{t.exams}</option>
                       <option value="electricity">{t.electricity}</option>
                       <option value="water">{t.water}</option>
                       <option value="internet">{t.internet}</option>

@@ -24,6 +24,9 @@ const CATEGORY_LABELS_FR: Record<string, string> = {
   Autre: 'Autres charges',
   stationery: 'Fournitures & Papeterie',
   insurance: 'Assurances',
+  exams: 'Examens Nationaux (DEF & BAC)',
+  exam_def: 'Examen DEF (9ème Année)',
+  exam_bac: 'Examen BAC (Terminale)',
   furniture: 'Mobilier & Équipements',
   internet: 'Internet & Télécoms',
   electricity: 'Électricité EDM-SA',
@@ -44,6 +47,9 @@ const CATEGORY_LABELS_EN: Record<string, string> = {
   Autre: 'Other Expenses',
   stationery: 'Supplies & Stationery',
   insurance: 'Insurance',
+  exams: 'National Exams (DEF & BAC)',
+  exam_def: 'DEF Examination (Grade 9)',
+  exam_bac: 'BAC Examination (Terminale)',
   furniture: 'Furniture & Equipment',
   internet: 'Internet Providers',
   electricity: 'EDM-SA Electricity',
@@ -63,6 +69,7 @@ function matchesCategory(expenseCategory: string, filterCategory: string): boole
 
   if ((c2 === 'supplies' || c2 === 'fournitures' || c2 === 'stationery') && (c1 === 'supplies' || c1 === 'fournitures' || c1 === 'stationery')) return true;
   if ((c2 === 'insurance' || c2 === 'assurances' || c2 === 'assurance') && (c1 === 'insurance' || c1 === 'assurances' || c1 === 'assurance')) return true;
+  if ((c2 === 'exams' || c2 === 'examens' || c2 === 'def' || c2 === 'bac' || c2 === 'exam_def' || c2 === 'exam_bac') && (c1 === 'exams' || c1.includes('exam') || c1.includes('def') || c1.includes('bac'))) return true;
   if ((c2 === 'utilities' || c2 === 'services publics' || c2 === 'electricity' || c2 === 'water') && (c1 === 'utilities' || c1 === 'services publics' || c1 === 'electricity' || c1 === 'water')) return true;
   if ((c2 === 'maintenance' || c2 === 'entretien' || c2 === 'cleaning') && (c1 === 'maintenance' || c1 === 'entretien' || c1 === 'cleaning')) return true;
   if ((c2 === 'other' || c2 === 'autre') && (c1 === 'other' || c1 === 'autre')) return true;
