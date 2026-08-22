@@ -455,6 +455,39 @@ textarea:focus-visible {
   background-color: #1E5E3A !important;
 }
 
+/* Explicit protection for white text, badges, and welcome banner in cream theme */
+.theme-cream .text-white,
+.theme-cream .welcome-banner,
+.theme-cream .welcome-banner h1,
+.theme-cream .welcome-banner h2,
+.theme-cream .welcome-banner h3,
+.theme-cream .welcome-banner h4,
+.theme-cream .welcome-banner p,
+.theme-cream .welcome-banner span,
+.theme-cream .welcome-banner div {
+  color: #FFFFFF !important;
+}
+
+.theme-cream .welcome-banner .text-emerald-400,
+.theme-cream .welcome-banner .text-emerald-300 {
+  color: #34D399 !important;
+}
+
+.theme-cream .welcome-banner .text-white\/50,
+.theme-cream .welcome-banner .text-slate-200,
+.theme-cream .welcome-banner .text-slate-300,
+.theme-cream .welcome-banner .text-slate-400 {
+  color: #CBD5E1 !important;
+}
+
+.theme-cream .welcome-banner .text-purple-400 {
+  color: #C084FC !important;
+}
+
+.theme-cream .welcome-banner .text-blue-400 {
+  color: #60A5FA !important;
+}
+
 /* --- Slate Theme --- */
 .theme-slate {
   --surface-sidebar: linear-gradient(180deg, #0F172A 0%, #1E293B 100%);
