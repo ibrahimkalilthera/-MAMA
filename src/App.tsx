@@ -91,7 +91,12 @@ import {
   UserCheck,
   Link as LinkIcon,
   Unlink,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Sun,
+  Utensils,
+  Landmark,
+  Award,
+  Wrench
 } from 'lucide-react';
 
 // --- Types ---
@@ -185,7 +190,7 @@ interface Expense {
 interface VendorExpense {
   id: string;
   vendorName: string;
-  category: 'stationery' | 'furniture' | 'insurance' | 'exams' | 'internet' | 'electricity' | 'water' | 'cleaning' | 'social_cases';
+  category: 'stationery' | 'solar_energy' | 'electricity' | 'water' | 'taxes' | 'insurance' | 'catering' | 'training' | 'social_events' | 'exams' | 'internet' | 'cleaning' | 'furniture' | 'social_cases' | string;
   amount: number;
   dueDate: string;
   paymentStatus: 'paid' | 'unpaid' | 'partial';
@@ -371,14 +376,19 @@ const translations = {
     amountPaid: "Amount Paid",
     overdueWarning: "Overdue unpaid expenses shown in bright red",
     stationery: "Supplies & Stationery",
+    solar_energy: "Solar Panels & Batteries",
+    electricity: "EDM-SA Electricity",
+    water: "Borehole Maintenance & Water",
+    taxes: "Taxes & Fiscal Duties",
     insurance: "Insurance",
+    catering: "Catering & Meals",
+    training: "Staff Training & Workshops",
+    social_events: "Social Events & Ceremonies",
     exams: "National Exams (DEF & BAC)",
     exam_def: "DEF Exam (Grade 9)",
     exam_bac: "BAC Exam (Terminale)",
     furniture: "Furniture & Equipment",
     internet: "Internet Providers",
-    electricity: "EDM-SA Electricity",
-    water: "SOMAGEP Water",
     cleaning: "Cleaning & Maintenance",
     social_cases: "Cas Sociaux",
     prise_en_charge: "Tuition Waiver",
@@ -648,14 +658,19 @@ const translations = {
     amountPaid: "Montant Payé",
     overdueWarning: "Les dépenses impayées en retard sont affichées en rouge vif",
     stationery: "Fournitures & Papeterie",
+    solar_energy: "Panneaux Solaires & Batteries",
+    electricity: "Électricité EDM-SA",
+    water: "Entretien de forage",
+    taxes: "Impôts & Taxes",
     insurance: "Assurances",
+    catering: "Restauration & Cantine",
+    training: "Volet Formation",
+    social_events: "Événements Sociaux",
     exams: "Examens Nationaux (DEF & BAC)",
     exam_def: "Examen DEF (9ème Année)",
     exam_bac: "Examen BAC (Terminale)",
     furniture: "Mobilier & Équipements",
     internet: "Fournisseurs d'accès Internet",
-    electricity: "Électricité EDM-SA",
-    water: "Eau SOMAGEP",
     cleaning: "Entretien & Nettoyage",
     social_cases: "Cas Sociaux & Aides",
     prise_en_charge: "Prise en charge Scolarité",
@@ -5592,10 +5607,15 @@ export default function App() {
                           >
                             <option value="all">{lang === 'en' ? "All Categories" : "Toutes catégories"}</option>
                             <option value="stationery">{t.stationery}</option>
-                            <option value="insurance">{t.insurance}</option>
-                            <option value="exams">{t.exams}</option>
+                            <option value="solar_energy">{t.solar_energy}</option>
                             <option value="electricity">{t.electricity}</option>
                             <option value="water">{t.water}</option>
+                            <option value="taxes">{t.taxes}</option>
+                            <option value="insurance">{t.insurance}</option>
+                            <option value="catering">{t.catering}</option>
+                            <option value="training">{t.training}</option>
+                            <option value="social_events">{t.social_events}</option>
+                            <option value="exams">{t.exams}</option>
                             <option value="internet">{t.internet}</option>
                             <option value="cleaning">{t.cleaning}</option>
                             <option value="furniture">{t.furniture}</option>
@@ -5651,13 +5671,18 @@ export default function App() {
                                 const categoryIcon = (() => {
                                   switch (v.category) {
                                     case 'stationery': return <BookOpen size={14} className="text-purple-500" />;
-                                    case 'furniture': return <FileText size={14} className="text-amber-500" />;
-                                    case 'insurance': return <ShieldCheck size={14} className="text-blue-500" />;
-                                    case 'exams': return <GraduationCap size={14} className="text-indigo-600" />;
-                                    case 'internet': return <Wifi size={14} className="text-cyan-500" />;
+                                    case 'solar_energy': return <Sun size={14} className="text-amber-500" />;
                                     case 'electricity': return <Zap size={14} className="text-yellow-500" />;
                                     case 'water': return <Droplet size={14} className="text-sky-500" />;
-                                    case 'cleaning': return <Sparkles size={14} className="text-emerald-500" />;
+                                    case 'taxes': return <Landmark size={14} className="text-rose-500" />;
+                                    case 'insurance': return <ShieldCheck size={14} className="text-blue-500" />;
+                                    case 'catering': return <Utensils size={14} className="text-orange-500" />;
+                                    case 'training': return <Award size={14} className="text-emerald-500" />;
+                                    case 'social_events': return <Sparkles size={14} className="text-pink-500" />;
+                                    case 'exams': return <GraduationCap size={14} className="text-indigo-600" />;
+                                    case 'internet': return <Wifi size={14} className="text-cyan-500" />;
+                                    case 'cleaning': return <Wrench size={14} className="text-slate-500" />;
+                                    case 'furniture': return <FileText size={14} className="text-amber-600" />;
                                     case 'social_cases': return <Heart size={14} className="text-rose-500 fill-rose-500/10" />;
                                     default: return <Receipt size={14} className="text-slate-500" />;
                                   }
@@ -7511,10 +7536,15 @@ export default function App() {
                       className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
                     >
                       <option value="stationery">{t.stationery}</option>
-                      <option value="insurance">{t.insurance}</option>
-                      <option value="exams">{t.exams}</option>
+                      <option value="solar_energy">{t.solar_energy}</option>
                       <option value="electricity">{t.electricity}</option>
                       <option value="water">{t.water}</option>
+                      <option value="taxes">{t.taxes}</option>
+                      <option value="insurance">{t.insurance}</option>
+                      <option value="catering">{t.catering}</option>
+                      <option value="training">{t.training}</option>
+                      <option value="social_events">{t.social_events}</option>
+                      <option value="exams">{t.exams}</option>
                       <option value="internet">{t.internet}</option>
                       <option value="cleaning">{t.cleaning}</option>
                       <option value="furniture">{t.furniture}</option>

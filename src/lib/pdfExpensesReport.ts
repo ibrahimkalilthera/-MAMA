@@ -23,14 +23,19 @@ const CATEGORY_LABELS_FR: Record<string, string> = {
   Other: 'Autres charges',
   Autre: 'Autres charges',
   stationery: 'Fournitures & Papeterie',
+  solar_energy: 'Panneaux Solaires & Batteries',
+  electricity: 'Électricité EDM-SA',
+  water: 'Entretien de forage',
+  taxes: 'Impôts & Taxes',
   insurance: 'Assurances',
+  catering: 'Restauration & Cantine',
+  training: 'Volet Formation',
+  social_events: 'Événements Sociaux',
   exams: 'Examens Nationaux (DEF & BAC)',
   exam_def: 'Examen DEF (9ème Année)',
   exam_bac: 'Examen BAC (Terminale)',
   furniture: 'Mobilier & Équipements',
   internet: 'Internet & Télécoms',
-  electricity: 'Électricité EDM-SA',
-  water: 'Eau SOMAGEP',
   cleaning: 'Entretien & Nettoyage',
   social_cases: 'Cas Sociaux & Aides',
 };
@@ -46,14 +51,19 @@ const CATEGORY_LABELS_EN: Record<string, string> = {
   Other: 'Other Expenses',
   Autre: 'Other Expenses',
   stationery: 'Supplies & Stationery',
+  solar_energy: 'Solar Panels & Batteries',
+  electricity: 'EDM-SA Electricity',
+  water: 'Borehole Maintenance & Water',
+  taxes: 'Taxes & Fiscal Duties',
   insurance: 'Insurance',
+  catering: 'Catering & Meals',
+  training: 'Staff Training & Workshops',
+  social_events: 'Social Events & Ceremonies',
   exams: 'National Exams (DEF & BAC)',
   exam_def: 'DEF Examination (Grade 9)',
   exam_bac: 'BAC Examination (Terminale)',
   furniture: 'Furniture & Equipment',
   internet: 'Internet Providers',
-  electricity: 'EDM-SA Electricity',
-  water: 'SOMAGEP Water',
   cleaning: 'Cleaning Services',
   social_cases: 'Welfare / Social Cases',
 };
@@ -69,8 +79,15 @@ function matchesCategory(expenseCategory: string, filterCategory: string): boole
 
   if ((c2 === 'supplies' || c2 === 'fournitures' || c2 === 'stationery') && (c1 === 'supplies' || c1 === 'fournitures' || c1 === 'stationery')) return true;
   if ((c2 === 'insurance' || c2 === 'assurances' || c2 === 'assurance') && (c1 === 'insurance' || c1 === 'assurances' || c1 === 'assurance')) return true;
+  if ((c2 === 'taxes' || c2 === 'impots' || c2 === 'impôts' || c2 === 'fisc') && (c1 === 'taxes' || c1.includes('impot') || c1.includes('impôt') || c1.includes('taxe') || c1.includes('fisc'))) return true;
+  if ((c2 === 'solar_energy' || c2 === 'panneaux' || c2 === 'batteries' || c2 === 'solaire') && (c1 === 'solar_energy' || c1.includes('solar') || c1.includes('panneau') || c1.includes('batteri') || c1.includes('solair'))) return true;
+  if ((c2 === 'catering' || c2 === 'restauration' || c2 === 'cantine' || c2 === 'repas') && (c1 === 'catering' || c1.includes('restaur') || c1.includes('cantin') || c1.includes('repas') || c1.includes('cater'))) return true;
+  if ((c2 === 'training' || c2 === 'formation' || c2 === 'atelier') && (c1 === 'training' || c1.includes('format') || c1.includes('train') || c1.includes('atelier') || c1.includes('seminair'))) return true;
+  if ((c2 === 'social_events' || c2 === 'evenements' || c2 === 'événements' || c2 === 'ceremonie' || c2 === 'fete') && (c1 === 'social_events' || c1.includes('even') || c1.includes('évén') || c1.includes('fete') || c1.includes('fête') || c1.includes('ceremon'))) return true;
   if ((c2 === 'exams' || c2 === 'examens' || c2 === 'def' || c2 === 'bac' || c2 === 'exam_def' || c2 === 'exam_bac') && (c1 === 'exams' || c1.includes('exam') || c1.includes('def') || c1.includes('bac'))) return true;
-  if ((c2 === 'utilities' || c2 === 'services publics' || c2 === 'electricity' || c2 === 'water') && (c1 === 'utilities' || c1 === 'services publics' || c1 === 'electricity' || c1 === 'water')) return true;
+  if ((c2 === 'water' || c2 === 'forage' || c2 === 'eau' || c2 === 'pompage') && (c1 === 'water' || c1.includes('forage') || c1.includes('eau') || c1.includes('somagep') || c1.includes('pomp'))) return true;
+  if ((c2 === 'electricity' || c2 === 'electricite' || c2 === 'électricité' || c2 === 'edm') && (c1 === 'electricity' || c1.includes('electr') || c1.includes('électr') || c1.includes('edm'))) return true;
+  if ((c2 === 'utilities' || c2 === 'services publics') && (c1 === 'utilities' || c1 === 'services publics' || c1 === 'electricity' || c1 === 'water')) return true;
   if ((c2 === 'maintenance' || c2 === 'entretien' || c2 === 'cleaning') && (c1 === 'maintenance' || c1 === 'entretien' || c1 === 'cleaning')) return true;
   if ((c2 === 'other' || c2 === 'autre') && (c1 === 'other' || c1 === 'autre')) return true;
   if (c2 === 'social_cases' && (c1 === 'social_cases' || c1.includes('social') || c1.includes('aide'))) return true;
