@@ -1540,6 +1540,8 @@ export default function App() {
   const [showVendorExpenseModal, setShowVendorExpenseModal] = useState(false);
   const [showSalaryModal, setShowSalaryModal] = useState(false);
   const [vendorExpensesTab, setVendorExpensesTab] = useState<'general' | 'vendors'>('general');
+  const [generalExpenseCategoryFilter, setGeneralExpenseCategoryFilter] = useState<string>('all');
+  const [generalExpenseSearch, setGeneralExpenseSearch] = useState<string>('');
   const [vendorSearch, setVendorSearch] = useState('');
   const [vendorCategoryFilter, setVendorCategoryFilter] = useState<string>('all');
   const [vendorStatusFilter, setVendorStatusFilter] = useState<string>('all');
@@ -5431,6 +5433,16 @@ export default function App() {
                     {lang === 'en' 
                       ? `EXPENSES & OPERATING OUTFLOWS REPORT — ${selectedYear} (${vendorExpensesTab === 'general' ? 'General Expenses' : 'Vendors & Services'})` 
                       : `RAPPORT DES DÉPENSES & CHARGES — ${selectedYear} (${vendorExpensesTab === 'general' ? 'Dépenses Générales' : 'Fournisseurs & Services'})`}
+                    {vendorExpensesTab === 'general' && generalExpenseCategoryFilter !== 'all' && (
+                      <span className="ml-2 px-2 py-0.5 bg-white/20 rounded font-bold">
+                        [{lang === 'en' ? `Category: ${generalExpenseCategoryFilter}` : `Catégorie : ${generalExpenseCategoryFilter}`}]
+                      </span>
+                    )}
+                    {vendorExpensesTab === 'vendors' && vendorCategoryFilter !== 'all' && (
+                      <span className="ml-2 px-2 py-0.5 bg-white/20 rounded font-bold">
+                        [{lang === 'en' ? `Category: ${vendorCategoryFilter}` : `Catégorie : ${vendorCategoryFilter}`}]
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className="text-right text-xs opacity-90">
@@ -5467,10 +5479,12 @@ export default function App() {
                         vendorExpenses,
                         selectedYear,
                         subTab: 'general',
+                        selectedCategory: generalExpenseCategoryFilter,
+                        searchQuery: generalExpenseSearch,
                         lang,
                       })}
                       className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
-                      title={lang === 'en' ? 'Download Expenses PDF Report' : 'Télécharger le Rapport des Dépenses en PDF'}
+                      title={lang === 'en' ? 'Download Expenses PDF Report (Filtered)' : 'Télécharger le Rapport des Dépenses en PDF (Filtré)'}
                     >
                       <FileText size={16} />
                       <span>{lang === 'en' ? 'Export PDF' : 'Exporter PDF'}</span>
@@ -5527,9 +5541,42 @@ export default function App() {
                         </div>
                       </div>
 
+                      {/* Search & Category Filter for General Expenses */}
+                      <div className={`${currentTheme.card} p-6 rounded-3xl border ${currentTheme.border} shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between no-print`}>
+                        <div className="relative w-full md:w-80">
+                          <Search size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
+                          <input 
+                            type="text" 
+                            placeholder={lang === 'en' ? "Search general expenses..." : "Rechercher dépenses..."}
+                            value={generalExpenseSearch}
+                            onChange={(e) => setGeneralExpenseSearch(e.target.value)}
+                            className={`w-full pl-11 pr-4 py-3 rounded-xl border text-sm focus:outline-none ${currentTheme.input}`}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                          <span className={`text-xs ${currentTheme.muted}`}>{t.category}:</span>
+                          <select 
+                            value={generalExpenseCategoryFilter}
+                            onChange={(e) => setGeneralExpenseCategoryFilter(e.target.value)}
+                            className={`px-3 py-2 rounded-xl border text-xs focus:outline-none ${currentTheme.input}`}
+                          >
+                            <option value="all">{lang === 'en' ? "All Categories" : "Toutes catégories"}</option>
+                            <option value="Supplies">{t.supplies}</option>
+                            <option value="Utilities">{t.utilities}</option>
+                            <option value="Maintenance">{t.maintenance}</option>
+                            <option value="Other">{t.other}</option>
+                          </select>
+                        </div>
+                      </div>
+
                       <div className={`${currentTheme.card} rounded-[2rem] border ${currentTheme.border} shadow-xl overflow-hidden`}>
-                        <div className={`p-8 border-b ${currentTheme.border}`}>
+                        <div className={`p-8 border-b ${currentTheme.border} flex justify-between items-center`}>
                           <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{t.expenseLog}</h3>
+                          {generalExpenseCategoryFilter !== 'all' && (
+                            <span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-full text-xs font-bold">
+                              {generalExpenseCategoryFilter === 'Supplies' ? t.supplies : (generalExpenseCategoryFilter === 'Utilities' ? t.utilities : (generalExpenseCategoryFilter === 'Maintenance' ? t.maintenance : generalExpenseCategoryFilter))}
+                            </span>
+                          )}
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse">
@@ -5542,8 +5589,36 @@ export default function App() {
                               </tr>
                             </thead>
                             <tbody className={`divide-y ${currentTheme.border}`}>
-                              {academicYearExpenses.length > 0 ? (
-                                academicYearExpenses.map(e => (
+                              {(() => {
+                                const filteredList = academicYearExpenses.filter(e => {
+                                  if (generalExpenseCategoryFilter !== 'all') {
+                                    const c1 = e.category.trim().toLowerCase();
+                                    const c2 = generalExpenseCategoryFilter.trim().toLowerCase();
+                                    if (c1 !== c2) {
+                                      if ((c2 === 'supplies' || c2 === 'fournitures') && c1 !== 'supplies' && c1 !== 'fournitures') return false;
+                                      if ((c2 === 'utilities' || c2 === 'services publics') && c1 !== 'utilities' && c1 !== 'services publics') return false;
+                                      if ((c2 === 'maintenance' || c2 === 'entretien') && c1 !== 'maintenance' && c1 !== 'entretien') return false;
+                                      if ((c2 === 'other' || c2 === 'autre') && c1 !== 'other' && c1 !== 'autre') return false;
+                                    }
+                                  }
+                                  if (generalExpenseSearch) {
+                                    const q = generalExpenseSearch.toLowerCase();
+                                    if (!e.description.toLowerCase().includes(q) && !e.category.toLowerCase().includes(q)) return false;
+                                  }
+                                  return true;
+                                });
+
+                                if (filteredList.length === 0) {
+                                  return (
+                                    <tr>
+                                      <td colSpan={4} className="px-8 py-12 text-center text-slate-400 italic">
+                                        {lang === 'en' ? 'No expenses match the selected filter' : 'Aucune dépense ne correspond au filtre sélectionné'}
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+
+                                return filteredList.map(e => (
                                   <tr key={e.id} className={`${currentTheme.rowHover} transition-all`}>
                                     <td className="px-8 py-6">
                                       <span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-full text-[10px] font-black uppercase tracking-widest">
@@ -5567,14 +5642,8 @@ export default function App() {
                                       <span className="text-sm font-black text-rose-600">{formatCurrency(e.amount)}</span>
                                     </td>
                                   </tr>
-                                ))
-                              ) : (
-                                <tr>
-                                  <td colSpan={4} className="px-8 py-12 text-center text-slate-400 italic">
-                                    {lang === 'en' ? 'No expenses recorded for this academic year' : 'Aucune dépense enregistrée pour cette année scolaire'}
-                                  </td>
-                                </tr>
-                              )}
+                                ));
+                              })()}
                             </tbody>
                           </table>
                         </div>
@@ -5622,10 +5691,13 @@ export default function App() {
                               vendorExpenses,
                               selectedYear,
                               subTab: 'vendors',
+                              selectedCategory: vendorCategoryFilter,
+                              selectedStatus: vendorStatusFilter,
+                              searchQuery: vendorSearch,
                               lang,
                             })}
                             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
-                            title={lang === 'en' ? 'Download Vendor Expenses PDF Report' : 'Télécharger le Rapport Fournisseurs en PDF'}
+                            title={lang === 'en' ? 'Download Vendor Expenses PDF Report (Filtered)' : 'Télécharger le Rapport Fournisseurs en PDF (Filtré)'}
                           >
                             <FileText size={16} />
                             <span>{lang === 'en' ? 'Export PDF' : 'Exporter PDF'}</span>
