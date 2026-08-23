@@ -43,7 +43,7 @@ const CATEGORY_LABELS_FR: Record<string, string> = {
   furniture: 'Mobilier & Équipements',
   internet: 'Internet & Télécoms',
   cleaning: 'Nettoyage & Propreté',
-  social_cases: 'Cas Sociaux & Aides',
+  social_cases: 'Cas Sociaux & Aides Liés aux Élèves',
 };
 
 const CATEGORY_LABELS_EN: Record<string, string> = {
@@ -77,7 +77,7 @@ const CATEGORY_LABELS_EN: Record<string, string> = {
   furniture: 'Furniture & Equipment',
   internet: 'Internet Providers',
   cleaning: 'Cleaning Services',
-  social_cases: 'Welfare / Social Cases',
+  social_cases: 'Student Welfare & Social Aid',
 };
 
 /**
@@ -109,7 +109,7 @@ function matchesCategory(expenseCategory: string, filterCategory: string): boole
   if ((c2 === 'utilities' || c2 === 'services publics') && (c1 === 'utilities' || c1 === 'services publics' || c1 === 'electricity' || c1 === 'water')) return true;
   if ((c2 === 'maintenance' || c2 === 'entretien' || c2 === 'cleaning') && (c1 === 'maintenance' || c1 === 'entretien' || c1 === 'cleaning' || c1 === 'facility_maintenance')) return true;
   if ((c2 === 'other' || c2 === 'autre') && (c1 === 'other' || c1 === 'autre')) return true;
-  if (c2 === 'social_cases' && (c1 === 'social_cases' || c1.includes('social') || c1.includes('aide'))) return true;
+  if (c2 === 'social_cases' && (c1 === 'social_cases' || c1.includes('social') || c1.includes('aide') || c1.includes('eleve') || c1.includes('élève') || c1.includes('welfare'))) return true;
 
   return false;
 }

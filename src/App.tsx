@@ -399,7 +399,7 @@ const translations = {
     furniture: "Furniture & Equipment",
     internet: "Internet Providers",
     cleaning: "Cleaning & Maintenance",
-    social_cases: "Cas Sociaux",
+    social_cases: "Student Welfare & Social Aid",
     prise_en_charge: "Tuition Waiver",
     kits_fournitures: "Supplies Support",
     aide_urgence: "Emergency Aid",
@@ -686,7 +686,7 @@ const translations = {
     furniture: "Mobilier & Équipements",
     internet: "Fournisseurs d'accès Internet",
     cleaning: "Entretien & Nettoyage",
-    social_cases: "Cas Sociaux & Aides",
+    social_cases: "Cas Sociaux & Aides Liés aux Élèves",
     prise_en_charge: "Prise en charge Scolarité",
     kits_fournitures: "Kits Scolaires & Fournitures",
     aide_urgence: "Aide d'Urgence",
@@ -7596,7 +7596,7 @@ export default function App() {
                   <div className={`p-6 ${currentTheme.isDark ? 'bg-rose-950/10' : 'bg-rose-50/40'} border ${currentTheme.isDark ? 'border-rose-950/30' : 'border-rose-100'} rounded-3xl space-y-4`}>
                     <p className="text-xs font-black uppercase tracking-widest text-rose-500 flex items-center gap-2">
                       <Heart size={14} className="text-rose-500 fill-rose-500/10" />
-                      {lang === 'en' ? 'Welfare Support Details' : 'Détails de l\'aide sociale (Cas Sociaux)'}
+                      {lang === 'en' ? 'Student Welfare & Social Aid Details' : 'Détails des Cas Sociaux & Aides Liés aux Élèves'}
                     </p>
                     
                     {/* Aid Type Dropdown */}
