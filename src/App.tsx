@@ -8747,11 +8747,11 @@ export default function App() {
                   <span className="text-lg font-black text-slate-800">{formatCurrency(printStudentFile.totalDue)}</span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Paid Tuition</span>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Paid Tuition' : 'Scolarité Payée'}</span>
                   <span className="text-lg font-black text-emerald-600">+{formatCurrency(printStudentFile.amountPaid)}</span>
                 </div>
                 <div className="bg-rose-50 p-4 rounded-xl border border-rose-100">
-                  <span className="text-[10px] font-bold text-rose-500 block uppercase">Remaining Balance</span>
+                  <span className="text-[10px] font-bold text-rose-500 block uppercase">{lang === 'en' ? 'Remaining Balance' : 'Solde Restant Dû'}</span>
                   <span className="text-lg font-black text-rose-600">{formatCurrency(printStudentFile.totalDue - printStudentFile.amountPaid)}</span>
                 </div>
               </div>
@@ -8760,35 +8760,35 @@ export default function App() {
             {/* Parent & Emergency Info */}
             <div className="grid grid-cols-2 gap-6">
               <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">Primary Guardian</h3>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{lang === 'en' ? 'Primary Guardian' : 'Tuteur Principal'}</h3>
                 <div className="space-y-1.5 text-xs">
-                  <p><strong className="text-slate-400">Name:</strong> <span className="font-bold text-slate-800">{printStudentFile.parentName}</span></p>
-                  <p><strong className="text-slate-400">Phone:</strong> <span className="font-semibold text-slate-800">{printStudentFile.parentPhone}</span></p>
-                  <p><strong className="text-slate-400">Email:</strong> <span className="font-semibold text-blue-600">{printStudentFile.parentEmail}</span></p>
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Name:' : 'Nom :'}</strong> <span className="font-bold text-slate-800">{printStudentFile.parentName}</span></p>
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Phone:' : 'Téléphone :'}</strong> <span className="font-semibold text-slate-800">{printStudentFile.parentPhone}</span></p>
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Email:' : 'Email :'}</strong> <span className="font-semibold text-blue-600">{printStudentFile.parentEmail}</span></p>
                 </div>
               </div>
 
               <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
-                <h3 className="text-xs font-black uppercase tracking-widest text-rose-500 border-b pb-2">Emergency Contact</h3>
+                <h3 className="text-xs font-black uppercase tracking-widest text-rose-500 border-b pb-2">{lang === 'en' ? 'Emergency Contact' : 'Contact d\'Urgence'}</h3>
                 <div className="space-y-1.5 text-xs">
-                  <p><strong className="text-slate-400">Contact Person:</strong> <span className="font-bold text-slate-800">{printStudentFile.emergencyContactName || 'N/A'}</span></p>
-                  <p><strong className="text-slate-400">Relationship:</strong> <span className="font-semibold text-slate-800">{printStudentFile.emergencyContactRelation || 'N/A'}</span></p>
-                  <p><strong className="text-slate-400">Phone Number:</strong> <span className="font-black text-rose-600">{printStudentFile.emergencyContactPhone || 'N/A'}</span></p>
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Contact Person:' : 'Nom du Contact :'}</strong> <span className="font-bold text-slate-800">{printStudentFile.emergencyContactName || 'N/A'}</span></p>
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Relationship:' : 'Lien de Parenté :'}</strong> <span className="font-semibold text-slate-800">{printStudentFile.emergencyContactRelation || 'N/A'}</span></p>
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Phone Number:' : 'Téléphone :'}</strong> <span className="font-black text-rose-600">{printStudentFile.emergencyContactPhone || 'N/A'}</span></p>
                 </div>
               </div>
             </div>
 
             {/* History & Medical Records */}
             <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">Medical & History File</h3>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{lang === 'en' ? 'Medical & History File' : 'Fiche Médicale & Historique'}</h3>
               <div className="grid grid-cols-2 gap-6 text-xs">
                 <div>
-                  <span className="font-bold text-slate-400 block uppercase">Previous School Transfer History</span>
-                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.previousSchool || 'None / Direct Admission Entry'}</p>
+                  <span className="font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Previous School Transfer History' : 'École Précédente / Provenance'}</span>
+                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.previousSchool || (lang === 'en' ? 'None / Direct Admission Entry' : 'Aucune / Inscription Directe')}</p>
                 </div>
                 <div>
-                  <span className="font-bold text-slate-400 block uppercase">Allergies, Medical Notes & Conditions</span>
-                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.medicalNotes || 'None / Clear profile'}</p>
+                  <span className="font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Allergies, Medical Notes & Conditions' : 'Allergies, Notes Médicales & Conditions'}</span>
+                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.medicalNotes || (lang === 'en' ? 'None / Clear profile' : 'Aucune / Profil Vierge')}</p>
                 </div>
               </div>
             </div>
