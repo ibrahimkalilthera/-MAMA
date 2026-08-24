@@ -942,7 +942,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
         const chunk = rows.slice(i, i + BATCH_SIZE);
-        const { data, error } = await supabase.from(table).insert(chunk).select();
+        const { data, error } = await supabase.from(table as any).insert(chunk as any).select();
         if (error) {
           console.error(`[MAMA THERA] batchImport ${table} error:`, error.message);
           err += chunk.length;

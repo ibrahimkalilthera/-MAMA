@@ -5812,7 +5812,7 @@ export default function App() {
                                               ? `Are you sure you want to delete this expense for "${v.vendorName}"?`
                                               : `Êtes-vous sûr de vouloir supprimer cette dépense pour "${v.vendorName}" ?`;
                                             if (confirm(confirmMsg)) {
-                                              deleteVendorExpense(v.id);
+                                              handleDeleteVendorExpense(v.id);
                                             }
                                           }}
                                           className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
@@ -7087,15 +7087,15 @@ export default function App() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>Enrollment Status</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Enrollment Status' : 'Statut d\'Inscription'}</label>
                     <select 
                       value={studentForm.status}
                       onChange={(e) => setStudentForm({ ...studentForm, status: e.target.value as any })}
                       className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                     >
-                      <option value="Active">Active</option>
-                      <option value="Graduated">Graduated</option>
-                      <option value="Left">Left</option>
+                      <option value="Active">{lang === 'en' ? 'Active' : 'Actif'}</option>
+                      <option value="Graduated">{lang === 'en' ? 'Graduated' : 'Diplômé'}</option>
+                      <option value="Left">{lang === 'en' ? 'Left' : 'Parti / Transféré'}</option>
                     </select>
                   </div>
                 </div>
@@ -7151,37 +7151,45 @@ export default function App() {
 
                 {/* --- Emergency Contact Fields --- */}
                 <div className={`p-6 ${currentTheme.isDark ? 'bg-slate-900/50' : 'bg-slate-50'} rounded-3xl border ${currentTheme.border} space-y-4`}>
-                  <h4 className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>Emergency Contact (Urgence)</h4>
+                  <h4 className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                    {lang === 'en' ? 'Emergency Contact' : 'Contact d\'Urgence'}
+                  </h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>Contact Name</label>
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Contact Name' : 'Nom du Contact'}
+                      </label>
                       <input 
                         type="text" 
                         value={studentForm.emergencyContactName}
                         onChange={(e) => setStudentForm({ ...studentForm, emergencyContactName: e.target.value })}
                         className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
-                        placeholder="Emergency contact name"
+                        placeholder={lang === 'en' ? 'Emergency contact name' : 'Nom complet du contact d\'urgence'}
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>Relation</label>
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Relation' : 'Lien de Parenté'}
+                      </label>
                       <input 
                         type="text" 
                         value={studentForm.emergencyContactRelation}
                         onChange={(e) => setStudentForm({ ...studentForm, emergencyContactRelation: e.target.value })}
                         className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
-                        placeholder="Uncle, Aunt, Parent, etc."
+                        placeholder={lang === 'en' ? 'Uncle, Aunt, Parent, etc.' : 'Oncle, Tante, Parent, etc.'}
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>Emergency Phone</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Emergency Phone' : 'Téléphone d\'Urgence'}
+                    </label>
                     <input 
                       type="tel" 
                       value={studentForm.emergencyContactPhone}
                       onChange={(e) => setStudentForm({ ...studentForm, emergencyContactPhone: e.target.value })}
                       className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
-                      placeholder="Emergency contact phone"
+                      placeholder={lang === 'en' ? 'Emergency contact phone' : 'Numéro de téléphone d\'urgence'}
                     />
                   </div>
                 </div>
@@ -7189,7 +7197,9 @@ export default function App() {
                 {/* --- History & Medical notes --- */}
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>Enrollment Date</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Enrollment Date' : 'Date d\'Inscription'}
+                    </label>
                     <input 
                       type="date" 
                       value={studentForm.enrollmentDate}
@@ -7198,24 +7208,28 @@ export default function App() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>Previous School</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Previous School' : 'École Précédente'}
+                    </label>
                     <input 
                       type="text" 
                       value={studentForm.previousSchool}
                       onChange={(e) => setStudentForm({ ...studentForm, previousSchool: e.target.value })}
                       className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                      placeholder="Transfer history school name"
+                      placeholder={lang === 'en' ? 'Transfer history school name' : 'Nom de l\'école de provenance'}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>Medical Notes (Allergies / Conditions)</label>
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                    {lang === 'en' ? 'Medical Notes (Allergies / Conditions)' : 'Notes Médicales (Allergies / Conditions)'}
+                  </label>
                   <textarea 
                     value={studentForm.medicalNotes}
                     onChange={(e) => setStudentForm({ ...studentForm, medicalNotes: e.target.value })}
                     className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} min-h-[100px]`}
-                    placeholder="Allergies, conditions, or None..."
+                    placeholder={lang === 'en' ? 'Allergies, conditions, or None...' : 'Allergies, conditions médicales ou Aucune...'}
                   />
                 </div>
 
