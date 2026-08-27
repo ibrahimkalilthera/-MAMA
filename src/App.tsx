@@ -2491,9 +2491,9 @@ export default function App() {
       return;
     }
     
-    // Validation
+    // Validation: Email is optional, but if provided, must be valid
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(studentForm.parentEmail)) {
+    if (studentForm.parentEmail && studentForm.parentEmail.trim() && !emailRegex.test(studentForm.parentEmail.trim())) {
       alert(t.invalidEmail);
       return;
     }
@@ -4636,7 +4636,7 @@ export default function App() {
                             <span className={`text-sm ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-600'} font-semibold`}>
                               <HighlightText text={student.parentName} highlight={searchTerm} />
                             </span>
-                            <span className={`text-xs ${currentTheme.muted}`}>{student.parentEmail}</span>
+                            <span className={`text-xs ${currentTheme.muted}`}>{student.parentEmail || student.parentPhone || '—'}</span>
                           </div>
                         </td>
                         <td className={`px-8 py-6 text-sm font-bold ${currentTheme.muted}`}>
@@ -7155,15 +7155,19 @@ export default function App() {
                           <div className="col-span-2 border-t border-slate-100 pt-2 flex justify-between items-center">
                             <div>
                               <span className={currentTheme.muted}>{t.email}</span>
-                              <p className="font-semibold text-blue-600">{selectedStudent.parentEmail}</p>
+                              <p className={`font-semibold ${selectedStudent.parentEmail ? 'text-blue-600' : 'text-slate-400 italic text-xs'}`}>
+                                {selectedStudent.parentEmail || (lang === 'en' ? 'Not provided' : 'Non renseigné')}
+                              </p>
                             </div>
-                            <button
-                              onClick={() => copyToClipboard(selectedStudent.parentEmail)}
-                              className="p-2 hover:bg-blue-50 text-blue-500 rounded-lg transition-all"
-                              title={t.copyEmail}
-                            >
-                              <Copy size={14} />
-                            </button>
+                            {selectedStudent.parentEmail && (
+                              <button 
+                                onClick={() => copyToClipboard(selectedStudent.parentEmail)}
+                                className="p-2 hover:bg-blue-50 text-blue-500 rounded-lg transition-all"
+                                title={t.copyEmail}
+                              >
+                                <Copy size={14} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -7419,14 +7423,15 @@ export default function App() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.email}</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Parent Email (Optional)' : 'Email du Parent (Optionnel)'}
+                    </label>
                     <input 
-                      required
                       type="email" 
                       value={studentForm.parentEmail}
                       onChange={(e) => setStudentForm({ ...studentForm, parentEmail: e.target.value })}
                       className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                      placeholder="parent@example.com"
+                      placeholder={lang === 'en' ? "parent@example.com (optional)" : "parent@example.com (optionnel)"}
                     />
                   </div>
                 </div>
