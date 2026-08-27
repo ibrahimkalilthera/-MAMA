@@ -38,6 +38,7 @@ import {
 import { 
   LayoutDashboard, 
   Users, 
+  Layers,
   CreditCard, 
   AlertCircle, 
   CheckCircle2, 
@@ -213,6 +214,49 @@ interface Todo {
   studentId?: string;
 }
 
+export interface SchoolClass {
+  id: string; // e.g. '1A', '1B', '1C', '2A', '2B', '2C', '7A', '7B', etc.
+  cycle: 'cycle1' | 'cycle2' | 'lycee' | 'maternelle' | 'other';
+  year: number | string;
+  section: string;
+  nameFr: string;
+  nameEn: string;
+  isCustom?: boolean;
+}
+
+export const DEFAULT_SCHOOL_CLASSES: SchoolClass[] = [
+  // --- Premier Cycle (1ère à 6ème Année — sections A, B, C) ---
+  { id: '1A', cycle: 'cycle1', year: 1, section: 'A', nameFr: '1ère Année A (1A)', nameEn: '1st Year A (1A)' },
+  { id: '1B', cycle: 'cycle1', year: 1, section: 'B', nameFr: '1ère Année B (1B)', nameEn: '1st Year B (1B)' },
+  { id: '1C', cycle: 'cycle1', year: 1, section: 'C', nameFr: '1ère Année C (1C)', nameEn: '1st Year C (1C)' },
+  { id: '2A', cycle: 'cycle1', year: 2, section: 'A', nameFr: '2ème Année A (2A)', nameEn: '2nd Year A (2A)' },
+  { id: '2B', cycle: 'cycle1', year: 2, section: 'B', nameFr: '2ème Année B (2B)', nameEn: '2nd Year B (2B)' },
+  { id: '2C', cycle: 'cycle1', year: 2, section: 'C', nameFr: '2ème Année C (2C)', nameEn: '2nd Year C (2C)' },
+  { id: '3A', cycle: 'cycle1', year: 3, section: 'A', nameFr: '3ème Année A (3A)', nameEn: '3rd Year A (3A)' },
+  { id: '3B', cycle: 'cycle1', year: 3, section: 'B', nameFr: '3ème Année B (3B)', nameEn: '3rd Year B (3B)' },
+  { id: '3C', cycle: 'cycle1', year: 3, section: 'C', nameFr: '3ème Année C (3C)', nameEn: '3rd Year C (3C)' },
+  { id: '4A', cycle: 'cycle1', year: 4, section: 'A', nameFr: '4ème Année A (4A)', nameEn: '4th Year A (4A)' },
+  { id: '4B', cycle: 'cycle1', year: 4, section: 'B', nameFr: '4ème Année B (4B)', nameEn: '4th Year B (4B)' },
+  { id: '4C', cycle: 'cycle1', year: 4, section: 'C', nameFr: '4ème Année C (4C)', nameEn: '4th Year C (4C)' },
+  { id: '5A', cycle: 'cycle1', year: 5, section: 'A', nameFr: '5ème Année A (5A)', nameEn: '5th Year A (5A)' },
+  { id: '5B', cycle: 'cycle1', year: 5, section: 'B', nameFr: '5ème Année B (5B)', nameEn: '5th Year B (5B)' },
+  { id: '5C', cycle: 'cycle1', year: 5, section: 'C', nameFr: '5ème Année C (5C)', nameEn: '5th Year C (5C)' },
+  { id: '6A', cycle: 'cycle1', year: 6, section: 'A', nameFr: '6ème Année A (6A)', nameEn: '6th Year A (6A)' },
+  { id: '6B', cycle: 'cycle1', year: 6, section: 'B', nameFr: '6ème Année B (6B)', nameEn: '6th Year B (6B)' },
+  { id: '6C', cycle: 'cycle1', year: 6, section: 'C', nameFr: '6ème Année C (6C)', nameEn: '6th Year C (6C)' },
+  
+  // --- Second Cycle (7ème à 9ème Année — sections A, B, C) ---
+  { id: '7A', cycle: 'cycle2', year: 7, section: 'A', nameFr: '7ème Année A (7A)', nameEn: '7th Year A (7A)' },
+  { id: '7B', cycle: 'cycle2', year: 7, section: 'B', nameFr: '7ème Année B (7B)', nameEn: '7th Year B (7B)' },
+  { id: '7C', cycle: 'cycle2', year: 7, section: 'C', nameFr: '7ème Année C (7C)', nameEn: '7th Year C (7C)' },
+  { id: '8A', cycle: 'cycle2', year: 8, section: 'A', nameFr: '8ème Année A (8A)', nameEn: '8th Year A (8A)' },
+  { id: '8B', cycle: 'cycle2', year: 8, section: 'B', nameFr: '8ème Année B (8B)', nameEn: '8th Year B (8B)' },
+  { id: '8C', cycle: 'cycle2', year: 8, section: 'C', nameFr: '8ème Année C (8C)', nameEn: '8th Year C (8C)' },
+  { id: '9A', cycle: 'cycle2', year: 9, section: 'A', nameFr: '9ème Année A (9A)', nameEn: '9th Year A (9A)' },
+  { id: '9B', cycle: 'cycle2', year: 9, section: 'B', nameFr: '9ème Année B (9B)', nameEn: '9th Year B (9B)' },
+  { id: '9C', cycle: 'cycle2', year: 9, section: 'C', nameFr: '9ème Année C (9C)', nameEn: '9th Year C (9C)' },
+];
+
 // --- Translations ---
 
 const translations = {
@@ -223,6 +267,15 @@ const translations = {
     students: "Student Management",
     parents: "Parent Directory",
     settings: "System Settings",
+    classesSettings: "Classes & Grade Levels",
+    addClass: "Add Class / Section",
+    allClasses: "All Classes",
+    filterByClass: "Filter by Class",
+    newClass: "New Class",
+    schoolCycle: "School Cycle",
+    gradeLevel: "Grade / Year Level",
+    sectionLetter: "Section (e.g., A, B, C, D)",
+    classNameOrCode: "Class Code / Name",
     totalOutstanding: "Total Outstanding",
     collectedMonth: "Collected This Month",
     lateParents: "Late Parents",
@@ -510,6 +563,15 @@ const translations = {
     students: "Gestion des Élèves",
     parents: "Annuaire des Parents",
     settings: "Paramètres Système",
+    classesSettings: "Classes & Niveaux Scolaires",
+    addClass: "Ajouter une Classe / Section",
+    allClasses: "Toutes les classes",
+    filterByClass: "Filtrer par classe",
+    newClass: "Nouvelle Classe",
+    schoolCycle: "Cycle Scolaire",
+    gradeLevel: "Niveau / Année",
+    sectionLetter: "Section (ex. A, B, C, D)",
+    classNameOrCode: "Code / Nom de la classe",
     totalOutstanding: "Total Impayé",
     collectedMonth: "Collecté ce Mois",
     lateParents: "Parents en Retard",
@@ -1536,6 +1598,34 @@ export default function App() {
   const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
 
+  // Classes & Sections Management
+  const [availableClasses, setAvailableClasses] = useState<SchoolClass[]>(() => {
+    try {
+      const saved = localStorage.getItem('mama_thera_classes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to load custom classes:', e);
+    }
+    return DEFAULT_SCHOOL_CLASSES;
+  });
+
+  const [studentGradeFilter, setStudentGradeFilter] = useState<string>('all');
+  const [showAddClassModal, setShowAddClassModal] = useState<boolean>(false);
+  const [newClassForm, setNewClassForm] = useState<{
+    cycle: 'cycle1' | 'cycle2' | 'lycee' | 'maternelle' | 'other';
+    year: string;
+    section: string;
+    customName: string;
+  }>({
+    cycle: 'cycle1',
+    year: '1',
+    section: 'D',
+    customName: ''
+  });
+
   // Show welcome message when auth profile loads for the first time
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
   useEffect(() => {
@@ -2000,8 +2090,11 @@ export default function App() {
   const filteredStudents = useMemo(() => {
     const list = students.filter(s => 
       (!selectedYear || s.academicYear === selectedYear || !s.academicYear) &&
+      (studentGradeFilter === 'all' || (s.grade && s.grade.toLowerCase() === studentGradeFilter.toLowerCase())) &&
       (s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       s.parentName.toLowerCase().includes(searchTerm.toLowerCase()))
+       s.parentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       (s.studentId && s.studentId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+       (s.grade && s.grade.toLowerCase().includes(searchTerm.toLowerCase())))
     );
 
     if (studentSortKey) {
@@ -2042,7 +2135,7 @@ export default function App() {
     }
 
     return list;
-  }, [students, searchTerm, selectedYear, studentSortKey, studentSortOrder, lang]);
+  }, [students, searchTerm, studentGradeFilter, selectedYear, studentSortKey, studentSortOrder, lang]);
 
   const filteredStaff = useMemo(() => {
     return staff.filter(s => 
@@ -3173,37 +3266,101 @@ export default function App() {
 
   const getGradeDisplay = (grade: string | undefined, currentLang: 'en' | 'fr' = lang) => {
     if (!grade) return 'N/A';
-    const clean = grade.trim().toLowerCase();
+    const trimmed = grade.trim();
     
-    if (clean === '1a' || clean.includes('1ère') || clean.includes('1st') || clean === 'grade 1') {
-      return currentLang === 'en' ? '1st Year' : '1ère Année';
+    // Check if found in availableClasses
+    const found = availableClasses.find(c => c.id.toLowerCase() === trimmed.toLowerCase());
+    if (found) {
+      return currentLang === 'en' ? found.nameEn : found.nameFr;
     }
-    if (clean === '2a' || clean.includes('2ème') || clean.includes('2nd') || clean === 'grade 2') {
-      return currentLang === 'en' ? '2nd Year' : '2ème Année';
-    }
-    if (clean === '3a' || clean.includes('3ème') || clean.includes('3rd') || clean === 'grade 3') {
-      return currentLang === 'en' ? '3rd Year' : '3ème Année';
-    }
-    if (clean === '4a' || clean.includes('4ème') || clean.includes('4th') || clean === 'grade 4') {
-      return currentLang === 'en' ? '4th Year' : '4ème Année';
-    }
-    if (clean === '5a' || clean.includes('5ème') || clean.includes('5th') || clean === 'grade 5') {
-      return currentLang === 'en' ? '5th Year' : '5ème Année';
-    }
-    if (clean === '6a' || clean.includes('6ème') || clean.includes('6th') || clean === 'grade 6') {
-      return currentLang === 'en' ? '6th Year' : '6ème Année';
-    }
-    if (clean === '7a' || clean.includes('7ème') || clean.includes('7th') || clean === 'grade 7') {
-      return currentLang === 'en' ? '7th Year' : '7ème Année';
-    }
-    if (clean === '8a' || clean.includes('8ème') || clean.includes('8th') || clean === 'grade 8') {
-      return currentLang === 'en' ? '8th Year' : '8ème Année';
-    }
-    if (clean === '9a' || clean.includes('9ème') || clean.includes('9th') || clean === 'grade 9') {
-      return currentLang === 'en' ? '9th Year' : '9ème Année';
+    
+    // Pattern match standard codes like 1A, 1B, 1C, 2D, 7C, etc.
+    const match = trimmed.match(/^(\d+)\s*([A-Za-z]+)?$/);
+    if (match) {
+      const yearNum = parseInt(match[1]);
+      const section = (match[2] || '').toUpperCase();
+      const yearLabel = currentLang === 'en'
+        ? (yearNum === 1 ? '1st Year' : yearNum === 2 ? '2nd Year' : yearNum === 3 ? '3rd Year' : `${yearNum}th Year`)
+        : (yearNum === 1 ? '1ère Année' : `${yearNum}ème Année`);
+      return section ? `${yearLabel} ${section} (${trimmed.toUpperCase()})` : `${yearLabel} (${trimmed.toUpperCase()})`;
     }
     
     return grade;
+  };
+
+  const handleCreateClassSubmit = (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    
+    let code = '';
+    let nameFr = '';
+    let nameEn = '';
+    
+    if (newClassForm.cycle === 'other' && newClassForm.customName.trim()) {
+      code = newClassForm.customName.trim();
+      nameFr = newClassForm.customName.trim();
+      nameEn = newClassForm.customName.trim();
+    } else {
+      const yearStr = newClassForm.year;
+      const yearNum = parseInt(yearStr);
+      const section = newClassForm.section.trim().toUpperCase() || 'A';
+      code = `${yearStr}${section}`;
+      
+      let yearFr = '';
+      let yearEn = '';
+      if (!isNaN(yearNum)) {
+        yearFr = yearNum === 1 ? '1ère Année' : `${yearNum}ème Année`;
+        yearEn = yearNum === 1 ? '1st Year' : yearNum === 2 ? '2nd Year' : yearNum === 3 ? '3rd Year' : `${yearNum}th Year`;
+      } else {
+        yearFr = yearStr;
+        yearEn = yearStr;
+      }
+      
+      nameFr = `${yearFr} ${section} (${code})`;
+      nameEn = `${yearEn} ${section} (${code})`;
+    }
+    
+    // Check if class code already exists
+    if (availableClasses.some(c => c.id.toLowerCase() === code.toLowerCase())) {
+      toast.warning(lang === 'en' ? `Class "${code}" already exists.` : `La classe "${code}" existe déjà.`);
+      setStudentForm(prev => ({ ...prev, grade: code }));
+      setShowAddClassModal(false);
+      return;
+    }
+    
+    const newClass: SchoolClass = {
+      id: code,
+      cycle: newClassForm.cycle,
+      year: newClassForm.year,
+      section: newClassForm.section.toUpperCase(),
+      nameFr,
+      nameEn,
+      isCustom: true
+    };
+    
+    const updated = [...availableClasses, newClass];
+    setAvailableClasses(updated);
+    try {
+      localStorage.setItem('mama_thera_classes', JSON.stringify(updated));
+    } catch (err) {
+      console.warn('Failed to save classes to localStorage:', err);
+    }
+    
+    // Auto-select in student form
+    setStudentForm(prev => ({ ...prev, grade: code }));
+    
+    toast.success(
+      lang === 'en' 
+        ? `Class "${code}" added successfully!` 
+        : `Classe "${code}" ajoutée avec succès !`
+    );
+    
+    setShowAddClassModal(false);
+    setNewClassForm({
+      cycle: 'cycle1',
+      year: '1',
+      section: 'D',
+      customName: ''
+    });
   };
 
   const getStatus = (student: Student) => {
@@ -3734,6 +3891,35 @@ export default function App() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className={`w-full pl-12 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-${currentTheme.accent}/5 focus:border-${currentTheme.accent} transition-all text-sm ${currentTheme.text}`}
                 />
+              </div>
+            )}
+            {activeTab === 'students' && (
+              <div className="relative min-w-[170px]">
+                <select
+                  value={studentGradeFilter}
+                  onChange={(e) => setStudentGradeFilter(e.target.value)}
+                  className={`w-full pl-10 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-bold ${currentTheme.text} appearance-none cursor-pointer`}
+                >
+                  <option value="all">{lang === 'en' ? 'All Classes' : 'Toutes les classes'}</option>
+                  <optgroup label={lang === 'en' ? "First Cycle (1st to 6th)" : "Premier Cycle (1ère à 6ème)"}>
+                    {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
+                      <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={lang === 'en' ? "Second Cycle (7th to 9th)" : "Second Cycle (7ème à 9ème)"}>
+                    {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
+                      <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                    ))}
+                  </optgroup>
+                  {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
+                    <optgroup label={lang === 'en' ? "Other Classes" : "Autres Classes"}>
+                      {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
+                        <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+                <Layers className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={16} />
               </div>
             )}
             {activeTab === 'dashboard' && (
@@ -6210,6 +6396,89 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+                {/* Classes & Sections Configuration Card */}
+                <div className={`space-y-4 pt-8 border-t ${currentTheme.border}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className={`text-base font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} flex items-center gap-2`}>
+                        <Layers size={20} className="text-blue-500" />
+                        {lang === 'en' ? 'Classes & Grade Levels Management' : 'Gestion des Classes & Niveaux Scolaires'}
+                      </h4>
+                      <p className={`text-xs ${currentTheme.muted} mt-0.5`}>
+                        {lang === 'en' 
+                          ? 'Add sections (1A, 1B, 1C, 1D, 2A, 7B...) or custom grades across school cycles.' 
+                          : 'Ajoutez des sections (1A, 1B, 1C, 1D, 2A, 7B...) ou classes personnalisées par cycle.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowAddClassModal(true)}
+                      className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95"
+                    >
+                      <Plus size={14} />
+                      <span>{lang === 'en' ? 'Add Class / Section' : 'Ajouter une classe'}</span>
+                    </button>
+                  </div>
+
+                  <div className={`p-6 rounded-[2rem] border ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} space-y-4`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          {lang === 'en' ? 'First Cycle (1st to 6th Year)' : 'Premier Cycle (1ère à 6ème Année)'}
+                        </p>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {availableClasses.filter(c => c.cycle === 'cycle1').length} {lang === 'en' ? 'classes' : 'classes'}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
+                          <span key={c.id} className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-emerald-400 shadow-sm flex items-center gap-1.5">
+                            <span>{c.id}</span>
+                            <span className="text-[10px] text-slate-400 font-normal">({c.section})</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-200/50 dark:border-slate-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          {lang === 'en' ? 'Second Cycle (7th to 9th Year)' : 'Second Cycle (7ème à 9ème Année)'}
+                        </p>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {availableClasses.filter(c => c.cycle === 'cycle2').length} {lang === 'en' ? 'classes' : 'classes'}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
+                          <span key={c.id} className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-emerald-400 shadow-sm flex items-center gap-1.5">
+                            <span>{c.id}</span>
+                            <span className="text-[10px] text-slate-400 font-normal">({c.section})</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
+                      <div className="pt-3 border-t border-slate-200/50 dark:border-slate-800">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            {lang === 'en' ? 'Other & Custom Classes' : 'Autres & Classes Personnalisées'}
+                          </p>
+                          <span className="text-[10px] font-bold text-slate-400">
+                            {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').length}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
+                            <span key={c.id} className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl text-xs font-bold text-blue-700 dark:text-blue-300 shadow-sm flex items-center gap-1.5">
+                              <span>{c.id}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 {/* User & Role Management (Exclusive to Admin / Promoter / Dev settings) */}
                 <div className={`space-y-6 pt-8 border-t ${currentTheme.border}`}>
@@ -7063,27 +7332,52 @@ export default function App() {
 
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Grade / Class' : 'Classe / Niveau'}</label>
+                    <div className="flex items-center justify-between">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Grade / Class' : 'Classe / Niveau'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddClassModal(true)}
+                        className="text-[10px] font-black text-blue-500 hover:text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <Plus size={12} />
+                        <span>{lang === 'en' ? 'New Class' : 'Nouvelle Classe'}</span>
+                      </button>
+                    </div>
                     <select 
                       required
                       value={studentForm.grade}
-                      onChange={(e) => setStudentForm({ ...studentForm, grade: e.target.value })}
+                      onChange={(e) => {
+                        if (e.target.value === '__ADD_NEW_CLASS__') {
+                          setShowAddClassModal(true);
+                        } else {
+                          setStudentForm({ ...studentForm, grade: e.target.value });
+                        }
+                      }}
                       className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500' : 'bg-slate-50 text-slate-800'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold`}
                     >
-                      <option value="">{lang === 'en' ? 'Select Grade' : 'Sélectionner la classe'}</option>
-                      <optgroup label={lang === 'en' ? "First Cycle (Premier Cycle)" : "Premier Cycle"}>
-                        <option value="1A">{lang === 'en' ? '1st Year (1A)' : '1ère Année (1A)'}</option>
-                        <option value="2A">{lang === 'en' ? '2nd Year (2A)' : '2ème Année (2A)'}</option>
-                        <option value="3A">{lang === 'en' ? '3rd Year (3A)' : '3ème Année (3A)'}</option>
-                        <option value="4A">{lang === 'en' ? '4th Year (4A)' : '4ème Année (4A)'}</option>
-                        <option value="5A">{lang === 'en' ? '5th Year (5A)' : '5ème Année (5A)'}</option>
-                        <option value="6A">{lang === 'en' ? '6th Year (6A)' : '6ème Année (6A)'}</option>
+                      <option value="">{lang === 'en' ? 'Select Grade / Class' : 'Sélectionner la classe'}</option>
+                      <optgroup label={lang === 'en' ? "First Cycle (1st to 6th Year)" : "Premier Cycle (1ère à 6ème Année)"}>
+                        {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
+                          <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                        ))}
                       </optgroup>
-                      <optgroup label={lang === 'en' ? "Second Cycle" : "Second Cycle"}>
-                        <option value="7A">{lang === 'en' ? '7th Year (7A)' : '7ème Année (7A)'}</option>
-                        <option value="8A">{lang === 'en' ? '8th Year (8A)' : '8ème Année (8A)'}</option>
-                        <option value="9A">{lang === 'en' ? '9th Year (9A)' : '9ème Année (9A)'}</option>
+                      <optgroup label={lang === 'en' ? "Second Cycle (7th to 9th Year)" : "Second Cycle (7ème à 9ème Année)"}>
+                        {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
+                          <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                        ))}
                       </optgroup>
+                      {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
+                        <optgroup label={lang === 'en' ? "Other / Custom Classes" : "Autres / Classes Personnalisées"}>
+                          {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
+                            <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <option value="__ADD_NEW_CLASS__" className="text-blue-600 font-bold">
+                        {lang === 'en' ? '+ Add another class / section...' : '+ Ajouter une autre classe / section...'}
+                      </option>
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -7312,6 +7606,173 @@ export default function App() {
                 >
                   {editingStudent ? t.saveChanges : t.submit}
                 </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Add New Class / Section Modal --- */}
+      <AnimatePresence>
+        {showAddClassModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAddClassModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-md rounded-[2.5rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+                <h3 className="text-lg font-bold flex items-center gap-2.5">
+                  <Layers size={20} className="text-blue-400" />
+                  <span>{lang === 'en' ? 'Add Class / Section' : 'Ajouter une Classe / Section'}</span>
+                </h3>
+                <button 
+                  onClick={() => setShowAddClassModal(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateClassSubmit} className="p-6 space-y-5">
+                <div className="space-y-1.5">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                    {lang === 'en' ? 'School Cycle' : 'Cycle Scolaire'}
+                  </label>
+                  <select
+                    value={newClassForm.cycle}
+                    onChange={(e) => {
+                      const c = e.target.value as any;
+                      const defYear = c === 'cycle2' ? '7' : c === 'lycee' ? '10' : c === 'maternelle' ? 'PS' : '1';
+                      setNewClassForm({ ...newClassForm, cycle: c, year: defYear });
+                    }}
+                    className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  >
+                    <option value="cycle1">{lang === 'en' ? 'First Cycle (1st to 6th Year)' : 'Premier Cycle (1ère à 6ème Année)'}</option>
+                    <option value="cycle2">{lang === 'en' ? 'Second Cycle (7th to 9th Year)' : 'Second Cycle (7ème à 9ème Année)'}</option>
+                    <option value="lycee">{lang === 'en' ? 'Lycée (High School)' : 'Lycée (Secondaire)'}</option>
+                    <option value="maternelle">{lang === 'en' ? 'Maternelle (Kindergarten)' : 'Maternelle / Jardin d\'Enfants'}</option>
+                    <option value="other">{lang === 'en' ? 'Other / Fully Custom Name' : 'Autre / Nom personnalisé'}</option>
+                  </select>
+                </div>
+
+                {newClassForm.cycle !== 'other' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Grade / Level' : 'Niveau / Année'}
+                      </label>
+                      <select
+                        value={newClassForm.year}
+                        onChange={(e) => setNewClassForm({ ...newClassForm, year: e.target.value })}
+                        className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                      >
+                        {newClassForm.cycle === 'cycle1' && (
+                          <>
+                            <option value="1">{lang === 'en' ? '1st Year (1ère)' : '1ère Année'}</option>
+                            <option value="2">{lang === 'en' ? '2nd Year (2ème)' : '2ème Année'}</option>
+                            <option value="3">{lang === 'en' ? '3rd Year (3ème)' : '3ème Année'}</option>
+                            <option value="4">{lang === 'en' ? '4th Year (4ème)' : '4ème Année'}</option>
+                            <option value="5">{lang === 'en' ? '5th Year (5ème)' : '5ème Année'}</option>
+                            <option value="6">{lang === 'en' ? '6th Year (6ème)' : '6ème Année'}</option>
+                          </>
+                        )}
+                        {newClassForm.cycle === 'cycle2' && (
+                          <>
+                            <option value="7">{lang === 'en' ? '7th Year (7ème)' : '7ème Année'}</option>
+                            <option value="8">{lang === 'en' ? '8th Year (8ème)' : '8ème Année'}</option>
+                            <option value="9">{lang === 'en' ? '9th Year (9ème)' : '9ème Année'}</option>
+                          </>
+                        )}
+                        {newClassForm.cycle === 'lycee' && (
+                          <>
+                            <option value="10">{lang === 'en' ? '10th Year (10ème)' : '10ème Année (Seconde)'}</option>
+                            <option value="11">{lang === 'en' ? '11th Year (11ème)' : '11ème Année (Première)'}</option>
+                            <option value="12">{lang === 'en' ? '12th Year (12ème)' : '12ème Année (Terminale)'}</option>
+                          </>
+                        )}
+                        {newClassForm.cycle === 'maternelle' && (
+                          <>
+                            <option value="PS">{lang === 'en' ? 'Petite Section (PS)' : 'Petite Section (PS)'}</option>
+                            <option value="MS">{lang === 'en' ? 'Moyenne Section (MS)' : 'Moyenne Section (MS)'}</option>
+                            <option value="GS">{lang === 'en' ? 'Grande Section (GS)' : 'Grande Section (GS)'}</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Section (e.g. D, E)' : 'Section (ex. D, E)'}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={5}
+                        placeholder="D, E, F..."
+                        value={newClassForm.section}
+                        onChange={(e) => setNewClassForm({ ...newClassForm, section: e.target.value.toUpperCase() })}
+                        className={`w-full p-3.5 text-xs font-bold uppercase rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Custom Class Name' : 'Nom de la classe'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder={lang === 'en' ? 'e.g., 1ère D or Garderie' : 'ex. 1ère D ou Garderie'}
+                      value={newClassForm.customName}
+                      onChange={(e) => setNewClassForm({ ...newClassForm, customName: e.target.value })}
+                      className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                    />
+                  </div>
+                )}
+
+                {/* Preview Badge */}
+                <div className={`p-4 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900/40' : 'bg-slate-50'}`}>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                    {lang === 'en' ? 'Generated Class Code:' : 'Code généré :'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-black">
+                      {newClassForm.cycle === 'other' ? (newClassForm.customName || 'CUSTOM') : `${newClassForm.year}${newClassForm.section || 'A'}`}
+                    </span>
+                    <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">
+                      {newClassForm.cycle === 'other' 
+                        ? (newClassForm.customName || 'Classe personnalisée') 
+                        : `${newClassForm.year === '1' ? '1ère Année' : newClassForm.year + 'ème Année'} ${newClassForm.section || 'A'}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddClassModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+                  >
+                    {lang === 'en' ? 'Cancel' : 'Annuler'}
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    <span>{lang === 'en' ? 'Save Class' : 'Créer la classe'}</span>
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>
@@ -7656,18 +8117,22 @@ export default function App() {
                         >
                           <option value="">{lang === 'en' ? 'Select Grade' : 'Sélectionner la classe'}</option>
                           <optgroup label={lang === 'en' ? "First Cycle (Premier Cycle)" : "Premier Cycle"}>
-                            <option value="1A">{lang === 'en' ? '1st Year (1A)' : '1ère Année (1A)'}</option>
-                            <option value="2A">{lang === 'en' ? '2nd Year (2A)' : '2ème Année (2A)'}</option>
-                            <option value="3A">{lang === 'en' ? '3rd Year (3A)' : '3ème Année (3A)'}</option>
-                            <option value="4A">{lang === 'en' ? '4th Year (4A)' : '4ème Année (4A)'}</option>
-                            <option value="5A">{lang === 'en' ? '5th Year (5A)' : '5ème Année (5A)'}</option>
-                            <option value="6A">{lang === 'en' ? '6th Year (6A)' : '6ème Année (6A)'}</option>
+                            {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
+                              <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                            ))}
                           </optgroup>
                           <optgroup label={lang === 'en' ? "Second Cycle" : "Second Cycle"}>
-                            <option value="7A">{lang === 'en' ? '7th Year (7A)' : '7ème Année (7A)'}</option>
-                            <option value="8A">{lang === 'en' ? '8th Year (8A)' : '8ème Année (8A)'}</option>
-                            <option value="9A">{lang === 'en' ? '9th Year (9A)' : '9ème Année (9A)'}</option>
+                            {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
+                              <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                            ))}
                           </optgroup>
+                          {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
+                            <optgroup label={lang === 'en' ? "Other Classes" : "Autres Classes"}>
+                              {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
+                                <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                              ))}
+                            </optgroup>
+                          )}
                         </select>
                       </div>
                     </div>
