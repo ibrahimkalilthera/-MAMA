@@ -7535,13 +7535,8 @@ export default function App() {
                 {/* --- Financial Controls --- */}
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
-                      <span>{t.totalDue} ({t.currency})</span>
-                      {currentUser?.role !== 'admin' && currentUser?.role !== 'dev' && (
-                        <span className="text-[9px] text-rose-500 font-bold">
-                          ({lang === 'en' ? 'Owner Only' : 'Promoteur Seul'})
-                        </span>
-                      )}
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {t.totalDue} ({t.currency})
                     </label>
                     <div className="relative">
                       <input 
@@ -7551,8 +7546,7 @@ export default function App() {
                         step="1"
                         value={studentForm.totalDue}
                         onChange={(e) => setStudentForm({ ...studentForm, totalDue: e.target.value })}
-                        disabled={currentUser?.role !== 'admin' && currentUser?.role !== 'dev'}
-                        className={`w-full px-6 py-4 ${currentUser?.role !== 'admin' && currentUser?.role !== 'dev' ? 'bg-slate-150 cursor-not-allowed opacity-70' : (currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50')} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                         placeholder="120000"
                       />
                     </div>
