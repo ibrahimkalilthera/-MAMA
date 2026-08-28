@@ -288,6 +288,35 @@ function staffToRow(s: Omit<Staff, 'id'>) {
   };
 }
 
+function studentUpdatesToRow(updates: Partial<Student>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (updates.name !== undefined) row.name = updates.name;
+  if ('parentId' in updates) row.parent_id = updates.parentId || null;
+  if (updates.parentName !== undefined) row.parent_name = updates.parentName;
+  if (updates.parentEmail !== undefined) row.parent_email = updates.parentEmail;
+  if (updates.parentPhone !== undefined) row.parent_phone = updates.parentPhone;
+  if (updates.totalDue !== undefined) row.total_due = updates.totalDue;
+  if (updates.amountPaid !== undefined) row.amount_paid = updates.amountPaid;
+  if (updates.scholarshipDiscount !== undefined) row.scholarship_discount = updates.scholarshipDiscount;
+  if (updates.dueDate !== undefined) row.due_date = updates.dueDate;
+  if (updates.lastPaymentDate !== undefined) row.last_payment_date = updates.lastPaymentDate;
+  if (updates.notes !== undefined) row.notes = updates.notes;
+  if (updates.lastNoteDate !== undefined) row.last_note_date = updates.lastNoteDate;
+  if (updates.flagged !== undefined) row.flagged = updates.flagged;
+  if (updates.academicYear !== undefined) row.academic_year = updates.academicYear;
+  if (updates.grade !== undefined) row.grade = updates.grade;
+  if (updates.studentId !== undefined) row.student_id = updates.studentId;
+  if (updates.photo !== undefined) row.photo = updates.photo;
+  if (updates.emergencyContactName !== undefined) row.emergency_contact_name = updates.emergencyContactName;
+  if (updates.emergencyContactRelation !== undefined) row.emergency_contact_relation = updates.emergencyContactRelation;
+  if (updates.emergencyContactPhone !== undefined) row.emergency_contact_phone = updates.emergencyContactPhone;
+  if (updates.medicalNotes !== undefined) row.medical_notes = updates.medicalNotes;
+  if (updates.enrollmentDate !== undefined) row.enrollment_date = updates.enrollmentDate;
+  if (updates.previousSchool !== undefined) row.previous_school = updates.previousSchool;
+  if (updates.status !== undefined) row.status = updates.status;
+  return row;
+}
+
 // ─── Main Data Hook ──────────────────────────────────────────────────────────
 
 export interface SupabaseDataCallbacks {
@@ -358,6 +387,17 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   const notifySuccess = (operation: string) => callbacksRef.current?.onMutationSuccess?.(operation);
   const notifyError = (operation: string, msg: string) => callbacksRef.current?.onMutationError?.(operation, msg);
 
+  /**
+   * Queue a mutation for later replay when offline instead of letting it fail.
+   * Returns true when the action was queued so callers know to stop (we do NOT
+   * return through the normal Supabase path).
+   */
+  const isOffline = () => typeof navigator !== 'undefined' && !navigator.onLine;
+  const enqueueOffline = (type: any, payload: any) => {
+    enqueueOfflineAction(type, payload);
+    updateQueueCount();
+  };
+
   // ── Offline Synchronization ─────────────────────────────────────────────
 
   const syncOfflineQueue = useCallback(async () => {
@@ -408,6 +448,102 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
             beneficiary_student_name: item.payload.beneficiaryStudentName || null,
             beneficiary_student_grade: item.payload.beneficiaryStudentGrade || null,
           });
+          if (!error) success = true;
+        } else if (item.type === 'addStudent') {
+          const { error, data } = await supabase
+            .from('students')
+            .insert(studentToRow(item.payload))
+            .select()
+            .single();
+          if (!error && data) success = true;
+        } else if (item.type === 'updateStudent') {
+          const row = studentUpdatesToRow(item.payload.updates);
+          const { error } = await supabase.from('students').update(row).eq('id', item.payload.id);
+          if (!error) success = true;
+        } else if (item.type === 'deleteStudent') {
+          const { error } = await supabase.from('students').delete().eq('id', item.payload.id);
+          if (!error) success = true;
+        } else if (item.type === 'addStaff') {
+          const { error } = await supabase.from('staff').insert(staffToRow(item.payload));
+          if (!error) success = true;
+        } else if (item.type === 'updateStaff') {
+          const row: any = {};
+          const u = item.payload.updates;
+          if (u.name !== undefined) row.name = u.name;
+          if (u.position !== undefined) row.position = u.position;
+          if (u.salary !== undefined) row.salary = u.salary;
+          if ('email' in u) row.email = u.email || null;
+          if (u.phone !== undefined) row.phone = u.phone;
+          if (u.bankDetails !== undefined) row.bank_details = u.bankDetails;
+          if (u.emergencyContact !== undefined) row.emergency_contact = u.emergencyContact;
+          const { error } = await supabase.from('staff').update(row).eq('id', item.payload.id);
+          if (!error) success = true;
+        } else if (item.type === 'deleteStaff') {
+          const { error } = await supabase.from('staff').delete().eq('id', item.payload.id);
+          if (!error) success = true;
+        } else if (item.type === 'addSalaryPayment') {
+          const { error } = await supabase.from('salary_payments').insert({
+            staff_id: item.payload.staffId,
+            amount: item.payload.amount,
+            date: item.payload.date,
+            academic_year: item.payload.academicYear || null,
+          });
+          if (!error) success = true;
+        } else if (item.type === 'addParent') {
+          const { data, error } = await supabase
+            .from('parents')
+            .insert(parentToRow(item.payload))
+            .select()
+            .single();
+          if (!error && data) success = true;
+        } else if (item.type === 'updateParent') {
+          const row: any = {};
+          const u = item.payload.updates;
+          if (u.fullName !== undefined) row.full_name = u.fullName;
+          if (u.phones !== undefined) row.phones = u.phones;
+          if ('email' in u) row.email = u.email || null;
+          if (u.address !== undefined) row.address = u.address;
+          if (u.occupation !== undefined) row.occupation = u.occupation;
+          if (u.relationship !== undefined) row.relationship = u.relationship;
+          if (u.notes !== undefined) row.notes = u.notes;
+          const { error } = await supabase.from('parents').update(row).eq('id', item.payload.id);
+          if (!error) success = true;
+        } else if (item.type === 'deleteParent') {
+          const { error } = await supabase.from('parents').delete().eq('id', item.payload.id);
+          if (!error) success = true;
+        } else if (item.type === 'addTodo') {
+          const { error } = await supabase.from('todos').insert({
+            text: item.payload.text,
+            completed: item.payload.completed,
+            student_id: item.payload.studentId || null,
+          });
+          if (!error) success = true;
+        } else if (item.type === 'updateTodo') {
+          const row: any = {};
+          if (item.payload.updates.text !== undefined) row.text = item.payload.updates.text;
+          if (item.payload.updates.completed !== undefined) row.completed = item.payload.updates.completed;
+          const { error } = await supabase.from('todos').update(row).eq('id', item.payload.id);
+          if (!error) success = true;
+        } else if (item.type === 'deleteTodo') {
+          const { error } = await supabase.from('todos').delete().eq('id', item.payload.id);
+          if (!error) success = true;
+        } else if (item.type === 'updateVendorExpense') {
+          const row: any = {};
+          const u = item.payload.updates;
+          if (u.vendorName !== undefined) row.vendor_name = u.vendorName;
+          if (u.category !== undefined) row.category = u.category;
+          if (u.amount !== undefined) row.amount = u.amount;
+          if (u.dueDate !== undefined) row.due_date = u.dueDate;
+          if (u.paymentStatus !== undefined) row.payment_status = u.paymentStatus;
+          if (u.amountPaid !== undefined) row.amount_paid = u.amountPaid;
+          if (u.description !== undefined) row.description = u.description;
+          if (u.aidType !== undefined) row.aid_type = u.aidType;
+          if (u.beneficiaryStudentName !== undefined) row.beneficiary_student_name = u.beneficiaryStudentName;
+          if (u.beneficiaryStudentGrade !== undefined) row.beneficiary_student_grade = u.beneficiaryStudentGrade;
+          const { error } = await supabase.from('vendor_expenses').update(row).eq('id', item.payload.id);
+          if (!error) success = true;
+        } else if (item.type === 'deleteVendorExpense') {
+          const { error } = await supabase.from('vendor_expenses').delete().eq('id', item.payload.id);
           if (!error) success = true;
         }
 
@@ -531,8 +667,19 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       .single();
     if (error) {
       if (error.code === '23505') {
-        const existing = customGrades.find(grade => grade.name.toLowerCase() === normalized.toLowerCase());
-        return existing || null;
+        // Unique index is case-insensitive. Re-select the canonical row from the
+        // DB rather than the (possibly stale) local state so that concurrent or
+        // case-variant submissions resolve to the same grade.
+        const { data: existingRow } = await supabase
+          .from('custom_grades')
+          .select('*')
+          .ilike('name', normalized)
+          .maybeSingle();
+        if (existingRow) {
+          const existing = { id: existingRow.id, name: existingRow.name };
+          setCustomGrades(prev => prev.some(g => g.id === existing.id) ? prev : [...prev, existing]);
+          return existing;
+        }
       }
       notifyError('addCustomGrade', error.message);
       return null;
@@ -545,6 +692,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   // ── CRUD: Parents ───────────────────────────────────────────────────────
 
   const addParent = async (parent: Omit<Parent, 'id'>): Promise<Parent | null> => {
+    if (isOffline()) {
+      const tempId = `off_${Date.now()}`;
+      const local: Parent = { id: tempId, ...parent };
+      setParents(prev => [...prev, local]);
+      enqueueOffline('addParent', parent);
+      notifySuccess('addParent');
+      return local;
+    }
     const { data, error } = await supabase
       .from('parents')
       .insert(parentToRow(parent))
@@ -558,6 +713,12 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const updateParent = async (id: string, updates: Partial<Parent>): Promise<boolean> => {
+    if (isOffline()) {
+      setParents(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+      enqueueOffline('updateParent', { id, updates });
+      notifySuccess('updateParent');
+      return true;
+    }
     const row: any = {};
     if (updates.fullName !== undefined) row.full_name = updates.fullName;
     if (updates.phones !== undefined) row.phones = updates.phones;
@@ -575,6 +736,12 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const deleteParent = async (id: string): Promise<boolean> => {
+    if (isOffline()) {
+      setParents(prev => prev.filter(p => p.id !== id));
+      enqueueOffline('deleteParent', { id });
+      notifySuccess('deleteParent');
+      return true;
+    }
     const { error } = await supabase.from('parents').delete().eq('id', id);
     if (error) { console.error('deleteParent error:', error.message); notifyError('deleteParent', error.message); return false; }
     setParents(prev => prev.filter(p => p.id !== id));
@@ -585,6 +752,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   // ── CRUD: Students ──────────────────────────────────────────────────────
 
   const addStudent = async (student: Omit<Student, 'id' | 'payments'>): Promise<Student | null> => {
+    if (isOffline()) {
+      const tempId = `off_${Date.now()}`;
+      const local: Student = { id: tempId, ...student, payments: [] };
+      setStudents(prev => [...prev, local]);
+      enqueueOffline('addStudent', student);
+      notifySuccess('addStudent');
+      return local;
+    }
     const { data, error } = await supabase
       .from('students')
       .insert(studentToRow(student))
@@ -598,32 +773,13 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const updateStudent = async (id: string, updates: Partial<Student>): Promise<boolean> => {
-    const row: any = {};
-    if (updates.name !== undefined) row.name = updates.name;
-    if ('parentId' in updates) row.parent_id = updates.parentId || null;
-    if (updates.parentName !== undefined) row.parent_name = updates.parentName;
-    if (updates.parentEmail !== undefined) row.parent_email = updates.parentEmail;
-    if (updates.parentPhone !== undefined) row.parent_phone = updates.parentPhone;
-    if (updates.totalDue !== undefined) row.total_due = updates.totalDue;
-    if (updates.amountPaid !== undefined) row.amount_paid = updates.amountPaid;
-    if (updates.scholarshipDiscount !== undefined) row.scholarship_discount = updates.scholarshipDiscount;
-    if (updates.dueDate !== undefined) row.due_date = updates.dueDate;
-    if (updates.lastPaymentDate !== undefined) row.last_payment_date = updates.lastPaymentDate;
-    if (updates.notes !== undefined) row.notes = updates.notes;
-    if (updates.lastNoteDate !== undefined) row.last_note_date = updates.lastNoteDate;
-    if (updates.flagged !== undefined) row.flagged = updates.flagged;
-    if (updates.academicYear !== undefined) row.academic_year = updates.academicYear;
-    if (updates.grade !== undefined) row.grade = updates.grade;
-    if (updates.studentId !== undefined) row.student_id = updates.studentId;
-    if (updates.photo !== undefined) row.photo = updates.photo;
-    if (updates.emergencyContactName !== undefined) row.emergency_contact_name = updates.emergencyContactName;
-    if (updates.emergencyContactRelation !== undefined) row.emergency_contact_relation = updates.emergencyContactRelation;
-    if (updates.emergencyContactPhone !== undefined) row.emergency_contact_phone = updates.emergencyContactPhone;
-    if (updates.medicalNotes !== undefined) row.medical_notes = updates.medicalNotes;
-    if (updates.enrollmentDate !== undefined) row.enrollment_date = updates.enrollmentDate;
-    if (updates.previousSchool !== undefined) row.previous_school = updates.previousSchool;
-    if (updates.status !== undefined) row.status = updates.status;
-
+    if (isOffline()) {
+      setStudents(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+      enqueueOffline('updateStudent', { id, updates });
+      notifySuccess('updateStudent');
+      return true;
+    }
+    const row = studentUpdatesToRow(updates);
     const { error } = await supabase.from('students').update(row).eq('id', id);
     if (error) { console.error('updateStudent error:', error.message); notifyError('updateStudent', error.message); return false; }
     setStudents(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
@@ -632,6 +788,12 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const deleteStudent = async (id: string): Promise<boolean> => {
+    if (isOffline()) {
+      setStudents(prev => prev.filter(s => s.id !== id));
+      enqueueOffline('deleteStudent', { id });
+      notifySuccess('deleteStudent');
+      return true;
+    }
     const { error } = await supabase.from('students').delete().eq('id', id);
     if (error) { console.error('deleteStudent error:', error.message); notifyError('deleteStudent', error.message); return false; }
     setStudents(prev => prev.filter(s => s.id !== id));
@@ -711,6 +873,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   // ── CRUD: Staff ─────────────────────────────────────────────────────────
 
   const addStaff = async (s: Omit<Staff, 'id'>): Promise<Staff | null> => {
+    if (isOffline()) {
+      const tempId = `off_${Date.now()}`;
+      const local: Staff = { id: tempId, ...s };
+      setStaff(prev => [...prev, local]);
+      enqueueOffline('addStaff', s);
+      notifySuccess('addStaff');
+      return local;
+    }
     const { data, error } = await supabase
       .from('staff')
       .insert(staffToRow(s))
@@ -724,6 +894,12 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const updateStaff = async (id: string, updates: Partial<Staff>): Promise<boolean> => {
+    if (isOffline()) {
+      setStaff(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+      enqueueOffline('updateStaff', { id, updates });
+      notifySuccess('updateStaff');
+      return true;
+    }
     const row: any = {};
     if (updates.name !== undefined) row.name = updates.name;
     if (updates.position !== undefined) row.position = updates.position;
@@ -741,6 +917,12 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const deleteStaff = async (id: string): Promise<boolean> => {
+    if (isOffline()) {
+      setStaff(prev => prev.filter(s => s.id !== id));
+      enqueueOffline('deleteStaff', { id });
+      notifySuccess('deleteStaff');
+      return true;
+    }
     const { error } = await supabase.from('staff').delete().eq('id', id);
     if (error) { console.error('deleteStaff error:', error.message); notifyError('deleteStaff', error.message); return false; }
     setStaff(prev => prev.filter(s => s.id !== id));
@@ -751,6 +933,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   // ── CRUD: Salary Payments ───────────────────────────────────────────────
 
   const addSalaryPayment = async (sp: Omit<SalaryPayment, 'id'>): Promise<SalaryPayment | null> => {
+    if (isOffline()) {
+      const tempId = `off_${Date.now()}`;
+      const local: SalaryPayment = { id: tempId, ...sp };
+      setSalaryPayments(prev => [...prev, local]);
+      enqueueOffline('addSalaryPayment', sp);
+      notifySuccess('addSalaryPayment');
+      return local;
+    }
     const { data, error } = await supabase
       .from('salary_payments')
       .insert({
@@ -771,6 +961,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   // ── CRUD: Expenses ──────────────────────────────────────────────────────
 
   const addExpense = async (exp: Omit<Expense, 'id'>): Promise<Expense | null> => {
+    if (isOffline()) {
+      const tempId = `off_${Date.now()}`;
+      const local: Expense = { id: tempId, ...exp };
+      setExpenses(prev => [...prev, local]);
+      enqueueOffline('addExpense', exp);
+      notifySuccess('addExpense');
+      return local;
+    }
     const { data, error } = await supabase
       .from('expenses')
       .insert({
@@ -792,6 +990,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   // ── CRUD: Vendor Expenses ───────────────────────────────────────────────
 
   const addVendorExpense = async (ve: Omit<VendorExpense, 'id'>): Promise<VendorExpense | null> => {
+    if (isOffline()) {
+      const tempId = `off_${Date.now()}`;
+      const local: VendorExpense = { id: tempId, ...ve };
+      setVendorExpenses(prev => [...prev, local]);
+      enqueueOffline('addVendorExpense', ve);
+      notifySuccess('addVendorExpense');
+      return local;
+    }
     const { data, error } = await supabase
       .from('vendor_expenses')
       .insert({
@@ -817,6 +1023,12 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const updateVendorExpense = async (id: string, updates: Partial<VendorExpense>): Promise<boolean> => {
+    if (isOffline()) {
+      setVendorExpenses(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
+      enqueueOffline('updateVendorExpense', { id, updates });
+      notifySuccess('updateVendorExpense');
+      return true;
+    }
     const row: any = {};
     if (updates.vendorName !== undefined) row.vendor_name = updates.vendorName;
     if (updates.category !== undefined) row.category = updates.category;
@@ -837,6 +1049,12 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const deleteVendorExpense = async (id: string): Promise<boolean> => {
+    if (isOffline()) {
+      setVendorExpenses(prev => prev.filter(v => v.id !== id));
+      enqueueOffline('deleteVendorExpense', { id });
+      notifySuccess('deleteVendorExpense');
+      return true;
+    }
     const { error } = await supabase.from('vendor_expenses').delete().eq('id', id);
     if (error) { console.error('deleteVendorExpense error:', error.message); notifyError('deleteVendorExpense', error.message); return false; }
     setVendorExpenses(prev => prev.filter(v => v.id !== id));
@@ -847,6 +1065,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   // ── CRUD: Todos ─────────────────────────────────────────────────────────
 
   const addTodo = async (todo: Omit<Todo, 'id'>): Promise<Todo | null> => {
+    if (isOffline()) {
+      const tempId = `off_${Date.now()}`;
+      const local: Todo = { id: tempId, ...todo };
+      setTodos(prev => [...prev, local]);
+      enqueueOffline('addTodo', todo);
+      notifySuccess('addTodo');
+      return local;
+    }
     const { data, error } = await supabase
       .from('todos')
       .insert({
@@ -864,6 +1090,11 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const updateTodo = async (id: string, updates: Partial<Todo>): Promise<boolean> => {
+    if (isOffline()) {
+      setTodos(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+      enqueueOffline('updateTodo', { id, updates });
+      return true;
+    }
     const row: any = {};
     if (updates.text !== undefined) row.text = updates.text;
     if (updates.completed !== undefined) row.completed = updates.completed;
@@ -876,6 +1107,11 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const deleteTodo = async (id: string): Promise<boolean> => {
+    if (isOffline()) {
+      setTodos(prev => prev.filter(t => t.id !== id));
+      enqueueOffline('deleteTodo', { id });
+      return true;
+    }
     const { error } = await supabase.from('todos').delete().eq('id', id);
     if (error) { console.error('deleteTodo error:', error.message); notifyError('deleteTodo', error.message); return false; }
     setTodos(prev => prev.filter(t => t.id !== id));

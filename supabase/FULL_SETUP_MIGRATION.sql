@@ -161,9 +161,12 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
 -- Shared custom classes used by all authenticated school users
 CREATE TABLE IF NOT EXISTS public.custom_grades (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS custom_grades_name_lower_unique
+    ON public.custom_grades (lower(name));
 
 -- ─── 2. INDEXES ─────────────────────────────────────────────────────────────
 
@@ -224,6 +227,9 @@ CREATE POLICY "Authenticated read custom grades" ON public.custom_grades FOR SEL
 
 DROP POLICY IF EXISTS "Authenticated insert custom grades" ON public.custom_grades;
 CREATE POLICY "Authenticated insert custom grades" ON public.custom_grades FOR INSERT TO authenticated WITH CHECK (true);
+
+-- Explicit API privileges for the authenticated role.
+GRANT SELECT, INSERT ON public.custom_grades TO authenticated;
 
 -- User Profiles Policies
 DROP POLICY IF EXISTS "Users can read own profile or admin reads all" ON public.user_profiles;

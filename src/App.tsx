@@ -1116,6 +1116,8 @@ export default function App() {
     syncOfflineQueue,
     fetchAll,
     addPayment,
+    addSalaryPayment,
+    addExpense,
     deleteStudent,
     deleteStaff,
     deleteParent,
@@ -1128,6 +1130,9 @@ export default function App() {
     addVendorExpense,
     updateVendorExpense,
     deleteVendorExpense,
+    addTodo: addTodoItem,
+    updateTodo: updateTodoItem,
+    deleteTodo: deleteTodoItem,
     batchPromoteStudents,
     batchImportData,
   } = useSupabaseData({
@@ -2577,20 +2582,19 @@ export default function App() {
     setShowStudentModal(true);
   };
 
-  const handleSaveNote = (studentId: string, note: string) => {
-    setStudents(prev => prev.map(s => 
-      s.id === studentId 
-        ? { ...s, notes: note, lastNoteDate: today } 
-        : s
-    ));
+  const handleSaveNote = async (studentId: string, note: string) => {
+    const ok = await updateStudent(studentId, { notes: note, lastNoteDate: today });
+    if (!ok) return;
     if (selectedStudent?.id === studentId) {
       setSelectedStudent({ ...selectedStudent, notes: note, lastNoteDate: today });
     }
     showToast();
   };
 
-  const toggleFlag = (id: string) => {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, flagged: !s.flagged } : s));
+  const toggleFlag = async (id: string) => {
+    const student = students.find(s => s.id === id);
+    if (!student) return;
+    await updateStudent(id, { flagged: !student.flagged });
   };
 
   const handleStaffSubmit = async (e: FormEvent) => {
@@ -2620,7 +2624,7 @@ export default function App() {
     showToast();
   };
 
-  const handleExpenseSubmit = (e: FormEvent) => {
+  const handleExpenseSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
       alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
@@ -2629,16 +2633,8 @@ export default function App() {
     const amount = parseFloat(expenseForm.amount);
     if (isNaN(amount) || amount < 0) return;
 
-    const nextIdNum = expenses.reduce((max, e) => {
-      const num = parseInt(e.id.replace('EXP', '')) || 0;
-      return num > max ? num : max;
-    }, 0) + 1;
-    const newExpense: Expense = {
-      id: `EXP${String(nextIdNum).padStart(3, '0')}`,
-      ...expenseForm,
-      amount
-    };
-    setExpenses(prev => [...prev, newExpense]);
+    const saved = await addExpense({ ...expenseForm, amount, academicYear: selectedYear });
+    if (!saved) return;
     setShowExpenseModal(false);
     setExpenseForm({ category: 'Other', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
     showToast();
@@ -2743,7 +2739,7 @@ export default function App() {
     showToast();
   };
 
-  const handleSalarySubmit = (e: FormEvent) => {
+  const handleSalarySubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
       alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
@@ -2752,23 +2748,19 @@ export default function App() {
     const amount = parseFloat(salaryForm.amount);
     if (isNaN(amount) || amount < 0) return;
 
-    const nextIdNum = salaryPayments.reduce((max, p) => {
-      const num = parseInt(p.id.replace('PAY', '')) || 0;
-      return num > max ? num : max;
-    }, 0) + 1;
-    const newPayment: SalaryPayment = {
-      id: `PAY${String(nextIdNum).padStart(3, '0')}`,
-      ...salaryForm,
+    const saved = await addSalaryPayment({
+      staffId: salaryForm.staffId,
       amount,
-      academicYear: selectedYear || undefined
-    };
-    setSalaryPayments(prev => [...prev, newPayment]);
+      date: salaryForm.date,
+      academicYear: selectedYear || undefined,
+    });
+    if (!saved) return;
     setShowSalaryModal(false);
     setSalaryForm({ staffId: '', amount: '', date: new Date().toISOString().split('T')[0] });
     showToast();
   };
 
-  const handleCloseCurrentYear = () => {
+  const handleCloseCurrentYear = async () => {
     if (currentUser?.role !== 'admin' && currentUser?.role !== 'dev') {
       alert(lang === 'en' ? 'Only Promoter / Owner can close academic years.' : 'Seul le Promoteur / Propriétaire peut clôturer les années académiques.');
       return;
@@ -2792,46 +2784,58 @@ export default function App() {
     }
 
     const currentYearStudents = students.filter(s => s.academicYear === selectedYear || (!s.academicYear && selectedYear === '2024-2025'));
-    let updatedStudents = [...students];
+    const ops: Promise<boolean>[] = [];
 
+    // Group carry-over balances by next-year student name so that multiple
+    // current-year students sharing a name accumulate into a single next-year
+    // student (matching the previous local-state behaviour).
+    const carryOverByName = new Map<string, number>();
+    const firstByName = new Map<string, Student>();
     currentYearStudents.forEach(student => {
       const discount = student.scholarshipDiscount || 0;
       const discountedTotal = student.totalDue * (1 - discount / 100);
       const balance = discountedTotal - student.amountPaid;
 
-      if (balance > 0) {
-        const existingIdx = updatedStudents.findIndex(s => s.name === student.name && s.academicYear === nextYear);
-        if (existingIdx !== -1) {
-          const existing = updatedStudents[existingIdx];
-          updatedStudents[existingIdx] = {
-            ...existing,
-            totalDue: existing.totalDue + balance,
-            notes: existing.notes 
-              ? `${existing.notes}\nCarryover debt from ${selectedYear}: +${balance} CFA`
-              : `Carryover debt from ${selectedYear}: +${balance} CFA`
-          };
-        } else {
-          const newId = `ST_CARR_${student.id}_${nextYear.replace('-', '_')}`;
-          updatedStudents.push({
-            id: newId,
-            name: student.name,
-            parentName: student.parentName,
-            parentEmail: student.parentEmail,
-            parentPhone: student.parentPhone,
-            totalDue: balance,
-            scholarshipDiscount: 0,
-            dueDate: student.dueDate,
-            amountPaid: 0,
-            payments: [],
-            notes: `Opening Balance (Debt carried over from ${selectedYear}): ${balance} CFA`,
-            academicYear: nextYear,
-            grade: student.grade || ''
-          });
-        }
+      if (balance <= 0) return;
+
+      carryOverByName.set(student.name, (carryOverByName.get(student.name) || 0) + balance);
+      if (!firstByName.has(student.name)) {
+        firstByName.set(student.name, student);
       }
     });
 
-    setStudents(updatedStudents);
+    carryOverByName.forEach((balance, name) => {
+      const existing = students.find(s => s.name === name && s.academicYear === nextYear);
+      if (existing) {
+        const note = existing.notes
+          ? `${existing.notes}\nCarryover debt from ${selectedYear}: +${balance} CFA`
+          : `Carryover debt from ${selectedYear}: +${balance} CFA`;
+        ops.push(updateStudent(existing.id, { totalDue: existing.totalDue + balance, notes: note }));
+      } else {
+        const student = firstByName.get(name)!;
+        ops.push(addStudent({
+          name: student.name,
+          parentName: student.parentName,
+          parentEmail: student.parentEmail,
+          parentPhone: student.parentPhone,
+          totalDue: balance,
+          scholarshipDiscount: 0,
+          dueDate: student.dueDate,
+          amountPaid: 0,
+          notes: `Opening Balance (Debt carried over from ${selectedYear}): ${balance} CFA`,
+          academicYear: nextYear,
+          grade: student.grade || '',
+          status: 'Active',
+        }).then(r => r !== null));
+      }
+    });
+
+    const results = await Promise.all(ops);
+    if (results.some(ok => !ok)) {
+      alert(lang === 'en' ? 'Some carry-over balances could not be saved.' : 'Certains soldes reportés n\'ont pas pu être enregistrés.');
+      return;
+    }
+
     setLockedYears(prev => [...prev, selectedYear]);
 
     setAcademicYears(prev => {
@@ -2860,15 +2864,11 @@ export default function App() {
     setShowStaffModal(true);
   };
 
-  const handleAddTodo = (e: FormEvent) => {
+  const handleAddTodo = async (e: FormEvent) => {
     e.preventDefault();
     if (!todoInput.trim()) return;
-    const newTodo: Todo = {
-      id: Date.now().toString(),
-      text: todoInput,
-      completed: false
-    };
-    setTodos(prev => [...prev, newTodo]);
+    const saved = await addTodoItem({ text: todoInput.trim(), completed: false });
+    if (!saved) return;
     setTodoInput('');
   };
 
@@ -3156,27 +3156,20 @@ export default function App() {
     }, 450);
   };
 
-  const toggleTodo = (id: string) => {
-    setTodos(prev => prev.map(todo => {
-      if (todo.id === id) {
-        const newCompleted = !todo.completed;
-        
-        // Automation: if "Call Parent" is checked
-        if (newCompleted && (todo.text.toLowerCase().includes('call parent') || todo.text.toLowerCase().includes('appeler parent'))) {
-          // If we have a studentId linked to the todo
-          if (todo.studentId) {
-            handleSaveNote(todo.studentId, t.followUpCompleted);
-          }
-        }
-        
-        return { ...todo, completed: newCompleted };
-      }
-      return todo;
-    }));
+  const toggleTodo = async (id: string) => {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+    const newCompleted = !todo.completed;
+    const ok = await updateTodoItem(id, { completed: newCompleted });
+    if (!ok) return;
+    // Automation: if "Call Parent" is checked
+    if (newCompleted && (todo.text.toLowerCase().includes('call parent') || todo.text.toLowerCase().includes('appeler parent')) && todo.studentId) {
+      await handleSaveNote(todo.studentId, t.followUpCompleted);
+    }
   };
 
-  const deleteTodo = (id: string) => {
-    setTodos(prev => prev.filter(t => t.id !== id));
+  const deleteTodo = async (id: string) => {
+    await deleteTodoItem(id);
   };
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {

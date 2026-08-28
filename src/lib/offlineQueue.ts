@@ -9,11 +9,21 @@ export type OfflineActionType =
   | 'addPayment'
   | 'addExpense'
   | 'addVendorExpense'
+  | 'updateVendorExpense'
+  | 'deleteVendorExpense'
   | 'addStudent'
   | 'updateStudent'
   | 'deleteStudent'
   | 'addStaff'
-  | 'addSalaryPayment';
+  | 'updateStaff'
+  | 'deleteStaff'
+  | 'addSalaryPayment'
+  | 'addParent'
+  | 'updateParent'
+  | 'deleteParent'
+  | 'addTodo'
+  | 'updateTodo'
+  | 'deleteTodo';
 
 export interface QueueItem {
   id: string;
