@@ -1,0 +1,3049 @@
+import type { Dispatch, SetStateAction } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X } from 'lucide-react';
+import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense, CustomClass } from '../lib/useSupabaseData';
+
+export interface AppModalsProps {
+  Bell: any;
+  Briefcase: any;
+  Calendar: any;
+  CheckCircle2: any;
+  CheckSquare: any;
+  Copy: any;
+  CreditCard: any;
+  DollarSign: any;
+  FileText: any;
+  Globe: any;
+  Heart: any;
+  Layers: any;
+  MessageSquare: any;
+  Phone: any;
+  Plus: any;
+  Printer: any;
+  Receipt: any;
+  ShieldCheck: any;
+  Sparkles: any;
+  StickyNote: any;
+  Trash2: any;
+  TrendingUp: any;
+  Users: any;
+  X: any;
+  academicYears: string[];
+  activeLinkingParent: Parent | null;
+  aiInput: string;
+  aiMessages: { sender: 'user' | 'assistant'; text: string }[];
+  auditYear: string | null;
+  availableClasses: CustomClass[];
+  copiedToast: string;
+  copyToClipboard: (...args: any[]) => any;
+  currentMonth: number;
+  currentTheme: { bg: string; card: string; text: string; muted: string; border: string; header: string; sidebar: string; accent: string; accentBg: string; accentHover: string; accentShadow: string; tableHeader: string; rowHover: string; input: string; isDark: boolean };
+  currentUser: { name?: string; role?: string; username?: string } | null;
+  deleteTodo: (...args: any[]) => any;
+  editClassForm: any;
+  editingParent: Parent | null;
+  editingStaff: Staff | null;
+  editingStudent: Student | null;
+  editingVendorExpense: VendorExpense | null;
+  expenseCategoryList: { key: string; label: string }[];
+  expenseForm: any;
+  formatCurrency: (...args: any[]) => any;
+  formatDate: (...args: any[]) => any;
+  generateInstallmentMemo: (...args: any[]) => any;
+  generatePaymentReceiptPdf: (...args: any[]) => any;
+  getDayName: (...args: any[]) => any;
+  getEventsForDay: (...args: any[]) => any;
+  getGradeDisplay: (...args: any[]) => any;
+  getParentOutstandingBalance: (...args: any[]) => any;
+  getYearStats: (...args: any[]) => any;
+  handleAddTodo: (...args: any[]) => any;
+  handleAiQuery: (...args: any[]) => any;
+  handleCopyNotifyMessage: (...args: any[]) => any;
+  handleCreateClassSubmit: (...args: any[]) => any;
+  handleEditClassSubmit: (...args: any[]) => any;
+  handleExpenseSubmit: (...args: any[]) => any;
+  handleLinkStudentSubmit: (...args: any[]) => any;
+  handleNotifyTemplateChange: (...args: any[]) => any;
+  handleParentSubmit: (...args: any[]) => any;
+  handlePaymentSubmit: (...args: any[]) => any;
+  handleSalarySubmit: (...args: any[]) => any;
+  handleSaveNote: (...args: any[]) => any;
+  handleSendSMS: (...args: any[]) => any;
+  handleSendWhatsApp: (...args: any[]) => any;
+  handleStaffSubmit: (...args: any[]) => any;
+  handleStudentSubmit: (...args: any[]) => any;
+  handleVendorExpenseSubmit: (...args: any[]) => any;
+  isPromoter: boolean;
+  lang: 'en' | 'fr';
+  newClassForm: any;
+  notifyCustomText: string;
+  notifyParent: any;
+  notifySelectedPhone: string;
+  notifyTemplateType: string;
+  openEditModal: (...args: any[]) => any;
+  parentForm: any;
+  paymentAmount: string;
+  paymentDate: string;
+  paymentStudentId: string;
+  printStudentFile: Student | null;
+  productivitySidebarTab: string;
+  salaryForm: any;
+  salaryPayments: SalaryPayment[];
+  schoolLogo: string;
+  selectedCalendarDay: Date;
+  selectedStudent: Student | null;
+  setAiInput: Dispatch<SetStateAction<any>>;
+  setEditClassForm: Dispatch<SetStateAction<any>>;
+  setEditingVendorExpense: Dispatch<SetStateAction<any>>;
+  setExpenseForm: Dispatch<SetStateAction<any>>;
+  setNewClassForm: Dispatch<SetStateAction<any>>;
+  setNotifyCustomText: Dispatch<SetStateAction<any>>;
+  setNotifySelectedPhone: Dispatch<SetStateAction<any>>;
+  setParentForm: Dispatch<SetStateAction<any>>;
+  setPaymentAmount: Dispatch<SetStateAction<any>>;
+  setPaymentDate: Dispatch<SetStateAction<any>>;
+  setPaymentStudentId: Dispatch<SetStateAction<any>>;
+  setPrintStudentFile: Dispatch<SetStateAction<any>>;
+  setProductivitySidebarTab: Dispatch<SetStateAction<any>>;
+  setSalaryForm: Dispatch<SetStateAction<any>>;
+  setSelectedStudent: Dispatch<SetStateAction<any>>;
+  setShowAddClassModal: Dispatch<SetStateAction<any>>;
+  setShowAuditModal: Dispatch<SetStateAction<any>>;
+  setShowCalendarModal: Dispatch<SetStateAction<any>>;
+  setShowEditClassModal: Dispatch<SetStateAction<any>>;
+  setShowExpenseModal: Dispatch<SetStateAction<any>>;
+  setShowLinkStudentModal: Dispatch<SetStateAction<any>>;
+  setShowNotifyModal: Dispatch<SetStateAction<any>>;
+  setShowParentModal: Dispatch<SetStateAction<any>>;
+  setShowPaymentForm: Dispatch<SetStateAction<any>>;
+  setShowSalaryModal: Dispatch<SetStateAction<any>>;
+  setShowStaffModal: Dispatch<SetStateAction<any>>;
+  setShowStudentModal: Dispatch<SetStateAction<any>>;
+  setShowTodoSidebar: Dispatch<SetStateAction<any>>;
+  setShowVendorExpenseModal: Dispatch<SetStateAction<any>>;
+  setStaffForm: Dispatch<SetStateAction<any>>;
+  setStudentDetailTab: Dispatch<SetStateAction<any>>;
+  setStudentForm: Dispatch<SetStateAction<any>>;
+  setStudentToLinkId: Dispatch<SetStateAction<any>>;
+  setTicketStudent: Dispatch<SetStateAction<any>>;
+  setTodoInput: Dispatch<SetStateAction<any>>;
+  setVendorExpenseForm: Dispatch<SetStateAction<any>>;
+  showAddClassModal: boolean;
+  showAuditModal: boolean;
+  showCalendarModal: boolean;
+  showEditClassModal: boolean;
+  showExpenseModal: boolean;
+  showLinkStudentModal: boolean;
+  showNotifyModal: boolean;
+  showParentModal: boolean;
+  showPaymentForm: boolean;
+  showSalaryModal: boolean;
+  showStaffModal: boolean;
+  showStudentModal: boolean;
+  showSuccessToast: (...args: any[]) => any;
+  showTodoSidebar: boolean;
+  showVendorExpenseModal: boolean;
+  staff: Staff[];
+  staffForm: any;
+  studentDetailTab: string;
+  studentForm: any;
+  studentToLinkId: string | null;
+  students: Student[];
+  t: Record<string, string> & { revenueVsExpenses: string };
+  ticketStudent: Student | null;
+  todoInput: string;
+  todos: Todo[];
+  toggleLanguage: (...args: any[]) => any;
+  toggleTodo: (...args: any[]) => any;
+  vendorExpenseForm: any;
+  welcomeMessage: string | null;
+}
+
+export function AppModals(props: AppModalsProps) {
+  const { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, lang, newClassForm, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoInput, todos, toggleLanguage, toggleTodo, vendorExpenseForm, welcomeMessage } = props;
+  return (
+    <>
+      {/* --- Parent Profile Modal --- */}
+      <AnimatePresence>
+        {selectedStudent && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedStudent(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-xl rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              {/* Header Banner */}
+              <div className="h-24 relative" style={{ backgroundColor: currentTheme.header }}>
+                <button 
+                  onClick={() => setSelectedStudent(null)}
+                  className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Body Content */}
+              <div className="px-10 pb-10 pt-4 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                {/* --- Student Card Layout --- */}
+                <div className={`flex flex-col sm:flex-row items-center gap-6 p-6 rounded-[2.5rem] border ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-900/5' : 'bg-slate-50/50'}`}>
+                  {/* Photo Placeholder / Image */}
+                  <div className={`w-28 h-28 flex-shrink-0 border-2 ${currentTheme.border} rounded-[2rem] overflow-hidden bg-slate-100 flex items-center justify-center relative shadow-inner`}>
+                    {selectedStudent.photo ? (
+                      <img 
+                        src={selectedStudent.photo} 
+                        alt={selectedStudent.name} 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="text-center">
+                        <Users size={32} className="text-slate-400 mx-auto mb-1" />
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">PHOTO</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Student Essential Text Details */}
+                  <div className="flex-1 text-center sm:text-left space-y-2">
+                    <div>
+                      <span className={`text-[10px] ${currentTheme.muted} font-black uppercase tracking-widest font-mono`}>
+                        ID: {selectedStudent.studentId || `MT-2026-${selectedStudent.id.replace('ST', '')}`}
+                      </span>
+                      <h3 className={`text-2xl font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} tracking-tight`}>
+                        {selectedStudent.name}
+                      </h3>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                      <span className="inline-block px-3 py-1 bg-blue-50 text-blue-600 rounded-xl text-xs font-black uppercase tracking-wider">
+                        {getGradeDisplay(selectedStudent.grade, lang)}
+                      </span>
+
+                      {/* Status badge: Green for Active, Blue for Graduated, Grey for Left */}
+                      {(() => {
+                        const statusVal = selectedStudent.status || 'Active';
+                        let badgeColors = 'text-emerald-700 bg-emerald-50 border-emerald-100';
+                        if (statusVal === 'Graduated') badgeColors = 'text-blue-700 bg-blue-50 border-blue-100';
+                        if (statusVal === 'Left') badgeColors = 'text-slate-500 bg-slate-100 border-slate-200';
+                        return (
+                          <span className={`inline-block px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider border ${badgeColors}`}>
+                            {statusVal}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* --- Custom Tab Bar --- */}
+                <div className="flex border-b border-slate-100 no-print gap-2">
+                  <button
+                    onClick={() => setStudentDetailTab('general')}
+                    className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
+                      studentDetailTab === 'general'
+                        ? 'border-blue-600 text-blue-600'
+                        : `${currentTheme.muted} border-transparent hover:text-slate-600`
+                    }`}
+                  >
+                    {lang === 'en' ? 'General Info' : 'Infos Générales'}
+                  </button>
+                  <button
+                    onClick={() => setStudentDetailTab('parent')}
+                    className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
+                      studentDetailTab === 'parent'
+                        ? 'border-blue-600 text-blue-600'
+                        : `${currentTheme.muted} border-transparent hover:text-slate-600`
+                    }`}
+                  >
+                    {lang === 'en' ? 'Parent & emergency' : 'Parent & Urgence'}
+                  </button>
+                  <button
+                    onClick={() => setStudentDetailTab('medical')}
+                    className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
+                      studentDetailTab === 'medical'
+                        ? 'border-blue-600 text-blue-600'
+                        : `${currentTheme.muted} border-transparent hover:text-slate-600`
+                    }`}
+                  >
+                    {lang === 'en' ? 'Medical / History' : 'Médical & Historique'}
+                  </button>
+                </div>
+
+                {/* --- Tab Panel Contents --- */}
+                <div className="space-y-4">
+                  {studentDetailTab === 'general' && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className={`p-5 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-2xl`}>
+                          <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{lang === 'en' ? 'Enrollment Date' : "Date d'Inscription"}</span>
+                          <p className={`text-sm font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} mt-1`}>
+                            {selectedStudent.enrollmentDate || '2026-07-16'}
+                          </p>
+                        </div>
+                        <div className={`p-5 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-2xl`}>
+                          <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.academicYear}</span>
+                          <p className={`text-sm font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} mt-1`}>
+                            {selectedStudent.academicYear || '2025-2026'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className={`p-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-2xl text-center`}>
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.totalDue}</span>
+                          <p className={`text-xs font-extrabold ${currentTheme.muted} mt-1`}>
+                            {formatCurrency(selectedStudent.totalDue)}
+                          </p>
+                        </div>
+                        <div className={`p-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-2xl text-center`}>
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.paid}</span>
+                          <p className="text-xs font-extrabold text-emerald-600 mt-1">
+                            {formatCurrency(selectedStudent.amountPaid)}
+                          </p>
+                        </div>
+                        <div className={`p-4 ${currentTheme.isDark ? 'bg-[#FFF1F2]' : 'bg-rose-50'} rounded-2xl text-center`}>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-rose-500">{t.balance}</span>
+                          <p className="text-xs font-black text-rose-600 mt-1">
+                            {formatCurrency(selectedStudent.totalDue - selectedStudent.amountPaid)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Mini Payment Ledger */}
+                      <div className="space-y-2">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{lang === 'en' ? 'Payment History Ledger' : 'Historique des Paiements'}</span>
+                        <div className="space-y-2 max-h-24 overflow-y-auto pr-2 custom-scrollbar">
+                          {selectedStudent.payments.length > 0 ? (
+                            [...selectedStudent.payments].reverse().map((p, idx) => (
+                              <div key={`${p.date}-${p.amount}-${idx}`} className={`flex items-center justify-between p-3 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-xl text-xs`}>
+                                <div className="flex flex-col">
+                                  <span className={currentTheme.muted}>{formatDate(p.date)}</span>
+                                  {p.receiptNumber && <span className="text-[10px] text-slate-400 font-mono">N° {p.receiptNumber}</span>}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="font-bold text-emerald-600">+{formatCurrency(p.amount)}</span>
+                                  <button
+                                    onClick={() => generatePaymentReceiptPdf({
+                                      student: selectedStudent,
+                                      payment: p,
+                                      lang,
+                                      cashierName: currentUser?.name || 'Administration'
+                                    })}
+                                    className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-all shadow-sm flex items-center gap-1"
+                                    title={lang === 'en' ? 'Download Receipt PDF' : 'Télécharger Reçu PDF'}
+                                  >
+                                    📄 {lang === 'en' ? 'Receipt' : 'Reçu'}
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className={`text-xs ${currentTheme.muted} italic p-2`}>{t.noPayments}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {studentDetailTab === 'parent' && (
+                    <div className="space-y-4">
+                      {/* Guardian Info Card */}
+                      <div className={`p-5 ${currentTheme.isDark ? 'bg-[#1e293b]/50' : 'bg-slate-50'} rounded-2xl space-y-3`}>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.guardianTitle}</h4>
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                          <div>
+                            <span className={currentTheme.muted}>{t.parentName}</span>
+                            <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{selectedStudent.parentName}</p>
+                          </div>
+                          <div>
+                            <span className={currentTheme.muted}>{t.phone}</span>
+                            <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{selectedStudent.parentPhone}</p>
+                          </div>
+                          <div className="col-span-2 border-t border-slate-100 pt-2 flex justify-between items-center">
+                            <div>
+                              <span className={currentTheme.muted}>{t.email}</span>
+                              <p className={`font-semibold ${selectedStudent.parentEmail ? 'text-blue-600' : 'text-slate-400 italic text-xs'}`}>
+                                {selectedStudent.parentEmail || (lang === 'en' ? 'Not provided' : 'Non renseigné')}
+                              </p>
+                            </div>
+                            {selectedStudent.parentEmail && (
+                              <button 
+                                onClick={() => copyToClipboard(selectedStudent.parentEmail)}
+                                className="p-2 hover:bg-blue-50 text-blue-500 rounded-lg transition-all"
+                                title={t.copyEmail}
+                              >
+                                <Copy size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Emergency Contact Card */}
+                      <div className={`p-5 ${currentTheme.isDark ? 'bg-[#1e293b]/50' : 'bg-slate-50'} rounded-2xl space-y-3`}>
+                        <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{t.emergencyTitle}</h4>
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                          <div>
+                            <span className={currentTheme.muted}>{lang === 'en' ? 'Contact Name' : 'Nom du Contact'}</span>
+                            <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>
+                              {selectedStudent.emergencyContactName || 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <span className={currentTheme.muted}>{t.relationshipLabel}</span>
+                            <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>
+                              {selectedStudent.emergencyContactRelation || 'N/A'}
+                            </p>
+                          </div>
+                          <div className="col-span-2 border-t border-slate-100 pt-2">
+                            <span className={currentTheme.muted}>{t.emergencyPhoneLabel}</span>
+                            <p className="font-black text-rose-600 text-sm">
+                              {selectedStudent.emergencyContactPhone || 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {studentDetailTab === 'medical' && (
+                    <div className="space-y-4">
+                      {/* Previous School */}
+                      <div className={`p-5 ${currentTheme.isDark ? 'bg-[#1e293b]/50' : 'bg-slate-50'} rounded-2xl`}>
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.previousSchoolHistory}</span>
+                        <p className={`text-sm font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} mt-1`}>
+                          {selectedStudent.previousSchool || (lang === 'en' ? 'None / First Enrollment Entry' : 'Aucune / Première Inscription')}
+                        </p>
+                      </div>
+
+                      {/* Medical Notes */}
+                      <div className={`p-5 ${currentTheme.isDark ? 'bg-[#1e293b]/50' : 'bg-slate-50'} rounded-2xl`}>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-rose-500">{t.medicalNotesTitle}</span>
+                        <p className={`text-xs font-semibold ${currentTheme.isDark ? 'text-emerald-400/80' : 'text-slate-700'} mt-1 bg-white p-3 rounded-xl border border-slate-100`}>
+                          {selectedStudent.medicalNotes || 'None'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* --- Accounting Notes (Sticky Note) --- */}
+                <div className="pt-2">
+                  <div className="bg-[#FEF9C3] p-6 rounded-[2rem] shadow-inner border border-yellow-200/50 relative transform rotate-1">
+                    <div className="absolute top-5 right-6 text-yellow-600/30">
+                      <StickyNote size={24} />
+                    </div>
+                    <h4 className="text-[9px] font-black text-yellow-700 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                      <FileText size={12} />
+                      {t.accountingNotes}
+                    </h4>
+                    <textarea 
+                      defaultValue={selectedStudent.notes}
+                      onBlur={(e) => handleSaveNote(selectedStudent.id, e.target.value)}
+                      placeholder="Add payment promises or issues..."
+                      className="w-full bg-transparent border-none focus:ring-0 text-xs font-bold text-yellow-900 placeholder-yellow-700/40 resize-none min-h-[80px] custom-scrollbar"
+                    />
+                    <div className="mt-2 flex justify-end">
+                      <span className="text-[9px] font-black text-yellow-600/50 uppercase tracking-widest">
+                        {selectedStudent.lastNoteDate ? `Last updated: ${formatDate(selectedStudent.lastNoteDate)}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* --- Bottom Actions Bar --- */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-100">
+                  <button 
+                    onClick={() => {
+                      openEditModal(selectedStudent);
+                      setSelectedStudent(null);
+                    }}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2"
+                  >
+                    <FileText size={14} />
+                    Edit Profile
+                  </button>
+
+                  <button 
+                    onClick={() => setPrintStudentFile(selectedStudent)}
+                    className="flex-1 bg-slate-800 hover:bg-slate-900 text-white py-3.5 rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2"
+                  >
+                    <Printer size={14} />
+                    Print Student File
+                  </button>
+
+                  <button 
+                    onClick={() => setSelectedStudent(null)}
+                    className={`px-6 py-3.5 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 hover:bg-slate-50 rounded-2xl font-bold text-xs transition-all text-center`}
+                  >
+                    {t.close}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Student Add/Edit Modal --- */}
+      <AnimatePresence>
+        {showStudentModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowStudentModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+                <h2 className="text-xl font-bold flex items-center gap-3">
+                  <Users size={24} className="text-blue-400" />
+                  {editingStudent ? t.editStudent : t.addStudent}
+                </h2>
+                <button 
+                  onClick={() => setShowStudentModal(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleStudentSubmit} className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                {/* --- Student Profiles & Enrollment Core Fields --- */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.studentName}</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={studentForm.name}
+                      onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="Ibrahim"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Student ID (Unique)' : 'ID de l\'élève (Unique)'}</label>
+                    <input 
+                      type="text" 
+                      value={studentForm.studentId}
+                      onChange={(e) => setStudentForm({ ...studentForm, studentId: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="MT-2026-001 (Optional)"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Grade / Class' : 'Classe / Niveau'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddClassModal(true)}
+                        className="text-[10px] font-black text-blue-500 hover:text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <Plus size={12} />
+                        <span>{lang === 'en' ? 'New Class' : 'Nouvelle Classe'}</span>
+                      </button>
+                    </div>
+                    <select 
+                      required
+                      value={studentForm.grade}
+                      onChange={(e) => {
+                        if (e.target.value === '__ADD_NEW_CLASS__') {
+                          setShowAddClassModal(true);
+                        } else {
+                          setStudentForm({ ...studentForm, grade: e.target.value });
+                        }
+                      }}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500' : 'bg-slate-50 text-slate-800'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold`}
+                    >
+                      <option value="">{lang === 'en' ? 'Select Grade / Class' : 'Sélectionner la classe'}</option>
+                      <optgroup label={lang === 'en' ? "First Cycle (1st to 6th Year)" : "Premier Cycle (1ère à 6ème Année)"}>
+                        {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
+                          <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label={lang === 'en' ? "Second Cycle (7th to 9th Year)" : "Second Cycle (7ème à 9ème Année)"}>
+                        {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
+                          <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                        ))}
+                      </optgroup>
+                      {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
+                        <optgroup label={lang === 'en' ? "Other / Custom Classes" : "Autres / Classes Personnalisées"}>
+                          {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
+                            <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <option value="__ADD_NEW_CLASS__" className="text-blue-600 font-bold">
+                        {lang === 'en' ? '+ Add another class / section...' : '+ Ajouter une autre classe / section...'}
+                      </option>
+                    </select>
+                    <p className={`text-[10px] ${currentTheme.muted}`}>
+                      {lang === 'en' ? 'Staff can add sections such as 1st Year B or C.' : 'Le personnel peut ajouter des sections comme 1ère année B ou C.'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Enrollment Status' : 'Statut d\'Inscription'}</label>
+                    <select 
+                      value={studentForm.status}
+                      onChange={(e) => setStudentForm({ ...studentForm, status: e.target.value as any })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    >
+                      <option value="Active">{lang === 'en' ? 'Active' : 'Actif'}</option>
+                      <option value="Graduated">{lang === 'en' ? 'Graduated' : 'Diplômé'}</option>
+                      <option value="Left">{lang === 'en' ? 'Left' : 'Parti / Transféré'}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Passport Photo Link' : 'Lien de la photo d\'identité'}</label>
+                  <input 
+                    type="text" 
+                    value={studentForm.photo}
+                    onChange={(e) => setStudentForm({ ...studentForm, photo: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    placeholder="https://images.unsplash.com/photo-..."
+                  />
+                </div>
+
+                {/* --- Parents Contact & Details --- */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.parentName}</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={studentForm.parentName}
+                      onChange={(e) => setStudentForm({ ...studentForm, parentName: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="Djeneba"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Parent Email (Optional)' : 'Email du Parent (Optionnel)'}
+                    </label>
+                    <input 
+                      type="email" 
+                      value={studentForm.parentEmail}
+                      onChange={(e) => setStudentForm({ ...studentForm, parentEmail: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder={lang === 'en' ? "parent@example.com (optional)" : "parent@example.com (optionnel)"}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.phone}</label>
+                  <input 
+                    required
+                    type="tel" 
+                    value={studentForm.parentPhone}
+                    onChange={(e) => setStudentForm({ ...studentForm, parentPhone: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    placeholder="+223 70 00 00 00"
+                  />
+                </div>
+
+                {/* --- Emergency Contact Fields --- */}
+                <div className={`p-6 ${currentTheme.isDark ? 'bg-slate-900/50' : 'bg-slate-50'} rounded-3xl border ${currentTheme.border} space-y-4`}>
+                  <h4 className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                    {lang === 'en' ? 'Emergency Contact' : 'Contact d\'Urgence'}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Contact Name' : 'Nom du Contact'}
+                      </label>
+                      <input 
+                        type="text" 
+                        value={studentForm.emergencyContactName}
+                        onChange={(e) => setStudentForm({ ...studentForm, emergencyContactName: e.target.value })}
+                        className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
+                        placeholder={lang === 'en' ? 'Emergency contact name' : 'Nom complet du contact d\'urgence'}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Relation' : 'Lien de Parenté'}
+                      </label>
+                      <input 
+                        type="text" 
+                        value={studentForm.emergencyContactRelation}
+                        onChange={(e) => setStudentForm({ ...studentForm, emergencyContactRelation: e.target.value })}
+                        className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
+                        placeholder={lang === 'en' ? 'Uncle, Aunt, Parent, etc.' : 'Oncle, Tante, Parent, etc.'}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Emergency Phone' : 'Téléphone d\'Urgence'}
+                    </label>
+                    <input 
+                      type="tel" 
+                      value={studentForm.emergencyContactPhone}
+                      onChange={(e) => setStudentForm({ ...studentForm, emergencyContactPhone: e.target.value })}
+                      className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
+                      placeholder={lang === 'en' ? 'Emergency contact phone' : 'Numéro de téléphone d\'urgence'}
+                    />
+                  </div>
+                </div>
+
+                {/* --- History & Medical notes --- */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Enrollment Date' : 'Date d\'Inscription'}
+                    </label>
+                    <input 
+                      type="date" 
+                      value={studentForm.enrollmentDate}
+                      onChange={(e) => setStudentForm({ ...studentForm, enrollmentDate: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Previous School' : 'École Précédente'}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={studentForm.previousSchool}
+                      onChange={(e) => setStudentForm({ ...studentForm, previousSchool: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder={lang === 'en' ? 'Transfer history school name' : 'Nom de l\'école de provenance'}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                    {lang === 'en' ? 'Medical Notes (Allergies / Conditions)' : 'Notes Médicales (Allergies / Conditions)'}
+                  </label>
+                  <textarea 
+                    value={studentForm.medicalNotes}
+                    onChange={(e) => setStudentForm({ ...studentForm, medicalNotes: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} min-h-[100px]`}
+                    placeholder={lang === 'en' ? 'Allergies, conditions, or None...' : 'Allergies, conditions médicales ou Aucune...'}
+                  />
+                </div>
+
+                {/* --- Financial Controls --- */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
+                      <span>{t.totalDue} ({t.currency})</span>
+                      <span className="text-[9px] text-emerald-600 font-bold">
+                        ({lang === 'en' ? 'Staff authorized' : 'Staff autorisé'})
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <input 
+                        required
+                        type="number" 
+                        min="0"
+                        step="1"
+                        value={studentForm.totalDue}
+                        onChange={(e) => setStudentForm({ ...studentForm, totalDue: e.target.value })}
+                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        placeholder="120000"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
+                      <span>{t.scholarship}</span>
+                      {!isPromoter && (
+                        <span className="text-[9px] text-rose-500 font-bold">
+                          ({lang === 'en' ? 'Promoter Only' : 'Promotrice uniquement'})
+                        </span>
+                      )}
+                    </label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={studentForm.scholarshipDiscount}
+                      onChange={(e) => setStudentForm({ ...studentForm, scholarshipDiscount: e.target.value })}
+                      disabled={!isPromoter}
+                      className={`w-full px-6 py-4 ${!isPromoter ? 'bg-slate-150 cursor-not-allowed opacity-70' : (currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50')} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.academicYear}</label>
+                    <select 
+                      value={studentForm.academicYear}
+                      onChange={(e) => setStudentForm({ ...studentForm, academicYear: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    >
+                      {academicYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.dueDate}</label>
+                    <input 
+                      required
+                      type="date" 
+                      value={studentForm.dueDate}
+                      onChange={(e) => setStudentForm({ ...studentForm, dueDate: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-blue-500/20 active:scale-[0.98]"
+                >
+                  {editingStudent ? t.saveChanges : t.submit}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Add New Class / Section Modal --- */}
+      <AnimatePresence>
+        {showAddClassModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAddClassModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-md rounded-[2.5rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+                <h3 className="text-lg font-bold flex items-center gap-2.5">
+                  <Layers size={20} className="text-blue-400" />
+                  <span>{lang === 'en' ? 'Add Class / Section' : 'Ajouter une Classe / Section'}</span>
+                </h3>
+                <button 
+                  onClick={() => setShowAddClassModal(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateClassSubmit} className="p-6 space-y-5">
+                <div className="space-y-1.5">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                    {lang === 'en' ? 'School Cycle' : 'Cycle Scolaire'}
+                  </label>
+                  <select
+                    value={newClassForm.cycle}
+                    onChange={(e) => {
+                      const c = e.target.value as any;
+                      const defYear = c === 'cycle2' ? '7' : c === 'lycee' ? '10' : c === 'maternelle' ? 'PS' : '1';
+                      setNewClassForm({ ...newClassForm, cycle: c, year: defYear });
+                    }}
+                    className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  >
+                    <option value="cycle1">{lang === 'en' ? 'First Cycle (1st to 6th Year)' : 'Premier Cycle (1ère à 6ème Année)'}</option>
+                    <option value="cycle2">{lang === 'en' ? 'Second Cycle (7th to 9th Year)' : 'Second Cycle (7ème à 9ème Année)'}</option>
+                    <option value="lycee">{lang === 'en' ? 'Lycée (High School)' : 'Lycée (Secondaire)'}</option>
+                    <option value="maternelle">{lang === 'en' ? 'Maternelle (Kindergarten)' : 'Maternelle / Jardin d\'Enfants'}</option>
+                    <option value="other">{lang === 'en' ? 'Other / Fully Custom Name' : 'Autre / Nom personnalisé'}</option>
+                  </select>
+                </div>
+
+                {newClassForm.cycle !== 'other' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Grade / Level' : 'Niveau / Année'}
+                      </label>
+                      <select
+                        value={newClassForm.year}
+                        onChange={(e) => setNewClassForm({ ...newClassForm, year: e.target.value })}
+                        className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                      >
+                        {newClassForm.cycle === 'cycle1' && (
+                          <>
+                            <option value="1">{lang === 'en' ? '1st Year (1ère)' : '1ère Année'}</option>
+                            <option value="2">{lang === 'en' ? '2nd Year (2ème)' : '2ème Année'}</option>
+                            <option value="3">{lang === 'en' ? '3rd Year (3ème)' : '3ème Année'}</option>
+                            <option value="4">{lang === 'en' ? '4th Year (4ème)' : '4ème Année'}</option>
+                            <option value="5">{lang === 'en' ? '5th Year (5ème)' : '5ème Année'}</option>
+                            <option value="6">{lang === 'en' ? '6th Year (6ème)' : '6ème Année'}</option>
+                          </>
+                        )}
+                        {newClassForm.cycle === 'cycle2' && (
+                          <>
+                            <option value="7">{lang === 'en' ? '7th Year (7ème)' : '7ème Année'}</option>
+                            <option value="8">{lang === 'en' ? '8th Year (8ème)' : '8ème Année'}</option>
+                            <option value="9">{lang === 'en' ? '9th Year (9ème)' : '9ème Année'}</option>
+                          </>
+                        )}
+                        {newClassForm.cycle === 'lycee' && (
+                          <>
+                            <option value="10">{lang === 'en' ? '10th Year (10ème)' : '10ème Année (Seconde)'}</option>
+                            <option value="11">{lang === 'en' ? '11th Year (11ème)' : '11ème Année (Première)'}</option>
+                            <option value="12">{lang === 'en' ? '12th Year (12ème)' : '12ème Année (Terminale)'}</option>
+                          </>
+                        )}
+                        {newClassForm.cycle === 'maternelle' && (
+                          <>
+                            <option value="PS">{lang === 'en' ? 'Petite Section (PS)' : 'Petite Section (PS)'}</option>
+                            <option value="MS">{lang === 'en' ? 'Moyenne Section (MS)' : 'Moyenne Section (MS)'}</option>
+                            <option value="GS">{lang === 'en' ? 'Grande Section (GS)' : 'Grande Section (GS)'}</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Section (e.g. D, E)' : 'Section (ex. D, E)'}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={5}
+                        placeholder="D, E, F..."
+                        value={newClassForm.section}
+                        onChange={(e) => setNewClassForm({ ...newClassForm, section: e.target.value.toUpperCase() })}
+                        className={`w-full p-3.5 text-xs font-bold uppercase rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Custom Class Name' : 'Nom de la classe'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder={lang === 'en' ? 'e.g., 1ère D or Garderie' : 'ex. 1ère D ou Garderie'}
+                      value={newClassForm.customName}
+                      onChange={(e) => setNewClassForm({ ...newClassForm, customName: e.target.value })}
+                      className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                    />
+                  </div>
+                )}
+
+                {/* Preview Badge */}
+                <div className={`p-4 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900/40' : 'bg-slate-50'}`}>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                    {lang === 'en' ? 'Generated Class Code:' : 'Code généré :'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-black">
+                      {newClassForm.cycle === 'other' ? (newClassForm.customName || 'CUSTOM') : `${newClassForm.year}${newClassForm.section || 'A'}`}
+                    </span>
+                    <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">
+                      {newClassForm.cycle === 'other' 
+                        ? (newClassForm.customName || 'Classe personnalisée') 
+                        : `${newClassForm.year === '1' ? '1ère Année' : newClassForm.year + 'ème Année'} ${newClassForm.section || 'A'}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddClassModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+                  >
+                    {lang === 'en' ? 'Cancel' : 'Annuler'}
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    <span>{lang === 'en' ? 'Save Class' : 'Créer la classe'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Edit Custom Class Modal --- */}
+      <AnimatePresence>
+        {showEditClassModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEditClassModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-md rounded-[2.5rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+                <h3 className="text-lg font-bold flex items-center gap-2.5">
+                  <Layers size={20} className="text-blue-400" />
+                  <span>{lang === 'en' ? 'Edit Class / Section' : 'Modifier la Classe / Section'}</span>
+                </h3>
+                <button 
+                  onClick={() => setShowEditClassModal(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditClassSubmit} className="p-6 space-y-5">
+                <div className="space-y-1.5">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                    {lang === 'en' ? 'School Cycle' : 'Cycle Scolaire'}
+                  </label>
+                  <select
+                    value={editClassForm.cycle}
+                    onChange={(e) => {
+                      const c = e.target.value as any;
+                      const defYear = c === 'cycle2' ? '7' : c === 'lycee' ? '10' : c === 'maternelle' ? 'PS' : '1';
+                      setEditClassForm({ ...editClassForm, cycle: c, year: defYear });
+                    }}
+                    className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  >
+                    <option value="cycle1">{lang === 'en' ? 'First Cycle (1st to 6th Year)' : 'Premier Cycle (1ère à 6ème Année)'}</option>
+                    <option value="cycle2">{lang === 'en' ? 'Second Cycle (7th to 9th Year)' : 'Second Cycle (7ème à 9ème Année)'}</option>
+                    <option value="lycee">{lang === 'en' ? 'Lycée (High School)' : 'Lycée (Secondaire)'}</option>
+                    <option value="maternelle">{lang === 'en' ? 'Maternelle (Kindergarten)' : 'Maternelle / Jardin d\'Enfants'}</option>
+                    <option value="other">{lang === 'en' ? 'Other / Fully Custom Name' : 'Autre / Nom personnalisé'}</option>
+                  </select>
+                </div>
+
+                {editClassForm.cycle !== 'other' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Grade / Level' : 'Niveau / Année'}
+                      </label>
+                      <select
+                        value={editClassForm.year}
+                        onChange={(e) => setEditClassForm({ ...editClassForm, year: e.target.value })}
+                        className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                      >
+                        {editClassForm.cycle === 'cycle1' && (
+                          <>
+                            <option value="1">{lang === 'en' ? '1st Year (1ère)' : '1ère Année'}</option>
+                            <option value="2">{lang === 'en' ? '2nd Year (2ème)' : '2ème Année'}</option>
+                            <option value="3">{lang === 'en' ? '3rd Year (3ème)' : '3ème Année'}</option>
+                            <option value="4">{lang === 'en' ? '4th Year (4ème)' : '4ème Année'}</option>
+                            <option value="5">{lang === 'en' ? '5th Year (5ème)' : '5ème Année'}</option>
+                            <option value="6">{lang === 'en' ? '6th Year (6ème)' : '6ème Année'}</option>
+                          </>
+                        )}
+                        {editClassForm.cycle === 'cycle2' && (
+                          <>
+                            <option value="7">{lang === 'en' ? '7th Year (7ème)' : '7ème Année'}</option>
+                            <option value="8">{lang === 'en' ? '8th Year (8ème)' : '8ème Année'}</option>
+                            <option value="9">{lang === 'en' ? '9th Year (9ème)' : '9ème Année'}</option>
+                          </>
+                        )}
+                        {editClassForm.cycle === 'lycee' && (
+                          <>
+                            <option value="10">{lang === 'en' ? '10th Year (10ème)' : '10ème Année (Seconde)'}</option>
+                            <option value="11">{lang === 'en' ? '11th Year (11ème)' : '11ème Année (Première)'}</option>
+                            <option value="12">{lang === 'en' ? '12th Year (12ème)' : '12ème Année (Terminale)'}</option>
+                          </>
+                        )}
+                        {editClassForm.cycle === 'maternelle' && (
+                          <>
+                            <option value="PS">{lang === 'en' ? 'Petite Section (PS)' : 'Petite Section (PS)'}</option>
+                            <option value="MS">{lang === 'en' ? 'Moyenne Section (MS)' : 'Moyenne Section (MS)'}</option>
+                            <option value="GS">{lang === 'en' ? 'Grande Section (GS)' : 'Grande Section (GS)'}</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Section (e.g. D, E)' : 'Section (ex. D, E)'}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={5}
+                        placeholder="D, E, F..."
+                        value={editClassForm.section}
+                        onChange={(e) => setEditClassForm({ ...editClassForm, section: e.target.value.toUpperCase() })}
+                        className={`w-full p-3.5 text-xs font-bold uppercase rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Custom Class Name' : 'Nom de la classe'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder={lang === 'en' ? 'e.g., 1ère D or Garderie' : 'ex. 1ère D ou Garderie'}
+                      value={editClassForm.customName}
+                      onChange={(e) => setEditClassForm({ ...editClassForm, customName: e.target.value })}
+                      className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                    />
+                  </div>
+                )}
+
+                {/* Preview Badge */}
+                <div className={`p-4 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900/40' : 'bg-slate-50'}`}>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                    {lang === 'en' ? 'Generated Class Code:' : 'Code généré :'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-black">
+                      {editClassForm.cycle === 'other' ? (editClassForm.customName || 'CUSTOM') : `${editClassForm.year}${editClassForm.section || 'A'}`}
+                    </span>
+                    <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">
+                      {editClassForm.cycle === 'other' 
+                        ? (editClassForm.customName || 'Classe personnalisée') 
+                        : `${editClassForm.year === '1' ? '1ère Année' : editClassForm.year + 'ème Année'} ${editClassForm.section || 'A'}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditClassModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+                  >
+                    {lang === 'en' ? 'Cancel' : 'Annuler'}
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 size={14} />
+                    <span>{lang === 'en' ? 'Save Changes' : 'Enregistrer'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Staff Add/Edit Modal --- */}
+      <AnimatePresence>
+        {showStaffModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowStaffModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+                <h2 className="text-xl font-bold flex items-center gap-3">
+                  <Briefcase size={24} className="text-blue-400" />
+                  {editingStaff ? t.editStaff : t.addStaff}
+                </h2>
+                <button onClick={() => setShowStaffModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleStaffSubmit} className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffName}</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={staffForm.name}
+                      onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="Jane Doe"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.position}</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={staffForm.position}
+                      onChange={(e) => setStaffForm({ ...staffForm, position: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="Teacher"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.phone}</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={staffForm.phone}
+                      onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="+223 70 00 00 00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.email}</label>
+                    <input 
+                      required
+                      type="email" 
+                      value={staffForm.email}
+                      onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="jane.doe@school.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.monthlySalary} ({t.currency})</label>
+                  <input 
+                    required
+                    type="number" 
+                    value={staffForm.salary}
+                    onChange={(e) => setStaffForm({ ...staffForm, salary: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    placeholder="150 000"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.bankDetails}</label>
+                  <input
+                    type="text"
+                    value={staffForm.bankDetails}
+                    onChange={(e) => setStaffForm({ ...staffForm, bankDetails: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    placeholder="RIB: ML01 00001 ..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.emergencyContact}</label>
+                  <input
+                    type="text"
+                    value={staffForm.emergencyContact}
+                    onChange={(e) => setStaffForm({ ...staffForm, emergencyContact: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    placeholder="Spouse: +223 60 00 00 00"
+                  />
+                </div>
+
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-blue-500/20">
+                  {editingStaff ? t.saveChanges : t.submit}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Expense Modal --- */}
+      <AnimatePresence>
+        {showExpenseModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowExpenseModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className="p-8 border-b border-rose-100 flex justify-between items-center bg-rose-600 text-white">
+                <h2 className="text-xl font-bold flex items-center gap-3">
+                  <Receipt size={24} />
+                  {t.addExpense}
+                </h2>
+                <button onClick={() => setShowExpenseModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleExpenseSubmit} className="p-10 space-y-6">
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.category}</label>
+                  <select 
+                    value={expenseForm.category}
+                    onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/5 focus:border-rose-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                  >
+                    <option value="Supplies">{t.supplies}</option>
+                    <option value="Utilities">{t.utilities}</option>
+                    <option value="Maintenance">{t.maintenance}</option>
+                    <option value="Other">{t.other}</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.description}</label>
+                  <input 
+                    required
+                    type="text" 
+                    value={expenseForm.description}
+                    onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/5 focus:border-rose-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    placeholder="Electricity bill"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amount} ({t.currency})</label>
+                    <input 
+                      required
+                      type="number" 
+                      value={expenseForm.amount}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/5 focus:border-rose-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="25 000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.date}</label>
+                    <input 
+                      required
+                      type="date" 
+                      value={expenseForm.date}
+                      onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/5 focus:border-rose-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    />
+                  </div>
+                </div>
+                <button type="submit" className="w-full bg-rose-500 hover:bg-rose-600 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20">
+                  {t.submit}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Vendor Expense Modal --- */}
+      <AnimatePresence>
+        {showVendorExpenseModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setShowVendorExpenseModal(false);
+                setEditingVendorExpense(null);
+              }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className={`p-8 border-b ${currentTheme.border} flex justify-between items-center ${currentTheme.isDark ? 'bg-emerald-800' : 'bg-blue-600'} text-white`}>
+                <h2 className="text-xl font-bold flex items-center gap-3">
+                  <Receipt size={24} />
+                  {editingVendorExpense ? t.editVendorExpense : t.addVendorExpense}
+                </h2>
+                <button 
+                  onClick={() => {
+                    setShowVendorExpenseModal(false);
+                    setEditingVendorExpense(null);
+                  }} 
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleVendorExpenseSubmit} className="p-10 space-y-6">
+                {/* Vendor Name */}
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
+                    <span>{t.vendorName}</span>
+                    {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({lang === 'en' ? 'Promoter Only' : 'Promotrice uniquement'})</span>}
+                  </label>
+                  <input 
+                    required
+                    type="text" 
+                    value={vendorExpenseForm.vendorName}
+                    disabled={!isPromoter}
+                    onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, vendorName: e.target.value })}
+                    className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? 'bg-slate-100 cursor-not-allowed opacity-70' : currentTheme.input}`}
+                    placeholder={lang === 'en' ? "e.g., SENELEC" : "ex. SENELEC"}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Category */}
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.category}</label>
+                    <select 
+                      value={vendorExpenseForm.category}
+                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, category: e.target.value as any })}
+                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
+                    >
+                      {expenseCategoryList.map(item => (
+                        <option key={item.key} value={item.key}>{item.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Payment Status */}
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.paymentStatus}</label>
+                    <select 
+                      value={vendorExpenseForm.paymentStatus}
+                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, paymentStatus: e.target.value as any })}
+                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
+                    >
+                      <option value="unpaid">{t.unpaid}</option>
+                      <option value="partial">{t.partialPaid}</option>
+                      <option value="paid">{t.fullyPaid}</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Conditional Welfare Aid / Social Cases sub-fields */}
+                {vendorExpenseForm.category === 'social_cases' && (
+                  <div className={`p-6 ${currentTheme.isDark ? 'bg-rose-950/10' : 'bg-rose-50/40'} border ${currentTheme.isDark ? 'border-rose-950/30' : 'border-rose-100'} rounded-3xl space-y-4`}>
+                    <p className="text-xs font-black uppercase tracking-widest text-rose-500 flex items-center gap-2">
+                      <Heart size={14} className="text-rose-500 fill-rose-500/10" />
+                      {lang === 'en' ? 'Student Welfare & Social Aid Details' : 'Détails des Cas Sociaux & Aides Liés aux Élèves'}
+                    </p>
+                    
+                    {/* Aid Type Dropdown */}
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Type of Aid' : 'Type d\'aide'}
+                      </label>
+                      <select 
+                        required={vendorExpenseForm.category === 'social_cases'}
+                        value={vendorExpenseForm.aidType}
+                        onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, aidType: e.target.value as any })}
+                        className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
+                      >
+                        <option value="">{lang === 'en' ? 'Select Type of Aid' : 'Sélectionner le type d\'aide'}</option>
+                        <option value="prise_en_charge">{lang === 'en' ? 'Tuition Waiver (Prise en charge Scolarité)' : 'Prise en charge Scolarité'}</option>
+                        <option value="kits_fournitures">{lang === 'en' ? 'Supplies Support (Kits Scolaires & Fournitures)' : 'Kits Scolaires & Fournitures'}</option>
+                        <option value="aide_urgence">{lang === 'en' ? 'Emergency Aid (Aide d\'Urgence)' : 'Aide d\'Urgence'}</option>
+                      </select>
+                    </div>
+
+                    {/* Student Link Fields */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                          {lang === 'en' ? 'Beneficiary Student Name (Optional)' : 'Nom de l\'élève bénéficiaire (Optionnel)'}
+                        </label>
+                        <input 
+                          type="text" 
+                          value={vendorExpenseForm.beneficiaryStudentName}
+                          onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, beneficiaryStudentName: e.target.value })}
+                          className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
+                          placeholder={lang === 'en' ? "e.g., Ibrahim Thera" : "ex. Ibrahim Thera"}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                          {lang === 'en' ? 'Student Grade (Optional)' : 'Classe de l\'élève (Optionnel)'}
+                        </label>
+                        <select 
+                          value={vendorExpenseForm.beneficiaryStudentGrade}
+                          onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, beneficiaryStudentGrade: e.target.value })}
+                          className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
+                        >
+                          <option value="">{lang === 'en' ? 'Select Grade' : 'Sélectionner la classe'}</option>
+                          <optgroup label={lang === 'en' ? "First Cycle (Premier Cycle)" : "Premier Cycle"}>
+                            {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
+                              <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label={lang === 'en' ? "Second Cycle" : "Second Cycle"}>
+                            {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
+                              <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                            ))}
+                          </optgroup>
+                          {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
+                            <optgroup label={lang === 'en' ? "Other Classes" : "Autres Classes"}>
+                              {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
+                                <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Total Amount */}
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
+                      <span>{t.amount} (XOF)</span>
+                      {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({lang === 'en' ? 'Promoter Only' : 'Promotrice uniquement'})</span>}
+                    </label>
+                    <input 
+                      required
+                      type="number" 
+                      value={vendorExpenseForm.amount}
+                      disabled={!isPromoter}
+                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, amount: e.target.value })}
+                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? 'bg-slate-100 cursor-not-allowed opacity-70' : currentTheme.input}`}
+                      placeholder="50000"
+                    />
+                  </div>
+
+                  {/* Due Date */}
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? "Due Date" : "Date d'échéance"}</label>
+                    <input 
+                      required
+                      type="date" 
+                      value={vendorExpenseForm.dueDate}
+                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, dueDate: e.target.value })}
+                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
+                    />
+                  </div>
+                </div>
+
+                {/* Amount Paid - Only visible if Partially Paid */}
+                {vendorExpenseForm.paymentStatus === 'partial' && (
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amountPaid} (XOF)</label>
+                    <input 
+                      required
+                      type="number" 
+                      value={vendorExpenseForm.amountPaid}
+                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, amountPaid: e.target.value })}
+                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
+                      placeholder="20000"
+                    />
+                  </div>
+                )}
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.description}</label>
+                  <input 
+                    type="text" 
+                    value={vendorExpenseForm.description}
+                    onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, description: e.target.value })}
+                    className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
+                    placeholder={lang === 'en' ? "Optional notes..." : "Notes optionnelles..."}
+                  />
+                </div>
+
+                <button 
+                  type="submit" 
+                  className={`w-full ${currentTheme.isDark ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl`}
+                >
+                  {t.submit}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Salary Payment Modal --- */}
+      <AnimatePresence>
+        {showSalaryModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSalaryModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+                <h2 className="text-xl font-bold flex items-center gap-3">
+                  <DollarSign size={24} className="text-emerald-400" />
+                  {t.recordSalaryPayment}
+                </h2>
+                <button onClick={() => setShowSalaryModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSalarySubmit} className="p-10 space-y-6">
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffName}</label>
+                  <select 
+                    required
+                    value={salaryForm.staffId}
+                    onChange={(e) => {
+                      const sId = e.target.value;
+                      const s = staff.find(st => st.id === sId);
+                      if (s) {
+                        const paid = salaryPayments
+                          .filter(p => p.staffId === sId && new Date(p.date).getMonth() === currentMonth)
+                          .reduce((sum, p) => sum + p.amount, 0);
+                        setSalaryForm({ ...salaryForm, staffId: sId, amount: (s.salary - paid).toString() });
+                      } else {
+                        setSalaryForm({ ...salaryForm, staffId: sId });
+                      }
+                    }}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                  >
+                    <option value="">Select Staff</option>
+                    {staff.map(s => {
+                      const paid = salaryPayments
+                        .filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth)
+                        .reduce((sum, p) => sum + p.amount, 0);
+                      const bal = s.salary - paid;
+                      return (
+                        <option key={s.id} value={s.id}>{s.name} ({formatCurrency(bal)} {t.remainingBalance})</option>
+                      );
+                    })}
+                  </select>
+                </div>
+                {salaryForm.staffId && (
+                  <div className={`p-4 rounded-2xl ${currentTheme.isDark ? 'bg-emerald-900/20' : 'bg-slate-50'} border ${currentTheme.border}`}>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className={currentTheme.muted}>{t.remainingBalance}</span>
+                      <span className="font-black text-rose-600">
+                        {(() => {
+                          const s = staff.find(st => st.id === salaryForm.staffId);
+                          if (!s) return formatCurrency(0);
+                          const paid = salaryPayments
+                            .filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth)
+                            .reduce((sum, p) => sum + p.amount, 0);
+                          return formatCurrency(s.salary - paid);
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amount} ({t.currency})</label>
+                    <input 
+                      required
+                      type="number" 
+                      value={salaryForm.amount}
+                      onChange={(e) => setSalaryForm({ ...salaryForm, amount: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.date}</label>
+                    <input 
+                      required
+                      type="date" 
+                      value={salaryForm.date}
+                      onChange={(e) => setSalaryForm({ ...salaryForm, date: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    />
+                  </div>
+                </div>
+
+                {salaryForm.staffId && salaryForm.amount && (
+                  <button 
+                    type="button"
+                    onClick={() => generateInstallmentMemo(salaryForm.staffId, parseFloat(salaryForm.amount))}
+                    className={`w-full py-4 rounded-2xl border ${currentTheme.isDark ? 'border-emerald-900/30 text-emerald-500 hover:bg-emerald-900/10' : 'border-slate-100 text-slate-600 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center justify-center gap-2`}
+                  >
+                    <Copy size={16} />
+                    {t.generateMemo}
+                  </button>
+                )}
+
+                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-emerald-500/20">
+                  {t.submit}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Calendar Day Modal --- */}
+      <AnimatePresence>
+        {showCalendarModal && selectedCalendarDay && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCalendarModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+                <h2 className="text-xl font-bold flex flex-col">
+                  <span className="text-sm opacity-70 uppercase tracking-widest font-black">{getDayName(selectedCalendarDay.getDay())}</span>
+                  <span>{selectedCalendarDay.toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                </h2>
+                <button onClick={() => setShowCalendarModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-10 space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                {(() => {
+                  const dayEvents = getEventsForDay(selectedCalendarDay);
+                  if (dayEvents.length === 0) {
+                    return (
+                      <div className="py-10 text-center">
+                        <div className={`w-16 h-16 rounded-full ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-400'} flex items-center justify-center mx-auto mb-4`}>
+                          <Calendar size={32} />
+                        </div>
+                        <p className={currentTheme.muted}>{lang === 'en' ? 'No financial tasks for this day' : 'Aucune tâche financière pour ce jour'}</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-6">
+                      {dayEvents.map((event, idx) => (
+                        <div key={idx} className={`p-6 rounded-2xl border ${currentTheme.border} ${
+                          event.type === 'due' ? 'bg-rose-50/30' :
+                          event.type === 'salary' ? 'bg-emerald-50/30' :
+                          'bg-blue-50/30'
+                        }`}>
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className={`p-3 rounded-xl ${
+                              event.type === 'due' ? 'bg-rose-100 text-rose-600' :
+                              event.type === 'salary' ? 'bg-emerald-100 text-emerald-600' :
+                              'bg-blue-100 text-blue-600'
+                            }`}>
+                              {event.type === 'due' ? <Users size={20} /> : event.type === 'salary' ? <Briefcase size={20} /> : <Receipt size={20} />}
+                            </div>
+                            <div>
+                              <h4 className={`font-black uppercase tracking-widest text-[10px] ${
+                                event.type === 'due' ? 'text-rose-600' :
+                                event.type === 'salary' ? 'text-emerald-600' :
+                                'text-blue-600'
+                              }`}>
+                                {event.type === 'due' ? (lang === 'en' ? 'Student Fees Due' : 'Frais Scolaires Dus') : 
+                                 event.type === 'salary' ? (lang === 'en' ? 'Staff Salaries' : 'Salaires du Personnel') : 
+                                 (lang === 'en' ? 'Expenses' : 'Dépenses')}
+                              </h4>
+                              <p className={`text-lg font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
+                                {event.count}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {event.details?.map((detail, dIdx) => (
+                              <div key={dIdx} className={`flex justify-between items-center text-sm py-2 border-t ${currentTheme.border}`}>
+                                <span className={currentTheme.muted}>{detail.name}</span>
+                                <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{formatCurrency(detail.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Success Toast --- */}
+      <AnimatePresence>
+        {showSuccessToast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] bg-emerald-600 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold"
+          >
+            <CheckCircle2 size={20} />
+            {t.successMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Welcome Toast --- */}
+      <AnimatePresence>
+        {welcomeMessage && (
+          <motion.div 
+            initial={{ opacity: 0, y: -100, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -100, scale: 0.9 }}
+            className="fixed top-10 left-1/2 -translate-x-1/2 z-[110] bg-slate-900 text-white dark:bg-emerald-600 px-8 py-5 rounded-3xl shadow-2xl flex items-center gap-4 font-black text-sm border-2 border-emerald-500/20"
+          >
+            <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center text-white">
+              <ShieldCheck size={18} />
+            </div>
+            <div className="text-left">
+              <p className="leading-tight">{welcomeMessage}</p>
+              <p className="text-[10px] text-white/60 font-medium">
+                {currentUser?.role === 'dev'
+                  ? (lang === 'en' ? 'System Developer Portal' : 'Portail Développeur Système')
+                  : currentUser?.role === 'admin' 
+                  ? (lang === 'en' ? 'Promoter / Owner Portal' : 'Portail Promoteur / Propriétaire') 
+                  : (lang === 'en' ? 'Accountant Access' : 'Accès Comptable')}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- To-Do Sidebar --- */}
+      <AnimatePresence>
+        {showTodoSidebar && (
+          <motion.aside 
+            initial={{ x: 320 }}
+            animate={{ x: 0 }}
+            exit={{ x: 320 }}
+            className={`fixed right-0 top-0 h-full w-80 ${currentTheme.card} border-l ${currentTheme.border} shadow-2xl z-30 flex flex-col`}
+          >
+            <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+              <h3 className="text-lg font-bold flex items-center gap-3">
+                {productivitySidebarTab === 'tasks' ? (
+                  <>
+                    <CheckSquare size={20} className="text-amber-400" />
+                    <span data-i18n="todoList">{t.todoList}</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={20} className="text-blue-400" />
+                    <span data-i18n="aiTitle">{t.aiTitle}</span>
+                  </>
+                )}
+              </h3>
+              <button 
+                onClick={() => setShowTodoSidebar(false)}
+                className="p-2 hover:bg-white/10 rounded-xl transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Tab switch */}
+            <div className="flex border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10">
+              <button 
+                onClick={() => setProductivitySidebarTab('tasks')}
+                className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest border-b-2 transition-all ${productivitySidebarTab === 'tasks' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              >
+                {lang === 'en' ? 'To-Do' : 'Tâches'}
+              </button>
+              <button 
+                onClick={() => setProductivitySidebarTab('ai')}
+                className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest border-b-2 transition-all ${productivitySidebarTab === 'ai' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              >
+                {lang === 'en' ? 'AI Assistant' : 'Assistant IA'}
+              </button>
+            </div>
+
+            {productivitySidebarTab === 'ai' ? (
+              <div className="flex-1 flex flex-col min-h-0 bg-slate-50/20 dark:bg-slate-900/5">
+                {/* Messages list */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                  {aiMessages.map((msg, idx) => (
+                    <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs font-semibold ${msg.sender === 'user' ? 'bg-blue-600 text-white' : (currentTheme.isDark ? 'bg-slate-800 text-emerald-400 border border-emerald-900/20' : 'bg-slate-100 text-slate-700')}`}>
+                        <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Suggestions Chips */}
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                    {lang === 'en' ? 'Quick Questions' : 'Questions Rapides'}
+                  </span>
+                  <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto custom-scrollbar">
+                    <button 
+                      onClick={() => handleAiQuery(t.aiQuickQuestion1)}
+                      className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                    >
+                      💡 {t.aiQuickQuestion1}
+                    </button>
+                    <button 
+                      onClick={() => handleAiQuery(t.aiQuickQuestion2)}
+                      className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                    >
+                      💡 {t.aiQuickQuestion2}
+                    </button>
+                    <button 
+                      onClick={() => handleAiQuery(t.aiQuickQuestion3)}
+                      className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                    >
+                      💡 {t.aiQuickQuestion3}
+                    </button>
+                    <button 
+                      onClick={() => handleAiQuery(t.aiQuickQuestion4)}
+                      className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                    >
+                      💡 {t.aiQuickQuestion4}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Ask Form */}
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAiQuery(aiInput);
+                  }}
+                  className="p-6 border-t border-slate-100 dark:border-slate-800 flex gap-2 bg-white dark:bg-slate-900"
+                >
+                  <input 
+                    type="text"
+                    value={aiInput}
+                    onChange={(e) => setAiInput(e.target.value)}
+                    placeholder={t.aiAskPlaceholder}
+                    className={`flex-1 px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-800'} border rounded-xl text-xs font-semibold`}
+                  />
+                  <button 
+                    type="submit"
+                    className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl transition-all flex items-center justify-center flex-shrink-0"
+                  >
+                    <Sparkles size={16} />
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+                <form onSubmit={handleAddTodo} className="space-y-3">
+                  <input 
+                    type="text"
+                    value={todoInput}
+                    onChange={(e) => setTodoInput(e.target.value)}
+                    placeholder={t.taskPlaceholder}
+                    className={`w-full px-5 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                  />
+                  <button 
+                    type="submit"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus size={16} />
+                    <span data-i18n="addTask">{t.addTask}</span>
+                  </button>
+                </form>
+
+                <div className="space-y-3">
+                  {todos.map(todo => (
+                    <motion.div 
+                      layout
+                      key={todo.id}
+                      className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${todo.completed ? (currentTheme.isDark ? 'bg-emerald-900/10 border-emerald-900/20 opacity-60' : 'bg-slate-50 border-slate-100 opacity-60') : (currentTheme.isDark ? 'bg-emerald-900/20 border-emerald-800/50 shadow-sm' : 'bg-white border-slate-100 shadow-sm')}`}
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        <button 
+                          onClick={() => toggleTodo(todo.id)}
+                          className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${todo.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 hover:border-blue-400'}`}
+                        >
+                          {todo.completed && <CheckCircle2 size={14} />}
+                        </button>
+                        <span className={`text-sm font-bold ${todo.completed ? (currentTheme.isDark ? 'text-emerald-500/50 line-through' : 'text-slate-400 line-through') : (currentTheme.isDark ? 'text-emerald-500' : 'text-slate-700')}`}>
+                          {todo.text}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={() => deleteTodo(todo.id)}
+                        className={`p-2 ${currentTheme.muted} hover:text-rose-500 transition-all`}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* --- Payment Entry Modal --- */}
+      <AnimatePresence>
+        {showPaymentForm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPaymentForm(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-md rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+                <h2 className="text-xl font-bold flex items-center gap-3">
+                  <CreditCard size={24} className="text-blue-400" />
+                  {t.paymentEntry}
+                </h2>
+                <button 
+                  onClick={() => setShowPaymentForm(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handlePaymentSubmit} className="p-10 space-y-8">
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.selectStudent}</label>
+                  <select 
+                    required
+                    value={paymentStudentId}
+                    onChange={(e) => setPaymentStudentId(e.target.value)}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                  >
+                    <option value="" className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{t.selectStudent}...</option>
+                    {students.map(s => (
+                      <option key={s.id} value={s.id} className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{s.name} ({formatCurrency(s.totalDue - s.amountPaid)} {t.balance})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amount} ({t.currency})</label>
+                    <div className="relative">
+                      <input 
+                        required
+                        type="number" 
+                        min="0"
+                        step="1"
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        placeholder="10 000"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.paymentDate}</label>
+                    <input 
+                      required
+                      type="date" 
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-blue-500/20 active:scale-[0.98]"
+                >
+                  {t.submit}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Yearly Final Audit Sheet Modal --- */}
+      <AnimatePresence>
+        {showAuditModal && auditYear && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAuditModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className={`relative ${currentTheme.card} w-full max-w-4xl max-h-[85vh] overflow-y-auto rounded-[2.5rem] shadow-2xl border ${currentTheme.border} p-8 md:p-12 custom-scrollbar`}
+            >
+              {/* Modal header */}
+              <div className="flex justify-between items-start mb-8 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+                    <TrendingUp size={24} />
+                  </div>
+                  <div>
+                    <h3 className={`text-2xl font-black ${currentTheme.text}`}>
+                      {lang === 'en' ? 'Final Academic Audit Sheet' : 'Bilan de Clôture Annuel'}
+                    </h3>
+                    <p className={`text-sm ${currentTheme.muted} mt-0.5`}>
+                      {lang === 'en' ? `Certified financial review for the academic year ${auditYear}` : `Bilan financier certifié pour l'année académique ${auditYear}`}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowAuditModal(false)}
+                  className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all ${currentTheme.muted}`}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Certified Document Content Preview */}
+              <div className="p-8 border-2 border-slate-100 dark:border-slate-800 rounded-3xl bg-slate-50/50 dark:bg-slate-800/10 space-y-8 font-sans">
+                {/* School Letterhead */}
+                <div className="flex justify-between items-start border-b-2 border-slate-200 dark:border-slate-700 pb-6">
+                  <div>
+                    <h4 className="text-xl font-black text-slate-800 dark:text-slate-200 tracking-tight flex items-center gap-2">
+                      {schoolLogo && (
+                        <img src={schoolLogo} alt="Logo" className="w-8 h-8 rounded-lg object-cover" referrerPolicy="no-referrer" />
+                      )}
+                      {t.title}
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-bold">{t.subtitle}</p>
+                    <p className="text-[10px] text-slate-400">Ségou, Mali</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider">
+                      {lang === 'en' ? 'ARCHIVED & CERTIFIED' : 'ARCHIVÉ & CERTIFIÉ'}
+                    </span>
+                    <p className="text-xs text-slate-500 mt-2 font-bold">{lang === 'en' ? 'Date:' : 'Date de Clôture :'} {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR')}</p>
+                    <p className="text-[10px] text-slate-400">{lang === 'en' ? 'Audit ID:' : 'ID Bilan :'} AUD-{auditYear}-{Math.floor(1000 + Math.random() * 9000)}</p>
+                  </div>
+                </div>
+
+                {/* Main Metrics Aggregation */}
+                {(() => {
+                  const { revenue, expenses, balance } = getYearStats(auditYear);
+                  return (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="p-6 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-2xl border border-emerald-100 dark:border-emerald-950">
+                          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">{lang === 'en' ? 'Total Revenue (A)' : 'Recettes Totales (A)'}</span>
+                          <p className="text-2xl font-black text-emerald-600 mt-1">{formatCurrency(revenue)}</p>
+                          <p className="text-[10px] text-slate-400 mt-1">{lang === 'en' ? 'Actual student fees paid' : 'Frais de scolarité effectivement perçus'}</p>
+                        </div>
+
+                        <div className="p-6 bg-rose-50/50 dark:bg-rose-950/10 rounded-2xl border border-rose-100 dark:border-rose-950">
+                          <span className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">{lang === 'en' ? 'Total Expenses (B)' : 'Dépenses Totales (B)'}</span>
+                          <p className="text-2xl font-black text-rose-600 mt-1">{formatCurrency(expenses)}</p>
+                          <p className="text-[10px] text-slate-400 mt-1">{lang === 'en' ? 'Salaries, vendors & utility payments' : 'Salaires, fournisseurs & factures payées'}</p>
+                        </div>
+
+                        <div className={`p-6 ${balance >= 0 ? 'bg-teal-50/50 dark:bg-teal-950/10 border-teal-100 dark:border-teal-950' : 'bg-red-50/50 dark:bg-red-950/10 border-red-100 dark:border-red-950'} rounded-2xl border`}>
+                          <span className={`text-xs font-bold ${balance >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-red-700 dark:text-red-400'} uppercase tracking-wider`}>{lang === 'en' ? 'Net Balance (A - B)' : 'Solde Net de Clôture (A - B)'}</span>
+                          <p className={`text-2xl font-black ${balance >= 0 ? 'text-teal-600' : 'text-red-600'} mt-1`}>{formatCurrency(balance)}</p>
+                          <p className="text-[10px] text-slate-400 mt-1">{lang === 'en' ? 'Final cash ledger balance' : 'Fonds de caisse net en clôture'}</p>
+                        </div>
+                      </div>
+
+                      {/* Debts Carried Over (Reliquats) */}
+                      {(() => {
+                        const closedYearStudents = students.filter(s => s.academicYear === auditYear || (!s.academicYear && auditYear === '2024-2025'));
+                        const studentsWithDebt = closedYearStudents.filter(s => {
+                          const discount = s.scholarshipDiscount || 0;
+                          const discountedTotal = s.totalDue * (1 - discount / 100);
+                          return (discountedTotal - s.amountPaid) > 0;
+                        });
+
+                        return (
+                          <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                            <h5 className="font-extrabold text-sm text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                              {lang === 'en' ? 'Outstanding Parent Debts Carried Forward' : 'Rapport des Arriérés de Frais Reportés (Reliquats)'}
+                            </h5>
+                            {studentsWithDebt.length > 0 ? (
+                              <div className="max-h-[200px] overflow-y-auto rounded-2xl border border-slate-100 dark:border-slate-800">
+                                <table className="w-full text-left text-xs">
+                                  <thead>
+                                    <tr className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-300">
+                                      <th className="px-4 py-2.5">{lang === 'en' ? 'Student Name' : 'Nom de l\'Élève'}</th>
+                                      <th className="px-4 py-2.5">{lang === 'en' ? 'Parent Contact' : 'Parent / Contact'}</th>
+                                      <th className="px-4 py-2.5 text-right">{lang === 'en' ? 'Unpaid Balance' : 'Montant Arriéré'}</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {studentsWithDebt.map(student => {
+                                      const discount = student.scholarshipDiscount || 0;
+                                      const discountedTotal = student.totalDue * (1 - discount / 100);
+                                      const debt = discountedTotal - student.amountPaid;
+                                      return (
+                                        <tr key={student.id} className="text-slate-700 dark:text-slate-300">
+                                          <td className="px-4 py-2 font-bold">{student.name}</td>
+                                          <td className="px-4 py-2">{student.parentName} ({student.parentPhone})</td>
+                                          <td className="px-4 py-2 text-right font-semibold text-rose-600">{formatCurrency(debt)}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-400 italic">
+                                {lang === 'en' ? 'No outstanding student debts recorded for carryforward.' : 'Aucun arriéré de frais à reporter.'}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })()}
+
+                {/* Audit Signature Block */}
+                <div className="flex justify-between items-center pt-8 border-t-2 border-slate-200 dark:border-slate-700 text-xs">
+                  <div>
+                    <p className="font-bold text-slate-500">{lang === 'en' ? 'Certified by:' : 'Rapport préparé par :'}</p>
+                    <p className="font-black text-slate-800 dark:text-slate-200 mt-1">Ibrahim Thera, Portal Admin</p>
+                    <p className="text-slate-400 text-[10px]">{lang === 'en' ? 'Finance Controller' : 'Directeur Administratif et Financier'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-slate-500">{lang === 'en' ? 'Seal / Signature' : 'Sceau & Signature'}</p>
+                    <div className="h-10 w-40 border-b border-dashed border-slate-300 dark:border-slate-600 mt-2 ml-auto" />
+                    <p className="text-[9px] text-slate-400 mt-1">Ibrahim Thera / Executive Signature</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+                <button 
+                  onClick={() => setShowAuditModal(false)}
+                  className={`px-6 py-3 rounded-2xl border ${currentTheme.border} ${currentTheme.text} hover:bg-slate-50 text-sm font-bold transition-all`}
+                >
+                  {lang === 'en' ? 'Close Preview' : 'Fermer l\'Aperçu'}
+                </button>
+                <button 
+                  onClick={() => {
+                    setTimeout(() => window.print(), 100);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-8 py-3 rounded-2xl text-sm transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20"
+                >
+                  <Printer size={18} />
+                  {t.printAudit}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- Personalized Late Payment Ticket Modal --- */}
+      <AnimatePresence>
+        {ticketStudent && (() => {
+          const discount = ticketStudent.scholarshipDiscount || 0;
+          const discountedTotal = ticketStudent.totalDue * (1 - discount / 100);
+          const balance = discountedTotal - ticketStudent.amountPaid;
+          
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setTicketStudent(null)}
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+              />
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 40 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 40 }}
+                className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+              >
+                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+                  <h2 className="text-xl font-bold flex items-center gap-3">
+                    <Printer size={24} className="text-rose-400" />
+                    {lang === 'en' ? 'Late Payment Ticket' : 'Ticket de retard de paiement'}
+                  </h2>
+                  <button 
+                    onClick={() => setTicketStudent(null)}
+                    className="p-2 hover:bg-white/10 rounded-xl transition-all"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="p-10 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                  {/* Visual Slip Preview on Screen */}
+                  <div className="border border-slate-200 rounded-2xl p-6 bg-slate-50 font-mono text-xs text-slate-800 space-y-4 shadow-inner">
+                    <div className="text-center border-b border-dashed border-slate-300 pb-4">
+                      <h3 className="font-bold text-base uppercase tracking-wider">{t.title}</h3>
+                      <p className="text-[10px] text-slate-500">{t.subtitle}</p>
+                      <h4 className="font-black text-rose-600 mt-2 text-sm uppercase tracking-widest">
+                        {lang === 'en' ? 'LATE PAYMENT TICKET' : 'TICKET DE RETARD'}
+                      </h4>
+                    </div>
+
+                    <div className="space-y-2 py-2">
+                      <div className="flex justify-between">
+                        <span className="font-bold">STUDENT:</span>
+                        <span>{ticketStudent.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-bold">GRADE:</span>
+                        <span>Classe : {getGradeDisplay(ticketStudent.grade, 'fr')} / Grade: {getGradeDisplay(ticketStudent.grade, 'en')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-bold">PARENT:</span>
+                        <span>{ticketStudent.parentName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-bold">DUE DATE:</span>
+                        <span>{formatDate(ticketStudent.dueDate)}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-dashed border-slate-300 pt-2 text-rose-600 font-bold">
+                        <span>TOTAL OWED:</span>
+                        <span>{formatCurrency(balance)}</span>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-dashed border-slate-300 pt-4 text-center text-[10px] text-slate-600 leading-relaxed italic">
+                      {lang === 'en' ? (
+                        'Notice: This account is more than 2 months overdue. Please contact the finance department immediately to settle the outstanding balance.'
+                      ) : (
+                        'Avis : Ce compte accuse un retard de plus de 2 mois. Veuillez contacter le service financier immédiatement pour régulariser le solde.'
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => {
+                        setTimeout(() => window.print(), 100);
+                      }}
+                      className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-4 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20 flex items-center justify-center gap-2"
+                    >
+                      <Printer size={18} />
+                      {lang === 'en' ? 'Print Ticket' : 'Imprimer le ticket'}
+                    </button>
+                    <button 
+                      onClick={() => setTicketStudent(null)}
+                      className={`px-8 py-4 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 hover:bg-slate-50 rounded-2xl font-bold text-sm transition-all`}
+                    >
+                      {t.close}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* --- Actual Printable Ticket Hidden on Screen --- */}
+      {ticketStudent && (() => {
+        const discount = ticketStudent.scholarshipDiscount || 0;
+        const discountedTotal = ticketStudent.totalDue * (1 - discount / 100);
+        const balance = discountedTotal - ticketStudent.amountPaid;
+        
+        return (
+          <div className="hidden print:block ticket-print-container font-mono text-sm text-black space-y-6">
+            <div className="text-center border-b border-black pb-4">
+              <h1 className="font-bold text-xl uppercase tracking-wider">{t.title}</h1>
+              <p className="text-xs text-black/70">{t.subtitle}</p>
+              <h2 className="font-bold text-lg mt-3 uppercase tracking-widest border border-black px-2 py-1 inline-block">
+                {lang === 'en' ? 'LATE PAYMENT TICKET' : 'TICKET DE RETARD'}
+              </h2>
+            </div>
+
+            <div className="space-y-3 py-2 text-base">
+              <div className="flex justify-between">
+                <span className="font-bold">STUDENT:</span>
+                <span>{ticketStudent.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">GRADE:</span>
+                <span>Classe : {getGradeDisplay(ticketStudent.grade, 'fr')} / Grade: {getGradeDisplay(ticketStudent.grade, 'en')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">PARENT:</span>
+                <span>{ticketStudent.parentName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-bold">DUE DATE:</span>
+                <span>{formatDate(ticketStudent.dueDate)}</span>
+              </div>
+              <div className="flex justify-between border-t border-black pt-2 font-bold text-lg">
+                <span>TOTAL OWED:</span>
+                <span>{formatCurrency(balance)}</span>
+              </div>
+            </div>
+
+            <div className="border-t border-black pt-4 text-center text-xs leading-relaxed font-bold italic">
+              {lang === 'en' ? (
+                'Notice: This account is more than 2 months overdue. Please contact the finance department immediately to settle the outstanding balance.'
+              ) : (
+                'Avis : Ce compte accuse un retard de plus de 2 mois. Veuillez contacter le service financier immédiatement pour régulariser le solde.'
+              )}
+            </div>
+
+            <div className="text-center text-[10px] pt-8 border-t border-black/10">
+              <p>{lang === 'en' ? 'Generated on:' : 'Généré le :'} {formatDate(new Date().toISOString())}</p>
+              <p className="mt-2 text-[8px] tracking-widest uppercase">Official Financial Receipt</p>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* --- Actual Printable Audit Report Hidden on Screen --- */}
+      {auditYear && (() => {
+        const { revenue, expenses, balance } = getYearStats(auditYear);
+        const closedYearStudents = students.filter(s => s.academicYear === auditYear || (!s.academicYear && auditYear === '2024-2025'));
+        const studentsWithDebt = closedYearStudents.filter(s => {
+          const discount = s.scholarshipDiscount || 0;
+          const discountedTotal = s.totalDue * (1 - discount / 100);
+          return (discountedTotal - s.amountPaid) > 0;
+        });
+
+        return (
+          <div className="hidden print:block print-container bg-white text-black font-sans space-y-8">
+            <div className="text-center border-b-2 border-black pb-4">
+              <h1 className="font-bold text-2xl uppercase tracking-wider">{t.title}</h1>
+              <p className="text-xs text-black/70 uppercase tracking-widest">{t.subtitle}</p>
+              <h2 className="font-black text-lg mt-3 uppercase tracking-wider border-2 border-black px-4 py-2 inline-block">
+                {lang === 'en' ? 'FINAL ACADEMIC AUDIT REPORT' : 'BILAN COMPTABLE DE CLÔTURE'}
+              </h2>
+              <p className="text-sm mt-2 font-semibold">{lang === 'en' ? 'ACADEMIC YEAR' : 'ANNÉE SCOLAIRE'} : {auditYear}</p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 text-center py-4 border-b border-black">
+              <div className="border border-black p-4 rounded-xl">
+                <span className="text-[10px] font-bold block uppercase tracking-wide">{lang === 'en' ? 'TOTAL REVENUE' : 'RECETTES TOTALES'}</span>
+                <span className="text-lg font-black">{formatCurrency(revenue)}</span>
+              </div>
+              <div className="border border-black p-4 rounded-xl">
+                <span className="text-[10px] font-bold block uppercase tracking-wide">{lang === 'en' ? 'TOTAL EXPENSES' : 'DÉPENSES TOTALES'}</span>
+                <span className="text-lg font-black">{formatCurrency(expenses)}</span>
+              </div>
+              <div className="border border-black p-4 rounded-xl">
+                <span className="text-[10px] font-bold block uppercase tracking-wide">{lang === 'en' ? 'NET CLOSING BALANCE' : 'SOLDE NET DE CLÔTURE'}</span>
+                <span className="text-lg font-black">{formatCurrency(balance)}</span>
+              </div>
+            </div>
+
+            {/* Debts Carried Over */}
+            <div className="space-y-3">
+              <h3 className="font-bold text-sm uppercase tracking-wider">
+                {lang === 'en' ? 'Outstanding Parent Debts Carried Forward (Reliquats)' : 'Arriérés de Paiement Reportés (Reliquats)'}
+              </h3>
+              {studentsWithDebt.length > 0 ? (
+                <table className="w-full text-left text-xs border border-black">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-black font-bold">
+                      <th className="px-3 py-2 border-r border-black">{lang === 'en' ? 'Student Name' : 'Nom de l\'Élève'}</th>
+                      <th className="px-3 py-2 border-r border-black">{lang === 'en' ? 'Parent / Contact' : 'Parent / Contact'}</th>
+                      <th className="px-3 py-2 text-right">{lang === 'en' ? 'Debt Carried Over' : 'Arriéré Reporté'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black">
+                    {studentsWithDebt.map(student => {
+                      const discount = student.scholarshipDiscount || 0;
+                      const discountedTotal = student.totalDue * (1 - discount / 100);
+                      const debt = discountedTotal - student.amountPaid;
+                      return (
+                        <tr key={student.id}>
+                          <td className="px-3 py-2 border-r border-black font-bold">{student.name}</td>
+                          <td className="px-3 py-2 border-r border-black">{student.parentName} ({student.parentPhone})</td>
+                          <td className="px-3 py-2 text-right font-bold">{formatCurrency(debt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="text-xs italic">{lang === 'en' ? 'No outstanding student debts recorded.' : 'Aucun arriéré de frais à reporter.'}</p>
+              )}
+            </div>
+
+            {/* Certified signature block */}
+            <div className="flex justify-between items-center pt-12 border-t border-black text-xs">
+              <div>
+                <p className="font-bold">{lang === 'en' ? 'Certified Sincerely by:' : 'Certifié sincère et conforme par :'}</p>
+                <p className="font-black mt-1">Ibrahim Thera, Executive Admin</p>
+                <p className="text-black/60 text-[10px]">{lang === 'en' ? 'School Director / Controller' : 'Directeur Administratif et Financier'}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold">{lang === 'en' ? 'Authorized Signature' : 'Signature Autorisée'}</p>
+                <div className="h-12 w-48 border-b border-dashed border-black mt-2 ml-auto" />
+                <p className="text-[8px] text-black/60 mt-1">Ibrahim Thera / Official Board Seal</p>
+              </div>
+            </div>
+
+            <div className="text-center text-[10px] pt-8 border-t border-black/10">
+              <p>{lang === 'en' ? 'System Certified Closing Document' : 'Document de clôture certifié par le système'}</p>
+              <p className="mt-1 font-bold">Finance Exécutive Admin Portal</p>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* --- Actual Printable Student File Hidden on Screen --- */}
+      {printStudentFile && (() => {
+        return (
+          <div className="hidden print:block print-student-file-container bg-white text-black font-sans p-12 space-y-8">
+            {/* Header / Logo banner */}
+            <div className="flex justify-between items-start border-b-2 border-black pb-6">
+              <div>
+                <h1 className="font-black text-2xl tracking-tight text-slate-900">COMPLEXE SCOLAIRE MAMA THERA</h1>
+                <p className="text-xs uppercase tracking-widest text-slate-500 font-bold mt-1">Official Student Profile & Academic File</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Phone: +223 70 00 00 00 | Email: contact@mamathera.edu.ml</p>
+              </div>
+              <div className="border border-slate-300 px-4 py-2 text-center rounded-xl bg-slate-50">
+                <span className="text-[9px] font-black uppercase tracking-widest block text-slate-400">STUDENT ID</span>
+                <span className="font-mono font-bold text-sm text-slate-800">
+                  {printStudentFile.studentId || `MT-2026-${printStudentFile.id.replace('ST', '')}`}
+                </span>
+              </div>
+            </div>
+
+            {/* Profile Grid: Photo and Details */}
+            <div className="grid grid-cols-4 gap-8">
+              {/* Photo placeholder on Left */}
+              <div className="col-span-1 border-2 border-slate-300 rounded-[2rem] h-40 overflow-hidden bg-slate-50 flex items-center justify-center relative shadow-inner">
+                {printStudentFile.photo ? (
+                  <img 
+                    src={printStudentFile.photo} 
+                    alt={printStudentFile.name} 
+                    className="w-full h-full object-cover" 
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="text-center">
+                    <Users size={32} className="text-slate-400 mx-auto mb-1" />
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">PASSPORT</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Main Info */}
+              <div className="col-span-3 space-y-4">
+                <div>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">{printStudentFile.name}</h2>
+                  <div className="flex gap-4 mt-2">
+                    <span className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold uppercase">
+                      Class: {getGradeDisplay(printStudentFile.grade, 'fr')}
+                    </span>
+                    <span className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold uppercase">
+                      Status: {printStudentFile.status || 'Active'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="font-bold text-slate-400 block uppercase tracking-wide">Enrollment Date</span>
+                    <span className="font-semibold text-slate-800">{printStudentFile.enrollmentDate || '2026-07-16'}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-400 block uppercase tracking-wide">Academic Year</span>
+                    <span className="font-semibold text-slate-800">{printStudentFile.academicYear || '2025-2026'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* General Info & Financial Ledger Section */}
+            <div className="border border-slate-300 rounded-[2rem] p-6 space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">Financial Status Ledger</h3>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Total Tuition Due</span>
+                  <span className="text-lg font-black text-slate-800">{formatCurrency(printStudentFile.totalDue)}</span>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Paid Tuition' : 'Scolarité Payée'}</span>
+                  <span className="text-lg font-black text-emerald-600">+{formatCurrency(printStudentFile.amountPaid)}</span>
+                </div>
+                <div className="bg-rose-50 p-4 rounded-xl border border-rose-100">
+                  <span className="text-[10px] font-bold text-rose-500 block uppercase">{lang === 'en' ? 'Remaining Balance' : 'Solde Restant Dû'}</span>
+                  <span className="text-lg font-black text-rose-600">{formatCurrency(printStudentFile.totalDue - printStudentFile.amountPaid)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Parent & Emergency Info */}
+            <div className="grid grid-cols-2 gap-6">
+              <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{lang === 'en' ? 'Primary Guardian' : 'Tuteur Principal'}</h3>
+                <div className="space-y-1.5 text-xs">
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Name:' : 'Nom :'}</strong> <span className="font-bold text-slate-800">{printStudentFile.parentName}</span></p>
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Phone:' : 'Téléphone :'}</strong> <span className="font-semibold text-slate-800">{printStudentFile.parentPhone}</span></p>
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Email:' : 'Email :'}</strong> <span className="font-semibold text-blue-600">{printStudentFile.parentEmail}</span></p>
+                </div>
+              </div>
+
+              <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
+                <h3 className="text-xs font-black uppercase tracking-widest text-rose-500 border-b pb-2">{lang === 'en' ? 'Emergency Contact' : 'Contact d\'Urgence'}</h3>
+                <div className="space-y-1.5 text-xs">
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Contact Person:' : 'Nom du Contact :'}</strong> <span className="font-bold text-slate-800">{printStudentFile.emergencyContactName || 'N/A'}</span></p>
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Relationship:' : 'Lien de Parenté :'}</strong> <span className="font-semibold text-slate-800">{printStudentFile.emergencyContactRelation || 'N/A'}</span></p>
+                  <p><strong className="text-slate-400">{lang === 'en' ? 'Phone Number:' : 'Téléphone :'}</strong> <span className="font-black text-rose-600">{printStudentFile.emergencyContactPhone || 'N/A'}</span></p>
+                </div>
+              </div>
+            </div>
+
+            {/* History & Medical Records */}
+            <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{lang === 'en' ? 'Medical & History File' : 'Fiche Médicale & Historique'}</h3>
+              <div className="grid grid-cols-2 gap-6 text-xs">
+                <div>
+                  <span className="font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Previous School Transfer History' : 'École Précédente / Provenance'}</span>
+                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.previousSchool || (lang === 'en' ? 'None / Direct Admission Entry' : 'Aucune / Inscription Directe')}</p>
+                </div>
+                <div>
+                  <span className="font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Allergies, Medical Notes & Conditions' : 'Allergies, Notes Médicales & Conditions'}</span>
+                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.medicalNotes || (lang === 'en' ? 'None / Clear profile' : 'Aucune / Profil Vierge')}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Signature Area */}
+            <div className="flex justify-between items-center pt-12 border-t border-slate-200 text-xs">
+              <div>
+                <p className="font-bold">{lang === 'en' ? 'Generated and Verified Sincerely by:' : 'Généré et vérifié par :'}</p>
+                <p className="font-black mt-1 text-slate-900">{currentUser?.name || 'Direction Complexe Scolaire MAMA THERA'}</p>
+                <p className="text-slate-500 text-[10px]">{lang === 'en' ? 'Complexe Scolaire MAMA THERA Administration' : 'Administration Complexe Scolaire MAMA THERA'}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold">{lang === 'en' ? 'Official Seal & Signature' : 'Sceau Officiel & Signature'}</p>
+                <div className="h-12 w-48 border-b border-dashed border-slate-400 mt-2 ml-auto" />
+                <p className="text-[8px] text-slate-400 mt-1">{lang === 'en' ? 'Official Board Representative' : 'Représentant Officiel de la Direction'}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* --- Mobile Sidebar Toggle (Simplified) --- */}
+      <div className="lg:hidden fixed bottom-6 left-6 z-50">
+        <button 
+          onClick={() => toggleLanguage(lang === 'en' ? 'fr' : 'en')}
+          className="bg-blue-600 text-white p-4 rounded-full shadow-2xl shadow-blue-500/40"
+        >
+          <Globe size={24} />
+        </button>
+      </div>
+
+      {/* --- Add / Edit Parent Modal --- */}
+      {showParentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className={`w-full max-w-xl ${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto`}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+              <h3 className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
+                {editingParent ? t.editParent : t.addParent}
+              </h3>
+              <button
+                onClick={() => setShowParentModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleParentSubmit} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.parentName} *</label>
+                <input
+                  type="text"
+                  required
+                  value={parentForm.fullName}
+                  onChange={(e) => setParentForm({ ...parentForm, fullName: e.target.value })}
+                  placeholder="e.g. Mamadou Traoré"
+                  className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.primaryPhone} *</label>
+                  <input
+                    type="text"
+                    required
+                    value={parentForm.primaryPhone}
+                    onChange={(e) => setParentForm({ ...parentForm, primaryPhone: e.target.value })}
+                    placeholder="+223 70 00 00 00"
+                    className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.secondaryPhone}</label>
+                  <input
+                    type="text"
+                    value={parentForm.secondaryPhone}
+                    onChange={(e) => setParentForm({ ...parentForm, secondaryPhone: e.target.value })}
+                    placeholder="+223 66 00 00 00"
+                    className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.email}</label>
+                  <input
+                    type="email"
+                    value={parentForm.email}
+                    onChange={(e) => setParentForm({ ...parentForm, email: e.target.value })}
+                    placeholder="parent@example.com"
+                    className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.relationship} *</label>
+                  <select
+                    value={parentForm.relationship}
+                    onChange={(e) => setParentForm({ ...parentForm, relationship: e.target.value })}
+                    className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  >
+                    <option value="Father">{t.father}</option>
+                    <option value="Mother">{t.mother}</option>
+                    <option value="Guardian">{t.guardian}</option>
+                    <option value="Uncle">{t.uncle}</option>
+                    <option value="Aunt">{t.aunt}</option>
+                    <option value="Other">{t.other}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.occupation} *</label>
+                <input
+                  type="text"
+                  required
+                  value={parentForm.occupation}
+                  onChange={(e) => setParentForm({ ...parentForm, occupation: e.target.value })}
+                  placeholder="e.g. Civil Engineer, Banker, Merchant..."
+                  className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.address} *</label>
+                <input
+                  type="text"
+                  required
+                  value={parentForm.address}
+                  onChange={(e) => setParentForm({ ...parentForm, address: e.target.value })}
+                  placeholder="e.g. Quartier Hippodrome, Bamako"
+                  className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.accountingNotes}</label>
+                <textarea
+                  rows={3}
+                  value={parentForm.notes}
+                  onChange={(e) => setParentForm({ ...parentForm, notes: e.target.value })}
+                  placeholder="e.g. Family contact preferences or special notes..."
+                  className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowParentModal(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400"
+                >
+                  {t.close}
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-lg shadow-emerald-600/20"
+                >
+                  {t.saveChanges}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* --- Link Student Modal --- */}
+      {showLinkStudentModal && activeLinkingParent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className={`w-full max-w-md ${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-2xl space-y-6`}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {t.linkStudent}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {lang === 'en' ? `Attach child to ${activeLinkingParent.fullName}` : `Rattacher un enfant à ${activeLinkingParent.fullName}`}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowLinkStudentModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleLinkStudentSubmit} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectStudent}</label>
+                <select
+                  required
+                  value={studentToLinkId}
+                  onChange={(e) => setStudentToLinkId(e.target.value)}
+                  className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
+                >
+                  <option value="">-- {t.selectStudentToLink} --</option>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.studentId || s.id}) - Grade {s.grade || 'N/A'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLinkStudentModal(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400"
+                >
+                  {t.close}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!studentToLinkId}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-600/20"
+                >
+                  {t.linkStudent}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* --- Late Payment Notification Modal (WhatsApp / SMS Generator) --- */}
+      {showNotifyModal && notifyParent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className={`w-full max-w-xl ${currentTheme.card} p-6 sm:p-8 rounded-[2rem] border ${currentTheme.border} shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto`}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <Bell size={24} />
+                </div>
+                <div>
+                  <h3 className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
+                    {t.reminderModalTitle}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium">
+                    {t.reminderModalSubtitle}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowNotifyModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Parent Summary Card */}
+            <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">{t.parentName}</span>
+                <span className="text-sm font-black text-slate-900 dark:text-white">{notifyParent.fullName}</span>
+                <span className="text-xs text-slate-500 block">({t[notifyParent.relationship.toLowerCase() as keyof typeof t] || notifyParent.relationship})</span>
+              </div>
+              <div className="text-left sm:text-right">
+                <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 block">{t.totalOutstandingBalance}</span>
+                <span className="text-lg font-black text-rose-600 dark:text-rose-400 font-mono">
+                  {formatCurrency(getParentOutstandingBalance(notifyParent))}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Recipient Phone Selection */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectPhone} *</label>
+                <div className="flex items-center gap-2">
+                  <Phone size={16} className="text-slate-400" />
+                  <select
+                    value={notifySelectedPhone}
+                    onChange={(e) => setNotifySelectedPhone(e.target.value)}
+                    className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  >
+                    {notifyParent.phones.map((ph, idx) => (
+                      <option key={idx} value={ph}>
+                        {ph} {idx === 0 ? `(${t.primaryPhone})` : `(${t.secondaryPhone})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Template Selection Radio Buttons / Pills */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectTemplate}</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleNotifyTemplateChange('polite')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      notifyTemplateType === 'polite'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
+                    }`}
+                  >
+                    {t.templatePolite}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNotifyTemplateChange('urgent')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      notifyTemplateType === 'urgent'
+                        ? 'bg-rose-600 text-white border-rose-600 shadow-md shadow-rose-600/20'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
+                    }`}
+                  >
+                    {t.templateUrgent}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNotifyTemplateChange('detailed')}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      notifyTemplateType === 'detailed'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/20'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
+                    }`}
+                  >
+                    {t.templateDetailed}
+                  </button>
+                </div>
+              </div>
+
+              {/* Editable Message Text Box */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.customMessage}</label>
+                  {copiedToast && (
+                    <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 animate-pulse">
+                      <CheckCircle2 size={12} />
+                      {t.copiedToClipboard}
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  rows={6}
+                  value={notifyCustomText}
+                  onChange={(e) => setNotifyCustomText(e.target.value)}
+                  className={`w-full p-3.5 text-xs font-mono font-medium rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'} leading-relaxed`}
+                />
+              </div>
+            </div>
+
+            {/* One-Click Action Buttons */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleCopyNotifyMessage}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-2 transition-all"
+              >
+                <Copy size={16} />
+                <span>{t.copyMessage}</span>
+              </button>
+
+              <div className="w-full sm:w-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSendSMS}
+                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all"
+                >
+                  <MessageSquare size={16} />
+                  <span>{t.sendSMS}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSendWhatsApp}
+                  className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all"
+                >
+                  <MessageSquare size={16} className="text-emerald-200" />
+                  <span>{t.openWhatsApp}</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </>
+  );
+}
