@@ -73,7 +73,7 @@ export async function generateFinancialReportPdf({
 
   doc.setFontSize(9);
   doc.text(`Bamako, Mali`, 196, 13, { align: 'right' });
-  doc.text(`Date: ${todayStr}`, 196, 22, { align: 'right' });
+  doc.text(`${isFr ? 'Date :' : 'Date:'} ${todayStr}`, 196, 22, { align: 'right' });
 
   let y = 38;
 
@@ -151,7 +151,7 @@ export async function generateFinancialReportPdf({
     [isFr ? 'Scolarités totales dues' : 'Total Tuition Expected', formatAmount(totalTuitionDue)],
     [isFr ? 'Scolarités effectivement encaissées' : 'Total Tuition Collected', formatAmount(totalTuitionCollected)],
     [isFr ? 'Reste à recouvrir (Impayés)' : 'Total Outstanding Balance', formatAmount(totalTuitionOutstanding)],
-    [isFr ? 'Effectif des élèves inscrits' : 'Total Enrolled Students', `${students.length} élèves`],
+    [isFr ? 'Effectif des élèves inscrits' : 'Total Enrolled Students', `${students.length} ${isFr ? 'élèves' : 'students'}`],
   ];
 
   revenueRows.forEach(([label, value]) => {

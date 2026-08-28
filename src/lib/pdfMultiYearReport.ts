@@ -92,7 +92,7 @@ export async function generateMultiYearReportPdf({
 
   doc.setFontSize(9);
   doc.text(`Bamako, Mali`, 196, 13, { align: 'right' });
-  doc.text(`Date: ${todayStr}`, 196, 22, { align: 'right' });
+  doc.text(`${isFr ? 'Date :' : 'Date:'} ${todayStr}`, 196, 22, { align: 'right' });
 
   let y = 38;
 

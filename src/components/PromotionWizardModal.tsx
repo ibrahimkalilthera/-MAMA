@@ -246,7 +246,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
                       value={targetGrade}
                       onChange={e => setTargetGrade(e.target.value)}
                       className="px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-semibold text-emerald-700 dark:text-emerald-400"
-                      placeholder="Nouvelle classe"
+                      placeholder={isFr ? 'Nouvelle classe' : 'New class'}
                     />
                   </div>
                 </div>

@@ -355,7 +355,7 @@ export function PayrollView(props: MainViewsProps) {
                       return (
                         <tr key={p.id} className={`${currentTheme.rowHover} transition-all`}>
                           <td className="px-8 py-6">
-                            <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{staffMember?.name || 'Unknown'}</span>
+                            <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{staffMember?.name || (lang === 'en' ? 'Unknown' : 'Inconnu')}</span>
                           </td>
                           <td className="px-8 py-6">
                             <span className={`text-sm ${currentTheme.muted}`}>{p.date}</span>
@@ -378,7 +378,7 @@ export function PayrollView(props: MainViewsProps) {
                       );
                     }) : (
                       <tr>
-                        <td colSpan={4} className="px-8 py-12 text-center text-slate-400 italic">No payments recorded yet</td>
+                        <td colSpan={4} className="px-8 py-12 text-center text-slate-400 italic">{lang === 'en' ? 'No payments recorded yet' : 'Aucun paiement enregistré pour le moment'}</td>
                       </tr>
                     )}
                   </tbody>

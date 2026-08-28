@@ -109,8 +109,8 @@ export async function generateMonthlyPayrollDraftPdf({
   );
 
   doc.setFontSize(8.5);
-  doc.text(`Année Scolaire: ${selectedAcademicYear}`, 283, 11, { align: 'right' });
-  doc.text(`Édité le: ${todayStr}`, 283, 20, { align: 'right' });
+  doc.text(`${isFr ? 'Année Scolaire :' : 'Academic Year:'} ${selectedAcademicYear}`, 283, 11, { align: 'right' });
+  doc.text(`${isFr ? 'Édité le :' : 'Generated on:'} ${todayStr}`, 283, 20, { align: 'right' });
 
   let y = 35;
 

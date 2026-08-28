@@ -525,11 +525,11 @@ export function MainViews(props: MainViewsProps) {
                       <DollarSign size={20} />
                     </div>
                     <div>
-                      <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>Currency Format</p>
-                      <p className={`text-xs ${currentTheme.muted}`}>Current: {t.currency}</p>
+                      <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{lang === 'en' ? 'Currency Format' : 'Format Monétaire'}</p>
+                      <p className={`text-xs ${currentTheme.muted}`}>{lang === 'en' ? 'Current:' : 'Actuel :'} {t.currency}</p>
                     </div>
                   </div>
-                  <span className={`text-xs font-black ${currentTheme.muted} uppercase tracking-widest`}>Auto-detected</span>
+                  <span className={`text-xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Auto-detected' : 'Détecté automatiquement'}</span>
                 </div>
 
                 {/* Theme Selection */}

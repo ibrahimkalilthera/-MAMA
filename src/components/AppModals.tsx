@@ -448,7 +448,7 @@ export function AppModals(props: AppModalsProps) {
                     <textarea 
                       defaultValue={selectedStudent.notes}
                       onBlur={(e) => handleSaveNote(selectedStudent.id, e.target.value)}
-                      placeholder="Add payment promises or issues..."
+                      placeholder={t.notesPlaceholder}
                       className="w-full bg-transparent border-none focus:ring-0 text-xs font-bold text-yellow-900 placeholder-yellow-700/40 resize-none min-h-[80px] custom-scrollbar"
                     />
                     <div className="mt-2 flex justify-end">
@@ -1336,7 +1336,7 @@ export function AppModals(props: AppModalsProps) {
                     value={expenseForm.description}
                     onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
                     className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/5 focus:border-rose-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                    placeholder="Electricity bill"
+                    placeholder={lang === 'en' ? 'Electricity bill' : 'Facture électricité'}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-6">
@@ -1645,7 +1645,7 @@ export function AppModals(props: AppModalsProps) {
                     }}
                     className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                   >
-                    <option value="">Select Staff</option>
+                    <option value="">{lang === 'en' ? 'Select Staff' : 'Sélectionner le personnel'}</option>
                     {staff.map(s => {
                       const paid = salaryPayments
                         .filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth)
@@ -2433,7 +2433,7 @@ export function AppModals(props: AppModalsProps) {
 
             <div className="text-center text-[10px] pt-8 border-t border-black/10">
               <p>{lang === 'en' ? 'Generated on:' : 'Généré le :'} {formatDate(new Date().toISOString())}</p>
-              <p className="mt-2 text-[8px] tracking-widest uppercase">Official Financial Receipt</p>
+              <p className="mt-2 text-[8px] tracking-widest uppercase">{lang === 'en' ? 'Official Financial Receipt' : 'Reçu Financier Officiel'}</p>
             </div>
           </div>
         );
@@ -2539,11 +2539,11 @@ export function AppModals(props: AppModalsProps) {
             <div className="flex justify-between items-start border-b-2 border-black pb-6">
               <div>
                 <h1 className="font-black text-2xl tracking-tight text-slate-900">COMPLEXE SCOLAIRE MAMA THERA</h1>
-                <p className="text-xs uppercase tracking-widest text-slate-500 font-bold mt-1">Official Student Profile & Academic File</p>
+                <p className="text-xs uppercase tracking-widest text-slate-500 font-bold mt-1">{lang === 'en' ? 'Official Student Profile & Academic File' : 'Dossier Scolaire Officiel de l\'Élève'}</p>
                 <p className="text-[10px] text-slate-400 mt-0.5">Phone: +223 70 00 00 00 | Email: contact@mamathera.edu.ml</p>
               </div>
               <div className="border border-slate-300 px-4 py-2 text-center rounded-xl bg-slate-50">
-                <span className="text-[9px] font-black uppercase tracking-widest block text-slate-400">STUDENT ID</span>
+                <span className="text-[9px] font-black uppercase tracking-widest block text-slate-400">{lang === 'en' ? 'STUDENT ID' : 'MATRICULE'}</span>
                 <span className="font-mono font-bold text-sm text-slate-800">
                   {printStudentFile.studentId || `MT-2026-${printStudentFile.id.replace('ST', '')}`}
                 </span>
@@ -2575,21 +2575,21 @@ export function AppModals(props: AppModalsProps) {
                   <h2 className="text-3xl font-black text-slate-900 tracking-tight">{printStudentFile.name}</h2>
                   <div className="flex gap-4 mt-2">
                     <span className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold uppercase">
-                      Class: {getGradeDisplay(printStudentFile.grade, 'fr')}
+                      {lang === 'en' ? 'Class:' : 'Classe :'} {getGradeDisplay(printStudentFile.grade, 'fr')}
                     </span>
                     <span className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold uppercase">
-                      Status: {printStudentFile.status || 'Active'}
+                      {lang === 'en' ? 'Status:' : 'Statut :'} {printStudentFile.status || 'Active'}
                     </span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
-                    <span className="font-bold text-slate-400 block uppercase tracking-wide">Enrollment Date</span>
+                    <span className="font-bold text-slate-400 block uppercase tracking-wide">{lang === 'en' ? 'Enrollment Date' : 'Date d\'Inscription'}</span>
                     <span className="font-semibold text-slate-800">{printStudentFile.enrollmentDate || '2026-07-16'}</span>
                   </div>
                   <div>
-                    <span className="font-bold text-slate-400 block uppercase tracking-wide">Academic Year</span>
+                    <span className="font-bold text-slate-400 block uppercase tracking-wide">{lang === 'en' ? 'Academic Year' : 'Année Scolaire'}</span>
                     <span className="font-semibold text-slate-800">{printStudentFile.academicYear || '2025-2026'}</span>
                   </div>
                 </div>
@@ -2598,10 +2598,10 @@ export function AppModals(props: AppModalsProps) {
 
             {/* General Info & Financial Ledger Section */}
             <div className="border border-slate-300 rounded-[2rem] p-6 space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">Financial Status Ledger</h3>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{lang === 'en' ? 'Financial Status Ledger' : 'Relevé Financier'}</h3>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Total Tuition Due</span>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Total Tuition Due' : 'Scolarité Totale Due'}</span>
                   <span className="text-lg font-black text-slate-800">{formatCurrency(printStudentFile.totalDue)}</span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -2706,7 +2706,7 @@ export function AppModals(props: AppModalsProps) {
                   required
                   value={parentForm.fullName}
                   onChange={(e) => setParentForm({ ...parentForm, fullName: e.target.value })}
-                  placeholder="e.g. Mamadou Traoré"
+                  placeholder={lang === 'en' ? 'e.g. Mamadou Traoré' : 'ex. Mamadou Traoré'}
                   className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
                 />
               </div>
@@ -2772,7 +2772,7 @@ export function AppModals(props: AppModalsProps) {
                   required
                   value={parentForm.occupation}
                   onChange={(e) => setParentForm({ ...parentForm, occupation: e.target.value })}
-                  placeholder="e.g. Civil Engineer, Banker, Merchant..."
+                  placeholder={lang === 'en' ? 'e.g. Civil Engineer, Banker, Merchant...' : 'ex. Ingénieur Civil, Banquier, Commerçant...'}
                   className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
                 />
               </div>
@@ -2784,7 +2784,7 @@ export function AppModals(props: AppModalsProps) {
                   required
                   value={parentForm.address}
                   onChange={(e) => setParentForm({ ...parentForm, address: e.target.value })}
-                  placeholder="e.g. Quartier Hippodrome, Bamako"
+                  placeholder={lang === 'en' ? 'e.g. Quartier Hippodrome, Bamako' : 'ex. Quartier Hippodrome, Bamako'}
                   className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
                 />
               </div>
@@ -2795,7 +2795,7 @@ export function AppModals(props: AppModalsProps) {
                   rows={3}
                   value={parentForm.notes}
                   onChange={(e) => setParentForm({ ...parentForm, notes: e.target.value })}
-                  placeholder="e.g. Family contact preferences or special notes..."
+                  placeholder={lang === 'en' ? 'e.g. Family contact preferences or special notes...' : 'ex. Préférences de contact ou notes spéciales...'}
                   className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
                 />
               </div>
