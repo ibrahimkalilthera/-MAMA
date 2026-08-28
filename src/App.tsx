@@ -1646,11 +1646,7 @@ export default function App() {
   useEffect(() => {
     if (auth.profile && !hasShownWelcome) {
       setHasShownWelcome(true);
-      if (auth.profile.role === 'staff') {
-        setActiveTab('students');
-      } else {
-        setActiveTab('dashboard');
-      }
+      setActiveTab('dashboard');
       const displayName = auth.profile.fullName || auth.profile.email;
       setWelcomeMessage(lang === 'en' ? `Welcome back, ${displayName}!` : `Bon retour, ${displayName} !`);
       setTimeout(() => {
