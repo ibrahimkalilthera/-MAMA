@@ -10,6 +10,8 @@
     "build:staging": "vite build --mode staging",
     "build:production": "vite build --mode production",
     "preview": "vite preview",
+    "check:perf": "node scripts/check-performance.mjs",
+    "deploy:prod": "npm run check:perf && vercel --prod --yes",
     "seed": "node --env-file=.env supabase/seed.mjs",
     "seed:staging": "node --env-file=.env.staging supabase/seed.mjs",
     "seed:production": "node --env-file=.env.production supabase/seed-production.mjs",
@@ -17,6 +19,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "jspdf": "^4.2.1",
@@ -25,18 +28,19 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^3.8.1",
-    "@supabase/supabase-js": "^2.45.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
+    "lighthouse": "^13.4.1",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0",
-    "@vitejs/plugin-react": "^5.0.4"
+    "vercel": "^59.9.1",
+    "vite": "^6.2.0"
   }
 }
