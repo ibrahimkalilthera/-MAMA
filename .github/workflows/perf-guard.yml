@@ -1,0 +1,50 @@
+name: Performance guard
+
+# Mesure Lighthouse (mobile, performance) sur un build de production à chaque
+# push sur main. Échoue — et signale le push en rouge — si le score passe
+# sous 0.7 (seuil du script scripts/check-performance.mjs).
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Sans .env le bundle est livré sans configuration Supabase et l'app
+      # s'arrête volontairement au chargement (fail-visible) — le score
+      # s'effondrerait. Ces valeurs factices passent la validation (aucun
+      # placeholder) et ne servent qu'au rendu de la page auditée ; aucun
+      # secret n'est nécessaire ni utilisé ici.
+      - name: Provide public env vars for the build (dummy values, perf check only)
+        run: |
+          cat > .env <<'EOF'
+          VITE_SUPABASE_URL=https://perf-check.supabase.co
+          VITE_SUPABASE_ANON_KEY=perf-check-anon-key
+          VITE_APP_ENV=production
+          APP_URL=http://localhost:4173/
+          EOF
+
+      - name: Lighthouse gate (build + preview + audit, fails below 0.7)
+        env:
+          PERF_THRESHOLD: '0.7'
+        run: npm run check:perf
