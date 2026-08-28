@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf';
 import type { Student, Payment } from './useSupabaseData';
 
 export interface ReceiptDataOptions {
@@ -11,12 +10,13 @@ export interface ReceiptDataOptions {
 /**
  * Generates and triggers download of a clean, professional PDF receipt for a payment.
  */
-export function generatePaymentReceiptPdf({
+export async function generatePaymentReceiptPdf({
   student,
   payment,
   lang = 'fr',
   cashierName = 'Administration',
-}: ReceiptDataOptions): void {
+}: ReceiptDataOptions): Promise<void> {
+  const { jsPDF } = await import('jspdf');
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;

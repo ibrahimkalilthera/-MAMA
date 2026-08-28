@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf';
 import type { Student, Expense, VendorExpense, SalaryPayment } from './useSupabaseData';
 
 export interface FinancialReportDataOptions {
@@ -13,14 +12,15 @@ export interface FinancialReportDataOptions {
 /**
  * Generates an executive A4 Financial Report PDF for Complexe Scolaire MAMA THERA.
  */
-export function generateFinancialReportPdf({
+export async function generateFinancialReportPdf({
   students,
   expenses,
   vendorExpenses,
   salaryPayments,
   selectedYear,
   lang = 'fr',
-}: FinancialReportDataOptions): void {
+}: FinancialReportDataOptions): Promise<void> {
+  const { jsPDF } = await import('jspdf');
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;

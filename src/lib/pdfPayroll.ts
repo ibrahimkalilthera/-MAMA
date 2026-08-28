@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf';
 import type { Staff, SalaryPayment } from './useSupabaseData';
 
 export interface PayslipDataOptions {
@@ -10,11 +9,12 @@ export interface PayslipDataOptions {
 /**
  * Generates and triggers download of a professional A5 Payslip (Bulletin de Paie) PDF for staff.
  */
-export function generateStaffPayslipPdf({
+export async function generateStaffPayslipPdf({
   staffMember,
   payment,
   lang = 'fr',
-}: PayslipDataOptions): void {
+}: PayslipDataOptions): Promise<void> {
+  const { jsPDF } = await import('jspdf');
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;

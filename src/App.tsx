@@ -3,13 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo, FormEvent, ChangeEvent, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, FormEvent, ChangeEvent, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useSupabaseData } from './lib/useSupabaseData';
 import { useAuth } from './lib/useAuth';
 import type { UserProfile } from './lib/useAuth';
 import { useToast, ToastContainer, OfflineBanner, EnvBadge } from './components/ToastNotification';
 import { PromotionWizardModal } from './components/PromotionWizardModal';
-import { ExcelImportModal } from './components/ExcelImportModal';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
@@ -18,23 +17,23 @@ import { generateFinancialReportPdf } from './lib/pdfFinancialReport';
 import { generateMultiYearReportPdf } from './lib/pdfMultiYearReport';
 import { generateExpensesReportPdf } from './lib/pdfExpensesReport';
 import { generateMonthlyPayrollDraftPdf } from './lib/pdfPayrollDraft';
-import { MonthlyPayrollDraftModal } from './components/MonthlyPayrollDraftModal';
 import { motion, AnimatePresence } from 'motion/react';
-import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend as RechartsLegend, 
-  ResponsiveContainer, 
-  PieChart as RePieChart, 
-  Pie, 
-  Cell 
-} from 'recharts';
+
+const ExcelImportModal = lazy(() => import('./components/ExcelImportModal').then(m => ({ default: m.ExcelImportModal })));
+const MonthlyPayrollDraftModal = lazy(() => import('./components/MonthlyPayrollDraftModal').then(m => ({ default: m.MonthlyPayrollDraftModal })));
+const DashboardCharts = lazy(() => import('./components/DashboardCharts').then(m => ({ default: m.DashboardCharts })));
+const MultiYearChart = lazy(() => import('./components/MultiYearChart').then(m => ({ default: m.MultiYearChart })));
+
+const ChartsFallback = ({ isDark }: { isDark: boolean }) => (
+  <>
+    {[0, 1].map(i => (
+      <div key={i} className={`card-elevated p-6 h-80 ${isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''} animate-pulse`}>
+        <div className="h-4 w-44 bg-slate-300 dark:bg-slate-700 rounded-lg mb-6" />
+        <div className="h-[calc(100%-2.5rem)] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" />
+      </div>
+    ))}
+  </>
+);
 import { 
   LayoutDashboard, 
   Users, 
@@ -255,12 +254,6 @@ export const DEFAULT_SCHOOL_CLASSES: SchoolClass[] = [
   { id: '9A', cycle: 'cycle2', year: 9, section: 'A', nameFr: '9ème Année A (9A)', nameEn: '9th Year A (9A)' },
   { id: '9B', cycle: 'cycle2', year: 9, section: 'B', nameFr: '9ème Année B (9B)', nameEn: '9th Year B (9B)' },
   { id: '9C', cycle: 'cycle2', year: 9, section: 'C', nameFr: '9ème Année C (9C)', nameEn: '9th Year C (9C)' },
-];
-
-const DEFAULT_GRADE_OPTIONS = [
-  '1A', '1B', '1C', '2A', '2B', '2C', '3A', '3B', '3C',
-  '4A', '4B', '4C', '5A', '5B', '5C', '6A', '6B', '6C',
-  '7A', '7B', '7C', '8A', '8B', '8C', '9A', '9B', '9C',
 ];
 
 // --- Translations ---
@@ -1098,8 +1091,10 @@ export default function App() {
   }), []);
 
   const {
-    customGrades,
-    addCustomGrade,
+    customClasses,
+    addCustomClass,
+    updateCustomClass,
+    deleteCustomClass,
     parents, setParents,
     students, setStudents,
     staff, setStaff,
@@ -1297,7 +1292,8 @@ export default function App() {
     return ledger.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
-  const handleExportParentLedgerPdf = (parent: Parent) => {
+  const handleExportParentLedgerPdf = async (parent: Parent) => {
+    const { jsPDF } = await import('jspdf');
     const children = getChildrenForParent(parent);
     const totalOutstanding = getParentOutstandingBalance(parent);
     const paymentHistory = getParentPaymentHistory(parent);
@@ -1608,23 +1604,24 @@ export default function App() {
   const [auditYear, setAuditYear] = useState<string | null>(null);
 
   const [academicYears, setAcademicYears] = useState<string[]>(['2026-2027', '2027-2028', '2028-2029']);
-  const [newGrade, setNewGrade] = useState('');
   const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
 
-  // Classes & Sections Management
-  const [availableClasses, setAvailableClasses] = useState<SchoolClass[]>(() => {
-    try {
-      const saved = localStorage.getItem('mama_thera_classes');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.warn('Failed to load custom classes:', e);
-    }
-    return DEFAULT_SCHOOL_CLASSES;
-  });
+  // Classes & Sections Management (single source of truth: Supabase custom_classes)
+  type ManagedClass = SchoolClass & { rowId?: string };
+  const availableClasses = useMemo<ManagedClass[]>(() => {
+    const seen = new Set(DEFAULT_SCHOOL_CLASSES.map(c => c.id.toLowerCase()));
+    return [...DEFAULT_SCHOOL_CLASSES, ...customClasses.filter(c => !seen.has(c.id.toLowerCase()))];
+  }, [customClasses]);
+
+  const [showEditClassModal, setShowEditClassModal] = useState(false);
+  const [editingClassRowId, setEditingClassRowId] = useState<string | null>(null);
+  const [editClassForm, setEditClassForm] = useState<{
+    cycle: 'cycle1' | 'cycle2' | 'lycee' | 'maternelle' | 'other';
+    year: string;
+    section: string;
+    customName: string;
+  }>({ cycle: 'other', year: '1', section: 'D', customName: '' });
 
   const [studentGradeFilter, setStudentGradeFilter] = useState<string>('all');
   const [showAddClassModal, setShowAddClassModal] = useState<boolean>(false);
@@ -2269,7 +2266,8 @@ export default function App() {
 
   // --- Handlers ---
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    const XLSX = await import('xlsx');
     const data = lateStudents.map(s => ({
       [t.studentName]: s.name,
       [t.parentName]: s.parentName,
@@ -2286,7 +2284,8 @@ export default function App() {
     XLSX.writeFile(wb, "Late_Payments_Report.xlsx");
   };
 
-  const handleExportAllData = () => {
+  const handleExportAllData = async () => {
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     
     // Students
@@ -2346,7 +2345,8 @@ export default function App() {
     showToast();
   };
 
-  const handleExportMonthlyPayrollExcel = (monthIdx: number, yr: number) => {
+  const handleExportMonthlyPayrollExcel = async (monthIdx: number, yr: number) => {
+    const XLSX = await import('xlsx');
     const monthNames = lang === 'fr'
       ? ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
       : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -2405,7 +2405,7 @@ export default function App() {
     // Auto-generate printable PDF receipt
     if (targetStudent) {
       try {
-        generatePaymentReceiptPdf({
+        await generatePaymentReceiptPdf({
           student: {
             ...targetStudent,
             amountPaid: targetStudent.amountPaid + amount,
@@ -3244,17 +3244,6 @@ export default function App() {
     });
   };
 
-  const gradeOptions = [...DEFAULT_GRADE_OPTIONS, ...customGrades.map(grade => grade.name)]
-    .filter((grade, index, grades) => grades.findIndex(item => item.toLowerCase() === grade.toLowerCase()) === index)
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
-  const handleAddGrade = async () => {
-    const grade = await addCustomGrade(newGrade);
-    if (!grade) return;
-    setStudentForm(prev => ({ ...prev, grade: grade.name }));
-    setNewGrade('');
-  };
-
   const getGradeDisplay = (grade: string | undefined, currentLang: 'en' | 'fr' = lang) => {
     if (!grade) return 'N/A';
     const trimmed = grade.trim();
@@ -3279,7 +3268,7 @@ export default function App() {
     return grade;
   };
 
-  const handleCreateClassSubmit = (e?: FormEvent) => {
+  const handleCreateClassSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault();
     
     let code = '';
@@ -3318,22 +3307,17 @@ export default function App() {
       return;
     }
     
-    const newClass: SchoolClass = {
-      id: code,
+    const result = await addCustomClass({
+      code,
       cycle: newClassForm.cycle,
       year: newClassForm.year,
       section: newClassForm.section.toUpperCase(),
       nameFr,
       nameEn,
-      isCustom: true
-    };
-    
-    const updated = [...availableClasses, newClass];
-    setAvailableClasses(updated);
-    try {
-      localStorage.setItem('mama_thera_classes', JSON.stringify(updated));
-    } catch (err) {
-      console.warn('Failed to save classes to localStorage:', err);
+    });
+    if (!result) {
+      toast.error(lang === 'en' ? 'Failed to add class.' : 'Échec de l\'ajout de la classe.');
+      return;
     }
     
     // Auto-select in student form
@@ -3352,6 +3336,81 @@ export default function App() {
       section: 'D',
       customName: ''
     });
+  };
+
+  const openEditClass = (c: ManagedClass) => {
+    setEditingClassRowId(c.rowId || null);
+    setEditClassForm({
+      cycle: c.cycle,
+      year: String(c.year),
+      section: c.section,
+      customName: c.cycle === 'other' ? c.id : '',
+    });
+    setShowEditClassModal(true);
+  };
+
+  const handleEditClassSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingClassRowId) return;
+
+    let code = '';
+    let nameFr = '';
+    let nameEn = '';
+    if (editClassForm.cycle === 'other' && editClassForm.customName.trim()) {
+      code = editClassForm.customName.trim();
+      nameFr = editClassForm.customName.trim();
+      nameEn = editClassForm.customName.trim();
+    } else {
+      const yearStr = editClassForm.year;
+      const yearNum = parseInt(yearStr);
+      const section = editClassForm.section.trim().toUpperCase() || 'A';
+      code = `${yearStr}${section}`;
+
+      let yearFr = '';
+      let yearEn = '';
+      if (!isNaN(yearNum)) {
+        yearFr = yearNum === 1 ? '1ère Année' : `${yearNum}ème Année`;
+        yearEn = yearNum === 1 ? '1st Year' : yearNum === 2 ? '2nd Year' : yearNum === 3 ? '3rd Year' : `${yearNum}th Year`;
+      } else {
+        yearFr = yearStr;
+        yearEn = yearStr;
+      }
+      nameFr = `${yearFr} ${section} (${code})`;
+      nameEn = `${yearEn} ${section} (${code})`;
+    }
+
+    // Prevent colliding with another class code
+    if (availableClasses.some(c => c.id.toLowerCase() === code.toLowerCase() && c.rowId !== editingClassRowId)) {
+      toast.warning(lang === 'en' ? `Class "${code}" already exists.` : `La classe "${code}" existe déjà.`);
+      return;
+    }
+
+    const ok = await updateCustomClass(editingClassRowId, {
+      code,
+      cycle: editClassForm.cycle,
+      year: editClassForm.year,
+      section: editClassForm.section.toUpperCase(),
+      nameFr,
+      nameEn,
+    });
+    if (!ok) return;
+    toast.success(lang === 'en' ? `Class "${code}" updated!` : `Classe "${code}" modifiée !`);
+    setShowEditClassModal(false);
+    setEditingClassRowId(null);
+  };
+
+  const handleDeleteClass = async (c: ManagedClass) => {
+    if (!c.rowId) return;
+    const confirmed = window.confirm(
+      lang === 'en'
+        ? `Delete class "${c.id}"? Students already assigned keep their grade text but it will no longer be offered in class lists.`
+        : `Supprimer la classe « ${c.id} » ? Les élèves déjà inscrits gardent leur classe affichée mais elle ne sera plus proposée dans les listes.`
+    );
+    if (!confirmed) return;
+    const ok = await deleteCustomClass(c.rowId);
+    if (ok) {
+      toast.success(lang === 'en' ? `Class "${c.id}" deleted.` : `Classe « ${c.id} » supprimée.`);
+    }
   };
 
   const getStatus = (student: Student) => {
@@ -4311,71 +4370,9 @@ export default function App() {
 
             {/* --- Analytics Section --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className={`card-elevated p-6 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className={`text-sm font-semibold ${currentTheme.isDark ? 'text-white' : 'text-slate-800'} tracking-tight`}>{t.incomeVsExpenses}</h3>
-                  <div className={`p-2 ${currentTheme.isDark ? 'bg-white/[0.06] text-white/60' : 'bg-slate-100 text-slate-500'} rounded-lg`}>
-                    <TrendingUp size={16} />
-                  </div>
-                </div>
-                <div className="h-80 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={currentTheme.isDark ? '#064e3b' : '#f1f5f9'} />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: currentTheme.isDark ? '#10b981' : '#64748b' }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: currentTheme.isDark ? '#10b981' : '#64748b' }} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: currentTheme.isDark ? '#1e1e1e' : '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                        itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                      />
-                      <RechartsLegend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px', fontWeight: 'bold' }} />
-                      <Bar dataKey="income" name={t.income} fill={currentTheme.isDark ? '#10b981' : '#3b82f6'} radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="expenses" name={t.expenses} fill={currentTheme.isDark ? '#ef4444' : '#f43f5e'} radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1 }}
-                className={`card-elevated p-6 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className={`text-sm font-semibold ${currentTheme.isDark ? 'text-white' : 'text-slate-800'} tracking-tight`}>{t.feeStatus}</h3>
-                  <div className={`p-2 ${currentTheme.isDark ? 'bg-white/[0.06] text-white/60' : 'bg-slate-100 text-slate-500'} rounded-lg`}>
-                    <PieChart size={16} />
-                  </div>
-                </div>
-                <div className="h-80 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RePieChart>
-                      <Pie
-                        data={pieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={8}
-                        dataKey="value"
-                      >
-                        <Cell fill={currentTheme.isDark ? '#10b981' : '#3b82f6'} />
-                        <Cell fill={currentTheme.isDark ? '#ef4444' : '#f43f5e'} />
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: currentTheme.isDark ? '#1e1e1e' : '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                        itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                      />
-                      <RechartsLegend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
-                    </RePieChart>
-                  </ResponsiveContainer>
-                </div>
-              </motion.div>
+              <Suspense fallback={<ChartsFallback isDark={currentTheme.isDark} />}>
+                <DashboardCharts chartData={chartData} pieData={pieData} t={t} currentTheme={currentTheme} />
+              </Suspense>
             </div>
 
             {/* --- Late Payments List --- */}
@@ -6428,6 +6425,26 @@ export default function App() {
                           <span key={c.id} className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-emerald-400 shadow-sm flex items-center gap-1.5">
                             <span>{c.id}</span>
                             <span className="text-[10px] text-slate-400 font-normal">({c.section})</span>
+                            {c.isCustom && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditClass(c)}
+                                  title={lang === 'en' ? 'Rename class' : 'Renommer la classe'}
+                                  className="ml-1 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-500 transition-all"
+                                >
+                                  <Edit2 size={11} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteClass(c)}
+                                  title={lang === 'en' ? 'Delete class' : 'Supprimer la classe'}
+                                  className="p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-rose-500 transition-all"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </>
+                            )}
                           </span>
                         ))}
                       </div>
@@ -6447,6 +6464,26 @@ export default function App() {
                           <span key={c.id} className="px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-emerald-400 shadow-sm flex items-center gap-1.5">
                             <span>{c.id}</span>
                             <span className="text-[10px] text-slate-400 font-normal">({c.section})</span>
+                            {c.isCustom && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditClass(c)}
+                                  title={lang === 'en' ? 'Rename class' : 'Renommer la classe'}
+                                  className="ml-1 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-500 transition-all"
+                                >
+                                  <Edit2 size={11} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteClass(c)}
+                                  title={lang === 'en' ? 'Delete class' : 'Supprimer la classe'}
+                                  className="p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-rose-500 transition-all"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </>
+                            )}
                           </span>
                         ))}
                       </div>
@@ -6466,6 +6503,26 @@ export default function App() {
                           {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
                             <span key={c.id} className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl text-xs font-bold text-blue-700 dark:text-blue-300 shadow-sm flex items-center gap-1.5">
                               <span>{c.id}</span>
+                              {c.isCustom && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditClass(c)}
+                                    title={lang === 'en' ? 'Rename class' : 'Renommer la classe'}
+                                    className="ml-1 p-0.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-400 hover:text-blue-600 transition-all"
+                                  >
+                                    <Edit2 size={11} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteClass(c)}
+                                    title={lang === 'en' ? 'Delete class' : 'Supprimer la classe'}
+                                    className="p-0.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-400 hover:text-rose-500 transition-all"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                </>
+                              )}
                             </span>
                           ))}
                         </div>
@@ -6821,48 +6878,21 @@ export default function App() {
               </div>
 
               {/* Multi-Year Comparative Chart Card */}
-              <div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50`}>
-                <div className="mb-8">
-                  <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
-                    {t.revenueVsExpenses}
-                  </h3>
-                  <p className={`text-xs ${currentTheme.muted} mt-1`}>
-                    {lang === 'en' ? 'Visual overview of multi-year school performance' : 'Aperçu visuel de la performance scolaire sur plusieurs années'}
-                  </p>
+              <Suspense fallback={
+                <div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}>
+                  <div className="h-6 w-72 bg-slate-300 dark:bg-slate-700 rounded-lg mb-8" />
+                  <div className="h-[320px] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" />
                 </div>
-
-                <div className="h-[320px] w-full flex items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={academicYears.map(year => {
-                        const { revenue, expenses } = getYearStats(year);
-                        return {
-                          name: year,
-                          [lang === 'en' ? 'Revenue' : 'Recettes']: revenue,
-                          [lang === 'en' ? 'Expenses' : 'Dépenses']: expenses
-                        };
-                      })}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={currentTheme.isDark ? "#334155" : "#E2E8F0"} />
-                      <XAxis dataKey="name" stroke={currentTheme.isDark ? "#94A3B8" : "#64748B"} />
-                      <YAxis stroke={currentTheme.isDark ? "#94A3B8" : "#64748B"} tickFormatter={(val) => `${val / 1000}k`} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: currentTheme.isDark ? '#1E293B' : '#FFFFFF', 
-                          borderColor: currentTheme.isDark ? '#475569' : '#E2E8F0',
-                          borderRadius: '16px',
-                          color: currentTheme.isDark ? '#F8FAFC' : '#0F172A'
-                        }}
-                        formatter={(value: any) => [formatCurrency(Number(value)), '']}
-                      />
-                      <RechartsLegend />
-                      <Bar dataKey={lang === 'en' ? 'Revenue' : 'Recettes'} fill="#10B981" radius={[8, 8, 0, 0]} />
-                      <Bar dataKey={lang === 'en' ? 'Expenses' : 'Dépenses'} fill="#EF4444" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+              }>
+                <MultiYearChart
+                  academicYears={academicYears}
+                  getYearStats={getYearStats}
+                  lang={lang}
+                  t={t}
+                  currentTheme={currentTheme}
+                  formatCurrency={formatCurrency}
+                />
+              </Suspense>
             </div>
 
             {/* Ibrahim / Admin - Close Out Current Year Section */}
@@ -7373,40 +7403,10 @@ export default function App() {
                           ))}
                         </optgroup>
                       )}
-                      {customGrades.length > 0 && (
-                        <optgroup label={lang === 'en' ? "Shared Custom Grades" : "Classes Personnalisées Partagées"}>
-                          {customGrades.map(grade => (
-                            <option key={grade.id} value={grade.name}>{grade.name}</option>
-                          ))}
-                        </optgroup>
-                      )}
                       <option value="__ADD_NEW_CLASS__" className="text-blue-600 font-bold">
                         {lang === 'en' ? '+ Add another class / section...' : '+ Ajouter une autre classe / section...'}
                       </option>
                     </select>
-                    <div className="flex items-center gap-2 pt-1">
-                      <input
-                        type="text"
-                        value={newGrade}
-                        onChange={(e) => setNewGrade(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleAddGrade();
-                          }
-                        }}
-                        placeholder={lang === 'en' ? 'Add a class (e.g. 1st Year B)' : 'Ajouter une classe (ex. 1ère année B)'}
-                        className={`min-w-0 flex-1 px-3 py-2.5 border ${currentTheme.border} rounded-xl text-xs font-semibold ${currentTheme.input}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddGrade}
-                        disabled={!newGrade.trim()}
-                        className="shrink-0 px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
                     <p className={`text-[10px] ${currentTheme.muted}`}>
                       {lang === 'en' ? 'Staff can add sections such as 1st Year B or C.' : 'Le personnel peut ajouter des sections comme 1ère année B ou C.'}
                     </p>
@@ -7808,6 +7808,173 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* --- Edit Custom Class Modal --- */}
+      <AnimatePresence>
+        {showEditClassModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowEditClassModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 40 }}
+              className={`relative ${currentTheme.card} w-full max-w-md rounded-[2.5rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+            >
+              <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
+                <h3 className="text-lg font-bold flex items-center gap-2.5">
+                  <Layers size={20} className="text-blue-400" />
+                  <span>{lang === 'en' ? 'Edit Class / Section' : 'Modifier la Classe / Section'}</span>
+                </h3>
+                <button 
+                  onClick={() => setShowEditClassModal(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditClassSubmit} className="p-6 space-y-5">
+                <div className="space-y-1.5">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                    {lang === 'en' ? 'School Cycle' : 'Cycle Scolaire'}
+                  </label>
+                  <select
+                    value={editClassForm.cycle}
+                    onChange={(e) => {
+                      const c = e.target.value as any;
+                      const defYear = c === 'cycle2' ? '7' : c === 'lycee' ? '10' : c === 'maternelle' ? 'PS' : '1';
+                      setEditClassForm({ ...editClassForm, cycle: c, year: defYear });
+                    }}
+                    className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  >
+                    <option value="cycle1">{lang === 'en' ? 'First Cycle (1st to 6th Year)' : 'Premier Cycle (1ère à 6ème Année)'}</option>
+                    <option value="cycle2">{lang === 'en' ? 'Second Cycle (7th to 9th Year)' : 'Second Cycle (7ème à 9ème Année)'}</option>
+                    <option value="lycee">{lang === 'en' ? 'Lycée (High School)' : 'Lycée (Secondaire)'}</option>
+                    <option value="maternelle">{lang === 'en' ? 'Maternelle (Kindergarten)' : 'Maternelle / Jardin d\'Enfants'}</option>
+                    <option value="other">{lang === 'en' ? 'Other / Fully Custom Name' : 'Autre / Nom personnalisé'}</option>
+                  </select>
+                </div>
+
+                {editClassForm.cycle !== 'other' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Grade / Level' : 'Niveau / Année'}
+                      </label>
+                      <select
+                        value={editClassForm.year}
+                        onChange={(e) => setEditClassForm({ ...editClassForm, year: e.target.value })}
+                        className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                      >
+                        {editClassForm.cycle === 'cycle1' && (
+                          <>
+                            <option value="1">{lang === 'en' ? '1st Year (1ère)' : '1ère Année'}</option>
+                            <option value="2">{lang === 'en' ? '2nd Year (2ème)' : '2ème Année'}</option>
+                            <option value="3">{lang === 'en' ? '3rd Year (3ème)' : '3ème Année'}</option>
+                            <option value="4">{lang === 'en' ? '4th Year (4ème)' : '4ème Année'}</option>
+                            <option value="5">{lang === 'en' ? '5th Year (5ème)' : '5ème Année'}</option>
+                            <option value="6">{lang === 'en' ? '6th Year (6ème)' : '6ème Année'}</option>
+                          </>
+                        )}
+                        {editClassForm.cycle === 'cycle2' && (
+                          <>
+                            <option value="7">{lang === 'en' ? '7th Year (7ème)' : '7ème Année'}</option>
+                            <option value="8">{lang === 'en' ? '8th Year (8ème)' : '8ème Année'}</option>
+                            <option value="9">{lang === 'en' ? '9th Year (9ème)' : '9ème Année'}</option>
+                          </>
+                        )}
+                        {editClassForm.cycle === 'lycee' && (
+                          <>
+                            <option value="10">{lang === 'en' ? '10th Year (10ème)' : '10ème Année (Seconde)'}</option>
+                            <option value="11">{lang === 'en' ? '11th Year (11ème)' : '11ème Année (Première)'}</option>
+                            <option value="12">{lang === 'en' ? '12th Year (12ème)' : '12ème Année (Terminale)'}</option>
+                          </>
+                        )}
+                        {editClassForm.cycle === 'maternelle' && (
+                          <>
+                            <option value="PS">{lang === 'en' ? 'Petite Section (PS)' : 'Petite Section (PS)'}</option>
+                            <option value="MS">{lang === 'en' ? 'Moyenne Section (MS)' : 'Moyenne Section (MS)'}</option>
+                            <option value="GS">{lang === 'en' ? 'Grande Section (GS)' : 'Grande Section (GS)'}</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        {lang === 'en' ? 'Section (e.g. D, E)' : 'Section (ex. D, E)'}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={5}
+                        placeholder="D, E, F..."
+                        value={editClassForm.section}
+                        onChange={(e) => setEditClassForm({ ...editClassForm, section: e.target.value.toUpperCase() })}
+                        className={`w-full p-3.5 text-xs font-bold uppercase rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      {lang === 'en' ? 'Custom Class Name' : 'Nom de la classe'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder={lang === 'en' ? 'e.g., 1ère D or Garderie' : 'ex. 1ère D ou Garderie'}
+                      value={editClassForm.customName}
+                      onChange={(e) => setEditClassForm({ ...editClassForm, customName: e.target.value })}
+                      className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                    />
+                  </div>
+                )}
+
+                {/* Preview Badge */}
+                <div className={`p-4 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900/40' : 'bg-slate-50'}`}>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                    {lang === 'en' ? 'Generated Class Code:' : 'Code généré :'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-black">
+                      {editClassForm.cycle === 'other' ? (editClassForm.customName || 'CUSTOM') : `${editClassForm.year}${editClassForm.section || 'A'}`}
+                    </span>
+                    <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">
+                      {editClassForm.cycle === 'other' 
+                        ? (editClassForm.customName || 'Classe personnalisée') 
+                        : `${editClassForm.year === '1' ? '1ère Année' : editClassForm.year + 'ème Année'} ${editClassForm.section || 'A'}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditClassModal(false)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+                  >
+                    {lang === 'en' ? 'Cancel' : 'Annuler'}
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 size={14} />
+                    <span>{lang === 'en' ? 'Save Changes' : 'Enregistrer'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* --- Staff Add/Edit Modal --- */}
       <AnimatePresence>
         {showStaffModal && (
@@ -8161,13 +8328,6 @@ export default function App() {
                             <optgroup label={lang === 'en' ? "Other Classes" : "Autres Classes"}>
                               {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
                                 <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
-                              ))}
-                            </optgroup>
-                          )}
-                          {customGrades.length > 0 && (
-                            <optgroup label={lang === 'en' ? "Shared Custom Grades" : "Classes Personnalisées Partagées"}>
-                              {customGrades.map(grade => (
-                                <option key={grade.id} value={grade.name}>{grade.name}</option>
                               ))}
                             </optgroup>
                           )}
@@ -10014,44 +10174,52 @@ export default function App() {
       </AnimatePresence>
 
       {/* Smart Excel Import Modal */}
-      <ExcelImportModal
-        isOpen={showExcelImport}
-        onClose={() => setShowExcelImport(false)}
-        lang={lang}
-        academicYears={academicYears}
-        selectedYear={selectedYear}
-        onImportComplete={async (category: ImportCategory, records: Record<string, any>[], options) => {
-          return await batchImportData(category, records, options);
-        }}
-        themeCard={currentTheme.card}
-        themeBorder={currentTheme.border}
-        themeMuted={currentTheme.muted}
-        themeIsDark={currentTheme.isDark}
-      />
+      {showExcelImport && (
+        <Suspense fallback={null}>
+          <ExcelImportModal
+            isOpen={showExcelImport}
+            onClose={() => setShowExcelImport(false)}
+            lang={lang}
+            academicYears={academicYears}
+            selectedYear={selectedYear}
+            onImportComplete={async (category: ImportCategory, records: Record<string, any>[], options) => {
+              return await batchImportData(category, records, options);
+            }}
+            themeCard={currentTheme.card}
+            themeBorder={currentTheme.border}
+            themeMuted={currentTheme.muted}
+            themeIsDark={currentTheme.isDark}
+          />
+        </Suspense>
+      )}
 
       {/* Monthly Payroll Draft Modal */}
-      <MonthlyPayrollDraftModal
-        isOpen={showMonthlyDraftModal}
-        onClose={() => setShowMonthlyDraftModal(false)}
-        lang={lang}
-        staff={staff}
-        salaryPayments={salaryPayments}
-        selectedAcademicYear={selectedYear || '2026-2027'}
-        monthIndex={selectedDraftMonth}
-        year={selectedDraftYear}
-        onMonthChange={(m) => setSelectedDraftMonth(m)}
-        onYearChange={(y) => setSelectedDraftYear(y)}
-        onExportExcel={handleExportMonthlyPayrollExcel}
-        onRecordPayment={(staffId, balance) => {
-          setSalaryForm({ staffId, amount: balance.toString(), date: new Date().toISOString().split('T')[0] });
-          setShowSalaryModal(true);
-        }}
-        formatCurrency={formatCurrency}
-        themeCard={currentTheme.card}
-        themeBorder={currentTheme.border}
-        themeMuted={currentTheme.muted}
-        themeIsDark={currentTheme.isDark}
-      />
+      {showMonthlyDraftModal && (
+        <Suspense fallback={null}>
+          <MonthlyPayrollDraftModal
+            isOpen={showMonthlyDraftModal}
+            onClose={() => setShowMonthlyDraftModal(false)}
+            lang={lang}
+            staff={staff}
+            salaryPayments={salaryPayments}
+            selectedAcademicYear={selectedYear || '2026-2027'}
+            monthIndex={selectedDraftMonth}
+            year={selectedDraftYear}
+            onMonthChange={(m) => setSelectedDraftMonth(m)}
+            onYearChange={(y) => setSelectedDraftYear(y)}
+            onExportExcel={handleExportMonthlyPayrollExcel}
+            onRecordPayment={(staffId, balance) => {
+              setSalaryForm({ staffId, amount: balance.toString(), date: new Date().toISOString().split('T')[0] });
+              setShowSalaryModal(true);
+            }}
+            formatCurrency={formatCurrency}
+            themeCard={currentTheme.card}
+            themeBorder={currentTheme.border}
+            themeMuted={currentTheme.muted}
+            themeIsDark={currentTheme.isDark}
+          />
+        </Suspense>
+      )}
 
       {/* Global Toast Notifications & Offline Resilience Banner */}
       <OfflineBanner

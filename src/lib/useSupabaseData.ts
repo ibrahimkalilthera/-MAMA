@@ -120,9 +120,17 @@ export interface Todo {
   studentId?: string;
 }
 
-export interface CustomGrade {
-  id: string;
-  name: string;
+export type ClassCycle = 'cycle1' | 'cycle2' | 'lycee' | 'maternelle' | 'other';
+
+export interface CustomClass {
+  id: string; // display code, e.g. '1D' or a custom name
+  rowId: string; // Supabase uuid primary key
+  cycle: ClassCycle;
+  year: string;
+  section: string;
+  nameFr: string;
+  nameEn: string;
+  isCustom?: boolean;
 }
 
 // ─── Supabase row → App type mappers ─────────────────────────────────────────
@@ -336,7 +344,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [vendorExpenses, setVendorExpenses] = useState<VendorExpense[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [customGrades, setCustomGrades] = useState<CustomGrade[]>([]);
+  const [customClasses, setCustomClasses] = useState<CustomClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingQueueCount, setPendingQueueCount] = useState<number>(() => getOfflineQueueCount());
@@ -591,7 +599,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           expensesRes,
           vendorRes,
           todosRes,
-          customGradesRes,
+          customClassesRes,
         ] = await Promise.all([
           supabase.from('parents').select('*').order('created_at', { ascending: true }),
           supabase.from('students').select('*').order('created_at', { ascending: true }),
@@ -601,11 +609,11 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           supabase.from('expenses').select('*').order('date', { ascending: true }),
           supabase.from('vendor_expenses').select('*').order('created_at', { ascending: true }),
           supabase.from('todos').select('*').order('created_at', { ascending: true }),
-          supabase.from('custom_grades').select('*').order('name', { ascending: true }),
+          supabase.from('custom_classes').select('*').order('created_at', { ascending: true }),
         ]);
 
         // Check for errors
-        const errors = [parentsRes, studentsRes, paymentsRes, staffRes, salaryRes, expensesRes, vendorRes, todosRes, customGradesRes]
+        const errors = [parentsRes, studentsRes, paymentsRes, staffRes, salaryRes, expensesRes, vendorRes, todosRes, customClassesRes]
           .filter(r => r.error)
           .map(r => r.error?.message);
         
@@ -637,7 +645,16 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
         setExpenses((expensesRes.data || []).map(mapExpenseRow));
         setVendorExpenses((vendorRes.data || []).map(mapVendorExpenseRow));
         setTodos((todosRes.data || []).map(mapTodoRow));
-        setCustomGrades((customGradesRes.data || []).map((row: any) => ({ id: row.id, name: row.name })));
+        setCustomClasses((customClassesRes.data || []).map((row: any) => ({
+          id: row.code,
+          rowId: row.id,
+          cycle: row.cycle as ClassCycle,
+          year: row.year,
+          section: row.section,
+          nameFr: row.name_fr,
+          nameEn: row.name_en,
+          isCustom: true,
+        })));
       }, {
         maxRetries: 3,
         onRetry: (attempt) => {
@@ -657,36 +674,118 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     fetchAll();
   }, [fetchAll]);
 
-  const addCustomGrade = async (name: string): Promise<CustomGrade | null> => {
-    const normalized = name.trim().replace(/\s+/g, ' ');
-    if (!normalized) return null;
+  const addCustomClass = async (cls: {
+    code: string;
+    cycle: ClassCycle;
+    year: string;
+    section: string;
+    nameFr: string;
+    nameEn: string;
+  }): Promise<CustomClass | null> => {
+    const code = cls.code.trim().replace(/\s+/g, ' ');
+    if (!code) return null;
     const { data, error } = await supabase
-      .from('custom_grades')
-      .insert({ name: normalized })
+      .from('custom_classes')
+      .insert({
+        code,
+        cycle: cls.cycle,
+        year: cls.year,
+        section: cls.section,
+        name_fr: cls.nameFr,
+        name_en: cls.nameEn,
+      })
       .select()
       .single();
     if (error) {
       if (error.code === '23505') {
         // Unique index is case-insensitive. Re-select the canonical row from the
         // DB rather than the (possibly stale) local state so that concurrent or
-        // case-variant submissions resolve to the same grade.
+        // case-variant submissions resolve to the same class.
         const { data: existingRow } = await supabase
-          .from('custom_grades')
+          .from('custom_classes')
           .select('*')
-          .ilike('name', normalized)
+          .ilike('code', code)
           .maybeSingle();
         if (existingRow) {
-          const existing = { id: existingRow.id, name: existingRow.name };
-          setCustomGrades(prev => prev.some(g => g.id === existing.id) ? prev : [...prev, existing]);
+          const existing: CustomClass = {
+            id: existingRow.code,
+            rowId: existingRow.id,
+            cycle: existingRow.cycle as ClassCycle,
+            year: existingRow.year,
+            section: existingRow.section,
+            nameFr: existingRow.name_fr,
+            nameEn: existingRow.name_en,
+            isCustom: true,
+          };
+          setCustomClasses(prev => prev.some(c => c.id === existing.id) ? prev : [...prev, existing]);
           return existing;
         }
       }
-      notifyError('addCustomGrade', error.message);
+      notifyError('addCustomClass', error.message);
       return null;
     }
-    const grade = { id: data.id, name: data.name };
-    setCustomGrades(prev => [...prev, grade]);
-    return grade;
+    const newClass: CustomClass = {
+      id: data.code,
+      rowId: data.id,
+      cycle: data.cycle as ClassCycle,
+      year: data.year,
+      section: data.section,
+      nameFr: data.name_fr,
+      nameEn: data.name_en,
+      isCustom: true,
+    };
+    setCustomClasses(prev => [...prev, newClass]);
+    return newClass;
+  };
+
+  const updateCustomClass = async (rowId: string, updates: {
+    code: string;
+    cycle: ClassCycle;
+    year: string;
+    section: string;
+    nameFr: string;
+    nameEn: string;
+  }): Promise<boolean> => {
+    const code = updates.code.trim().replace(/\s+/g, ' ');
+    if (!code) return false;
+    const { error } = await supabase
+      .from('custom_classes')
+      .update({
+        code,
+        cycle: updates.cycle,
+        year: updates.year,
+        section: updates.section,
+        name_fr: updates.nameFr,
+        name_en: updates.nameEn,
+      })
+      .eq('id', rowId);
+    if (error) {
+      if (error.code === '23505') {
+        notifyError('updateCustomClass', 'A class with this code already exists.');
+        return false;
+      }
+      notifyError('updateCustomClass', error.message);
+      return false;
+    }
+    setCustomClasses(prev => prev.map(c => c.rowId === rowId
+      ? { ...c, id: code, cycle: updates.cycle, year: updates.year, section: updates.section, nameFr: updates.nameFr, nameEn: updates.nameEn }
+      : c));
+    notifySuccess('updateCustomClass');
+    return true;
+  };
+
+  const deleteCustomClass = async (rowId: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('custom_classes')
+      .delete()
+      .eq('id', rowId);
+    if (error) {
+      notifyError('deleteCustomClass', error.message);
+      return false;
+    }
+    setCustomClasses(prev => prev.filter(c => c.rowId !== rowId));
+    notifySuccess('deleteCustomClass');
+    return true;
   };
 
   // ── CRUD: Parents ───────────────────────────────────────────────────────
@@ -1342,7 +1441,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     expenses, setExpenses,
     vendorExpenses, setVendorExpenses,
     todos, setTodos,
-    customGrades,
+    customClasses,
     loading,
     error,
     pendingQueueCount,
@@ -1354,7 +1453,9 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     fetchAll,
     fetchAuditLogs,
     syncOfflineQueue,
-    addCustomGrade,
+    addCustomClass,
+    updateCustomClass,
+    deleteCustomClass,
     addParent, updateParent, deleteParent,
     addStudent, updateStudent, deleteStudent,
     addPayment,

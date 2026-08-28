@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf';
 import type { Expense, VendorExpense } from './useSupabaseData';
 
 export interface ExpensesReportOptions {
@@ -118,7 +117,7 @@ function matchesCategory(expenseCategory: string, filterCategory: string): boole
  * Generates an executive A4 Expenses & Operational Outflows PDF Report for Complexe Scolaire MAMA THERA.
  * Supports filtering by category, status, and sub-tabs.
  */
-export function generateExpensesReportPdf({
+export async function generateExpensesReportPdf({
   expenses,
   vendorExpenses,
   selectedYear,
@@ -127,7 +126,8 @@ export function generateExpensesReportPdf({
   selectedStatus = 'all',
   searchQuery = '',
   lang = 'fr',
-}: ExpensesReportOptions): void {
+}: ExpensesReportOptions): Promise<void> {
+  const { jsPDF } = await import('jspdf');
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;

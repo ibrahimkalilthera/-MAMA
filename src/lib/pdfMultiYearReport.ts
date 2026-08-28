@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf';
 import type { Student, Expense, VendorExpense, SalaryPayment } from './useSupabaseData';
 
 export interface MultiYearReportOptions {
@@ -14,7 +13,7 @@ export interface MultiYearReportOptions {
 /**
  * Generates an executive A4 Multi-Year Comparison & Archives Report PDF for Complexe Scolaire MAMA THERA.
  */
-export function generateMultiYearReportPdf({
+export async function generateMultiYearReportPdf({
   academicYears,
   lockedYears,
   students,
@@ -22,7 +21,8 @@ export function generateMultiYearReportPdf({
   vendorExpenses,
   salaryPayments,
   lang = 'fr',
-}: MultiYearReportOptions): void {
+}: MultiYearReportOptions): Promise<void> {
+  const { jsPDF } = await import('jspdf');
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;

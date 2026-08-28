@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf';
 import type { Staff, SalaryPayment } from './useSupabaseData';
 
 export interface MonthlyPayrollDraftOptions {
@@ -23,14 +22,15 @@ const MONTH_NAMES_EN = [
 /**
  * Generates an executive A4 Monthly Payroll Draft / Bordereau Récapitulatif de Paie for Complexe Scolaire MAMA THERA.
  */
-export function generateMonthlyPayrollDraftPdf({
+export async function generateMonthlyPayrollDraftPdf({
   monthIndex,
   year,
   staff,
   salaryPayments,
   selectedAcademicYear = '2026-2027',
   lang = 'fr',
-}: MonthlyPayrollDraftOptions): void {
+}: MonthlyPayrollDraftOptions): Promise<void> {
+  const { jsPDF } = await import('jspdf');
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;
