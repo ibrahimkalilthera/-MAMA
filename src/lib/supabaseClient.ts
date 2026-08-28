@@ -1,15 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
 
-const defaultUrl = 'https://rpcjdohfxwukbqngbprw.supabase.co';
-const defaultAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ';
+const rawUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-const rawUrl = import.meta.env.VITE_SUPABASE_URL;
-const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const isPlaceholder = (v: string | undefined): boolean =>
+  !v ||
+  v.includes('your-project') ||
+  v.includes('your-anon-key') ||
+  v.includes('your-production-project') ||
+  v.includes('your-production-anon-key');
 
-const supabaseUrl = (rawUrl && !rawUrl.includes('your-production-project')) ? rawUrl : defaultUrl;
-const supabaseAnonKey = (rawKey && !rawKey.includes('your-production-anon-key')) ? rawKey : defaultAnonKey;
+// No hardcoded fallback: if the env vars are missing or still placeholders,
+// fail loudly instead of silently connecting to the production database.
+if (isPlaceholder(rawUrl) || isPlaceholder(rawKey)) {
+  throw new Error(
+    'Configuration Supabase manquante : définissez VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY ' +
+      "(variables d'environnement). Aucun fallback n'est appliqué — l'application s'arrête volontairement."
+  );
+}
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(rawUrl, rawKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
