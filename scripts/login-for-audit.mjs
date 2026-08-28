@@ -43,7 +43,8 @@ try {
   await page.waitForFunction(
     () =>
       document.body.innerText.includes('Gestion des Élèves') ||
-      document.body.innerText.includes('Tableau de bord'),
+      document.body.innerText.includes('Tableau de bord') ||
+      document.body.innerText.includes('Résumé Exécutif'),
     { timeout: 25000 }
   );
   console.log('→ connecté. Navigation vers le tableau de bord…');
