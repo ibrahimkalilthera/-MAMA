@@ -175,6 +175,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
   // Read migration files
   const initSql = readFileSync(join(__dirname, 'migrations', '20260801000000_init.sql'), 'utf8');
   const authSql = readFileSync(join(__dirname, 'migrations', '20260809000000_auth_and_rls.sql'), 'utf8');
+  const roleHardeningSql = readFileSync(join(__dirname, 'migrations', '20260828000001_auth_role_hardening.sql'), 'utf8');
+  const vendorPermissionsSql = readFileSync(join(__dirname, 'migrations', '20260828000000_vendor_expense_permissions.sql'), 'utf8');
+  const customGradesSql = readFileSync(join(__dirname, 'migrations', '20260828000002_custom_grades.sql'), 'utf8');
   
   // Add the admin insert
   const adminInsert = `
@@ -190,6 +193,9 @@ ON CONFLICT (id) DO UPDATE SET role = 'admin', full_name = 'Ibrahim Thera';
   
   // Run step 2
   await runStatements('Step 2: Auth + RLS Lockdown', authSql + '\n' + adminInsert);
+  await runStatements('Step 3: Auth Role Hardening', roleHardeningSql);
+  await runStatements('Step 4: Vendor Expense Permissions', vendorPermissionsSql);
+  await runStatements('Step 5: Shared Custom Grades', customGradesSql);
   
   // Cleanup
   console.log('\n🧹 Cleaning up exec_sql function...');

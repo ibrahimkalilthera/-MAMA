@@ -18,11 +18,13 @@ CREATE INDEX IF NOT EXISTS idx_expenses_academic_year ON public.expenses(academi
 ALTER TABLE public.academic_years ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Allow authenticated read access on academic_years" ON public.academic_years;
 CREATE POLICY "Allow authenticated read access on academic_years"
     ON public.academic_years FOR SELECT
     TO authenticated
     USING (true);
 
+DROP POLICY IF EXISTS "Allow admin write access on academic_years" ON public.academic_years;
 CREATE POLICY "Allow admin write access on academic_years"
     ON public.academic_years FOR ALL
     TO authenticated

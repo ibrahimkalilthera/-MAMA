@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
     full_name TEXT NOT NULL DEFAULT 'New User',
-    role TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('admin', 'staff')),
+    role TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('admin', 'staff', 'dev')),
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -30,7 +30,7 @@ BEGIN
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'full_name', 'New User'),
-        COALESCE(NEW.raw_user_meta_data->>'role', 'staff')
+        'staff'
     );
     RETURN NEW;
 END;
@@ -50,7 +50,7 @@ RETURNS BOOLEAN AS $$
 BEGIN
     RETURN EXISTS (
         SELECT 1 FROM public.user_profiles 
-        WHERE id = auth.uid() AND role = 'admin'
+        WHERE id = auth.uid() AND role IN ('admin', 'dev')
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;

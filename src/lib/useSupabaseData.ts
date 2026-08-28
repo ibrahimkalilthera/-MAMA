@@ -120,6 +120,11 @@ export interface Todo {
   studentId?: string;
 }
 
+export interface CustomGrade {
+  id: string;
+  name: string;
+}
+
 // ─── Supabase row → App type mappers ─────────────────────────────────────────
 
 function mapParentRow(row: any): Parent {
@@ -247,7 +252,7 @@ function studentToRow(student: Omit<Student, 'id' | 'payments'>) {
     student_id: student.studentId || null,
     name: student.name,
     parent_name: student.parentName,
-    parent_email: student.parentEmail,
+    parent_email: student.parentEmail || null,
     parent_phone: student.parentPhone,
     total_due: student.totalDue,
     amount_paid: student.amountPaid,
@@ -302,6 +307,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [vendorExpenses, setVendorExpenses] = useState<VendorExpense[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [customGrades, setCustomGrades] = useState<CustomGrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingQueueCount, setPendingQueueCount] = useState<number>(() => getOfflineQueueCount());
@@ -449,6 +455,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           expensesRes,
           vendorRes,
           todosRes,
+          customGradesRes,
         ] = await Promise.all([
           supabase.from('parents').select('*').order('created_at', { ascending: true }),
           supabase.from('students').select('*').order('created_at', { ascending: true }),
@@ -458,10 +465,11 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           supabase.from('expenses').select('*').order('date', { ascending: true }),
           supabase.from('vendor_expenses').select('*').order('created_at', { ascending: true }),
           supabase.from('todos').select('*').order('created_at', { ascending: true }),
+          supabase.from('custom_grades').select('*').order('name', { ascending: true }),
         ]);
 
         // Check for errors
-        const errors = [parentsRes, studentsRes, paymentsRes, staffRes, salaryRes, expensesRes, vendorRes, todosRes]
+        const errors = [parentsRes, studentsRes, paymentsRes, staffRes, salaryRes, expensesRes, vendorRes, todosRes, customGradesRes]
           .filter(r => r.error)
           .map(r => r.error?.message);
         
@@ -493,6 +501,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
         setExpenses((expensesRes.data || []).map(mapExpenseRow));
         setVendorExpenses((vendorRes.data || []).map(mapVendorExpenseRow));
         setTodos((todosRes.data || []).map(mapTodoRow));
+        setCustomGrades((customGradesRes.data || []).map((row: any) => ({ id: row.id, name: row.name })));
       }, {
         maxRetries: 3,
         onRetry: (attempt) => {
@@ -511,6 +520,27 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  const addCustomGrade = async (name: string): Promise<CustomGrade | null> => {
+    const normalized = name.trim().replace(/\s+/g, ' ');
+    if (!normalized) return null;
+    const { data, error } = await supabase
+      .from('custom_grades')
+      .insert({ name: normalized })
+      .select()
+      .single();
+    if (error) {
+      if (error.code === '23505') {
+        const existing = customGrades.find(grade => grade.name.toLowerCase() === normalized.toLowerCase());
+        return existing || null;
+      }
+      notifyError('addCustomGrade', error.message);
+      return null;
+    }
+    const grade = { id: data.id, name: data.name };
+    setCustomGrades(prev => [...prev, grade]);
+    return grade;
+  };
 
   // ── CRUD: Parents ───────────────────────────────────────────────────────
 
@@ -531,7 +561,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     const row: any = {};
     if (updates.fullName !== undefined) row.full_name = updates.fullName;
     if (updates.phones !== undefined) row.phones = updates.phones;
-    if (updates.email !== undefined) row.email = updates.email;
+    if ('email' in updates) row.email = updates.email || null;
     if (updates.address !== undefined) row.address = updates.address;
     if (updates.occupation !== undefined) row.occupation = updates.occupation;
     if (updates.relationship !== undefined) row.relationship = updates.relationship;
@@ -570,7 +600,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   const updateStudent = async (id: string, updates: Partial<Student>): Promise<boolean> => {
     const row: any = {};
     if (updates.name !== undefined) row.name = updates.name;
-    if (updates.parentId !== undefined) row.parent_id = updates.parentId;
+    if ('parentId' in updates) row.parent_id = updates.parentId || null;
     if (updates.parentName !== undefined) row.parent_name = updates.parentName;
     if (updates.parentEmail !== undefined) row.parent_email = updates.parentEmail;
     if (updates.parentPhone !== undefined) row.parent_phone = updates.parentPhone;
@@ -698,7 +728,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     if (updates.name !== undefined) row.name = updates.name;
     if (updates.position !== undefined) row.position = updates.position;
     if (updates.salary !== undefined) row.salary = updates.salary;
-    if (updates.email !== undefined) row.email = updates.email;
+    if ('email' in updates) row.email = updates.email || null;
     if (updates.phone !== undefined) row.phone = updates.phone;
     if (updates.bankDetails !== undefined) row.bank_details = updates.bankDetails;
     if (updates.emergencyContact !== undefined) row.emergency_contact = updates.emergencyContact;
@@ -1076,6 +1106,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     expenses, setExpenses,
     vendorExpenses, setVendorExpenses,
     todos, setTodos,
+    customGrades,
     loading,
     error,
     pendingQueueCount,
@@ -1087,6 +1118,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     fetchAll,
     fetchAuditLogs,
     syncOfflineQueue,
+    addCustomGrade,
     addParent, updateParent, deleteParent,
     addStudent, updateStudent, deleteStudent,
     addPayment,

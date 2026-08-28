@@ -154,8 +154,15 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
     full_name TEXT NOT NULL DEFAULT 'New User',
-    role TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('admin', 'staff')),
+    role TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('admin', 'staff', 'dev')),
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Shared custom classes used by all authenticated school users
+CREATE TABLE IF NOT EXISTS public.custom_grades (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
 -- ─── 2. INDEXES ─────────────────────────────────────────────────────────────
@@ -169,18 +176,17 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON public.audit_logs (creat
 
 -- Auto-create user profile when a new user registers in Supabase Auth
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
     INSERT INTO public.user_profiles (id, email, full_name, role)
-    VALUES (
-        NEW.id,
-        NEW.email,
-        COALESCE(NEW.raw_user_meta_data->>'full_name', 'New User'),
-        COALESCE(NEW.raw_user_meta_data->>'role', 'staff')
-    );
+    VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'full_name', 'New User'), 'staff');
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -193,7 +199,7 @@ RETURNS BOOLEAN AS $$
 BEGIN
     RETURN EXISTS (
         SELECT 1 FROM public.user_profiles 
-        WHERE id = auth.uid() AND role = 'admin'
+        WHERE id = auth.uid() AND role IN ('admin', 'dev')
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
@@ -211,6 +217,13 @@ ALTER TABLE public.todos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.academic_years ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.custom_grades ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated read custom grades" ON public.custom_grades;
+CREATE POLICY "Authenticated read custom grades" ON public.custom_grades FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Authenticated insert custom grades" ON public.custom_grades;
+CREATE POLICY "Authenticated insert custom grades" ON public.custom_grades FOR INSERT TO authenticated WITH CHECK (true);
 
 -- User Profiles Policies
 DROP POLICY IF EXISTS "Users can read own profile or admin reads all" ON public.user_profiles;
@@ -278,11 +291,36 @@ CREATE POLICY "Admin can delete expenses" ON public.expenses FOR DELETE TO authe
 DROP POLICY IF EXISTS "Authenticated users can read vendor_expenses" ON public.vendor_expenses;
 CREATE POLICY "Authenticated users can read vendor_expenses" ON public.vendor_expenses FOR SELECT TO authenticated USING (true);
 DROP POLICY IF EXISTS "Authenticated users can insert vendor_expenses" ON public.vendor_expenses;
-CREATE POLICY "Authenticated users can insert vendor_expenses" ON public.vendor_expenses FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Promoter can insert vendor_expenses" ON public.vendor_expenses FOR INSERT TO authenticated WITH CHECK (public.is_admin());
 DROP POLICY IF EXISTS "Authenticated users can update vendor_expenses" ON public.vendor_expenses;
-CREATE POLICY "Authenticated users can update vendor_expenses" ON public.vendor_expenses FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "Authenticated users can update vendor_expenses" ON public.vendor_expenses FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS "Admin can delete vendor_expenses" ON public.vendor_expenses;
-CREATE POLICY "Admin can delete vendor_expenses" ON public.vendor_expenses FOR DELETE TO authenticated USING (public.is_admin());
+CREATE POLICY "Promoter can delete vendor_expenses" ON public.vendor_expenses FOR DELETE TO authenticated USING (public.is_admin());
+
+CREATE OR REPLACE FUNCTION public.prevent_vendor_expense_financial_edit()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF NOT public.is_admin()
+       AND (
+           NEW.vendor_name IS DISTINCT FROM OLD.vendor_name
+           OR NEW.amount IS DISTINCT FROM OLD.amount
+       ) THEN
+        RAISE EXCEPTION 'Only the promoter can change the vendor or amount.'
+            USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_vendor_expense_financial_fields ON public.vendor_expenses;
+CREATE TRIGGER protect_vendor_expense_financial_fields
+    BEFORE UPDATE ON public.vendor_expenses
+    FOR EACH ROW
+    EXECUTE FUNCTION public.prevent_vendor_expense_financial_edit();
 
 -- Todos Policies
 DROP POLICY IF EXISTS "Authenticated users can manage todos" ON public.todos;

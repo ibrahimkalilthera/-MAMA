@@ -33,7 +33,7 @@ CREATE POLICY "Admins can view audit logs"
         EXISTS (
             SELECT 1 FROM public.user_profiles
             WHERE user_profiles.id = auth.uid()
-            AND user_profiles.role = 'admin'
+            AND user_profiles.role IN ('admin', 'dev')
         )
     );
 

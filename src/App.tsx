@@ -257,6 +257,12 @@ export const DEFAULT_SCHOOL_CLASSES: SchoolClass[] = [
   { id: '9C', cycle: 'cycle2', year: 9, section: 'C', nameFr: '9ème Année C (9C)', nameEn: '9th Year C (9C)' },
 ];
 
+const DEFAULT_GRADE_OPTIONS = [
+  '1A', '1B', '1C', '2A', '2B', '2C', '3A', '3B', '3C',
+  '4A', '4B', '4C', '5A', '5B', '5C', '6A', '6B', '6C',
+  '7A', '7B', '7C', '8A', '8B', '8C', '9A', '9B', '9C',
+];
+
 // --- Translations ---
 
 const translations = {
@@ -1045,6 +1051,7 @@ export default function App() {
     role: auth.profile.role,
     name: auth.profile.fullName,
   } : null;
+  const isPromoter = auth.isAdmin;
 
   // Auth loading state (checking session on page load)
   const authLoading = auth.loading;
@@ -1091,6 +1098,8 @@ export default function App() {
   }), []);
 
   const {
+    customGrades,
+    addCustomGrade,
     parents, setParents,
     students, setStudents,
     staff, setStaff,
@@ -1110,6 +1119,15 @@ export default function App() {
     deleteStudent,
     deleteStaff,
     deleteParent,
+    updateParent,
+    addParent,
+    updateStudent,
+    addStudent,
+    updateStaff,
+    addStaff,
+    addVendorExpense,
+    updateVendorExpense,
+    deleteVendorExpense,
     batchPromoteStudents,
     batchImportData,
   } = useSupabaseData({
@@ -1492,42 +1510,33 @@ export default function App() {
     doc.save(`Releve_Parent_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  const handleParentSubmit = (e: FormEvent) => {
+  const handleParentSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!parentForm.fullName.trim()) return;
 
-    const phonesArr = [parentForm.primaryPhone.trim(), parentForm.secondaryPhone.trim()].filter(Boolean);
+    const parentData = {
+      fullName: parentForm.fullName.trim(),
+      phones: [parentForm.primaryPhone.trim(), parentForm.secondaryPhone.trim()].filter(Boolean),
+      email: parentForm.email.trim() || undefined,
+      address: parentForm.address.trim() || 'N/A',
+      occupation: parentForm.occupation.trim() || 'N/A',
+      relationship: parentForm.relationship || 'Guardian',
+      notes: parentForm.notes.trim() || undefined,
+    };
+
+    const saved = editingParent
+      ? await updateParent(editingParent.id, parentData)
+      : await addParent(parentData);
+
+    if (!saved) return;
 
     if (editingParent) {
-      setParents(prev => prev.map(p => p.id === editingParent.id ? {
-        ...p,
-        fullName: parentForm.fullName.trim(),
-        phones: phonesArr.length > 0 ? phonesArr : ['N/A'],
-        email: parentForm.email.trim() || undefined,
-        address: parentForm.address.trim() || 'N/A',
-        occupation: parentForm.occupation.trim() || 'N/A',
-        relationship: parentForm.relationship || 'Guardian',
-        notes: parentForm.notes.trim()
-      } : p));
-      
       setStudents(prev => prev.map(s => s.parentId === editingParent.id ? {
         ...s,
-        parentName: parentForm.fullName.trim(),
-        parentPhone: parentForm.primaryPhone.trim() || s.parentPhone,
-        parentEmail: parentForm.email.trim() || s.parentEmail
+        parentName: parentData.fullName,
+        parentPhone: parentData.phones[0] || s.parentPhone,
+        parentEmail: parentData.email || s.parentEmail
       } : s));
-    } else {
-      const newParent: Parent = {
-        id: `PAR${Date.now().toString().slice(-4)}`,
-        fullName: parentForm.fullName.trim(),
-        phones: phonesArr.length > 0 ? phonesArr : ['N/A'],
-        email: parentForm.email.trim() || undefined,
-        address: parentForm.address.trim() || 'N/A',
-        occupation: parentForm.occupation.trim() || 'N/A',
-        relationship: parentForm.relationship || 'Guardian',
-        notes: parentForm.notes.trim()
-      };
-      setParents(prev => [newParent, ...prev]);
     }
 
     setShowParentModal(false);
@@ -1535,34 +1544,33 @@ export default function App() {
     setParentForm({ fullName: '', primaryPhone: '', secondaryPhone: '', email: '', address: '', occupation: '', relationship: 'Father', notes: '' });
   };
 
-  const handleLinkStudentSubmit = (e: FormEvent) => {
+  const handleLinkStudentSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!activeLinkingParent || !studentToLinkId) return;
 
-    setStudents(prev => prev.map(s => s.id === studentToLinkId ? {
-      ...s,
+    const updated = await updateStudent(studentToLinkId, {
       parentId: activeLinkingParent.id,
       parentName: activeLinkingParent.fullName,
-      parentPhone: activeLinkingParent.phones[0] || s.parentPhone,
-      parentEmail: activeLinkingParent.email || s.parentEmail
-    } : s));
+      parentPhone: activeLinkingParent.phones[0] || '',
+      parentEmail: activeLinkingParent.email || '',
+    });
+    if (!updated) return;
 
     setShowLinkStudentModal(false);
     setActiveLinkingParent(null);
     setStudentToLinkId('');
   };
 
-  const handleUnlinkStudent = (studentId: string) => {
-    setStudents(prev => prev.map(s => s.id === studentId ? {
-      ...s,
-      parentId: undefined
-    } : s));
+  const handleUnlinkStudent = async (studentId: string) => {
+    await updateStudent(studentId, { parentId: undefined });
   };
 
-  const handleDeleteParent = (parentId: string) => {
+  const handleDeleteParent = async (parentId: string) => {
     if (confirm(t.confirmDeleteParent)) {
-      setParents(prev => prev.filter(p => p.id !== parentId));
-      setStudents(prev => prev.map(s => s.parentId === parentId ? { ...s, parentId: undefined } : s));
+      const deleted = await deleteParent(parentId);
+      if (deleted) {
+        setStudents(prev => prev.map(s => s.parentId === parentId ? { ...s, parentId: undefined } : s));
+      }
     }
   };
 
@@ -1595,6 +1603,7 @@ export default function App() {
   const [auditYear, setAuditYear] = useState<string | null>(null);
 
   const [academicYears, setAcademicYears] = useState<string[]>(['2026-2027', '2027-2028', '2028-2029']);
+  const [newGrade, setNewGrade] = useState('');
   const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
 
@@ -2484,7 +2493,7 @@ export default function App() {
     }
   };
 
-  const handleStudentSubmit = (e: FormEvent) => {
+  const handleStudentSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
       alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
@@ -2504,33 +2513,19 @@ export default function App() {
       return;
     }
 
-    if (editingStudent) {
-      setStudents(prev => prev.map(s => 
-        s.id === editingStudent.id 
-          ? { 
-              ...s, 
-              ...studentForm, 
-              totalDue: amount, 
-              scholarshipDiscount: parseFloat(studentForm.scholarshipDiscount) 
-            } 
-          : s
-      ));
-    } else {
-      const nextIdNum = students.reduce((max, s) => {
-        const num = parseInt(s.id.replace('ST', '')) || 0;
-        return num > max ? num : max;
-      }, 0) + 1;
-      const newStudent: Student = {
-        id: `ST${String(nextIdNum).padStart(3, '0')}`,
-        ...studentForm,
-        studentId: studentForm.studentId || `MT-2026-${String(nextIdNum).padStart(3, '0')}`,
-        totalDue: amount,
-        scholarshipDiscount: parseFloat(studentForm.scholarshipDiscount),
-        amountPaid: 0,
-        payments: []
-      };
-      setStudents(prev => [...prev, newStudent]);
-    }
+    const studentData = {
+      ...studentForm,
+      parentEmail: studentForm.parentEmail.trim(),
+      totalDue: amount,
+      scholarshipDiscount: isPromoter
+        ? (parseFloat(studentForm.scholarshipDiscount) || 0)
+        : (editingStudent?.scholarshipDiscount || 0),
+    };
+
+    const savedStudent = editingStudent
+      ? await updateStudent(editingStudent.id, studentData)
+      : await addStudent({ ...studentData, amountPaid: 0, payments: [] });
+    if (!savedStudent) return;
 
     setShowStudentModal(false);
     setEditingStudent(null);
@@ -2598,7 +2593,7 @@ export default function App() {
     setStudents(prev => prev.map(s => s.id === id ? { ...s, flagged: !s.flagged } : s));
   };
 
-  const handleStaffSubmit = (e: FormEvent) => {
+  const handleStaffSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
       alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
@@ -2607,20 +2602,18 @@ export default function App() {
     const salary = parseFloat(staffForm.salary);
     if (isNaN(salary) || salary < 0) return;
 
-    if (editingStaff) {
-      setStaff(prev => prev.map(s => s.id === editingStaff.id ? { ...s, ...staffForm, salary } : s));
-    } else {
-      const nextIdNum = staff.reduce((max, s) => {
-        const num = parseInt(s.id.replace('EMP', '')) || 0;
-        return num > max ? num : max;
-      }, 0) + 1;
-      const newStaff: Staff = {
-        id: `EMP${String(nextIdNum).padStart(3, '0')}`,
-        ...staffForm,
-        salary
-      };
-      setStaff(prev => [...prev, newStaff]);
-    }
+    const staffData = {
+      ...staffForm,
+      salary,
+      email: staffForm.email.trim(),
+      phone: staffForm.phone.trim(),
+      bankDetails: staffForm.bankDetails.trim(),
+      emergencyContact: staffForm.emergencyContact.trim(),
+    };
+    const saved = editingStaff
+      ? await updateStaff(editingStaff.id, staffData)
+      : await addStaff(staffData);
+    if (!saved) return;
     setShowStaffModal(false);
     setEditingStaff(null);
     setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '' });
@@ -2651,51 +2644,42 @@ export default function App() {
     showToast();
   };
 
-  const handleVendorExpenseSubmit = (e: FormEvent) => {
+  const handleVendorExpenseSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!editingVendorExpense && !isPromoter) {
+      alert(lang === 'en' ? 'Only the promoter can create a vendor expense.' : 'Seule la promotrice peut créer une dépense fournisseur.');
+      return;
+    }
     if (lockedYears.includes(selectedYear)) {
       alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
       return;
     }
-    const amount = parseFloat(vendorExpenseForm.amount);
+    const parsedAmount = parseFloat(vendorExpenseForm.amount);
     const amountPaid = parseFloat(vendorExpenseForm.amountPaid) || 0;
+    const amount = isPromoter ? parsedAmount : (editingVendorExpense?.amount ?? parsedAmount);
     if (isNaN(amount) || amount < 0) return;
 
+    const vendorData = {
+      vendorName: isPromoter ? vendorExpenseForm.vendorName.trim() : (editingVendorExpense?.vendorName || vendorExpenseForm.vendorName.trim()),
+      category: vendorExpenseForm.category,
+      amount,
+      dueDate: vendorExpenseForm.dueDate,
+      paymentStatus: vendorExpenseForm.paymentStatus,
+      amountPaid: vendorExpenseForm.paymentStatus === 'paid' ? amount : (vendorExpenseForm.paymentStatus === 'unpaid' ? 0 : amountPaid),
+      description: vendorExpenseForm.description.trim(),
+      academicYear: selectedYear,
+      aidType: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.aidType : undefined,
+      beneficiaryStudentName: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.beneficiaryStudentName : undefined,
+      beneficiaryStudentGrade: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.beneficiaryStudentGrade : undefined,
+    };
+
+    const saved = editingVendorExpense
+      ? await updateVendorExpense(editingVendorExpense.id, vendorData)
+      : await addVendorExpense(vendorData);
+    if (!saved) return;
+
     if (editingVendorExpense) {
-      setVendorExpenses(prev => prev.map(v => v.id === editingVendorExpense.id ? {
-        ...v,
-        vendorName: vendorExpenseForm.vendorName,
-        category: vendorExpenseForm.category,
-        amount,
-        dueDate: vendorExpenseForm.dueDate,
-        paymentStatus: vendorExpenseForm.paymentStatus,
-        amountPaid: vendorExpenseForm.paymentStatus === 'paid' ? amount : (vendorExpenseForm.paymentStatus === 'unpaid' ? 0 : amountPaid),
-        description: vendorExpenseForm.description,
-        aidType: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.aidType : undefined,
-        beneficiaryStudentName: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.beneficiaryStudentName : undefined,
-        beneficiaryStudentGrade: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.beneficiaryStudentGrade : undefined
-      } : v));
       setEditingVendorExpense(null);
-    } else {
-      const nextIdNum = vendorExpenses.reduce((max, v) => {
-        const num = parseInt(v.id.replace('VEXP', '')) || 0;
-        return num > max ? num : max;
-      }, 0) + 1;
-      const newVendorExpense: VendorExpense = {
-        id: `VEXP${String(nextIdNum).padStart(3, '0')}`,
-        vendorName: vendorExpenseForm.vendorName,
-        category: vendorExpenseForm.category,
-        amount,
-        dueDate: vendorExpenseForm.dueDate,
-        paymentStatus: vendorExpenseForm.paymentStatus,
-        amountPaid: vendorExpenseForm.paymentStatus === 'paid' ? amount : (vendorExpenseForm.paymentStatus === 'unpaid' ? 0 : amountPaid),
-        description: vendorExpenseForm.description,
-        academicYear: selectedYear,
-        aidType: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.aidType : undefined,
-        beneficiaryStudentName: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.beneficiaryStudentName : undefined,
-        beneficiaryStudentGrade: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.beneficiaryStudentGrade : undefined
-      };
-      setVendorExpenses(prev => [...prev, newVendorExpense]);
     }
 
     setShowVendorExpenseModal(false);
@@ -2731,13 +2715,16 @@ export default function App() {
     setShowVendorExpenseModal(true);
   };
 
-  const handleDeleteVendorExpense = (id: string) => {
+  const handleDeleteVendorExpense = async (id: string) => {
     if (lockedYears.includes(selectedYear)) {
       alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
       return;
     }
-    setVendorExpenses(prev => prev.filter(v => v.id !== id));
-    showToast();
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'dev') {
+      alert(lang === 'en' ? 'Only the promoter can delete expenses.' : 'Seule la promotrice peut supprimer des dépenses.');
+      return;
+    }
+    if (await deleteVendorExpense(id)) showToast();
   };
 
   const generateInstallmentMemo = (staffId: string, amount: number) => {
@@ -3262,6 +3249,17 @@ export default function App() {
       month: '2-digit',
       year: 'numeric'
     });
+  };
+
+  const gradeOptions = [...DEFAULT_GRADE_OPTIONS, ...customGrades.map(grade => grade.name)]
+    .filter((grade, index, grades) => grades.findIndex(item => item.toLowerCase() === grade.toLowerCase()) === index)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  const handleAddGrade = async () => {
+    const grade = await addCustomGrade(newGrade);
+    if (!grade) return;
+    setStudentForm(prev => ({ ...prev, grade: grade.name }));
+    setNewGrade('');
   };
 
   const getGradeDisplay = (grade: string | undefined, currentLang: 'en' | 'fr' = lang) => {
@@ -5753,28 +5751,30 @@ export default function App() {
                           <Printer size={16} />
                           <span className="hidden sm:inline">{lang === 'en' ? 'Print' : 'Imprimer'}</span>
                         </button>
-                        <button 
-                          onClick={() => {
-                            setEditingVendorExpense(null);
-                            setVendorExpenseForm({
-                              vendorName: '',
-                              category: 'stationery',
-                              amount: '',
-                              dueDate: new Date().toISOString().split('T')[0],
-                              paymentStatus: 'unpaid',
-                              amountPaid: '',
-                              description: '',
-                              aidType: '' as any,
-                              beneficiaryStudentName: '',
-                              beneficiaryStudentGrade: '',
-                            });
-                            setShowVendorExpenseModal(true);
-                          }}
-                          className={`${currentTheme.isDark ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg`}
-                        >
-                          <Plus size={16} />
-                          {t.addVendorExpense}
-                        </button>
+                        {isPromoter && (
+                          <button
+                            onClick={() => {
+                              setEditingVendorExpense(null);
+                              setVendorExpenseForm({
+                                vendorName: '',
+                                category: 'stationery',
+                                amount: '',
+                                dueDate: new Date().toISOString().split('T')[0],
+                                paymentStatus: 'unpaid',
+                                amountPaid: '',
+                                description: '',
+                                aidType: '' as any,
+                                beneficiaryStudentName: '',
+                                beneficiaryStudentGrade: '',
+                              });
+                              setShowVendorExpenseModal(true);
+                            }}
+                            className={`${currentTheme.isDark ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg`}
+                          >
+                            <Plus size={16} />
+                            {t.addVendorExpense}
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -5970,7 +5970,7 @@ export default function App() {
                                     </td>
                                     <td className="px-8 py-6 text-right no-print">
                                       <div className="flex justify-end gap-3">
-                                        <button 
+                                        <button
                                           onClick={() => {
                                             setEditingVendorExpense(v);
                                             setVendorExpenseForm({
@@ -6001,8 +6001,9 @@ export default function App() {
                                               handleDeleteVendorExpense(v.id);
                                             }
                                           }}
-                                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                                          title={lang === 'en' ? "Delete Expense" : "Supprimer la dépense"}
+                                          disabled={!isPromoter}
+                                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                          title={isPromoter ? (lang === 'en' ? "Delete Expense" : "Supprimer la dépense") : (lang === 'en' ? "Promoter only" : "Promotrice uniquement")}
                                         >
                                           <Trash2 size={16} />
                                         </button>
@@ -7379,10 +7380,43 @@ export default function App() {
                           ))}
                         </optgroup>
                       )}
+                      {customGrades.length > 0 && (
+                        <optgroup label={lang === 'en' ? "Shared Custom Grades" : "Classes Personnalisées Partagées"}>
+                          {customGrades.map(grade => (
+                            <option key={grade.id} value={grade.name}>{grade.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
                       <option value="__ADD_NEW_CLASS__" className="text-blue-600 font-bold">
                         {lang === 'en' ? '+ Add another class / section...' : '+ Ajouter une autre classe / section...'}
                       </option>
                     </select>
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="text"
+                        value={newGrade}
+                        onChange={(e) => setNewGrade(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddGrade();
+                          }
+                        }}
+                        placeholder={lang === 'en' ? 'Add a class (e.g. 1st Year B)' : 'Ajouter une classe (ex. 1ère année B)'}
+                        className={`min-w-0 flex-1 px-3 py-2.5 border ${currentTheme.border} rounded-xl text-xs font-semibold ${currentTheme.input}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddGrade}
+                        disabled={!newGrade.trim()}
+                        className="shrink-0 px-3 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                    <p className={`text-[10px] ${currentTheme.muted}`}>
+                      {lang === 'en' ? 'Staff can add sections such as 1st Year B or C.' : 'Le personnel peut ajouter des sections comme 1ère année B ou C.'}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Enrollment Status' : 'Statut d\'Inscription'}</label>
@@ -7535,8 +7569,11 @@ export default function App() {
                 {/* --- Financial Controls --- */}
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                      {t.totalDue} ({t.currency})
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
+                      <span>{t.totalDue} ({t.currency})</span>
+                      <span className="text-[9px] text-emerald-600 font-bold">
+                        ({lang === 'en' ? 'Staff authorized' : 'Staff autorisé'})
+                      </span>
                     </label>
                     <div className="relative">
                       <input 
@@ -7554,9 +7591,9 @@ export default function App() {
                   <div className="space-y-2">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
                       <span>{t.scholarship}</span>
-                      {currentUser?.role !== 'admin' && currentUser?.role !== 'dev' && (
+                      {!isPromoter && (
                         <span className="text-[9px] text-rose-500 font-bold">
-                          ({lang === 'en' ? 'Owner Only' : 'Promoteur Seul'})
+                          ({lang === 'en' ? 'Promoter Only' : 'Promotrice uniquement'})
                         </span>
                       )}
                     </label>
@@ -7567,8 +7604,8 @@ export default function App() {
                       step="1"
                       value={studentForm.scholarshipDiscount}
                       onChange={(e) => setStudentForm({ ...studentForm, scholarshipDiscount: e.target.value })}
-                      disabled={currentUser?.role !== 'admin' && currentUser?.role !== 'dev'}
-                      className={`w-full px-6 py-4 ${currentUser?.role !== 'admin' && currentUser?.role !== 'dev' ? 'bg-slate-150 cursor-not-allowed opacity-70' : (currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50')} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      disabled={!isPromoter}
+                      className={`w-full px-6 py-4 ${!isPromoter ? 'bg-slate-150 cursor-not-allowed opacity-70' : (currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50')} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                       placeholder="0"
                     />
                   </div>
@@ -7870,9 +7907,8 @@ export default function App() {
 
                 <div className="space-y-2">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.bankDetails}</label>
-                  <input 
-                    required
-                    type="text" 
+                  <input
+                    type="text"
                     value={staffForm.bankDetails}
                     onChange={(e) => setStaffForm({ ...staffForm, bankDetails: e.target.value })}
                     className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
@@ -7882,9 +7918,8 @@ export default function App() {
 
                 <div className="space-y-2">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.emergencyContact}</label>
-                  <input 
-                    required
-                    type="text" 
+                  <input
+                    type="text"
                     value={staffForm.emergencyContact}
                     onChange={(e) => setStaffForm({ ...staffForm, emergencyContact: e.target.value })}
                     className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
@@ -8024,13 +8059,17 @@ export default function App() {
               <form onSubmit={handleVendorExpenseSubmit} className="p-10 space-y-6">
                 {/* Vendor Name */}
                 <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.vendorName}</label>
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
+                    <span>{t.vendorName}</span>
+                    {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({lang === 'en' ? 'Promoter Only' : 'Promotrice uniquement'})</span>}
+                  </label>
                   <input 
                     required
                     type="text" 
                     value={vendorExpenseForm.vendorName}
+                    disabled={!isPromoter}
                     onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, vendorName: e.target.value })}
-                    className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
+                    className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? 'bg-slate-100 cursor-not-allowed opacity-70' : currentTheme.input}`}
                     placeholder={lang === 'en' ? "e.g., SENELEC" : "ex. SENELEC"}
                   />
                 </div>
@@ -8132,6 +8171,13 @@ export default function App() {
                               ))}
                             </optgroup>
                           )}
+                          {customGrades.length > 0 && (
+                            <optgroup label={lang === 'en' ? "Shared Custom Grades" : "Classes Personnalisées Partagées"}>
+                              {customGrades.map(grade => (
+                                <option key={grade.id} value={grade.name}>{grade.name}</option>
+                              ))}
+                            </optgroup>
+                          )}
                         </select>
                       </div>
                     </div>
@@ -8141,13 +8187,17 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-6">
                   {/* Total Amount */}
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amount} (XOF)</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
+                      <span>{t.amount} (XOF)</span>
+                      {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({lang === 'en' ? 'Promoter Only' : 'Promotrice uniquement'})</span>}
+                    </label>
                     <input 
                       required
                       type="number" 
                       value={vendorExpenseForm.amount}
+                      disabled={!isPromoter}
                       onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, amount: e.target.value })}
-                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
+                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? 'bg-slate-100 cursor-not-allowed opacity-70' : currentTheme.input}`}
                       placeholder="50000"
                     />
                   </div>
