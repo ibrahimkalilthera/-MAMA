@@ -51,4 +51,7 @@ jobs:
           # 0.60 et non 0.7 : les runners CI mesurent ~25 points sous la prod
           # réelle (build identique) — 0.60 bloque toujours les vraies régressions.
           PERF_THRESHOLD: '0.60'
+          # Médiane de 3 audits : le score d'un seul run varie fortement selon
+          # le runner partagé tiré au sort (39 à 67 observés sur le même build).
+          LH_RUNS: '3'
         run: npm run check:perf

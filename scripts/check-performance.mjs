@@ -11,6 +11,7 @@
  * Usage :
  *   node scripts/check-performance.mjs
  *   PERF_THRESHOLD=0.8 node scripts/check-performance.mjs
+ *   LH_RUNS=3 node scripts/check-performance.mjs   # médiane de 3 audits (CI)
  *   CHROME_PATH="C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" node scripts/check-performance.mjs
  */
 
@@ -77,37 +78,41 @@ async function main() {
   try {
     await waitForServer(URL);
 
-    console.log('🔍 Lancement de l\'audit Lighthouse (mobile)…');
-    const flags = {
-      output: 'json',
-      onlyCategories: ['performance'],
-      logLevel: 'error',
-      port: undefined,
-    };
-    const chromeFlags = ['--headless=new', '--no-sandbox', '--disable-gpu'];
-    chrome = await launch({
-      chromePath: CHROME_PATH,
-      chromeFlags,
-    });
-    flags.port = chrome.port;
-
-    const result = await lighthouse(URL, flags, undefined);
-    const score = result?.lhr?.categories?.performance?.score;
-    const runtimeError = result?.lhr?.runtimeError?.code;
-
-    if (runtimeError) {
-      console.error(`❌ L'audit a échoué : ${runtimeError}`);
-      process.exitCode = 1;
-      return;
+    const RUNS = Math.max(1, Number(process.env.LH_RUNS) || 1);
+    const scores = [];
+    for (let i = 1; i <= RUNS; i++) {
+      console.log(`🔍 Audit Lighthouse (mobile) — run ${i}/${RUNS}…`);
+      const flags = {
+        output: 'json',
+        onlyCategories: ['performance'],
+        logLevel: 'error',
+        port: undefined,
+      };
+      chrome = await launch({
+        chromePath: CHROME_PATH,
+        chromeFlags: ['--headless=new', '--no-sandbox', '--disable-gpu'],
+      });
+      flags.port = chrome.port;
+      try {
+        const result = await lighthouse(URL, flags, undefined);
+        const runtimeError = result?.lhr?.runtimeError?.code;
+        if (runtimeError) throw new Error(`L'audit a échoué : ${runtimeError}`);
+        const runScore = result?.lhr?.categories?.performance?.score;
+        if (runScore === null || runScore === undefined) {
+          throw new Error('Score de performance introuvable dans le rapport Lighthouse.');
+        }
+        scores.push(runScore);
+        console.log(`   run ${i}/${RUNS} : ${Math.round(runScore * 100)}/100`);
+      } finally {
+        try { await chrome.kill(); } catch { /* ignore */ }
+        chrome = undefined;
+      }
     }
-    if (score === null || score === undefined) {
-      console.error('❌ Score de performance introuvable dans le rapport Lighthouse.');
-      process.exitCode = 1;
-      return;
-    }
 
+    const ordered = [...scores].sort((a, b) => a - b);
+    const score = ordered[Math.floor((ordered.length - 1) / 2)];
     const pct = Math.round(score * 100);
-    console.log(`📊 Score de performance : ${pct}/100 (seuil requis : ${Math.round(THRESHOLD * 100)})`);
+    console.log(`📊 Score de performance (médiane de ${scores.length} run${scores.length > 1 ? 's' : ''}) : ${pct}/100 (seuil requis : ${Math.round(THRESHOLD * 100)})`);
 
     if (score < THRESHOLD) {
       console.error(`❌ Déploiement BLOQUÉ : performance ${pct}/100 < seuil ${Math.round(THRESHOLD * 100)}.`);
