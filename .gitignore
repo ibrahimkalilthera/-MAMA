@@ -6,7 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
-!.env.staging
-!.env.production
 
 .vercel
