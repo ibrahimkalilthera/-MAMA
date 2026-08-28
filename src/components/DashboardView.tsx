@@ -161,8 +161,9 @@ export function DashboardView(props: MainViewsProps) {
               </motion.div>
             </div>
 
-            {/* --- Enrolled + Quick Stats Row --- */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 no-print">
+            {/* --- Élèves Inscrits + Financial Overview Row --- */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 no-print">
+              {/* Enrolled Students */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -185,10 +186,34 @@ export function DashboardView(props: MainViewsProps) {
                 </span>
               </motion.div>
 
+              {/* Total Impayé (Total Outstanding) */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
+                className={`card-stat p-6 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
+                style={{ ['--accent-primary' as string]: '#ef4444' }}
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <p className={`text-[10px] font-semibold ${currentTheme.muted} uppercase tracking-[0.1em] mb-1.5`}>{t.totalOutstanding}</p>
+                    <h3 className={`text-2xl font-bold tracking-tight ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(stats.totalOutstanding)}</h3>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600">
+                    <TrendingUp size={18} className="rotate-180" />
+                  </div>
+                </div>
+                <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5`}>
+                  <TrendingUp size={11} className="rotate-180 text-rose-500" />
+                  <span className="text-rose-500">{lang === 'en' ? '+12% vs last month' : '+12% vs mois dernier'}</span>
+                </span>
+              </motion.div>
+
+              {/* Parents en Retard (Late Parents) */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
                 className={`card-stat p-6 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
               >
                 <div className="flex justify-between items-start mb-3">
@@ -208,10 +233,11 @@ export function DashboardView(props: MainViewsProps) {
                 </span>
               </motion.div>
 
+              {/* Total Arriérés Personnel (Staff Arrears) */}
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
+                transition={{ delay: 0.3 }}
                 className={`card-stat p-6 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
                 style={{ ['--accent-primary' as string]: '#ef4444' }}
               >
@@ -233,60 +259,20 @@ export function DashboardView(props: MainViewsProps) {
               </motion.div>
             </div>
 
-            {/* --- Summary Cards --- */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {/* --- Collecté ce Mois (single) --- */}
+            <div className="grid grid-cols-1 gap-5 no-print">
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`card-elevated p-6 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
+                className={`card-elevated p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
               >
-                <p className={`text-[10px] font-semibold ${currentTheme.muted} uppercase tracking-[0.1em] mb-2`}>{t.totalOutstanding}</p>
-                <h3 className={`text-3xl font-bold tracking-tight ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(stats.totalOutstanding)}</h3>
-                <div className="mt-4 flex items-center gap-2 text-rose-500 text-xs font-semibold">
-                  <TrendingUp size={13} className="rotate-180" />
-                  <span>{lang === 'en' ? '+12% vs last month' : '+12% vs mois dernier'}</span>
+                <div>
+                  <p className={`text-[10px] font-semibold ${currentTheme.muted} uppercase tracking-[0.1em] mb-1.5`}>{t.collectedMonth}</p>
+                  <h3 className={`text-3xl font-bold tracking-tight ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(stats.collectedMonth)}</h3>
                 </div>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className={`card-elevated p-6 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
-              >
-                <p className={`text-[10px] font-semibold ${currentTheme.muted} uppercase tracking-[0.1em] mb-2`}>{t.collectedMonth}</p>
-                <h3 className={`text-3xl font-bold tracking-tight ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(stats.collectedMonth)}</h3>
-                <div className="mt-4 flex items-center gap-2 text-emerald-500 text-xs font-semibold">
-                  <TrendingUp size={13} />
+                <div className="flex items-center gap-2 text-emerald-500 text-sm font-semibold">
+                  <TrendingUp size={16} />
                   <span>{lang === 'en' ? '+8% target reached' : '+8% objectif atteint'}</span>
-                </div>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className={`card-elevated p-6 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
-              >
-                <p className={`text-[10px] font-semibold ${currentTheme.muted} uppercase tracking-[0.1em] mb-2`}>{t.lateParents}</p>
-                <h3 className={`text-3xl font-bold tracking-tight ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{stats.lateParentsCount}</h3>
-                <div className="mt-4 flex items-center gap-2 text-amber-500 text-xs font-semibold">
-                  <Clock size={13} />
-                  <span>{lang === 'en' ? 'Action required' : 'Action requise'}</span>
-                </div>
-              </motion.div>
-
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className={`card-elevated p-6 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
-              >
-                <p className={`text-[10px] font-semibold ${currentTheme.muted} uppercase tracking-[0.1em] mb-2`}>{t.totalArrears}</p>
-                <h3 className="text-3xl font-bold tracking-tight text-rose-600" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(stats.totalArrears)}</h3>
-                <div className="mt-4 flex items-center gap-2 text-rose-500 text-xs font-semibold">
-                  <AlertCircle size={13} />
-                  <span>{lang === 'en' ? 'Unpaid installments' : 'Acomptes impayés'}</span>
                 </div>
               </motion.div>
             </div>
