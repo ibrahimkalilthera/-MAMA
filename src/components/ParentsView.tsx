@@ -56,7 +56,8 @@ export function ParentsView(props: MainViewsProps) {
                       address: '',
                       occupation: '',
                       relationship: 'Father',
-                      notes: ''
+                      notes: '',
+                      linkedStudentIds: []
                     });
                     setShowParentModal(true);
                   }}

@@ -409,7 +409,7 @@ export function MainViews(props: MainViewsProps) {
         )}
 
         {/* --- Audit Trail View --- */}
-        {activeTab === 'audit' && (
+        {activeTab === 'audit' && auth?.isAdmin && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -494,7 +494,7 @@ export function MainViews(props: MainViewsProps) {
         )}
 
         {/* --- Settings View --- */}
-        {activeTab === 'settings' && (
+        {activeTab === 'settings' && auth?.isAdmin && (
           <div className="max-w-2xl space-y-8">
             <div className={`${currentTheme.card} p-10 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50`}>
               <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} mb-8`}>Localization & Preferences</h3>

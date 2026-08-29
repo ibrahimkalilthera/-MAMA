@@ -308,6 +308,16 @@ const translations = {
     close: "Close",
     recordPayment: "Record Payment",
     selectStudent: "Select Student",
+    alreadyLinked: "Already linked",
+    searchStudents: "Search students by name, ID or class...",
+    studentsSelected: "{n} student(s) selected",
+    deselectAll: "Deselect all",
+    linkedStudents: "Linked Students",
+    viewStudentRecord: "View record",
+    noStudentsFound: "No student found for \"{query}\"",
+    noStudentsInSystem: "No students in the system yet",
+    noStudentsInClass: "No students in this class",
+    clearSearch: "Clear search",
     amount: "Amount",
     date: "Date",
     submit: "Submit",
@@ -1105,6 +1115,16 @@ const translations = {
     close: "Fermer",
     recordPayment: "Enregistrer le Paiement",
     selectStudent: "Sélectionner l'Élève",
+    alreadyLinked: "Déjà lié",
+    searchStudents: "Rechercher un élève par nom, matricule ou classe...",
+    studentsSelected: "{n} élève(s) sélectionné(s)",
+    deselectAll: "Tout désélectionner",
+    linkedStudents: "Élèves liés",
+    viewStudentRecord: "Voir la fiche",
+    noStudentsFound: "Aucun élève trouvé pour « {query} »",
+    noStudentsInSystem: "Aucun élève dans le système pour le moment",
+    noStudentsInClass: "Aucun élève dans cette classe",
+    clearSearch: "Effacer la recherche",
     amount: "Montant",
     date: "Date",
     submit: "Soumettre",
@@ -2165,7 +2185,8 @@ export default function App() {
     address: '',
     occupation: '',
     relationship: 'Father',
-    notes: ''
+    notes: '',
+    linkedStudentIds: [] as string[]
   });
   const [showLinkStudentModal, setShowLinkStudentModal] = useState(false);
   const [activeLinkingParent, setActiveLinkingParent] = useState<Parent | null>(null);
@@ -2525,11 +2546,33 @@ export default function App() {
       notes: parentForm.notes.trim() || undefined,
     };
 
-    const saved = editingParent
-      ? await updateParent(editingParent.id, parentData)
-      : await addParent(parentData);
-
+    let newParentId: string | null = null;
+    let createdParent: Parent | null = null;
+    let saved: boolean;
+    if (editingParent) {
+      saved = await updateParent(editingParent.id, parentData);
+    } else {
+      createdParent = await addParent(parentData);
+      saved = !!createdParent;
+      newParentId = createdParent?.id ?? null;
+    }
     if (!saved) return;
+
+    // If students were selected in the form, link them all to the newly created parent
+    if (!editingParent && newParentId && parentForm.linkedStudentIds.length > 0) {
+      for (const studentId of parentForm.linkedStudentIds) {
+        await updateStudent(studentId, {
+          parentId: newParentId,
+          parentName: parentData.fullName,
+          parentPhone: parentData.phones[0] || '',
+          parentEmail: parentData.email || '',
+        });
+      }
+    }
+
+    const resetParentForm = () => setParentForm({
+      fullName: '', primaryPhone: '', secondaryPhone: '', email: '', address: '', occupation: '', relationship: 'Father', notes: '', linkedStudentIds: []
+    });
 
     if (editingParent) {
       setStudents(prev => prev.map(s => s.parentId === editingParent.id ? {
@@ -2538,11 +2581,28 @@ export default function App() {
         parentPhone: parentData.phones[0] || s.parentPhone,
         parentEmail: parentData.email || s.parentEmail
       } : s));
+      setShowParentModal(false);
+      setEditingParent(null);
+      resetParentForm();
+    } else if (createdParent && parentForm.linkedStudentIds.length > 0) {
+      // Keep the modal open in "fiche" view so the user can visually confirm the linked students
+      setEditingParent(createdParent);
+      setParentForm({
+        fullName: createdParent.fullName,
+        primaryPhone: createdParent.phones[0] || '',
+        secondaryPhone: createdParent.phones[1] || '',
+        email: createdParent.email || '',
+        address: createdParent.address,
+        occupation: createdParent.occupation,
+        relationship: createdParent.relationship,
+        notes: createdParent.notes || '',
+        linkedStudentIds: [],
+      });
+    } else {
+      setShowParentModal(false);
+      setEditingParent(null);
+      resetParentForm();
     }
-
-    setShowParentModal(false);
-    setEditingParent(null);
-    setParentForm({ fullName: '', primaryPhone: '', secondaryPhone: '', email: '', address: '', occupation: '', relationship: 'Father', notes: '' });
   };
 
   const handleLinkStudentSubmit = async (e: FormEvent) => {
@@ -2585,7 +2645,8 @@ export default function App() {
       address: parent.address,
       occupation: parent.occupation,
       relationship: parent.relationship,
-      notes: parent.notes || ''
+      notes: parent.notes || '',
+      linkedStudentIds: []
     });
     setShowParentModal(true);
   };
@@ -2658,6 +2719,13 @@ export default function App() {
       setHasShownWelcome(false);
     }
   }, [auth.profile]);
+
+  // Safety net: keep admin-only tabs (System Settings / Audit Trail) out of reach for non-admin, non-dev accounts
+  useEffect(() => {
+    if (!auth.isAdmin && (activeTab === 'settings' || activeTab === 'audit')) {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, auth.isAdmin]);
   const [theme, setTheme] = useState<'navy' | 'cream' | 'slate' | 'emerald' | 'bordeaux' | 'midnight'>('navy');
   const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
   const [logoColor, setLogoColor] = useState<string | null>(null);
