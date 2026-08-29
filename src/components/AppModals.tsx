@@ -218,7 +218,7 @@ export function AppModals(props: AppModalsProps) {
                   <div className="flex-1 text-center sm:text-left space-y-2">
                     <div>
                       <span className={`text-[10px] ${currentTheme.muted} font-black uppercase tracking-widest font-mono`}>
-                        ID: {selectedStudent.studentId || `MT-2026-${selectedStudent.id.replace('ST', '')}`}
+                        ID: {selectedStudent.studentId || '—'}
                       </span>
                       <h3 className={`text-2xl font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} tracking-tight`}>
                         {selectedStudent.name}
@@ -2540,7 +2540,7 @@ export function AppModals(props: AppModalsProps) {
               <div className="border border-slate-300 px-4 py-2 text-center rounded-xl bg-slate-50">
                 <span className="text-[9px] font-black uppercase tracking-widest block text-slate-400">{t.studentId}</span>
                 <span className="font-mono font-bold text-sm text-slate-800">
-                  {printStudentFile.studentId || `MT-2026-${printStudentFile.id.replace('ST', '')}`}
+                  {printStudentFile.studentId || '—'}
                 </span>
               </div>
             </div>
@@ -2712,11 +2712,18 @@ export function AppModals(props: AppModalsProps) {
                           >
                             <div className="flex-1 min-w-0">
                               <p className={`text-xs font-bold truncate ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
-                                {s.name} <span className="text-slate-400 font-mono">({s.studentId || s.id})</span>
+                                {s.name}
                               </p>
-                              <p className={`text-[10px] ${currentTheme.muted} mt-0.5`}>
-                                {t.grade} {s.grade || 'N/A'} ·{' '}
-                                <span className={`font-black ${balance > 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                              <p className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10px] ${currentTheme.muted}`}>
+                                <span className="flex items-center gap-1">
+                                  <span className="font-black uppercase tracking-wide text-slate-400">{t.studentId}:</span>
+                                  <span>{s.studentId || '—'}</span>
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <span className="font-black uppercase tracking-wide text-slate-400">{t.grade}:</span>
+                                  <span>{s.grade || '—'}</span>
+                                </span>
+                                <span className={`flex items-center gap-1 font-black ${balance > 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
                                   {t.balance}: {formatCurrency(balance)}
                                 </span>
                               </p>
@@ -2755,13 +2762,22 @@ export function AppModals(props: AppModalsProps) {
 
               {!editingParent && (() => {
                 const search = parentStudentSearch.toLowerCase().trim();
+                const selectedClass = availableClasses.find(c => c.id === parentClassFilter);
                 const filteredStudents = students.filter(s => {
                   const matchesSearch = !search ||
                     s.name.toLowerCase().includes(search) ||
                     (s.studentId || '').toLowerCase().includes(search) ||
                     (s.grade || '').toLowerCase().includes(search);
-                  const matchesClass = parentClassFilter === 'all' ||
-                    (s.grade && s.grade.toLowerCase() === parentClassFilter.toLowerCase());
+                  const gradeNorm = (s.grade || '').toLowerCase();
+                  const matchesClass = parentClassFilter === 'all' || (
+                    gradeNorm !== '' && (
+                      gradeNorm === parentClassFilter.toLowerCase() ||
+                      (selectedClass && (
+                        gradeNorm === selectedClass.nameFr.toLowerCase() ||
+                        gradeNorm === selectedClass.nameEn.toLowerCase()
+                      ))
+                    )
+                  );
                   return matchesSearch && matchesClass;
                 });
                 return (
@@ -2873,8 +2889,22 @@ export function AppModals(props: AppModalsProps) {
                                 }}
                                 className="accent-emerald-600 w-4 h-4 flex-shrink-0"
                               />
-                              <span className={`flex-1 text-xs font-bold truncate ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
-                                {s.name} <span className="text-slate-400 font-mono">({s.studentId || s.id})</span> - {t.grade} {s.grade || 'N/A'}
+                              <span className="flex-1 min-w-0">
+                                <span className={`block text-xs font-bold truncate ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
+                                  {s.name}
+                                </span>
+                                <span className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10px] ${currentTheme.muted}`}>
+                                  <span className="flex items-center gap-1">
+                                    <span className="font-black uppercase tracking-wide text-slate-400">{t.studentId}:</span>
+                                    <span>{s.studentId || '—'}</span>
+                                  </span>
+                                  {s.grade ? (
+                                    <span className="flex items-center gap-1">
+                                      <span className="font-black uppercase tracking-wide text-slate-400">{t.grade}:</span>
+                                      <span>{s.grade}</span>
+                                    </span>
+                                  ) : null}
+                                </span>
                               </span>
                               {s.parentId && (
                                 <span className="text-[9px] font-black uppercase tracking-wider text-amber-500 flex-shrink-0">{t.alreadyLinked}</span>
@@ -3061,7 +3091,7 @@ export function AppModals(props: AppModalsProps) {
                   <option value="">-- {t.selectStudentToLink} --</option>
                   {students.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} ({s.studentId || s.id}) - Grade {s.grade || 'N/A'}
+                      {s.name} — {t.studentId}: {s.studentId || '—'} · {t.grade}: {s.grade || '—'}
                     </option>
                   ))}
                 </select>
