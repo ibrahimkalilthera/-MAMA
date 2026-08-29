@@ -41,6 +41,7 @@ export interface ExcelImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   lang: 'en' | 'fr';
+  t: Record<string, string>;
   academicYears: string[];
   selectedYear: string;
   onImportComplete: (category: ImportCategory, records: Record<string, any>[], options: ImportOptions) => Promise<{ inserted: number; updated: number; errors: number }>;
@@ -61,6 +62,7 @@ export function ExcelImportModal({
   isOpen,
   onClose,
   lang,
+  t: globalT,
   academicYears,
   selectedYear,
   onImportComplete,
@@ -199,44 +201,50 @@ export function ExcelImportModal({
   if (!isOpen) return null;
 
   const t = {
-    title: lang === 'en' ? 'Smart Excel Import' : 'Importation Excel Intelligente',
-    subtitle: lang === 'en' ? 'Auto-detect, map, validate & import your data' : 'Détection auto, mappage, validation & importation',
-    step1: lang === 'en' ? 'Upload & Detect' : 'Télécharger & Détecter',
-    step2: lang === 'en' ? 'Column Mapping' : 'Mappage des Colonnes',
-    step3: lang === 'en' ? 'Validate & Settings' : 'Validation & Options',
-    step4: lang === 'en' ? 'Import Results' : 'Résultats',
-    dragDrop: lang === 'en' ? 'Drag & drop your Excel or CSV file here' : 'Glissez-déposez votre fichier Excel ou CSV ici',
-    browse: lang === 'en' ? 'Browse Files' : 'Parcourir les Fichiers',
-    detected: lang === 'en' ? 'Auto-Detected Category' : 'Catégorie Auto-Détectée',
-    confidence: lang === 'en' ? 'Confidence' : 'Confiance',
-    sheet: lang === 'en' ? 'Sheet' : 'Feuille',
-    rows: lang === 'en' ? 'rows' : 'lignes',
-    next: lang === 'en' ? 'Next' : 'Suivant',
-    back: lang === 'en' ? 'Back' : 'Retour',
-    import: lang === 'en' ? 'Start Import' : 'Lancer l\'Importation',
-    close: lang === 'en' ? 'Close' : 'Fermer',
-    cancel: lang === 'en' ? 'Cancel' : 'Annuler',
-    excelCol: lang === 'en' ? 'Excel Column' : 'Colonne Excel',
-    targetField: lang === 'en' ? 'Target Field' : 'Champ Cible',
-    sample: lang === 'en' ? 'Sample' : 'Exemple',
-    skip: lang === 'en' ? '— Skip —' : '— Ignorer —',
-    academicYear: lang === 'en' ? 'Academic Year' : 'Année Scolaire',
-    duplicates: lang === 'en' ? 'Duplicate Handling' : 'Gestion des Doublons',
-    skipDuplicates: lang === 'en' ? 'Skip duplicates (insert new only)' : 'Ignorer les doublons (insérer les nouveaux uniquement)',
-    updateExisting: lang === 'en' ? 'Update existing records' : 'Mettre à jour les enregistrements existants',
-    validRows: lang === 'en' ? 'Valid Rows' : 'Lignes Valides',
-    invalidRows: lang === 'en' ? 'Invalid Rows' : 'Lignes Invalides',
-    readyToImport: lang === 'en' ? 'Ready to import' : 'Prêt pour l\'importation',
-    importing: lang === 'en' ? 'Importing data...' : 'Importation en cours...',
-    success: lang === 'en' ? 'Import Complete!' : 'Importation Terminée !',
-    inserted: lang === 'en' ? 'Records Inserted' : 'Enregistrements Créés',
-    updated: lang === 'en' ? 'Records Updated' : 'Enregistrements Mis à Jour',
-    errors: lang === 'en' ? 'Errors' : 'Erreurs',
-    done: lang === 'en' ? 'Done' : 'Terminé',
-    newImport: lang === 'en' ? 'New Import' : 'Nouvelle Importation',
-    overrideCategory: lang === 'en' ? 'Override Category' : 'Changer la Catégorie',
-    columns: lang === 'en' ? 'columns' : 'colonnes',
-    warnings: lang === 'en' ? 'Warnings' : 'Avertissements',
+    title: globalT.smartExcelImport,
+    subtitle: globalT.autoDetectMapValidateImportYourData,
+    step1: globalT.uploadDetect,
+    step2: globalT.columnMapping,
+    step3: globalT.validateSettings,
+    step4: globalT.importResults,
+    dragDrop: globalT.dragDropYourExcelOrCsvFileHere,
+    browse: globalT.browseFiles,
+    detected: globalT.autoDetectedCategory,
+    confidence: globalT.confidence,
+    sheet: globalT.sheet,
+    rows: globalT.rows,
+    next: globalT.next,
+    back: globalT.back,
+    import: globalT.startImport,
+    close: globalT.close,
+    cancel: globalT.cancel,
+    excelCol: globalT.excelColumn,
+    targetField: globalT.targetField,
+    sample: globalT.sample,
+    skip: globalT.skip,
+    academicYear: globalT.academicYear2,
+    duplicates: globalT.duplicateHandling,
+    skipDuplicates: globalT.skipDuplicatesInsertNewOnly,
+    updateExisting: globalT.updateExistingRecords,
+    validRows: globalT.validRows,
+    invalidRows: globalT.invalidRows,
+    readyToImport: globalT.readyToImport,
+    importing: globalT.importingData,
+    success: globalT.importComplete,
+    inserted: globalT.recordsInserted,
+    updated: globalT.recordsUpdated,
+    errors: globalT.errors,
+    done: globalT.done,
+    newImport: globalT.newImport,
+    overrideCategory: globalT.overrideCategory,
+    columns: globalT.columns,
+    warnings: globalT.warnings,
+    supportsXlsxXlsCsv: globalT.supportsXlsxXlsCsv,
+    analyzingFileStructure: globalT.analyzingFileStructure,
+    selectSheet: globalT.selectSheet,
+    mappingColumnsFor: globalT.mappingColumnsFor,
+    reviewTheAutoMappedColumnsBelowAdjustAnyMismatchedFieldsUsingTheDropdown: globalT.reviewTheAutoMappedColumnsBelowAdjustAnyMismatchedFieldsUsingTheDropdown,
+    row: globalT.row,
   };
 
   const stepLabels = [t.step1, t.step2, t.step3, t.step4];
@@ -321,7 +329,7 @@ export function ExcelImportModal({
                     <Upload size={40} className={`mx-auto mb-4 ${dragOver ? 'text-blue-500' : themeMuted}`} />
                     <p className={`text-sm font-bold ${textPrimary} mb-2`}>{t.dragDrop}</p>
                     <p className={`text-xs ${textSecondary} mb-4`}>
-                      {lang === 'en' ? 'Supports .xlsx, .xls, .csv' : 'Formats supportés : .xlsx, .xls, .csv'}
+                      {t.supportsXlsxXlsCsv}
                     </p>
                     <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg shadow-blue-600/20">
                       {t.browse}
@@ -341,7 +349,7 @@ export function ExcelImportModal({
                   <div className={`${bgMuted} rounded-2xl p-8 text-center border ${themeBorder}`}>
                     <div className="w-8 h-8 border-3 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
                     <p className={`text-sm font-bold ${textPrimary}`}>
-                      {lang === 'en' ? 'Analyzing file structure...' : 'Analyse de la structure du fichier...'}
+                      {t.analyzingFileStructure}
                     </p>
                   </div>
                 )}
@@ -370,7 +378,7 @@ export function ExcelImportModal({
                     {sheets.length > 1 && (
                       <div className="space-y-2">
                         <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
-                          {lang === 'en' ? 'Select Sheet' : 'Sélectionner la Feuille'}
+                          {t.selectSheet}
                         </label>
                         <div className="flex flex-wrap gap-2">
                           {sheets.map((s, i) => (
@@ -458,12 +466,10 @@ export function ExcelImportModal({
               <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                 <div className={`p-4 ${bgMuted} rounded-2xl border ${themeBorder}`}>
                   <p className={`text-xs font-bold ${textPrimary} mb-1`}>
-                    {CATEGORY_LABELS[category].icon} {lang === 'en' ? 'Mapping columns for:' : 'Mappage des colonnes pour :'} {CATEGORY_LABELS[category][lang]}
+                    {CATEGORY_LABELS[category].icon} {t.mappingColumnsFor} {CATEGORY_LABELS[category][lang]}
                   </p>
                   <p className={`text-[11px] ${textSecondary}`}>
-                    {lang === 'en'
-                      ? 'Review the auto-mapped columns below. Adjust any mismatched fields using the dropdown.'
-                      : 'Vérifiez le mappage automatique ci-dessous. Ajustez les champs incorrects avec le menu déroulant.'}
+                    {t.reviewTheAutoMappedColumnsBelowAdjustAnyMismatchedFieldsUsingTheDropdown}
                   </p>
                 </div>
 
@@ -575,7 +581,7 @@ export function ExcelImportModal({
                     <div className="space-y-1 max-h-24 overflow-y-auto">
                       {validation.invalidRows.slice(0, 5).map((r) => (
                         <p key={r.rowIndex} className="text-[11px] text-rose-400/80">
-                          {lang === 'en' ? 'Row' : 'Ligne'} {r.rowIndex}: {r.errors.join(', ')}
+                          {t.row} {r.rowIndex}: {r.errors.join(', ')}
                         </p>
                       ))}
                     </div>

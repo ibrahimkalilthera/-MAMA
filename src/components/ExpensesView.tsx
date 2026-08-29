@@ -10,12 +10,10 @@ export function ExpensesView(props: MainViewsProps) {
                 <div>
                   <h1 className="text-2xl font-black">COMPLEXE SCOLAIRE MAMA THERA</h1>
                   <p className="text-sm opacity-90">
-                    {lang === 'en' 
-                      ? `GENERAL OPERATING EXPENSES REPORT — ${selectedYear}` 
-                      : `RAPPORT DES DÉPENSES GÉNÉRALES & CHARGES D'EXPLOITATION — ${selectedYear}`}
+                    {t.generalExpensesReport.replace('{year}', selectedYear)}
                     {vendorCategoryFilter !== 'all' && (
                       <span className="ml-2 px-2 py-0.5 bg-white/20 rounded font-bold">
-                        [{lang === 'en' ? `Category: ${t[vendorCategoryFilter] || vendorCategoryFilter}` : `Catégorie : ${t[vendorCategoryFilter] || vendorCategoryFilter}`}]
+                        [{t.categoryWithValue.replace('{value}', t[vendorCategoryFilter] || vendorCategoryFilter)}]
                       </span>
                     )}
                   </p>
@@ -71,10 +69,10 @@ export function ExpensesView(props: MainViewsProps) {
                             lang,
                           })}
                           className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
-                          title={lang === 'en' ? 'Download Expenses PDF Report (Filtered)' : 'Télécharger le Rapport des Dépenses en PDF (Filtré)'}
+                          title={t.downloadExpensesPdfReportFiltered}
                         >
                           <FileText size={16} />
-                          <span>{lang === 'en' ? 'Export PDF' : 'Exporter PDF'}</span>
+                          <span>{t.exportPdf}</span>
                         </button>
                         <button
                           onClick={handlePrint}
@@ -82,7 +80,7 @@ export function ExpensesView(props: MainViewsProps) {
                           title={t.printReport}
                         >
                           <Printer size={16} />
-                          <span className="hidden sm:inline">{lang === 'en' ? 'Print' : 'Imprimer'}</span>
+                          <span className="hidden sm:inline">{t.print}</span>
                         </button>
                         {isPromoter && (
                           <button
@@ -117,7 +115,7 @@ export function ExpensesView(props: MainViewsProps) {
                         <AlertCircle size={28} className="text-rose-600 flex-shrink-0" />
                         <div>
                           <h4 className="font-bold text-base">
-                            {lang === 'en' ? `${overdueVendorCount} Overdue Payments Detected!` : `${overdueVendorCount} Paiements en retard détectés !`}
+                            {t.overduePaymentsDetected.replace('{count}', String(overdueVendorCount))}
                           </h4>
                           <p className="text-sm opacity-90">{t.overdueWarning}</p>
                         </div>
@@ -149,7 +147,7 @@ export function ExpensesView(props: MainViewsProps) {
                         <Search size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
                         <input 
                           type="text" 
-                          placeholder={lang === 'en' ? "Search expenses..." : "Rechercher dépenses..."}
+                          placeholder={t.searchExpenses}
                           value={vendorSearch}
                           onChange={(e) => setVendorSearch(e.target.value)}
                           className={`w-full pl-11 pr-4 py-3 rounded-xl border text-sm focus:outline-none ${currentTheme.input}`}
@@ -164,7 +162,7 @@ export function ExpensesView(props: MainViewsProps) {
                             onChange={(e) => setVendorCategoryFilter(e.target.value)}
                             className={`px-3 py-2 rounded-xl border text-xs focus:outline-none ${currentTheme.input}`}
                           >
-                            <option value="all">{lang === 'en' ? "All Categories" : "Toutes catégories"}</option>
+                            <option value="all">{t.allCategories}</option>
                             {expenseCategoryList.map(item => (
                               <option key={item.key} value={item.key}>{item.label}</option>
                             ))}
@@ -178,7 +176,7 @@ export function ExpensesView(props: MainViewsProps) {
                             onChange={(e) => setVendorStatusFilter(e.target.value)}
                             className={`px-3 py-2 rounded-xl border text-xs focus:outline-none ${currentTheme.input}`}
                           >
-                            <option value="all">{lang === 'en' ? "All Statuses" : "Tous statuts"}</option>
+                            <option value="all">{t.allStatuses}</option>
                             <option value="paid">{t.fullyPaid}</option>
                             <option value="partial">{t.partialPaid}</option>
                             <option value="unpaid">{t.unpaid}</option>
@@ -197,9 +195,9 @@ export function ExpensesView(props: MainViewsProps) {
                               <th className="px-8 py-6">{t.vendorName}</th>
                               <th className="px-8 py-6 text-right">{t.amount}</th>
                               <th className="px-8 py-6 text-right">{t.amountPaid}</th>
-                              <th className="px-8 py-6">{lang === 'en' ? "Due Date" : "Date d'échéance"}</th>
+                              <th className="px-8 py-6">{t.dueDate2}</th>
                               <th className="px-8 py-6">{t.paymentStatus}</th>
-                              <th className="px-8 py-6 text-right no-print">{lang === 'en' ? "Actions" : "Actions"}</th>
+                              <th className="px-8 py-6 text-right no-print">{'Actions'}</th>
                             </tr>
                           </thead>
                           <tbody className={`divide-y ${currentTheme.border}`}>
@@ -209,7 +207,7 @@ export function ExpensesView(props: MainViewsProps) {
                                 return (
                                   <tr>
                                     <td colSpan={7} className="px-8 py-16 text-center text-slate-400 italic">
-                                      {lang === 'en' ? "No expenses found matching the selected filter" : "Aucune dépense trouvée pour ce filtre"}
+                                      {t.noExpensesFoundMatchingTheSelectedFilter}
                                     </td>
                                   </tr>
                                 );
@@ -262,7 +260,7 @@ export function ExpensesView(props: MainViewsProps) {
                                             )}
                                             {v.beneficiaryStudentName && (
                                               <span className={`${currentTheme.muted} font-medium`}>
-                                                {lang === 'en' ? 'Student: ' : 'Élève : '}<strong>{v.beneficiaryStudentName}</strong>
+                                                {t.student2}<strong>{v.beneficiaryStudentName}</strong>
                                                 {v.beneficiaryStudentGrade && ` (${getGradeDisplay(v.beneficiaryStudentGrade, lang)})`}
                                               </span>
                                             )}
@@ -281,7 +279,7 @@ export function ExpensesView(props: MainViewsProps) {
                                       <span className={`text-sm font-bold flex items-center gap-1.5 ${isOverdue ? 'text-rose-600 font-extrabold' : (currentTheme.isDark ? 'text-[#CBD5E1]' : 'text-slate-600')}`}>
                                         {isOverdue && <AlertCircle size={14} className="animate-bounce" />}
                                         {v.dueDate}
-                                        {isOverdue && <span className="text-[10px] uppercase font-black tracking-widest ml-1">{lang === 'en' ? 'OVERDUE' : 'EN RETARD'}</span>}
+                                        {isOverdue && <span className="text-[10px] uppercase font-black tracking-widest ml-1">{t.overdue2}</span>}
                                       </span>
                                     </td>
                                     <td className="px-8 py-6">
@@ -321,22 +319,20 @@ export function ExpensesView(props: MainViewsProps) {
                                             setShowVendorExpenseModal(true);
                                           }}
                                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded-xl transition-all"
-                                          title={lang === 'en' ? "Edit Expense" : "Modifier la dépense"}
+                                          title={t.editExpense}
                                         >
                                           <FileText size={16} />
                                         </button>
                                         <button 
                                           onClick={() => {
-                                            const confirmMsg = lang === 'en'
-                                              ? `Are you sure you want to delete this expense for "${v.vendorName}"?`
-                                              : `Êtes-vous sûr de vouloir supprimer cette dépense pour "${v.vendorName}" ?`;
+                                            const confirmMsg = t.deleteExpenseConfirm.replace('{vendor}', v.vendorName);
                                             if (confirm(confirmMsg)) {
                                               handleDeleteVendorExpense(v.id);
                                             }
                                           }}
                                           disabled={!isPromoter}
                                           className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                                          title={isPromoter ? (lang === 'en' ? "Delete Expense" : "Supprimer la dépense") : (lang === 'en' ? "Promoter only" : "Promotrice uniquement")}
+                                          title={isPromoter ? (t.deleteExpense) : (t.promoterOnly2)}
                                         >
                                           <Trash2 size={16} />
                                         </button>

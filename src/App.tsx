@@ -557,7 +557,508 @@ const translations = {
     downloadLedger: "Download Ledger (PDF)",
     sortHighestBalance: "Highest Balance",
     sortAlphabetical: "Alphabetical",
-    sortByLabel: "Sort:"
+    sortByLabel: "Sort:",
+    academicYear2: "Academic Year",
+    academicYear3: "ACADEMIC YEAR",
+    academicYearLocked: "Academic Year Locked",
+    accountant: "Accountant",
+    accountantAccess: "Accountant Access",
+    accountantAccessFinanceReceipts: "Accountant Access (Finance & Receipts)",
+    actionDecision: "Action Decision",
+    actionRequired: "Action Required",
+    active: "Active",
+    activeEnrolled: "Active Enrolled",
+    actualStudentFeesPaid: "Actual student fees paid",
+    addAnotherClassSection: "+ Add another class / section...",
+    addClassSection: "Add Class / Section",
+    addSections1a1b1c1d2a7bOrCustomGradesAcrossSchoolCycles: "Add sections (1A, 1B, 1C, 1D, 2A, 7B...) or custom grades across school cycles.",
+    addStaffAccount: "Add Staff Account",
+    addStaffAccount2: "+ Add Staff Account",
+    admin: "Admin",
+    adminController: "Admin Controller",
+    administratorFullSystemAccess: "Administrator (Full System Access)",
+    aiAssistant: "AI Assistant",
+    all: "All",
+    allCategories: "All Categories",
+    allergiesConditionsOrNone: "Allergies, conditions, or None...",
+    allergiesMedicalNotesConditions: "Allergies, Medical Notes & Conditions",
+    allStatuses: "All Statuses",
+    amount2: "AMOUNT",
+    analyzingFileStructure: "Analyzing file structure...",
+    applyToAll: "Apply to all:",
+    archivedCertified: "ARCHIVED & CERTIFIED",
+    askAFinancialQuestion: "Ask a financial question...",
+    assignedRolePermissions: "Assigned Role & Permissions",
+    assignOrAdjustPermissionsForAdministratorsGeneralManagersAndAccountants: "Assign or adjust permissions for administrators, general managers, and accountants.",
+    auditId: "Audit ID:",
+    auditTrail: "Audit Trail",
+    authorizedSignature: "Authorized Signature",
+    autoDetected: "Auto-detected",
+    autoDetectedCategory: "Auto-Detected Category",
+    autoDetectMapValidateImportYourData: "Auto-detect, map, validate & import your data",
+    automaticPayrollAudit: "Automatic Payroll Audit",
+    back: "Back",
+    balance2: "BALANCE",
+    balanceDue: "Balance Due",
+    baseSalary: "Base Salary",
+    baseSalaryFcfa: "Base Salary (FCFA)",
+    beneficiaryStudentNameOptional: "Beneficiary Student Name (Optional)",
+    browseFiles: "Browse Files",
+    cancel: "Cancel",
+    carryOverDebtsOutstandingParentBalancesToTheNextAcademicYear: "Carry over debts (outstanding parent balances) to the next academic year.",
+    cashFlowSummary: "Cash Flow Summary",
+    certifiedBy: "Certified by:",
+    certifiedSincerelyBy: "Certified Sincerely by:",
+    changeTheInterfaceLanguage: "Change the interface language",
+    checkingAuthentication: "Checking authentication...",
+    class: "Class:",
+    classesGradeLevelsManagement: "Classes & Grade Levels Management",
+    classPromotionReEnrollmentWizard: "Class Promotion & Re-enrollment Wizard",
+    classToPromote: "Class to Promote",
+    closeActiveSchoolYear: "Close Active School Year",
+    closePreview: "Close Preview",
+    columnMapping: "Column Mapping",
+    columns: "columns",
+    complexeScolaireMamaTheraAdministration: "Complexe Scolaire MAMA THERA Administration",
+    confidence: "Confidence",
+    connectingToDatabase: "Connecting to database",
+    consolidatedFamilyLedger: "Consolidated Family Ledger",
+    consolidatedFamilyStatementLedger: "CONSOLIDATED FAMILY STATEMENT & LEDGER",
+    contactName: "Contact Name",
+    contactPerson: "Contact Person:",
+    createAccount: "Create Account",
+    createALoginAndAssignInitialAccessRole: "Create a login and assign initial access role",
+    creating: "Creating...",
+    cumulativePaymentsMade: "CUMULATIVE PAYMENTS MADE:",
+    currencyFormat: "Currency Format",
+    current: "Current:",
+    customClassName: "Custom Class Name",
+    dailyEntriesFeesReceiptsStudentsExpenses: "Daily entries: fees, receipts, students, expenses.",
+    databaseConnectionIssue: "Database connection issue",
+    date2: "Date:",
+    debtCarriedOver: "Debt Carried Over",
+    deficitWarning: "Deficit Warning",
+    deleteClass: "Delete class",
+    deleteExpense: "Delete Expense",
+    deleteParent: "Delete Parent",
+    deleteStaffMember: "Delete Staff Member",
+    deleteStudent: "Delete Student",
+    details: "Details",
+    developer: "Developer",
+    done: "Done",
+    downloadAFullBackupOfYourSchoolDataInExcelFormat: "Download a full backup of your school data in Excel format.",
+    downloadExpensesPdf: "Download Expenses PDF",
+    downloadExpensesPdfReportFiltered: "Download Expenses PDF Report (Filtered)",
+    downloadMultiYearPdf: "Download Multi-Year PDF",
+    downloadMultiYearPdfReport: "Download Multi-Year PDF Report",
+    downloadPayslipPdf: "Download Payslip PDF",
+    downloadReceiptPdf: "Download Receipt PDF",
+    dragDropYourExcelOrCsvFileHere: "Drag & drop your Excel or CSV file here",
+    dueDate2: "Due Date",
+    duplicateHandling: "Duplicate Handling",
+    editClassSection: "Edit Class / Section",
+    editExpense: "Edit Expense",
+    editStudent2: "Edit Student",
+    eG1ReDOrGarderie: "e.g., 1ère D or Garderie",
+    eGAminataTraor: "e.g. Aminata Traoré",
+    eGCivilEngineerBankerMerchant: "e.g. Civil Engineer, Banker, Merchant...",
+    eGFamilyContactPreferencesOrSpecialNotes: "e.g. Family contact preferences or special notes...",
+    eGIbrahimThera: "e.g., Ibrahim Thera",
+    eGMamadouTraor: "e.g. Mamadou Traoré",
+    eGQuartierHippodromeBamako: "e.g. Quartier Hippodrome, Bamako",
+    eGSenelec: "e.g., SENELEC",
+    electricityBill: "Electricity bill",
+    email2: "Email:",
+    emergencyAidAideDUrgence: "Emergency Aid (Aide d'Urgence)",
+    emergencyContact2: "Emergency Contact",
+    emergencyContactName: "Emergency contact name",
+    emergencyContactPhone: "Emergency contact phone",
+    emergencyPhone: "Emergency Phone",
+    employeeName: "Employee Name",
+    employeeRole: "Employee & Role",
+    employeesSettled: "Employees Settled",
+    engineeringDev: "Engineering (Dev)",
+    english: "English",
+    enrollmentDate: "Enrollment Date",
+    enrollmentDate2: "Enrollment Date",
+    enrollmentStatus: "Enrollment Status",
+    errors: "Errors",
+    excelColumn: "Excel Column",
+    expensesAreExceedingIncomeReviewYourSpending: "Expenses are exceeding income. Review your spending.",
+    expensesPdf: "Expenses PDF",
+    exportDraftPdf: "Export Draft PDF",
+    exportExcel: "Export Excel",
+    exportFinancialReportPdf: "Export Financial Report PDF",
+    exportPdf: "Export PDF",
+    exportPdfReport: "Export PDF Report",
+    failedToAddClass: "Failed to add class.",
+    failedToSendResetEmail: "Failed to send reset email",
+    failedToUpdateRole: "Failed to update role",
+    finalAcademicAuditReport: "FINAL ACADEMIC AUDIT REPORT",
+    finalAcademicAuditSheet: "Final Academic Audit Sheet",
+    finalCashLedgerBalance: "Final cash ledger balance",
+    financeController: "Finance Controller",
+    financialReportPdf: "Financial Report PDF",
+    financialStatusLedger: "Financial Status Ledger",
+    firstCycle1stTo6th: "First Cycle (1st to 6th)",
+    firstCycle1stTo6thYear: "First Cycle (1st to 6th Year)",
+    firstCyclePremierCycle: "First Cycle (Premier Cycle)",
+    fullAdministrativeControlClosingYearsRoleEdits: "Full administrative control, closing years, role edits.",
+    fullControlFeePolicyClosingSchoolYearsRoleAssignment: "Full control, fee policy, closing school years & role assignment.",
+    fullName: "FULL NAME",
+    fullName2: "Full Name",
+    fullPayment: "Full Payment",
+    generalInfo: "General Info",
+    generalManager: "General Manager",
+    generalManagerFullAdministrationFinancialAccess: "General Manager (Full Administration & Financial Access)",
+    generateAFinalDownloadableCertifiedAccountingAuditReport: "Generate a final, downloadable certified accounting audit report.",
+    generatedAndVerifiedSincerelyBy: "Generated and Verified Sincerely by:",
+    generatedClassCode: "Generated Class Code:",
+    generatedOn: "Generated on:",
+    grade: "GRADE",
+    gradeClass: "Grade / Class",
+    gradeLevel2: "Grade / Level",
+    graduate: "Graduate",
+    healthyBalance: "Healthy Balance",
+    helloIAmYourMamaTheraFinanceAssistantHowCanIAssistYouWithSchoolStatisticsTodayYouCanAskMeFinancialQuestionsOrClickOneOfTheQuickOptionsBelow: "Hello! I am your Mama Thera Finance Assistant. How can I assist you with school statistics today? You can ask me financial questions, or click one of the quick options below!",
+    highPriorityActionRequiredToProcessCurrentMonthPayroll: "High-priority action required to process current month payroll.",
+    immediateActionRequiredToReconcileOutstandingLiabilities: "Immediate action required to reconcile outstanding liabilities.",
+    importComplete: "Import Complete!",
+    importExcel: "Import Excel",
+    importingData: "Importing data...",
+    importResults: "Import Results",
+    initialPasswordMin6Characters: "Initial Password (min 6 characters)",
+    invalidEmailOrPassword: "Invalid email or password",
+    invalidRows: "Invalid Rows",
+    lastPaymentDate: "Last Payment Date",
+    latePaymentTicket: "Late Payment Ticket",
+    latePaymentTicket2: "LATE PAYMENT TICKET",
+    left: "Left",
+    left2: "Left",
+    liveFinancialIntelligence: "Live Financial Intelligence",
+    loadingFinanceSuite: "Loading Finance Suite",
+    lockAllRecordsForTheCurrentYearMakingThemReadOnly: "Lock all records for the current year, making them read-only.",
+    lycEHighSchool: "Lycée (High School)",
+    mamaTheraAiAssistant: "Mama Thera AI Assistant",
+    mamaTheraSchoolAcademicYearTransition: "MAMA THERA School — Academic Year Transition",
+    manageEmployeeProfilesAndPayroll: "Manage employee profiles and payroll",
+    manageYourPersonalAccountingNotes: "Manage your personal accounting notes",
+    mappingColumnsFor: "Mapping columns for:",
+    maternelleKindergarten: "Maternelle (Kindergarten)",
+    medicalHistory: "Medical / History",
+    medicalHistoryFile: "Medical & History File",
+    medicalNotesAllergiesConditions: "Medical Notes (Allergies / Conditions)",
+    missing: "Missing",
+    monthlyDraft: "Monthly Draft",
+    monthlyInflow: "Monthly Inflow",
+    monthlyOutflow: "Monthly Outflow",
+    monthlyPayrollDisbursementDraft: "Monthly Payroll Disbursement Draft",
+    monthlyPayrollDraft: "Monthly Payroll Draft",
+    multiYearFinancialComparisonArchives: "MULTI-YEAR FINANCIAL COMPARISON & ARCHIVES",
+    multiYearPdf: "Multi-Year PDF",
+    n10thYear10Me: "10th Year (10ème)",
+    n11thYear11Me: "11th Year (11ème)",
+    n12MonthPayrollTrackingForTheCurrentCalendarYear: "12-month payroll tracking for the current calendar year",
+    n12thYear12Me: "12th Year (12ème)",
+    n12VsLastMonth: "+12% vs last month",
+    n1LinkedStudents: "1. LINKED STUDENTS",
+    n1stYear1Re: "1st Year (1ère)",
+    n2ConsolidatedPaymentReceipts: "2. CONSOLIDATED PAYMENT RECEIPTS",
+    n2ndYear2Me: "2nd Year (2ème)",
+    n3rdYear3Me: "3rd Year (3ème)",
+    n4thYear4Me: "4th Year (4ème)",
+    n5thYear5Me: "5th Year (5ème)",
+    n6thYear6Me: "6th Year (6ème)",
+    n7thYear7Me: "7th Year (7ème)",
+    n8TargetReached: "+8% target reached",
+    monthlyGoal: "Monthly Goal",
+    ofGoal: "{percent}% of monthly goal",
+    classAddedSuccessfully: "Class \"{code}\" added successfully!",
+    year1st: "1st Year",
+    year2nd: "2nd Year",
+    year3rd: "3rd Year",
+    yearNth: "{n}th Year",
+    n8thYear8Me: "8th Year (8ème)",
+    n9thYear9Me: "9th Year (9ème)",
+    name: "Name:",
+    netBalanceAB: "Net Balance (A - B)",
+    netClosingBalance: "NET CLOSING BALANCE",
+    netLiquidity: "Net Liquidity",
+    newClass2: "New class",
+    newImport: "New Import",
+    newTuitionFcfa: "New Tuition (FCFA):",
+    next: "Next",
+    noAuditLogEntriesRecordedYet: "No audit log entries recorded yet.",
+    noExpensesFoundMatchingTheSelectedFilter: "No expenses found matching the selected filter",
+    noHistoricalReceiptsFoundAcrossConnectedChildren: "No historical receipts found across connected children.",
+    noLinkedStudents: "No linked students.",
+    noneClearProfile: "None / Clear profile",
+    noneDirectAdmissionEntry: "None / Direct Admission Entry",
+    noneFirstEnrollmentEntry: "None / First Enrollment Entry",
+    noOutstandingStudentDebtsRecorded: "No outstanding student debts recorded.",
+    noOutstandingStudentDebtsRecordedForCarryforward: "No outstanding student debts recorded for carryforward.",
+    noParentProfilesFoundMatchingYourSearch: "No parent profiles found matching your search.",
+    noPaymentRecordsFound: "No payment records found.",
+    noPaymentsRecordedYet: "No payments recorded yet",
+    noStaffMembersRegistered: "No staff members registered.",
+    notProvided: "Not provided",
+    noUsersMatchingYourSearch: "No users matching your search.",
+    officialBoardRepresentative: "Official Board Representative",
+    officialElectronicDocumentGeneratedByExecutiveFinanceComplexeScolaireMamaThera: "Official electronic document generated by Executive Finance - Complexe Scolaire Mama Thera.",
+    officialFinancialReceipt: "Official Financial Receipt",
+    officialSealSignature: "Official Seal & Signature",
+    officialStudentProfileAcademicFile: "Official Student Profile & Academic File",
+    offlineChangesWillBeQueuedLocally: "Offline — Changes will be queued locally",
+    onlyPromoterOwnerCanCloseAcademicYears: "Only Promoter / Owner can close academic years.",
+    onlyThePromoterCanCreateAVendorExpense: "Only the promoter can create a vendor expense.",
+    onlyThePromoterCanDeleteExpenses: "Only the promoter can delete expenses.",
+    open: "Open",
+    openMonthlyPayrollDraft: "Open Monthly Payroll Draft",
+    optionalNotes: "Optional notes...",
+    otherClasses: "Other Classes",
+    otherCustomClasses: "Other / Custom Classes",
+    otherCustomClasses2: "Other & Custom Classes",
+    otherFullyCustomName: "Other / Fully Custom Name",
+    outstandingBalance: "OUTSTANDING BALANCE:",
+    outstandingParentDebtsCarriedForward: "Outstanding Parent Debts Carried Forward",
+    outstandingParentDebtsCarriedForwardReliquats: "Outstanding Parent Debts Carried Forward (Reliquats)",
+    overdue2: "OVERDUE",
+    overrideCategory: "Override Category",
+    paid2: "Paid",
+    paidThisMonth: "Paid This Month",
+    paidThisMonth2: "Paid This Month",
+    paidThisMonthFcfa: "Paid This Month (FCFA)",
+    paidTuition: "Paid Tuition",
+    parentContact2: "Parent Contact",
+    parentEmailOptional: "Parent Email (Optional)",
+    parentEmergency: "Parent & emergency",
+    parentExampleComOptional: "parent@example.com (optional)",
+    parentGuardian2: "PARENT / GUARDIAN",
+    partial2: "Partial",
+    passportPhotoLink: "Passport Photo Link",
+    passwordMustBeAtLeast6Characters: "Password must be at least 6 characters",
+    pay: "Pay",
+    paymentHistoryLedger: "Payment History Ledger",
+    payslip: "Payslip",
+    phone2: "Phone",
+    phone3: "Phone:",
+    phoneNumber: "Phone Number:",
+    pleaseConfirmYourEmailFirst: "Please confirm your email first",
+    pleaseFillInAllFields: "Please fill in all fields",
+    previousSchool: "Previous School",
+    previousSchoolTransferHistory: "Previous School Transfer History",
+    print: "Print",
+    printLatePaymentTicket: "Print Late Payment Ticket",
+    printTicket: "Print Ticket",
+    processBatchPromotion: "Process Batch Promotion",
+    processing: "Processing...",
+    promote: "Promote",
+    promoteAll: "Promote All",
+    promoteClass: "Promote Class",
+    promoter: "Promoter",
+    promoterAdmin: "Promoter / Admin",
+    promoterAdmin2: "Promoter / Admin",
+    promoterAdminFull: "Promoter / Admin (Full)",
+    promoterAdmins: "Promoter & Admins",
+    promoterOnly: "Promoter Only",
+    promoterOnly2: "Promoter only",
+    promoterOwnerPortal: "Promoter / Owner Portal",
+    quickQuestions: "Quick Questions",
+    readOnly: "Read-Only",
+    readyToImport: "Ready to import",
+    receipt: "RECEIPT #",
+    receipt2: "Receipt",
+    receiptS: "receipt(s)",
+    recordsInserted: "Records Inserted",
+    recordsUpdated: "Records Updated",
+    refresh: "Refresh",
+    refreshLogs: "Refresh Logs",
+    refreshUserList: "Refresh user list",
+    relation: "Relation",
+    relationship2: "Relationship",
+    relationship3: "Relationship:",
+    remainingArrears: "Remaining Arrears",
+    remainingBalance2: "Remaining Balance",
+    remainingBalanceFcfa: "Remaining Balance (FCFA)",
+    renameClass: "Rename class",
+    repeat: "Repeat",
+    repeatAll: "Repeat All",
+    resetPass: "Reset Pass",
+    restoringSession: "Restoring Session",
+    retry: "Retry",
+    revenue: "Revenue",
+    reviewTheAutoMappedColumnsBelowAdjustAnyMismatchedFieldsUsingTheDropdown: "Review the auto-mapped columns below. Adjust any mismatched fields using the dropdown.",
+    role: "Role:",
+    row: "Row",
+    rows: "rows",
+    salariesVendorsUtilityPayments: "Salaries, vendors & utility payments",
+    sample: "Sample",
+    saveClass: "Save Class",
+    scheduled: "Scheduled",
+    schoolDirectorController: "School Director / Controller",
+    schoolPromoterDirectorExecutiveOversight: "School Promoter & Director (Executive Oversight)",
+    sealSignature: "Seal / Signature",
+    searchByNameOrEmail: "Search by name or email...",
+    searchExpenses: "Search expenses...",
+    secondCycle7thTo9th: "Second Cycle (7th to 9th)",
+    secondCycle7thTo9thYear: "Second Cycle (7th to 9th Year)",
+    sectionEGDE: "Section (e.g. D, E)",
+    selectGrade: "Select Grade",
+    selectGrade2: "-- Select Grade --",
+    selectGradeClass: "Select Grade / Class",
+    selectSheet: "Select Sheet",
+    selectStaff: "Select Staff",
+    selectTypeOfAid: "Select Type of Aid",
+    send: "Send",
+    sendPasswordResetEmail: "Send Password Reset Email",
+    sheet: "Sheet",
+    signingIn: "Signing in...",
+    skip: "— Skip —",
+    skipDuplicatesInsertNewOnly: "Skip duplicates (insert new only)",
+    smartExcelImport: "Smart Excel Import",
+    someCarryOverBalancesCouldNotBeSaved: "Some carry-over balances could not be saved.",
+    sourceAcademicYear: "Source Academic Year",
+    sourcePayment: "Source Payment",
+    staff2: "Staff",
+    staffAccessRoleManagement: "Staff Access & Role Management",
+    staffAccountant: "Staff / Accountant",
+    staffAccountants: "Staff & Accountants",
+    staffAuthorized: "Staff authorized",
+    staffCanAddSectionsSuchAs1stYearBOrC: "Staff can add sections such as 1st Year B or C.",
+    staffSalaries: "Staff Salaries",
+    staffUser: "Staff User",
+    startImport: "Start Import",
+    status2: "Status:",
+    student: "STUDENT",
+    student2: "Student: ",
+    studentEnrollmentPaymentReceiptsPayrollDailyExpenses: "Student enrollment, payment receipts, payroll & daily expenses.",
+    studentFeesDue: "Student Fees Due",
+    studentGradeOptional: "Student Grade (Optional)",
+    studentId: "STUDENT ID",
+    studentIdUnique: "Student ID (Unique)",
+    studentName2: "Student Name",
+    studentSInClass: "Student(s) in class",
+    studentWelfareSocialAidDetails: "Student Welfare & Social Aid Details",
+    summaryOfAllRecordedFinancialYears: "Summary of all recorded financial years",
+    suppliesSupportKitsScolairesFournitures: "Supplies Support (Kits Scolaires & Fournitures)",
+    supportsXlsxXlsCsv: "Supports .xlsx, .xls, .csv",
+    syncing: "Syncing...",
+    syncNow: "Sync Now",
+    systemAuditTrailSecurityLogs: "System Audit Trail & Security Logs",
+    systemCertifiedClosingDocument: "System Certified Closing Document",
+    systemDeveloperFullTechnicalAdminAccess: "System Developer (Full Technical & Admin Access)",
+    systemDeveloperPortal: "System Developer Portal",
+    systemLanguage: "System Language",
+    tamperEvidentActivityLogTrackingPaymentsExpensesAndStaffActionsInBamako: "Tamper-evident activity log tracking payments, expenses, and staff actions in Bamako.",
+    target: "Target:",
+    targetAcademicYear: "Target Academic Year",
+    targetField: "Target Field",
+    technicalSystemMaintenanceAndDatabaseMigrations: "Technical system maintenance and database migrations.",
+    thePayrollWindowIsActiveFromThe1stToThe10thOfTheMonth: "The payroll window is active from the 1st to the 10th of the month.",
+    thisAcademicYearHasBeenClosedAndArchivedAllRecordsAreCurrentlyInReadOnlyMode: "This academic year has been closed and archived. All records are currently in read-only mode.",
+    thisAcademicYearIsAlreadyLocked: "This academic year is already locked!",
+    thisAcademicYearIsLocked: "This academic year is locked.",
+    timestamp: "Timestamp",
+    toDo: "To-Do",
+    tooManyAttemptsPleaseWaitAMoment: "Too many attempts. Please wait a moment.",
+    totalBudget: "Total Budget",
+    totalCumulativePaymentsRecorded: "TOTAL CUMULATIVE PAYMENTS RECORDED:",
+    totalDue2: "TOTAL DUE",
+    totalExpenses2: "TOTAL EXPENSES",
+    totalExpensesB: "Total Expenses (B)",
+    totalRevenue: "TOTAL REVENUE",
+    totalRevenueA: "Total Revenue (A)",
+    totalTuitionDue: "Total Tuition Due",
+    transferHistorySchoolName: "Transfer history school name",
+    tuitionWaiverPriseEnChargeScolarit: "Tuition Waiver (Prise en charge Scolarité)",
+    typeOfAid: "Type of Aid",
+    uncleAuntParentEtc: "Uncle, Aunt, Parent, etc.",
+    unknown: "Unknown",
+    unpaidBalance: "Unpaid Balance",
+    unpaidInstallments: "Unpaid Installments",
+    updateExistingRecords: "Update existing records",
+    uploadDetect: "Upload & Detect",
+    validateSettings: "Validate & Settings",
+    validRows: "Valid Rows",
+    viewPrintFinalAudit: "View/Print Final Audit",
+    visualOverviewOfMultiYearSchoolPerformance: "Visual overview of multi-year school performance",
+    warnings: "Warnings",
+    welcomeBack: "Welcome back",
+    year: "YEAR",
+    yearIsClosedArchived: "Year is Closed & Archived",
+    you: "You",
+    yourSchoolIsCurrentlyOperatingWithAPositiveCashFlow: "Your school is currently operating with a positive cash flow.",
+    overdueNotice: "Notice: This account is more than 2 months overdue. Please contact the finance department immediately to settle the outstanding balance.",
+    retryingConnection: "Retrying connection (attempt {n})...",
+    welcomeBackName: "Welcome back, {name}!",
+    classAlreadyExists: "Class \"{code}\" already exists.",
+    classUpdated: "Class \"{code}\" updated!",
+    classDeleted: "Class \"{id}\" deleted.",
+    deleteClassConfirm: "Delete class \"{id}\"? Students already assigned keep their grade text but it will no longer be offered in class lists.",
+    certifiedFinancialReview: "Certified financial review for the academic year {year}",
+    attachChildTo: "Attach child to {name}",
+    categoryWithValue: "Category: {value}",
+    overduePaymentsDetected: "{count} Overdue Payments Detected!",
+    clickToViewDraft: "Click to view {month} payroll draft",
+    offlinePendingCount: "Offline — {count} transaction(s) saved locally",
+    offlinePendingSync: "{count} offline transaction(s) pending sync",
+    disbursementSummary: "Disbursement summary & outstanding arrears — {month} {year}",
+    officialDraftFor: "Official draft for {month} {year}",
+    promotionSuccess: "Class promotion completed successfully for {count} student(s)!",
+    roleAdminPromoter: "ADMIN / PROMOTER",
+    roleDeveloper: "DEVELOPER",
+    roleStaffAccountant: "STAFF / ACCOUNTANT",
+    roleUpdated: "Role for {name} updated to {role}",
+    accountCreated: "Account for {name} created successfully!",
+    errorCreatingUser: "Error creating user: {error}",
+    passwordResetEmailSent: "Password reset email sent to {email}",
+    generalExpensesReport: "GENERAL OPERATING EXPENSES REPORT — {year}",
+    deleteExpenseConfirm: "Are you sure you want to delete this expense for \"{vendor}\"?",
+    cumulativePaymentsSum: "Cumulative sum of all payments ever made by {name} across all registered children",
+    deleteStaffConfirm: "Are you sure you want to delete staff member \"{name}\"?",
+    deleteStudentConfirm: "Are you sure you want to delete student \"{name}\"? This will also remove their payment records.",
+    lockingYearConfirm: "Locking the year '{year}' will freeze all transactions, payroll, expenses, and student fees for this period. Outstanding parent balances (reliquats) will carry over as opening balances into the next year.",
+    closeYearConfirm: "Are you sure you want to CLOSE the active year {year}? This action locks the year's data and carries over parent debts.",
+    payrollWindowClosed: "⚠️ Payroll Window Closed: No salary payments recorded for {month} as of the 10th deadline.",
+    payrollWindowOpen: "ℹ️ Payroll Window Open: Please remember to start processing salary payments for {month}.",
+    noPayrollWarning: "⚠️ Warning: No payroll recorded for {month}",
+    helloInstallment: "Hello {name}, an installment of {amount} has been paid. Remaining balance: {balance}.",
+    aiPrompt1: "How much tuition was collected this month?",
+    aiPrompt2: "Which parents still owe school fees?",
+    aiPrompt3: "Show all expenses for June.",
+    aiPrompt4: "How much money do we currently have in cash?",
+    aiPrompt5: "Which students haven't paid the second installment?",
+    aiPrompt6: "Generate this month's financial report.",
+    browse: "Browse",
+    detected: "Detected",
+    dragDrop: "Drag & drop",
+    duplicates: "Duplicates",
+    excelCol: "Excel Column",
+    import: "Import",
+    importing: "Importing...",
+    inserted: "Inserted",
+    skipDuplicates: "Skip duplicates",
+    step1: "Step 1",
+    step2: "Step 2",
+    step3: "Step 3",
+    step4: "Step 4",
+    success: "Success",
+    updateExisting: "Update existing",
+    updated: "Updated",
+    edit: "Edit",
+    payrollHistory: "Payroll History",
+    staffDirectory: "Staff Directory",
+    staffName: "Staff Name",
+    editStaff: "Edit Staff",
+    recordSalaryPayment: "Record Salary Payment",
+    headerSync: "Header Sync",
+    logoAccentColor: "Logo Accent Color",
+    navExpenses: "expenses",
+    navPayroll: "payroll",
+    parentEmail: "Parent Email",
+    parentPhone: "Parent Phone",
+    totalExpensesPaid: "Total Expenses Paid",
+    totalFeesCollected: "Total Fees Collected",
   },
   fr: {
     title: "Finance Exécutive",
@@ -853,7 +1354,508 @@ const translations = {
     downloadLedger: "Télécharger le Relevé (PDF)",
     sortHighestBalance: "Plus Solde Impayé",
     sortAlphabetical: "Alphabétique",
-    sortByLabel: "Trier :"
+    sortByLabel: "Trier :",
+    academicYear2: "Année Scolaire",
+    academicYear3: "ANNÉE SCOLAIRE",
+    academicYearLocked: "Année Académique Verrouillée",
+    accountant: "Comptable",
+    accountantAccess: "Accès Comptable",
+    accountantAccessFinanceReceipts: "Accès Comptable (Finances & Recettes)",
+    actionDecision: "Décision du Conseil",
+    actionRequired: "Action Requise",
+    active: "Actuelle",
+    activeEnrolled: "Inscriptions Actives",
+    actualStudentFeesPaid: "Frais de scolarité effectivement perçus",
+    addAnotherClassSection: "+ Ajouter une autre classe / section...",
+    addClassSection: "Ajouter une classe",
+    addSections1a1b1c1d2a7bOrCustomGradesAcrossSchoolCycles: "Ajoutez des sections (1A, 1B, 1C, 1D, 2A, 7B...) ou classes personnalisées par cycle.",
+    addStaffAccount: "Créer un Compte Collaborateur",
+    addStaffAccount2: "+ Ajouter un Compte",
+    admin: "Administrateur",
+    adminController: "Contrôleur Admin",
+    administratorFullSystemAccess: "Administrateur (Accès Système Complet)",
+    aiAssistant: "Assistant IA",
+    all: "Tous",
+    allCategories: "Toutes catégories",
+    allergiesConditionsOrNone: "Allergies, conditions médicales ou Aucune...",
+    allergiesMedicalNotesConditions: "Allergies, Notes Médicales & Conditions",
+    allStatuses: "Tous statuts",
+    amount2: "MONTANT",
+    analyzingFileStructure: "Analyse de la structure du fichier...",
+    applyToAll: "Appliquer à tous :",
+    archivedCertified: "ARCHIVÉ & CERTIFIÉ",
+    askAFinancialQuestion: "Poser une question financière...",
+    assignedRolePermissions: "Rôle & Autorisations Attribués",
+    assignOrAdjustPermissionsForAdministratorsGeneralManagersAndAccountants: "Gérez et modifiez les autorisations de la direction, des gestionnaires et des économes.",
+    auditId: "ID Bilan :",
+    auditTrail: "Journal d'Audit",
+    authorizedSignature: "Signature Autorisée",
+    autoDetected: "Détecté automatiquement",
+    autoDetectedCategory: "Catégorie Auto-Détectée",
+    autoDetectMapValidateImportYourData: "Détection auto, mappage, validation & importation",
+    automaticPayrollAudit: "Audit Automatique de la Paie",
+    back: "Retour",
+    balance2: "RESTE À PAYER",
+    balanceDue: "Reliquat Dû",
+    baseSalary: "Salaire Base",
+    baseSalaryFcfa: "Salaire Base (FCFA)",
+    beneficiaryStudentNameOptional: "Nom de l'élève bénéficiaire (Optionnel)",
+    browseFiles: "Parcourir les Fichiers",
+    cancel: "Annuler",
+    carryOverDebtsOutstandingParentBalancesToTheNextAcademicYear: "Reporter les dettes impayées des parents en solde d'ouverture pour l'année suivante.",
+    cashFlowSummary: "Résumé du Flux de Trésorerie",
+    certifiedBy: "Rapport préparé par :",
+    certifiedSincerelyBy: "Certifié sincère et conforme par :",
+    changeTheInterfaceLanguage: "Changer la langue de l'interface",
+    checkingAuthentication: "Vérification de l'authentification...",
+    class: "Classe :",
+    classesGradeLevelsManagement: "Gestion des Classes & Niveaux Scolaires",
+    classPromotionReEnrollmentWizard: "Passage de Classe & Réinscription",
+    classToPromote: "Classe à Promouvoir",
+    closeActiveSchoolYear: "Clôturer l'Année Scolaire Active",
+    closePreview: "Fermer l'Aperçu",
+    columnMapping: "Mappage des Colonnes",
+    columns: "colonnes",
+    complexeScolaireMamaTheraAdministration: "Administration Complexe Scolaire MAMA THERA",
+    confidence: "Confiance",
+    connectingToDatabase: "Connexion à la base de données",
+    consolidatedFamilyLedger: "Livre-Journal Familial Consolidé",
+    consolidatedFamilyStatementLedger: "RELEVÉ DE COMPTE FAMILIAL CONSOLIDÉ",
+    contactName: "Nom du Contact",
+    contactPerson: "Nom du Contact :",
+    createAccount: "Créer le Compte",
+    createALoginAndAssignInitialAccessRole: "Créez un accès et attribuez le rôle initial",
+    creating: "Création...",
+    cumulativePaymentsMade: "CUMUL DES PAIEMENTS EFFECTUÉS:",
+    currencyFormat: "Format Monétaire",
+    current: "Actuel :",
+    customClassName: "Nom de la classe",
+    dailyEntriesFeesReceiptsStudentsExpenses: "Saisie quotidienne : élèves, reçus, dépenses.",
+    databaseConnectionIssue: "Problème de connexion à la base",
+    date2: "Date de Clôture :",
+    debtCarriedOver: "Arriéré Reporté",
+    deficitWarning: "Alerte de Déficit",
+    deleteClass: "Supprimer la classe",
+    deleteExpense: "Supprimer la dépense",
+    deleteParent: "Supprimer Parent",
+    deleteStaffMember: "Supprimer l'employé",
+    deleteStudent: "Supprimer l'élève",
+    details: "Détails de l'Opération",
+    developer: "Développeur",
+    done: "Terminé",
+    downloadAFullBackupOfYourSchoolDataInExcelFormat: "Téléchargez une sauvegarde complète de vos données scolaires au format Excel.",
+    downloadExpensesPdf: "Télécharger Rapport Dépenses PDF",
+    downloadExpensesPdfReportFiltered: "Télécharger le Rapport des Dépenses en PDF (Filtré)",
+    downloadMultiYearPdf: "Télécharger Bilan PDF",
+    downloadMultiYearPdfReport: "Télécharger le Bilan Multi-Annuel en PDF",
+    downloadPayslipPdf: "Télécharger Bulletin de Paie",
+    downloadReceiptPdf: "Télécharger Reçu PDF",
+    dragDropYourExcelOrCsvFileHere: "Glissez-déposez votre fichier Excel ou CSV ici",
+    dueDate2: "Date d'échéance",
+    duplicateHandling: "Gestion des Doublons",
+    editClassSection: "Modifier la Classe / Section",
+    editExpense: "Modifier la dépense",
+    editStudent2: "Modifier l'élève",
+    eG1ReDOrGarderie: "ex. 1ère D ou Garderie",
+    eGAminataTraor: "ex. Aminata Traoré",
+    eGCivilEngineerBankerMerchant: "ex. Ingénieur Civil, Banquier, Commerçant...",
+    eGFamilyContactPreferencesOrSpecialNotes: "ex. Préférences de contact ou notes spéciales...",
+    eGIbrahimThera: "ex. Ibrahim Thera",
+    eGMamadouTraor: "ex. Mamadou Traoré",
+    eGQuartierHippodromeBamako: "ex. Quartier Hippodrome, Bamako",
+    eGSenelec: "ex. SENELEC",
+    electricityBill: "Facture électricité",
+    email2: "Email :",
+    emergencyAidAideDUrgence: "Aide d'Urgence",
+    emergencyContact2: "Contact d'Urgence",
+    emergencyContactName: "Nom complet du contact d'urgence",
+    emergencyContactPhone: "Numéro de téléphone d'urgence",
+    emergencyPhone: "Téléphone d'Urgence",
+    employeeName: "Nom & Prénom",
+    employeeRole: "Employé & Poste",
+    employeesSettled: "Effectif Réglé",
+    engineeringDev: "Développeur (Dev)",
+    english: "Français",
+    enrollmentDate: "Date d'Inscription",
+    enrollmentDate2: "Date d'Inscription",
+    enrollmentStatus: "Statut d'Inscription",
+    errors: "Erreurs",
+    excelColumn: "Colonne Excel",
+    expensesAreExceedingIncomeReviewYourSpending: "Les dépenses dépassent les revenus. Revoyez vos dépenses.",
+    expensesPdf: "Rapport PDF",
+    exportDraftPdf: "Exporter Bordereau PDF",
+    exportExcel: "Exporter Excel",
+    exportFinancialReportPdf: "Exporter Rapport Financier PDF",
+    exportPdf: "Exporter PDF",
+    exportPdfReport: "Exporter Bilan PDF",
+    failedToAddClass: "Échec de l'ajout de la classe.",
+    failedToSendResetEmail: "Échec de l'envoi de l'e-mail",
+    failedToUpdateRole: "Échec de la mise à jour du rôle",
+    finalAcademicAuditReport: "BILAN COMPTABLE DE CLÔTURE",
+    finalAcademicAuditSheet: "Bilan de Clôture Annuel",
+    finalCashLedgerBalance: "Fonds de caisse net en clôture",
+    financeController: "Directeur Administratif et Financier",
+    financialReportPdf: "Rapport Financier PDF",
+    financialStatusLedger: "Relevé Financier",
+    firstCycle1stTo6th: "Premier Cycle (1ère à 6ème)",
+    firstCycle1stTo6thYear: "Premier Cycle (1ère à 6ème Année)",
+    firstCyclePremierCycle: "Premier Cycle",
+    fullAdministrativeControlClosingYearsRoleEdits: "Contrôle complet, clôture d'année, gestion des rôles.",
+    fullControlFeePolicyClosingSchoolYearsRoleAssignment: "Accès total, politique tarifaire, clôture annuelle & gestion des rôles.",
+    fullName: "NOM & PRÉNOM",
+    fullName2: "Nom & Prénom",
+    fullPayment: "Paiement Complet",
+    generalInfo: "Infos Générales",
+    generalManager: "Gestionnaire Principal",
+    generalManagerFullAdministrationFinancialAccess: "Gestionnaire Principal (Accès Administration & Finances)",
+    generateAFinalDownloadableCertifiedAccountingAuditReport: "Générer un bilan comptable annuel certifié téléchargeable et imprimable.",
+    generatedAndVerifiedSincerelyBy: "Généré et vérifié par :",
+    generatedClassCode: "Code généré :",
+    generatedOn: "Généré le :",
+    grade: "CLASSE",
+    gradeClass: "Classe / Niveau",
+    gradeLevel2: "Niveau / Année",
+    graduate: "Diplômé",
+    healthyBalance: "Solde Sain",
+    helloIAmYourMamaTheraFinanceAssistantHowCanIAssistYouWithSchoolStatisticsTodayYouCanAskMeFinancialQuestionsOrClickOneOfTheQuickOptionsBelow: "Bonjour ! Je suis votre assistant financier Mama Thera. Comment puis-je vous aider avec les statistiques scolaires aujourd'hui ? Vous pouvez me poser des questions financières, ou cliquer sur l'une des options rapides ci-dessous !",
+    highPriorityActionRequiredToProcessCurrentMonthPayroll: "Action prioritaire requise pour traiter la paie du mois en cours.",
+    immediateActionRequiredToReconcileOutstandingLiabilities: "Action immédiate requise pour rapprocher les passifs en cours.",
+    importComplete: "Importation Terminée !",
+    importExcel: "Importer Excel",
+    importingData: "Importation en cours...",
+    importResults: "Résultats",
+    initialPasswordMin6Characters: "Mot de Passe Initial (min 6 caractères)",
+    invalidEmailOrPassword: "Email ou mot de passe incorrect",
+    invalidRows: "Lignes Invalides",
+    lastPaymentDate: "Dernière Date",
+    latePaymentTicket: "Ticket de retard de paiement",
+    latePaymentTicket2: "TICKET DE RETARD",
+    left: "Parti / Transféré",
+    left2: "Quitter l'École",
+    liveFinancialIntelligence: "Intelligence Financière en Direct",
+    loadingFinanceSuite: "Chargement du Système",
+    lockAllRecordsForTheCurrentYearMakingThemReadOnly: "Verrouiller tous les enregistrements de l'année en cours (lecture seule).",
+    lycEHighSchool: "Lycée (Secondaire)",
+    mamaTheraAiAssistant: "Assistant IA Mama Thera",
+    mamaTheraSchoolAcademicYearTransition: "Complexe Scolaire MAMA THERA — Transition d'Année Scolaire",
+    manageEmployeeProfilesAndPayroll: "Gérer les profils des employés et la paie",
+    manageYourPersonalAccountingNotes: "Gérez vos notes comptables personnelles",
+    mappingColumnsFor: "Mappage des colonnes pour :",
+    maternelleKindergarten: "Maternelle / Jardin d'Enfants",
+    medicalHistory: "Médical & Historique",
+    medicalHistoryFile: "Fiche Médicale & Historique",
+    medicalNotesAllergiesConditions: "Notes Médicales (Allergies / Conditions)",
+    missing: "Manquant",
+    monthlyDraft: "Bordereau Mensuel",
+    monthlyInflow: "Entrées Mensuelles",
+    monthlyOutflow: "Sorties Mensuelles",
+    monthlyPayrollDisbursementDraft: "Bordereau Mensuel de Paie du Personnel",
+    monthlyPayrollDraft: "Bordereau Mensuel de Paie",
+    multiYearFinancialComparisonArchives: "BILAN MULTI-ANNUEL & ARCHIVES FINANCIÈRES",
+    multiYearPdf: "Bilan PDF",
+    n10thYear10Me: "10ème Année (Seconde)",
+    n11thYear11Me: "11ème Année (Première)",
+    n12MonthPayrollTrackingForTheCurrentCalendarYear: "Suivi de la paie sur 12 mois pour l'année civile en cours",
+    n12thYear12Me: "12ème Année (Terminale)",
+    n12VsLastMonth: "+12% vs mois dernier",
+    n1LinkedStudents: "1. ÉLÈVES RATTACHÉS À LA FAMILLE",
+    n1stYear1Re: "1ère Année",
+    n2ConsolidatedPaymentReceipts: "2. HISTORIQUE DES REÇUS DE PAIEMENT",
+    n2ndYear2Me: "2ème Année",
+    n3rdYear3Me: "3ème Année",
+    n4thYear4Me: "4ème Année",
+    n5thYear5Me: "5ème Année",
+    n6thYear6Me: "6ème Année",
+    n7thYear7Me: "7ème Année",
+    n8TargetReached: "+8% objectif atteint",
+    monthlyGoal: "Objectif Mensuel",
+    ofGoal: "{percent}% de l'objectif mensuel",
+    classAddedSuccessfully: "Classe \"{code}\" ajoutée avec succès !",
+    year1st: "1ère Année",
+    year2nd: "2ème Année",
+    year3rd: "3ème Année",
+    yearNth: "{n}ème Année",
+    n8thYear8Me: "8ème Année",
+    n9thYear9Me: "9ème Année",
+    name: "Nom :",
+    netBalanceAB: "Solde Net de Clôture (A - B)",
+    netClosingBalance: "SOLDE NET DE CLÔTURE",
+    netLiquidity: "Liquidité Nette",
+    newClass2: "Nouvelle classe",
+    newImport: "Nouvelle Importation",
+    newTuitionFcfa: "Frais Scolarité (FCFA) :",
+    next: "Suivant",
+    noAuditLogEntriesRecordedYet: "Aucune entrée dans le journal d'audit.",
+    noExpensesFoundMatchingTheSelectedFilter: "Aucune dépense trouvée pour ce filtre",
+    noHistoricalReceiptsFoundAcrossConnectedChildren: "Aucun reçu historique trouvé pour les enfants rattachés.",
+    noLinkedStudents: "Aucun enfant rattaché.",
+    noneClearProfile: "Aucune / Profil Vierge",
+    noneDirectAdmissionEntry: "Aucune / Inscription Directe",
+    noneFirstEnrollmentEntry: "Aucune / Première Inscription",
+    noOutstandingStudentDebtsRecorded: "Aucun arriéré de frais à reporter.",
+    noOutstandingStudentDebtsRecordedForCarryforward: "Aucun arriéré de frais à reporter.",
+    noParentProfilesFoundMatchingYourSearch: "Aucun profil parent trouvé pour votre recherche.",
+    noPaymentRecordsFound: "Aucun paiement enregistré.",
+    noPaymentsRecordedYet: "Aucun paiement enregistré pour le moment",
+    noStaffMembersRegistered: "Aucun membre du personnel enregistré.",
+    notProvided: "Non renseigné",
+    noUsersMatchingYourSearch: "Aucun utilisateur ne correspond à votre recherche.",
+    officialBoardRepresentative: "Représentant Officiel de la Direction",
+    officialElectronicDocumentGeneratedByExecutiveFinanceComplexeScolaireMamaThera: "Document officiel édité électroniquement par Finance Exécutive - Complexe Scolaire Mama Thera.",
+    officialFinancialReceipt: "Reçu Financier Officiel",
+    officialSealSignature: "Sceau Officiel & Signature",
+    officialStudentProfileAcademicFile: "Dossier Scolaire Officiel de l'Élève",
+    offlineChangesWillBeQueuedLocally: "Hors ligne — Les modifications seront enregistrées localement",
+    onlyPromoterOwnerCanCloseAcademicYears: "Seul le Promoteur / Propriétaire peut clôturer les années académiques.",
+    onlyThePromoterCanCreateAVendorExpense: "Seule la promotrice peut créer une dépense fournisseur.",
+    onlyThePromoterCanDeleteExpenses: "Seule la promotrice peut supprimer des dépenses.",
+    open: "Ouverte",
+    openMonthlyPayrollDraft: "Ouvrir le Bordereau Mensuel",
+    optionalNotes: "Notes optionnelles...",
+    otherClasses: "Autres Classes",
+    otherCustomClasses: "Autres / Classes Personnalisées",
+    otherCustomClasses2: "Autres & Classes Personnalisées",
+    otherFullyCustomName: "Autre / Nom personnalisé",
+    outstandingBalance: "SOLDE RESTANT À PAYER:",
+    outstandingParentDebtsCarriedForward: "Rapport des Arriérés de Frais Reportés (Reliquats)",
+    outstandingParentDebtsCarriedForwardReliquats: "Arriérés de Paiement Reportés (Reliquats)",
+    overdue2: "EN RETARD",
+    overrideCategory: "Changer la Catégorie",
+    paid2: "Complet",
+    paidThisMonth: "Salaires Versés",
+    paidThisMonth2: "Versé ce Mois",
+    paidThisMonthFcfa: "Versé ce Mois (FCFA)",
+    paidTuition: "Scolarité Payée",
+    parentContact2: "Parent / Contact",
+    parentEmailOptional: "Email du Parent (Optionnel)",
+    parentEmergency: "Parent & Urgence",
+    parentExampleComOptional: "parent@example.com (optionnel)",
+    parentGuardian2: "PARENT / TUTEUR",
+    partial2: "Acompte",
+    passportPhotoLink: "Lien de la photo d'identité",
+    passwordMustBeAtLeast6Characters: "Le mot de passe doit comporter au moins 6 caractères",
+    pay: "Payer",
+    paymentHistoryLedger: "Historique des Paiements",
+    payslip: "Bulletin",
+    phone2: "Téléphone",
+    phone3: "Téléphone :",
+    phoneNumber: "Téléphone :",
+    pleaseConfirmYourEmailFirst: "Veuillez d'abord confirmer votre email",
+    pleaseFillInAllFields: "Veuillez remplir tous les champs",
+    previousSchool: "École Précédente",
+    previousSchoolTransferHistory: "École Précédente / Provenance",
+    print: "Imprimer",
+    printLatePaymentTicket: "Imprimer le ticket de retard",
+    printTicket: "Imprimer le ticket",
+    processBatchPromotion: "Appliquer le Passage de Classe",
+    processing: "Traitement...",
+    promote: "Promouvoir",
+    promoteAll: "Promouvoir Tous",
+    promoteClass: "Passage de Classe",
+    promoter: "Promotrice",
+    promoterAdmin: "Promotrice / Direction",
+    promoterAdmin2: "Promotrice / Admin",
+    promoterAdminFull: "Promotrice / Admin (Complet)",
+    promoterAdmins: "Promotrice & Direction",
+    promoterOnly: "Promotrice uniquement",
+    promoterOnly2: "Promotrice uniquement",
+    promoterOwnerPortal: "Portail Promoteur / Propriétaire",
+    quickQuestions: "Questions Rapides",
+    readOnly: "Lecture Seule",
+    readyToImport: "Prêt pour l'importation",
+    receipt: "N° REÇU",
+    receipt2: "Reçu",
+    receiptS: "reçu(s)",
+    recordsInserted: "Enregistrements Créés",
+    recordsUpdated: "Enregistrements Mis à Jour",
+    refresh: "Actualiser",
+    refreshLogs: "Actualiser le Journal",
+    refreshUserList: "Actualiser la liste",
+    relation: "Lien de Parenté",
+    relationship2: "Lien de parenté",
+    relationship3: "Lien de Parenté :",
+    remainingArrears: "Reliquats Restants",
+    remainingBalance2: "Solde Restant Dû",
+    remainingBalanceFcfa: "Reliquat Dû (FCFA)",
+    renameClass: "Renommer la classe",
+    repeat: "Redoubler",
+    repeatAll: "Redoubler Tous",
+    resetPass: "Réinit. MDP",
+    restoringSession: "Restauration de la session",
+    retry: "Réessayer",
+    revenue: "Recettes",
+    reviewTheAutoMappedColumnsBelowAdjustAnyMismatchedFieldsUsingTheDropdown: "Vérifiez le mappage automatique ci-dessous. Ajustez les champs incorrects avec le menu déroulant.",
+    role: "Rôle :",
+    row: "Ligne",
+    rows: "lignes",
+    salariesVendorsUtilityPayments: "Salaires, fournisseurs & factures payées",
+    sample: "Exemple",
+    saveClass: "Créer la classe",
+    scheduled: "Planifié",
+    schoolDirectorController: "Directeur Administratif et Financier",
+    schoolPromoterDirectorExecutiveOversight: "Promotrice & Directrice (Supervision Exécutive)",
+    sealSignature: "Sceau & Signature",
+    searchByNameOrEmail: "Rechercher par nom ou email...",
+    searchExpenses: "Rechercher dépenses...",
+    secondCycle7thTo9th: "Second Cycle (7ème à 9ème)",
+    secondCycle7thTo9thYear: "Second Cycle (7ème à 9ème Année)",
+    sectionEGDE: "Section (ex. D, E)",
+    selectGrade: "Sélectionner la classe",
+    selectGrade2: "-- Sélectionner la Classe --",
+    selectGradeClass: "Sélectionner la classe",
+    selectSheet: "Sélectionner la Feuille",
+    selectStaff: "Sélectionner le personnel",
+    selectTypeOfAid: "Sélectionner le type d'aide",
+    send: "Envoyer",
+    sendPasswordResetEmail: "Envoyer e-mail de réinitialisation du mot de passe",
+    sheet: "Feuille",
+    signingIn: "Connexion...",
+    skip: "— Ignorer —",
+    skipDuplicatesInsertNewOnly: "Ignorer les doublons (insérer les nouveaux uniquement)",
+    smartExcelImport: "Importation Excel Intelligente",
+    someCarryOverBalancesCouldNotBeSaved: "Certains soldes reportés n'ont pas pu être enregistrés.",
+    sourceAcademicYear: "Année d'Origine",
+    sourcePayment: "Paiement (Origine)",
+    staff2: "Personnel",
+    staffAccessRoleManagement: "Gestion des Rôles & Accès du Personnel",
+    staffAccountant: "Personnel / Économe",
+    staffAccountants: "Personnel & Économes",
+    staffAuthorized: "Staff autorisé",
+    staffCanAddSectionsSuchAs1stYearBOrC: "Le personnel peut ajouter des sections comme 1ère année B ou C.",
+    staffSalaries: "Salaires du Personnel",
+    staffUser: "Utilisateur / Caissier",
+    startImport: "Lancer l'Importation",
+    status2: "Statut :",
+    student: "ÉLÈVE",
+    student2: "Élève : ",
+    studentEnrollmentPaymentReceiptsPayrollDailyExpenses: "Inscriptions, encaissements, reçus de scolarité & dépenses.",
+    studentFeesDue: "Frais Scolaires Dus",
+    studentGradeOptional: "Classe de l'élève (Optionnel)",
+    studentId: "MATRICULE",
+    studentIdUnique: "ID de l'élève (Unique)",
+    studentName2: "Nom de l'Élève",
+    studentSInClass: "Élève(s) dans la classe",
+    studentWelfareSocialAidDetails: "Détails des Cas Sociaux & Aides Liés aux Élèves",
+    summaryOfAllRecordedFinancialYears: "Résumé de toutes les années financières enregistrées",
+    suppliesSupportKitsScolairesFournitures: "Kits Scolaires & Fournitures",
+    supportsXlsxXlsCsv: "Formats supportés : .xlsx, .xls, .csv",
+    syncing: "Synchronisation...",
+    syncNow: "Synchroniser maintenant",
+    systemAuditTrailSecurityLogs: "Journal d'Audit & Sécurité Système",
+    systemCertifiedClosingDocument: "Document de clôture certifié par le système",
+    systemDeveloperFullTechnicalAdminAccess: "Développeur Système (Accès Technique & Admin Total)",
+    systemDeveloperPortal: "Portail Développeur Système",
+    systemLanguage: "Langue du Système",
+    tamperEvidentActivityLogTrackingPaymentsExpensesAndStaffActionsInBamako: "Registre d'activités sécurisé traçant les paiements, dépenses et actions des caissiers.",
+    target: "Cible :",
+    targetAcademicYear: "Nouvelle Année Scolaire",
+    targetField: "Champ Cible",
+    technicalSystemMaintenanceAndDatabaseMigrations: "Maintenance technique, sécurité et synchronisation réseau.",
+    thePayrollWindowIsActiveFromThe1stToThe10thOfTheMonth: "La période de paie est active du 1er au 10 du mois.",
+    thisAcademicYearHasBeenClosedAndArchivedAllRecordsAreCurrentlyInReadOnlyMode: "Cette année académique a été clôturée et archivée. Tous les dossiers sont en mode lecture seule.",
+    thisAcademicYearIsAlreadyLocked: "Cette année académique est déjà verrouillée !",
+    thisAcademicYearIsLocked: "Cette année académique est verrouillée.",
+    timestamp: "Horodatage",
+    toDo: "Tâches",
+    tooManyAttemptsPleaseWaitAMoment: "Trop de tentatives. Veuillez patienter.",
+    totalBudget: "Masse Salariale",
+    totalCumulativePaymentsRecorded: "CUMUL TOTAL DES PAIEMENTS ENREGISTRÉS:",
+    totalDue2: "TOTAL DÛ",
+    totalExpenses2: "DÉPENSES TOTALES",
+    totalExpensesB: "Dépenses Totales (B)",
+    totalRevenue: "RECETTES TOTALES",
+    totalRevenueA: "Recettes Totales (A)",
+    totalTuitionDue: "Scolarité Totale Due",
+    transferHistorySchoolName: "Nom de l'école de provenance",
+    tuitionWaiverPriseEnChargeScolarit: "Prise en charge Scolarité",
+    typeOfAid: "Type d'aide",
+    uncleAuntParentEtc: "Oncle, Tante, Parent, etc.",
+    unknown: "Inconnu",
+    unpaidBalance: "Montant Arriéré",
+    unpaidInstallments: "Acomptes Impayés",
+    updateExistingRecords: "Mettre à jour les enregistrements existants",
+    uploadDetect: "Télécharger & Détecter",
+    validateSettings: "Validation & Options",
+    validRows: "Lignes Valides",
+    viewPrintFinalAudit: "Voir/Imprimer le Bilan Final",
+    visualOverviewOfMultiYearSchoolPerformance: "Aperçu visuel de la performance scolaire sur plusieurs années",
+    warnings: "Avertissements",
+    welcomeBack: "Bon retour",
+    year: "ANNEÉ SCOLAIRE",
+    yearIsClosedArchived: "Cette Année est Clôturée & Archivée",
+    you: "Vous (Actif)",
+    yourSchoolIsCurrentlyOperatingWithAPositiveCashFlow: "Votre école fonctionne actuellement avec un flux de trésorerie positif.",
+    overdueNotice: "Avis : Ce compte accuse un retard de plus de 2 mois. Veuillez contacter le service financier immédiatement pour régulariser le solde.",
+    retryingConnection: "Nouvelle tentative de connexion (tentative {n})...",
+    welcomeBackName: "Bon retour, {name} !",
+    classAlreadyExists: "La classe \"{code}\" existe déjà.",
+    classUpdated: "Classe \"{code}\" modifiée !",
+    classDeleted: "Classe « {id} » supprimée.",
+    deleteClassConfirm: "Supprimer la classe « {id} » ? Les élèves déjà inscrits gardent leur classe affichée mais elle ne sera plus proposée dans les listes.",
+    certifiedFinancialReview: "Bilan financier certifié pour l'année académique {year}",
+    attachChildTo: "Rattacher un enfant à {name}",
+    categoryWithValue: "Catégorie : {value}",
+    overduePaymentsDetected: "{count} Paiements en retard détectés !",
+    clickToViewDraft: "Cliquer pour voir le bordereau de {month}",
+    offlinePendingCount: "Hors ligne — {count} modification(s) enregistrée(s) localement",
+    offlinePendingSync: "{count} transaction(s) hors-ligne en attente de synchronisation",
+    disbursementSummary: "État récapitulatif des salaires payés & reliquats — {month} {year}",
+    officialDraftFor: "Bordereau officiel pour {month} {year}",
+    promotionSuccess: "Passage de classe effectué avec succès pour {count} élève(s) !",
+    roleAdminPromoter: "PROMOTRICE / ADMIN",
+    roleDeveloper: "DÉVELOPPEUR",
+    roleStaffAccountant: "PERSONNEL / ÉCONOME",
+    roleUpdated: "Rôle de {name} mis à jour : {role}",
+    accountCreated: "Compte pour {name} créé avec succès !",
+    errorCreatingUser: "Erreur lors de la création du compte : {error}",
+    passwordResetEmailSent: "E-mail de réinitialisation envoyé à {email}",
+    generalExpensesReport: "RAPPORT DES DÉPENSES GÉNÉRALES & CHARGES D'EXPLOITATION — {year}",
+    deleteExpenseConfirm: "Êtes-vous sûr de vouloir supprimer cette dépense pour \"{vendor}\" ?",
+    cumulativePaymentsSum: "Cumul total de tous les paiements effectués par {name} pour l'ensemble des enfants rattachés",
+    deleteStaffConfirm: "Êtes-vous sûr de vouloir supprimer l'employé(e) \"{name}\" ?",
+    deleteStudentConfirm: "Êtes-vous sûr de vouloir supprimer l'élève \"{name}\" ? Cela supprimera également ses reçus et paiements.",
+    lockingYearConfirm: "Le verrouillage de l'année '{year}' gèlera toutes les transactions, salaires, dépenses et frais scolaires pour cette période. Les arriérés de paiement des parents (reliquats) seront automatiquement reportés comme soldes d'ouverture dans l'année suivante.",
+    closeYearConfirm: "Êtes-vous sûr de vouloir CLÔTURER l'année active {year} ? Cette action verrouille les données de l'année et reporte les arriérés de paiement des parents.",
+    payrollWindowClosed: "⚠️ Période de paie fermée : Aucun paiement de salaire enregistré pour {month} après la date limite du 10.",
+    payrollWindowOpen: "ℹ️ Période de paie ouverte : Pensez à commencer à traiter les paiements de salaire pour {month}.",
+    noPayrollWarning: "⚠️ Attention : Aucun paiement de salaire enregistré pour {month}",
+    helloInstallment: "Bonjour {name}, un acompte de {amount} a été versé. Solde restant : {balance}.",
+    aiPrompt1: "Combien de scolarités ont été collectées ce mois-ci ?",
+    aiPrompt2: "Quels parents doivent encore des frais de scolarité ?",
+    aiPrompt3: "Afficher toutes les dépenses pour juin.",
+    aiPrompt4: "Combien d'argent avons-nous actuellement en caisse ?",
+    aiPrompt5: "Quels élèves n'ont pas payé la deuxième tranche ?",
+    aiPrompt6: "Générer le rapport financier de ce mois-ci.",
+    browse: "Parcourir",
+    detected: "Détecté",
+    dragDrop: "Glissez-déposez",
+    duplicates: "Doublons",
+    excelCol: "Colonne Excel",
+    import: "Importer",
+    importing: "Importation...",
+    inserted: "Insérés",
+    skipDuplicates: "Ignorer les doublons",
+    step1: "Étape 1",
+    step2: "Étape 2",
+    step3: "Étape 3",
+    step4: "Étape 4",
+    success: "Succès",
+    updateExisting: "Mettre à jour l'existant",
+    updated: "Mis à jour",
+    edit: "Modifier",
+    payrollHistory: "Historique de paie",
+    staffDirectory: "Répertoire du personnel",
+    staffName: "Nom du personnel",
+    editStaff: "Modifier le personnel",
+    recordSalaryPayment: "Enregistrer le paiement de salaire",
+    headerSync: "Synchronisation de l'en-tête",
+    logoAccentColor: "Couleur d'accent du logo",
+    navExpenses: "dépenses",
+    navPayroll: "paie",
+    parentEmail: "Email du parent",
+    parentPhone: "Téléphone du parent",
+    totalExpensesPaid: "Total dépenses payées",
+    totalFeesCollected: "Total frais collectés",
   }
 };
 
@@ -909,11 +1911,11 @@ const Login = ({
       // Translate common Supabase auth errors
       let errorMsg = result.error || '';
       if (errorMsg.includes('Invalid login credentials')) {
-        errorMsg = lang === 'en' ? 'Invalid email or password' : 'Email ou mot de passe incorrect';
+        errorMsg = t.invalidEmailOrPassword;
       } else if (errorMsg.includes('Email not confirmed')) {
-        errorMsg = lang === 'en' ? 'Please confirm your email first' : 'Veuillez d\'abord confirmer votre email';
+        errorMsg = t.pleaseConfirmYourEmailFirst;
       } else if (errorMsg.includes('Too many requests')) {
-        errorMsg = lang === 'en' ? 'Too many attempts. Please wait a moment.' : 'Trop de tentatives. Veuillez patienter.';
+        errorMsg = t.tooManyAttemptsPleaseWaitAMoment;
       }
       setError(errorMsg);
     }
@@ -928,7 +1930,7 @@ const Login = ({
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all text-sm font-bold border border-white/10"
         >
           <Globe size={18} />
-          {lang === 'en' ? 'Français' : 'English'}
+          {t.langToggle}
         </button>
       </div>
       
@@ -967,7 +1969,7 @@ const Login = ({
           )}
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{lang === 'en' ? 'Email' : 'Email'}</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{'Email'}</label>
             <div className="relative">
               <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
@@ -1006,7 +2008,7 @@ const Login = ({
             {isLoading ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                {lang === 'en' ? 'Signing in...' : 'Connexion...'}
+                {t.signingIn}
               </>
             ) : (
               <>
@@ -1138,7 +2140,7 @@ export default function App() {
     onMutationSuccess: (operation) => {
       const label = operationLabels[operation];
       if (label) {
-        toast.success(lang === 'en' ? `✅ ${label.en}` : `✅ ${label.fr}`);
+        toast.success(`✅ ${label[lang]}`);
       }
     },
     onMutationError: (operation, errorMessage) => {
@@ -1146,11 +2148,7 @@ export default function App() {
       toast.error(`${formatted.title}: ${formatted.message}`);
     },
     onRetry: (attempt) => {
-      toast.retrying(
-        lang === 'en'
-          ? `Retrying connection (attempt ${attempt})...`
-          : `Nouvelle tentative de connexion (tentative ${attempt})...`
-      );
+      toast.retrying(t.retryingConnection.replace('{n}', attempt));
     },
   });
 
@@ -1324,7 +2322,7 @@ export default function App() {
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(isFr ? 'RELEVÉ DE COMPTE FAMILIAL CONSOLIDÉ' : 'CONSOLIDATED FAMILY STATEMENT & LEDGER', 14, 20);
+    doc.text(t.consolidatedFamilyStatementLedger, 14, 20);
 
     // Date & Reference
     const todayStr = new Date().toLocaleDateString(isFr ? 'fr-FR' : 'en-US', {
@@ -1346,16 +2344,16 @@ export default function App() {
     doc.setTextColor(15, 23, 42);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text(`${isFr ? 'PARENT / TUTEUR' : 'PARENT / GUARDIAN'}: ${parent.fullName}`, 18, y + 8);
+    doc.text(`${t.parentGuardian2}: ${parent.fullName}`, 18, y + 8);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(71, 85, 105);
-    doc.text(`${isFr ? 'Lien de parenté' : 'Relationship'}: ${parent.relationship}`, 18, y + 15);
-    doc.text(`${isFr ? 'Téléphone' : 'Phone'}: ${parent.phones.join(' / ')}`, 18, y + 21);
-    doc.text(`${isFr ? 'Adresse' : 'Address'}: ${parent.address}`, 18, y + 27);
+    doc.text(`${t.relationship2}: ${parent.relationship}`, 18, y + 15);
+    doc.text(`${t.phone2}: ${parent.phones.join(' / ')}`, 18, y + 21);
+    doc.text(`${t.address}: ${parent.address}`, 18, y + 27);
 
-    doc.text(`${isFr ? 'Profession' : 'Occupation'}: ${parent.occupation}`, 115, y + 15);
+    doc.text(`${t.occupation}: ${parent.occupation}`, 115, y + 15);
     doc.text(`Email: ${parent.email || 'N/A'}`, 115, y + 21);
 
     y += 40;
@@ -1368,13 +2366,13 @@ export default function App() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(6, 95, 70);
-    doc.text(isFr ? 'CUMUL DES PAIEMENTS EFFECTUÉS:' : 'CUMULATIVE PAYMENTS MADE:', 18, y + 8);
+    doc.text(t.cumulativePaymentsMade, 18, y + 8);
     doc.setFontSize(11);
     doc.text(formatPdfAmount(totalPaymentsEver), 18, y + 14);
 
     doc.setFontSize(9);
     doc.setTextColor(153, 27, 27);
-    doc.text(isFr ? 'SOLDE RESTANT À PAYER:' : 'OUTSTANDING BALANCE:', 115, y + 8);
+    doc.text(t.outstandingBalance, 115, y + 8);
     doc.setFontSize(11);
     doc.text(formatPdfAmount(totalOutstanding), 115, y + 14);
 
@@ -1384,7 +2382,7 @@ export default function App() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(15, 23, 42);
-    doc.text(isFr ? '1. ÉLÈVES RATTACHÉS À LA FAMILLE' : '1. LINKED STUDENTS', 14, y);
+    doc.text(t.n1LinkedStudents, 14, y);
     y += 5;
 
     doc.setFillColor(241, 245, 249);
@@ -1392,18 +2390,18 @@ export default function App() {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(71, 85, 105);
-    doc.text(isFr ? 'MATRICULE' : 'STUDENT ID', 18, y + 5);
-    doc.text(isFr ? 'NOM & PRÉNOM' : 'FULL NAME', 50, y + 5);
-    doc.text(isFr ? 'CLASSE' : 'GRADE', 105, y + 5);
-    doc.text(isFr ? 'TOTAL DÛ' : 'TOTAL DUE', 135, y + 5);
-    doc.text(isFr ? 'RESTE À PAYER' : 'BALANCE', 165, y + 5);
+    doc.text(t.studentId, 18, y + 5);
+    doc.text(t.fullName, 50, y + 5);
+    doc.text(t.grade, 105, y + 5);
+    doc.text(t.totalDue2, 135, y + 5);
+    doc.text(t.balance2, 165, y + 5);
     y += 7;
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(15, 23, 42);
 
     if (children.length === 0) {
-      doc.text(isFr ? 'Aucun enfant rattaché.' : 'No linked students.', 18, y + 5);
+      doc.text(t.noLinkedStudents, 18, y + 5);
       y += 8;
     } else {
       children.forEach((child) => {
@@ -1432,7 +2430,7 @@ export default function App() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(15, 23, 42);
-    doc.text(isFr ? '2. HISTORIQUE DES REÇUS DE PAIEMENT' : '2. CONSOLIDATED PAYMENT RECEIPTS', 14, y);
+    doc.text(t.n2ConsolidatedPaymentReceipts, 14, y);
     y += 5;
 
     doc.setFillColor(241, 245, 249);
@@ -1440,18 +2438,18 @@ export default function App() {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(71, 85, 105);
-    doc.text(isFr ? 'N° REÇU' : 'RECEIPT #', 18, y + 5);
-    doc.text(isFr ? 'DATE' : 'DATE', 48, y + 5);
-    doc.text(isFr ? 'ÉLÈVE' : 'STUDENT', 75, y + 5);
-    doc.text(isFr ? 'ANNEÉ SCOLAIRE' : 'YEAR', 125, y + 5);
-    doc.text(isFr ? 'MONTANT' : 'AMOUNT', 165, y + 5);
+    doc.text(t.receipt, 18, y + 5);
+    doc.text('DATE', 48, y + 5);
+    doc.text(t.student, 75, y + 5);
+    doc.text(t.year, 125, y + 5);
+    doc.text(t.amount2, 165, y + 5);
     y += 7;
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(15, 23, 42);
 
     if (paymentHistory.length === 0) {
-      doc.text(isFr ? 'Aucun paiement enregistré.' : 'No payment records found.', 18, y + 5);
+      doc.text(t.noPaymentRecordsFound, 18, y + 5);
       y += 8;
     } else {
       paymentHistory.forEach((item) => {
@@ -1463,11 +2461,11 @@ export default function App() {
           doc.setFontSize(8);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(71, 85, 105);
-          doc.text(isFr ? 'N° REÇU' : 'RECEIPT #', 18, y + 5);
-          doc.text(isFr ? 'DATE' : 'DATE', 48, y + 5);
-          doc.text(isFr ? 'ÉLÈVE' : 'STUDENT', 75, y + 5);
-          doc.text(isFr ? 'ANNEÉ SCOLAIRE' : 'YEAR', 125, y + 5);
-          doc.text(isFr ? 'MONTANT' : 'AMOUNT', 165, y + 5);
+          doc.text(t.receipt, 18, y + 5);
+          doc.text('DATE', 48, y + 5);
+          doc.text(t.student, 75, y + 5);
+          doc.text(t.year, 125, y + 5);
+          doc.text(t.amount2, 165, y + 5);
           y += 7;
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(15, 23, 42);
@@ -1491,7 +2489,7 @@ export default function App() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(6, 95, 70);
-    doc.text(isFr ? 'CUMUL TOTAL DES PAIEMENTS ENREGISTRÉS:' : 'TOTAL CUMULATIVE PAYMENTS RECORDED:', 18, y + 5.5);
+    doc.text(t.totalCumulativePaymentsRecorded, 18, y + 5.5);
     doc.text(formatPdfAmount(totalPaymentsEver), 165, y + 5.5);
 
     y += 18;
@@ -1503,9 +2501,7 @@ export default function App() {
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      isFr
-        ? 'Document officiel édité électroniquement par Finance Exécutive - Complexe Scolaire Mama Thera.'
-        : 'Official electronic document generated by Executive Finance - Complexe Scolaire Mama Thera.',
+      t.officialElectronicDocumentGeneratedByExecutiveFinanceComplexeScolaireMamaThera,
       105,
       y,
       { align: 'center' }
@@ -1648,7 +2644,7 @@ export default function App() {
       setHasShownWelcome(true);
       setActiveTab('dashboard');
       const displayName = auth.profile.fullName || auth.profile.email;
-      setWelcomeMessage(lang === 'en' ? `Welcome back, ${displayName}!` : `Bon retour, ${displayName} !`);
+      setWelcomeMessage(t.welcomeBackName.replace('{name}', displayName));
       setTimeout(() => {
         setWelcomeMessage(null);
       }, 5000);
@@ -1725,9 +2721,7 @@ export default function App() {
       setFloatingChatMessages([
         {
           sender: 'assistant',
-          text: lang === 'en' 
-            ? 'Hello! I am your Mama Thera Finance Assistant. How can I assist you with school statistics today? You can ask me financial questions, or click one of the quick options below!' 
-            : 'Bonjour ! Je suis votre assistant financier Mama Thera. Comment puis-je vous aider avec les statistiques scolaires aujourd\'hui ? Vous pouvez me poser des questions financières, ou cliquer sur l\'une des options rapides ci-dessous !'
+          text: t.helloIAmYourMamaTheraFinanceAssistantHowCanIAssistYouWithSchoolStatisticsTodayYouCanAskMeFinancialQuestionsOrClickOneOfTheQuickOptionsBelow
         }
       ]);
     }
@@ -2013,6 +3007,18 @@ export default function App() {
       return acc + thisMonthPayments.reduce((sum, p) => sum + p.amount, 0);
     }, 0);
 
+    const now = new Date();
+    const prevMonth = (currentMonth + 11) % 12;
+    const prevMonthYear = currentMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
+
+    const prevMonthCollected = filteredStudents.reduce((acc, s) => {
+      const prevMonthPayments = s.payments.filter(p => {
+        const payDate = new Date(p.date);
+        return payDate.getMonth() === prevMonth && payDate.getFullYear() === prevMonthYear;
+      });
+      return acc + prevMonthPayments.reduce((sum, p) => sum + p.amount, 0);
+    }, 0);
+
     const lateParentsCount = filteredStudents.filter(s => {
       const discount = s.scholarshipDiscount || 0;
       const discountedTotal = s.totalDue * (1 - discount / 100);
@@ -2044,6 +3050,7 @@ export default function App() {
     return { 
       totalOutstanding, 
       collectedMonth: collectedThisMonth, 
+      prevMonthCollected,
       lateParentsCount,
       totalFees,
       totalExpenses,
@@ -2362,15 +3369,15 @@ export default function App() {
       const lastDate = payments.length > 0 ? payments[payments.length - 1].date : '—';
 
       return {
-        'N°': i + 1,
-        [lang === 'en' ? 'Employee Name' : 'Nom & Prénom']: s.name,
-        [lang === 'en' ? 'Position' : 'Poste']: s.position,
-        [lang === 'en' ? 'Base Salary (FCFA)' : 'Salaire Base (FCFA)']: s.salary,
-        [lang === 'en' ? 'Paid This Month (FCFA)' : 'Versé ce Mois (FCFA)']: totalPaid,
-        [lang === 'en' ? 'Remaining Balance (FCFA)' : 'Reliquat Dû (FCFA)']: balance,
-        [lang === 'en' ? 'Last Payment Date' : 'Dernière Date']: lastDate,
-        [lang === 'en' ? 'Status' : 'Statut']: totalPaid >= s.salary && s.salary > 0 ? (lang === 'en' ? 'Fully Paid' : 'Entièrement payé') : (totalPaid > 0 ? (lang === 'en' ? 'Partial' : 'Acompte') : (lang === 'en' ? 'Unpaid' : 'Non payé')),
-        [lang === 'en' ? 'Academic Year' : 'Année Scolaire']: selectedYear || '2026-2027',
+        [lang === 'fr' ? 'N°' : 'No.']: i + 1,
+        [t.employeeName]: s.name,
+        [t.position]: s.position,
+        [t.baseSalaryFcfa]: s.salary,
+        [t.paidThisMonthFcfa]: totalPaid,
+        [t.remainingBalanceFcfa]: balance,
+        [t.lastPaymentDate]: lastDate,
+        [t.status]: totalPaid >= s.salary && s.salary > 0 ? (t.fullyPaid) : (totalPaid > 0 ? (t.partial2) : (t.unpaid)),
+        [t.academicYear2]: selectedYear || '2026-2027',
       };
     });
 
@@ -2384,7 +3391,7 @@ export default function App() {
   const handlePaymentSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
+      alert(t.thisAcademicYearIsLocked);
       return;
     }
     if (!paymentStudentId || !paymentAmount) return;
@@ -2430,13 +3437,10 @@ export default function App() {
     const ok = await auth.updateUserRole(targetProfile.id, newRole);
     if (ok) {
       setUserProfiles(prev => prev.map(p => p.id === targetProfile.id ? { ...p, role: newRole } : p));
-      toast.success(
-        lang === 'en'
-          ? `Role for ${targetProfile.fullName} updated to ${newRole === 'admin' ? 'ADMIN / PROMOTER' : newRole === 'dev' ? 'DEVELOPER' : 'STAFF / ACCOUNTANT'}`
-          : `Rôle de ${targetProfile.fullName} mis à jour : ${newRole === 'admin' ? 'PROMOTRICE / ADMIN' : newRole === 'dev' ? 'DÉVELOPPEUR' : 'PERSONNEL / ÉCONOME'}`
-      );
+      const roleLabel = newRole === 'admin' ? t.roleAdminPromoter : newRole === 'dev' ? t.roleDeveloper : t.roleStaffAccountant;
+      toast.success(t.roleUpdated.replace('{name}', targetProfile.fullName).replace('{role}', roleLabel));
     } else {
-      toast.error(lang === 'en' ? 'Failed to update role' : 'Échec de la mise à jour du rôle');
+      toast.error(t.failedToUpdateRole);
     }
     setUpdatingUserId(null);
   };
@@ -2449,11 +3453,11 @@ export default function App() {
   const handleCreateUser = async (e: FormEvent) => {
     e.preventDefault();
     if (!newUserForm.email.trim() || !newUserForm.password || !newUserForm.fullName.trim()) {
-      toast.error(lang === 'en' ? 'Please fill in all fields' : 'Veuillez remplir tous les champs');
+      toast.error(t.pleaseFillInAllFields);
       return;
     }
     if (newUserForm.password.length < 6) {
-      toast.error(lang === 'en' ? 'Password must be at least 6 characters' : 'Le mot de passe doit comporter au moins 6 caractères');
+      toast.error(t.passwordMustBeAtLeast6Characters);
       return;
     }
     setIsCreatingUser(true);
@@ -2466,42 +3470,30 @@ export default function App() {
     setIsCreatingUser(false);
 
     if (res.success) {
-      toast.success(
-        lang === 'en'
-          ? `Account for ${newUserForm.fullName} created successfully!`
-          : `Compte pour ${newUserForm.fullName} créé avec succès !`
-      );
+      toast.success(t.accountCreated.replace('{name}', newUserForm.fullName));
       setNewUserForm({ fullName: '', email: '', password: '', role: 'staff' });
       setShowAddUserModal(false);
       // Reload profiles
       const profiles = await auth.fetchAllProfiles();
       setUserProfiles(profiles);
     } else {
-      toast.error(
-        lang === 'en'
-          ? `Error creating user: ${res.error}`
-          : `Erreur lors de la création du compte : ${res.error}`
-      );
+      toast.error(t.errorCreatingUser.replace('{error}', res.error));
     }
   };
 
   const handleSendPasswordReset = async (email: string) => {
     const res = await auth.sendPasswordReset(email);
     if (res.success) {
-      toast.success(
-        lang === 'en'
-          ? `Password reset email sent to ${email}`
-          : `E-mail de réinitialisation envoyé à ${email}`
-      );
+      toast.success(t.passwordResetEmailSent.replace('{email}', email));
     } else {
-      toast.error(res.error || (lang === 'en' ? 'Failed to send reset email' : 'Échec de l\'envoi de l\'e-mail'));
+      toast.error(res.error || (t.failedToSendResetEmail));
     }
   };
 
   const handleStudentSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
+      alert(t.thisAcademicYearIsLocked);
       return;
     }
     
@@ -2600,7 +3592,7 @@ export default function App() {
   const handleStaffSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
+      alert(t.thisAcademicYearIsLocked);
       return;
     }
     const salary = parseFloat(staffForm.salary);
@@ -2627,7 +3619,7 @@ export default function App() {
   const handleExpenseSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
+      alert(t.thisAcademicYearIsLocked);
       return;
     }
     const amount = parseFloat(expenseForm.amount);
@@ -2643,11 +3635,11 @@ export default function App() {
   const handleVendorExpenseSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editingVendorExpense && !isPromoter) {
-      alert(lang === 'en' ? 'Only the promoter can create a vendor expense.' : 'Seule la promotrice peut créer une dépense fournisseur.');
+      alert(t.onlyThePromoterCanCreateAVendorExpense);
       return;
     }
     if (lockedYears.includes(selectedYear)) {
-      alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
+      alert(t.thisAcademicYearIsLocked);
       return;
     }
     const parsedAmount = parseFloat(vendorExpenseForm.amount);
@@ -2713,11 +3705,11 @@ export default function App() {
 
   const handleDeleteVendorExpense = async (id: string) => {
     if (lockedYears.includes(selectedYear)) {
-      alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
+      alert(t.thisAcademicYearIsLocked);
       return;
     }
     if (currentUser?.role !== 'admin' && currentUser?.role !== 'dev') {
-      alert(lang === 'en' ? 'Only the promoter can delete expenses.' : 'Seule la promotrice peut supprimer des dépenses.');
+      alert(t.onlyThePromoterCanDeleteExpenses);
       return;
     }
     if (await deleteVendorExpense(id)) showToast();
@@ -2731,9 +3723,10 @@ export default function App() {
     const paidThisMonth = paymentsThisMonth.reduce((sum, p) => sum + p.amount, 0) + amount;
     const balance = s.salary - paidThisMonth;
     
-    const memo = lang === 'en' 
-      ? `Hello ${s.name}, an installment of ${formatCurrency(amount)} has been paid. Remaining balance: ${formatCurrency(balance)}.`
-      : `Bonjour ${s.name}, un acompte de ${formatCurrency(amount)} a été versé. Solde restant : ${formatCurrency(balance)}.`;
+    const memo = t.helloInstallment
+      .replace('{name}', s.name)
+      .replace('{amount}', formatCurrency(amount))
+      .replace('{balance}', formatCurrency(balance));
     
     copyToClipboard(memo);
     showToast();
@@ -2742,7 +3735,7 @@ export default function App() {
   const handleSalarySubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(lang === 'en' ? 'This academic year is locked.' : 'Cette année académique est verrouillée.');
+      alert(t.thisAcademicYearIsLocked);
       return;
     }
     const amount = parseFloat(salaryForm.amount);
@@ -2762,11 +3755,11 @@ export default function App() {
 
   const handleCloseCurrentYear = async () => {
     if (currentUser?.role !== 'admin' && currentUser?.role !== 'dev') {
-      alert(lang === 'en' ? 'Only Promoter / Owner can close academic years.' : 'Seul le Promoteur / Propriétaire peut clôturer les années académiques.');
+      alert(t.onlyPromoterOwnerCanCloseAcademicYears);
       return;
     }
     if (lockedYears.includes(selectedYear)) {
-      alert(lang === 'en' ? 'This academic year is already locked!' : 'Cette année académique est déjà verrouillée !');
+      alert(t.thisAcademicYearIsAlreadyLocked);
       return;
     }
 
@@ -2832,7 +3825,7 @@ export default function App() {
 
     const results = await Promise.all(ops);
     if (results.some(ok => !ok)) {
-      alert(lang === 'en' ? 'Some carry-over balances could not be saved.' : 'Certains soldes reportés n\'ont pas pu être enregistrés.');
+      alert(t.someCarryOverBalancesCouldNotBeSaved);
       return;
     }
 
@@ -3260,8 +4253,8 @@ export default function App() {
       const yearNum = parseInt(match[1]);
       const section = (match[2] || '').toUpperCase();
       const yearLabel = currentLang === 'en'
-        ? (yearNum === 1 ? '1st Year' : yearNum === 2 ? '2nd Year' : yearNum === 3 ? '3rd Year' : `${yearNum}th Year`)
-        : (yearNum === 1 ? '1ère Année' : `${yearNum}ème Année`);
+        ? (yearNum === 1 ? t.year1st : yearNum === 2 ? t.year2nd : yearNum === 3 ? t.year3rd : t.yearNth.replace('{n}', String(yearNum)))
+        : (yearNum === 1 ? t.year1st : t.yearNth.replace('{n}', String(yearNum)));
       return section ? `${yearLabel} ${section} (${trimmed.toUpperCase()})` : `${yearLabel} (${trimmed.toUpperCase()})`;
     }
     
@@ -3301,7 +4294,7 @@ export default function App() {
     
     // Check if class code already exists
     if (availableClasses.some(c => c.id.toLowerCase() === code.toLowerCase())) {
-      toast.warning(lang === 'en' ? `Class "${code}" already exists.` : `La classe "${code}" existe déjà.`);
+      toast.warning(t.classAlreadyExists.replace('{code}', code));
       setStudentForm(prev => ({ ...prev, grade: code }));
       setShowAddClassModal(false);
       return;
@@ -3316,18 +4309,14 @@ export default function App() {
       nameEn,
     });
     if (!result) {
-      toast.error(lang === 'en' ? 'Failed to add class.' : 'Échec de l\'ajout de la classe.');
+      toast.error(t.failedToAddClass);
       return;
     }
     
     // Auto-select in student form
     setStudentForm(prev => ({ ...prev, grade: code }));
     
-    toast.success(
-      lang === 'en' 
-        ? `Class "${code}" added successfully!` 
-        : `Classe "${code}" ajoutée avec succès !`
-    );
+    toast.success(t.classAddedSuccessfully.replace('{code}', code));
     
     setShowAddClassModal(false);
     setNewClassForm({
@@ -3381,7 +4370,7 @@ export default function App() {
 
     // Prevent colliding with another class code
     if (availableClasses.some(c => c.id.toLowerCase() === code.toLowerCase() && c.rowId !== editingClassRowId)) {
-      toast.warning(lang === 'en' ? `Class "${code}" already exists.` : `La classe "${code}" existe déjà.`);
+      toast.warning(t.classAlreadyExists.replace('{code}', code));
       return;
     }
 
@@ -3394,22 +4383,18 @@ export default function App() {
       nameEn,
     });
     if (!ok) return;
-    toast.success(lang === 'en' ? `Class "${code}" updated!` : `Classe "${code}" modifiée !`);
+    toast.success(t.classUpdated.replace('{code}', code));
     setShowEditClassModal(false);
     setEditingClassRowId(null);
   };
 
   const handleDeleteClass = async (c: ManagedClass) => {
     if (!c.rowId) return;
-    const confirmed = window.confirm(
-      lang === 'en'
-        ? `Delete class "${c.id}"? Students already assigned keep their grade text but it will no longer be offered in class lists.`
-        : `Supprimer la classe « ${c.id} » ? Les élèves déjà inscrits gardent leur classe affichée mais elle ne sera plus proposée dans les listes.`
-    );
+    const confirmed = window.confirm(t.deleteClassConfirm.replace('{id}', c.id));
     if (!confirmed) return;
     const ok = await deleteCustomClass(c.rowId);
     if (ok) {
-      toast.success(lang === 'en' ? `Class "${c.id}" deleted.` : `Classe « ${c.id} » supprimée.`);
+      toast.success(t.classDeleted.replace('{id}', c.id));
     }
   };
 
@@ -3567,8 +4552,8 @@ export default function App() {
                 <ShieldCheck size={18} className="text-emerald-400" />
               </div>
             </div>
-            <h2 className="text-xl font-semibold text-white tracking-tight mb-2">{lang === 'en' ? 'Restoring Session' : 'Restauration de la session'}</h2>
-            <p className="text-slate-500 text-sm font-medium">{lang === 'en' ? 'Checking authentication...' : 'Vérification de l\'authentification...'}</p>
+            <h2 className="text-xl font-semibold text-white tracking-tight mb-2">{t.restoringSession}</h2>
+            <p className="text-slate-500 text-sm font-medium">{t.checkingAuthentication}</p>
           </div>
         </div>
       ) : !currentUser ? (
@@ -3583,8 +4568,8 @@ export default function App() {
                 <ShieldCheck size={18} className="text-emerald-400" />
               </div>
             </div>
-            <h2 className="text-xl font-semibold text-white tracking-tight mb-2">{lang === 'en' ? 'Loading Finance Suite' : 'Chargement du Système'}</h2>
-            <p className="text-slate-500 text-sm font-medium">{lang === 'en' ? 'Connecting to database' : 'Connexion à la base de données'}</p>
+            <h2 className="text-xl font-semibold text-white tracking-tight mb-2">{t.loadingFinanceSuite}</h2>
+            <p className="text-slate-500 text-sm font-medium">{t.connectingToDatabase}</p>
           </div>
         </div>
       ) : (
@@ -3592,17 +4577,17 @@ export default function App() {
           {/* Environment Badge (dev/staging only) */}
           <EnvBadge env={appEnv} />
           {/* Offline Banner */}
-          <OfflineBanner lang={lang} />
+          <OfflineBanner lang={lang} t={t} />
           {/* Toast Notifications */}
           <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
           {supabaseError && (
             <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white text-center py-2 text-xs font-semibold flex items-center justify-center gap-3">
-              <span>⚠️ {lang === 'en' ? 'Database connection issue' : 'Problème de connexion à la base'}: {supabaseError}</span>
+              <span>⚠️ {t.databaseConnectionIssue}: {supabaseError}</span>
               <button
                 onClick={() => fetchAll()}
                 className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors"
               >
-                {lang === 'en' ? 'Retry' : 'Réessayer'}
+                {t.retry}
               </button>
             </div>
           )}
@@ -3677,11 +4662,11 @@ export default function App() {
               </div>
               {payrollWindowStatus.isOverdue ? (
                 <span className="bg-rose-700 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0" data-i18n="overdue">
-                  {lang === 'en' ? 'Overdue' : 'En retard'}
+                  {t.overdue}
                 </span>
               ) : payrollWindowStatus.isOpen ? (
                 <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm flex-shrink-0">
-                  {lang === 'en' ? 'Open' : 'Ouverte'}
+                  {t.open}
                 </span>
               ) : (
                 <Lock size={14} className="text-white/40 flex-shrink-0" />
@@ -3731,7 +4716,7 @@ export default function App() {
                 className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'audit' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
               >
                 <ShieldCheck size={20} />
-                <span className="font-semibold text-sm">{lang === 'en' ? 'Audit Trail' : 'Journal d\'Audit'}</span>
+                <span className="font-semibold text-sm">{t.auditTrail}</span>
               </button>
 
               <button 
@@ -3838,7 +4823,7 @@ export default function App() {
                activeTab === 'expenses' ? t.expenses : 
                activeTab === 'calendar' ? t.calendar : 
                activeTab === 'archives' ? t.yearlyArchives : 
-               activeTab === 'audit' ? (lang === 'en' ? 'Audit Trail' : 'Journal d\'Audit') : t.settings}
+               activeTab === 'audit' ? (t.auditTrail) : t.settings}
             </h2>
             <p className={`${currentTheme.muted} text-sm mt-1 flex items-center gap-2`}>
               <Calendar size={14} />
@@ -3867,7 +4852,7 @@ export default function App() {
                 className="px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-2xl shadow-lg shadow-emerald-700/20 transition-all flex items-center gap-2"
               >
                 <GraduationCap size={18} />
-                <span className="hidden sm:inline uppercase tracking-widest">{lang === 'en' ? 'Promote Class' : 'Passage de Classe'}</span>
+                <span className="hidden sm:inline uppercase tracking-widest">{t.promoteClass}</span>
               </button>
             )}
 
@@ -3878,7 +4863,7 @@ export default function App() {
                 className="px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-violet-600/20 transition-all flex items-center gap-2 active:scale-[0.97]"
               >
                 <FileSpreadsheet size={18} />
-                <span className="hidden sm:inline uppercase tracking-widest">{lang === 'en' ? 'Import Excel' : 'Importer Excel'}</span>
+                <span className="hidden sm:inline uppercase tracking-widest">{t.importExcel}</span>
               </button>
             )}
 
@@ -3890,10 +4875,10 @@ export default function App() {
                   setShowMonthlyDraftModal(true);
                 }}
                 className="px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-2xl shadow-lg shadow-emerald-700/20 transition-all flex items-center gap-2 active:scale-[0.97]"
-                title={lang === 'en' ? 'Monthly Payroll Draft' : 'Bordereau Mensuel de Paie'}
+                title={t.monthlyPayrollDraft}
               >
                 <FileText size={18} />
-                <span className="hidden sm:inline uppercase tracking-widest">{lang === 'en' ? 'Monthly Draft' : 'Bordereau Mensuel'}</span>
+                <span className="hidden sm:inline uppercase tracking-widest">{t.monthlyDraft}</span>
               </button>
             )}
 
@@ -3923,11 +4908,11 @@ export default function App() {
                   }
                 }}
                 className={`p-3 rounded-2xl ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center gap-2`}
-                title={activeTab === 'archives' ? (lang === 'en' ? 'Download Multi-Year PDF' : 'Télécharger Bilan PDF') : activeTab === 'expenses' ? (lang === 'en' ? 'Download Expenses PDF' : 'Télécharger Rapport Dépenses PDF') : t.printReport}
+                title={activeTab === 'archives' ? (t.downloadMultiYearPdf) : activeTab === 'expenses' ? (t.downloadExpensesPdf) : t.printReport}
               >
                 {(activeTab === 'archives' || activeTab === 'expenses') ? <FileText size={20} /> : <Printer size={20} />}
                 <span className="hidden sm:inline font-bold text-xs uppercase tracking-widest">
-                  {activeTab === 'archives' ? (lang === 'en' ? 'Multi-Year PDF' : 'Bilan PDF') : activeTab === 'expenses' ? (lang === 'en' ? 'Expenses PDF' : 'Rapport PDF') : t.printReport}
+                  {activeTab === 'archives' ? (t.multiYearPdf) : activeTab === 'expenses' ? (t.expensesPdf) : t.printReport}
                 </span>
               </button>
             )}
@@ -3950,19 +4935,19 @@ export default function App() {
                   onChange={(e) => setStudentGradeFilter(e.target.value)}
                   className={`w-full pl-10 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-bold ${currentTheme.text} appearance-none cursor-pointer`}
                 >
-                  <option value="all">{lang === 'en' ? 'All Classes' : 'Toutes les classes'}</option>
-                  <optgroup label={lang === 'en' ? "First Cycle (1st to 6th)" : "Premier Cycle (1ère à 6ème)"}>
+                  <option value="all">{t.allClasses}</option>
+                  <optgroup label={t.firstCycle1stTo6th}>
                     {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
                       <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                     ))}
                   </optgroup>
-                  <optgroup label={lang === 'en' ? "Second Cycle (7th to 9th)" : "Second Cycle (7ème à 9ème)"}>
+                  <optgroup label={t.secondCycle7thTo9th}>
                     {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
                       <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                     ))}
                   </optgroup>
                   {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
-                    <optgroup label={lang === 'en' ? "Other Classes" : "Autres Classes"}>
+                    <optgroup label={t.otherClasses}>
                       {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
                         <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                       ))}
@@ -3984,10 +4969,10 @@ export default function App() {
                     lang
                   })}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98]"
-                  title={lang === 'en' ? 'Export Financial Report PDF' : 'Exporter Rapport Financier PDF'}
+                  title={t.exportFinancialReportPdf}
                 >
                   <FileText size={18} />
-                  <span className="hidden sm:inline">{lang === 'en' ? 'Financial Report PDF' : 'Rapport Financier PDF'}</span>
+                  <span className="hidden sm:inline">{t.financialReportPdf}</span>
                 </button>
                 <button 
                   onClick={handleExport}
@@ -4022,18 +5007,18 @@ export default function App() {
             </div>
             <div>
               <h3 className="font-bold text-base tracking-tight" style={{ color: '#FFFFFF' }}>
-                {lang === 'en' ? 'Welcome back' : 'Bon retour'}, <span style={{ color: '#34D399' }}>{currentUser?.name || currentUser?.username}</span> !
+                {t.welcomeBack}, <span style={{ color: '#34D399' }}>{currentUser?.name || currentUser?.username}</span> !
               </h3>
               <p className="text-[11px] font-medium" style={{ color: '#94A3B8' }}>
                 {(currentUser?.name || currentUser?.username || '').toLowerCase().includes('mamadou')
-                  ? (lang === 'en' ? 'General Manager (Full Administration & Financial Access)' : 'Gestionnaire Principal (Accès Administration & Finances)')
+                  ? (t.generalManagerFullAdministrationFinancialAccess)
                   : (currentUser?.name || currentUser?.username || '').toLowerCase().includes('fanta')
-                  ? (lang === 'en' ? 'School Promoter & Director (Executive Oversight)' : 'Promotrice & Directrice (Supervision Exécutive)')
+                  ? (t.schoolPromoterDirectorExecutiveOversight)
                   : currentUser?.role === 'dev'
-                  ? (lang === 'en' ? 'System Developer (Full Technical & Admin Access)' : 'Développeur Système (Accès Technique & Admin Total)')
+                  ? (t.systemDeveloperFullTechnicalAdminAccess)
                   : currentUser?.role === 'admin' 
-                  ? (lang === 'en' ? 'Administrator (Full System Access)' : 'Administrateur (Accès Système Complet)')
-                  : (lang === 'en' ? 'Accountant Access (Finance & Receipts)' : 'Accès Comptable (Finances & Recettes)')}
+                  ? (t.administratorFullSystemAccess)
+                  : (t.accountantAccessFinanceReceipts)}
               </p>
             </div>
           </div>
@@ -4043,14 +5028,14 @@ export default function App() {
               currentUser?.role === 'admin' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' : 'bg-blue-500/20 text-blue-400 border border-blue-500/20'
             }`}>
               {(currentUser?.name || currentUser?.username || '').toLowerCase().includes('mamadou')
-                ? (lang === 'en' ? 'General Manager' : 'Gestionnaire Principal')
+                ? (t.generalManager)
                 : (currentUser?.name || currentUser?.username || '').toLowerCase().includes('fanta')
-                ? (lang === 'en' ? 'Promoter' : 'Promotrice')
+                ? (t.promoter)
                 : currentUser?.role === 'dev'
-                ? (lang === 'en' ? 'Developer' : 'Développeur')
+                ? (t.developer)
                 : currentUser?.role === 'admin'
-                ? (lang === 'en' ? 'Admin' : 'Administrateur')
-                : (lang === 'en' ? 'Accountant' : 'Comptable')}
+                ? (t.admin)
+                : (t.accountant)}
             </span>
           </div>
         </div>
@@ -4064,17 +5049,15 @@ export default function App() {
               </div>
               <div>
                 <p className="font-extrabold text-lg">
-                  {lang === 'en' ? 'Academic Year Locked' : 'Année Académique Verrouillée'}
+                  {t.academicYearLocked}
                 </p>
                 <p className="text-xs opacity-90">
-                  {lang === 'en' 
-                    ? 'This academic year has been closed and archived. All records are currently in read-only mode.' 
-                    : 'Cette année académique a été clôturée et archivée. Tous les dossiers sont en mode lecture seule.'}
+                  {t.thisAcademicYearHasBeenClosedAndArchivedAllRecordsAreCurrentlyInReadOnlyMode}
                 </p>
               </div>
             </div>
             <span className="px-4 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-black uppercase tracking-wider">
-              {lang === 'en' ? 'Read-Only' : 'Lecture Seule'}
+              {t.readOnly}
             </span>
           </div>
         )}
@@ -4477,7 +5460,7 @@ export default function App() {
                   <div>
                     <h4 className="font-bold text-sm">Mama Thera AI Assistant</h4>
                     <p className="text-[10px] text-white/75 font-semibold">
-                      {lang === 'en' ? 'Live Financial Intelligence' : 'Intelligence Financière en Direct'}
+                      {t.liveFinancialIntelligence}
                     </p>
                   </div>
                 </div>
@@ -4512,21 +5495,14 @@ export default function App() {
 
               {/* Quick Prompt Suggesters */}
               <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800 flex gap-2 overflow-x-auto whitespace-nowrap bg-white custom-scrollbar">
-                {(lang === 'en' ? [
-                  "How much tuition was collected this month?",
-                  "Which parents still owe school fees?",
-                  "Show all expenses for June.",
-                  "How much money do we currently have in cash?",
-                  "Which students haven't paid the second installment?",
-                  "Generate this month's financial report."
-                ] : [
-                  "Combien de scolarités ont été collectées ce mois-ci ?",
-                  "Quels parents doivent encore des frais de scolarité ?",
-                  "Afficher toutes les dépenses pour juin.",
-                  "Combien d'argent avons-nous actuellement en caisse ?",
-                  "Quels élèves n'ont pas payé la deuxième tranche ?",
-                  "Générer le rapport financier de ce mois-ci."
-                ]).map((q, idx) => (
+                {[
+                  t.aiPrompt1,
+                  t.aiPrompt2,
+                  t.aiPrompt3,
+                  t.aiPrompt4,
+                  t.aiPrompt5,
+                  t.aiPrompt6,
+                ].map((q, idx) => (
                   <button
                     key={idx}
                     type="button"
@@ -4550,7 +5526,7 @@ export default function App() {
                   type="text"
                   value={floatingChatInput}
                   onChange={(e) => setFloatingChatInput(e.target.value)}
-                  placeholder={lang === 'en' ? 'Ask a financial question...' : 'Poser une question financière...'}
+                  placeholder={t.askAFinancialQuestion}
                   className="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
                 <button 
@@ -4562,7 +5538,7 @@ export default function App() {
                       : 'bg-slate-300 cursor-not-allowed'
                   }`}
                 >
-                  {lang === 'en' ? 'Send' : 'Envoyer'}
+                  {t.send}
                 </button>
               </form>
             </motion.div>
@@ -4579,7 +5555,7 @@ export default function App() {
               }`}
             >
               <span className="text-lg">🤖</span>
-              <span>{lang === 'en' ? 'Mama Thera AI Assistant' : 'Assistant IA Mama Thera'}</span>
+              <span>{t.mamaTheraAiAssistant}</span>
             </motion.button>
           )}
         </AnimatePresence>
@@ -4597,6 +5573,7 @@ export default function App() {
           currentAcademicYear={selectedYear || '2025-2026'}
           onPromote={batchPromoteStudents}
           language={lang}
+          t={t}
         />
       </Suspense>
 
@@ -4625,12 +5602,10 @@ export default function App() {
                   </div>
                   <div>
                     <h3 className="font-bold text-base">
-                      {lang === 'en' ? 'Add Staff Account' : 'Créer un Compte Collaborateur'}
+                      {t.addStaffAccount}
                     </h3>
                     <p className="text-[11px] text-white/50">
-                      {lang === 'en' 
-                        ? 'Create a login and assign initial access role' 
-                        : 'Créez un accès et attribuez le rôle initial'}
+                      {t.createALoginAndAssignInitialAccessRole}
                     </p>
                   </div>
                 </div>
@@ -4646,14 +5621,14 @@ export default function App() {
               <form onSubmit={handleCreateUser} className="p-6 space-y-4">
                 <div className="space-y-1.5">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                    {lang === 'en' ? 'Full Name' : 'Nom & Prénom'}
+                    {t.fullName2}
                   </label>
                   <input
                     type="text"
                     required
                     value={newUserForm.fullName}
                     onChange={(e) => setNewUserForm({ ...newUserForm, fullName: e.target.value })}
-                    placeholder={lang === 'en' ? 'e.g. Aminata Traoré' : 'ex. Aminata Traoré'}
+                    placeholder={t.eGAminataTraor}
                     className={`w-full px-4 py-3 rounded-xl border ${currentTheme.border} ${
                       currentTheme.isDark ? 'bg-white/5 text-white' : 'bg-slate-50 text-slate-900'
                     } text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30`}
@@ -4662,7 +5637,7 @@ export default function App() {
 
                 <div className="space-y-1.5">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                    {lang === 'en' ? 'Email Address' : 'Adresse Email'}
+                    {t.email}
                   </label>
                   <input
                     type="email"
@@ -4678,7 +5653,7 @@ export default function App() {
 
                 <div className="space-y-1.5">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                    {lang === 'en' ? 'Initial Password (min 6 characters)' : 'Mot de Passe Initial (min 6 caractères)'}
+                    {t.initialPasswordMin6Characters}
                   </label>
                   <input
                     type="password"
@@ -4696,7 +5671,7 @@ export default function App() {
                 {/* Role selection */}
                 <div className="space-y-2 pt-1">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                    {lang === 'en' ? 'Assigned Role & Permissions' : 'Rôle & Autorisations Attribués'}
+                    {t.assignedRolePermissions}
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <button
@@ -4711,13 +5686,11 @@ export default function App() {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-base">💼</span>
                         <span className={`text-xs font-bold ${newUserForm.role === 'staff' ? 'text-blue-500' : currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
-                          {lang === 'en' ? 'Staff / Accountant' : 'Personnel / Économe'}
+                          {t.staffAccountant}
                         </span>
                       </div>
                       <p className={`text-[10px] ${currentTheme.muted} leading-snug`}>
-                        {lang === 'en' 
-                          ? 'Daily entries: fees, receipts, students, expenses.' 
-                          : 'Saisie quotidienne : élèves, reçus, dépenses.'}
+                        {t.dailyEntriesFeesReceiptsStudentsExpenses}
                       </p>
                     </button>
 
@@ -4733,13 +5706,11 @@ export default function App() {
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-base">👑</span>
                         <span className={`text-xs font-bold ${newUserForm.role === 'admin' ? 'text-emerald-500' : currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
-                          {lang === 'en' ? 'Promoter / Admin' : 'Promotrice / Direction'}
+                          {t.promoterAdmin}
                         </span>
                       </div>
                       <p className={`text-[10px] ${currentTheme.muted} leading-snug`}>
-                        {lang === 'en' 
-                          ? 'Full administrative control, closing years, role edits.' 
-                          : 'Contrôle complet, clôture d\'année, gestion des rôles.'}
+                        {t.fullAdministrativeControlClosingYearsRoleEdits}
                       </p>
                     </button>
                   </div>
@@ -4752,7 +5723,7 @@ export default function App() {
                     onClick={() => setShowAddUserModal(false)}
                     className={`px-4 py-2.5 rounded-xl text-xs font-bold ${currentTheme.muted} hover:text-white transition-all`}
                   >
-                    {lang === 'en' ? 'Cancel' : 'Annuler'}
+                    {t.cancel}
                   </button>
                   <button
                     type="submit"
@@ -4762,12 +5733,12 @@ export default function App() {
                     {isCreatingUser ? (
                       <>
                         <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>{lang === 'en' ? 'Creating...' : 'Création...'}</span>
+                        <span>{t.creating}</span>
                       </>
                     ) : (
                       <>
                         <UserPlus size={15} />
-                        <span>{lang === 'en' ? 'Create Account' : 'Créer le Compte'}</span>
+                        <span>{t.createAccount}</span>
                       </>
                     )}
                   </button>
@@ -4785,6 +5756,7 @@ export default function App() {
             isOpen={showExcelImport}
             onClose={() => setShowExcelImport(false)}
             lang={lang}
+            t={t}
             academicYears={academicYears}
             selectedYear={selectedYear}
             onImportComplete={async (category: ImportCategory, records: Record<string, any>[], options) => {
@@ -4818,6 +5790,7 @@ export default function App() {
               setShowSalaryModal(true);
             }}
             formatCurrency={formatCurrency}
+            t={t}
             themeCard={currentTheme.card}
             themeBorder={currentTheme.border}
             themeMuted={currentTheme.muted}
@@ -4832,6 +5805,7 @@ export default function App() {
         pendingCount={pendingQueueCount}
         isSyncing={isSyncing}
         onSync={syncOfflineQueue}
+        t={t}
       />
       <EnvBadge env={appEnv} />
       <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />

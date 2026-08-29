@@ -182,7 +182,7 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(51, 65, 85);
-  doc.text('N°', 16, y + 5);
+  doc.text(isFr ? 'N°' : 'No.', 16, y + 5);
   doc.text(isFr ? 'NOM & PRÉNOM' : 'EMPLOYEE NAME', 28, y + 5);
   doc.text(isFr ? 'POSTE / FONCTION' : 'POSITION / ROLE', 82, y + 5);
   doc.text(isFr ? 'SALAIRE BASE' : 'BASE SALARY', 135, y + 5, { align: 'right' });

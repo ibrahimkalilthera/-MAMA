@@ -34,7 +34,7 @@ export function ArchivesView(props: ArchivesViewProps) {
               <div className="flex justify-between items-center">
                 <div>
                   <h1 className="text-2xl font-black">COMPLEXE SCOLAIRE MAMA THERA</h1>
-                  <p className="text-sm opacity-90">{lang === 'en' ? 'MULTI-YEAR FINANCIAL COMPARISON & ARCHIVES' : 'BILAN MULTI-ANNUEL & ARCHIVES FINANCIÈRES'}</p>
+                  <p className="text-sm opacity-90">{t.multiYearFinancialComparisonArchives}</p>
                 </div>
                 <div className="text-right text-xs opacity-90">
                   <p>Bamako, Mali</p>
@@ -53,7 +53,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                       {t.annualAggregation}
                     </h3>
                     <p className={`text-xs ${currentTheme.muted} mt-1`}>
-                      {lang === 'en' ? 'Summary of all recorded financial years' : 'Résumé de toutes les années financières enregistrées'}
+                      {t.summaryOfAllRecordedFinancialYears}
                     </p>
                   </div>
                   <div className="flex items-center gap-3 no-print">
@@ -68,10 +68,10 @@ export function ArchivesView(props: ArchivesViewProps) {
                         lang,
                       })}
                       className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
-                      title={lang === 'en' ? 'Download Multi-Year PDF Report' : 'Télécharger le Bilan Multi-Annuel en PDF'}
+                      title={t.downloadMultiYearPdfReport}
                     >
                       <FileText size={16} />
-                      <span>{lang === 'en' ? 'Export PDF Report' : 'Exporter Bilan PDF'}</span>
+                      <span>{t.exportPdfReport}</span>
                     </button>
                     <button
                       onClick={handlePrint}
@@ -79,7 +79,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                       title={t.printReport}
                     >
                       <Printer size={16} />
-                      <span className="hidden sm:inline">{lang === 'en' ? 'Print' : 'Imprimer'}</span>
+                      <span className="hidden sm:inline">{t.print}</span>
                     </button>
                   </div>
                 </div>
@@ -92,7 +92,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                         <th className="px-6 py-4 text-right">{t.totalRevenueArchive}</th>
                         <th className="px-6 py-4 text-right">{t.totalExpensesArchive}</th>
                         <th className="px-6 py-4 text-right">{t.netBalanceArchive}</th>
-                        <th className="px-6 py-4 text-center">{lang === 'en' ? 'Status' : 'Statut'}</th>
+                        <th className="px-6 py-4 text-center">{t.status}</th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${currentTheme.isDark ? 'divide-slate-800' : 'divide-slate-100'} text-sm`}>
@@ -120,7 +120,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                               ) : (
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-black rounded-full uppercase tracking-wider border border-emerald-200">
                                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                                  {lang === 'en' ? 'Active' : 'Actuelle'}
+                                  {t.active}
                                 </span>
                               )}
                             </td>
@@ -157,31 +157,23 @@ export function ArchivesView(props: ArchivesViewProps) {
                   <div className="space-y-3 max-w-2xl">
                     <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-rose-50 text-rose-700 text-xs font-black rounded-full uppercase tracking-wider border border-rose-200">
                       <Lock size={12} />
-                      {lang === 'en' ? 'Admin Controller' : 'Contrôleur Admin'}
+                      {t.adminController}
                     </div>
                     <h3 className={`text-2xl font-black text-rose-950 dark:text-rose-400`}>
-                      {lang === 'en' ? 'Close Active School Year' : "Clôturer l'Année Scolaire Active"}
+                      {t.closeActiveSchoolYear}
                     </h3>
                     <p className={`text-sm text-rose-800 dark:text-rose-300`}>
-                      {lang === 'en' 
-                        ? `Locking the year '${selectedYear}' will freeze all transactions, payroll, expenses, and student fees for this period. Outstanding parent balances (reliquats) will carry over as opening balances into the next year.`
-                        : `Le verrouillage de l'année '${selectedYear}' gèlera toutes les transactions, salaires, dépenses et frais scolaires pour cette période. Les arriérés de paiement des parents (reliquats) seront automatiquement reportés comme soldes d'ouverture dans l'année suivante.`}
+                      {t.lockingYearConfirm.replace('{year}', selectedYear)}
                     </p>
                     <ul className="text-xs text-rose-700 space-y-1 list-disc pl-5">
                       <li>
-                        {lang === 'en' 
-                          ? 'Lock all records for the current year, making them read-only.'
-                          : 'Verrouiller tous les enregistrements de l\'année en cours (lecture seule).'}
+                        {t.lockAllRecordsForTheCurrentYearMakingThemReadOnly}
                       </li>
                       <li>
-                        {lang === 'en'
-                          ? 'Carry over debts (outstanding parent balances) to the next academic year.'
-                          : 'Reporter les dettes impayées des parents en solde d\'ouverture pour l\'année suivante.'}
+                        {t.carryOverDebtsOutstandingParentBalancesToTheNextAcademicYear}
                       </li>
                       <li>
-                        {lang === 'en'
-                          ? 'Generate a final, downloadable certified accounting audit report.'
-                          : 'Générer un bilan comptable annuel certifié téléchargeable et imprimable.'}
+                        {t.generateAFinalDownloadableCertifiedAccountingAuditReport}
                       </li>
                     </ul>
                   </div>
@@ -191,7 +183,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                       <div className="flex flex-col items-center gap-3">
                         <span className="px-6 py-4 bg-rose-100 text-rose-800 font-extrabold rounded-3xl text-sm flex items-center gap-2 border border-rose-200">
                           <CheckCircle2 size={18} />
-                          {lang === 'en' ? 'Year is Closed & Archived' : 'Cette Année est Clôturée & Archivée'}
+                          {t.yearIsClosedArchived}
                         </span>
                         <button
                           onClick={() => {
@@ -201,15 +193,13 @@ export function ArchivesView(props: ArchivesViewProps) {
                           className={`text-xs font-bold text-slate-600 hover:text-slate-800 hover:underline flex items-center gap-1.5`}
                         >
                           <Printer size={12} />
-                          {lang === 'en' ? 'View/Print Final Audit' : 'Voir/Imprimer le Bilan Final'}
+                          {t.viewPrintFinalAudit}
                         </button>
                       </div>
                     ) : (
                       <button
                         onClick={() => {
-                          if (confirm(lang === 'en' 
-                            ? `Are you sure you want to CLOSE the active year ${selectedYear}? This action locks the year's data and carries over parent debts.` 
-                            : `Êtes-vous sûr de vouloir CLÔTURER l'année active ${selectedYear} ? Cette action verrouille les données de l'année et reporte les arriérés de paiement des parents.`)) {
+                          if (confirm(t.closeYearConfirm.replace('{year}', selectedYear))) {
                             handleCloseCurrentYear();
                           }
                         }}

@@ -178,9 +178,10 @@ interface OfflineBannerProps {
   pendingCount?: number;
   isSyncing?: boolean;
   onSync?: () => void;
+  t?: Record<string, string>;
 }
 
-export function OfflineBanner({ lang = 'en', pendingCount = 0, isSyncing = false, onSync }: OfflineBannerProps) {
+export function OfflineBanner({ lang = 'en', pendingCount = 0, isSyncing = false, onSync, t = {} }: OfflineBannerProps) {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   useEffect(() => {
@@ -207,10 +208,10 @@ export function OfflineBanner({ lang = 'en', pendingCount = 0, isSyncing = false
       <span className="text-xs font-bold tracking-wide">
         {isOffline ? (
           pendingCount > 0
-            ? (isFr ? `Hors ligne — ${pendingCount} modification(s) enregistrée(s) localement` : `Offline — ${pendingCount} transaction(s) saved locally`)
-            : (isFr ? 'Hors ligne — Les modifications seront enregistrées localement' : 'Offline — Changes will be queued locally')
+            ? (t.offlinePendingCount.replace('{count}', String(pendingCount)))
+            : (t.offlineChangesWillBeQueuedLocally)
         ) : (
-          isFr ? `${pendingCount} transaction(s) hors-ligne en attente de synchronisation` : `${pendingCount} offline transaction(s) pending sync`
+          t.offlinePendingSync.replace('{count}', String(pendingCount))
         )}
       </span>
 
@@ -222,8 +223,8 @@ export function OfflineBanner({ lang = 'en', pendingCount = 0, isSyncing = false
         >
           <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
           {isSyncing 
-            ? (isFr ? 'Synchronisation...' : 'Syncing...') 
-            : (isFr ? 'Synchroniser maintenant' : 'Sync Now')}
+            ? (t.syncing) 
+            : (t.syncNow)}
         </button>
       )}
     </div>

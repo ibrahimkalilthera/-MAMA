@@ -354,7 +354,7 @@ export function MainViews(props: MainViewsProps) {
                 </div>
                 <div>
                   <h3 className={`text-2xl font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.notes}</h3>
-                  <p className={currentTheme.muted}>{lang === 'en' ? 'Manage your personal accounting notes' : 'Gérez vos notes comptables personnelles'}</p>
+                  <p className={currentTheme.muted}>{t.manageYourPersonalAccountingNotes}</p>
                 </div>
               </div>
               
@@ -415,19 +415,17 @@ export function MainViews(props: MainViewsProps) {
               <div>
                 <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
                   <ShieldCheck className="text-emerald-500" size={24} />
-                  <span>{lang === 'en' ? 'System Audit Trail & Security Logs' : 'Journal d\'Audit & Sécurité Système'}</span>
+                  <span>{t.systemAuditTrailSecurityLogs}</span>
                 </h2>
                 <p className={`text-xs ${currentTheme.muted} mt-1`}>
-                  {lang === 'en' 
-                    ? 'Tamper-evident activity log tracking payments, expenses, and staff actions in Bamako.' 
-                    : 'Registre d\'activités sécurisé traçant les paiements, dépenses et actions des caissiers.'}
+                  {t.tamperEvidentActivityLogTrackingPaymentsExpensesAndStaffActionsInBamako}
                 </p>
               </div>
               <button
                 onClick={() => fetchAuditLogs()}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 self-start sm:self-auto active:scale-95"
               >
-                <span>{lang === 'en' ? 'Refresh Logs' : 'Actualiser le Journal'}</span>
+                <span>{t.refreshLogs}</span>
               </button>
             </div>
 
@@ -436,10 +434,10 @@ export function MainViews(props: MainViewsProps) {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className={`${currentTheme.isDark ? 'bg-emerald-900/20' : 'bg-slate-50/50'} ${currentTheme.muted} text-[10px] font-black uppercase tracking-[0.2em]`}>
-                      <th className="px-6 py-4">{lang === 'en' ? 'Timestamp' : 'Horodatage'}</th>
-                      <th className="px-6 py-4">{lang === 'en' ? 'Staff User' : 'Utilisateur / Caissier'}</th>
-                      <th className="px-6 py-4">{lang === 'en' ? 'Action' : 'Action'}</th>
-                      <th className="px-6 py-4">{lang === 'en' ? 'Details' : 'Détails de l\'Opération'}</th>
+                      <th className="px-6 py-4">{t.timestamp}</th>
+                      <th className="px-6 py-4">{t.staffUser}</th>
+                      <th className="px-6 py-4">{'Action'}</th>
+                      <th className="px-6 py-4">{t.details}</th>
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${currentTheme.border}`}>
@@ -484,7 +482,7 @@ export function MainViews(props: MainViewsProps) {
                     ) : (
                       <tr>
                         <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
-                          {lang === 'en' ? 'No audit log entries recorded yet.' : 'Aucune entrée dans le journal d\'audit.'}
+                          {t.noAuditLogEntriesRecordedYet}
                         </td>
                       </tr>
                     )}
@@ -507,15 +505,15 @@ export function MainViews(props: MainViewsProps) {
                       <Globe size={20} />
                     </div>
                     <div>
-                      <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{lang === 'en' ? 'System Language' : 'Langue du Système'}</p>
-                      <p className={`text-xs ${currentTheme.muted}`}>{lang === 'en' ? 'Change the interface language' : 'Changer la langue de l\'interface'}</p>
+                      <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{t.systemLanguage}</p>
+                      <p className={`text-xs ${currentTheme.muted}`}>{t.changeTheInterfaceLanguage}</p>
                     </div>
                   </div>
                   <button 
                     onClick={() => toggleLanguage(lang === 'en' ? 'fr' : 'en')}
                     className={`px-6 py-2 ${currentTheme.card} border ${currentTheme.border} rounded-xl text-sm font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-700'} hover:bg-slate-50 transition-all`}
                   >
-                    {lang === 'en' ? 'English' : 'Français'}
+                    {t.english}
                   </button>
                 </div>
                 
@@ -525,11 +523,11 @@ export function MainViews(props: MainViewsProps) {
                       <DollarSign size={20} />
                     </div>
                     <div>
-                      <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{lang === 'en' ? 'Currency Format' : 'Format Monétaire'}</p>
-                      <p className={`text-xs ${currentTheme.muted}`}>{lang === 'en' ? 'Current:' : 'Actuel :'} {t.currency}</p>
+                      <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{t.currencyFormat}</p>
+                      <p className={`text-xs ${currentTheme.muted}`}>{t.current} {t.currency}</p>
                     </div>
                   </div>
-                  <span className={`text-xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Auto-detected' : 'Détecté automatiquement'}</span>
+                  <span className={`text-xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.autoDetected}</span>
                 </div>
 
                 {/* Theme Selection */}
@@ -623,7 +621,7 @@ export function MainViews(props: MainViewsProps) {
                       </div>
                       <div>
                         <p className={`text-lg font-black ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{t.exportData}</p>
-                        <p className={`text-xs ${currentTheme.muted}`}>{lang === 'en' ? 'Download a full backup of your school data in Excel format.' : 'Téléchargez une sauvegarde complète de vos données scolaires au format Excel.'}</p>
+                        <p className={`text-xs ${currentTheme.muted}`}>{t.downloadAFullBackupOfYourSchoolDataInExcelFormat}</p>
                       </div>
                     </div>
                     <button 
@@ -641,12 +639,10 @@ export function MainViews(props: MainViewsProps) {
                     <div>
                       <h4 className={`text-base font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} flex items-center gap-2`}>
                         <Layers size={20} className="text-blue-500" />
-                        {lang === 'en' ? 'Classes & Grade Levels Management' : 'Gestion des Classes & Niveaux Scolaires'}
+                        {t.classesGradeLevelsManagement}
                       </h4>
                       <p className={`text-xs ${currentTheme.muted} mt-0.5`}>
-                        {lang === 'en' 
-                          ? 'Add sections (1A, 1B, 1C, 1D, 2A, 7B...) or custom grades across school cycles.' 
-                          : 'Ajoutez des sections (1A, 1B, 1C, 1D, 2A, 7B...) ou classes personnalisées par cycle.'}
+                        {t.addSections1a1b1c1d2a7bOrCustomGradesAcrossSchoolCycles}
                       </p>
                     </div>
                     <button
@@ -654,7 +650,7 @@ export function MainViews(props: MainViewsProps) {
                       className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95"
                     >
                       <Plus size={14} />
-                      <span>{lang === 'en' ? 'Add Class / Section' : 'Ajouter une classe'}</span>
+                      <span>{t.addClassSection}</span>
                     </button>
                   </div>
 
@@ -662,10 +658,10 @@ export function MainViews(props: MainViewsProps) {
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                          {lang === 'en' ? 'First Cycle (1st to 6th Year)' : 'Premier Cycle (1ère à 6ème Année)'}
+                          {t.firstCycle1stTo6thYear}
                         </p>
                         <span className="text-[10px] font-bold text-slate-400">
-                          {availableClasses.filter(c => c.cycle === 'cycle1').length} {lang === 'en' ? 'classes' : 'classes'}
+                          {availableClasses.filter(c => c.cycle === 'cycle1').length} {'classes'}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -678,7 +674,7 @@ export function MainViews(props: MainViewsProps) {
                                 <button
                                   type="button"
                                   onClick={() => openEditClass(c)}
-                                  title={lang === 'en' ? 'Rename class' : 'Renommer la classe'}
+                                  title={t.renameClass}
                                   className="ml-1 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-500 transition-all"
                                 >
                                   <Edit2 size={11} />
@@ -686,7 +682,7 @@ export function MainViews(props: MainViewsProps) {
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteClass(c)}
-                                  title={lang === 'en' ? 'Delete class' : 'Supprimer la classe'}
+                                  title={t.deleteClass}
                                   className="p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-rose-500 transition-all"
                                 >
                                   <Trash2 size={11} />
@@ -701,10 +697,10 @@ export function MainViews(props: MainViewsProps) {
                     <div className="pt-3 border-t border-slate-200/50 dark:border-slate-800">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                          {lang === 'en' ? 'Second Cycle (7th to 9th Year)' : 'Second Cycle (7ème à 9ème Année)'}
+                          {t.secondCycle7thTo9thYear}
                         </p>
                         <span className="text-[10px] font-bold text-slate-400">
-                          {availableClasses.filter(c => c.cycle === 'cycle2').length} {lang === 'en' ? 'classes' : 'classes'}
+                          {availableClasses.filter(c => c.cycle === 'cycle2').length} {'classes'}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -717,7 +713,7 @@ export function MainViews(props: MainViewsProps) {
                                 <button
                                   type="button"
                                   onClick={() => openEditClass(c)}
-                                  title={lang === 'en' ? 'Rename class' : 'Renommer la classe'}
+                                  title={t.renameClass}
                                   className="ml-1 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-500 transition-all"
                                 >
                                   <Edit2 size={11} />
@@ -725,7 +721,7 @@ export function MainViews(props: MainViewsProps) {
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteClass(c)}
-                                  title={lang === 'en' ? 'Delete class' : 'Supprimer la classe'}
+                                  title={t.deleteClass}
                                   className="p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-rose-500 transition-all"
                                 >
                                   <Trash2 size={11} />
@@ -741,7 +737,7 @@ export function MainViews(props: MainViewsProps) {
                       <div className="pt-3 border-t border-slate-200/50 dark:border-slate-800">
                         <div className="flex items-center justify-between mb-2">
                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            {lang === 'en' ? 'Other & Custom Classes' : 'Autres & Classes Personnalisées'}
+                            {t.otherCustomClasses2}
                           </p>
                           <span className="text-[10px] font-bold text-slate-400">
                             {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').length}
@@ -756,7 +752,7 @@ export function MainViews(props: MainViewsProps) {
                                   <button
                                     type="button"
                                     onClick={() => openEditClass(c)}
-                                    title={lang === 'en' ? 'Rename class' : 'Renommer la classe'}
+                                    title={t.renameClass}
                                     className="ml-1 p-0.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-400 hover:text-blue-600 transition-all"
                                   >
                                     <Edit2 size={11} />
@@ -764,7 +760,7 @@ export function MainViews(props: MainViewsProps) {
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteClass(c)}
-                                    title={lang === 'en' ? 'Delete class' : 'Supprimer la classe'}
+                                    title={t.deleteClass}
                                     className="p-0.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-400 hover:text-rose-500 transition-all"
                                   >
                                     <Trash2 size={11} />
@@ -785,12 +781,10 @@ export function MainViews(props: MainViewsProps) {
                     <div>
                       <h4 className={`text-base font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} flex items-center gap-2`}>
                         <ShieldCheck size={20} className="text-emerald-500" />
-                        {lang === 'en' ? 'Staff Access & Role Management' : 'Gestion des Rôles & Accès du Personnel'}
+                        {t.staffAccessRoleManagement}
                       </h4>
                       <p className={`text-xs ${currentTheme.muted} mt-0.5`}>
-                        {lang === 'en' 
-                          ? 'Assign or adjust permissions for administrators, general managers, and accountants.' 
-                          : 'Gérez et modifiez les autorisations de la direction, des gestionnaires et des économes.'}
+                        {t.assignOrAdjustPermissionsForAdministratorsGeneralManagersAndAccountants}
                       </p>
                     </div>
                     
@@ -798,10 +792,10 @@ export function MainViews(props: MainViewsProps) {
                       <button 
                         onClick={() => auth.fetchAllProfiles().then(profiles => setUserProfiles(profiles))}
                         className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'text-emerald-400 hover:text-emerald-300 hover:bg-white/5' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'} transition-all text-xs font-bold flex items-center gap-1.5 shadow-sm`}
-                        title={lang === 'en' ? 'Refresh user list' : 'Actualiser la liste'}
+                        title={t.refreshUserList}
                       >
                         <span>↻</span>
-                        <span className="hidden sm:inline">{lang === 'en' ? 'Refresh' : 'Actualiser'}</span>
+                        <span className="hidden sm:inline">{t.refresh}</span>
                       </button>
 
                       <button
@@ -812,7 +806,7 @@ export function MainViews(props: MainViewsProps) {
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95"
                       >
                         <UserPlus size={16} />
-                        <span>{lang === 'en' ? '+ Add Staff Account' : '+ Ajouter un Compte'}</span>
+                        <span>{t.addStaffAccount2}</span>
                       </button>
                     </div>
                   </div>
@@ -822,42 +816,42 @@ export function MainViews(props: MainViewsProps) {
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                          <span>👑</span> {lang === 'en' ? 'Promoter & Admins' : 'Promotrice & Direction'}
+                          <span>👑</span> {t.promoterAdmins}
                         </span>
                         <span className="text-xs font-black bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'admin').length}
                         </span>
                       </div>
                       <p className={`text-[11px] ${currentTheme.isDark ? 'text-emerald-300/80' : 'text-emerald-800'}`}>
-                        {lang === 'en' ? 'Full control, fee policy, closing school years & role assignment.' : 'Accès total, politique tarifaire, clôture annuelle & gestion des rôles.'}
+                        {t.fullControlFeePolicyClosingSchoolYearsRoleAssignment}
                       </p>
                     </div>
 
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-blue-950/20 border-blue-500/30' : 'bg-blue-50/70 border-blue-200'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                          <span>💼</span> {lang === 'en' ? 'Staff & Accountants' : 'Personnel & Économes'}
+                          <span>💼</span> {t.staffAccountants}
                         </span>
                         <span className="text-xs font-black bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'staff').length}
                         </span>
                       </div>
                       <p className={`text-[11px] ${currentTheme.isDark ? 'text-blue-300/80' : 'text-blue-800'}`}>
-                        {lang === 'en' ? 'Student enrollment, payment receipts, payroll & daily expenses.' : 'Inscriptions, encaissements, reçus de scolarité & dépenses.'}
+                        {t.studentEnrollmentPaymentReceiptsPayrollDailyExpenses}
                       </p>
                     </div>
 
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-purple-950/20 border-purple-500/30' : 'bg-purple-50/70 border-purple-200'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
-                          <span>⚡</span> {lang === 'en' ? 'Engineering (Dev)' : 'Développeur (Dev)'}
+                          <span>⚡</span> {t.engineeringDev}
                         </span>
                         <span className="text-xs font-black bg-purple-500/20 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'dev').length}
                         </span>
                       </div>
                       <p className={`text-[11px] ${currentTheme.isDark ? 'text-purple-300/80' : 'text-purple-800'}`}>
-                        {lang === 'en' ? 'Technical system maintenance and database migrations.' : 'Maintenance technique, sécurité et synchronisation réseau.'}
+                        {t.technicalSystemMaintenanceAndDatabaseMigrations}
                       </p>
                     </div>
                   </div>
@@ -869,7 +863,7 @@ export function MainViews(props: MainViewsProps) {
                         type="text"
                         value={userSearchTerm}
                         onChange={(e) => setUserSearchTerm(e.target.value)}
-                        placeholder={lang === 'en' ? 'Search by name or email...' : 'Rechercher par nom ou email...'}
+                        placeholder={t.searchByNameOrEmail}
                         className={`w-full pl-10 pr-4 py-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-white/5 text-white' : 'bg-slate-50 text-slate-800'} text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30`}
                       />
                       <Users size={15} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
@@ -877,9 +871,9 @@ export function MainViews(props: MainViewsProps) {
 
                     <div className="flex items-center gap-1 p-1 bg-white/5 rounded-xl border border-white/10 self-start">
                       {[
-                        { id: 'all', label: lang === 'en' ? 'All' : 'Tous' },
-                        { id: 'admin', label: lang === 'en' ? 'Admins' : 'Admins' },
-                        { id: 'staff', label: lang === 'en' ? 'Staff' : 'Personnel' },
+                        { id: 'all', label: t.all },
+                        { id: 'admin', label: 'Admins' },
+                        { id: 'staff', label: t.staff2 },
                       ].map((tab) => (
                         <button
                           key={tab.id}
@@ -908,7 +902,7 @@ export function MainViews(props: MainViewsProps) {
                       })
                       .length === 0 ? (
                       <div className={`text-xs ${currentTheme.muted} italic p-8 rounded-2xl text-center border ${currentTheme.border} ${currentTheme.card}`}>
-                        {lang === 'en' ? 'No users matching your search.' : 'Aucun utilisateur ne correspond à votre recherche.'}
+                        {t.noUsersMatchingYourSearch}
                       </div>
                     ) : (
                       userProfiles
@@ -947,7 +941,7 @@ export function MainViews(props: MainViewsProps) {
                                     </p>
                                     {isCurrentUser && (
                                       <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                                        {lang === 'en' ? 'You' : 'Vous (Actif)'}
+                                        {t.you}
                                       </span>
                                     )}
                                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
@@ -961,10 +955,10 @@ export function MainViews(props: MainViewsProps) {
                                       {isAdmin && <span>👑</span>}
                                       {isStaff && <span>💼</span>}
                                       {isDev 
-                                        ? (lang === 'en' ? 'Developer' : 'Développeur')
+                                        ? (t.developer)
                                         : isAdmin 
-                                        ? (lang === 'en' ? 'Promoter / Admin' : 'Promotrice / Admin') 
-                                        : (lang === 'en' ? 'Staff / Accountant' : 'Personnel / Économe')}
+                                        ? (t.promoterAdmin2) 
+                                        : (t.staffAccountant)}
                                     </span>
                                   </div>
                                   <p className={`text-xs ${currentTheme.muted} mt-0.5`}>{profile.email}</p>
@@ -976,7 +970,7 @@ export function MainViews(props: MainViewsProps) {
                                 {!isDev && (
                                   <div className="flex items-center gap-1.5">
                                     <label className={`text-[10px] font-bold ${currentTheme.muted} hidden sm:inline`}>
-                                      {lang === 'en' ? 'Role:' : 'Rôle :'}
+                                      {t.role}
                                     </label>
                                     <select
                                       value={profile.role}
@@ -989,10 +983,10 @@ export function MainViews(props: MainViewsProps) {
                                       } ${updatingUserId === profile.id ? 'opacity-50 cursor-wait' : ''}`}
                                     >
                                       <option value="admin" className="bg-slate-800 text-white">
-                                        👑 {lang === 'en' ? 'Promoter / Admin (Full)' : 'Promotrice / Admin (Complet)'}
+                                        👑 {t.promoterAdminFull}
                                       </option>
                                       <option value="staff" className="bg-slate-800 text-white">
-                                        💼 {lang === 'en' ? 'Staff / Accountant' : 'Personnel / Économe'}
+                                        💼 {t.staffAccountant}
                                       </option>
                                     </select>
                                   </div>
@@ -1002,10 +996,10 @@ export function MainViews(props: MainViewsProps) {
                                 <button
                                   onClick={() => handleSendPasswordReset(profile.email)}
                                   className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 border border-white/10"
-                                  title={lang === 'en' ? 'Send Password Reset Email' : 'Envoyer e-mail de réinitialisation du mot de passe'}
+                                  title={t.sendPasswordResetEmail}
                                 >
                                   <span>🔑</span>
-                                  <span>{lang === 'en' ? 'Reset Pass' : 'Réinit. MDP'}</span>
+                                  <span>{t.resetPass}</span>
                                 </button>
                               </div>
                             </div>

@@ -13,7 +13,7 @@ interface MultiYearChartProps {
   academicYears: string[];
   getYearStats: (year: string) => { revenue: number; expenses: number };
   lang: 'en' | 'fr';
-  t: { revenueVsExpenses: string };
+  t: Record<string, string>;
   currentTheme: { isDark: boolean; card: string; border: string; muted: string };
   formatCurrency: (value: number) => string;
 }
@@ -28,7 +28,7 @@ export function MultiYearChart({ academicYears, getYearStats, lang, t, currentTh
           {t.revenueVsExpenses}
         </h3>
         <p className={`text-xs ${muted} mt-1`}>
-          {lang === 'en' ? 'Visual overview of multi-year school performance' : 'Aperçu visuel de la performance scolaire sur plusieurs années'}
+          {t.visualOverviewOfMultiYearSchoolPerformance}
         </p>
       </div>
 
@@ -39,8 +39,8 @@ export function MultiYearChart({ academicYears, getYearStats, lang, t, currentTh
               const { revenue, expenses } = getYearStats(year);
               return {
                 name: year,
-                [lang === 'en' ? 'Revenue' : 'Recettes']: revenue,
-                [lang === 'en' ? 'Expenses' : 'Dépenses']: expenses
+                [t.revenue]: revenue,
+                [t.expenses]: expenses
               };
             })}
             margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
@@ -58,8 +58,8 @@ export function MultiYearChart({ academicYears, getYearStats, lang, t, currentTh
               formatter={(value: any) => [formatCurrency(Number(value)), '']}
             />
             <RechartsLegend />
-            <Bar dataKey={lang === 'en' ? 'Revenue' : 'Recettes'} fill="#10B981" radius={[8, 8, 0, 0]} />
-            <Bar dataKey={lang === 'en' ? 'Expenses' : 'Dépenses'} fill="#EF4444" radius={[8, 8, 0, 0]} />
+            <Bar dataKey={t.revenue} fill="#10B981" radius={[8, 8, 0, 0]} />
+            <Bar dataKey={t.expenses} fill="#EF4444" radius={[8, 8, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

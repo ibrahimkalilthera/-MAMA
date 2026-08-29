@@ -50,7 +50,7 @@ export async function generatePaymentReceiptPdf({
   doc.text(isFr ? 'REÇU DE PAIEMENT' : 'PAYMENT RECEIPT', 138, 10, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(`N°: ${receiptNo}`, 138, 16, { align: 'right' });
+  doc.text(`${isFr ? 'N°:' : 'Ref:'} ${receiptNo}`, 138, 16, { align: 'right' });
 
   let y = 28;
 

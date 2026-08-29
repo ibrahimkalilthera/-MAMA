@@ -18,14 +18,10 @@ export function DashboardView(props: MainViewsProps) {
                       </div>
                       <div>
                         <h4 className="font-black text-sm">
-                          {lang === 'en' 
-                            ? `⚠️ Payroll Window Closed: No salary payments recorded for ${currentMonthName} as of the 10th deadline.`
-                            : `⚠️ Période de paie fermée : Aucun paiement de salaire enregistré pour ${currentMonthName} après la date limite du 10.`}
+                          {t.payrollWindowClosed.replace('{month}', currentMonthName)}
                         </h4>
                         <p className="text-xs text-rose-600/80 font-semibold mt-0.5">
-                          {lang === 'en' 
-                            ? 'High-priority action required to process current month payroll.' 
-                            : 'Action prioritaire requise pour traiter la paie du mois en cours.'}
+                          {t.highPriorityActionRequiredToProcessCurrentMonthPayroll}
                         </p>
                       </div>
                     </div>
@@ -38,14 +34,10 @@ export function DashboardView(props: MainViewsProps) {
                       </div>
                       <div>
                         <h4 className="font-black text-sm">
-                          {lang === 'en' 
-                            ? `ℹ️ Payroll Window Open: Please remember to start processing salary payments for ${currentMonthName}.`
-                            : `ℹ️ Période de paie ouverte : Pensez à commencer à traiter les paiements de salaire pour ${currentMonthName}.`}
+                          {t.payrollWindowOpen.replace('{month}', currentMonthName)}
                         </h4>
                         <p className="text-xs text-blue-600/80 font-semibold mt-0.5">
-                          {lang === 'en' 
-                            ? 'The payroll window is active from the 1st to the 10th of the month.' 
-                            : 'La période de paie est active du 1er au 10 du mois.'}
+                          {t.thePayrollWindowIsActiveFromThe1stToThe10thOfTheMonth}
                         </p>
                       </div>
                     </div>
@@ -66,14 +58,10 @@ export function DashboardView(props: MainViewsProps) {
                       </div>
                       <div>
                         <h4 className="font-black text-sm">
-                          {lang === 'en' 
-                            ? `⚠️ Warning: No payroll recorded for ${t[monthKeys[m]]}` 
-                            : `⚠️ Attention : Aucun paiement de salaire enregistré pour ${t[monthKeys[m]]}`}
+                          {t.noPayrollWarning.replace('{month}', t[monthKeys[m]])}
                         </h4>
                         <p className="text-xs text-rose-600/80 font-semibold mt-0.5">
-                          {lang === 'en' 
-                            ? 'Immediate action required to reconcile outstanding liabilities.' 
-                            : 'Action immédiate requise pour rapprocher les passifs en cours.'}
+                          {t.immediateActionRequiredToReconcileOutstandingLiabilities}
                         </p>
                       </div>
                     </div>
@@ -105,7 +93,7 @@ export function DashboardView(props: MainViewsProps) {
                 <div className="flex items-center gap-3 mt-2">
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400/80 bg-emerald-500/[0.08] px-2.5 py-1 rounded-full">
                     <TrendingUp size={12} />
-                    {lang === 'en' ? 'Net Liquidity' : 'Liquidité Nette'}
+                    {t.netLiquidity}
                   </span>
                 </div>
               </motion.div>
@@ -131,7 +119,7 @@ export function DashboardView(props: MainViewsProps) {
                 </div>
                 <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5 mt-1`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  {lang === 'en' ? 'Monthly Inflow' : 'Entrées Mensuelles'}
+                  {t.monthlyInflow}
                 </span>
               </motion.div>
 
@@ -156,7 +144,7 @@ export function DashboardView(props: MainViewsProps) {
                 </div>
                 <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5 mt-1`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                  {lang === 'en' ? 'Monthly Outflow' : 'Sorties Mensuelles'}
+                  {t.monthlyOutflow}
                 </span>
               </motion.div>
             </div>
@@ -182,7 +170,7 @@ export function DashboardView(props: MainViewsProps) {
                 </div>
                 <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
-                  {lang === 'en' ? 'Active Enrolled' : 'Inscriptions Actives'}
+                  {t.activeEnrolled}
                 </span>
               </motion.div>
 
@@ -205,7 +193,7 @@ export function DashboardView(props: MainViewsProps) {
                 </div>
                 <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5`}>
                   <TrendingUp size={11} className="rotate-180 text-rose-500" />
-                  <span className="text-rose-500">{lang === 'en' ? '+12% vs last month' : '+12% vs mois dernier'}</span>
+                  <span className="text-rose-500">{t.n12VsLastMonth}</span>
                 </span>
               </motion.div>
 
@@ -229,7 +217,7 @@ export function DashboardView(props: MainViewsProps) {
                 </div>
                 <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                  {lang === 'en' ? 'Action Required' : 'Action Requise'}
+                  {t.actionRequired}
                 </span>
               </motion.div>
 
@@ -254,27 +242,50 @@ export function DashboardView(props: MainViewsProps) {
                 </div>
                 <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                  {lang === 'en' ? 'Unpaid Installments' : 'Acomptes Impayés'}
+                  {t.unpaidInstallments}
                 </span>
               </motion.div>
             </div>
 
             {/* --- Collecté ce Mois (single) --- */}
             <div className="grid grid-cols-1 gap-5 no-print">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`card-elevated p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
-              >
-                <div>
-                  <p className={`text-[10px] font-semibold ${currentTheme.muted} uppercase tracking-[0.1em] mb-1.5`}>{t.collectedMonth}</p>
-                  <h3 className={`text-3xl font-bold tracking-tight ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(stats.collectedMonth)}</h3>
-                </div>
-                <div className="flex items-center gap-2 text-emerald-500 text-sm font-semibold">
-                  <TrendingUp size={16} />
-                  <span>{lang === 'en' ? '+8% target reached' : '+8% objectif atteint'}</span>
-                </div>
-              </motion.div>
+              {(() => {
+                const prevCollected = stats.prevMonthCollected || 0;
+                const goalPercent = prevCollected > 0
+                  ? Math.min(999, Math.round((stats.collectedMonth / prevCollected) * 100))
+                  : 100;
+                return (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`card-elevated p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}
+                  >
+                    <div className="flex-1">
+                      <p className={`text-[10px] font-semibold ${currentTheme.muted} uppercase tracking-[0.1em] mb-1.5`}>{t.collectedMonth}</p>
+                      <h3 className={`text-3xl font-bold tracking-tight ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(stats.collectedMonth)}</h3>
+                      <div className="mt-3 max-w-xs">
+                        <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                          <span className={currentTheme.muted}>{t.monthlyGoal}</span>
+                          <span className="text-emerald-500">{goalPercent}%</span>
+                        </div>
+                        <div className={`h-2 rounded-full overflow-hidden ${currentTheme.isDark ? 'bg-slate-700/60' : 'bg-slate-200'}`}>
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(100, goalPercent)}%` }}
+                            transition={{ duration: 0.8, ease: 'easeOut' }}
+                            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"
+                          />
+                        </div>
+                        <p className={`text-[10px] ${currentTheme.muted} mt-1 font-semibold`}>{t.ofGoal.replace('{percent}', String(goalPercent))}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-emerald-500 text-sm font-semibold">
+                      <TrendingUp size={16} />
+                      <span>{goalPercent}%</span>
+                    </div>
+                  </motion.div>
+                );
+              })()}
             </div>
 
             {/* --- Analytics Section --- */}
@@ -345,7 +356,7 @@ export function DashboardView(props: MainViewsProps) {
                   <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl">
                     <PieChart size={24} />
                   </div>
-                  <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{lang === 'en' ? 'Cash Flow Summary' : 'Résumé du Flux de Trésorerie'}</h3>
+                  <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.cashFlowSummary}</h3>
                 </div>
 
                 <div className="space-y-6">
@@ -358,7 +369,7 @@ export function DashboardView(props: MainViewsProps) {
                     <span className="font-bold text-rose-500">-{formatCurrency(stats.totalExpenses)}</span>
                   </div>
                   <div className={`pt-6 border-t ${currentTheme.border} flex justify-between items-center`}>
-                    <span className={`font-black uppercase tracking-widest text-xs ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{lang === 'en' ? 'Net Cash Flow' : 'Flux de Trésorerie Net'}</span>
+                    <span className={`font-black uppercase tracking-widest text-xs ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.netProfit}</span>
                     <span className={`text-2xl font-black ${stats.totalFees - stats.totalExpenses >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                       {formatCurrency(stats.totalFees - stats.totalExpenses)}
                     </span>
@@ -376,12 +387,12 @@ export function DashboardView(props: MainViewsProps) {
                   <Wallet size={40} />
                 </div>
                 <h4 className={`text-lg font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} mb-2`}>
-                  {stats.totalFees - stats.totalExpenses >= 0 ? (lang === 'en' ? 'Healthy Balance' : 'Solde Sain') : (lang === 'en' ? 'Deficit Warning' : 'Alerte de Déficit')}
+                  {stats.totalFees - stats.totalExpenses >= 0 ? (t.healthyBalance) : (t.deficitWarning)}
                 </h4>
                 <p className={`${currentTheme.muted} text-sm max-w-[250px]`}>
                   {stats.totalFees - stats.totalExpenses >= 0 
-                    ? (lang === 'en' ? 'Your school is currently operating with a positive cash flow.' : 'Votre école fonctionne actuellement avec un flux de trésorerie positif.')
-                    : (lang === 'en' ? 'Expenses are exceeding income. Review your spending.' : 'Les dépenses dépassent les revenus. Revoyez vos dépenses.')}
+                    ? (t.yourSchoolIsCurrentlyOperatingWithAPositiveCashFlow)
+                    : (t.expensesAreExceedingIncomeReviewYourSpending)}
                 </p>
               </motion.div>
             </div>

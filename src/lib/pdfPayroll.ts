@@ -48,7 +48,7 @@ export async function generateStaffPayslipPdf({
   doc.text(isFr ? 'BULLETIN DE PAIE' : 'SALARY PAYSLIP', 138, 10, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(`Réf: ${payslipNo}`, 138, 16, { align: 'right' });
+  doc.text(`${isFr ? 'Réf:' : 'Ref:'} ${payslipNo}`, 138, 16, { align: 'right' });
 
   let y = 28;
 

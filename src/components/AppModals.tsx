@@ -253,7 +253,7 @@ export function AppModals(props: AppModalsProps) {
                         : `${currentTheme.muted} border-transparent hover:text-slate-600`
                     }`}
                   >
-                    {lang === 'en' ? 'General Info' : 'Infos Générales'}
+                    {t.generalInfo}
                   </button>
                   <button
                     onClick={() => setStudentDetailTab('parent')}
@@ -263,7 +263,7 @@ export function AppModals(props: AppModalsProps) {
                         : `${currentTheme.muted} border-transparent hover:text-slate-600`
                     }`}
                   >
-                    {lang === 'en' ? 'Parent & emergency' : 'Parent & Urgence'}
+                    {t.parentEmergency}
                   </button>
                   <button
                     onClick={() => setStudentDetailTab('medical')}
@@ -273,7 +273,7 @@ export function AppModals(props: AppModalsProps) {
                         : `${currentTheme.muted} border-transparent hover:text-slate-600`
                     }`}
                   >
-                    {lang === 'en' ? 'Medical / History' : 'Médical & Historique'}
+                    {t.medicalHistory}
                   </button>
                 </div>
 
@@ -283,7 +283,7 @@ export function AppModals(props: AppModalsProps) {
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className={`p-5 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-2xl`}>
-                          <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{lang === 'en' ? 'Enrollment Date' : "Date d'Inscription"}</span>
+                          <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.enrollmentDate}</span>
                           <p className={`text-sm font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} mt-1`}>
                             {selectedStudent.enrollmentDate || '2026-07-16'}
                           </p>
@@ -319,14 +319,14 @@ export function AppModals(props: AppModalsProps) {
 
                       {/* Mini Payment Ledger */}
                       <div className="space-y-2">
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{lang === 'en' ? 'Payment History Ledger' : 'Historique des Paiements'}</span>
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.paymentHistoryLedger}</span>
                         <div className="space-y-2 max-h-24 overflow-y-auto pr-2 custom-scrollbar">
                           {selectedStudent.payments.length > 0 ? (
                             [...selectedStudent.payments].reverse().map((p, idx) => (
                               <div key={`${p.date}-${p.amount}-${idx}`} className={`flex items-center justify-between p-3 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-xl text-xs`}>
                                 <div className="flex flex-col">
                                   <span className={currentTheme.muted}>{formatDate(p.date)}</span>
-                                  {p.receiptNumber && <span className="text-[10px] text-slate-400 font-mono">N° {p.receiptNumber}</span>}
+                                  {p.receiptNumber && <span className="text-[10px] text-slate-400 font-mono">{lang === 'fr' ? 'N°' : 'Ref'} {p.receiptNumber}</span>}
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <span className="font-bold text-emerald-600">+{formatCurrency(p.amount)}</span>
@@ -338,9 +338,9 @@ export function AppModals(props: AppModalsProps) {
                                       cashierName: currentUser?.name || 'Administration'
                                     })}
                                     className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-all shadow-sm flex items-center gap-1"
-                                    title={lang === 'en' ? 'Download Receipt PDF' : 'Télécharger Reçu PDF'}
+                                    title={t.downloadReceiptPdf}
                                   >
-                                    📄 {lang === 'en' ? 'Receipt' : 'Reçu'}
+                                    📄 {t.receipt2}
                                   </button>
                                 </div>
                               </div>
@@ -371,7 +371,7 @@ export function AppModals(props: AppModalsProps) {
                             <div>
                               <span className={currentTheme.muted}>{t.email}</span>
                               <p className={`font-semibold ${selectedStudent.parentEmail ? 'text-blue-600' : 'text-slate-400 italic text-xs'}`}>
-                                {selectedStudent.parentEmail || (lang === 'en' ? 'Not provided' : 'Non renseigné')}
+                                {selectedStudent.parentEmail || (t.notProvided)}
                               </p>
                             </div>
                             {selectedStudent.parentEmail && (
@@ -392,7 +392,7 @@ export function AppModals(props: AppModalsProps) {
                         <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{t.emergencyTitle}</h4>
                         <div className="grid grid-cols-2 gap-4 text-xs">
                           <div>
-                            <span className={currentTheme.muted}>{lang === 'en' ? 'Contact Name' : 'Nom du Contact'}</span>
+                            <span className={currentTheme.muted}>{t.contactName}</span>
                             <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>
                               {selectedStudent.emergencyContactName || 'N/A'}
                             </p>
@@ -420,7 +420,7 @@ export function AppModals(props: AppModalsProps) {
                       <div className={`p-5 ${currentTheme.isDark ? 'bg-[#1e293b]/50' : 'bg-slate-50'} rounded-2xl`}>
                         <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.previousSchoolHistory}</span>
                         <p className={`text-sm font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} mt-1`}>
-                          {selectedStudent.previousSchool || (lang === 'en' ? 'None / First Enrollment Entry' : 'Aucune / Première Inscription')}
+                          {selectedStudent.previousSchool || (t.noneFirstEnrollmentEntry)}
                         </p>
                       </div>
 
@@ -538,7 +538,7 @@ export function AppModals(props: AppModalsProps) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Student ID (Unique)' : 'ID de l\'élève (Unique)'}</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.studentIdUnique}</label>
                     <input 
                       type="text" 
                       value={studentForm.studentId}
@@ -553,7 +553,7 @@ export function AppModals(props: AppModalsProps) {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                        {lang === 'en' ? 'Grade / Class' : 'Classe / Niveau'}
+                        {t.gradeClass}
                       </label>
                       <button
                         type="button"
@@ -561,7 +561,7 @@ export function AppModals(props: AppModalsProps) {
                         className="text-[10px] font-black text-blue-500 hover:text-blue-600 hover:underline flex items-center gap-1"
                       >
                         <Plus size={12} />
-                        <span>{lang === 'en' ? 'New Class' : 'Nouvelle Classe'}</span>
+                        <span>{t.newClass}</span>
                       </button>
                     </div>
                     <select 
@@ -576,48 +576,48 @@ export function AppModals(props: AppModalsProps) {
                       }}
                       className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500' : 'bg-slate-50 text-slate-800'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold`}
                     >
-                      <option value="">{lang === 'en' ? 'Select Grade / Class' : 'Sélectionner la classe'}</option>
-                      <optgroup label={lang === 'en' ? "First Cycle (1st to 6th Year)" : "Premier Cycle (1ère à 6ème Année)"}>
+                      <option value="">{t.selectGradeClass}</option>
+                      <optgroup label={t.firstCycle1stTo6thYear}>
                         {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
                           <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                         ))}
                       </optgroup>
-                      <optgroup label={lang === 'en' ? "Second Cycle (7th to 9th Year)" : "Second Cycle (7ème à 9ème Année)"}>
+                      <optgroup label={t.secondCycle7thTo9thYear}>
                         {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
                           <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                         ))}
                       </optgroup>
                       {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
-                        <optgroup label={lang === 'en' ? "Other / Custom Classes" : "Autres / Classes Personnalisées"}>
+                        <optgroup label={t.otherCustomClasses}>
                           {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
                             <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                           ))}
                         </optgroup>
                       )}
                       <option value="__ADD_NEW_CLASS__" className="text-blue-600 font-bold">
-                        {lang === 'en' ? '+ Add another class / section...' : '+ Ajouter une autre classe / section...'}
+                        {t.addAnotherClassSection}
                       </option>
                     </select>
                     <p className={`text-[10px] ${currentTheme.muted}`}>
-                      {lang === 'en' ? 'Staff can add sections such as 1st Year B or C.' : 'Le personnel peut ajouter des sections comme 1ère année B ou C.'}
+                      {t.staffCanAddSectionsSuchAs1stYearBOrC}
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Enrollment Status' : 'Statut d\'Inscription'}</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.enrollmentStatus}</label>
                     <select 
                       value={studentForm.status}
                       onChange={(e) => setStudentForm({ ...studentForm, status: e.target.value as any })}
                       className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                     >
-                      <option value="Active">{lang === 'en' ? 'Active' : 'Actif'}</option>
-                      <option value="Graduated">{lang === 'en' ? 'Graduated' : 'Diplômé'}</option>
-                      <option value="Left">{lang === 'en' ? 'Left' : 'Parti / Transféré'}</option>
+                      <option value="Active">{t.activeStatus}</option>
+                      <option value="Graduated">{t.graduatedStatus}</option>
+                      <option value="Left">{t.left}</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? 'Passport Photo Link' : 'Lien de la photo d\'identité'}</label>
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.passportPhotoLink}</label>
                   <input 
                     type="text" 
                     value={studentForm.photo}
@@ -642,14 +642,14 @@ export function AppModals(props: AppModalsProps) {
                   </div>
                   <div className="space-y-2">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                      {lang === 'en' ? 'Parent Email (Optional)' : 'Email du Parent (Optionnel)'}
+                      {t.parentEmailOptional}
                     </label>
                     <input 
                       type="email" 
                       value={studentForm.parentEmail}
                       onChange={(e) => setStudentForm({ ...studentForm, parentEmail: e.target.value })}
                       className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                      placeholder={lang === 'en' ? "parent@example.com (optional)" : "parent@example.com (optionnel)"}
+                      placeholder={t.parentExampleComOptional}
                     />
                   </div>
                 </div>
@@ -669,44 +669,44 @@ export function AppModals(props: AppModalsProps) {
                 {/* --- Emergency Contact Fields --- */}
                 <div className={`p-6 ${currentTheme.isDark ? 'bg-slate-900/50' : 'bg-slate-50'} rounded-3xl border ${currentTheme.border} space-y-4`}>
                   <h4 className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                    {lang === 'en' ? 'Emergency Contact' : 'Contact d\'Urgence'}
+                    {t.emergencyContact2}
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                        {lang === 'en' ? 'Contact Name' : 'Nom du Contact'}
+                        {t.contactName}
                       </label>
                       <input 
                         type="text" 
                         value={studentForm.emergencyContactName}
                         onChange={(e) => setStudentForm({ ...studentForm, emergencyContactName: e.target.value })}
                         className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
-                        placeholder={lang === 'en' ? 'Emergency contact name' : 'Nom complet du contact d\'urgence'}
+                        placeholder={t.emergencyContactName}
                       />
                     </div>
                     <div className="space-y-2">
                       <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                        {lang === 'en' ? 'Relation' : 'Lien de Parenté'}
+                        {t.relation}
                       </label>
                       <input 
                         type="text" 
                         value={studentForm.emergencyContactRelation}
                         onChange={(e) => setStudentForm({ ...studentForm, emergencyContactRelation: e.target.value })}
                         className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
-                        placeholder={lang === 'en' ? 'Uncle, Aunt, Parent, etc.' : 'Oncle, Tante, Parent, etc.'}
+                        placeholder={t.uncleAuntParentEtc}
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                      {lang === 'en' ? 'Emergency Phone' : 'Téléphone d\'Urgence'}
+                      {t.emergencyPhone}
                     </label>
                     <input 
                       type="tel" 
                       value={studentForm.emergencyContactPhone}
                       onChange={(e) => setStudentForm({ ...studentForm, emergencyContactPhone: e.target.value })}
                       className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
-                      placeholder={lang === 'en' ? 'Emergency contact phone' : 'Numéro de téléphone d\'urgence'}
+                      placeholder={t.emergencyContactPhone}
                     />
                   </div>
                 </div>
@@ -715,7 +715,7 @@ export function AppModals(props: AppModalsProps) {
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                      {lang === 'en' ? 'Enrollment Date' : 'Date d\'Inscription'}
+                      {t.enrollmentDate2}
                     </label>
                     <input 
                       type="date" 
@@ -726,27 +726,27 @@ export function AppModals(props: AppModalsProps) {
                   </div>
                   <div className="space-y-2">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                      {lang === 'en' ? 'Previous School' : 'École Précédente'}
+                      {t.previousSchool}
                     </label>
                     <input 
                       type="text" 
                       value={studentForm.previousSchool}
                       onChange={(e) => setStudentForm({ ...studentForm, previousSchool: e.target.value })}
                       className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                      placeholder={lang === 'en' ? 'Transfer history school name' : 'Nom de l\'école de provenance'}
+                      placeholder={t.transferHistorySchoolName}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                    {lang === 'en' ? 'Medical Notes (Allergies / Conditions)' : 'Notes Médicales (Allergies / Conditions)'}
+                    {t.medicalNotesAllergiesConditions}
                   </label>
                   <textarea 
                     value={studentForm.medicalNotes}
                     onChange={(e) => setStudentForm({ ...studentForm, medicalNotes: e.target.value })}
                     className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} min-h-[100px]`}
-                    placeholder={lang === 'en' ? 'Allergies, conditions, or None...' : 'Allergies, conditions médicales ou Aucune...'}
+                    placeholder={t.allergiesConditionsOrNone}
                   />
                 </div>
 
@@ -756,7 +756,7 @@ export function AppModals(props: AppModalsProps) {
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
                       <span>{t.totalDue} ({t.currency})</span>
                       <span className="text-[9px] text-emerald-600 font-bold">
-                        ({lang === 'en' ? 'Staff authorized' : 'Staff autorisé'})
+                        ({t.staffAuthorized})
                       </span>
                     </label>
                     <div className="relative">
@@ -777,7 +777,7 @@ export function AppModals(props: AppModalsProps) {
                       <span>{t.scholarship}</span>
                       {!isPromoter && (
                         <span className="text-[9px] text-rose-500 font-bold">
-                          ({lang === 'en' ? 'Promoter Only' : 'Promotrice uniquement'})
+                          ({t.promoterOnly})
                         </span>
                       )}
                     </label>
@@ -852,7 +852,7 @@ export function AppModals(props: AppModalsProps) {
               <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
                 <h3 className="text-lg font-bold flex items-center gap-2.5">
                   <Layers size={20} className="text-blue-400" />
-                  <span>{lang === 'en' ? 'Add Class / Section' : 'Ajouter une Classe / Section'}</span>
+                  <span>{t.addClass}</span>
                 </h3>
                 <button 
                   onClick={() => setShowAddClassModal(false)}
@@ -865,7 +865,7 @@ export function AppModals(props: AppModalsProps) {
               <form onSubmit={handleCreateClassSubmit} className="p-6 space-y-5">
                 <div className="space-y-1.5">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                    {lang === 'en' ? 'School Cycle' : 'Cycle Scolaire'}
+                    {t.schoolCycle}
                   </label>
                   <select
                     value={newClassForm.cycle}
@@ -876,11 +876,11 @@ export function AppModals(props: AppModalsProps) {
                     }}
                     className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
                   >
-                    <option value="cycle1">{lang === 'en' ? 'First Cycle (1st to 6th Year)' : 'Premier Cycle (1ère à 6ème Année)'}</option>
-                    <option value="cycle2">{lang === 'en' ? 'Second Cycle (7th to 9th Year)' : 'Second Cycle (7ème à 9ème Année)'}</option>
-                    <option value="lycee">{lang === 'en' ? 'Lycée (High School)' : 'Lycée (Secondaire)'}</option>
-                    <option value="maternelle">{lang === 'en' ? 'Maternelle (Kindergarten)' : 'Maternelle / Jardin d\'Enfants'}</option>
-                    <option value="other">{lang === 'en' ? 'Other / Fully Custom Name' : 'Autre / Nom personnalisé'}</option>
+                    <option value="cycle1">{t.firstCycle1stTo6thYear}</option>
+                    <option value="cycle2">{t.secondCycle7thTo9thYear}</option>
+                    <option value="lycee">{t.lycEHighSchool}</option>
+                    <option value="maternelle">{t.maternelleKindergarten}</option>
+                    <option value="other">{t.otherFullyCustomName}</option>
                   </select>
                 </div>
 
@@ -888,7 +888,7 @@ export function AppModals(props: AppModalsProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                        {lang === 'en' ? 'Grade / Level' : 'Niveau / Année'}
+                        {t.gradeLevel2}
                       </label>
                       <select
                         value={newClassForm.year}
@@ -897,33 +897,33 @@ export function AppModals(props: AppModalsProps) {
                       >
                         {newClassForm.cycle === 'cycle1' && (
                           <>
-                            <option value="1">{lang === 'en' ? '1st Year (1ère)' : '1ère Année'}</option>
-                            <option value="2">{lang === 'en' ? '2nd Year (2ème)' : '2ème Année'}</option>
-                            <option value="3">{lang === 'en' ? '3rd Year (3ème)' : '3ème Année'}</option>
-                            <option value="4">{lang === 'en' ? '4th Year (4ème)' : '4ème Année'}</option>
-                            <option value="5">{lang === 'en' ? '5th Year (5ème)' : '5ème Année'}</option>
-                            <option value="6">{lang === 'en' ? '6th Year (6ème)' : '6ème Année'}</option>
+                            <option value="1">{t.n1stYear1Re}</option>
+                            <option value="2">{t.n2ndYear2Me}</option>
+                            <option value="3">{t.n3rdYear3Me}</option>
+                            <option value="4">{t.n4thYear4Me}</option>
+                            <option value="5">{t.n5thYear5Me}</option>
+                            <option value="6">{t.n6thYear6Me}</option>
                           </>
                         )}
                         {newClassForm.cycle === 'cycle2' && (
                           <>
-                            <option value="7">{lang === 'en' ? '7th Year (7ème)' : '7ème Année'}</option>
-                            <option value="8">{lang === 'en' ? '8th Year (8ème)' : '8ème Année'}</option>
-                            <option value="9">{lang === 'en' ? '9th Year (9ème)' : '9ème Année'}</option>
+                            <option value="7">{t.n7thYear7Me}</option>
+                            <option value="8">{t.n8thYear8Me}</option>
+                            <option value="9">{t.n9thYear9Me}</option>
                           </>
                         )}
                         {newClassForm.cycle === 'lycee' && (
                           <>
-                            <option value="10">{lang === 'en' ? '10th Year (10ème)' : '10ème Année (Seconde)'}</option>
-                            <option value="11">{lang === 'en' ? '11th Year (11ème)' : '11ème Année (Première)'}</option>
-                            <option value="12">{lang === 'en' ? '12th Year (12ème)' : '12ème Année (Terminale)'}</option>
+                            <option value="10">{t.n10thYear10Me}</option>
+                            <option value="11">{t.n11thYear11Me}</option>
+                            <option value="12">{t.n12thYear12Me}</option>
                           </>
                         )}
                         {newClassForm.cycle === 'maternelle' && (
                           <>
-                            <option value="PS">{lang === 'en' ? 'Petite Section (PS)' : 'Petite Section (PS)'}</option>
-                            <option value="MS">{lang === 'en' ? 'Moyenne Section (MS)' : 'Moyenne Section (MS)'}</option>
-                            <option value="GS">{lang === 'en' ? 'Grande Section (GS)' : 'Grande Section (GS)'}</option>
+                            <option value="PS">{'Petite Section (PS)'}</option>
+                            <option value="MS">{'Moyenne Section (MS)'}</option>
+                            <option value="GS">{'Grande Section (GS)'}</option>
                           </>
                         )}
                       </select>
@@ -931,7 +931,7 @@ export function AppModals(props: AppModalsProps) {
 
                     <div className="space-y-1.5">
                       <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                        {lang === 'en' ? 'Section (e.g. D, E)' : 'Section (ex. D, E)'}
+                        {t.sectionEGDE}
                       </label>
                       <input
                         type="text"
@@ -947,12 +947,12 @@ export function AppModals(props: AppModalsProps) {
                 ) : (
                   <div className="space-y-1.5">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                      {lang === 'en' ? 'Custom Class Name' : 'Nom de la classe'}
+                      {t.customClassName}
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder={lang === 'en' ? 'e.g., 1ère D or Garderie' : 'ex. 1ère D ou Garderie'}
+                      placeholder={t.eG1ReDOrGarderie}
                       value={newClassForm.customName}
                       onChange={(e) => setNewClassForm({ ...newClassForm, customName: e.target.value })}
                       className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
@@ -963,7 +963,7 @@ export function AppModals(props: AppModalsProps) {
                 {/* Preview Badge */}
                 <div className={`p-4 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900/40' : 'bg-slate-50'}`}>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                    {lang === 'en' ? 'Generated Class Code:' : 'Code généré :'}
+                    {t.generatedClassCode}
                   </p>
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-black">
@@ -983,14 +983,14 @@ export function AppModals(props: AppModalsProps) {
                     onClick={() => setShowAddClassModal(false)}
                     className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50"
                   >
-                    {lang === 'en' ? 'Cancel' : 'Annuler'}
+                    {t.cancel}
                   </button>
                   <button
                     type="submit"
                     className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-1.5"
                   >
                     <Plus size={14} />
-                    <span>{lang === 'en' ? 'Save Class' : 'Créer la classe'}</span>
+                    <span>{t.saveClass}</span>
                   </button>
                 </div>
               </form>
@@ -1019,7 +1019,7 @@ export function AppModals(props: AppModalsProps) {
               <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
                 <h3 className="text-lg font-bold flex items-center gap-2.5">
                   <Layers size={20} className="text-blue-400" />
-                  <span>{lang === 'en' ? 'Edit Class / Section' : 'Modifier la Classe / Section'}</span>
+                  <span>{t.editClassSection}</span>
                 </h3>
                 <button 
                   onClick={() => setShowEditClassModal(false)}
@@ -1032,7 +1032,7 @@ export function AppModals(props: AppModalsProps) {
               <form onSubmit={handleEditClassSubmit} className="p-6 space-y-5">
                 <div className="space-y-1.5">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                    {lang === 'en' ? 'School Cycle' : 'Cycle Scolaire'}
+                    {t.schoolCycle}
                   </label>
                   <select
                     value={editClassForm.cycle}
@@ -1043,11 +1043,11 @@ export function AppModals(props: AppModalsProps) {
                     }}
                     className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
                   >
-                    <option value="cycle1">{lang === 'en' ? 'First Cycle (1st to 6th Year)' : 'Premier Cycle (1ère à 6ème Année)'}</option>
-                    <option value="cycle2">{lang === 'en' ? 'Second Cycle (7th to 9th Year)' : 'Second Cycle (7ème à 9ème Année)'}</option>
-                    <option value="lycee">{lang === 'en' ? 'Lycée (High School)' : 'Lycée (Secondaire)'}</option>
-                    <option value="maternelle">{lang === 'en' ? 'Maternelle (Kindergarten)' : 'Maternelle / Jardin d\'Enfants'}</option>
-                    <option value="other">{lang === 'en' ? 'Other / Fully Custom Name' : 'Autre / Nom personnalisé'}</option>
+                    <option value="cycle1">{t.firstCycle1stTo6thYear}</option>
+                    <option value="cycle2">{t.secondCycle7thTo9thYear}</option>
+                    <option value="lycee">{t.lycEHighSchool}</option>
+                    <option value="maternelle">{t.maternelleKindergarten}</option>
+                    <option value="other">{t.otherFullyCustomName}</option>
                   </select>
                 </div>
 
@@ -1055,7 +1055,7 @@ export function AppModals(props: AppModalsProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                        {lang === 'en' ? 'Grade / Level' : 'Niveau / Année'}
+                        {t.gradeLevel2}
                       </label>
                       <select
                         value={editClassForm.year}
@@ -1064,33 +1064,33 @@ export function AppModals(props: AppModalsProps) {
                       >
                         {editClassForm.cycle === 'cycle1' && (
                           <>
-                            <option value="1">{lang === 'en' ? '1st Year (1ère)' : '1ère Année'}</option>
-                            <option value="2">{lang === 'en' ? '2nd Year (2ème)' : '2ème Année'}</option>
-                            <option value="3">{lang === 'en' ? '3rd Year (3ème)' : '3ème Année'}</option>
-                            <option value="4">{lang === 'en' ? '4th Year (4ème)' : '4ème Année'}</option>
-                            <option value="5">{lang === 'en' ? '5th Year (5ème)' : '5ème Année'}</option>
-                            <option value="6">{lang === 'en' ? '6th Year (6ème)' : '6ème Année'}</option>
+                            <option value="1">{t.n1stYear1Re}</option>
+                            <option value="2">{t.n2ndYear2Me}</option>
+                            <option value="3">{t.n3rdYear3Me}</option>
+                            <option value="4">{t.n4thYear4Me}</option>
+                            <option value="5">{t.n5thYear5Me}</option>
+                            <option value="6">{t.n6thYear6Me}</option>
                           </>
                         )}
                         {editClassForm.cycle === 'cycle2' && (
                           <>
-                            <option value="7">{lang === 'en' ? '7th Year (7ème)' : '7ème Année'}</option>
-                            <option value="8">{lang === 'en' ? '8th Year (8ème)' : '8ème Année'}</option>
-                            <option value="9">{lang === 'en' ? '9th Year (9ème)' : '9ème Année'}</option>
+                            <option value="7">{t.n7thYear7Me}</option>
+                            <option value="8">{t.n8thYear8Me}</option>
+                            <option value="9">{t.n9thYear9Me}</option>
                           </>
                         )}
                         {editClassForm.cycle === 'lycee' && (
                           <>
-                            <option value="10">{lang === 'en' ? '10th Year (10ème)' : '10ème Année (Seconde)'}</option>
-                            <option value="11">{lang === 'en' ? '11th Year (11ème)' : '11ème Année (Première)'}</option>
-                            <option value="12">{lang === 'en' ? '12th Year (12ème)' : '12ème Année (Terminale)'}</option>
+                            <option value="10">{t.n10thYear10Me}</option>
+                            <option value="11">{t.n11thYear11Me}</option>
+                            <option value="12">{t.n12thYear12Me}</option>
                           </>
                         )}
                         {editClassForm.cycle === 'maternelle' && (
                           <>
-                            <option value="PS">{lang === 'en' ? 'Petite Section (PS)' : 'Petite Section (PS)'}</option>
-                            <option value="MS">{lang === 'en' ? 'Moyenne Section (MS)' : 'Moyenne Section (MS)'}</option>
-                            <option value="GS">{lang === 'en' ? 'Grande Section (GS)' : 'Grande Section (GS)'}</option>
+                            <option value="PS">{'Petite Section (PS)'}</option>
+                            <option value="MS">{'Moyenne Section (MS)'}</option>
+                            <option value="GS">{'Grande Section (GS)'}</option>
                           </>
                         )}
                       </select>
@@ -1098,7 +1098,7 @@ export function AppModals(props: AppModalsProps) {
 
                     <div className="space-y-1.5">
                       <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                        {lang === 'en' ? 'Section (e.g. D, E)' : 'Section (ex. D, E)'}
+                        {t.sectionEGDE}
                       </label>
                       <input
                         type="text"
@@ -1114,12 +1114,12 @@ export function AppModals(props: AppModalsProps) {
                 ) : (
                   <div className="space-y-1.5">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                      {lang === 'en' ? 'Custom Class Name' : 'Nom de la classe'}
+                      {t.customClassName}
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder={lang === 'en' ? 'e.g., 1ère D or Garderie' : 'ex. 1ère D ou Garderie'}
+                      placeholder={t.eG1ReDOrGarderie}
                       value={editClassForm.customName}
                       onChange={(e) => setEditClassForm({ ...editClassForm, customName: e.target.value })}
                       className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
@@ -1130,7 +1130,7 @@ export function AppModals(props: AppModalsProps) {
                 {/* Preview Badge */}
                 <div className={`p-4 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900/40' : 'bg-slate-50'}`}>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                    {lang === 'en' ? 'Generated Class Code:' : 'Code généré :'}
+                    {t.generatedClassCode}
                   </p>
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-black">
@@ -1150,14 +1150,14 @@ export function AppModals(props: AppModalsProps) {
                     onClick={() => setShowEditClassModal(false)}
                     className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50"
                   >
-                    {lang === 'en' ? 'Cancel' : 'Annuler'}
+                    {t.cancel}
                   </button>
                   <button
                     type="submit"
                     className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-1.5"
                   >
                     <CheckCircle2 size={14} />
-                    <span>{lang === 'en' ? 'Save Changes' : 'Enregistrer'}</span>
+                    <span>{t.saveChanges}</span>
                   </button>
                 </div>
               </form>
@@ -1336,7 +1336,7 @@ export function AppModals(props: AppModalsProps) {
                     value={expenseForm.description}
                     onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
                     className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/5 focus:border-rose-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                    placeholder={lang === 'en' ? 'Electricity bill' : 'Facture électricité'}
+                    placeholder={t.electricityBill}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-6">
@@ -1412,7 +1412,7 @@ export function AppModals(props: AppModalsProps) {
                 <div className="space-y-2">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
                     <span>{t.vendorName}</span>
-                    {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({lang === 'en' ? 'Promoter Only' : 'Promotrice uniquement'})</span>}
+                    {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
                   </label>
                   <input 
                     required
@@ -1421,7 +1421,7 @@ export function AppModals(props: AppModalsProps) {
                     disabled={!isPromoter}
                     onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, vendorName: e.target.value })}
                     className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? 'bg-slate-100 cursor-not-allowed opacity-70' : currentTheme.input}`}
-                    placeholder={lang === 'en' ? "e.g., SENELEC" : "ex. SENELEC"}
+                    placeholder={t.eGSenelec}
                   />
                 </div>
 
@@ -1460,13 +1460,13 @@ export function AppModals(props: AppModalsProps) {
                   <div className={`p-6 ${currentTheme.isDark ? 'bg-rose-950/10' : 'bg-rose-50/40'} border ${currentTheme.isDark ? 'border-rose-950/30' : 'border-rose-100'} rounded-3xl space-y-4`}>
                     <p className="text-xs font-black uppercase tracking-widest text-rose-500 flex items-center gap-2">
                       <Heart size={14} className="text-rose-500 fill-rose-500/10" />
-                      {lang === 'en' ? 'Student Welfare & Social Aid Details' : 'Détails des Cas Sociaux & Aides Liés aux Élèves'}
+                      {t.studentWelfareSocialAidDetails}
                     </p>
                     
                     {/* Aid Type Dropdown */}
                     <div className="space-y-2">
                       <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                        {lang === 'en' ? 'Type of Aid' : 'Type d\'aide'}
+                        {t.typeOfAid}
                       </label>
                       <select 
                         required={vendorExpenseForm.category === 'social_cases'}
@@ -1474,10 +1474,10 @@ export function AppModals(props: AppModalsProps) {
                         onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, aidType: e.target.value as any })}
                         className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
                       >
-                        <option value="">{lang === 'en' ? 'Select Type of Aid' : 'Sélectionner le type d\'aide'}</option>
-                        <option value="prise_en_charge">{lang === 'en' ? 'Tuition Waiver (Prise en charge Scolarité)' : 'Prise en charge Scolarité'}</option>
-                        <option value="kits_fournitures">{lang === 'en' ? 'Supplies Support (Kits Scolaires & Fournitures)' : 'Kits Scolaires & Fournitures'}</option>
-                        <option value="aide_urgence">{lang === 'en' ? 'Emergency Aid (Aide d\'Urgence)' : 'Aide d\'Urgence'}</option>
+                        <option value="">{t.selectTypeOfAid}</option>
+                        <option value="prise_en_charge">{t.tuitionWaiverPriseEnChargeScolarit}</option>
+                        <option value="kits_fournitures">{t.suppliesSupportKitsScolairesFournitures}</option>
+                        <option value="aide_urgence">{t.emergencyAidAideDUrgence}</option>
                       </select>
                     </div>
 
@@ -1485,38 +1485,38 @@ export function AppModals(props: AppModalsProps) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                          {lang === 'en' ? 'Beneficiary Student Name (Optional)' : 'Nom de l\'élève bénéficiaire (Optionnel)'}
+                          {t.beneficiaryStudentNameOptional}
                         </label>
                         <input 
                           type="text" 
                           value={vendorExpenseForm.beneficiaryStudentName}
                           onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, beneficiaryStudentName: e.target.value })}
                           className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
-                          placeholder={lang === 'en' ? "e.g., Ibrahim Thera" : "ex. Ibrahim Thera"}
+                          placeholder={t.eGIbrahimThera}
                         />
                       </div>
                       <div className="space-y-2">
                         <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                          {lang === 'en' ? 'Student Grade (Optional)' : 'Classe de l\'élève (Optionnel)'}
+                          {t.studentGradeOptional}
                         </label>
                         <select 
                           value={vendorExpenseForm.beneficiaryStudentGrade}
                           onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, beneficiaryStudentGrade: e.target.value })}
                           className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
                         >
-                          <option value="">{lang === 'en' ? 'Select Grade' : 'Sélectionner la classe'}</option>
-                          <optgroup label={lang === 'en' ? "First Cycle (Premier Cycle)" : "Premier Cycle"}>
+                          <option value="">{t.selectGrade}</option>
+                          <optgroup label={t.firstCyclePremierCycle}>
                             {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
                               <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                             ))}
                           </optgroup>
-                          <optgroup label={lang === 'en' ? "Second Cycle" : "Second Cycle"}>
+                          <optgroup label={'Second Cycle'}>
                             {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
                               <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                             ))}
                           </optgroup>
                           {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
-                            <optgroup label={lang === 'en' ? "Other Classes" : "Autres Classes"}>
+                            <optgroup label={t.otherClasses}>
                               {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
                                 <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                               ))}
@@ -1533,7 +1533,7 @@ export function AppModals(props: AppModalsProps) {
                   <div className="space-y-2">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
                       <span>{t.amount} (XOF)</span>
-                      {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({lang === 'en' ? 'Promoter Only' : 'Promotrice uniquement'})</span>}
+                      {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
                     </label>
                     <input 
                       required
@@ -1548,7 +1548,7 @@ export function AppModals(props: AppModalsProps) {
 
                   {/* Due Date */}
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{lang === 'en' ? "Due Date" : "Date d'échéance"}</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.dueDate2}</label>
                     <input 
                       required
                       type="date" 
@@ -1582,7 +1582,7 @@ export function AppModals(props: AppModalsProps) {
                     value={vendorExpenseForm.description}
                     onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, description: e.target.value })}
                     className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
-                    placeholder={lang === 'en' ? "Optional notes..." : "Notes optionnelles..."}
+                    placeholder={t.optionalNotes}
                   />
                 </div>
 
@@ -1645,7 +1645,7 @@ export function AppModals(props: AppModalsProps) {
                     }}
                     className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                   >
-                    <option value="">{lang === 'en' ? 'Select Staff' : 'Sélectionner le personnel'}</option>
+                    <option value="">{t.selectStaff}</option>
                     {staff.map(s => {
                       const paid = salaryPayments
                         .filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth)
@@ -1753,7 +1753,7 @@ export function AppModals(props: AppModalsProps) {
                         <div className={`w-16 h-16 rounded-full ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-400'} flex items-center justify-center mx-auto mb-4`}>
                           <Calendar size={32} />
                         </div>
-                        <p className={currentTheme.muted}>{lang === 'en' ? 'No financial tasks for this day' : 'Aucune tâche financière pour ce jour'}</p>
+                        <p className={currentTheme.muted}>{t.noTasks}</p>
                       </div>
                     );
                   }
@@ -1780,9 +1780,9 @@ export function AppModals(props: AppModalsProps) {
                                 event.type === 'salary' ? 'text-emerald-600' :
                                 'text-blue-600'
                               }`}>
-                                {event.type === 'due' ? (lang === 'en' ? 'Student Fees Due' : 'Frais Scolaires Dus') : 
-                                 event.type === 'salary' ? (lang === 'en' ? 'Staff Salaries' : 'Salaires du Personnel') : 
-                                 (lang === 'en' ? 'Expenses' : 'Dépenses')}
+                                {event.type === 'due' ? (t.studentFeesDue) : 
+                                 event.type === 'salary' ? (t.staffSalaries) : 
+                                 (t.expenses)}
                               </h4>
                               <p className={`text-lg font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
                                 {event.count}
@@ -1840,10 +1840,10 @@ export function AppModals(props: AppModalsProps) {
               <p className="leading-tight">{welcomeMessage}</p>
               <p className="text-[10px] text-white/60 font-medium">
                 {currentUser?.role === 'dev'
-                  ? (lang === 'en' ? 'System Developer Portal' : 'Portail Développeur Système')
+                  ? (t.systemDeveloperPortal)
                   : currentUser?.role === 'admin' 
-                  ? (lang === 'en' ? 'Promoter / Owner Portal' : 'Portail Promoteur / Propriétaire') 
-                  : (lang === 'en' ? 'Accountant Access' : 'Accès Comptable')}
+                  ? (t.promoterOwnerPortal) 
+                  : (t.accountantAccess)}
               </p>
             </div>
           </motion.div>
@@ -1887,13 +1887,13 @@ export function AppModals(props: AppModalsProps) {
                 onClick={() => setProductivitySidebarTab('tasks')}
                 className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest border-b-2 transition-all ${productivitySidebarTab === 'tasks' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
               >
-                {lang === 'en' ? 'To-Do' : 'Tâches'}
+                {t.toDo}
               </button>
               <button 
                 onClick={() => setProductivitySidebarTab('ai')}
                 className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest border-b-2 transition-all ${productivitySidebarTab === 'ai' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
               >
-                {lang === 'en' ? 'AI Assistant' : 'Assistant IA'}
+                {t.aiAssistant}
               </button>
             </div>
 
@@ -1913,7 +1913,7 @@ export function AppModals(props: AppModalsProps) {
                 {/* Suggestions Chips */}
                 <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
-                    {lang === 'en' ? 'Quick Questions' : 'Questions Rapides'}
+                    {t.quickQuestions}
                   </span>
                   <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto custom-scrollbar">
                     <button 
@@ -2129,10 +2129,10 @@ export function AppModals(props: AppModalsProps) {
                   </div>
                   <div>
                     <h3 className={`text-2xl font-black ${currentTheme.text}`}>
-                      {lang === 'en' ? 'Final Academic Audit Sheet' : 'Bilan de Clôture Annuel'}
+                      {t.finalAcademicAuditSheet}
                     </h3>
                     <p className={`text-sm ${currentTheme.muted} mt-0.5`}>
-                      {lang === 'en' ? `Certified financial review for the academic year ${auditYear}` : `Bilan financier certifié pour l'année académique ${auditYear}`}
+                      {t.certifiedFinancialReview.replace('{year}', auditYear)}
                     </p>
                   </div>
                 </div>
@@ -2160,10 +2160,10 @@ export function AppModals(props: AppModalsProps) {
                   </div>
                   <div className="text-right">
                     <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider">
-                      {lang === 'en' ? 'ARCHIVED & CERTIFIED' : 'ARCHIVÉ & CERTIFIÉ'}
+                      {t.archivedCertified}
                     </span>
-                    <p className="text-xs text-slate-500 mt-2 font-bold">{lang === 'en' ? 'Date:' : 'Date de Clôture :'} {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR')}</p>
-                    <p className="text-[10px] text-slate-400">{lang === 'en' ? 'Audit ID:' : 'ID Bilan :'} AUD-{auditYear}-{Math.floor(1000 + Math.random() * 9000)}</p>
+                    <p className="text-xs text-slate-500 mt-2 font-bold">{t.date2} {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR')}</p>
+                    <p className="text-[10px] text-slate-400">{t.auditId} AUD-{auditYear}-{Math.floor(1000 + Math.random() * 9000)}</p>
                   </div>
                 </div>
 
@@ -2174,21 +2174,21 @@ export function AppModals(props: AppModalsProps) {
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="p-6 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-2xl border border-emerald-100 dark:border-emerald-950">
-                          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">{lang === 'en' ? 'Total Revenue (A)' : 'Recettes Totales (A)'}</span>
+                          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">{t.totalRevenueA}</span>
                           <p className="text-2xl font-black text-emerald-600 mt-1">{formatCurrency(revenue)}</p>
-                          <p className="text-[10px] text-slate-400 mt-1">{lang === 'en' ? 'Actual student fees paid' : 'Frais de scolarité effectivement perçus'}</p>
+                          <p className="text-[10px] text-slate-400 mt-1">{t.actualStudentFeesPaid}</p>
                         </div>
 
                         <div className="p-6 bg-rose-50/50 dark:bg-rose-950/10 rounded-2xl border border-rose-100 dark:border-rose-950">
-                          <span className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">{lang === 'en' ? 'Total Expenses (B)' : 'Dépenses Totales (B)'}</span>
+                          <span className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">{t.totalExpensesB}</span>
                           <p className="text-2xl font-black text-rose-600 mt-1">{formatCurrency(expenses)}</p>
-                          <p className="text-[10px] text-slate-400 mt-1">{lang === 'en' ? 'Salaries, vendors & utility payments' : 'Salaires, fournisseurs & factures payées'}</p>
+                          <p className="text-[10px] text-slate-400 mt-1">{t.salariesVendorsUtilityPayments}</p>
                         </div>
 
                         <div className={`p-6 ${balance >= 0 ? 'bg-teal-50/50 dark:bg-teal-950/10 border-teal-100 dark:border-teal-950' : 'bg-red-50/50 dark:bg-red-950/10 border-red-100 dark:border-red-950'} rounded-2xl border`}>
-                          <span className={`text-xs font-bold ${balance >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-red-700 dark:text-red-400'} uppercase tracking-wider`}>{lang === 'en' ? 'Net Balance (A - B)' : 'Solde Net de Clôture (A - B)'}</span>
+                          <span className={`text-xs font-bold ${balance >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-red-700 dark:text-red-400'} uppercase tracking-wider`}>{t.netBalanceAB}</span>
                           <p className={`text-2xl font-black ${balance >= 0 ? 'text-teal-600' : 'text-red-600'} mt-1`}>{formatCurrency(balance)}</p>
-                          <p className="text-[10px] text-slate-400 mt-1">{lang === 'en' ? 'Final cash ledger balance' : 'Fonds de caisse net en clôture'}</p>
+                          <p className="text-[10px] text-slate-400 mt-1">{t.finalCashLedgerBalance}</p>
                         </div>
                       </div>
 
@@ -2204,16 +2204,16 @@ export function AppModals(props: AppModalsProps) {
                         return (
                           <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-700">
                             <h5 className="font-extrabold text-sm text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                              {lang === 'en' ? 'Outstanding Parent Debts Carried Forward' : 'Rapport des Arriérés de Frais Reportés (Reliquats)'}
+                              {t.outstandingParentDebtsCarriedForward}
                             </h5>
                             {studentsWithDebt.length > 0 ? (
                               <div className="max-h-[200px] overflow-y-auto rounded-2xl border border-slate-100 dark:border-slate-800">
                                 <table className="w-full text-left text-xs">
                                   <thead>
                                     <tr className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-300">
-                                      <th className="px-4 py-2.5">{lang === 'en' ? 'Student Name' : 'Nom de l\'Élève'}</th>
-                                      <th className="px-4 py-2.5">{lang === 'en' ? 'Parent Contact' : 'Parent / Contact'}</th>
-                                      <th className="px-4 py-2.5 text-right">{lang === 'en' ? 'Unpaid Balance' : 'Montant Arriéré'}</th>
+                                      <th className="px-4 py-2.5">{t.studentName2}</th>
+                                      <th className="px-4 py-2.5">{t.parentContact2}</th>
+                                      <th className="px-4 py-2.5 text-right">{t.unpaidBalance}</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -2234,7 +2234,7 @@ export function AppModals(props: AppModalsProps) {
                               </div>
                             ) : (
                               <p className="text-xs text-slate-400 italic">
-                                {lang === 'en' ? 'No outstanding student debts recorded for carryforward.' : 'Aucun arriéré de frais à reporter.'}
+                                {t.noOutstandingStudentDebtsRecordedForCarryforward}
                               </p>
                             )}
                           </div>
@@ -2247,12 +2247,12 @@ export function AppModals(props: AppModalsProps) {
                 {/* Audit Signature Block */}
                 <div className="flex justify-between items-center pt-8 border-t-2 border-slate-200 dark:border-slate-700 text-xs">
                   <div>
-                    <p className="font-bold text-slate-500">{lang === 'en' ? 'Certified by:' : 'Rapport préparé par :'}</p>
+                    <p className="font-bold text-slate-500">{t.certifiedBy}</p>
                     <p className="font-black text-slate-800 dark:text-slate-200 mt-1">Ibrahim Thera, Portal Admin</p>
-                    <p className="text-slate-400 text-[10px]">{lang === 'en' ? 'Finance Controller' : 'Directeur Administratif et Financier'}</p>
+                    <p className="text-slate-400 text-[10px]">{t.financeController}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-slate-500">{lang === 'en' ? 'Seal / Signature' : 'Sceau & Signature'}</p>
+                    <p className="font-bold text-slate-500">{t.sealSignature}</p>
                     <div className="h-10 w-40 border-b border-dashed border-slate-300 dark:border-slate-600 mt-2 ml-auto" />
                     <p className="text-[9px] text-slate-400 mt-1">Ibrahim Thera / Executive Signature</p>
                   </div>
@@ -2265,7 +2265,7 @@ export function AppModals(props: AppModalsProps) {
                   onClick={() => setShowAuditModal(false)}
                   className={`px-6 py-3 rounded-2xl border ${currentTheme.border} ${currentTheme.text} hover:bg-slate-50 text-sm font-bold transition-all`}
                 >
-                  {lang === 'en' ? 'Close Preview' : 'Fermer l\'Aperçu'}
+                  {t.closePreview}
                 </button>
                 <button 
                   onClick={() => {
@@ -2307,7 +2307,7 @@ export function AppModals(props: AppModalsProps) {
                 <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
                   <h2 className="text-xl font-bold flex items-center gap-3">
                     <Printer size={24} className="text-rose-400" />
-                    {lang === 'en' ? 'Late Payment Ticket' : 'Ticket de retard de paiement'}
+                    {t.latePaymentTicket}
                   </h2>
                   <button 
                     onClick={() => setTicketStudent(null)}
@@ -2324,7 +2324,7 @@ export function AppModals(props: AppModalsProps) {
                       <h3 className="font-bold text-base uppercase tracking-wider">{t.title}</h3>
                       <p className="text-[10px] text-slate-500">{t.subtitle}</p>
                       <h4 className="font-black text-rose-600 mt-2 text-sm uppercase tracking-widest">
-                        {lang === 'en' ? 'LATE PAYMENT TICKET' : 'TICKET DE RETARD'}
+                        {t.latePaymentTicket2}
                       </h4>
                     </div>
 
@@ -2352,11 +2352,7 @@ export function AppModals(props: AppModalsProps) {
                     </div>
 
                     <div className="border-t border-dashed border-slate-300 pt-4 text-center text-[10px] text-slate-600 leading-relaxed italic">
-                      {lang === 'en' ? (
-                        'Notice: This account is more than 2 months overdue. Please contact the finance department immediately to settle the outstanding balance.'
-                      ) : (
-                        'Avis : Ce compte accuse un retard de plus de 2 mois. Veuillez contacter le service financier immédiatement pour régulariser le solde.'
-                      )}
+                      {t.overdueNotice}
                     </div>
                   </div>
 
@@ -2368,7 +2364,7 @@ export function AppModals(props: AppModalsProps) {
                       className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-4 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20 flex items-center justify-center gap-2"
                     >
                       <Printer size={18} />
-                      {lang === 'en' ? 'Print Ticket' : 'Imprimer le ticket'}
+                      {t.printTicket}
                     </button>
                     <button 
                       onClick={() => setTicketStudent(null)}
@@ -2396,7 +2392,7 @@ export function AppModals(props: AppModalsProps) {
               <h1 className="font-bold text-xl uppercase tracking-wider">{t.title}</h1>
               <p className="text-xs text-black/70">{t.subtitle}</p>
               <h2 className="font-bold text-lg mt-3 uppercase tracking-widest border border-black px-2 py-1 inline-block">
-                {lang === 'en' ? 'LATE PAYMENT TICKET' : 'TICKET DE RETARD'}
+                {t.latePaymentTicket2}
               </h2>
             </div>
 
@@ -2424,16 +2420,12 @@ export function AppModals(props: AppModalsProps) {
             </div>
 
             <div className="border-t border-black pt-4 text-center text-xs leading-relaxed font-bold italic">
-              {lang === 'en' ? (
-                'Notice: This account is more than 2 months overdue. Please contact the finance department immediately to settle the outstanding balance.'
-              ) : (
-                'Avis : Ce compte accuse un retard de plus de 2 mois. Veuillez contacter le service financier immédiatement pour régulariser le solde.'
-              )}
+              {t.overdueNotice}
             </div>
 
             <div className="text-center text-[10px] pt-8 border-t border-black/10">
-              <p>{lang === 'en' ? 'Generated on:' : 'Généré le :'} {formatDate(new Date().toISOString())}</p>
-              <p className="mt-2 text-[8px] tracking-widest uppercase">{lang === 'en' ? 'Official Financial Receipt' : 'Reçu Financier Officiel'}</p>
+              <p>{t.generatedOn} {formatDate(new Date().toISOString())}</p>
+              <p className="mt-2 text-[8px] tracking-widest uppercase">{t.officialFinancialReceipt}</p>
             </div>
           </div>
         );
@@ -2455,22 +2447,22 @@ export function AppModals(props: AppModalsProps) {
               <h1 className="font-bold text-2xl uppercase tracking-wider">{t.title}</h1>
               <p className="text-xs text-black/70 uppercase tracking-widest">{t.subtitle}</p>
               <h2 className="font-black text-lg mt-3 uppercase tracking-wider border-2 border-black px-4 py-2 inline-block">
-                {lang === 'en' ? 'FINAL ACADEMIC AUDIT REPORT' : 'BILAN COMPTABLE DE CLÔTURE'}
+                {t.finalAcademicAuditReport}
               </h2>
-              <p className="text-sm mt-2 font-semibold">{lang === 'en' ? 'ACADEMIC YEAR' : 'ANNÉE SCOLAIRE'} : {auditYear}</p>
+              <p className="text-sm mt-2 font-semibold">{t.academicYear3} : {auditYear}</p>
             </div>
 
             <div className="grid grid-cols-3 gap-4 text-center py-4 border-b border-black">
               <div className="border border-black p-4 rounded-xl">
-                <span className="text-[10px] font-bold block uppercase tracking-wide">{lang === 'en' ? 'TOTAL REVENUE' : 'RECETTES TOTALES'}</span>
+                <span className="text-[10px] font-bold block uppercase tracking-wide">{t.totalRevenue}</span>
                 <span className="text-lg font-black">{formatCurrency(revenue)}</span>
               </div>
               <div className="border border-black p-4 rounded-xl">
-                <span className="text-[10px] font-bold block uppercase tracking-wide">{lang === 'en' ? 'TOTAL EXPENSES' : 'DÉPENSES TOTALES'}</span>
+                <span className="text-[10px] font-bold block uppercase tracking-wide">{t.totalExpenses2}</span>
                 <span className="text-lg font-black">{formatCurrency(expenses)}</span>
               </div>
               <div className="border border-black p-4 rounded-xl">
-                <span className="text-[10px] font-bold block uppercase tracking-wide">{lang === 'en' ? 'NET CLOSING BALANCE' : 'SOLDE NET DE CLÔTURE'}</span>
+                <span className="text-[10px] font-bold block uppercase tracking-wide">{t.netClosingBalance}</span>
                 <span className="text-lg font-black">{formatCurrency(balance)}</span>
               </div>
             </div>
@@ -2478,15 +2470,15 @@ export function AppModals(props: AppModalsProps) {
             {/* Debts Carried Over */}
             <div className="space-y-3">
               <h3 className="font-bold text-sm uppercase tracking-wider">
-                {lang === 'en' ? 'Outstanding Parent Debts Carried Forward (Reliquats)' : 'Arriérés de Paiement Reportés (Reliquats)'}
+                {t.outstandingParentDebtsCarriedForwardReliquats}
               </h3>
               {studentsWithDebt.length > 0 ? (
                 <table className="w-full text-left text-xs border border-black">
                   <thead>
                     <tr className="bg-slate-100 border-b border-black font-bold">
-                      <th className="px-3 py-2 border-r border-black">{lang === 'en' ? 'Student Name' : 'Nom de l\'Élève'}</th>
-                      <th className="px-3 py-2 border-r border-black">{lang === 'en' ? 'Parent / Contact' : 'Parent / Contact'}</th>
-                      <th className="px-3 py-2 text-right">{lang === 'en' ? 'Debt Carried Over' : 'Arriéré Reporté'}</th>
+                      <th className="px-3 py-2 border-r border-black">{t.studentName2}</th>
+                      <th className="px-3 py-2 border-r border-black">{'Parent / Contact'}</th>
+                      <th className="px-3 py-2 text-right">{t.debtCarriedOver}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black">
@@ -2505,26 +2497,26 @@ export function AppModals(props: AppModalsProps) {
                   </tbody>
                 </table>
               ) : (
-                <p className="text-xs italic">{lang === 'en' ? 'No outstanding student debts recorded.' : 'Aucun arriéré de frais à reporter.'}</p>
+                <p className="text-xs italic">{t.noOutstandingStudentDebtsRecorded}</p>
               )}
             </div>
 
             {/* Certified signature block */}
             <div className="flex justify-between items-center pt-12 border-t border-black text-xs">
               <div>
-                <p className="font-bold">{lang === 'en' ? 'Certified Sincerely by:' : 'Certifié sincère et conforme par :'}</p>
+                <p className="font-bold">{t.certifiedSincerelyBy}</p>
                 <p className="font-black mt-1">Ibrahim Thera, Executive Admin</p>
-                <p className="text-black/60 text-[10px]">{lang === 'en' ? 'School Director / Controller' : 'Directeur Administratif et Financier'}</p>
+                <p className="text-black/60 text-[10px]">{t.schoolDirectorController}</p>
               </div>
               <div className="text-right">
-                <p className="font-bold">{lang === 'en' ? 'Authorized Signature' : 'Signature Autorisée'}</p>
+                <p className="font-bold">{t.authorizedSignature}</p>
                 <div className="h-12 w-48 border-b border-dashed border-black mt-2 ml-auto" />
                 <p className="text-[8px] text-black/60 mt-1">Ibrahim Thera / Official Board Seal</p>
               </div>
             </div>
 
             <div className="text-center text-[10px] pt-8 border-t border-black/10">
-              <p>{lang === 'en' ? 'System Certified Closing Document' : 'Document de clôture certifié par le système'}</p>
+              <p>{t.systemCertifiedClosingDocument}</p>
               <p className="mt-1 font-bold">Finance Exécutive Admin Portal</p>
             </div>
           </div>
@@ -2539,11 +2531,11 @@ export function AppModals(props: AppModalsProps) {
             <div className="flex justify-between items-start border-b-2 border-black pb-6">
               <div>
                 <h1 className="font-black text-2xl tracking-tight text-slate-900">COMPLEXE SCOLAIRE MAMA THERA</h1>
-                <p className="text-xs uppercase tracking-widest text-slate-500 font-bold mt-1">{lang === 'en' ? 'Official Student Profile & Academic File' : 'Dossier Scolaire Officiel de l\'Élève'}</p>
+                <p className="text-xs uppercase tracking-widest text-slate-500 font-bold mt-1">{t.officialStudentProfileAcademicFile}</p>
                 <p className="text-[10px] text-slate-400 mt-0.5">Phone: +223 70 00 00 00 | Email: contact@mamathera.edu.ml</p>
               </div>
               <div className="border border-slate-300 px-4 py-2 text-center rounded-xl bg-slate-50">
-                <span className="text-[9px] font-black uppercase tracking-widest block text-slate-400">{lang === 'en' ? 'STUDENT ID' : 'MATRICULE'}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest block text-slate-400">{t.studentId}</span>
                 <span className="font-mono font-bold text-sm text-slate-800">
                   {printStudentFile.studentId || `MT-2026-${printStudentFile.id.replace('ST', '')}`}
                 </span>
@@ -2575,21 +2567,21 @@ export function AppModals(props: AppModalsProps) {
                   <h2 className="text-3xl font-black text-slate-900 tracking-tight">{printStudentFile.name}</h2>
                   <div className="flex gap-4 mt-2">
                     <span className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold uppercase">
-                      {lang === 'en' ? 'Class:' : 'Classe :'} {getGradeDisplay(printStudentFile.grade, 'fr')}
+                      {t.class} {getGradeDisplay(printStudentFile.grade, 'fr')}
                     </span>
                     <span className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold uppercase">
-                      {lang === 'en' ? 'Status:' : 'Statut :'} {printStudentFile.status || 'Active'}
+                      {t.status2} {printStudentFile.status || 'Active'}
                     </span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
-                    <span className="font-bold text-slate-400 block uppercase tracking-wide">{lang === 'en' ? 'Enrollment Date' : 'Date d\'Inscription'}</span>
+                    <span className="font-bold text-slate-400 block uppercase tracking-wide">{t.enrollmentDate2}</span>
                     <span className="font-semibold text-slate-800">{printStudentFile.enrollmentDate || '2026-07-16'}</span>
                   </div>
                   <div>
-                    <span className="font-bold text-slate-400 block uppercase tracking-wide">{lang === 'en' ? 'Academic Year' : 'Année Scolaire'}</span>
+                    <span className="font-bold text-slate-400 block uppercase tracking-wide">{t.academicYear2}</span>
                     <span className="font-semibold text-slate-800">{printStudentFile.academicYear || '2025-2026'}</span>
                   </div>
                 </div>
@@ -2598,18 +2590,18 @@ export function AppModals(props: AppModalsProps) {
 
             {/* General Info & Financial Ledger Section */}
             <div className="border border-slate-300 rounded-[2rem] p-6 space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{lang === 'en' ? 'Financial Status Ledger' : 'Relevé Financier'}</h3>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{t.financialStatusLedger}</h3>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Total Tuition Due' : 'Scolarité Totale Due'}</span>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">{t.totalTuitionDue}</span>
                   <span className="text-lg font-black text-slate-800">{formatCurrency(printStudentFile.totalDue)}</span>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Paid Tuition' : 'Scolarité Payée'}</span>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">{t.paidTuition}</span>
                   <span className="text-lg font-black text-emerald-600">+{formatCurrency(printStudentFile.amountPaid)}</span>
                 </div>
                 <div className="bg-rose-50 p-4 rounded-xl border border-rose-100">
-                  <span className="text-[10px] font-bold text-rose-500 block uppercase">{lang === 'en' ? 'Remaining Balance' : 'Solde Restant Dû'}</span>
+                  <span className="text-[10px] font-bold text-rose-500 block uppercase">{t.remainingBalance2}</span>
                   <span className="text-lg font-black text-rose-600">{formatCurrency(printStudentFile.totalDue - printStudentFile.amountPaid)}</span>
                 </div>
               </div>
@@ -2618,35 +2610,35 @@ export function AppModals(props: AppModalsProps) {
             {/* Parent & Emergency Info */}
             <div className="grid grid-cols-2 gap-6">
               <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{lang === 'en' ? 'Primary Guardian' : 'Tuteur Principal'}</h3>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{t.guardianTitle}</h3>
                 <div className="space-y-1.5 text-xs">
-                  <p><strong className="text-slate-400">{lang === 'en' ? 'Name:' : 'Nom :'}</strong> <span className="font-bold text-slate-800">{printStudentFile.parentName}</span></p>
-                  <p><strong className="text-slate-400">{lang === 'en' ? 'Phone:' : 'Téléphone :'}</strong> <span className="font-semibold text-slate-800">{printStudentFile.parentPhone}</span></p>
-                  <p><strong className="text-slate-400">{lang === 'en' ? 'Email:' : 'Email :'}</strong> <span className="font-semibold text-blue-600">{printStudentFile.parentEmail}</span></p>
+                  <p><strong className="text-slate-400">{t.name}</strong> <span className="font-bold text-slate-800">{printStudentFile.parentName}</span></p>
+                  <p><strong className="text-slate-400">{t.phone3}</strong> <span className="font-semibold text-slate-800">{printStudentFile.parentPhone}</span></p>
+                  <p><strong className="text-slate-400">{t.email2}</strong> <span className="font-semibold text-blue-600">{printStudentFile.parentEmail}</span></p>
                 </div>
               </div>
 
               <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
-                <h3 className="text-xs font-black uppercase tracking-widest text-rose-500 border-b pb-2">{lang === 'en' ? 'Emergency Contact' : 'Contact d\'Urgence'}</h3>
+                <h3 className="text-xs font-black uppercase tracking-widest text-rose-500 border-b pb-2">{t.emergencyContact2}</h3>
                 <div className="space-y-1.5 text-xs">
-                  <p><strong className="text-slate-400">{lang === 'en' ? 'Contact Person:' : 'Nom du Contact :'}</strong> <span className="font-bold text-slate-800">{printStudentFile.emergencyContactName || 'N/A'}</span></p>
-                  <p><strong className="text-slate-400">{lang === 'en' ? 'Relationship:' : 'Lien de Parenté :'}</strong> <span className="font-semibold text-slate-800">{printStudentFile.emergencyContactRelation || 'N/A'}</span></p>
-                  <p><strong className="text-slate-400">{lang === 'en' ? 'Phone Number:' : 'Téléphone :'}</strong> <span className="font-black text-rose-600">{printStudentFile.emergencyContactPhone || 'N/A'}</span></p>
+                  <p><strong className="text-slate-400">{t.contactPerson}</strong> <span className="font-bold text-slate-800">{printStudentFile.emergencyContactName || 'N/A'}</span></p>
+                  <p><strong className="text-slate-400">{t.relationship3}</strong> <span className="font-semibold text-slate-800">{printStudentFile.emergencyContactRelation || 'N/A'}</span></p>
+                  <p><strong className="text-slate-400">{t.phoneNumber}</strong> <span className="font-black text-rose-600">{printStudentFile.emergencyContactPhone || 'N/A'}</span></p>
                 </div>
               </div>
             </div>
 
             {/* History & Medical Records */}
             <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{lang === 'en' ? 'Medical & History File' : 'Fiche Médicale & Historique'}</h3>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{t.medicalHistoryFile}</h3>
               <div className="grid grid-cols-2 gap-6 text-xs">
                 <div>
-                  <span className="font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Previous School Transfer History' : 'École Précédente / Provenance'}</span>
-                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.previousSchool || (lang === 'en' ? 'None / Direct Admission Entry' : 'Aucune / Inscription Directe')}</p>
+                  <span className="font-bold text-slate-400 block uppercase">{t.previousSchoolTransferHistory}</span>
+                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.previousSchool || (t.noneDirectAdmissionEntry)}</p>
                 </div>
                 <div>
-                  <span className="font-bold text-slate-400 block uppercase">{lang === 'en' ? 'Allergies, Medical Notes & Conditions' : 'Allergies, Notes Médicales & Conditions'}</span>
-                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.medicalNotes || (lang === 'en' ? 'None / Clear profile' : 'Aucune / Profil Vierge')}</p>
+                  <span className="font-bold text-slate-400 block uppercase">{t.allergiesMedicalNotesConditions}</span>
+                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.medicalNotes || (t.noneClearProfile)}</p>
                 </div>
               </div>
             </div>
@@ -2654,14 +2646,14 @@ export function AppModals(props: AppModalsProps) {
             {/* Signature Area */}
             <div className="flex justify-between items-center pt-12 border-t border-slate-200 text-xs">
               <div>
-                <p className="font-bold">{lang === 'en' ? 'Generated and Verified Sincerely by:' : 'Généré et vérifié par :'}</p>
+                <p className="font-bold">{t.generatedAndVerifiedSincerelyBy}</p>
                 <p className="font-black mt-1 text-slate-900">{currentUser?.name || 'Direction Complexe Scolaire MAMA THERA'}</p>
-                <p className="text-slate-500 text-[10px]">{lang === 'en' ? 'Complexe Scolaire MAMA THERA Administration' : 'Administration Complexe Scolaire MAMA THERA'}</p>
+                <p className="text-slate-500 text-[10px]">{t.complexeScolaireMamaTheraAdministration}</p>
               </div>
               <div className="text-right">
-                <p className="font-bold">{lang === 'en' ? 'Official Seal & Signature' : 'Sceau Officiel & Signature'}</p>
+                <p className="font-bold">{t.officialSealSignature}</p>
                 <div className="h-12 w-48 border-b border-dashed border-slate-400 mt-2 ml-auto" />
-                <p className="text-[8px] text-slate-400 mt-1">{lang === 'en' ? 'Official Board Representative' : 'Représentant Officiel de la Direction'}</p>
+                <p className="text-[8px] text-slate-400 mt-1">{t.officialBoardRepresentative}</p>
               </div>
             </div>
           </div>
@@ -2706,7 +2698,7 @@ export function AppModals(props: AppModalsProps) {
                   required
                   value={parentForm.fullName}
                   onChange={(e) => setParentForm({ ...parentForm, fullName: e.target.value })}
-                  placeholder={lang === 'en' ? 'e.g. Mamadou Traoré' : 'ex. Mamadou Traoré'}
+                  placeholder={t.eGMamadouTraor}
                   className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
                 />
               </div>
@@ -2772,7 +2764,7 @@ export function AppModals(props: AppModalsProps) {
                   required
                   value={parentForm.occupation}
                   onChange={(e) => setParentForm({ ...parentForm, occupation: e.target.value })}
-                  placeholder={lang === 'en' ? 'e.g. Civil Engineer, Banker, Merchant...' : 'ex. Ingénieur Civil, Banquier, Commerçant...'}
+                  placeholder={t.eGCivilEngineerBankerMerchant}
                   className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
                 />
               </div>
@@ -2784,7 +2776,7 @@ export function AppModals(props: AppModalsProps) {
                   required
                   value={parentForm.address}
                   onChange={(e) => setParentForm({ ...parentForm, address: e.target.value })}
-                  placeholder={lang === 'en' ? 'e.g. Quartier Hippodrome, Bamako' : 'ex. Quartier Hippodrome, Bamako'}
+                  placeholder={t.eGQuartierHippodromeBamako}
                   className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
                 />
               </div>
@@ -2795,7 +2787,7 @@ export function AppModals(props: AppModalsProps) {
                   rows={3}
                   value={parentForm.notes}
                   onChange={(e) => setParentForm({ ...parentForm, notes: e.target.value })}
-                  placeholder={lang === 'en' ? 'e.g. Family contact preferences or special notes...' : 'ex. Préférences de contact ou notes spéciales...'}
+                  placeholder={t.eGFamilyContactPreferencesOrSpecialNotes}
                   className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
                 />
               </div>
@@ -2834,7 +2826,7 @@ export function AppModals(props: AppModalsProps) {
                   {t.linkStudent}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  {lang === 'en' ? `Attach child to ${activeLinkingParent.fullName}` : `Rattacher un enfant à ${activeLinkingParent.fullName}`}
+                  {t.attachChildTo.replace('{name}', activeLinkingParent.fullName)}
                 </p>
               </div>
               <button

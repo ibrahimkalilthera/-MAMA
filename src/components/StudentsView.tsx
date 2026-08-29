@@ -175,7 +175,7 @@ export function StudentsView(props: MainViewsProps) {
                           <button 
                             onClick={() => openEditModal(student)}
                             className={`p-2 ${currentTheme.muted} hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all`}
-                            title={lang === 'en' ? 'Edit Student' : 'Modifier l\'élève'}
+                            title={t.editStudent2}
                           >
                             <FileText size={18} />
                           </button>
@@ -183,22 +183,20 @@ export function StudentsView(props: MainViewsProps) {
                             <button 
                               onClick={() => setTicketStudent(student)}
                               className="p-2 text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                              title={lang === 'en' ? 'Print Late Payment Ticket' : 'Imprimer le ticket de retard'}
+                              title={t.printLatePaymentTicket}
                             >
                               <Printer size={18} />
                             </button>
                           )}
                           <button 
                             onClick={() => {
-                              const confirmMsg = lang === 'en' 
-                                ? `Are you sure you want to delete student "${student.name}"? This will also remove their payment records.` 
-                                : `Êtes-vous sûr de vouloir supprimer l'élève "${student.name}" ? Cela supprimera également ses reçus et paiements.`;
+                              const confirmMsg = t.deleteStudentConfirm.replace('{name}', student.name);
                               if (confirm(confirmMsg)) {
                                 deleteStudent(student.id);
                               }
                             }}
                             className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all"
-                            title={lang === 'en' ? 'Delete Student' : 'Supprimer l\'élève'}
+                            title={t.deleteStudent}
                           >
                             <Trash2 size={18} />
                           </button>

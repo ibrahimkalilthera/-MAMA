@@ -36,26 +36,24 @@ export function PayrollView(props: MainViewsProps) {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                   <h4 className={`text-lg font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
-                    {lang === 'en' ? 'Automatic Payroll Audit' : 'Audit Automatique de la Paie'}
+                    {t.automaticPayrollAudit}
                   </h4>
                   <p className={`text-xs ${currentTheme.muted} mt-1`}>
-                    {lang === 'en' 
-                      ? '12-month payroll tracking for the current calendar year' 
-                      : "Suivi de la paie sur 12 mois pour l'année civile en cours"}
+                    {t.n12MonthPayrollTrackingForTheCurrentCalendarYear}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-4 text-[10px] font-black uppercase tracking-widest">
                   <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-                    <span className={currentTheme.muted}>{lang === 'en' ? 'Full Payment' : 'Paiement Complet'}</span>
+                    <span className={currentTheme.muted}>{t.fullPayment}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-                    <span className={currentTheme.muted}>{lang === 'en' ? 'Partial' : 'Acompte'}</span>
+                    <span className={currentTheme.muted}>{t.partial2}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></div>
-                    <span className={currentTheme.muted}>{lang === 'en' ? 'Missing' : 'Manquant'}</span>
+                    <span className={currentTheme.muted}>{t.missing}</span>
                   </div>
                 </div>
               </div>
@@ -80,16 +78,16 @@ export function PayrollView(props: MainViewsProps) {
                   
                   if (isFuture) {
                     boxClass = `${currentTheme.isDark ? 'bg-emerald-950/10 border-emerald-950/20 text-emerald-900/50' : 'bg-slate-50 border-slate-100 text-slate-300'}`;
-                    statusText = lang === 'en' ? 'Scheduled' : 'Planifié';
+                    statusText = t.scheduled;
                   } else if (totalPaid === 0) {
                     boxClass = "bg-rose-500 text-white border-rose-600 animate-pulse shadow-lg shadow-rose-500/20";
-                    statusText = lang === 'en' ? 'Unpaid' : 'Non payé';
+                    statusText = t.unpaid;
                   } else if (totalPaid >= totalExpected) {
                     boxClass = "bg-emerald-500 text-white border-emerald-600 shadow-lg shadow-emerald-500/20";
-                    statusText = lang === 'en' ? 'Fully Paid' : 'Payé';
+                    statusText = t.settle;
                   } else {
                     boxClass = "bg-amber-500 text-white border-amber-600 shadow-lg shadow-amber-500/20";
-                    statusText = lang === 'en' ? 'Partial' : 'Acompte';
+                    statusText = t.partial2;
                   }
 
                   return (
@@ -101,7 +99,7 @@ export function PayrollView(props: MainViewsProps) {
                         setShowMonthlyDraftModal(true);
                       }}
                       className={`${boxClass} p-4 rounded-2xl border flex flex-col items-center justify-center text-center transition-all hover:scale-[1.05] cursor-pointer shadow-sm`}
-                      title={lang === 'en' ? `Click to view ${monthName} payroll draft` : `Cliquer pour voir le bordereau de ${monthName}`}
+                      title={t.clickToViewDraft.replace('{month}', monthName)}
                     >
                       <span className="text-xs font-black uppercase tracking-wider">{monthName.substring(0, 3)}</span>
                       <span className="text-[9px] font-bold opacity-85 mt-1.5">{statusText}</span>
@@ -117,7 +115,7 @@ export function PayrollView(props: MainViewsProps) {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
               <div>
                 <h3 className={`text-2xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.staffDirectory}</h3>
-                <p className={`text-sm ${currentTheme.muted}`}>{lang === 'en' ? 'Manage employee profiles and payroll' : 'Gérer les profils des employés et la paie'}</p>
+                <p className={`text-sm ${currentTheme.muted}`}>{t.manageEmployeeProfilesAndPayroll}</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
                 <div className="relative flex-1 sm:w-80">
@@ -137,10 +135,10 @@ export function PayrollView(props: MainViewsProps) {
                     setShowMonthlyDraftModal(true);
                   }}
                   className="px-5 py-3 rounded-2xl border border-emerald-600/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-xs font-bold transition-all flex items-center gap-2"
-                  title={lang === 'en' ? 'Open Monthly Payroll Draft' : 'Ouvrir le Bordereau Mensuel'}
+                  title={t.openMonthlyPayrollDraft}
                 >
                   <FileText size={16} />
-                  <span>{lang === 'en' ? 'Monthly Draft' : 'Bordereau Mensuel'}</span>
+                  <span>{t.monthlyDraft}</span>
                 </button>
                 <button 
                   onClick={() => {
@@ -279,7 +277,7 @@ export function PayrollView(props: MainViewsProps) {
                       {/* Ledger View (Mini) */}
                       {paymentsThisMonth.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
-                          <p className={`text-[10px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/50' : currentTheme.muted}`}>{lang === 'en' ? 'Payment History' : 'Historique des Paiements'}</p>
+                          <p className={`text-[10px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/50' : currentTheme.muted}`}>{t.paymentHistory}</p>
                           {paymentsThisMonth.map(p => (
                             <div key={p.id} className="flex justify-between text-[10px] font-bold">
                               <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/60' : currentTheme.muted}>{p.date}</span>
@@ -309,15 +307,13 @@ export function PayrollView(props: MainViewsProps) {
                         )}
                         <button 
                           onClick={() => {
-                            const confirmMsg = lang === 'en' 
-                              ? `Are you sure you want to delete staff member "${s.name}"?` 
-                              : `Êtes-vous sûr de vouloir supprimer l'employé(e) "${s.name}" ?`;
+                            const confirmMsg = t.deleteStaffConfirm.replace('{name}', s.name);
                             if (confirm(confirmMsg)) {
                               deleteStaff(s.id);
                             }
                           }}
                           className={`p-2 rounded-xl border ${paidThisMonth > 0 || payDatePassed ? 'border-white/30 text-white hover:bg-rose-500/30' : 'border-rose-100 text-rose-500 hover:bg-rose-50'} text-xs font-bold transition-all`}
-                          title={lang === 'en' ? 'Delete Staff Member' : 'Supprimer l\'employé'}
+                          title={t.deleteStaffMember}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -355,7 +351,7 @@ export function PayrollView(props: MainViewsProps) {
                       return (
                         <tr key={p.id} className={`${currentTheme.rowHover} transition-all`}>
                           <td className="px-8 py-6">
-                            <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{staffMember?.name || (lang === 'en' ? 'Unknown' : 'Inconnu')}</span>
+                            <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{staffMember?.name || (t.unknown)}</span>
                           </td>
                           <td className="px-8 py-6">
                             <span className={`text-sm ${currentTheme.muted}`}>{p.date}</span>
@@ -368,9 +364,9 @@ export function PayrollView(props: MainViewsProps) {
                               <button
                                 onClick={() => generateStaffPayslipPdf({ staffMember, payment: p, lang })}
                                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ml-auto active:scale-95"
-                                title={lang === 'en' ? 'Download Payslip PDF' : 'Télécharger Bulletin de Paie'}
+                                title={t.downloadPayslipPdf}
                               >
-                                📄 {lang === 'en' ? 'Payslip' : 'Bulletin'}
+                                📄 {t.payslip}
                               </button>
                             )}
                           </td>
@@ -378,7 +374,7 @@ export function PayrollView(props: MainViewsProps) {
                       );
                     }) : (
                       <tr>
-                        <td colSpan={4} className="px-8 py-12 text-center text-slate-400 italic">{lang === 'en' ? 'No payments recorded yet' : 'Aucun paiement enregistré pour le moment'}</td>
+                        <td colSpan={4} className="px-8 py-12 text-center text-slate-400 italic">{t.noPaymentsRecordedYet}</td>
                       </tr>
                     )}
                   </tbody>

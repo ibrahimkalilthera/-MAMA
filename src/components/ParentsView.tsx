@@ -86,7 +86,7 @@ export function ParentsView(props: MainViewsProps) {
                 <div className={`p-12 text-center rounded-[2rem] ${currentTheme.card} border ${currentTheme.border}`}>
                   <Users size={48} className="mx-auto mb-4 text-slate-300" />
                   <p className={`text-sm font-bold ${currentTheme.muted}`}>
-                    {lang === 'en' ? 'No parent profiles found matching your search.' : 'Aucun profil parent trouvé pour votre recherche.'}
+                    {t.noParentProfilesFoundMatchingYourSearch}
                   </p>
                 </div>
               ) : (
@@ -212,7 +212,7 @@ export function ParentsView(props: MainViewsProps) {
                             </button>
 
                             <button
-                              title={lang === 'en' ? 'Delete Parent' : 'Supprimer Parent'}
+                              title={t.deleteParent}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteParent(parent.id);
@@ -252,9 +252,7 @@ export function ParentsView(props: MainViewsProps) {
                                     {t.totalPaymentsAllChildren}
                                   </p>
                                   <p className="text-xs font-medium text-emerald-50/90">
-                                    {lang === 'en'
-                                      ? `Cumulative sum of all payments ever made by ${parent.fullName} across all registered children`
-                                      : `Cumul total de tous les paiements effectués par ${parent.fullName} pour l'ensemble des enfants rattachés`}
+                                    {t.cumulativePaymentsSum.replace('{name}', parent.fullName)}
                                   </p>
                                 </div>
                               </div>
@@ -489,7 +487,7 @@ export function ParentsView(props: MainViewsProps) {
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <h5 className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
                                   <Receipt size={16} />
-                                  {t.paymentHistory} ({lang === 'en' ? 'Consolidated Family Ledger' : 'Livre-Journal Familial Consolidé'})
+                                  {t.paymentHistory} ({t.consolidatedFamilyLedger})
                                 </h5>
                                 <button
                                   type="button"
@@ -503,7 +501,7 @@ export function ParentsView(props: MainViewsProps) {
 
                               {paymentHistory.length === 0 ? (
                                 <p className="text-xs text-slate-400 italic py-4 text-center">
-                                  {lang === 'en' ? 'No historical receipts found across connected children.' : 'Aucun reçu historique trouvé pour les enfants rattachés.'}
+                                  {t.noHistoricalReceiptsFoundAcrossConnectedChildren}
                                 </p>
                               ) : (
                                 <div className="overflow-x-auto">
@@ -547,7 +545,7 @@ export function ParentsView(props: MainViewsProps) {
                                           {formatCurrency(totalPaymentsEver)}
                                         </td>
                                         <td className="py-3 px-3 text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
-                                          {paymentHistory.length} {lang === 'en' ? 'receipt(s)' : 'reçu(s)'}
+                                          {paymentHistory.length} {t.receiptS}
                                         </td>
                                       </tr>
                                     </tfoot>

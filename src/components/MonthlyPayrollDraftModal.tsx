@@ -34,6 +34,7 @@ interface MonthlyPayrollDraftModalProps {
   themeBorder: string;
   themeMuted: string;
   themeIsDark: boolean;
+  t: Record<string, string>;
 }
 
 const MONTHS_FR = [
@@ -64,6 +65,7 @@ export function MonthlyPayrollDraftModal({
   themeBorder,
   themeMuted,
   themeIsDark,
+  t,
 }: MonthlyPayrollDraftModalProps) {
   if (!isOpen) return null;
 
@@ -136,12 +138,10 @@ export function MonthlyPayrollDraftModal({
               </div>
               <div>
                 <h3 className="font-extrabold text-lg sm:text-xl tracking-tight">
-                  {isFr ? 'Bordereau Mensuel de Paie du Personnel' : 'Monthly Payroll Disbursement Draft'}
+                  {t.monthlyPayrollDisbursementDraft}
                 </h3>
                 <p className="text-xs text-white/60 font-medium mt-0.5">
-                  {isFr
-                    ? `État récapitulatif des salaires payés & reliquats — ${currentMonthName} ${year}`
-                    : `Disbursement summary & outstanding arrears — ${currentMonthName} ${year}`}
+                  {t.disbursementSummary.replace('{month}', currentMonthName).replace('{year}', String(year))}
                 </p>
               </div>
             </div>
@@ -183,7 +183,7 @@ export function MonthlyPayrollDraftModal({
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className={`p-5 rounded-2xl border ${themeBorder} ${themeIsDark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
                 <p className={`text-[10px] font-bold uppercase tracking-widest ${themeMuted} mb-1`}>
-                  {isFr ? 'Masse Salariale' : 'Total Budget'}
+                  {t.totalBudget}
                 </p>
                 <h4 className={`text-xl font-black ${themeIsDark ? 'text-white' : 'text-slate-900'}`}>
                   {formatCurrency(grandTotalExpected)}
@@ -192,7 +192,7 @@ export function MonthlyPayrollDraftModal({
 
               <div className="p-5 rounded-2xl border border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/30">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400 mb-1">
-                  {isFr ? 'Salaires Versés' : 'Paid This Month'}
+                  {t.paidThisMonth}
                 </p>
                 <h4 className="text-xl font-black text-emerald-700 dark:text-emerald-400">
                   {formatCurrency(grandTotalPaid)}
@@ -201,7 +201,7 @@ export function MonthlyPayrollDraftModal({
 
               <div className="p-5 rounded-2xl border border-rose-200 bg-rose-50/60 dark:bg-rose-950/20 dark:border-rose-900/30">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-rose-700 dark:text-rose-400 mb-1">
-                  {isFr ? 'Reliquats Restants' : 'Remaining Arrears'}
+                  {t.remainingArrears}
                 </p>
                 <h4 className="text-xl font-black text-rose-700 dark:text-rose-400">
                   {formatCurrency(grandTotalRemaining)}
@@ -210,7 +210,7 @@ export function MonthlyPayrollDraftModal({
 
               <div className={`p-5 rounded-2xl border ${themeBorder} ${themeIsDark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
                 <p className={`text-[10px] font-bold uppercase tracking-widest ${themeMuted} mb-1`}>
-                  {isFr ? 'Effectif Réglé' : 'Employees Settled'}
+                  {t.employeesSettled}
                 </p>
                 <h4 className={`text-xl font-black ${themeIsDark ? 'text-white' : 'text-slate-900'}`}>
                   {paidCount} / {staff.length}
@@ -224,13 +224,13 @@ export function MonthlyPayrollDraftModal({
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className={`text-[10px] font-black uppercase tracking-wider ${themeIsDark ? 'bg-slate-800/80 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
-                      <th className="px-6 py-4">{isFr ? 'Employé & Poste' : 'Employee & Role'}</th>
-                      <th className="px-6 py-4 text-right">{isFr ? 'Salaire Base' : 'Base Salary'}</th>
-                      <th className="px-6 py-4 text-right">{isFr ? 'Versé ce Mois' : 'Paid This Month'}</th>
-                      <th className="px-6 py-4 text-right">{isFr ? 'Reliquat Dû' : 'Balance Due'}</th>
-                      <th className="px-6 py-4">{isFr ? 'Date' : 'Date'}</th>
-                      <th className="px-6 py-4 text-center">{isFr ? 'Statut' : 'Status'}</th>
-                      <th className="px-6 py-4 text-right">{isFr ? 'Action' : 'Action'}</th>
+                      <th className="px-6 py-4">{t.employeeRole}</th>
+                      <th className="px-6 py-4 text-right">{t.baseSalary}</th>
+                      <th className="px-6 py-4 text-right">{t.paidThisMonth2}</th>
+                      <th className="px-6 py-4 text-right">{t.balanceDue}</th>
+                      <th className="px-6 py-4">{Date}</th>
+                      <th className="px-6 py-4 text-center">{t.status}</th>
+                      <th className="px-6 py-4 text-right">{'Action'}</th>
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${themeBorder} text-xs`}>
@@ -256,15 +256,15 @@ export function MonthlyPayrollDraftModal({
                           <td className="px-6 py-4 text-center">
                             {st.statusType === 'paid' ? (
                               <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-wider">
-                                {isFr ? 'Complet' : 'Paid'}
+                                {t.paid2}
                               </span>
                             ) : st.statusType === 'partial' ? (
                               <span className="px-2.5 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 rounded-full text-[10px] font-black uppercase tracking-wider">
-                                {isFr ? 'Acompte' : 'Partial'}
+                                {t.partial2}
                               </span>
                             ) : (
                               <span className="px-2.5 py-1 bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400 rounded-full text-[10px] font-black uppercase tracking-wider">
-                                {isFr ? 'Non payé' : 'Unpaid'}
+                                {t.unpaid}
                               </span>
                             )}
                           </td>
@@ -278,7 +278,7 @@ export function MonthlyPayrollDraftModal({
                                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] transition-all flex items-center gap-1 ml-auto shadow-sm"
                               >
                                 <Plus size={12} />
-                                <span>{isFr ? 'Payer' : 'Pay'}</span>
+                                <span>{t.pay}</span>
                               </button>
                             )}
                           </td>
@@ -287,7 +287,7 @@ export function MonthlyPayrollDraftModal({
                     ) : (
                       <tr>
                         <td colSpan={7} className="px-6 py-12 text-center text-slate-400 italic">
-                          {isFr ? 'Aucun membre du personnel enregistré.' : 'No staff members registered.'}
+                          {t.noStaffMembersRegistered}
                         </td>
                       </tr>
                     )}
@@ -300,9 +300,7 @@ export function MonthlyPayrollDraftModal({
           {/* Modal Footer / Action Toolbar */}
           <div className={`p-6 border-t ${themeBorder} flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/40`}>
             <p className={`text-xs ${themeMuted}`}>
-              {isFr
-                ? `Bordereau officiel pour ${currentMonthName} ${year}`
-                : `Official draft for ${currentMonthName} ${year}`}
+              {t.officialDraftFor.replace('{month}', currentMonthName).replace('{year}', String(year))}
             </p>
 
             <div className="flex items-center gap-3 w-full sm:w-auto justify-end flex-wrap">
@@ -311,7 +309,7 @@ export function MonthlyPayrollDraftModal({
                 className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-rose-600/20 flex items-center gap-2 active:scale-95"
               >
                 <FileText size={16} />
-                <span>{isFr ? 'Exporter Bordereau PDF' : 'Export Draft PDF'}</span>
+                <span>{t.exportDraftPdf}</span>
               </button>
 
               <button
@@ -319,14 +317,14 @@ export function MonthlyPayrollDraftModal({
                 className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-emerald-700/20 flex items-center gap-2 active:scale-95"
               >
                 <Download size={16} />
-                <span>{isFr ? 'Exporter Excel' : 'Export Excel'}</span>
+                <span>{t.exportExcel}</span>
               </button>
 
               <button
                 onClick={onClose}
                 className={`px-5 py-2.5 rounded-xl border ${themeBorder} text-xs font-bold ${themeIsDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'} transition-all`}
               >
-                {isFr ? 'Fermer' : 'Close'}
+                {t.close}
               </button>
             </div>
           </div>
