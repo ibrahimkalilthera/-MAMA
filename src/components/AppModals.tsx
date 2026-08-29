@@ -2704,7 +2704,7 @@ export function AppModals(props: AppModalsProps) {
                       {linkedStudents.map(s => {
                         const discount = s.scholarshipDiscount || 0;
                         const discountedTotal = s.totalDue * (1 - discount / 100);
-                        const balance = discountedTotal - s.amountPaid;
+                        const balance = Math.max(0, discountedTotal - s.amountPaid);
                         return (
                           <div
                             key={s.id}
