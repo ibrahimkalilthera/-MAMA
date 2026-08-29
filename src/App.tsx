@@ -2558,15 +2558,23 @@ export default function App() {
     }
     if (!saved) return;
 
-    // If students were selected in the form, link them all to the newly created parent
+    // If students were selected in the form, link them all to the newly created parent.
+    // Stop on the first failed update so we do not falsely confirm a partial linkage.
+    let linkedStudentCount = 0;
     if (!editingParent && newParentId && parentForm.linkedStudentIds.length > 0) {
       for (const studentId of parentForm.linkedStudentIds) {
-        await updateStudent(studentId, {
+        const linked = await updateStudent(studentId, {
           parentId: newParentId,
           parentName: parentData.fullName,
           parentPhone: parentData.phones[0] || '',
           parentEmail: parentData.email || '',
         });
+        if (!linked) {
+          setWelcomeMessage(`Parent créé, mais seulement ${linkedStudentCount}/${parentForm.linkedStudentIds.length} élève(s) lié(s).`);
+          setTimeout(() => setWelcomeMessage(null), 6000);
+          break;
+        }
+        linkedStudentCount += 1;
       }
     }
 
@@ -2584,7 +2592,7 @@ export default function App() {
       setShowParentModal(false);
       setEditingParent(null);
       resetParentForm();
-    } else if (createdParent && parentForm.linkedStudentIds.length > 0) {
+    } else if (createdParent && linkedStudentCount > 0) {
       // Keep the modal open in "fiche" view so the user can visually confirm the linked students
       setEditingParent(createdParent);
       setParentForm({
