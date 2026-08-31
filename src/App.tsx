@@ -9,6 +9,7 @@ import type { UserProfile } from './lib/useAuth';
 import { ToastContainer, OfflineBanner, EnvBadge } from './components/ToastNotification';
 import { useToast } from './lib/useToast';
 import { useFloatingChat } from './app/useFloatingChat';
+import { FloatingChat } from './components/FloatingChat';
 import { useAuthWelcome } from './app/useAuthWelcome';
 import { useTodoSidebar } from './app/useTodoSidebar';
 import type { ImportCategory } from './lib/excelImporter';
@@ -3124,143 +3125,20 @@ export default function App() {
         />
       </Suspense>
 
-      {/* --- Floating AI Financial Assistant Widget --- */}
-      <div className="fixed bottom-6 right-6 z-50 no-print font-sans">
-        <AnimatePresence>
-          {/* Below the lg breakpoint the w-[360px] chat card covers ~86% of a
-              360px-wide viewport with no visual cue — the same silent-takeover
-              pattern the Productivité panel had. Dim the app behind it and
-              close on outside click on mobile, identical to every other
-              overlay; desktop keeps the floating-widget behaviour. The caps
-              also keep the card inside short/landscape viewports. */}
-          {isFloatingChatOpen && (
-            <motion.div
-              key="chat-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsFloatingChatOpen(false)}
-              className="fixed inset-0 z-10 bg-slate-900/50 backdrop-blur-sm lg:hidden"
-            />
-          )}
-          {isFloatingChatOpen ? (
-            <motion.div
-              key="chat-panel"
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className={`relative z-20 w-[360px] sm:w-96 h-[500px] max-w-[calc(100vw_-_3rem)] max-h-[calc(100dvh_-_3rem)] rounded-[2.5rem] shadow-2xl border ${currentTheme.border} ${currentTheme.card} flex flex-col overflow-hidden`}
-            >
-              {/* Header */}
-              <div 
-                className="px-6 py-4 text-white flex justify-between items-center" 
-                style={{ backgroundColor: currentTheme.header }}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">🤖</span>
-                  <div>
-                    <h4 className="font-bold text-sm">Mama Thera AI Assistant</h4>
-                    <p className="text-[10px] text-white/75 font-semibold">
-                      {t.liveFinancialIntelligence}
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setIsFloatingChatOpen(false)}
-                  className="p-1.5 hover:bg-white/10 rounded-xl transition-all"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Message History */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50/50">
-                {floatingChatMessages.map((msg, idx) => (
-                  <div 
-                    key={idx} 
-                    className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div 
-                      className={`max-w-[85%] px-4 py-2.5 text-xs font-semibold leading-relaxed shadow-sm ${
-                        msg.sender === 'user' 
-                          ? `${currentTheme.isDark ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'} rounded-t-2xl rounded-bl-2xl`
-                          : `${currentTheme.isDark ? 'bg-[#334155] border-[#475569] text-white' : 'bg-white border-slate-100 text-slate-800'} border rounded-t-2xl rounded-br-2xl`
-                      }`}
-                      style={{ whiteSpace: 'pre-line' }}
-                    >
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Quick Prompt Suggesters */}
-              <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800 flex gap-2 overflow-x-auto whitespace-nowrap bg-white custom-scrollbar">
-                {[
-                  t.aiPrompt1,
-                  t.aiPrompt2,
-                  t.aiPrompt3,
-                  t.aiPrompt4,
-                  t.aiPrompt5,
-                  t.aiPrompt6,
-                ].map((q, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleFloatingAiQuery(q)}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-full text-[10px] transition-all shrink-0 border border-slate-200/50"
-                  >
-                    {q.length > 35 ? q.substring(0, 32) + '...' : q}
-                  </button>
-                ))}
-              </div>
-
-              {/* Input Form */}
-              <form 
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleFloatingAiQuery(floatingChatInput);
-                }}
-                className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white flex gap-2 items-center"
-              >
-                <input 
-                  type="text"
-                  value={floatingChatInput}
-                  onChange={(e) => setFloatingChatInput(e.target.value)}
-                  placeholder={t.askAFinancialQuestion}
-                  className="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                />
-                <button 
-                  type="submit"
-                  disabled={!floatingChatInput.trim()}
-                  className={`px-4 py-2 rounded-xl text-white font-extrabold text-xs transition-all ${
-                    floatingChatInput.trim() 
-                      ? `${currentTheme.isDark ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} shadow-lg` 
-                      : 'bg-slate-300 cursor-not-allowed'
-                  }`}
-                >
-                  {t.send}
-                </button>
-              </form>
-            </motion.div>
-          ) : (
-            <motion.button
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              onClick={() => setIsFloatingChatOpen(true)}
-              className={`px-6 py-4 rounded-full text-white font-extrabold text-sm transition-all flex items-center gap-2 shadow-2xl active:scale-[0.98] ${
-                currentTheme.isDark 
-                  ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/30' 
-                  : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'
-              }`}
-            >
-              <span className="text-lg">🤖</span>
-              <span>{t.mamaTheraAiAssistant}</span>
-            </motion.button>
-          )}
-        </AnimatePresence>
-      </div>
+      {/* Floating AI chat widget — panel + FAB (src/components/FloatingChat.tsx). */}
+      <FloatingChat
+        t={t}
+        isFloatingChatOpen={isFloatingChatOpen}
+        setIsFloatingChatOpen={setIsFloatingChatOpen}
+        floatingChatMessages={floatingChatMessages}
+        floatingChatInput={floatingChatInput}
+        setFloatingChatInput={setFloatingChatInput}
+        handleFloatingAiQuery={handleFloatingAiQuery}
+        themeCard={currentTheme.card}
+        themeBorder={currentTheme.border}
+        themeHeader={currentTheme.header}
+        themeIsDark={currentTheme.isDark}
+      />
         </div>
       )}
 
