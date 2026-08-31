@@ -17,7 +17,7 @@
     "seed:production": "node --env-file=.env.production supabase/seed-production.mjs",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit && node scripts/check-component-props.mjs",
-    "test": "node --import tsx --test \"tests/*.test.ts\""
+    "test": "node --import tsx --test \"tests/*.test.ts\" \"tests/*.test.tsx\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
