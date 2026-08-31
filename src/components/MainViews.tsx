@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, createContext, useContext } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap } from 'lucide-react';
 import type { ComponentType, Dispatch, SetStateAction, FormEvent, ChangeEvent, ReactNode, RefObject } from 'react';
@@ -319,37 +319,48 @@ export interface MainViewsProps {
   visibleBankDetails: Record<string, boolean>;
 }
 
+// Views are rendered inside <MainViews> and read everything they need from this
+// context instead of receiving the full 186-prop object through {…props}.
+export const MainViewsContext = createContext<MainViewsProps | null>(null);
+
+export function useMainViews(): MainViewsProps {
+  const ctx = useContext(MainViewsContext);
+  if (!ctx) throw new Error('useMainViews must be used inside <MainViews>');
+  return ctx;
+}
+
 export function MainViews(props: MainViewsProps) {
-  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, chartData, currentMonth, currentTheme, deleteStaff, deleteStudent, deleteTodo, expandedParentId, expenseCategoryList, fetchAuditLogs, filteredStaff, filteredStudents, formatCurrency, formatDate, generateExpensesReportPdf, generateStaffPayslipPdf, getChildrenForParent, getDayName, getDaysInMonth, getEventsForDay, getGradeDisplay, getMonthName, getParentOutstandingBalance, getParentPaymentHistory, getStatus, handleAddTodo, handleDeleteClass, handleDeleteParent, handleDeleteVendorExpense, handleExportAllData, handleExportParentLedgerPdf, handleLogoUpload, handlePrint, handleSendPasswordReset, handleSort, handleUnlinkStudent, handleUpdateRole, isPromoter, lang, lateStudents, logoColor, logoInputRef, missedMonths, openEditClass, openEditModal, openEditParentModal, openEditStaffModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, payrollWindowStatus, pieData, salaryForm, salaryPayments, schoolLogo, searchTerm, selectedYear, setActiveLinkingParent, setCalendarDate, setEditingParent, setEditingStaff, setEditingVendorExpense, setExpandedParentId, setLogoColor, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setSalaryForm, setSchoolLogo, setSelectedCalendarDay, setSelectedDraftMonth, setSelectedDraftYear, setSelectedStudent, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setShowLinkStudentModal, setShowMonthlyDraftModal, setShowParentModal, setShowSalaryModal, setShowStaffModal, setShowVendorExpenseModal, setStaffForm, setStaffSearchTerm, setStudentToLinkId, setTheme, setTicketStudent, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, setVendorCategoryFilter, setVendorExpenseForm, setVendorSearch, setVendorStatusFilter, setVisibleBankDetails, staff, staffSearchTerm, stats, studentSortKey, studentSortOrder, t, theme, today, todoInput, todos, toggleFlag, toggleLanguage, toggleTodo, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, vendorCategoryFilter, vendorExpenses, vendorSearch, vendorStatusFilter, visibleBankDetails } = props;
+  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, currentTheme, deleteTodo, fetchAuditLogs, getDayName, getDaysInMonth, getEventsForDay, getMonthName, handleAddTodo, handleDeleteClass, handleExportAllData, handleLogoUpload, handleSendPasswordReset, handleUpdateRole, lang, logoColor, logoInputRef, openEditClass, parents, schoolLogo, setCalendarDate, setLogoColor, setSchoolLogo, setSelectedCalendarDay, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setTheme, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, staff, t, theme, today, todoInput, todos, toggleLanguage, toggleTodo, updatingUserId, userProfiles, userRoleFilter, userSearchTerm } = props;
   return (
+    <MainViewsContext.Provider value={props}>
     <>
         {activeTab === 'dashboard' && (
           <Suspense fallback={<div className={`${currentTheme.card} p-6 rounded-2xl border ${currentTheme.border} animate-pulse`}><div className="h-6 w-56 bg-slate-200 dark:bg-slate-700 rounded-lg mb-6" /><div className="h-[240px] w-full bg-slate-100 dark:bg-slate-800 rounded-xl" /></div>}>
-            <DashboardView {...props} />
+            <DashboardView />
           </Suspense>
         )}
 
         {activeTab === 'students' && (
           <Suspense fallback={<div className={`${currentTheme.card} p-6 rounded-2xl border ${currentTheme.border} animate-pulse`}><div className="h-6 w-56 bg-slate-200 dark:bg-slate-700 rounded-lg mb-6" /><div className="h-[240px] w-full bg-slate-100 dark:bg-slate-800 rounded-xl" /></div>}>
-            <StudentsView {...props} />
+            <StudentsView />
           </Suspense>
         )}
 
         {activeTab === 'parents' && (
           <Suspense fallback={<div className={`${currentTheme.card} p-6 rounded-2xl border ${currentTheme.border} animate-pulse`}><div className="h-6 w-56 bg-slate-200 dark:bg-slate-700 rounded-lg mb-6" /><div className="h-[240px] w-full bg-slate-100 dark:bg-slate-800 rounded-xl" /></div>}>
-            <ParentsView {...props} />
+            <ParentsView />
           </Suspense>
         )}
 
         {activeTab === 'payroll' && (
           <Suspense fallback={<div className={`${currentTheme.card} p-6 rounded-2xl border ${currentTheme.border} animate-pulse`}><div className="h-6 w-56 bg-slate-200 dark:bg-slate-700 rounded-lg mb-6" /><div className="h-[240px] w-full bg-slate-100 dark:bg-slate-800 rounded-xl" /></div>}>
-            <PayrollView {...props} />
+            <PayrollView />
           </Suspense>
         )}
 
         {activeTab === 'expenses' && (
           <Suspense fallback={<div className={`${currentTheme.card} p-6 rounded-2xl border ${currentTheme.border} animate-pulse`}><div className="h-6 w-56 bg-slate-200 dark:bg-slate-700 rounded-lg mb-6" /><div className="h-[240px] w-full bg-slate-100 dark:bg-slate-800 rounded-xl" /></div>}>
-            <ExpensesView {...props} />
+            <ExpensesView />
           </Suspense>
         )}
 
@@ -1104,5 +1115,6 @@ export function MainViews(props: MainViewsProps) {
         )}
 
     </>
+    </MainViewsContext.Provider>
   );
 }

@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import type { MainViewsProps } from './MainViews';
-export type ExpensesViewProps = Pick<MainViewsProps, 'expenses' | 'AlertCircle' | 'Award' | 'BookOpen' | 'Cpu' | 'Droplet' | 'FileText' | 'GraduationCap' | 'Hammer' | 'Heart' | 'Landmark' | 'Plus' | 'Printer' | 'Receipt' | 'Search' | 'Shield' | 'ShieldCheck' | 'Sparkles' | 'Sprout' | 'Sun' | 'Trash2' | 'Utensils' | 'Wifi' | 'Zap' | 'currentTheme' | 'expenseCategoryList' | 'formatCurrency' | 'generateExpensesReportPdf' | 'getGradeDisplay' | 'handleDeleteVendorExpense' | 'handlePrint' | 'isPromoter' | 'lang' | 'selectedYear' | 'setEditingVendorExpense' | 'setShowVendorExpenseModal' | 'setVendorCategoryFilter' | 'setVendorExpenseForm' | 'setVendorSearch' | 'setVendorStatusFilter' | 't' | 'today' | 'vendorCategoryFilter' | 'vendorExpenses' | 'vendorSearch' | 'vendorStatusFilter'>;
+import { useMainViews } from './MainViews';
 import type { VendorExpense } from '../lib/useSupabaseData';
 import { ConfirmDialog } from './ConfirmDialog';
 
-export function ExpensesView(props: ExpensesViewProps) {
+export function ExpensesView() {
   const [confirmDeleteVendor, setConfirmDeleteVendor] = useState<VendorExpense | null>(null);
-  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, getGradeDisplay, handleDeleteVendorExpense, handlePrint, isPromoter, lang, selectedYear, setEditingVendorExpense, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorSearch, vendorStatusFilter } = props;
+  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, getGradeDisplay, handleDeleteVendorExpense, handlePrint, isPromoter, lang, selectedYear, setEditingVendorExpense, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorSearch, vendorStatusFilter } = useMainViews();
   return (
     <>
           <div className="space-y-8">

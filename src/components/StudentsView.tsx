@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import type { MainViewsProps } from './MainViews';
-export type StudentsViewProps = Pick<MainViewsProps, 'ArrowDown' | 'ArrowUp' | 'ArrowUpDown' | 'FileText' | 'Flag' | 'HighlightText' | 'Printer' | 'Trash2' | 'currentTheme' | 'deleteStudent' | 'filteredStudents' | 'formatCurrency' | 'formatDate' | 'getGradeDisplay' | 'getStatus' | 'handleSort' | 'lang' | 'openEditModal' | 'searchTerm' | 'setSelectedStudent' | 'setTicketStudent' | 'stats' | 'studentSortKey' | 'studentSortOrder' | 't' | 'today' | 'toggleFlag'>;
+import { useMainViews } from './MainViews';
 import type { Student } from '../lib/useSupabaseData';
 import { ConfirmDialog } from './ConfirmDialog';
 
-export function StudentsView(props: StudentsViewProps) {
+export function StudentsView() {
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
-  const { ArrowDown, ArrowUp, ArrowUpDown, FileText, Flag, HighlightText, Printer, Trash2, currentTheme, deleteStudent, filteredStudents, formatCurrency, formatDate, getGradeDisplay, getStatus, handleSort, lang, openEditModal, searchTerm, setSelectedStudent, setTicketStudent, stats, studentSortKey, studentSortOrder, t, today, toggleFlag } = props;
+  const { ArrowDown, ArrowUp, ArrowUpDown, FileText, Flag, HighlightText, Printer, Trash2, currentTheme, deleteStudent, filteredStudents, formatCurrency, formatDate, getGradeDisplay, getStatus, handleSort, lang, openEditModal, searchTerm, setSelectedStudent, setTicketStudent, stats, studentSortKey, studentSortOrder, t, today, toggleFlag } = useMainViews();
   return (
     <>
           <div className="space-y-8">

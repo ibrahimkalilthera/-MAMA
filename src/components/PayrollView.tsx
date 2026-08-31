@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import type { MainViewsProps } from './MainViews';
-export type PayrollViewProps = Pick<MainViewsProps, 'AlertCircle' | 'FileText' | 'Globe' | 'HighlightText' | 'Mail' | 'Phone' | 'Plus' | 'Search' | 'Trash2' | 'currentMonth' | 'currentTheme' | 'deleteStaff' | 'filteredStaff' | 'formatCurrency' | 'generateStaffPayslipPdf' | 'getMonthName' | 'lang' | 'openEditStaffModal' | 'salaryForm' | 'salaryPayments' | 'setEditingStaff' | 'setSalaryForm' | 'setSelectedDraftMonth' | 'setSelectedDraftYear' | 'setShowMonthlyDraftModal' | 'setShowSalaryModal' | 'setShowStaffModal' | 'setStaffForm' | 'setStaffSearchTerm' | 'setVisibleBankDetails' | 'staff' | 'staffSearchTerm' | 't' | 'visibleBankDetails'>;
+import { useMainViews } from './MainViews';
 import type { Staff } from '../lib/useSupabaseData';
 import { ConfirmDialog } from './ConfirmDialog';
 
-export function PayrollView(props: PayrollViewProps) {
+export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, FileText, Globe, HighlightText, Mail, Phone, Plus, Search, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = props;
+  const { AlertCircle, FileText, Globe, HighlightText, Mail, Phone, Plus, Search, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
   return (
     <>
           <div className="space-y-8">

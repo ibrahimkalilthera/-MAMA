@@ -1,10 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
-import type { MainViewsProps } from './MainViews';
+import { useMainViews } from './MainViews';
 import type { TranslationDict } from '../i18n/translations';
-export type DashboardViewProps = Pick<MainViewsProps, 'AlertCircle' | 'Calendar' | 'ChartsFallback' | 'CheckCircle2' | 'ChevronRight' | 'Clock' | 'Coins' | 'DashboardCharts' | 'GraduationCap' | 'PieChart' | 'Suspense' | 'TrendingDown' | 'TrendingUp' | 'Wallet' | 'chartData' | 'currentTheme' | 'formatCurrency' | 'lateStudents' | 'missedMonths' | 'payrollWindowStatus' | 'pieData' | 'setSelectedStudent' | 'stats' | 't' | 'theme'>;
 
-export function DashboardView(props: DashboardViewProps) {
-  const { AlertCircle, Calendar, ChartsFallback, CheckCircle2, ChevronRight, Clock, Coins, DashboardCharts, GraduationCap, PieChart, Suspense, TrendingDown, TrendingUp, Wallet, chartData, currentTheme, formatCurrency, lateStudents, missedMonths, payrollWindowStatus, pieData, setSelectedStudent, stats, t, theme } = props;
+export function DashboardView() {
+  const { AlertCircle, Calendar, ChartsFallback, CheckCircle2, ChevronRight, Clock, Coins, DashboardCharts, GraduationCap, PieChart, Suspense, TrendingDown, TrendingUp, Wallet, chartData, currentTheme, formatCurrency, lateStudents, missedMonths, payrollWindowStatus, pieData, setSelectedStudent, stats, t, theme } = useMainViews();
   return (
           <div className="space-y-12">
             {/* Payroll Window Banner Alerts */}
