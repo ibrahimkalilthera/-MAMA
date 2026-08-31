@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, ExternalLink, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, Search, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X } from 'lucide-react';
 import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense, CustomClass } from '../lib/useSupabaseData';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export interface AppModalsProps {
   Bell: any;
@@ -40,6 +41,7 @@ export interface AppModalsProps {
   currentMonth: number;
   currentTheme: { bg: string; card: string; text: string; muted: string; border: string; header: string; sidebar: string; accent: string; accentBg: string; accentHover: string; accentShadow: string; tableHeader: string; rowHover: string; input: string; isDark: boolean };
   currentUser: { name?: string; role?: string; username?: string } | null;
+  deleteStudent: (...args: any[]) => any;
   deleteTodo: (...args: any[]) => any;
   editClassForm: any;
   editingParent: Parent | null;
@@ -163,7 +165,8 @@ export interface AppModalsProps {
 export function AppModals(props: AppModalsProps) {
   const [parentStudentSearch, setParentStudentSearch] = useState('');
   const [parentClassFilter, setParentClassFilter] = useState('all');
-  const { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, lang, newClassForm, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoInput, todos, toggleLanguage, toggleTodo, vendorExpenseForm, welcomeMessage } = props;
+  const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
+  const { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, lang, newClassForm, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoInput, todos, toggleLanguage, toggleTodo, vendorExpenseForm, welcomeMessage } = props;
   return (
     <>
       {/* --- Parent Profile Modal --- */}
@@ -315,7 +318,7 @@ export function AppModals(props: AppModalsProps) {
                         <div className={`p-4 ${currentTheme.isDark ? 'bg-[#FFF1F2]' : 'bg-rose-50'} rounded-2xl text-center`}>
                           <span className="text-[9px] font-black uppercase tracking-widest text-rose-500">{t.balance}</span>
                           <p className="text-xs font-black text-rose-600 mt-1">
-                            {formatCurrency(selectedStudent.totalDue - selectedStudent.amountPaid)}
+                            {formatCurrency(selectedStudent.totalDue * (1 - (selectedStudent.scholarshipDiscount || 0) / 100) - selectedStudent.amountPaid)}
                           </p>
                         </div>
                       </div>
@@ -481,6 +484,14 @@ export function AppModals(props: AppModalsProps) {
                   >
                     <Printer size={14} />
                     Print Student File
+                  </button>
+
+                  <button 
+                    onClick={() => setConfirmDeleteStudent(selectedStudent)}
+                    className="px-6 py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs transition-all shadow-md flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={14} />
+                    {t.deleteStudent}
                   </button>
 
                   <button 
@@ -829,6 +840,17 @@ export function AppModals(props: AppModalsProps) {
                 >
                   {editingStudent ? t.saveChanges : t.submit}
                 </button>
+
+                {editingStudent && (
+                  <button 
+                    type="button"
+                    onClick={() => setConfirmDeleteStudent(editingStudent)}
+                    className="w-full bg-rose-600 hover:bg-rose-700 text-white py-4 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={16} />
+                    {t.deleteStudent}
+                  </button>
+                )}
               </form>
             </motion.div>
           </div>
@@ -2062,7 +2084,7 @@ export function AppModals(props: AppModalsProps) {
                   >
                     <option value="" className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{t.selectStudent}...</option>
                     {students.map(s => (
-                      <option key={s.id} value={s.id} className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{s.name} ({formatCurrency(s.totalDue - s.amountPaid)} {t.balance})</option>
+                      <option key={s.id} value={s.id} className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{s.name} ({formatCurrency(s.totalDue * (1 - (s.scholarshipDiscount || 0) / 100) - s.amountPaid)} {t.balance})</option>
                     ))}
                   </select>
                 </div>
@@ -2605,7 +2627,7 @@ export function AppModals(props: AppModalsProps) {
                 </div>
                 <div className="bg-rose-50 p-4 rounded-xl border border-rose-100">
                   <span className="text-[10px] font-bold text-rose-500 block uppercase">{t.remainingBalance2}</span>
-                  <span className="text-lg font-black text-rose-600">{formatCurrency(printStudentFile.totalDue - printStudentFile.amountPaid)}</span>
+                  <span className="text-lg font-black text-rose-600">{formatCurrency(printStudentFile.totalDue * (1 - (printStudentFile.scholarshipDiscount || 0) / 100) - printStudentFile.amountPaid)}</span>
                 </div>
               </div>
             </div>
@@ -2810,8 +2832,27 @@ export function AppModals(props: AppModalsProps) {
                         })}
                       </div>
                     )}
-                    <div className={`rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900' : 'bg-slate-50'} overflow-hidden`}>
-                      <div className={`flex items-center gap-2 px-3 py-2 border-b ${currentTheme.border}`}>
+                    {students.length === 0 ? (
+                      <div className={`rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900' : 'bg-slate-50'} px-4 py-6 text-center space-y-3`}>
+                        <div className="mx-auto w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center">
+                          <Users size={18} className="text-slate-400" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className={`text-xs font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-700'}`}>{t.noStudentsInSystemTitle}</p>
+                          <p className="text-[10px] font-semibold text-slate-400 leading-relaxed max-w-[250px] mx-auto">{t.noStudentsInSystemHint}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setShowParentModal(false); setShowStudentModal(true); }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-600/20"
+                        >
+                          <Plus size={12} />
+                          {t.addStudent}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className={`rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900' : 'bg-slate-50'} overflow-hidden`}>
+                        <div className={`flex items-center gap-2 px-3 py-2 border-b ${currentTheme.border}`}>
                         <Search size={14} className="text-slate-400 flex-shrink-0" />
                         <input
                           type="text"
@@ -2847,9 +2888,7 @@ export function AppModals(props: AppModalsProps) {
                         {filteredStudents.length === 0 && (
                           <div className="px-3 py-5 text-center space-y-2.5">
                             <p className="text-xs font-semibold text-slate-400">
-                              {students.length === 0
-                                ? t.noStudentsInSystem
-                                : search
+                              {search
                                 ? t.noStudentsFound.replace('{query}', search)
                                 : t.noStudentsInClass}
                             </p>
@@ -2914,6 +2953,7 @@ export function AppModals(props: AppModalsProps) {
                         })}
                       </div>
                     </div>
+                    )}
                     {parentForm.linkedStudentIds.length > 0 && (
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-[10px] font-black text-emerald-600">
@@ -3278,6 +3318,30 @@ export function AppModals(props: AppModalsProps) {
           </motion.div>
         </div>
       )}
+
+      {/* --- Student Delete Confirmation --- */}
+      <ConfirmDialog
+        open={!!confirmDeleteStudent}
+        title={t.deleteStudent}
+        message={t.deleteStudentConfirm.replace('{name}', confirmDeleteStudent?.name || '')}
+        confirmLabel={t.deleteStudent}
+        cancelLabel={t.cancel}
+        danger={confirmDeleteStudent && confirmDeleteStudent.payments.length > 0 ? {
+          mode: 'type',
+          text: confirmDeleteStudent.name,
+          hint: t.typeToConfirm.replace('{text}', confirmDeleteStudent.name),
+        } : undefined}
+        onConfirm={() => {
+          if (confirmDeleteStudent) {
+            deleteStudent(confirmDeleteStudent.id);
+          }
+          setConfirmDeleteStudent(null);
+          setSelectedStudent(null);
+          setShowStudentModal(false);
+        }}
+        onCancel={() => setConfirmDeleteStudent(null)}
+        currentTheme={currentTheme}
+      />
     </>
   );
 }

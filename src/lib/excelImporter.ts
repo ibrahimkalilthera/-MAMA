@@ -197,17 +197,34 @@ export function parseExcelDate(val: any): string | null {
 /** Parse a currency/number string: "150 000 FCFA" → 150000 */
 export function parseCurrency(val: any): number | null {
   if (val == null || val === '') return null;
-  if (typeof val === 'number') return val;
+  if (typeof val === 'number') return Number.isFinite(val) ? val : null;
 
-  const str = String(val)
-    .replace(/FCFA|CFA|XOF|F/gi, '')
-    .replace(/\s/g, '')
-    .replace(/,/g, '.')
-    .replace(/[^0-9.\-]/g, '')
-    .trim();
+  const raw = String(val).trim();
+  const negative = raw.startsWith('-');
+  const str = raw
+    .replace(/\s+/g, '')
+    .replace(/[^\d.,-]/g, '')
+    .replace(/^-+/, '');
 
-  const num = parseFloat(str);
-  return isNaN(num) ? null : num;
+  if (str === '') return null;
+
+  // The last separator followed by 1–2 digits is the decimal separator; every
+  // other separator is a thousands separator. This handles "150 000",
+  // "1.500.000", "1,500,000", "1.500,50" and "12.5" alike (previously the
+  // European thousands separators were mistaken for decimals and truncated
+  // the value, e.g. "1.500" → 1.5).
+  const decMatch = str.match(/[.,](\d{1,2})$/);
+  let normalized: string;
+  if (decMatch && decMatch.index !== undefined) {
+    const intPart = str.slice(0, decMatch.index).replace(/[.,]/g, '');
+    normalized = `${intPart}.${decMatch[1]}`;
+  } else {
+    normalized = str.replace(/[.,]/g, '');
+  }
+
+  const num = parseFloat(normalized);
+  if (isNaN(num)) return null;
+  return negative ? -num : num;
 }
 
 /** Normalize a Malian phone number */
@@ -447,7 +464,9 @@ export function validateRows(
     // Check required fields
     for (const req of requiredFields) {
       const val = normalized[req];
-      if (val == null || val === '' || val === 0) {
+      // 0 is a legitimate value (e.g. a zero balance or a fully-settled amount);
+      // only truly missing or empty values fail the required check.
+      if (val == null || val === '') {
         errors.push(`Missing required field: "${req}"`);
       }
     }

@@ -133,6 +133,14 @@ export interface CustomClass {
   isCustom?: boolean;
 }
 
+// ─── Unique temp IDs for offline-created records ──────────────────────────────
+// `Date.now()` alone can collide when several records are created in the same
+// millisecond (double-clicks, batch flows). Add a monotonic counter + random
+// suffix so temp IDs are unique across entities and calls.
+let tempIdCounter = 0;
+const createTempId = (prefix: string): string =>
+  `off_${prefix}_${Date.now().toString(36)}_${(++tempIdCounter).toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
 // ─── Supabase row → App type mappers ─────────────────────────────────────────
 
 function mapParentRow(row: any): Parent {
@@ -792,7 +800,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
   const addParent = async (parent: Omit<Parent, 'id'>): Promise<Parent | null> => {
     if (isOffline()) {
-      const tempId = `off_${Date.now()}`;
+      const tempId = createTempId('parent');
       const local: Parent = { id: tempId, ...parent };
       setParents(prev => [...prev, local]);
       enqueueOffline('addParent', parent);
@@ -852,7 +860,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
   const addStudent = async (student: Omit<Student, 'id' | 'payments'>): Promise<Student | null> => {
     if (isOffline()) {
-      const tempId = `off_${Date.now()}`;
+      const tempId = createTempId('student');
       const local: Student = { id: tempId, ...student, payments: [] };
       setStudents(prev => [...prev, local]);
       enqueueOffline('addStudent', student);
@@ -905,15 +913,18 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   const addPayment = async (studentId: string, payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string }): Promise<boolean> => {
     const isOnline = navigator.onLine;
 
-    // Apply local optimistic update first
+    // Apply local optimistic update first and capture the exact new amount_paid
+    // so the DB write below uses fresh state instead of a stale closure
+    // (two consecutive payments could previously overwrite each other's amount_paid).
+    let optimisticAmountPaid: number | null = null;
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
         const newPayments = [...s.payments, payment];
-        const newAmountPaid = s.amountPaid + payment.amount;
+        optimisticAmountPaid = s.amountPaid + payment.amount;
         return { 
           ...s, 
           payments: newPayments, 
-          amountPaid: newAmountPaid,
+          amountPaid: optimisticAmountPaid,
           lastPaymentDate: payment.date,
         };
       }
@@ -944,10 +955,9 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
         return true;
       }
 
-      const student = students.find(s => s.id === studentId);
-      if (student) {
+      if (optimisticAmountPaid != null) {
         await supabase.from('students').update({
-          amount_paid: student.amountPaid + payment.amount,
+          amount_paid: optimisticAmountPaid,
           last_payment_date: payment.date,
         }).eq('id', studentId);
       }
@@ -973,7 +983,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
   const addStaff = async (s: Omit<Staff, 'id'>): Promise<Staff | null> => {
     if (isOffline()) {
-      const tempId = `off_${Date.now()}`;
+      const tempId = createTempId('staff');
       const local: Staff = { id: tempId, ...s };
       setStaff(prev => [...prev, local]);
       enqueueOffline('addStaff', s);
@@ -1033,7 +1043,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
   const addSalaryPayment = async (sp: Omit<SalaryPayment, 'id'>): Promise<SalaryPayment | null> => {
     if (isOffline()) {
-      const tempId = `off_${Date.now()}`;
+      const tempId = createTempId('salary');
       const local: SalaryPayment = { id: tempId, ...sp };
       setSalaryPayments(prev => [...prev, local]);
       enqueueOffline('addSalaryPayment', sp);
@@ -1061,7 +1071,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
   const addExpense = async (exp: Omit<Expense, 'id'>): Promise<Expense | null> => {
     if (isOffline()) {
-      const tempId = `off_${Date.now()}`;
+      const tempId = createTempId('expense');
       const local: Expense = { id: tempId, ...exp };
       setExpenses(prev => [...prev, local]);
       enqueueOffline('addExpense', exp);
@@ -1090,7 +1100,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
   const addVendorExpense = async (ve: Omit<VendorExpense, 'id'>): Promise<VendorExpense | null> => {
     if (isOffline()) {
-      const tempId = `off_${Date.now()}`;
+      const tempId = createTempId('vendor');
       const local: VendorExpense = { id: tempId, ...ve };
       setVendorExpenses(prev => [...prev, local]);
       enqueueOffline('addVendorExpense', ve);
@@ -1165,7 +1175,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
   const addTodo = async (todo: Omit<Todo, 'id'>): Promise<Todo | null> => {
     if (isOffline()) {
-      const tempId = `off_${Date.now()}`;
+      const tempId = createTempId('todo');
       const local: Todo = { id: tempId, ...todo };
       setTodos(prev => [...prev, local]);
       enqueueOffline('addTodo', todo);
@@ -1297,6 +1307,8 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     let updated = 0;
     let errors = 0;
     const BATCH_SIZE = 50;
+    const strategy = options.duplicateStrategy === 'update' ? 'update' : 'skip';
+    const todayStr = new Date().toISOString().split('T')[0];
 
     const processBatch = async <T extends Record<string, any>>(
       table: string,
@@ -1321,29 +1333,66 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
     try {
       if (category === 'students') {
-        const rows = records.map((r) => ({
-          name: r.name || '',
-          grade: r.grade || null,
-          student_id: r.studentId || null,
-          parent_name: r.parentName || '',
-          parent_phone: r.parentPhone || '',
-          parent_email: r.parentEmail || '',
-          total_due: r.totalDue || 0,
-          amount_paid: r.amountPaid || 0,
-          scholarship_discount: r.scholarshipDiscount || 0,
-          due_date: r.dueDate || null,
-          academic_year: options.academicYear || null,
-          notes: r.notes || null,
-          status: 'Active',
-        }));
+        // Index existing students by student_id, then by name+grade, so the
+        // duplicateStrategy ('skip' | 'update') can be honoured.
+        const byStudentId = new Map<string, Student>();
+        const byNameGrade = new Map<string, Student>();
+        students.forEach(s => {
+          if (s.studentId) byStudentId.set(String(s.studentId).toLowerCase().trim(), s);
+          byNameGrade.set(`${s.name.toLowerCase().trim()}|${(s.grade || '').toLowerCase().trim()}`, s);
+        });
+
+        const rows: Record<string, any>[] = [];
+        for (const r of records) {
+          const existing = (r.studentId ? byStudentId.get(String(r.studentId).toLowerCase().trim()) : undefined)
+            || byNameGrade.get(`${String(r.name || '').toLowerCase().trim()}|${String(r.grade || '').toLowerCase().trim()}`);
+
+          if (existing) {
+            if (strategy === 'update') {
+              const { error } = await supabase.from('students').update({
+                grade: r.grade ?? existing.grade ?? null,
+                parent_name: r.parentName ?? existing.parentName ?? '',
+                parent_phone: r.parentPhone ?? existing.parentPhone ?? '',
+                parent_email: r.parentEmail ?? existing.parentEmail ?? null,
+                total_due: r.totalDue ?? existing.totalDue,
+                // never decrease the amount already paid
+                amount_paid: Math.max(existing.amountPaid, Number(r.amountPaid) || 0),
+                scholarship_discount: r.scholarshipDiscount ?? existing.scholarshipDiscount ?? 0,
+                due_date: r.dueDate ?? existing.dueDate ?? null,
+                academic_year: options.academicYear || existing.academicYear || null,
+                notes: r.notes ?? existing.notes ?? null,
+              }).eq('id', existing.id);
+              if (error) { errors++; console.error('[MAMA THERA] student import update error:', error.message); }
+              else updated++;
+            } else {
+              updated++; // duplicate present → skipped (already in DB)
+            }
+          } else {
+            rows.push({
+              name: r.name || '',
+              grade: r.grade || null,
+              student_id: r.studentId || null,
+              parent_name: r.parentName || '',
+              parent_phone: r.parentPhone || '',
+              parent_email: r.parentEmail || '',
+              total_due: r.totalDue || 0,
+              amount_paid: r.amountPaid || 0,
+              scholarship_discount: r.scholarshipDiscount || 0,
+              due_date: r.dueDate || null,
+              academic_year: options.academicYear || null,
+              notes: r.notes || null,
+              status: 'Active',
+            });
+          }
+        }
         const result = await processBatch('students', rows);
-        inserted = result.ok;
-        errors = result.err;
+        inserted += result.ok;
+        errors += result.err;
 
       } else if (category === 'payments') {
         // For payments, we need to match student names to IDs
         for (const r of records) {
-          const studentName = r.studentName || '';
+          const studentName = String(r.studentName || '');
           const matchedStudent = students.find(
             (s) => s.name.toLowerCase().trim() === studentName.toLowerCase().trim()
           );
@@ -1351,10 +1400,20 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
             errors++;
             continue;
           }
+          const amount = Number(r.amount) || 0;
+          const date = r.date || todayStr;
+          // Exact duplicate (same student, date and amount) → never double-count
+          const alreadyExists = matchedStudent.payments.some(
+            (p) => p.date === date && Number(p.amount) === amount
+          );
+          if (alreadyExists) {
+            updated++;
+            continue;
+          }
           const { error } = await supabase.from('payments').insert({
             student_id: matchedStudent.id,
-            amount: r.amount || 0,
-            date: r.date || new Date().toISOString().split('T')[0],
+            amount,
+            date,
             academic_year: options.academicYear || null,
             receipt_number: r.receiptNumber || null,
           });
@@ -1365,57 +1424,130 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
             inserted++;
             // Also update student's amount_paid
             await supabase.from('students').update({
-              amount_paid: matchedStudent.amountPaid + (r.amount || 0),
-              last_payment_date: r.date || new Date().toISOString().split('T')[0],
+              amount_paid: matchedStudent.amountPaid + amount,
+              last_payment_date: date,
             }).eq('id', matchedStudent.id);
           }
         }
 
       } else if (category === 'parents') {
-        const rows = records.map((r) => ({
-          full_name: r.fullName || '',
-          phones: [r.phone1, r.phone2].filter(Boolean),
-          email: r.email || null,
-          address: r.address || '',
-          occupation: r.occupation || '',
-          relationship: r.relationship || '',
-        }));
+        const byKey = new Map<string, Parent>();
+        parents.forEach(p => byKey.set(p.fullName.toLowerCase().trim(), p));
+        const rows: Record<string, any>[] = [];
+        for (const r of records) {
+          const key = String(r.fullName || '').toLowerCase().trim();
+          const existing = key ? byKey.get(key) : undefined;
+          if (existing) {
+            if (strategy === 'update') {
+              const { error } = await supabase.from('parents').update({
+                phones: [r.phone1, r.phone2, ...(existing.phones || [])].filter(Boolean).slice(0, 2),
+                email: r.email ?? existing.email ?? null,
+                address: r.address ?? existing.address ?? '',
+                occupation: r.occupation ?? existing.occupation ?? '',
+                relationship: r.relationship ?? existing.relationship ?? '',
+                notes: r.notes ?? existing.notes ?? null,
+              }).eq('id', existing.id);
+              if (error) { errors++; console.error('[MAMA THERA] parent import update error:', error.message); }
+              else updated++;
+            } else {
+              updated++;
+            }
+          } else {
+            rows.push({
+              full_name: r.fullName || '',
+              phones: [r.phone1, r.phone2].filter(Boolean),
+              email: r.email || null,
+              address: r.address || '',
+              occupation: r.occupation || '',
+              relationship: r.relationship || '',
+            });
+          }
+        }
         const result = await processBatch('parents', rows);
-        inserted = result.ok;
-        errors = result.err;
+        inserted += result.ok;
+        errors += result.err;
 
       } else if (category === 'staff') {
-        const rows = records.map((r) => ({
-          name: r.name || '',
-          position: r.position || '',
-          salary: r.salary || 0,
-          email: r.email || null,
-          phone: r.phone || '',
-          bank_details: r.bankDetails || null,
-          emergency_contact: r.emergencyContact || null,
-          academic_year: options.academicYear || null,
-        }));
+        const byKey = new Map<string, Staff>();
+        staff.forEach(s => byKey.set(s.name.toLowerCase().trim(), s));
+        const rows: Record<string, any>[] = [];
+        for (const r of records) {
+          const key = String(r.name || '').toLowerCase().trim();
+          const existing = key ? byKey.get(key) : undefined;
+          if (existing) {
+            if (strategy === 'update') {
+              const { error } = await supabase.from('staff').update({
+                position: r.position ?? existing.position ?? '',
+                salary: r.salary ?? existing.salary,
+                email: r.email ?? existing.email ?? null,
+                phone: r.phone ?? existing.phone ?? '',
+                bank_details: r.bankDetails ?? existing.bankDetails ?? null,
+                emergency_contact: r.emergencyContact ?? existing.emergencyContact ?? null,
+                academic_year: options.academicYear || existing.academicYear || null,
+              }).eq('id', existing.id);
+              if (error) { errors++; console.error('[MAMA THERA] staff import update error:', error.message); }
+              else updated++;
+            } else {
+              updated++;
+            }
+          } else {
+            rows.push({
+              name: r.name || '',
+              position: r.position || '',
+              salary: r.salary || 0,
+              email: r.email || null,
+              phone: r.phone || '',
+              bank_details: r.bankDetails || null,
+              emergency_contact: r.emergencyContact || null,
+              academic_year: options.academicYear || null,
+            });
+          }
+        }
         const result = await processBatch('staff', rows);
-        inserted = result.ok;
-        errors = result.err;
+        inserted += result.ok;
+        errors += result.err;
 
       } else if (category === 'expenses') {
-        const rows = records.map((r) => ({
-          category: r.category || 'stationery',
-          description: r.description || '',
-          amount: r.amount || 0,
-          date: r.date || new Date().toISOString().split('T')[0],
-          academic_year: options.academicYear || null,
-        }));
+        const byKey = new Map<string, Expense>();
+        expenses.forEach(e => byKey.set(`${e.description.toLowerCase().trim()}|${e.date}|${e.amount}`, e));
+        const rows: Record<string, any>[] = [];
+        for (const r of records) {
+          const description = String(r.description || '').toLowerCase().trim();
+          const amount = Number(r.amount) || 0;
+          const date = r.date || todayStr;
+          const existing = byKey.get(`${description}|${date}|${amount}`);
+          if (existing) {
+            if (strategy === 'update') {
+              const { error } = await supabase.from('expenses').update({
+                category: r.category ?? existing.category,
+                description: r.description ?? existing.description,
+                amount: r.amount ?? existing.amount,
+                academic_year: options.academicYear || existing.academicYear || null,
+              }).eq('id', existing.id);
+              if (error) { errors++; console.error('[MAMA THERA] expense import update error:', error.message); }
+              else updated++;
+            } else {
+              updated++;
+            }
+          } else {
+            rows.push({
+              category: r.category || 'stationery',
+              description: r.description || '',
+              amount,
+              date,
+              academic_year: options.academicYear || null,
+            });
+          }
+        }
         const result = await processBatch('expenses', rows);
-        inserted = result.ok;
-        errors = result.err;
+        inserted += result.ok;
+        errors += result.err;
       }
 
       logAuditEvent({
         action: 'BATCH_IMPORT',
         targetType: category,
-        details: `Imported ${inserted} ${category} record(s) via Excel (${errors} errors)`,
+        details: `Imported ${inserted} ${category} record(s) via Excel (${updated} updated, ${errors} errors)`,
       });
 
       // Refresh data to reflect newly imported records

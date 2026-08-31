@@ -1,8 +1,9 @@
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { FileText, Printer, Lock, CheckCircle2 } from 'lucide-react';
 import type { Student, Expense, VendorExpense, SalaryPayment } from '../lib/useSupabaseData';
 import type { MultiYearReportOptions } from '../lib/pdfMultiYearReport';
 import { MultiYearChart } from './MultiYearChart';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export interface ArchivesViewProps {
   lang: 'en' | 'fr';
@@ -27,7 +28,9 @@ export interface ArchivesViewProps {
 
 export function ArchivesView(props: ArchivesViewProps) {
   const { lang, t, currentTheme, academicYears, lockedYears, students, expenses, vendorExpenses, salaryPayments, selectedYear, currentUser, getYearStats, formatCurrency, generateMultiYearReportPdf, handlePrint, handleCloseCurrentYear, setAuditYear, setShowAuditModal } = props;
+  const [confirmCloseYear, setConfirmCloseYear] = useState(false);
   return (
+    <>
           <div className="space-y-12 animate-fade-in">
             {/* Print-Only Official Header */}
             <div className="hidden print:block mb-6 p-6 bg-emerald-700 text-white rounded-2xl">
@@ -198,11 +201,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                       </div>
                     ) : (
                       <button
-                        onClick={() => {
-                          if (confirm(t.closeYearConfirm.replace('{year}', selectedYear))) {
-                            handleCloseCurrentYear();
-                          }
-                        }}
+                        onClick={() => setConfirmCloseYear(true)}
                         className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold px-8 py-5 rounded-3xl text-sm transition-all flex items-center gap-3 shadow-xl shadow-rose-600/30 active:scale-[0.98]"
                       >
                         <Lock size={18} />
@@ -214,5 +213,20 @@ export function ArchivesView(props: ArchivesViewProps) {
               </div>
             )}
           </div>
+
+        <ConfirmDialog
+          open={confirmCloseYear}
+          title={t.closeYear}
+          message={t.closeYearConfirm.replace('{year}', selectedYear)}
+          confirmLabel={t.closeYear}
+          cancelLabel={t.cancel}
+          onConfirm={() => {
+            setConfirmCloseYear(false);
+            handleCloseCurrentYear();
+          }}
+          onCancel={() => setConfirmCloseYear(false)}
+          currentTheme={currentTheme}
+        />
+    </>
   );
 }

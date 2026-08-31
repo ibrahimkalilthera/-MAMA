@@ -21,6 +21,25 @@ interface PromotionWizardModalProps {
   t: Record<string, string>;
 }
 
+/** Current academic year based on the date (Malian school year starts in Sept/Oct). */
+const getCurrentAcademicYear = (): string => {
+  const now = new Date();
+  const start = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${start}-${start + 1}`;
+};
+
+/** Derive the academic year that follows a given one, e.g. '2025-2026' → '2026-2027'. */
+const getNextAcademicYear = (academicYear: string): string => {
+  const m = academicYear.match(/(\d{4})[-/](\d{4})/);
+  if (m) {
+    const start = parseInt(m[1], 10) + 1;
+    return `${start}-${start + 1}`;
+  }
+  const base = getCurrentAcademicYear();
+  const start = parseInt(base.slice(0, 4), 10) + 1;
+  return `${start}-${start + 1}`;
+};
+
 const DEFAULT_GRADE_PROGRESSION: Record<string, string> = {
   'Maternelle Petite Section': 'Maternelle Moyenne Section',
   'Maternelle Moyenne Section': 'Maternelle Grande Section',
@@ -51,9 +70,10 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
 }) => {
   const isFr = language === 'fr';
 
-  // Step 1: Configuration
-  const [sourceYear, setSourceYear] = useState<string>(currentAcademicYear || '2025-2026');
-  const [targetYear, setTargetYear] = useState<string>('2026-2027');
+  // Step 1: Configuration — derive the target year from the current one instead
+  // of a hardcoded value (previously the wizard always suggested '2026-2027').
+  const [sourceYear, setSourceYear] = useState<string>(() => currentAcademicYear || getCurrentAcademicYear());
+  const [targetYear, setTargetYear] = useState<string>(() => getNextAcademicYear(currentAcademicYear || getCurrentAcademicYear()));
   const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [targetGrade, setTargetGrade] = useState<string>('');
   const [newTuitionFee, setNewTuitionFee] = useState<string>('150000');
@@ -323,7 +343,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
                           <td className="p-3 text-right">
                             <select
                               value={action}
-                              onChange={e => setStudentActions(prev => ({ ...prev, [st.id]: e.target.value as any }))}
+                              onChange={e => setStudentActions(prev => ({ ...prev, [st.id]: e.target.value as 'promote' | 'repeat' | 'graduate' | 'leave' }))}
                               className="px-2 py-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-semibold focus:ring-2 focus:ring-emerald-500"
                             >
                               <option value="promote">🟢 {t.promote}</option>

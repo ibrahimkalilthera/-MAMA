@@ -228,9 +228,9 @@ export function MonthlyPayrollDraftModal({
                       <th className="px-6 py-4 text-right">{t.baseSalary}</th>
                       <th className="px-6 py-4 text-right">{t.paidThisMonth2}</th>
                       <th className="px-6 py-4 text-right">{t.balanceDue}</th>
-                      <th className="px-6 py-4">{Date}</th>
+                      <th className="px-6 py-4">{t.lastPaymentDate}</th>
                       <th className="px-6 py-4 text-center">{t.status}</th>
-                      <th className="px-6 py-4 text-right">{'Action'}</th>
+                      <th className="px-6 py-4 text-right">{t.actions}</th>
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${themeBorder} text-xs`}>

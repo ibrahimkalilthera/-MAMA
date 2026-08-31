@@ -606,7 +606,7 @@ export function ExcelImportModal({
                     <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.duplicates}</label>
                     <select
                       value={importOptions.duplicateStrategy}
-                      onChange={(e) => setImportOptions((p) => ({ ...p, duplicateStrategy: e.target.value as any }))}
+                      onChange={(e) => setImportOptions((p) => ({ ...p, duplicateStrategy: e.target.value as 'skip' | 'update' }))}
                       className={`w-full px-4 py-2.5 rounded-xl border ${themeBorder} ${bgMuted} text-xs font-bold ${textPrimary} focus:outline-none focus:ring-2 focus:ring-blue-500/30`}
                     >
                       <option value="skip">{t.skipDuplicates}</option>

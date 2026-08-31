@@ -1,35 +1,11 @@
 import { lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap } from 'lucide-react';
-import type { Dispatch, SetStateAction } from 'react';
+import type { ComponentType, Dispatch, SetStateAction } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense, CustomClass } from '../lib/useSupabaseData';
 import type { UserProfile } from '../lib/useAuth';
-
-const HighlightText = ({ text, highlight }: { text: string; highlight: string }) => {
-  if (!highlight.trim()) return <span>{text}</span>;
-  const regex = new RegExp(`(${highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  const parts = text.split(regex);
-  return (
-    <span>
-      {parts.map((part, i) => regex.test(part) ? (
-        <mark key={i} className="bg-yellow-200 font-bold rounded-sm px-0.5 text-slate-900">{part}</mark>
-      ) : (
-        <span key={i}>{part}</span>
-      ))}
-    </span>
-  );
-};
-
-const ChartsFallback = ({ isDark }: { isDark: boolean }) => (
-  <>
-    {[0, 1].map(i => (
-      <div key={i} className={`card-elevated p-6 h-80 ${isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''} animate-pulse`}>
-        <div className="h-4 w-44 bg-slate-300 dark:bg-slate-700 rounded-lg mb-6" />
-        <div className="h-[calc(100%-2.5rem)] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" />
-      </div>
-    ))}
-  </>
-);
+import { HighlightText, ChartsFallback } from './SharedUi';
 
 const DashboardCharts = lazy(() => import('./DashboardCharts').then(m => ({ default: m.DashboardCharts })));
 const DashboardView = lazy(() => import('./DashboardView').then(m => ({ default: m.DashboardView })));
@@ -39,67 +15,67 @@ const PayrollView = lazy(() => import('./PayrollView').then(m => ({ default: m.P
 const ExpensesView = lazy(() => import('./ExpensesView').then(m => ({ default: m.ExpensesView })));
 
 export interface MainViewsProps {
-  AlertCircle: any;
-  ArrowDown: any;
-  ArrowUp: any;
-  ArrowUpDown: any;
-  Award: any;
-  Bell: any;
-  BookOpen: any;
-  Briefcase: any;
-  Calendar: any;
-  ChartsFallback: any;
-  CheckCircle2: any;
-  ChevronDown: any;
-  ChevronLeft: any;
-  ChevronRight: any;
-  ChevronUp: any;
-  Clock: any;
-  Coins: any;
-  Cpu: any;
-  CreditCard: any;
-  DashboardCharts: any;
-  DollarSign: any;
-  Download: any;
-  Droplet: any;
-  Edit2: any;
-  FileText: any;
-  Flag: any;
-  Globe: any;
-  GraduationCap: any;
-  Hammer: any;
-  Heart: any;
-  HighlightText: any;
-  Landmark: any;
-  Layers: any;
-  Mail: any;
-  MapPin: any;
-  Phone: any;
-  PieChart: any;
-  Plus: any;
-  Printer: any;
-  Receipt: any;
-  Search: any;
-  Shield: any;
-  ShieldCheck: any;
-  Sparkles: any;
-  Sprout: any;
-  StickyNote: any;
-  Sun: any;
-  Suspense: any;
-  Trash2: any;
-  TrendingDown: any;
-  TrendingUp: any;
-  Unlink: any;
-  UploadCloud: any;
-  UserCheck: any;
-  UserPlus: any;
-  Users: any;
-  Utensils: any;
-  Wallet: any;
-  Wifi: any;
-  X: any;
-  Zap: any;
+  AlertCircle: LucideIcon;
+  ArrowDown: LucideIcon;
+  ArrowUp: LucideIcon;
+  ArrowUpDown: LucideIcon;
+  Award: LucideIcon;
+  Bell: LucideIcon;
+  BookOpen: LucideIcon;
+  Briefcase: LucideIcon;
+  Calendar: LucideIcon;
+  ChartsFallback: ComponentType<any>;
+  CheckCircle2: LucideIcon;
+  ChevronDown: LucideIcon;
+  ChevronLeft: LucideIcon;
+  ChevronRight: LucideIcon;
+  ChevronUp: LucideIcon;
+  Clock: LucideIcon;
+  Coins: LucideIcon;
+  Cpu: LucideIcon;
+  CreditCard: LucideIcon;
+  DashboardCharts: ComponentType<any>;
+  DollarSign: LucideIcon;
+  Download: LucideIcon;
+  Droplet: LucideIcon;
+  Edit2: LucideIcon;
+  FileText: LucideIcon;
+  Flag: LucideIcon;
+  Globe: LucideIcon;
+  GraduationCap: LucideIcon;
+  Hammer: LucideIcon;
+  Heart: LucideIcon;
+  HighlightText: ComponentType<any>;
+  Landmark: LucideIcon;
+  Layers: LucideIcon;
+  Mail: LucideIcon;
+  MapPin: LucideIcon;
+  Phone: LucideIcon;
+  PieChart: LucideIcon;
+  Plus: LucideIcon;
+  Printer: LucideIcon;
+  Receipt: LucideIcon;
+  Search: LucideIcon;
+  Shield: LucideIcon;
+  ShieldCheck: LucideIcon;
+  Sparkles: LucideIcon;
+  Sprout: LucideIcon;
+  StickyNote: LucideIcon;
+  Sun: LucideIcon;
+  Suspense: ComponentType<any>;
+  Trash2: LucideIcon;
+  TrendingDown: LucideIcon;
+  TrendingUp: LucideIcon;
+  Unlink: LucideIcon;
+  UploadCloud: LucideIcon;
+  UserCheck: LucideIcon;
+  UserPlus: LucideIcon;
+  Users: LucideIcon;
+  Utensils: LucideIcon;
+  Wallet: LucideIcon;
+  Wifi: LucideIcon;
+  X: LucideIcon;
+  Zap: LucideIcon;
   activeTab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit';
   auditLogs: any[];
   auth: any;
@@ -171,7 +147,6 @@ export interface MainViewsProps {
   setEditingVendorExpense: Dispatch<SetStateAction<any>>;
   setExpandedParentId: Dispatch<SetStateAction<any>>;
   setLogoColor: Dispatch<SetStateAction<any>>;
-  setNewUserForm: Dispatch<SetStateAction<any>>;
   setParentChildrenSortBy: Dispatch<SetStateAction<any>>;
   setParentForm: Dispatch<SetStateAction<any>>;
   setParentSearchTerm: Dispatch<SetStateAction<any>>;
@@ -229,7 +204,7 @@ export interface MainViewsProps {
 }
 
 export function MainViews(props: MainViewsProps) {
-  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, chartData, currentMonth, currentTheme, deleteStaff, deleteStudent, deleteTodo, expandedParentId, expenseCategoryList, fetchAuditLogs, filteredStaff, filteredStudents, formatCurrency, formatDate, generateExpensesReportPdf, generateStaffPayslipPdf, getChildrenForParent, getDayName, getDaysInMonth, getEventsForDay, getGradeDisplay, getMonthName, getParentOutstandingBalance, getParentPaymentHistory, getStatus, handleAddTodo, handleDeleteClass, handleDeleteParent, handleDeleteVendorExpense, handleExportAllData, handleExportParentLedgerPdf, handleLogoUpload, handlePrint, handleSendPasswordReset, handleSort, handleUnlinkStudent, handleUpdateRole, isPromoter, lang, lateStudents, logoColor, logoInputRef, missedMonths, openEditClass, openEditModal, openEditParentModal, openEditStaffModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, payrollWindowStatus, pieData, salaryForm, salaryPayments, schoolLogo, searchTerm, selectedYear, setActiveLinkingParent, setCalendarDate, setEditingParent, setEditingStaff, setEditingVendorExpense, setExpandedParentId, setLogoColor, setNewUserForm, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setSalaryForm, setSchoolLogo, setSelectedCalendarDay, setSelectedDraftMonth, setSelectedDraftYear, setSelectedStudent, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setShowLinkStudentModal, setShowMonthlyDraftModal, setShowParentModal, setShowSalaryModal, setShowStaffModal, setShowVendorExpenseModal, setStaffForm, setStaffSearchTerm, setStudentToLinkId, setTheme, setTicketStudent, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, setVendorCategoryFilter, setVendorExpenseForm, setVendorSearch, setVendorStatusFilter, setVisibleBankDetails, staff, staffSearchTerm, stats, studentSortKey, studentSortOrder, t, theme, today, todoInput, todos, toggleFlag, toggleLanguage, toggleTodo, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, vendorCategoryFilter, vendorExpenses, vendorSearch, vendorStatusFilter, visibleBankDetails } = props;
+  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, chartData, currentMonth, currentTheme, deleteStaff, deleteStudent, deleteTodo, expandedParentId, expenseCategoryList, fetchAuditLogs, filteredStaff, filteredStudents, formatCurrency, formatDate, generateExpensesReportPdf, generateStaffPayslipPdf, getChildrenForParent, getDayName, getDaysInMonth, getEventsForDay, getGradeDisplay, getMonthName, getParentOutstandingBalance, getParentPaymentHistory, getStatus, handleAddTodo, handleDeleteClass, handleDeleteParent, handleDeleteVendorExpense, handleExportAllData, handleExportParentLedgerPdf, handleLogoUpload, handlePrint, handleSendPasswordReset, handleSort, handleUnlinkStudent, handleUpdateRole, isPromoter, lang, lateStudents, logoColor, logoInputRef, missedMonths, openEditClass, openEditModal, openEditParentModal, openEditStaffModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, payrollWindowStatus, pieData, salaryForm, salaryPayments, schoolLogo, searchTerm, selectedYear, setActiveLinkingParent, setCalendarDate, setEditingParent, setEditingStaff, setEditingVendorExpense, setExpandedParentId, setLogoColor, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setSalaryForm, setSchoolLogo, setSelectedCalendarDay, setSelectedDraftMonth, setSelectedDraftYear, setSelectedStudent, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setShowLinkStudentModal, setShowMonthlyDraftModal, setShowParentModal, setShowSalaryModal, setShowStaffModal, setShowVendorExpenseModal, setStaffForm, setStaffSearchTerm, setStudentToLinkId, setTheme, setTicketStudent, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, setVendorCategoryFilter, setVendorExpenseForm, setVendorSearch, setVendorStatusFilter, setVisibleBankDetails, staff, staffSearchTerm, stats, studentSortKey, studentSortOrder, t, theme, today, todoInput, todos, toggleFlag, toggleLanguage, toggleTodo, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, vendorCategoryFilter, vendorExpenses, vendorSearch, vendorStatusFilter, visibleBankDetails } = props;
   return (
     <>
         {activeTab === 'dashboard' && (
@@ -544,7 +519,7 @@ export function MainViews(props: MainViewsProps) {
                     ].map((tOption) => (
                       <button
                         key={tOption.id}
-                        onClick={() => setTheme(tOption.id as any)}
+                        onClick={() => setTheme(tOption.id)}
                         className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-3 ${
                           theme === tOption.id 
                             ? 'border-emerald-600 bg-emerald-500/10 shadow-md ring-2 ring-emerald-500/30' 
@@ -800,7 +775,6 @@ export function MainViews(props: MainViewsProps) {
 
                       <button
                         onClick={() => {
-                          setNewUserForm({ fullName: '', email: '', password: '', role: 'staff' });
                           setShowAddUserModal(true);
                         }}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95"
@@ -877,7 +851,7 @@ export function MainViews(props: MainViewsProps) {
                       ].map((tab) => (
                         <button
                           key={tab.id}
-                          onClick={() => setUserRoleFilter(tab.id as any)}
+                          onClick={() => setUserRoleFilter(tab.id)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             userRoleFilter === tab.id
                               ? 'bg-emerald-600 text-white shadow-sm'
@@ -975,7 +949,7 @@ export function MainViews(props: MainViewsProps) {
                                     <select
                                       value={profile.role}
                                       disabled={updatingUserId === profile.id}
-                                      onChange={(e) => handleUpdateRole(profile, e.target.value as any)}
+                                      onChange={(e) => handleUpdateRole(profile, e.target.value)}
                                       className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                                         isAdmin
                                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20'
