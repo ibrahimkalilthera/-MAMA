@@ -22,7 +22,8 @@ import {
   OfflinePayload 
 } from './offlineQueue';
 import { logAuditEvent, AuditLogEntry } from './auditLogger';
-import { replayOfflineItem, parentToRow, studentToRow, staffToRow, studentUpdatesToRow } from './offlineReplay';
+import { parentToRow, studentToRow, staffToRow, studentUpdatesToRow } from './offlineReplay';
+import { drainOfflineQueue } from './offlineSync';
 
 // ─── Type Definitions (matching App.tsx types) ───────────────────────────────
 
@@ -407,30 +408,20 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   // ── Offline Synchronization ─────────────────────────────────────────────
 
   const syncOfflineQueue = useCallback(async () => {
-    const queue = getOfflineQueue();
-    if (queue.length === 0) return;
+    if (getOfflineQueue().length === 0) return;
 
     setIsSyncing(true);
     let syncedCount = 0;
-
-    for (const item of queue) {
-      try {
-        const success = await replayOfflineItem(supabase, item);
-
-        if (success) {
-          removeOfflineAction(item.id);
-          syncedCount++;
-        }
-      } catch (err) {
-        console.error('Offline sync failed for item:', item, err);
-        break;
+    try {
+      // Drains the queued mutations (replay + removal per item) — the full
+      // behaviour is unit-tested in tests/offline-sync.test.ts.
+      syncedCount = await drainOfflineQueue(supabase);
+    } finally {
+      updateQueueCount();
+      setIsSyncing(false);
+      if (syncedCount > 0) {
+        notifySuccess(`Synced ${syncedCount} transaction(s)`);
       }
-    }
-
-    updateQueueCount();
-    setIsSyncing(false);
-    if (syncedCount > 0) {
-      notifySuccess(`Synced ${syncedCount} transaction(s)`);
     }
   }, []);
 

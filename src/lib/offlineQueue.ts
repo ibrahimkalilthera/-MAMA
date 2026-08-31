@@ -59,11 +59,39 @@ export type QueueItem = QueueItemBase & OfflinePayload;
 const STORAGE_KEY = 'mama_thera_offline_queue';
 
 /**
+ * Storage backend: browser localStorage when available, an in-memory map
+ * otherwise (SSR and the node test runner) — so the queue can be exercised
+ * end-to-end without a DOM. Browser behaviour is unchanged.
+ */
+const memoryStore = new Map<string, string>();
+const storage = {
+  getItem(key: string): string | null {
+    return typeof localStorage === 'undefined'
+      ? (memoryStore.get(key) ?? null)
+      : localStorage.getItem(key);
+  },
+  setItem(key: string, value: string): void {
+    if (typeof localStorage === 'undefined') {
+      memoryStore.set(key, value);
+      return;
+    }
+    localStorage.setItem(key, value);
+  },
+  removeItem(key: string): void {
+    if (typeof localStorage === 'undefined') {
+      memoryStore.delete(key);
+      return;
+    }
+    localStorage.removeItem(key);
+  },
+};
+
+/**
  * Retrieve all pending offline items from localStorage.
  */
 export function getOfflineQueue(): QueueItem[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = storage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -78,7 +106,7 @@ export function getOfflineQueue(): QueueItem[] {
  */
 export function saveOfflineQueue(queue: QueueItem[]): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
+    storage.setItem(STORAGE_KEY, JSON.stringify(queue));
   } catch (err) {
     console.error('Failed to save offline queue to localStorage:', err);
   }
@@ -119,7 +147,7 @@ export function removeOfflineAction(id: string): void {
  */
 export function clearOfflineQueue(): void {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    storage.removeItem(STORAGE_KEY);
   } catch (err) {
     console.error('Failed to clear offline queue:', err);
   }
