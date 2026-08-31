@@ -78,7 +78,7 @@ export function ConfirmDialog({
   return (
     <AnimatePresence>
       {open && (
-        <div ref={rootRef} className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div ref={rootRef} role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

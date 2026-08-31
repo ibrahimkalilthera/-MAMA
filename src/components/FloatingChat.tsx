@@ -51,6 +51,9 @@ export function FloatingChatPanel(props: FloatingChatProps) {
           />
           <motion.div
             ref={rootRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t.floatingChatTitle ?? 'Mama Thera Assistant'}
             className="fixed bottom-24 right-6 z-[61] flex w-[360px] max-w-[calc(100vw_-_3rem)] max-h-[calc(100dvh_-_3rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
             initial={{ opacity: 0, y: 24, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}

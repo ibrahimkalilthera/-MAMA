@@ -100,7 +100,7 @@ export const AddUserModal = ({
   };
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.addStaffAccount} className="fixed inset-0 z-[120] flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

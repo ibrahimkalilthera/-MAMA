@@ -336,7 +336,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Parent Profile Modal --- */}
       <AnimatePresence>
         {selectedStudent && (
-          <div ref={(el) => { overlayRoots.current[0] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[0] = el; }} role="dialog" aria-modal="true" aria-label={t.studentDetails} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -674,7 +674,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Student Add/Edit Modal --- */}
       <AnimatePresence>
         {showStudentModal && (
-          <div ref={(el) => { overlayRoots.current[1] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[1] = el; }} role="dialog" aria-modal="true" aria-label={editingStudent ? t.editStudent : t.addStudent} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1024,7 +1024,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Add New Class / Section Modal --- */}
       <AnimatePresence>
         {showAddClassModal && (
-          <div ref={(el) => { overlayRoots.current[2] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[2] = el; }} role="dialog" aria-modal="true" aria-label={t.addClass} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1191,7 +1191,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Edit Custom Class Modal --- */}
       <AnimatePresence>
         {showEditClassModal && (
-          <div ref={(el) => { overlayRoots.current[3] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[3] = el; }} role="dialog" aria-modal="true" aria-label={t.editClassSection} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1358,7 +1358,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Staff Add/Edit Modal --- */}
       <AnimatePresence>
         {showStaffModal && (
-          <div ref={(el) => { overlayRoots.current[4] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[4] = el; }} role="dialog" aria-modal="true" aria-label={editingStaff ? t.editStaff : t.addStaff} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1479,7 +1479,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Expense Modal --- */}
       <AnimatePresence>
         {showExpenseModal && (
-          <div ref={(el) => { overlayRoots.current[5] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[5] = el; }} role="dialog" aria-modal="true" aria-label={t.addExpense} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1563,7 +1563,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Vendor Expense Modal --- */}
       <AnimatePresence>
         {showVendorExpenseModal && (
-          <div ref={(el) => { overlayRoots.current[6] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[6] = el; }} role="dialog" aria-modal="true" aria-label={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1790,7 +1790,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Salary Payment Modal --- */}
       <AnimatePresence>
         {showSalaryModal && (
-          <div ref={(el) => { overlayRoots.current[7] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[7] = el; }} role="dialog" aria-modal="true" aria-label={t.recordSalary} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1909,7 +1909,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Calendar Day Modal --- */}
       <AnimatePresence>
         {showCalendarModal && selectedCalendarDay && (
-          <div ref={(el) => { overlayRoots.current[8] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[8] = el; }} role="dialog" aria-modal="true" aria-label={t.paymentHistory} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2057,6 +2057,9 @@ export function AppModals(props: AppModalsProps) {
             />
             <motion.aside
               ref={(el) => { overlayRoots.current[9] = el; }}
+              role="dialog"
+              aria-modal="true"
+              aria-label={t.productivity}
               initial={{ x: panelWidth }}
               animate={{ x: 0 }}
               exit={{ x: panelWidth }}
@@ -2248,7 +2251,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Payment Entry Modal --- */}
       <AnimatePresence>
         {showPaymentForm && (
-          <div ref={(el) => { overlayRoots.current[10] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[10] = el; }} role="dialog" aria-modal="true" aria-label={t.paymentEntry} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2334,7 +2337,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Yearly Final Audit Sheet Modal --- */}
       <AnimatePresence>
         {showAuditModal && auditYear && (
-          <div ref={(el) => { overlayRoots.current[11] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+          <div ref={(el) => { overlayRoots.current[11] = el; }} role="dialog" aria-modal="true" aria-label={t.auditSheet} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2517,7 +2520,7 @@ export function AppModals(props: AppModalsProps) {
           const balance = discountedTotal - ticketStudent.amountPaid;
           
           return (
-            <div ref={(el) => { overlayRoots.current[12] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+            <div ref={(el) => { overlayRoots.current[12] = el; }} role="dialog" aria-modal="true" aria-label={t.latePaymentTicket} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -2899,7 +2902,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Add / Edit Parent Modal --- */}
       {showParentModal && (
-        <div ref={(el) => { overlayRoots.current[13] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[13] = el; }} role="dialog" aria-modal="true" aria-label={editingParent ? t.editParent : t.addParent} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -3298,7 +3301,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Link Student Modal --- */}
       {showLinkStudentModal && activeLinkingParent && (
-        <div ref={(el) => { overlayRoots.current[14] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[14] = el; }} role="dialog" aria-modal="true" aria-label={t.linkStudent} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -3362,7 +3365,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Late Payment Notification Modal (WhatsApp / SMS Generator) --- */}
       {showNotifyModal && notifyParent && (
-        <div ref={(el) => { overlayRoots.current[15] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[15] = el; }} role="dialog" aria-modal="true" aria-label={t.reminderModalTitle} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}

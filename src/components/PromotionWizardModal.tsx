@@ -165,7 +165,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.classPromotionReEnrollmentWizard} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden transition-all my-8">
         
         {/* Header */}
