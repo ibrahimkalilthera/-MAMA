@@ -124,7 +124,7 @@ graph TD
 
 - **Typecheck (`npm run lint`)**: `tsc --noEmit` returns **0 errors** (strict + noImplicitAny).
 - **Tests (`npm test`)**: 27/27 passing (formatters, excel importer, view rendering inside MainViewsContext).
-- **Pre-commit hooks**: husky runs `npm run lint && npm test` before every commit.
+- **Pre-commit hooks**: husky runs `npm run lint && npm test && node scripts/check-audit.mjs` before every commit — the same audit gate as CI guards locally. Two hook-only conveniences (via `AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1`): the result is **cached** in `node_modules/.cache/audit-gate.json`, keyed on the package-lock hash (24h TTL, `AUDIT_CACHE_REFRESH=1` forces a live re-audit), so commits that don't touch dependencies re-audit instantly; and an **unreachable registry** (offline development) only warns instead of blocking — the CI push gate stays the enforcement point. `git commit --no-verify` skips everything in an emergency.
 - **Production Build (`npm run build`)**: Vite production bundle builds successfully in `dist/`.
 - **Local Dev Server**: Runs on `http://localhost:3000/`.
 
@@ -146,4 +146,4 @@ graph TD
 - **To use the CLI locally** (e.g. `vercel dev`): `cd tools && npm ci && npx vercel …` — the root project stays clean. Re-adding `vercel` to the root devDependencies would re-introduce its dev-only pins, so only do that deliberately.
 - **Risk assessment**: all removed packages were deployment-CLI-only and never bundled into the production app (verified in `dist/`). The only runtime dependency with advisories, `xlsx`, is already the SheetJS CDN build `0.20.3`.
 - **Install scripts**: npm 11's `allowScripts` policy is configured in `package.json` with `esbuild`/`core-js` approved by package name.
-- **CI gates**: a single quality workflow, [`.github/workflows/perf-guard.yml`](.github/workflows/perf-guard.yml) (it absorbed the former `security-audit.yml`), runs on every push to `main` with two parallel jobs — `quality` (lint: ESLint no-explicit-any + tsc strict + props wiring, then the tests, then `scripts/check-audit.mjs` — fails on any production vuln and on any total **above 0**) and `lighthouse` (Lighthouse) — alongside `deploy.yml`.
+- **CI gates**: a single quality workflow, [`.github/workflows/perf-guard.yml`](.github/workflows/perf-guard.yml) (it absorbed the former `security-audit.yml`), runs on every push to `main` with two parallel jobs — `quality` (lint: ESLint no-explicit-any + tsc strict + props wiring, then the tests, then `scripts/check-audit.mjs` in strict mode — fails on any production vuln and on any total **above 0**) and `lighthouse` (Lighthouse) — alongside `deploy.yml`. The same `check-audit.mjs` also guards the pre-commit hook locally (cached + offline-tolerant, see above), so a vulnerability introduced by an install is caught at commit time, before it can be pushed.
