@@ -1,11 +1,127 @@
 import { lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap } from 'lucide-react';
-import type { ComponentType, Dispatch, SetStateAction } from 'react';
+import type { ComponentType, Dispatch, SetStateAction, FormEvent, ChangeEvent, ReactNode, RefObject } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense, CustomClass } from '../lib/useSupabaseData';
-import type { UserProfile } from '../lib/useAuth';
+import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense } from '../lib/useSupabaseData';
+import type { AuthState, UserProfile } from '../lib/useAuth';
+import type { AuditLogEntry } from '../lib/auditLogger';
+import type { TranslationDict } from '../i18n/translations';
+import type { SchoolClass } from '../app/types';
+import type { CalendarDay } from '../lib/classes';
+import type { PayslipDataOptions } from '../lib/pdfPayroll';
+import type { ExpensesReportOptions } from '../lib/pdfExpensesReport';
 import { HighlightText, ChartsFallback } from './SharedUi';
+
+export type ThemeId = 'navy' | 'cream' | 'slate' | 'emerald' | 'bordeaux' | 'midnight';
+export type ManagedClass = SchoolClass & { rowId?: string };
+export type RoleFilter = 'all' | 'admin' | 'staff' | 'dev';
+export type SortKey = 'name' | 'parentName' | 'balance' | 'dueDate';
+export type ParentSort = 'highest_balance' | 'alphabetical';
+
+export interface DashboardStats {
+  totalOutstanding: number;
+  collectedMonth: number;
+  prevMonthCollected: number;
+  lateParentsCount: number;
+  totalFees: number;
+  totalCollected: number;
+  totalExpenses: number;
+  totalArrears: number;
+  expensesThisMonth: number;
+  enrolledStudentsCount: number;
+}
+
+export interface PayrollWindowStatus {
+  currentDay: number;
+  currentCalendarYear: number;
+  currentCalendarMonth: number;
+  totalPaidCurrentMonth: number;
+  isOverdue: boolean;
+  isOpen: boolean;
+}
+
+export interface CalendarEvent {
+  type: 'due' | 'salary' | 'expense';
+  count: number;
+  label: string;
+  details: { name: string; amount: number }[];
+}
+
+export interface StaffForm {
+  name: string;
+  position: string;
+  salary: string;
+  email: string;
+  phone: string;
+  bankDetails: string;
+  emergencyContact: string;
+}
+
+export interface SalaryForm {
+  staffId: string;
+  amount: string;
+  date: string;
+}
+
+export interface ParentForm {
+  fullName: string;
+  primaryPhone: string;
+  secondaryPhone: string;
+  email: string;
+  address: string;
+  occupation: string;
+  relationship: string;
+  notes: string;
+  linkedStudentIds: string[];
+}
+
+export interface VendorExpenseForm {
+  vendorName: string;
+  category: string;
+  amount: string;
+  dueDate: string;
+  paymentStatus: string;
+  amountPaid: string;
+  description: string;
+  aidType: string;
+  beneficiaryStudentName: string;
+  beneficiaryStudentGrade: string;
+}
+
+export interface CurrentTheme {
+  bg: string;
+  card: string;
+  text: string;
+  muted: string;
+  border: string;
+  header: string;
+  sidebar: string;
+  accent: string;
+  accentBg: string;
+  accentHover: string;
+  accentShadow: string;
+  tableHeader: string;
+  rowHover: string;
+  input: string;
+  isDark: boolean;
+}
+
+export interface StudentStatus {
+  label: string;
+  color: string;
+  icon: ReactNode;
+  standing: string;
+}
+
+export interface ParentLedgerEntry {
+  receiptNumber: string;
+  studentName: string;
+  studentId: string;
+  date: string;
+  amount: number;
+  academicYear?: string;
+}
 
 const DashboardCharts = lazy(() => import('./DashboardCharts').then(m => ({ default: m.DashboardCharts })));
 const DashboardView = lazy(() => import('./DashboardView').then(m => ({ default: m.DashboardView })));
@@ -77,130 +193,130 @@ export interface MainViewsProps {
   X: LucideIcon;
   Zap: LucideIcon;
   activeTab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit';
-  auditLogs: any[];
-  auth: any;
-  availableClasses: CustomClass[];
+  auditLogs: AuditLogEntry[];
+  auth: AuthState;
+  availableClasses: ManagedClass[];
   calendarDate: Date;
-  changeMonth: (...args: any[]) => any;
-  chartData: any[];
+  changeMonth: (offset: number) => void;
+  chartData: { name: string; income: number; expenses: number }[];
   currentMonth: number;
-  currentTheme: { bg: string; card: string; text: string; muted: string; border: string; header: string; sidebar: string; accent: string; accentBg: string; accentHover: string; accentShadow: string; tableHeader: string; rowHover: string; input: string; isDark: boolean };
-  deleteStaff: (...args: any[]) => any;
-  deleteStudent: (...args: any[]) => any;
-  deleteTodo: (...args: any[]) => any;
+  currentTheme: CurrentTheme;
+  deleteStaff: (id: string) => Promise<boolean>;
+  deleteStudent: (id: string) => Promise<boolean>;
+  deleteTodo: (id: string) => Promise<boolean>;
   expandedParentId: string | null;
   expenseCategoryList: { key: string; label: string }[];
   expenses: Expense[];
-  fetchAuditLogs: (...args: any[]) => any;
+  fetchAuditLogs: () => Promise<void>;
   filteredStaff: Staff[];
   filteredStudents: Student[];
-  formatCurrency: (...args: any[]) => any;
-  formatDate: (...args: any[]) => any;
-  generateExpensesReportPdf: (...args: any[]) => any;
-  generateStaffPayslipPdf: (...args: any[]) => any;
-  getChildrenForParent: (...args: any[]) => any;
-  getDayName: (...args: any[]) => any;
-  getDaysInMonth: (...args: any[]) => any;
-  getEventsForDay: (...args: any[]) => any;
-  getGradeDisplay: (...args: any[]) => any;
-  getMonthName: (...args: any[]) => any;
-  getParentOutstandingBalance: (...args: any[]) => any;
-  getParentPaymentHistory: (...args: any[]) => any;
-  getStatus: (...args: any[]) => any;
-  handleAddTodo: (...args: any[]) => any;
-  handleDeleteClass: (...args: any[]) => any;
-  handleDeleteParent: (...args: any[]) => any;
-  handleDeleteVendorExpense: (...args: any[]) => any;
-  handleExportAllData: (...args: any[]) => any;
-  handleExportParentLedgerPdf: (...args: any[]) => any;
-  handleLogoUpload: (...args: any[]) => any;
-  handlePrint: (...args: any[]) => any;
-  handleSendPasswordReset: (...args: any[]) => any;
-  handleSort: (...args: any[]) => any;
-  handleUnlinkStudent: (...args: any[]) => any;
-  handleUpdateRole: (...args: any[]) => any;
+  formatCurrency: (amount: number) => string;
+  formatDate: (dateStr: string) => string;
+  generateExpensesReportPdf: (opts: ExpensesReportOptions) => Promise<void>;
+  generateStaffPayslipPdf: (opts: PayslipDataOptions) => Promise<void>;
+  getChildrenForParent: (parent: Parent) => Student[];
+  getDayName: (dayIndex: number) => string;
+  getDaysInMonth: (date: Date) => CalendarDay[];
+  getEventsForDay: (date: Date) => CalendarEvent[];
+  getGradeDisplay: (grade: string | undefined, currentLang?: 'en' | 'fr') => string;
+  getMonthName: (monthIndex: number) => string;
+  getParentOutstandingBalance: (parent: Parent) => number;
+  getParentPaymentHistory: (parent: Parent) => ParentLedgerEntry[];
+  getStatus: (student: Student) => StudentStatus;
+  handleAddTodo: (e: FormEvent) => Promise<void>;
+  handleDeleteClass: (c: ManagedClass) => Promise<void>;
+  handleDeleteParent: (parentId: string) => Promise<void>;
+  handleDeleteVendorExpense: (id: string) => Promise<void>;
+  handleExportAllData: () => Promise<void>;
+  handleExportParentLedgerPdf: (parent: Parent) => Promise<void>;
+  handleLogoUpload: (e: ChangeEvent<HTMLInputElement>) => void;
+  handlePrint: () => void;
+  handleSendPasswordReset: (email: string) => Promise<void>;
+  handleSort: (key: SortKey) => void;
+  handleUnlinkStudent: (studentId: string) => Promise<void>;
+  handleUpdateRole: (targetProfile: UserProfile, newRole: 'admin' | 'staff' | 'dev') => Promise<void>;
   isPromoter: boolean;
   lang: 'en' | 'fr';
-  lateStudents: any[];
-  logoColor: string;
-  logoInputRef: any;
-  missedMonths: any[];
-  openEditClass: (...args: any[]) => any;
-  openEditModal: (...args: any[]) => any;
-  openEditParentModal: (...args: any[]) => any;
-  openEditStaffModal: (...args: any[]) => any;
-  openNotifyModal: (...args: any[]) => any;
-  parentChildrenSortBy: string;
+  lateStudents: Student[];
+  logoColor: string | null;
+  logoInputRef: RefObject<HTMLInputElement | null>;
+  missedMonths: number[];
+  openEditClass: (c: ManagedClass) => void;
+  openEditModal: (student: Student) => void;
+  openEditParentModal: (parent: Parent) => void;
+  openEditStaffModal: (s: Staff) => void;
+  openNotifyModal: (parent: Parent) => void;
+  parentChildrenSortBy: ParentSort;
   parentSearchTerm: string;
   parents: Parent[];
-  payrollWindowStatus: any;
-  pieData: any[];
-  salaryForm: any;
+  payrollWindowStatus: PayrollWindowStatus;
+  pieData: { name: string; value: number }[];
+  salaryForm: SalaryForm;
   salaryPayments: SalaryPayment[];
-  schoolLogo: string;
+  schoolLogo: string | null;
   searchTerm: string;
   selectedYear: string;
-  setActiveLinkingParent: Dispatch<SetStateAction<any>>;
-  setCalendarDate: Dispatch<SetStateAction<any>>;
-  setEditingParent: Dispatch<SetStateAction<any>>;
-  setEditingStaff: Dispatch<SetStateAction<any>>;
-  setEditingVendorExpense: Dispatch<SetStateAction<any>>;
-  setExpandedParentId: Dispatch<SetStateAction<any>>;
-  setLogoColor: Dispatch<SetStateAction<any>>;
-  setParentChildrenSortBy: Dispatch<SetStateAction<any>>;
-  setParentForm: Dispatch<SetStateAction<any>>;
-  setParentSearchTerm: Dispatch<SetStateAction<any>>;
-  setSalaryForm: Dispatch<SetStateAction<any>>;
-  setSchoolLogo: Dispatch<SetStateAction<any>>;
-  setSelectedCalendarDay: Dispatch<SetStateAction<any>>;
-  setSelectedDraftMonth: Dispatch<SetStateAction<any>>;
-  setSelectedDraftYear: Dispatch<SetStateAction<any>>;
-  setSelectedStudent: Dispatch<SetStateAction<any>>;
-  setShowAddClassModal: Dispatch<SetStateAction<any>>;
-  setShowAddUserModal: Dispatch<SetStateAction<any>>;
-  setShowCalendarModal: Dispatch<SetStateAction<any>>;
-  setShowLinkStudentModal: Dispatch<SetStateAction<any>>;
-  setShowMonthlyDraftModal: Dispatch<SetStateAction<any>>;
-  setShowParentModal: Dispatch<SetStateAction<any>>;
-  setShowSalaryModal: Dispatch<SetStateAction<any>>;
-  setShowStaffModal: Dispatch<SetStateAction<any>>;
-  setShowVendorExpenseModal: Dispatch<SetStateAction<any>>;
-  setStaffForm: Dispatch<SetStateAction<any>>;
-  setStaffSearchTerm: Dispatch<SetStateAction<any>>;
-  setStudentToLinkId: Dispatch<SetStateAction<any>>;
-  setTheme: Dispatch<SetStateAction<any>>;
-  setTicketStudent: Dispatch<SetStateAction<any>>;
-  setTodoInput: Dispatch<SetStateAction<any>>;
-  setUserProfiles: Dispatch<SetStateAction<any>>;
-  setUserRoleFilter: Dispatch<SetStateAction<any>>;
-  setUserSearchTerm: Dispatch<SetStateAction<any>>;
-  setVendorCategoryFilter: Dispatch<SetStateAction<any>>;
-  setVendorExpenseForm: Dispatch<SetStateAction<any>>;
-  setVendorSearch: Dispatch<SetStateAction<any>>;
-  setVendorStatusFilter: Dispatch<SetStateAction<any>>;
-  setVisibleBankDetails: Dispatch<SetStateAction<any>>;
+  setActiveLinkingParent: Dispatch<SetStateAction<Parent | null>>;
+  setCalendarDate: Dispatch<SetStateAction<Date>>;
+  setEditingParent: Dispatch<SetStateAction<Parent | null>>;
+  setEditingStaff: Dispatch<SetStateAction<Staff | null>>;
+  setEditingVendorExpense: Dispatch<SetStateAction<VendorExpense | null>>;
+  setExpandedParentId: Dispatch<SetStateAction<string | null>>;
+  setLogoColor: Dispatch<SetStateAction<string | null>>;
+  setParentChildrenSortBy: Dispatch<SetStateAction<ParentSort>>;
+  setParentForm: Dispatch<SetStateAction<ParentForm>>;
+  setParentSearchTerm: Dispatch<SetStateAction<string>>;
+  setSalaryForm: Dispatch<SetStateAction<SalaryForm>>;
+  setSchoolLogo: Dispatch<SetStateAction<string | null>>;
+  setSelectedCalendarDay: Dispatch<SetStateAction<Date | null>>;
+  setSelectedDraftMonth: Dispatch<SetStateAction<number>>;
+  setSelectedDraftYear: Dispatch<SetStateAction<number>>;
+  setSelectedStudent: Dispatch<SetStateAction<Student | null>>;
+  setShowAddClassModal: Dispatch<SetStateAction<boolean>>;
+  setShowAddUserModal: Dispatch<SetStateAction<boolean>>;
+  setShowCalendarModal: Dispatch<SetStateAction<boolean>>;
+  setShowLinkStudentModal: Dispatch<SetStateAction<boolean>>;
+  setShowMonthlyDraftModal: Dispatch<SetStateAction<boolean>>;
+  setShowParentModal: Dispatch<SetStateAction<boolean>>;
+  setShowSalaryModal: Dispatch<SetStateAction<boolean>>;
+  setShowStaffModal: Dispatch<SetStateAction<boolean>>;
+  setShowVendorExpenseModal: Dispatch<SetStateAction<boolean>>;
+  setStaffForm: Dispatch<SetStateAction<StaffForm>>;
+  setStaffSearchTerm: Dispatch<SetStateAction<string>>;
+  setStudentToLinkId: Dispatch<SetStateAction<string>>;
+  setTheme: Dispatch<SetStateAction<ThemeId>>;
+  setTicketStudent: Dispatch<SetStateAction<Student | null>>;
+  setTodoInput: Dispatch<SetStateAction<string>>;
+  setUserProfiles: Dispatch<SetStateAction<UserProfile[]>>;
+  setUserRoleFilter: Dispatch<SetStateAction<RoleFilter>>;
+  setUserSearchTerm: Dispatch<SetStateAction<string>>;
+  setVendorCategoryFilter: Dispatch<SetStateAction<string>>;
+  setVendorExpenseForm: Dispatch<SetStateAction<VendorExpenseForm>>;
+  setVendorSearch: Dispatch<SetStateAction<string>>;
+  setVendorStatusFilter: Dispatch<SetStateAction<string>>;
+  setVisibleBankDetails: Dispatch<SetStateAction<Record<string, boolean>>>;
   staff: Staff[];
   staffSearchTerm: string;
-  stats: any;
-  studentSortKey: string;
-  studentSortOrder: string;
-  t: Record<string, string>;
-  theme: string;
+  stats: DashboardStats;
+  studentSortKey: SortKey | null;
+  studentSortOrder: 'asc' | 'desc';
+  t: TranslationDict;
+  theme: ThemeId;
   today: string;
   todoInput: string;
   todos: Todo[];
-  toggleFlag: (...args: any[]) => any;
-  toggleLanguage: (...args: any[]) => any;
-  toggleTodo: (...args: any[]) => any;
+  toggleFlag: (id: string) => Promise<void>;
+  toggleLanguage: (lang: 'en' | 'fr') => void;
+  toggleTodo: (id: string) => Promise<void>;
   updatingUserId: string | null;
   userProfiles: UserProfile[];
-  userRoleFilter: string;
+  userRoleFilter: RoleFilter;
   userSearchTerm: string;
   vendorCategoryFilter: string;
   vendorExpenses: VendorExpense[];
   vendorSearch: string;
   vendorStatusFilter: string;
-  visibleBankDetails: string | null;
+  visibleBankDetails: Record<string, boolean>;
 }
 
 export function MainViews(props: MainViewsProps) {
@@ -516,7 +632,7 @@ export function MainViews(props: MainViewsProps) {
                       { id: 'bordeaux', label: t.bordeauxRed, color: 'bg-[#881337]' },
                       { id: 'slate', label: t.slateSlate, color: 'bg-[#1E293B]' },
                       { id: 'midnight', label: t.midnightDark, color: 'bg-[#030712]' }
-                    ].map((tOption) => (
+                    ].map((tOption: { id: ThemeId; label: string; color: string }) => (
                       <button
                         key={tOption.id}
                         onClick={() => setTheme(tOption.id)}
@@ -848,7 +964,7 @@ export function MainViews(props: MainViewsProps) {
                         { id: 'all', label: t.all },
                         { id: 'admin', label: 'Admins' },
                         { id: 'staff', label: t.staff2 },
-                      ].map((tab) => (
+                      ].map((tab: { id: 'all' | 'admin' | 'staff'; label: string }) => (
                         <button
                           key={tab.id}
                           onClick={() => setUserRoleFilter(tab.id)}
@@ -949,7 +1065,7 @@ export function MainViews(props: MainViewsProps) {
                                     <select
                                       value={profile.role}
                                       disabled={updatingUserId === profile.id}
-                                      onChange={(e) => handleUpdateRole(profile, e.target.value)}
+                                      onChange={(e) => handleUpdateRole(profile, e.target.value as 'admin' | 'staff' | 'dev')}
                                       className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                                         isAdmin
                                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20'

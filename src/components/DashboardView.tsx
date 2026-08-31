@@ -1,13 +1,15 @@
 import { AnimatePresence, motion } from 'motion/react';
 import type { MainViewsProps } from './MainViews';
+import type { TranslationDict } from '../i18n/translations';
+export type DashboardViewProps = Pick<MainViewsProps, 'AlertCircle' | 'Calendar' | 'ChartsFallback' | 'CheckCircle2' | 'ChevronRight' | 'Clock' | 'Coins' | 'DashboardCharts' | 'GraduationCap' | 'PieChart' | 'Suspense' | 'TrendingDown' | 'TrendingUp' | 'Wallet' | 'chartData' | 'currentTheme' | 'formatCurrency' | 'lateStudents' | 'missedMonths' | 'payrollWindowStatus' | 'pieData' | 'setSelectedStudent' | 'stats' | 't' | 'theme'>;
 
-export function DashboardView(props: MainViewsProps) {
-  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, chartData, currentMonth, currentTheme, deleteStaff, deleteStudent, deleteTodo, expandedParentId, expenseCategoryList, fetchAuditLogs, filteredStaff, filteredStudents, formatCurrency, formatDate, generateExpensesReportPdf, generateStaffPayslipPdf, getChildrenForParent, getDayName, getDaysInMonth, getEventsForDay, getGradeDisplay, getMonthName, getParentOutstandingBalance, getParentPaymentHistory, getStatus, handleAddTodo, handleDeleteClass, handleDeleteParent, handleDeleteVendorExpense, handleExportAllData, handleExportParentLedgerPdf, handleLogoUpload, handlePrint, handleSendPasswordReset, handleSort, handleUnlinkStudent, handleUpdateRole, isPromoter, lang, lateStudents, logoColor, logoInputRef, missedMonths, openEditClass, openEditModal, openEditParentModal, openEditStaffModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, payrollWindowStatus, pieData, salaryForm, salaryPayments, schoolLogo, searchTerm, selectedYear, setActiveLinkingParent, setCalendarDate, setEditingParent, setEditingStaff, setEditingVendorExpense, setExpandedParentId, setLogoColor, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setSalaryForm, setSchoolLogo, setSelectedCalendarDay, setSelectedDraftMonth, setSelectedDraftYear, setSelectedStudent, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setShowLinkStudentModal, setShowMonthlyDraftModal, setShowParentModal, setShowSalaryModal, setShowStaffModal, setShowVendorExpenseModal, setStaffForm, setStaffSearchTerm, setStudentToLinkId, setTheme, setTicketStudent, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, setVendorCategoryFilter, setVendorExpenseForm, setVendorSearch, setVendorStatusFilter, setVisibleBankDetails, staff, staffSearchTerm, stats, studentSortKey, studentSortOrder, t, theme, today, todoInput, todos, toggleFlag, toggleLanguage, toggleTodo, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, vendorCategoryFilter, vendorExpenses, vendorSearch, vendorStatusFilter, visibleBankDetails } = props;
+export function DashboardView(props: DashboardViewProps) {
+  const { AlertCircle, Calendar, ChartsFallback, CheckCircle2, ChevronRight, Clock, Coins, DashboardCharts, GraduationCap, PieChart, Suspense, TrendingDown, TrendingUp, Wallet, chartData, currentTheme, formatCurrency, lateStudents, missedMonths, payrollWindowStatus, pieData, setSelectedStudent, stats, t, theme } = props;
   return (
           <div className="space-y-12">
             {/* Payroll Window Banner Alerts */}
             {(() => {
-              const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+              const monthKeys: (keyof TranslationDict)[] = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
               const currentMonthName = t[monthKeys[payrollWindowStatus.currentCalendarMonth]];
               return (
                 <div className="space-y-3 no-print">
@@ -50,7 +52,7 @@ export function DashboardView(props: MainViewsProps) {
             {missedMonths.length > 0 && (
               <div className="space-y-3 no-print">
                 {missedMonths.map(m => {
-                  const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                  const monthKeys: (keyof TranslationDict)[] = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
                   return (
                     <div key={m} className="p-5 bg-rose-50 border border-rose-200 rounded-3xl flex items-center gap-4 text-rose-700 shadow-lg shadow-rose-500/5 animate-subtle-pulse">
                       <div className="p-2 bg-rose-100 rounded-xl text-rose-600">
