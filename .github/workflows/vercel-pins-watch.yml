@@ -1,0 +1,53 @@
+name: Vercel pins watch
+
+# Weekly watch on the isolated Vercel CLI (tools/), whose dev-only tree still
+# carries the vulnerable transitive pins (tar, undici, js-yaml, … — upstream
+# vercel/vercel#11543, see DEVELOPMENT_HISTORY.md). Dependabot already opens
+# the bump PR in tools/ whenever a new CLI ships (daily schedule); what it
+# cannot assess is whether the NEW tree is actually clean. This workflow:
+#   • audits the current tools/ tree from its lockfile (no install needed);
+#   • probes the latest vercel release the same way (lock-only, metadata
+#     only — nothing is downloaded or executed);
+#   • when the latest tree audits 0 — the pins fix is available — opens a
+#     SINGLE tracking issue (label `vercel-pins`), refreshes it weekly with
+#     live counts, links any open Dependabot bump PR, and auto-closes it
+#     once tools/ audits 0 after the bump is merged.
+# A still-vulnerable upstream must NOT turn this run red (it is a tracker,
+# not a gate) — only infrastructural failures do.
+# The push trigger (paths-filtered) exercises the script on the real runners
+# whenever it changes; the weekly cron and manual dispatch are the steady
+# state.
+
+on:
+  schedule:
+    # Mondays 06:00 UTC.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/check-vercel-pins.mjs'
+      - '.github/workflows/vercel-pins-watch.yml'
+
+concurrency:
+  group: vercel-pins-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Audit tools/, probe the latest vercel tree, manage the tracking issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-vercel-pins.mjs
