@@ -32,10 +32,12 @@ export default tseslint.config(
     rules: {
       // Hard gate: no explicit `any` may ever be reintroduced in TypeScript.
       '@typescript-eslint/no-explicit-any': 'error',
-      // Type bypasses silently slip past `tsc` — ban them outright.
+      // Type bypasses silently slip past `tsc` — ban them outright, including
+      // described `@ts-expect-error` (a documented suppression is still a
+      // suppression; scripts/check-forbidden-any.mjs enforces the same list).
       '@typescript-eslint/ban-ts-comment': [
         'error',
-        { 'ts-expect-error': 'allow-with-description', 'ts-ignore': true, 'ts-nocheck': true },
+        { 'ts-expect-error': true, 'ts-ignore': true, 'ts-nocheck': true },
       ],
       // Vite + React docs recommend keeping components HMR-friendly.
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],

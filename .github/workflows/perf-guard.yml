@@ -53,7 +53,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (ESLint no-explicit-any + tsc strict + props wiring)
+      - name: Lint (ESLint no-any/banned-comments + tsc strict + props wiring + forbidden casts)
         run: npm run lint
 
       - name: Tests
