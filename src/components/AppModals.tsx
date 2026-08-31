@@ -9,6 +9,7 @@ import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
+import { useOverlayTraps } from '../lib/focusStack';
 
 // ─── Productivité panel sizing (resizable on desktop) ───────────────────────
 // The panel used to be a hard-coded w-80 (320px). It is now user-resizable:
@@ -323,12 +324,19 @@ export function AppModals(props: AppModalsProps) {
       }
     },
   );
+  // Focus trap: confine Tab to the currently-open overlay (same JSX order —
+  // the last open entry is the visually topmost) and restore focus on close.
+  const overlayRoots = useRef<(HTMLElement | null)[]>([]);
+  useOverlayTraps(
+    openOverlays.map(([open]) => open),
+    (i) => overlayRoots.current[i] ?? null,
+  );
   return (
     <>
       {/* --- Parent Profile Modal --- */}
       <AnimatePresence>
         {selectedStudent && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[0] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -666,7 +674,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Student Add/Edit Modal --- */}
       <AnimatePresence>
         {showStudentModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[1] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1016,7 +1024,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Add New Class / Section Modal --- */}
       <AnimatePresence>
         {showAddClassModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[2] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1183,7 +1191,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Edit Custom Class Modal --- */}
       <AnimatePresence>
         {showEditClassModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[3] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1350,7 +1358,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Staff Add/Edit Modal --- */}
       <AnimatePresence>
         {showStaffModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[4] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1471,7 +1479,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Expense Modal --- */}
       <AnimatePresence>
         {showExpenseModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[5] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1555,7 +1563,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Vendor Expense Modal --- */}
       <AnimatePresence>
         {showVendorExpenseModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[6] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1782,7 +1790,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Salary Payment Modal --- */}
       <AnimatePresence>
         {showSalaryModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[7] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1901,7 +1909,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Calendar Day Modal --- */}
       <AnimatePresence>
         {showCalendarModal && selectedCalendarDay && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[8] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2048,6 +2056,7 @@ export function AppModals(props: AppModalsProps) {
               className="fixed inset-0 z-20 bg-slate-900/50 backdrop-blur-sm lg:hidden"
             />
             <motion.aside
+              ref={(el) => { overlayRoots.current[9] = el; }}
               initial={{ x: panelWidth }}
               animate={{ x: 0 }}
               exit={{ x: panelWidth }}
@@ -2239,7 +2248,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Payment Entry Modal --- */}
       <AnimatePresence>
         {showPaymentForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[10] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2325,7 +2334,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Yearly Final Audit Sheet Modal --- */}
       <AnimatePresence>
         {showAuditModal && auditYear && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+          <div ref={(el) => { overlayRoots.current[11] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2508,7 +2517,7 @@ export function AppModals(props: AppModalsProps) {
           const balance = discountedTotal - ticketStudent.amountPaid;
           
           return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+            <div ref={(el) => { overlayRoots.current[12] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -2890,7 +2899,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Add / Edit Parent Modal --- */}
       {showParentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[13] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -3289,7 +3298,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Link Student Modal --- */}
       {showLinkStudentModal && activeLinkingParent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[14] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -3353,7 +3362,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Late Payment Notification Modal (WhatsApp / SMS Generator) --- */}
       {showNotifyModal && notifyParent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[15] = el; }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}

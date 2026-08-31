@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
+import { useFocusTrap } from '../lib/focusStack';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
@@ -70,6 +71,9 @@ export function MonthlyPayrollDraftModal({
 }: MonthlyPayrollDraftModalProps) {
   // Escape behaves like the cancel button (mounted only while open).
   useEscapeToClose(isOpen, onClose);
+  // Tab is confined to the draft sheet; focus returns to the trigger on close.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(isOpen, () => rootRef.current);
 
   if (!isOpen) return null;
 
@@ -127,7 +131,7 @@ export function MonthlyPayrollDraftModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in no-print">
+      <div ref={rootRef} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in no-print">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}

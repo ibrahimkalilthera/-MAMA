@@ -1,7 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
+import { useFocusTrap } from '../lib/focusStack';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -70,11 +71,14 @@ export function ConfirmDialog({
 
   // Escape behaves exactly like the cancel button (always mounted — `open` gates).
   useEscapeToClose(open, handleCancel);
+  // Tab is confined to the dialog while open; focus returns to the trigger on close.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, () => rootRef.current);
 
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div ref={rootRef} className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

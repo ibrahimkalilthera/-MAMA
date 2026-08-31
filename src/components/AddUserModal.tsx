@@ -5,12 +5,13 @@
  * toggles visibility and passes the auth service + toast helpers.
  */
 
-import { useState, FormEvent } from 'react';
+import { useState, useRef, FormEvent } from 'react';
 import { motion } from 'motion/react';
 import { UserPlus } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import type { UserProfile } from '../lib/useAuth';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
+import { useFocusTrap } from '../lib/focusStack';
 
 export interface NewUserForm {
   fullName: string;
@@ -63,6 +64,9 @@ export const AddUserModal = ({
 
   // Escape behaves like the cancel button (mounted only while open).
   useEscapeToClose(true, onClose);
+  // Tab is confined to the dialog; focus returns to the trigger on close.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(true, () => rootRef.current);
 
   const handleCreateUser = async (e: FormEvent) => {
     e.preventDefault();
@@ -96,7 +100,7 @@ export const AddUserModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div ref={rootRef} className="fixed inset-0 z-[120] flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

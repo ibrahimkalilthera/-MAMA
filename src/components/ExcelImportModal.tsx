@@ -9,6 +9,7 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
+import { useFocusTrap } from '../lib/focusStack';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Upload,
@@ -74,6 +75,9 @@ export function ExcelImportModal({
 }: ExcelImportModalProps) {
   // Escape behaves like the cancel button (mounted only while open).
   useEscapeToClose(isOpen, onClose);
+  // Tab is confined to the wizard; focus returns to the trigger on close.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(isOpen, () => rootRef.current);
 
   // ── Wizard state ──
   const [step, setStep] = useState(1);
@@ -259,7 +263,7 @@ export function ExcelImportModal({
   const textSecondary = themeIsDark ? 'text-white/60' : 'text-slate-500';
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div ref={rootRef} className="fixed inset-0 z-[120] flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

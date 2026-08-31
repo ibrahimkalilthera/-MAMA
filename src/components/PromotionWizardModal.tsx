@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
+import { useFocusTrap } from '../lib/focusStack';
 import { Student } from '../lib/useSupabaseData';
 import { X, ArrowRight, CheckCircle2, GraduationCap, AlertCircle, RefreshCw, Layers, Users } from 'lucide-react';
 
@@ -156,11 +157,15 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
   // Escape behaves like the cancel button — registered BEFORE the early
   // return so the hook stays unconditional (rules of hooks).
   useEscapeToClose(isOpen, onClose);
+  // Same placement rule: Tab confinement + focus restoration before the early
+  // return so the hooks stay unconditional.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(isOpen, () => rootRef.current);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div ref={rootRef} className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden transition-all my-8">
         
         {/* Header */}
