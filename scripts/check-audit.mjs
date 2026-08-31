@@ -5,18 +5,19 @@
  *   1. ANY production/runtime dependency has a known vulnerability
  *      (`npm audit --omit=dev` non-empty) — nothing vulnerable may ship.
  *   2. The total vulnerability count exceeds the documented dev-only baseline
- *      (DEV_BASELINE = 29) — i.e. a brand-new vulnerability appears anywhere
+ *      (DEV_BASELINE = 0) — i.e. a brand-new vulnerability appears anywhere
  *      in the tree.
  *
- * The 29 baseline entries are all exact, dev-only Vercel-CLI pins (tar,
- * undici, js-yaml, …), tracked upstream in vercel/vercel#11543 and documented
- * in DEVELOPMENT_HISTORY.md ("Dependency Security Status"). They cannot be
- * fixed from this repository. Deliberately raising the baseline requires
- * updating DEV_BASELINE here *and* the documentation.
+ * Originally DEV_BASELINE was 29 (exact, dev-only Vercel-CLI pins — tar,
+ * undici, js-yaml, … — tracked upstream in vercel/vercel#11543). They were
+ * eliminated via the `overrides` block in package.json (which forces patched
+ * lines for the vulnerable transitive deps). The baseline is therefore 0 now:
+ * any single vulnerability fails the build. Deliberately raising the baseline
+ * requires updating DEV_BASELINE here *and* the documentation.
  */
 import { execSync } from 'node:child_process';
 
-const DEV_BASELINE = 29;
+const DEV_BASELINE = 0;
 
 /** Runs `npm audit --json <args>` and returns the parsed report (null on failure). */
 function runAudit(args) {

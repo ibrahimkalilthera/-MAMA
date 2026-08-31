@@ -1,0 +1,65 @@
+name: Deploy (Vercel)
+
+# Deploys to Vercel production on every push to `main`.
+#
+# The Vercel CLI is intentionally NOT a project dependency: it is installed
+# on-demand here (globally) so its `@vercel/*` transitive pins never enter
+# package.json / the lockfile. `vercel` was removed from devDependencies and
+# the old local `npm run deploy:prod` was retired in favour of this workflow.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   VERCEL_TOKEN      — a Vercel access token (https://vercel.com/account/tokens)
+#   VERCEL_ORG_ID     — team id, e.g. team_… (see DEVELOPMENT_HISTORY.md)
+#   VERCEL_PROJECT_ID — project id, e.g. prj_…
+# Production environment variables (VITE_SUPABASE_URL etc.) are pulled from
+# Vercel by `vercel pull` so the build sees them — keep them in the Vercel
+# dashboard, not in this repo.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Lint + type-check + props wiring
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Install Vercel CLI (isolated — not a project dependency)
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel production settings and environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build app (Vite) and stage for Vercel
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to production (prebuilt)
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}

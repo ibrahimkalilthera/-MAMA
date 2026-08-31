@@ -132,27 +132,17 @@ graph TD
 
 ## 🔒 Dependency Security Status (npm audit)
 
-*Last review: 2026-08-31. `npm audit` reports 29 vulnerabilities (2 low, 7 moderate, 19 high, 1 critical) — **all dev-only, none reach the production bundle**.*
+*Last review: 2026-08-31. `npm audit` reports **0 vulnerabilities**. The previous 29 (2 low, 7 moderate, 19 high, 1 critical) were all **dev-only pins inside the Vercel CLI** dependency tree (`tar`, `undici`, `js-yaml`, `minimatch`, `smol-toml`, `path-to-regexp`, `ajv`, `@tootallnate/once`, `esbuild`). Rather than `overrides`, the deployment CLI was **removed from the project entirely** — deploys now run through GitHub Actions with an isolated `vercel@latest` — which eliminated the whole tree (≈264 packages) at the source.*
 
-All 29 trace to exact vulnerable pins inside the **Vercel CLI** dependency tree (`vercel` is a devDependency used only for deployment):
-
-| Package (pinned version) | Vulnerable via | Fixed version exists in registry |
-|---|---|---|
-| `tar` 7.5.7 | `@vercel/fun` | ✅ 7.5.22 |
-| `undici` 5.28.4 | `@vercel/node` | ✅ 6.28+ |
-| `js-yaml` 4.1.1 | `@vercel/python-analysis` | ✅ 4.3.1+ |
-| `minimatch` 10.1.1 | `@vercel/python-analysis` | ✅ 10.2.3+ |
-| `smol-toml` 1.5.2 | `@vercel/python-analysis` | ✅ 1.6.1+ |
-| `path-to-regexp` 6.1.0 / 8.2.0 | `@vercel/*` | ✅ 6.3.0 / 8.4.0 |
-| `esbuild` 0.27.7 | `@vercel/backends` → `tsx@4.21.0` | ✅ 0.28.2 |
-
-- **Tracking issue**: [vercel/vercel#11543](https://github.com/vercel/vercel/issues/11543) — *"Latest version of cli is pulling in insecure packages that have available patches"* — open since 2024-05-04, still open.
-- **No fix released yet**: `vercel@59.10.0` is the latest version and its `@vercel/*` packages still pin the vulnerable versions exactly (e.g. `@vercel/fun@1.3.1 → tar 7.5.7`, `@vercel/node@10.0.0 → undici 5.28.4`). `npm audit fix` has nothing to apply; the only "fix" npm can compute is a breaking downgrade to `vercel@54.17.3`, intentionally rejected.
-- **Update procedure when Vercel ships a fix** (one command):
+- **How it was fixed**: `vercel` was a devDependency used only to deploy. It (and all its `@vercel/*` transitive pins) is gone from `package.json` + the lockfile. A new workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) installs `vercel@latest` **on demand in CI** and deploys on every push to `main`. `npm run deploy:prod` is now a notice pointing to CI (`scripts/deploy-notice.mjs`). `esbuild` is declared explicitly in devDependencies because `tsx` (the test runner)'s esbuild copy had to be restored after removing the vercel override — it is clean (`0.28.2`).
+- **What the workflow needs** (repository secrets — `Settings ▸ Secrets and variables ▸ Actions`): `VERCEL_TOKEN` (access token), `VERCEL_ORG_ID` (`team_…`), `VERCEL_PROJECT_ID` (`prj_…`). For this project: org `team_CfIwAlGjbuOf3EItm2mDUK4n`, project `prj_Jwn5tMXCwQ6a2V3t5nFQjt8OSMPi`. Production env (`VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`) stays in the Vercel dashboard and is pulled by `vercel pull`.
+- **`vercel.json`**: now pins `framework`/`buildCommand`/`outputDirectory` (Vite → `dist`) so the isolated CLI build is deterministic and doesn't depend on dashboard settings (the SPA rewrite is unchanged).
+- **To deploy locally** nothing is needed — push to `main`:
   ```bash
-  npm install -D vercel@latest && npm audit fix
+  git push origin main
   ```
-  Then verify: `npm audit` (expect 0), `npm run lint && npm test`.
-- **Risk assessment**: these packages are only executed by the deployment CLI at deploy time — they are never bundled into the production app (verified in `dist/`). The only runtime dependency with advisories, `xlsx`, was fixed by switching to the SheetJS CDN build `0.20.3`; it no longer appears in `npm audit`.
-- **Install scripts**: npm 11's `allowScripts` policy is configured in `package.json` (esbuild binary install + core-js funding notice approved, pinned by version).
-- **CI gate**: workflow `security-audit.yml` runs `scripts/check-audit.mjs` on every push to `main` — it fails if any production dependency has a vulnerability (nothing vulnerable ships) and if the total count grows past this 29-dev baseline (a brand-new vuln anywhere is caught). Works alongside the Lighthouse `perf-guard.yml`.
+  and watch the "Deploy (Vercel)" workflow. `npm run lint`, `npm test`, `npm run build` and the audit gate all run in CI before `vercel deploy --prebuilt --prod`.
+- **To re-add the CLI later** (e.g. for local `vercel dev`): `npm i -D vercel` — that re-introduces its dev-only pins, so only do it deliberately.
+- **Risk assessment**: all removed packages were deployment-CLI-only and never bundled into the production app (verified in `dist/`). The only runtime dependency with advisories, `xlsx`, is already the SheetJS CDN build `0.20.3`.
+- **Install scripts**: npm 11's `allowScripts` policy is configured in `package.json` with `esbuild`/`core-js` approved by package name.
+- **CI gates**: `security-audit.yml` (runs `scripts/check-audit.mjs` — fails on any production vuln and on any total **above 0**) and `perf-guard.yml` (Lighthouse) run alongside `deploy.yml` on every push to `main`.

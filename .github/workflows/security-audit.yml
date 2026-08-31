@@ -4,9 +4,9 @@ name: Security audit
 # Porte en deux volets (scripts/check-audit.mjs) :
 #   1. Aucune vulnérabilité de PRODUCTION (les dépendances runtime doivent
 #      être propres — tout ce qui est vulnérable est bloqué).
-#   2. Le nombre TOTAL de vulnérabilités ne doit pas dépasser la baseline
-#      documentée de 29, toutes dev-only (pins exacts de la CLI Vercel,
-#      suivis upstream dans vercel/vercel#11543 — voir DEVELOPMENT_HISTORY.md).
+#   2. Le nombre TOTAL de vulnérabilités reste à 0 (baseline documentée,
+#      voir DEVELOPMENT_HISTORY.md). Le CLI vercel a été retiré du projet
+#      (déploiement isolé en CI), ses pins dev-only ont donc disparu du lock.
 # Une nouvelle vulnérabilité (runtime ou dev) échoue donc ce gate.
 
 on:

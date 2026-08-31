@@ -11,7 +11,7 @@
     "build:production": "vite build --mode production",
     "preview": "vite preview",
     "check:perf": "node scripts/check-performance.mjs",
-    "deploy:prod": "npm run check:perf && vercel --prod --yes",
+    "deploy:prod": "node scripts/deploy-notice.mjs",
     "seed": "node --env-file=.env supabase/seed.mjs",
     "seed:staging": "node --env-file=.env.staging supabase/seed.mjs",
     "seed:production": "node --env-file=.env.production supabase/seed-production.mjs",
@@ -38,6 +38,7 @@
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
+    "esbuild": "^0.28.2",
     "eslint": "^10.9.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.5",
@@ -48,7 +49,6 @@
     "tsx": "^4.23.13",
     "typescript": "~5.8.2",
     "typescript-eslint": "^8.68.0",
-    "vercel": "^59.9.1",
     "vite": "^6.2.0"
   },
   "allowScripts": {
