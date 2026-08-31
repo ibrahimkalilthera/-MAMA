@@ -20,6 +20,11 @@ name: Quality & performance guard
 #                     un build sain y mesure ~67 contre ~93 en prod réel.
 #
 # Les deux jobs tournent en parallèle ; le workflow est rouge si l'un échoue.
+#
+# Ce workflow est aussi LA PORTE VERS LA PRODUCTION : deploy.yml se déclenche
+# via workflow_run uniquement quand ce workflow se termine en `success` sur
+# main, et déploie exactement le commit validé ici (head_sha). Un push dont le
+# job quality échoue n'atteint jamais le déploiement.
 
 on:
   push:

@@ -1,6 +1,23 @@
 name: Deploy (Vercel)
 
-# Deploys to Vercel production on every push to `main`.
+# Deploys to Vercel production — but ONLY after the quality gate has passed.
+#
+# Trigger: the "Quality & performance guard" workflow (perf-guard.yml) COMPLETING
+# on main. Its `quality` job (lint + tsc strict + tests + npm-audit gate) is the
+# single door to production: a push whose quality job fails never reaches this
+# workflow, so a broken push can never deploy. This deploy checks out the exact
+# commit that quality run validated (`head_sha`) — not a newer one that could
+# have landed in between.
+#
+# Manual deploys stay possible via workflow_dispatch (deploys the current head
+# of main — an explicit human action, re-validated locally by the author).
+#
+# The quality job already runs lint/tests/audit, so this workflow does not
+# repeat them; it only needs the project dependencies for `vercel build`
+# (`vercel.json` → buildCommand: npm run build).
+#
+# Known trade-off: if the quality workflow itself cannot run (Actions outage,
+# disabled workflow), deploys stop too — by design: no green gate, no deploy.
 #
 # The Vercel CLI is intentionally NOT a root dependency: it is pinned in
 # `tools/package.json` (its own lockfile) so its `@vercel/*` transitive pins
@@ -19,7 +36,9 @@ name: Deploy (Vercel)
 # dashboard, not in this repo.
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Quality & performance guard"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -39,21 +58,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # First step, before even cloning: without a green quality run there is
+      # nothing to deploy. Exit 78 marks the job neutral (skipped, not failed).
+      - name: Gate — deploy only what quality validated
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+              echo "Quality workflow concluded '${{ github.event.workflow_run.conclusion }}' on ${{ github.event.workflow_run.head_sha }} — not deploying."
+              exit 78
+            fi
+            echo "Quality passed on ${{ github.event.workflow_run.head_sha }} — deploying exactly that commit."
+          else
+            echo "Manual dispatch — deploying the current head of main."
+          fi
+
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      - name: Install project dependencies
+      - name: Install project dependencies (needed by vercel build → npm run build)
         run: npm ci
-
-      - name: Lint + type-check + props wiring
-        run: npm run lint
-
-      - name: Tests
-        run: npm test
 
       - name: Install deploy tooling (pinned Vercel CLI, watched by Dependabot)
         run: npm ci --prefix tools
