@@ -155,3 +155,4 @@ All 29 trace to exact vulnerable pins inside the **Vercel CLI** dependency tree 
   Then verify: `npm audit` (expect 0), `npm run lint && npm test`.
 - **Risk assessment**: these packages are only executed by the deployment CLI at deploy time — they are never bundled into the production app (verified in `dist/`). The only runtime dependency with advisories, `xlsx`, was fixed by switching to the SheetJS CDN build `0.20.3`; it no longer appears in `npm audit`.
 - **Install scripts**: npm 11's `allowScripts` policy is configured in `package.json` (esbuild binary install + core-js funding notice approved, pinned by version).
+- **CI gate**: workflow `security-audit.yml` runs `scripts/check-audit.mjs` on every push to `main` — it fails if any production dependency has a vulnerability (nothing vulnerable ships) and if the total count grows past this 29-dev baseline (a brand-new vuln anywhere is caught). Works alongside the Lighthouse `perf-guard.yml`.

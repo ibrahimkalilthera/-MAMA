@@ -1,0 +1,39 @@
+name: Security audit
+
+# Empêche la réintroduction de vulnérabilités à chaque push sur main.
+# Porte en deux volets (scripts/check-audit.mjs) :
+#   1. Aucune vulnérabilité de PRODUCTION (les dépendances runtime doivent
+#      être propres — tout ce qui est vulnérable est bloqué).
+#   2. Le nombre TOTAL de vulnérabilités ne doit pas dépasser la baseline
+#      documentée de 29, toutes dev-only (pins exacts de la CLI Vercel,
+#      suivis upstream dans vercel/vercel#11543 — voir DEVELOPMENT_HISTORY.md).
+# Une nouvelle vulnérabilité (runtime ou dev) échoue donc ce gate.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit gate (production clean + total within baseline)
+        run: node scripts/check-audit.mjs
