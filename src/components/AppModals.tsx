@@ -1920,12 +1920,24 @@ export function AppModals(props: AppModalsProps) {
       {/* --- To-Do Sidebar --- */}
       <AnimatePresence>
         {showTodoSidebar && (
-          <motion.aside 
-            initial={{ x: 320 }}
-            animate={{ x: 0 }}
-            exit={{ x: 320 }}
-            className={`fixed right-0 top-0 h-full w-80 ${currentTheme.card} border-l ${currentTheme.border} shadow-2xl z-30 flex flex-col`}
-          >
+          <>
+            {/* Below the lg breakpoint the fixed w-80 panel overlays the app and can
+                swallow most of the viewport (it covers ~75% of a 430px-wide window).
+                Dim the app behind it and close on outside click — the same pattern as
+                every other modal in this app — instead of a silent white takeover. */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowTodoSidebar(false)}
+              className="fixed inset-0 z-20 bg-slate-900/50 backdrop-blur-sm lg:hidden"
+            />
+            <motion.aside
+              initial={{ x: 320 }}
+              animate={{ x: 0 }}
+              exit={{ x: 320 }}
+              className={`fixed right-0 top-0 h-full w-80 max-w-[88vw] ${currentTheme.card} border-l ${currentTheme.border} shadow-2xl z-30 flex flex-col`}
+            >
             <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
               <h3 className="text-lg font-bold flex items-center gap-3">
                 {productivitySidebarTab === 'tasks' ? (
@@ -2082,6 +2094,7 @@ export function AppModals(props: AppModalsProps) {
               </div>
             )}
           </motion.aside>
+          </>
         )}
       </AnimatePresence>
 
