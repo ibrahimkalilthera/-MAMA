@@ -5,11 +5,12 @@
 
 import { useState, useMemo, FormEvent, ChangeEvent, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useSupabaseData } from './lib/useSupabaseData';
-import { useAuth } from './lib/useAuth';
 import type { UserProfile } from './lib/useAuth';
 import { ToastContainer, OfflineBanner, EnvBadge } from './components/ToastNotification';
 import { useToast } from './lib/useToast';
 import { useFloatingChat } from './app/useFloatingChat';
+import { useAuthWelcome } from './app/useAuthWelcome';
+import { useTodoSidebar } from './app/useTodoSidebar';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
@@ -132,29 +133,11 @@ export default function App() {
     }, 0);
   };
 
-  // ── Supabase Auth ──────────────────────────────────────────────────────
-  const auth = useAuth();
-  
-  // Derive currentUser from auth profile for backward compatibility
-  const currentUser: User | null = auth.profile ? {
-    username: auth.profile.fullName,
-    role: auth.profile.role,
-    name: auth.profile.fullName,
-  } : null;
-  const isPromoter = auth.isAdmin;
-
-  // Auth loading state (checking session on page load)
-  const authLoading = auth.loading;
-
-  // User profiles list (for user & role management in Settings)
-  const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'admin' | 'staff' | 'dev'>('all');
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
-  const [welcomeMessage, setWelcomeMessage] = useState<string | null>(null);
-  
   // Data is now fetched from Supabase via the useSupabaseData hook
   // Toast notifications provide user-facing feedback for all database operations
   const toast = useToast();
@@ -737,6 +720,13 @@ export default function App() {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit'>('dashboard');
+  // Auth/welcome domain (session, greeting banner, profiles, admin tab guard) —
+  // extracted to src/app/useAuthWelcome.ts.
+  const {
+    auth, currentUser, isPromoter, authLoading,
+    userProfiles, setUserProfiles,
+    welcomeMessage, setWelcomeMessage,
+  } = useAuthWelcome({ t, activeTab, setActiveTab });
   const [selectedYear, setSelectedYear] = useState<string>('2026-2027');
   const [lockedYears, setLockedYears] = useState<string[]>([]);
   const [showAuditModal, setShowAuditModal] = useState(false);
@@ -775,37 +765,6 @@ export default function App() {
     customName: ''
   });
 
-  // Show welcome message when auth profile loads for the first time.
-  // The stable pieces of `auth` are destructured so the effect can list precise
-  // dependencies — the whole `auth` object is recreated on every render.
-  const [hasShownWelcome, setHasShownWelcome] = useState(false);
-  const { profile: authProfile, isAdmin: authIsAdmin, fetchAllProfiles } = auth;
-  useEffect(() => {
-    if (authProfile && !hasShownWelcome) {
-      setHasShownWelcome(true);
-      setActiveTab('dashboard');
-      const displayName = authProfile.fullName || authProfile.email;
-      setWelcomeMessage(t.welcomeBackName.replace('{name}', displayName));
-      setTimeout(() => {
-        setWelcomeMessage(null);
-      }, 5000);
-
-      // Fetch user profiles for admin
-      if (authIsAdmin) {
-        fetchAllProfiles().then(profiles => setUserProfiles(profiles));
-      }
-    }
-    if (!authProfile) {
-      setHasShownWelcome(false);
-    }
-  }, [authProfile, hasShownWelcome, authIsAdmin, fetchAllProfiles, t.welcomeBackName]);
-
-  // Safety net: keep admin-only tabs (System Settings / Audit Trail) out of reach for non-admin, non-dev accounts
-  useEffect(() => {
-    if (!auth.isAdmin && (activeTab === 'settings' || activeTab === 'audit')) {
-      setActiveTab('dashboard');
-    }
-  }, [activeTab, auth.isAdmin]);
   const [theme, setTheme] = useState<'navy' | 'cream' | 'slate' | 'emerald' | 'bordeaux' | 'midnight'>('navy');
   const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
   const [logoColor, setLogoColor] = useState<string | null>(null);
@@ -851,11 +810,6 @@ export default function App() {
   
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [editingVendorExpense, setEditingVendorExpense] = useState<VendorExpense | null>(null);
-
-  // todos are now provided by useSupabaseData hook above
-  const [todoInput, setTodoInput] = useState('');
-  const [showTodoSidebar, setShowTodoSidebar] = useState(false);
-  const [productivitySidebarTab, setProductivitySidebarTab] = useState<'tasks' | 'ai'>('tasks');
 
   const [ticketStudent, setTicketStudent] = useState<Student | null>(null);
 
@@ -1960,14 +1914,6 @@ export default function App() {
     setShowStaffModal(true);
   };
 
-  const handleAddTodo = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!todoInput.trim()) return;
-    const saved = await addTodoItem({ text: todoInput.trim(), completed: false });
-    if (!saved) return;
-    setTodoInput('');
-  };
-
   // Chat IA (aba Productividade + widget flutuante) — dominio extraido para
   // src/app/useFloatingChat.ts (estado, saudacao, Escape e os 2 handlers).
   const {
@@ -1980,21 +1926,16 @@ export default function App() {
     formatDate: (dateStr: string) => formatDateLang(dateStr, lang),
   });
 
-  const toggleTodo = async (id: string) => {
-    const todo = todos.find(t => t.id === id);
-    if (!todo) return;
-    const newCompleted = !todo.completed;
-    const ok = await updateTodoItem(id, { completed: newCompleted });
-    if (!ok) return;
-    // Automation: if "Call Parent" is checked
-    if (newCompleted && (todo.text.toLowerCase().includes('call parent') || todo.text.toLowerCase().includes('appeler parent')) && todo.studentId) {
-      await handleSaveNote(todo.studentId, t.followUpCompleted);
-    }
-  };
-
-  const deleteTodo = async (id: string) => {
-    return deleteTodoItem(id);
-  };
+  // To-Do list + Productivité panel domain — extracted to src/app/useTodoSidebar.ts.
+  const {
+    todoInput, setTodoInput, showTodoSidebar, setShowTodoSidebar,
+    productivitySidebarTab, setProductivitySidebarTab,
+    handleAddTodo, toggleTodo, deleteTodo,
+  } = useTodoSidebar({
+    todos, t,
+    handleSaveNote,
+    addTodoItem, updateTodoItem, deleteTodoItem,
+  });
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
