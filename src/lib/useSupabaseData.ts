@@ -16,7 +16,9 @@ import {
   enqueueOfflineAction, 
   getOfflineQueue, 
   removeOfflineAction, 
-  getOfflineQueueCount 
+  getOfflineQueueCount, 
+  OfflineActionType, 
+  OfflinePayload 
 } from './offlineQueue';
 import { logAuditEvent, AuditLogEntry } from './auditLogger';
 
@@ -143,108 +145,108 @@ const createTempId = (prefix: string): string =>
 
 // ─── Supabase row → App type mappers ─────────────────────────────────────────
 
-function mapParentRow(row: any): Parent {
+function mapParentRow(row: Record<string, unknown>): Parent {
   return {
-    id: row.id,
-    fullName: row.full_name,
-    phones: row.phones || [],
-    email: row.email || undefined,
-    address: row.address,
-    occupation: row.occupation,
-    relationship: row.relationship,
-    notes: row.notes || undefined,
+    id: row.id as string,
+    fullName: row.full_name as string,
+    phones: (row.phones as string[] | null) || [],
+    email: (row.email as string | null) || undefined,
+    address: row.address as string,
+    occupation: row.occupation as string,
+    relationship: row.relationship as string,
+    notes: (row.notes as string | null) || undefined,
   };
 }
 
-function mapStudentRow(row: any, payments: Payment[]): Student {
+function mapStudentRow(row: Record<string, unknown>, payments: Payment[]): Student {
   return {
-    id: row.id,
-    parentId: row.parent_id || undefined,
-    name: row.name,
-    parentName: row.parent_name || '',
-    parentEmail: row.parent_email || '',
-    parentPhone: row.parent_phone || '',
+    id: row.id as string,
+    parentId: (row.parent_id as string | null) || undefined,
+    name: row.name as string,
+    parentName: (row.parent_name as string | null) || '',
+    parentEmail: (row.parent_email as string | null) || '',
+    parentPhone: (row.parent_phone as string | null) || '',
     totalDue: Number(row.total_due) || 0,
     amountPaid: Number(row.amount_paid) || 0,
     scholarshipDiscount: Number(row.scholarship_discount) || 0,
-    dueDate: row.due_date || '',
-    lastPaymentDate: row.last_payment_date || undefined,
+    dueDate: (row.due_date as string | null) || '',
+    lastPaymentDate: (row.last_payment_date as string | null) || undefined,
     payments: payments,
-    notes: row.notes || '',
-    lastNoteDate: row.last_note_date || undefined,
-    flagged: row.flagged || false,
-    academicYear: row.academic_year || undefined,
-    grade: row.grade || undefined,
-    studentId: row.student_id || undefined,
-    photo: row.photo || undefined,
-    emergencyContactName: row.emergency_contact_name || undefined,
-    emergencyContactRelation: row.emergency_contact_relation || undefined,
-    emergencyContactPhone: row.emergency_contact_phone || undefined,
-    medicalNotes: row.medical_notes || undefined,
-    enrollmentDate: row.enrollment_date || undefined,
-    previousSchool: row.previous_school || undefined,
-    status: row.status || 'Active',
+    notes: (row.notes as string | null) || '',
+    lastNoteDate: (row.last_note_date as string | null) || undefined,
+    flagged: (row.flagged as boolean) || false,
+    academicYear: (row.academic_year as string | null) || undefined,
+    grade: (row.grade as string | null) || undefined,
+    studentId: (row.student_id as string | null) || undefined,
+    photo: (row.photo as string | null) || undefined,
+    emergencyContactName: (row.emergency_contact_name as string | null) || undefined,
+    emergencyContactRelation: (row.emergency_contact_relation as string | null) || undefined,
+    emergencyContactPhone: (row.emergency_contact_phone as string | null) || undefined,
+    medicalNotes: (row.medical_notes as string | null) || undefined,
+    enrollmentDate: (row.enrollment_date as string | null) || undefined,
+    previousSchool: (row.previous_school as string | null) || undefined,
+    status: (row.status as Student['status']) || 'Active',
   };
 }
 
-function mapStaffRow(row: any): Staff {
+function mapStaffRow(row: Record<string, unknown>): Staff {
   return {
-    id: row.id,
-    name: row.name,
-    position: row.position,
+    id: row.id as string,
+    name: row.name as string,
+    position: row.position as string,
     salary: Number(row.salary) || 0,
-    email: row.email || '',
-    phone: row.phone || '',
-    bankDetails: row.bank_details || '',
-    emergencyContact: row.emergency_contact || '',
-    academicYear: row.academic_year || undefined,
+    email: (row.email as string | null) || '',
+    phone: (row.phone as string | null) || '',
+    bankDetails: (row.bank_details as string | null) || '',
+    emergencyContact: (row.emergency_contact as string | null) || '',
+    academicYear: (row.academic_year as string | null) || undefined,
   };
 }
 
-function mapSalaryPaymentRow(row: any): SalaryPayment {
+function mapSalaryPaymentRow(row: Record<string, unknown>): SalaryPayment {
   return {
-    id: row.id,
-    staffId: row.staff_id,
+    id: row.id as string,
+    staffId: row.staff_id as string,
     amount: Number(row.amount) || 0,
-    date: row.date,
-    academicYear: row.academic_year || undefined,
+    date: row.date as string,
+    academicYear: (row.academic_year as string | null) || undefined,
   };
 }
 
-function mapExpenseRow(row: any): Expense {
+function mapExpenseRow(row: Record<string, unknown>): Expense {
   return {
-    id: row.id,
-    category: row.category,
-    description: row.description,
+    id: row.id as string,
+    category: row.category as string,
+    description: row.description as string,
     amount: Number(row.amount) || 0,
-    date: row.date,
-    academicYear: row.academic_year || undefined,
+    date: row.date as string,
+    academicYear: (row.academic_year as string | null) || undefined,
   };
 }
 
-function mapVendorExpenseRow(row: any): VendorExpense {
+function mapVendorExpenseRow(row: Record<string, unknown>): VendorExpense {
   return {
-    id: row.id,
-    vendorName: row.vendor_name,
-    category: row.category,
+    id: row.id as string,
+    vendorName: row.vendor_name as string,
+    category: row.category as string,
     amount: Number(row.amount) || 0,
-    dueDate: row.due_date,
-    paymentStatus: row.payment_status,
+    dueDate: row.due_date as string,
+    paymentStatus: row.payment_status as VendorExpense['paymentStatus'],
     amountPaid: Number(row.amount_paid) || 0,
-    description: row.description || undefined,
-    academicYear: row.academic_year || undefined,
-    aidType: row.aid_type || undefined,
-    beneficiaryStudentName: row.beneficiary_student_name || undefined,
-    beneficiaryStudentGrade: row.beneficiary_student_grade || undefined,
+    description: (row.description as string | null) || undefined,
+    academicYear: (row.academic_year as string | null) || undefined,
+    aidType: (row.aid_type as VendorExpense['aidType']) || undefined,
+    beneficiaryStudentName: (row.beneficiary_student_name as string | null) || undefined,
+    beneficiaryStudentGrade: (row.beneficiary_student_grade as string | null) || undefined,
   };
 }
 
-function mapTodoRow(row: any): Todo {
+function mapTodoRow(row: Record<string, unknown>): Todo {
   return {
-    id: row.id,
-    text: row.text,
-    completed: row.completed || false,
-    studentId: row.student_id || undefined,
+    id: row.id as string,
+    text: row.text as string,
+    completed: (row.completed as boolean) || false,
+    studentId: (row.student_id as string | null) || undefined,
   };
 }
 
@@ -373,17 +375,17 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       }
 
       if (data) {
-        const mapped: AuditLogEntry[] = data.map((row: any) => ({
-          id: row.id,
-          userId: row.user_id,
-          userEmail: row.user_email,
-          userName: row.user_name,
-          userRole: row.user_role,
-          action: row.action,
-          targetType: row.target_type,
-          targetId: row.target_id,
-          details: row.details,
-          createdAt: row.created_at,
+        const mapped: AuditLogEntry[] = data.map((row: Record<string, unknown>) => ({
+          id: row.id as string,
+          userId: row.user_id as string,
+          userEmail: row.user_email as string,
+          userName: row.user_name as string,
+          userRole: row.user_role as string,
+          action: row.action as string,
+          targetType: row.target_type as string,
+          targetId: row.target_id as string,
+          details: row.details as string,
+          createdAt: row.created_at as string,
         }));
         setAuditLogs(mapped);
       }
@@ -409,7 +411,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
    * return through the normal Supabase path).
    */
   const isOffline = () => typeof navigator !== 'undefined' && !navigator.onLine;
-  const enqueueOffline = (type: any, payload: any) => {
+  const enqueueOffline = (type: OfflineActionType, payload: OfflinePayload['payload']) => {
     enqueueOfflineAction(type, payload);
     updateQueueCount();
   };
@@ -483,7 +485,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           const { error } = await supabase.from('staff').insert(staffToRow(item.payload));
           if (!error) success = true;
         } else if (item.type === 'updateStaff') {
-          const row: any = {};
+          const row: Record<string, unknown> = {};
           const u = item.payload.updates;
           if (u.name !== undefined) row.name = u.name;
           if (u.position !== undefined) row.position = u.position;
@@ -513,7 +515,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
             .single();
           if (!error && data) success = true;
         } else if (item.type === 'updateParent') {
-          const row: any = {};
+          const row: Record<string, unknown> = {};
           const u = item.payload.updates;
           if (u.fullName !== undefined) row.full_name = u.fullName;
           if (u.phones !== undefined) row.phones = u.phones;
@@ -535,7 +537,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           });
           if (!error) success = true;
         } else if (item.type === 'updateTodo') {
-          const row: any = {};
+          const row: Record<string, unknown> = {};
           if (item.payload.updates.text !== undefined) row.text = item.payload.updates.text;
           if (item.payload.updates.completed !== undefined) row.completed = item.payload.updates.completed;
           const { error } = await supabase.from('todos').update(row).eq('id', item.payload.id);
@@ -544,7 +546,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           const { error } = await supabase.from('todos').delete().eq('id', item.payload.id);
           if (!error) success = true;
         } else if (item.type === 'updateVendorExpense') {
-          const row: any = {};
+          const row: Record<string, unknown> = {};
           const u = item.payload.updates;
           if (u.vendorName !== undefined) row.vendor_name = u.vendorName;
           if (u.category !== undefined) row.category = u.category;
@@ -632,35 +634,35 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
         // Group payments by student_id
         const paymentsByStudent: Record<string, Payment[]> = {};
-        (paymentsRes.data || []).forEach((p: any) => {
-          const sid = p.student_id;
+        (paymentsRes.data || []).forEach((p: Record<string, unknown>) => {
+          const sid = p.student_id as string;
           if (!paymentsByStudent[sid]) paymentsByStudent[sid] = [];
           paymentsByStudent[sid].push({
-            date: p.date,
+            date: p.date as string,
             amount: Number(p.amount),
-            academicYear: p.academic_year || undefined,
-            receiptNumber: p.receipt_number || undefined,
+            academicYear: (p.academic_year as string | null) || undefined,
+            receiptNumber: (p.receipt_number as string | null) || undefined,
           });
         });
 
         // Map rows to app types
         setParents((parentsRes.data || []).map(mapParentRow));
-        setStudents((studentsRes.data || []).map((row: any) => 
-          mapStudentRow(row, paymentsByStudent[row.id] || [])
+        setStudents((studentsRes.data || []).map((row: Record<string, unknown>) => 
+          mapStudentRow(row, paymentsByStudent[row.id as string] || [])
         ));
         setStaff((staffRes.data || []).map(mapStaffRow));
         setSalaryPayments((salaryRes.data || []).map(mapSalaryPaymentRow));
         setExpenses((expensesRes.data || []).map(mapExpenseRow));
         setVendorExpenses((vendorRes.data || []).map(mapVendorExpenseRow));
         setTodos((todosRes.data || []).map(mapTodoRow));
-        setCustomClasses((customClassesRes.data || []).map((row: any) => ({
-          id: row.code,
-          rowId: row.id,
+        setCustomClasses((customClassesRes.data || []).map((row: Record<string, unknown>) => ({
+          id: row.code as string,
+          rowId: row.id as string,
           cycle: row.cycle as ClassCycle,
-          year: row.year,
-          section: row.section,
-          nameFr: row.name_fr,
-          nameEn: row.name_en,
+          year: row.year as string,
+          section: row.section as string,
+          nameFr: row.name_fr as string,
+          nameEn: row.name_en as string,
           isCustom: true,
         })));
       }, {
@@ -670,9 +672,10 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           callbacksRef.current?.onRetry?.(attempt);
         },
       });
-    } catch (err: any) {
-      console.error('[MAMA THERA] fetchAll failed after retries:', err.message);
-      setError(err.message || 'Failed to fetch data');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to fetch data';
+      console.error('[MAMA THERA] fetchAll failed after retries:', msg);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -826,7 +829,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       notifySuccess('updateParent');
       return true;
     }
-    const row: any = {};
+    const row: Record<string, unknown> = {};
     if (updates.fullName !== undefined) row.full_name = updates.fullName;
     if (updates.phones !== undefined) row.phones = updates.phones;
     if ('email' in updates) row.email = updates.email || null;
@@ -1009,7 +1012,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       notifySuccess('updateStaff');
       return true;
     }
-    const row: any = {};
+    const row: Record<string, unknown> = {};
     if (updates.name !== undefined) row.name = updates.name;
     if (updates.position !== undefined) row.position = updates.position;
     if (updates.salary !== undefined) row.salary = updates.salary;
@@ -1138,7 +1141,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       notifySuccess('updateVendorExpense');
       return true;
     }
-    const row: any = {};
+    const row: Record<string, unknown> = {};
     if (updates.vendorName !== undefined) row.vendor_name = updates.vendorName;
     if (updates.category !== undefined) row.category = updates.category;
     if (updates.amount !== undefined) row.amount = updates.amount;
@@ -1204,7 +1207,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       enqueueOffline('updateTodo', { id, updates });
       return true;
     }
-    const row: any = {};
+    const row: Record<string, unknown> = {};
     if (updates.text !== undefined) row.text = updates.text;
     if (updates.completed !== undefined) row.completed = updates.completed;
 
@@ -1244,7 +1247,13 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
         const student = students.find(s => s.id === item.studentId);
         if (!student) continue;
 
-        const rowUpdates: any = {};
+        const rowUpdates: {
+          academic_year?: string;
+          grade?: string;
+          total_due?: number;
+          amount_paid?: number;
+          status?: 'Active' | 'Graduated' | 'Left';
+        } = {};
         if (item.action === 'promote' || item.action === 'repeat') {
           rowUpdates.academic_year = item.targetAcademicYear;
           if (item.targetGrade) rowUpdates.grade = item.targetGrade;
@@ -1289,9 +1298,10 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
       notifySuccess(`Promoted ${successCount} student(s)`);
       return true;
-    } catch (err: any) {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Promotion failed';
       console.error('batchPromoteStudents error:', err);
-      notifyError('batchPromoteStudents', err.message || 'Promotion failed');
+      notifyError('batchPromoteStudents', msg);
       return false;
     }
   };
@@ -1300,7 +1310,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
   const batchImportData = async (
     category: 'students' | 'payments' | 'parents' | 'staff' | 'expenses',
-    records: Record<string, any>[],
+    records: Record<string, unknown>[],
     options: { academicYear: string; duplicateStrategy: 'skip' | 'update' }
   ): Promise<{ inserted: number; updated: number; errors: number }> => {
     let inserted = 0;
@@ -1310,16 +1320,16 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     const strategy = options.duplicateStrategy === 'update' ? 'update' : 'skip';
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const processBatch = async <T extends Record<string, any>>(
+    const processBatch = async (
       table: string,
-      rows: T[]
+      rows: Record<string, unknown>[]
     ): Promise<{ ok: number; err: number }> => {
       let ok = 0;
       let err = 0;
 
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
         const chunk = rows.slice(i, i + BATCH_SIZE);
-        const { data, error } = await supabase.from(table as any).insert(chunk as any).select();
+        const { data, error } = await supabase.from(table).insert(chunk).select();
         if (error) {
           console.error(`[MAMA THERA] batchImport ${table} error:`, error.message);
           err += chunk.length;
@@ -1342,7 +1352,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           byNameGrade.set(`${s.name.toLowerCase().trim()}|${(s.grade || '').toLowerCase().trim()}`, s);
         });
 
-        const rows: Record<string, any>[] = [];
+        const rows: Record<string, unknown>[] = [];
         for (const r of records) {
           const existing = (r.studentId ? byStudentId.get(String(r.studentId).toLowerCase().trim()) : undefined)
             || byNameGrade.get(`${String(r.name || '').toLowerCase().trim()}|${String(r.grade || '').toLowerCase().trim()}`);
@@ -1433,7 +1443,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       } else if (category === 'parents') {
         const byKey = new Map<string, Parent>();
         parents.forEach(p => byKey.set(p.fullName.toLowerCase().trim(), p));
-        const rows: Record<string, any>[] = [];
+        const rows: Record<string, unknown>[] = [];
         for (const r of records) {
           const key = String(r.fullName || '').toLowerCase().trim();
           const existing = key ? byKey.get(key) : undefined;
@@ -1470,7 +1480,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       } else if (category === 'staff') {
         const byKey = new Map<string, Staff>();
         staff.forEach(s => byKey.set(s.name.toLowerCase().trim(), s));
-        const rows: Record<string, any>[] = [];
+        const rows: Record<string, unknown>[] = [];
         for (const r of records) {
           const key = String(r.name || '').toLowerCase().trim();
           const existing = key ? byKey.get(key) : undefined;
@@ -1510,7 +1520,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       } else if (category === 'expenses') {
         const byKey = new Map<string, Expense>();
         expenses.forEach(e => byKey.set(`${e.description.toLowerCase().trim()}|${e.date}|${e.amount}`, e));
-        const rows: Record<string, any>[] = [];
+        const rows: Record<string, unknown>[] = [];
         for (const r of records) {
           const description = String(r.description || '').toLowerCase().trim();
           const amount = Number(r.amount) || 0;
@@ -1555,9 +1565,10 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
       notifySuccess(`batchImport_${category}`);
       return { inserted, updated, errors };
-    } catch (err: any) {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Import failed';
       console.error('[MAMA THERA] batchImportData error:', err);
-      notifyError('batchImportData', err.message || 'Import failed');
+      notifyError('batchImportData', msg);
       return { inserted, updated, errors: errors || records.length };
     }
   };

@@ -44,7 +44,7 @@ export interface ExcelImportModalProps {
   t: Record<string, string>;
   academicYears: string[];
   selectedYear: string;
-  onImportComplete: (category: ImportCategory, records: Record<string, any>[], options: ImportOptions) => Promise<{ inserted: number; updated: number; errors: number }>;
+  onImportComplete: (category: ImportCategory, records: Record<string, unknown>[], options: ImportOptions) => Promise<{ inserted: number; updated: number; errors: number }>;
   themeCard?: string;
   themeBorder?: string;
   themeMuted?: string;
@@ -191,7 +191,7 @@ export function ExcelImportModal({
     try {
       const result = await onImportComplete(category, validation.validRows, importOptions);
       setImportResult(result);
-    } catch (err: any) {
+    } catch (err) {
       setImportResult({ inserted: 0, updated: 0, errors: validation.validRows.length });
     } finally {
       setIsProcessing(false);

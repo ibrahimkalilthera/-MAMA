@@ -9,6 +9,7 @@ import { useState, FormEvent } from 'react';
 import { motion } from 'motion/react';
 import { UserPlus } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
+import type { UserProfile } from '../lib/useAuth';
 
 export interface NewUserForm {
   fullName: string;
@@ -19,14 +20,14 @@ export interface NewUserForm {
 
 export interface AddUserModalProps {
   onClose: () => void;
-  onCreated: (profiles: never[] | any[]) => void;
+  onCreated: (profiles: UserProfile[]) => void;
   createStaffUser: (
     email: string,
     password: string,
     fullName: string,
     role: 'admin' | 'staff',
   ) => Promise<{ success: boolean; error?: string }>;
-  fetchAllProfiles: () => Promise<any[]>;
+  fetchAllProfiles: () => Promise<UserProfile[]>;
   t: TranslationDict;
   themeCard: string;
   themeBorder: string;

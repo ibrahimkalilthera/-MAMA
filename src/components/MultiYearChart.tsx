@@ -55,7 +55,7 @@ export function MultiYearChart({ academicYears, getYearStats, lang, t, currentTh
                 borderRadius: '16px',
                 color: isDark ? '#F8FAFC' : '#0F172A'
               }}
-              formatter={(value: any) => [formatCurrency(Number(value)), '']}
+              formatter={(value) => [formatCurrency(Number(value)), '']}
             />
             <RechartsLegend />
             <Bar dataKey={t.revenue} fill="#10B981" radius={[8, 8, 0, 0]} />

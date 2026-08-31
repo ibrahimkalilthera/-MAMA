@@ -1,3 +1,5 @@
+import type { Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, Payment } from '../app/types';
+
 /**
  * Offline Action Queue Manager
  * 
@@ -25,13 +27,34 @@ export type OfflineActionType =
   | 'updateTodo'
   | 'deleteTodo';
 
-export interface QueueItem {
+/** Payload shape for each queued action type, so replay sites are type-checked. */
+export type OfflinePayload =
+  | { type: 'addPayment'; payload: { studentId: string; payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string } } }
+  | { type: 'addExpense'; payload: Omit<Expense, 'id'> }
+  | { type: 'addVendorExpense'; payload: Omit<VendorExpense, 'id'> }
+  | { type: 'updateVendorExpense'; payload: { id: string; updates: Partial<VendorExpense> } }
+  | { type: 'deleteVendorExpense'; payload: { id: string } }
+  | { type: 'addStudent'; payload: Omit<Student, 'id' | 'payments'> }
+  | { type: 'updateStudent'; payload: { id: string; updates: Partial<Student> } }
+  | { type: 'deleteStudent'; payload: { id: string } }
+  | { type: 'addStaff'; payload: Omit<Staff, 'id'> }
+  | { type: 'updateStaff'; payload: { id: string; updates: Partial<Staff> } }
+  | { type: 'deleteStaff'; payload: { id: string } }
+  | { type: 'addSalaryPayment'; payload: Omit<SalaryPayment, 'id'> }
+  | { type: 'addParent'; payload: Omit<Parent, 'id'> }
+  | { type: 'updateParent'; payload: { id: string; updates: Partial<Parent> } }
+  | { type: 'deleteParent'; payload: { id: string } }
+  | { type: 'addTodo'; payload: Omit<Todo, 'id'> }
+  | { type: 'updateTodo'; payload: { id: string; updates: Partial<Todo> } }
+  | { type: 'deleteTodo'; payload: { id: string } };
+
+export interface QueueItemBase {
   id: string;
-  type: OfflineActionType;
-  payload: any;
   createdAt: string;
   attempts: number;
 }
+
+export type QueueItem = QueueItemBase & OfflinePayload;
 
 const STORAGE_KEY = 'mama_thera_offline_queue';
 
@@ -64,14 +87,17 @@ export function saveOfflineQueue(queue: QueueItem[]): void {
 /**
  * Enqueue a new action for later synchronization.
  */
-export function enqueueOfflineAction(type: OfflineActionType, payload: any): QueueItem {
-  const item: QueueItem = {
+export function enqueueOfflineAction(type: OfflineActionType, payload: OfflinePayload['payload']): QueueItem {
+  // `type` and `payload` arrive as two independent arguments, so the
+  // discriminated-union correlation cannot be verified structurally — assert
+  // at this single boundary and let the union narrow every replay site.
+  const item = {
     id: `off_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     type,
     payload,
     createdAt: new Date().toISOString(),
     attempts: 0,
-  };
+  } as QueueItem;
 
   const queue = getOfflineQueue();
   queue.push(item);

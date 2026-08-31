@@ -662,7 +662,7 @@ export function AppModals(props: AppModalsProps) {
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.enrollmentStatus}</label>
                     <select 
                       value={studentForm.status}
-                      onChange={(e) => setStudentForm({ ...studentForm, status: e.target.value as any })}
+                      onChange={(e) => setStudentForm({ ...studentForm, status: e.target.value as StudentForm['status'] })}
                       className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                     >
                       <option value="Active">{t.activeStatus}</option>
@@ -937,7 +937,7 @@ export function AppModals(props: AppModalsProps) {
                   <select
                     value={newClassForm.cycle}
                     onChange={(e) => {
-                      const c = e.target.value as any;
+                      const c = e.target.value as ClassForm['cycle'];
                       const defYear = c === 'cycle2' ? '7' : c === 'lycee' ? '10' : c === 'maternelle' ? 'PS' : '1';
                       setNewClassForm({ ...newClassForm, cycle: c, year: defYear });
                     }}
@@ -1104,7 +1104,7 @@ export function AppModals(props: AppModalsProps) {
                   <select
                     value={editClassForm.cycle}
                     onChange={(e) => {
-                      const c = e.target.value as any;
+                      const c = e.target.value as ClassForm['cycle'];
                       const defYear = c === 'cycle2' ? '7' : c === 'lycee' ? '10' : c === 'maternelle' ? 'PS' : '1';
                       setEditClassForm({ ...editClassForm, cycle: c, year: defYear });
                     }}
@@ -1498,7 +1498,7 @@ export function AppModals(props: AppModalsProps) {
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.category}</label>
                     <select 
                       value={vendorExpenseForm.category}
-                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, category: e.target.value as any })}
+                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, category: e.target.value })}
                       className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
                     >
                       {expenseCategoryList.map(item => (
@@ -1512,7 +1512,7 @@ export function AppModals(props: AppModalsProps) {
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.paymentStatus}</label>
                     <select 
                       value={vendorExpenseForm.paymentStatus}
-                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, paymentStatus: e.target.value as any })}
+                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, paymentStatus: e.target.value })}
                       className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
                     >
                       <option value="unpaid">{t.unpaid}</option>
@@ -1538,7 +1538,7 @@ export function AppModals(props: AppModalsProps) {
                       <select 
                         required={vendorExpenseForm.category === 'social_cases'}
                         value={vendorExpenseForm.aidType}
-                        onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, aidType: e.target.value as any })}
+                        onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, aidType: e.target.value })}
                         className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
                       >
                         <option value="">{t.selectTypeOfAid}</option>

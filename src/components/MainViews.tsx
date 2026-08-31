@@ -151,7 +151,7 @@ export interface MainViewsProps {
   BookOpen: LucideIcon;
   Briefcase: LucideIcon;
   Calendar: LucideIcon;
-  ChartsFallback: ComponentType<any>;
+  ChartsFallback: ComponentType<{ isDark: boolean }>;
   CheckCircle2: LucideIcon;
   ChevronDown: LucideIcon;
   ChevronLeft: LucideIcon;
@@ -161,7 +161,12 @@ export interface MainViewsProps {
   Coins: LucideIcon;
   Cpu: LucideIcon;
   CreditCard: LucideIcon;
-  DashboardCharts: ComponentType<any>;
+  DashboardCharts: ComponentType<{
+    chartData: { name: string; income: number; expenses: number }[];
+    pieData: { name: string; value: number }[];
+    t: { incomeVsExpenses: string; income: string; expenses: string; feeStatus: string };
+    currentTheme: { isDark: boolean };
+  }>;
   DollarSign: LucideIcon;
   Download: LucideIcon;
   Droplet: LucideIcon;
@@ -172,7 +177,7 @@ export interface MainViewsProps {
   GraduationCap: LucideIcon;
   Hammer: LucideIcon;
   Heart: LucideIcon;
-  HighlightText: ComponentType<any>;
+  HighlightText: ComponentType<{ text: string; highlight: string }>;
   Landmark: LucideIcon;
   Layers: LucideIcon;
   Mail: LucideIcon;
@@ -189,7 +194,7 @@ export interface MainViewsProps {
   Sprout: LucideIcon;
   StickyNote: LucideIcon;
   Sun: LucideIcon;
-  Suspense: ComponentType<any>;
+  Suspense: ComponentType<{ fallback?: ReactNode; children?: ReactNode }>;
   Trash2: LucideIcon;
   TrendingDown: LucideIcon;
   TrendingUp: LucideIcon;

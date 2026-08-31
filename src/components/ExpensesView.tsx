@@ -99,7 +99,7 @@ export function ExpensesView() {
                                 paymentStatus: 'unpaid',
                                 amountPaid: '',
                                 description: '',
-                                aidType: '' as any,
+                                aidType: '',
                                 beneficiaryStudentName: '',
                                 beneficiaryStudentGrade: '',
                               });
@@ -317,7 +317,7 @@ export function ExpensesView() {
                                               paymentStatus: v.paymentStatus,
                                               amountPaid: (v.amountPaid || 0).toString(),
                                               description: v.description || '',
-                                              aidType: v.aidType || '' as any,
+                                              aidType: v.aidType || '',
                                               beneficiaryStudentName: v.beneficiaryStudentName || '',
                                               beneficiaryStudentGrade: v.beneficiaryStudentGrade || '',
                                             });

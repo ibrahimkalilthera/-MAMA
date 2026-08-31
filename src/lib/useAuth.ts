@@ -45,12 +45,12 @@ export interface AuthState {
 
 // ─── Helper: Map DB row to UserProfile ───────────────────────────────────────
 
-function mapProfileRow(row: any): UserProfile {
+function mapProfileRow(row: Record<string, unknown>): UserProfile {
   return {
-    id: row.id,
-    email: row.email,
-    fullName: row.full_name,
-    role: row.role,
+    id: row.id as string,
+    email: row.email as string,
+    fullName: row.full_name as string,
+    role: row.role as UserProfile['role'],
   };
 }
 
@@ -105,8 +105,9 @@ export function useAuth(): AuthState {
           const userProfile = await fetchProfile(session.user.id);
           setProfile(userProfile);
         }
-      } catch (err: any) {
-        console.error('[MAMA THERA Auth] Session init error:', err.message);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('[MAMA THERA Auth] Session init error:', msg);
       } finally {
         setLoading(false);
       }
@@ -236,8 +237,9 @@ export function useAuth(): AuthState {
       }
 
       return { success: true };
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Unknown error creating user' };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error creating user';
+      return { success: false, error: msg };
     }
   }, []);
 

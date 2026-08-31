@@ -11,6 +11,7 @@ import { Suspense, lazy } from 'react';
 import type { Language, Staff, SalaryPayment } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import type { ImportCategory } from '../lib/excelImporter';
+import type { ImportOptions } from './ExcelImportModal';
 
 const ExcelImportModal = lazy(() =>
   import('./ExcelImportModal').then(m => ({ default: m.ExcelImportModal }))
@@ -28,9 +29,9 @@ export interface ExcelImportHostProps {
   selectedYear: string;
   batchImportData: (
     category: ImportCategory,
-    records: Record<string, any>[],
-    options?: any,
-  ) => Promise<any>;
+    records: Record<string, unknown>[],
+    options: ImportOptions,
+  ) => Promise<{ inserted: number; updated: number; errors: number }>;
   themeCard: string;
   themeBorder: string;
   themeMuted: string;
@@ -61,7 +62,7 @@ export const ExcelImportHost = ({
         t={t}
         academicYears={academicYears}
         selectedYear={selectedYear}
-        onImportComplete={async (category: ImportCategory, records: Record<string, any>[], options) => {
+        onImportComplete={async (category: ImportCategory, records: Record<string, unknown>[], options: ImportOptions) => {
           return await batchImportData(category, records, options);
         }}
         themeCard={themeCard}
@@ -87,7 +88,7 @@ export interface MonthlyDraftHostProps {
   selectedYear: string;
   onExportExcel: (monthIndex: number, year: number) => void;
   onRecordPayment: (staffId: string, balance: number) => void;
-  formatCurrency: (amount: any) => string;
+  formatCurrency: (amount: unknown) => string;
   themeCard: string;
   themeBorder: string;
   themeMuted: string;

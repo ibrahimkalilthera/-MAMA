@@ -19,7 +19,7 @@ export interface DetectionResult {
   sheetName: string;
   headers: string[];
   rowCount: number;
-  sampleRows: Record<string, any>[];
+  sampleRows: Record<string, unknown>[];
 }
 
 export interface ColumnMapping {
@@ -31,14 +31,14 @@ export interface ColumnMapping {
 }
 
 export interface ValidationResult {
-  validRows: Record<string, any>[];
-  invalidRows: { rowIndex: number; row: Record<string, any>; errors: string[] }[];
+  validRows: Record<string, unknown>[];
+  invalidRows: { rowIndex: number; row: Record<string, unknown>; errors: string[] }[];
   totalRows: number;
   warnings: string[];
 }
 
 export interface ImportRecord {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // ─── Category Detection Keywords (French + English) ──────────────────────────
@@ -157,7 +157,7 @@ function normalize(s: string): string {
 }
 
 /** Parse an Excel date (serial number, DD/MM/YYYY, YYYY-MM-DD, etc.) */
-export function parseExcelDate(val: any): string | null {
+export function parseExcelDate(val: unknown): string | null {
   if (val == null || val === '') return null;
 
   // Excel serial number
@@ -195,7 +195,7 @@ export function parseExcelDate(val: any): string | null {
 }
 
 /** Parse a currency/number string: "150 000 FCFA" → 150000 */
-export function parseCurrency(val: any): number | null {
+export function parseCurrency(val: unknown): number | null {
   if (val == null || val === '') return null;
   if (typeof val === 'number') return Number.isFinite(val) ? val : null;
 
@@ -228,7 +228,7 @@ export function parseCurrency(val: any): number | null {
 }
 
 /** Normalize a Malian phone number */
-export function normalizePhone(val: any): string {
+export function normalizePhone(val: unknown): string {
   if (val == null || val === '') return '';
   let str = String(val).replace(/[\s\-\(\)\.]/g, '');
   // Remove leading country code variations
@@ -243,7 +243,7 @@ export function normalizePhone(val: any): string {
 export interface ParsedSheet {
   name: string;
   headers: string[];
-  rows: Record<string, any>[];
+  rows: Record<string, unknown>[];
 }
 
 /** Parse an Excel/CSV file into sheets with headers and row data */
@@ -257,7 +257,7 @@ export function parseFile(file: File): Promise<ParsedSheet[]> {
 
         const sheets: ParsedSheet[] = workbook.SheetNames.map((name) => {
           const sheet = workbook.Sheets[name];
-          const json = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
+          const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
           const headers = json.length > 0 ? Object.keys(json[0]) : [];
           return { name, headers, rows: json };
         }).filter((s) => s.rows.length > 0);
@@ -335,7 +335,7 @@ export function detectCategory(sheet: ParsedSheet): DetectionResult {
 export function autoMapColumns(
   headers: string[],
   category: ImportCategory,
-  sampleRows: Record<string, any>[]
+  sampleRows: Record<string, unknown>[]
 ): ColumnMapping[] {
   const fields = TARGET_FIELDS[category];
   const mappings: ColumnMapping[] = [];
@@ -402,19 +402,19 @@ export function autoMapColumns(
 
 /** Validate and normalize rows using the column mapping */
 export function validateRows(
-  rows: Record<string, any>[],
+  rows: Record<string, unknown>[],
   mappings: ColumnMapping[],
   category: ImportCategory
 ): ValidationResult {
-  const validRows: Record<string, any>[] = [];
-  const invalidRows: { rowIndex: number; row: Record<string, any>; errors: string[] }[] = [];
+  const validRows: Record<string, unknown>[] = [];
+  const invalidRows: { rowIndex: number; row: Record<string, unknown>; errors: string[] }[] = [];
   const warnings: string[] = [];
   const fields = TARGET_FIELDS[category];
   const requiredFields = fields.filter((f) => f.required).map((f) => f.field);
   const activeMappings = mappings.filter((m) => m.targetField !== '__skip__');
 
   rows.forEach((row, idx) => {
-    const normalized: Record<string, any> = {};
+    const normalized: Record<string, unknown> = {};
     const errors: string[] = [];
 
     for (const mapping of activeMappings) {

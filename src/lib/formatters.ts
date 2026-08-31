@@ -9,7 +9,7 @@ import type { TranslationDict, Language } from '../i18n/translations';
 
 export type T = TranslationDict;
 
-export const formatCurrency = (amount: any) => {
+export const formatCurrency = (amount: unknown) => {
   const val = Number(amount);
   if (isNaN(val)) return '0 XOF';
   // fr-FR may emit a narrow no-break space (U+202F) or a no-break space (U+00A0)
