@@ -52,10 +52,7 @@
     "vite": "^6.2.0"
   },
   "allowScripts": {
-    "esbuild@0.27.7": true,
-    "esbuild@0.27.0": true,
-    "esbuild@0.28.2": true,
-    "esbuild@0.25.12": true,
-    "core-js@3.49.0": true
+    "esbuild": true,
+    "core-js": true
   }
 }
