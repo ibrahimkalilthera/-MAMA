@@ -1,23 +1,62 @@
-name: Performance guard
+name: Quality & performance guard
 
-# Mesure Lighthouse (mobile, performance) sur un build de production à chaque
-# push sur main. Échoue — et signale le push en rouge — si le score passe
-# sous 0.60 en CI — seuil calibré sur les runners GitHub, plus lents que la
-# machine locale : un build sain y mesure ~67 contre ~93 en prod réel.
-# La porte locale `deploy:prod` garde quant à elle le 0.7 par défaut du script.
+# Porte de qualité unique à chaque push sur main — remplace les deux anciens
+# workflows security-audit.yml (audit npm) et perf-guard.yml (Lighthouse) :
+#
+#   Job `quality`   : lint (ESLint no-explicit-any + tsc strict + câblage des
+#                     props), tests (node:test), puis le gate d'audit
+#                     (scripts/check-audit.mjs) en deux volets :
+#                       1. Aucune vulnérabilité de PRODUCTION (les dépendances
+#                          runtime doivent être propres — tout ce qui est
+#                          vulnérable est bloqué).
+#                       2. Le nombre TOTAL de vulnérabilités reste à 0
+#                          (baseline documentée — voir DEVELOPMENT_HISTORY.md ;
+#                          le CLI vercel est isolé dans tools/, hors du gate).
+#                     Toute nouvelle vulnérabilité (runtime ou dev) échoue.
+#   Job `lighthouse`: mesure Lighthouse (mobile, performance) sur un build de
+#                     production à chaque push. Échoue — et signale le push en
+#                     rouge — si le score passe sous 0.60 en CI — seuil calibré
+#                     sur les runners GitHub, plus lents que la machine locale :
+#                     un build sain y mesure ~67 contre ~93 en prod réel.
+#
+# Les deux jobs tournent en parallèle ; le workflow est rouge si l'un échoue.
 
 on:
   push:
     branches: [main]
 
 concurrency:
-  group: perf-${{ github.ref }}
+  group: quality-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  quality:
+    name: Lint + tests + audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (ESLint no-explicit-any + tsc strict + props wiring)
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Audit gate (production clean + total within baseline 0)
+        run: node scripts/check-audit.mjs
+
   lighthouse:
     runs-on: ubuntu-latest
     timeout-minutes: 15
