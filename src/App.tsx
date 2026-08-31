@@ -3481,12 +3481,29 @@ export default function App() {
       {/* --- Floating AI Financial Assistant Widget --- */}
       <div className="fixed bottom-6 right-6 z-50 no-print font-sans">
         <AnimatePresence>
+          {/* Below the lg breakpoint the w-[360px] chat card covers ~86% of a
+              360px-wide viewport with no visual cue — the same silent-takeover
+              pattern the Productivité panel had. Dim the app behind it and
+              close on outside click on mobile, identical to every other
+              overlay; desktop keeps the floating-widget behaviour. The caps
+              also keep the card inside short/landscape viewports. */}
+          {isFloatingChatOpen && (
+            <motion.div
+              key="chat-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsFloatingChatOpen(false)}
+              className="fixed inset-0 z-10 bg-slate-900/50 backdrop-blur-sm lg:hidden"
+            />
+          )}
           {isFloatingChatOpen ? (
             <motion.div
+              key="chat-panel"
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className={`w-[360px] sm:w-96 h-[500px] rounded-[2.5rem] shadow-2xl border ${currentTheme.border} ${currentTheme.card} flex flex-col overflow-hidden`}
+              className={`relative z-20 w-[360px] sm:w-96 h-[500px] max-w-[calc(100vw_-_3rem)] max-h-[calc(100dvh_-_3rem)] rounded-[2.5rem] shadow-2xl border ${currentTheme.border} ${currentTheme.card} flex flex-col overflow-hidden`}
             >
               {/* Header */}
               <div 

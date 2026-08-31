@@ -52,10 +52,13 @@ interface ToastContainerProps {
 export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
   if (toasts.length === 0) return null;
 
+  // Toasts anchor bottom-right with a 24px margin; the 380px design width
+  // would overflow a 360px viewport, so clamp it to the viewport minus
+  // symmetric margins (audit: this was the last overlay clipping on mobile).
   return (
     <div
       className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none"
-      style={{ maxWidth: '380px' }}
+      style={{ maxWidth: 'min(380px, calc(100vw - 3rem))' }}
     >
       {toasts.map((toast) => {
         const style = TOAST_STYLES[toast.type];
