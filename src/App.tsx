@@ -103,7 +103,7 @@ import {
 import { translations } from './i18n/translations';
 import { DEFAULT_SCHOOL_CLASSES } from './app/types';
 import type { Language, User, Payment, Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, SchoolClass } from './app/types';
-import type { CalendarEvent } from './components/MainViews';
+import type { CalendarEvent, ThemeId } from './components/MainViews';
 
 
 // --- Components ---
@@ -830,13 +830,13 @@ export default function App() {
   const [expenseForm, setExpenseForm] = useState({ category: 'Other', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
   const [vendorExpenseForm, setVendorExpenseForm] = useState({ 
     vendorName: '', 
-    category: 'stationery' as any, 
+    category: 'stationery', 
     amount: '', 
     dueDate: new Date().toISOString().split('T')[0], 
-    paymentStatus: 'unpaid' as any, 
+    paymentStatus: 'unpaid', 
     amountPaid: '', 
     description: '',
-    aidType: '' as any,
+    aidType: '',
     beneficiaryStudentName: '',
     beneficiaryStudentGrade: ''
   });
@@ -942,19 +942,19 @@ export default function App() {
       'training'
     ];
     return keys
-      .map(key => ({ key, label: (t as any)[key] || key }))
+      .map(key => ({ key, label: (t as Record<string, string>)[key] || key }))
       .sort((a, b) => a.label.localeCompare(b.label, lang === 'en' ? 'en' : 'fr', { sensitivity: 'base' }));
   }, [t, lang]);
 
   // --- Theme Logic ---
   useEffect(() => {
-    const savedTheme = localStorage.getItem('school-finance-theme') as any;
+    const savedTheme = localStorage.getItem('school-finance-theme');
     const savedLogo = localStorage.getItem('school-finance-logo');
     const savedLogoColor = localStorage.getItem('school-finance-logo-color');
     if (savedTheme) {
       if (savedTheme === 'midnight') setTheme('slate');
       else if (savedTheme === 'modern') setTheme('cream');
-      else setTheme(savedTheme);
+      else setTheme(savedTheme as ThemeId);
     }
     if (savedLogo) setSchoolLogo(savedLogo);
     if (savedLogoColor) setLogoColor(savedLogoColor);
@@ -1272,8 +1272,8 @@ export default function App() {
             : b.parentName.localeCompare(a.parentName, lang);
         }
 
-        let valueA: any;
-        let valueB: any;
+        let valueA: number | string | undefined;
+        let valueB: number | string | undefined;
 
         if (studentSortKey === 'balance') {
           const discountA = a.scholarshipDiscount || 0;
@@ -1767,11 +1767,11 @@ export default function App() {
       category: vendorExpenseForm.category,
       amount,
       dueDate: vendorExpenseForm.dueDate,
-      paymentStatus: vendorExpenseForm.paymentStatus,
+      paymentStatus: vendorExpenseForm.paymentStatus as VendorExpense['paymentStatus'],
       amountPaid: vendorExpenseForm.paymentStatus === 'paid' ? amount : (vendorExpenseForm.paymentStatus === 'unpaid' ? 0 : amountPaid),
       description: vendorExpenseForm.description.trim(),
       academicYear: selectedYear,
-      aidType: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.aidType : undefined,
+      aidType: vendorExpenseForm.category === 'social_cases' ? (vendorExpenseForm.aidType as VendorExpense['aidType']) : undefined,
       beneficiaryStudentName: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.beneficiaryStudentName : undefined,
       beneficiaryStudentGrade: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.beneficiaryStudentGrade : undefined,
     };
@@ -1794,7 +1794,7 @@ export default function App() {
       paymentStatus: 'unpaid',
       amountPaid: '',
       description: '',
-      aidType: '' as any,
+      aidType: '',
       beneficiaryStudentName: '',
       beneficiaryStudentGrade: '',
     });
@@ -1811,7 +1811,7 @@ export default function App() {
       paymentStatus: v.paymentStatus,
       amountPaid: String(v.amountPaid),
       description: v.description || '',
-      aidType: v.aidType || '' as any,
+      aidType: v.aidType || '',
       beneficiaryStudentName: v.beneficiaryStudentName || '',
       beneficiaryStudentGrade: v.beneficiaryStudentGrade || ''
     });
