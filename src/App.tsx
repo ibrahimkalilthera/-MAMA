@@ -7,7 +7,8 @@ import { useState, useMemo, FormEvent, ChangeEvent, useEffect, useRef, useCallba
 import { useSupabaseData } from './lib/useSupabaseData';
 import { useAuth } from './lib/useAuth';
 import type { UserProfile } from './lib/useAuth';
-import { useToast, ToastContainer, OfflineBanner, EnvBadge } from './components/ToastNotification';
+import { ToastContainer, OfflineBanner, EnvBadge } from './components/ToastNotification';
+import { useToast } from './lib/useToast';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
@@ -103,7 +104,7 @@ import {
 import { translations } from './i18n/translations';
 import { DEFAULT_SCHOOL_CLASSES } from './app/types';
 import type { Language, User, Payment, Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, SchoolClass } from './app/types';
-import type { CalendarEvent, ThemeId } from './components/MainViews';
+import type { CalendarEvent, ManagedClass, ThemeId } from './app/mainViewsProps';
 
 
 // --- Components ---
@@ -111,6 +112,9 @@ import type { CalendarEvent, ThemeId } from './components/MainViews';
 
 export default function App() {
   const [lang, setLang] = useState<Language>('fr');
+  // Derived once per render; declared early so every effect below can list
+  // translated strings in its dependency array (tsc: no use-before-declaration).
+  const t = translations[lang];
 
   const toggleLanguage = (newLang: Language) => {
     setLang(newLang);
@@ -742,7 +746,6 @@ export default function App() {
   const [showExcelImport, setShowExcelImport] = useState(false);
 
   // Classes & Sections Management (single source of truth: Supabase custom_classes)
-  type ManagedClass = SchoolClass & { rowId?: string };
   const availableClasses = useMemo<ManagedClass[]>(() => {
     const seen = new Set(DEFAULT_SCHOOL_CLASSES.map(c => c.id.toLowerCase()));
     return [...DEFAULT_SCHOOL_CLASSES, ...customClasses.filter(c => !seen.has(c.id.toLowerCase()))];
@@ -771,27 +774,30 @@ export default function App() {
     customName: ''
   });
 
-  // Show welcome message when auth profile loads for the first time
+  // Show welcome message when auth profile loads for the first time.
+  // The stable pieces of `auth` are destructured so the effect can list precise
+  // dependencies — the whole `auth` object is recreated on every render.
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
+  const { profile: authProfile, isAdmin: authIsAdmin, fetchAllProfiles } = auth;
   useEffect(() => {
-    if (auth.profile && !hasShownWelcome) {
+    if (authProfile && !hasShownWelcome) {
       setHasShownWelcome(true);
       setActiveTab('dashboard');
-      const displayName = auth.profile.fullName || auth.profile.email;
+      const displayName = authProfile.fullName || authProfile.email;
       setWelcomeMessage(t.welcomeBackName.replace('{name}', displayName));
       setTimeout(() => {
         setWelcomeMessage(null);
       }, 5000);
 
       // Fetch user profiles for admin
-      if (auth.isAdmin) {
-        auth.fetchAllProfiles().then(profiles => setUserProfiles(profiles));
+      if (authIsAdmin) {
+        fetchAllProfiles().then(profiles => setUserProfiles(profiles));
       }
     }
-    if (!auth.profile) {
+    if (!authProfile) {
       setHasShownWelcome(false);
     }
-  }, [auth.profile]);
+  }, [authProfile, hasShownWelcome, authIsAdmin, fetchAllProfiles, t.welcomeBackName]);
 
   // Safety net: keep admin-only tabs (System Settings / Audit Trail) out of reach for non-admin, non-dev accounts
   useEffect(() => {
@@ -857,6 +863,8 @@ export default function App() {
   const [floatingChatMessages, setFloatingChatMessages] = useState<{ sender: 'user' | 'assistant'; text: string }[]>([]);
   const [floatingChatInput, setFloatingChatInput] = useState('');
 
+  // Seed the greeting whenever the chat is empty — including right after a
+  // language switch, since the translated text itself is the dependency.
   useEffect(() => {
     if (floatingChatMessages.length === 0) {
       setFloatingChatMessages([
@@ -866,7 +874,7 @@ export default function App() {
         }
       ]);
     }
-  }, [lang]);
+  }, [floatingChatMessages.length, t.helloIAmYourMamaTheraFinanceAssistantHowCanIAssistYouWithSchoolStatisticsTodayYouCanAskMeFinancialQuestionsOrClickOneOfTheQuickOptionsBelow]);
 
   const [ticketStudent, setTicketStudent] = useState<Student | null>(null);
 
@@ -916,7 +924,6 @@ export default function App() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
 
-  const t = translations[lang];
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = new Date().getMonth();
 

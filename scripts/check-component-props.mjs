@@ -6,7 +6,9 @@ import { readFileSync } from 'node:fs';
 
 // name: component; file: where its props interface lives; render: where it is rendered
 const COMPONENTS = [
-  { name: 'MainViews', file: 'src/components/MainViews.tsx', render: 'src/App.tsx' },
+  // MainViews' props contract lives in its dedicated types module — the single
+  // source of truth (see src/app/mainViewsProps.ts + tests/mainviews-props.test.ts).
+  { name: 'MainViews', file: 'src/app/mainViewsProps.ts', render: 'src/App.tsx' },
   { name: 'AppModals', file: 'src/components/AppModals.tsx', render: 'src/App.tsx' },
   { name: 'ArchivesView', file: 'src/components/ArchivesView.tsx', render: 'src/App.tsx' },
   { name: 'PromotionWizardModal', file: 'src/components/PromotionWizardModal.tsx', render: 'src/App.tsx' },

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useMainViews } from './MainViews';
+import { useMainViews } from '../app/mainViewsContext';
 
 export function ParentsView() {
   const { AlertCircle, ArrowUpDown, Bell, Briefcase, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CreditCard, Download, Edit2, FileText, HighlightText, Mail, MapPin, Phone, Plus, Receipt, Search, Trash2, Unlink, UserCheck, UserPlus, Users, X, currentTheme, expandedParentId, formatCurrency, getChildrenForParent, getParentOutstandingBalance, getParentPaymentHistory, handleDeleteParent, handleExportParentLedgerPdf, handleUnlinkStudent, openEditParentModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, selectedYear, setActiveLinkingParent, setEditingParent, setExpandedParentId, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setSelectedStudent, setShowLinkStudentModal, setShowParentModal, setStudentToLinkId, t } = useMainViews();

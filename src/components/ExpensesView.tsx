@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMainViews } from './MainViews';
+import { useMainViews } from '../app/mainViewsContext';
 import type { VendorExpense } from '../lib/useSupabaseData';
 import { ConfirmDialog } from './ConfirmDialog';
 

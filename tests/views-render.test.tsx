@@ -6,24 +6,25 @@ import { renderToString } from 'react-dom/server';
 import type { LucideIcon } from 'lucide-react';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
-import {
-  MainViewsContext,
-  type MainViewsProps,
-  type CurrentTheme,
-  type DashboardStats,
-  type ParentLedgerEntry,
-  type ParentSort,
-  type PayrollWindowStatus,
-  type RoleFilter,
-  type SalaryForm,
-  type SortKey,
-  type StaffForm,
-  type StudentStatus,
-  type ThemeId,
-} from '../src/components/MainViews';
+import { MainViewsContext } from '../src/app/mainViewsContext';
+import type {
+  MainViewsProps,
+  CurrentTheme,
+  DashboardStats,
+  ParentLedgerEntry,
+  ParentSort,
+  PayrollWindowStatus,
+  RoleFilter,
+  SalaryForm,
+  SortKey,
+  StaffForm,
+  StudentStatus,
+  ThemeId,
+  ParentForm,
+  VendorExpenseForm,
+} from '../src/app/mainViewsProps';
 import type { AuditLogEntry } from '../src/lib/auditLogger';
 import type { AuthState, UserProfile } from '../src/lib/useAuth';
-import type { ParentForm, VendorExpenseForm } from '../src/components/MainViews';
 import type { CalendarDay } from '../src/lib/classes';
 import { DashboardView } from '../src/components/DashboardView';
 import { StudentsView } from '../src/components/StudentsView';

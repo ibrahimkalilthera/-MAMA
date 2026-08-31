@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, ExternalLink, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, Search, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense } from '../lib/useSupabaseData';
-import type { CalendarEvent, CurrentTheme, ManagedClass, ParentForm, SalaryForm, StaffForm, VendorExpenseForm } from './MainViews';
+import type { CalendarEvent, CurrentTheme, ManagedClass, ParentForm, SalaryForm, StaffForm, VendorExpenseForm } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import { ConfirmDialog } from './ConfirmDialog';

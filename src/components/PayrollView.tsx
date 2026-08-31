@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useMainViews } from './MainViews';
+import { useMainViews } from '../app/mainViewsContext';
 import type { Staff } from '../lib/useSupabaseData';
 import { ConfirmDialog } from './ConfirmDialog';
 

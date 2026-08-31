@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useMainViews } from './MainViews';
+import { useMainViews } from '../app/mainViewsContext';
 import type { TranslationDict } from '../i18n/translations';
 
 export function DashboardView() {

@@ -49,6 +49,15 @@ export default tseslint.config(
     },
   },
 
+  // Entry point: renders the app but intentionally exports nothing — the HMR
+  // component-boundary rule does not apply to it.
+  {
+    files: ['src/main.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+
   // Node scripts and config files: core recommended rules minus the noise that has
   // nothing to do with the any gate (browser-globals scripts, regex style).
   {
