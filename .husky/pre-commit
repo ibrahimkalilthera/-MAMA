@@ -1,0 +1,5 @@
+# Typecheck (strict + noImplicitAny), prop-wiring check and the full test suite
+# must pass before every commit. npm.cmd is not directly executable by sh on
+# Windows, so the scripts are run through node with cmd.exe shell resolution —
+# this keeps package.json as the single source of truth for the checks.
+node -e "require('child_process').execSync('npm run lint && npm test',{stdio:'inherit',shell:true})"

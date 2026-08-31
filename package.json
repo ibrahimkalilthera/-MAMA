@@ -17,7 +17,8 @@
     "seed:production": "node --env-file=.env.production supabase/seed-production.mjs",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit && node scripts/check-component-props.mjs",
-    "test": "node --import tsx --test \"tests/*.test.ts\" \"tests/*.test.tsx\""
+    "test": "node --import tsx --test \"tests/*.test.ts\" \"tests/*.test.tsx\"",
+    "prepare": "husky"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -36,6 +37,7 @@
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
+    "husky": "^9.1.7",
     "lighthouse": "^13.4.1",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.23.13",
