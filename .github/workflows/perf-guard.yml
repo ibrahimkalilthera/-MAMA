@@ -20,8 +20,16 @@ name: Quality & performance guard
 #                     rouge — si le score passe sous 0.60 en CI — seuil calibré
 #                     sur les runners GitHub, plus lents que la machine locale :
 #                     un build sain y mesure ~67 contre ~93 en prod réel.
+#   Job `tools-audit`: audit NON BLOQUANT (warning-only) de l'arbre de la CLI
+#                     vercel isolée (tools/) — ses pins dev-only vulnérables
+#                     sont assumés et suivis ; le job ne peut JAMAIS rougir
+#                     le workflow (exit 0 + continue-on-error) car deploy.yml
+#                     se déclenche sur le succès de CE workflow. Visibilité :
+#                     annotation ::warning + step summary ; suivi hebdo
+#                     approfondi : vercel-pins-watch.yml.
 #
-# Les deux jobs tournent en parallèle ; le workflow est rouge si l'un échoue.
+# Les trois jobs tournent en parallèle ; seul tools-audit est warning-only —
+# quality et lighthouse rendent le workflow rouge si l'un des deux échoue.
 #
 # Ce workflow est aussi LA PORTE VERS LA PRODUCTION : deploy.yml se déclenche
 # via workflow_run uniquement quand ce workflow se termine en `success` sur
@@ -104,3 +112,21 @@ jobs:
           # le runner partagé tiré au sort (39 à 67 observés sur le même build).
           LH_RUNS: '3'
         run: npm run check:perf
+
+  # Warning-only: the isolated deploy CLI (tools/) keeps its dev-only pins on
+  # purpose — they must stay visible without ever blocking deploys, because
+  # deploy.yml is triggered by THIS workflow's success.
+  tools-audit:
+    name: Tools audit (warning-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Audit tools/ from its lockfile (report only — never fails)
+        run: node scripts/report-tools-audit.mjs
