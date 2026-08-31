@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { Dispatch, SetStateAction, FormEvent } from 'react';
+import { useRef, useState } from 'react';
+import type { Dispatch, SetStateAction, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, ExternalLink, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, Search, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -9,6 +9,40 @@ import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
+
+// ─── Productivité panel sizing (resizable on desktop) ───────────────────────
+// The panel used to be a hard-coded w-80 (320px). It is now user-resizable:
+// drag the left-edge handle (desktop) or focus it and use arrow keys; the
+// choice persists per browser. The 88vw CSS max-width remains the final guard
+// on any viewport. Module-local on purpose: exporting consts from a component
+// file would trip the react-refresh lint gate.
+const PANEL_WIDTH_KEY = 'mama-thera:productivity-panel-width';
+const PANEL_WIDTH_MIN = 280;
+const PANEL_WIDTH_MAX = 720;
+const PANEL_WIDTH_DEFAULT = 320;
+const PANEL_WIDTH_STEP = 40;
+
+const clampPanelWidth = (w: number): number =>
+  Math.min(PANEL_WIDTH_MAX, Math.max(PANEL_WIDTH_MIN, w));
+
+const loadPanelWidth = (): number => {
+  try {
+    if (typeof localStorage === 'undefined') return PANEL_WIDTH_DEFAULT;
+    const raw = localStorage.getItem(PANEL_WIDTH_KEY);
+    const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+    return Number.isFinite(parsed) ? clampPanelWidth(parsed) : PANEL_WIDTH_DEFAULT;
+  } catch {
+    return PANEL_WIDTH_DEFAULT;
+  }
+};
+
+const savePanelWidth = (w: number): void => {
+  try {
+    localStorage.setItem(PANEL_WIDTH_KEY, String(Math.round(w)));
+  } catch {
+    /* storage unavailable (private mode, test runner) — width stays session-only */
+  }
+};
 
 /** Student add/edit form state (matches App.tsx). */
 export interface StudentForm {
@@ -210,6 +244,52 @@ export function AppModals(props: AppModalsProps) {
   const [parentClassFilter, setParentClassFilter] = useState('all');
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
   const { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, lang, newClassForm, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoInput, todos, toggleLanguage, toggleTodo, vendorExpenseForm, welcomeMessage } = props;
+
+  // Productivité panel width — resizable on desktop (drag handle or arrow
+  // keys), persisted per browser. Local UI state only: it never touches the
+  // MainViewsProps contract.
+  const [panelWidth, setPanelWidth] = useState<number>(loadPanelWidth);
+  const dragStartRef = useRef<{ pointerX: number; startWidth: number } | null>(null);
+  const panelWidthRef = useRef(panelWidth);
+  panelWidthRef.current = panelWidth;
+
+  const applyPanelWidth = (w: number): void => {
+    const next = clampPanelWidth(w);
+    panelWidthRef.current = next;
+    setPanelWidth(next);
+    savePanelWidth(next);
+  };
+
+  const handleResizePointerDown = (e: ReactPointerEvent<HTMLButtonElement>): void => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragStartRef.current = { pointerX: e.clientX, startWidth: panelWidth };
+  };
+
+  const handleResizePointerMove = (e: ReactPointerEvent<HTMLButtonElement>): void => {
+    const drag = dragStartRef.current;
+    if (!drag) return;
+    // The panel is right-anchored: pulling the left edge outwards (leftwards)
+    // widens it, pushing it inwards narrows it.
+    setPanelWidth(clampPanelWidth(drag.startWidth + (drag.pointerX - e.clientX)));
+  };
+
+  const handleResizePointerEnd = (e: ReactPointerEvent<HTMLButtonElement>): void => {
+    const drag = dragStartRef.current;
+    if (!drag) return;
+    dragStartRef.current = null;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* pointer already released */ }
+    applyPanelWidth(drag.startWidth + (drag.pointerX - e.clientX));
+  };
+
+  const handleResizeKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>): void => {
+    // Left widens (the left edge moves left), right narrows — mirroring the
+    // drag direction. Home/End snap to the bounds.
+    if (e.key === 'ArrowLeft') { e.preventDefault(); applyPanelWidth(panelWidthRef.current + PANEL_WIDTH_STEP); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); applyPanelWidth(panelWidthRef.current - PANEL_WIDTH_STEP); }
+    else if (e.key === 'Home') { e.preventDefault(); applyPanelWidth(PANEL_WIDTH_MIN); }
+    else if (e.key === 'End') { e.preventDefault(); applyPanelWidth(PANEL_WIDTH_MAX); }
+  };
 
   // Escape closes the topmost open overlay (keyboard consistency). The list
   // below follows the JSX order: the LAST open entry is the visually topmost,
@@ -1955,10 +2035,11 @@ export function AppModals(props: AppModalsProps) {
       <AnimatePresence>
         {showTodoSidebar && (
           <>
-            {/* Below the lg breakpoint the fixed w-80 panel overlays the app and can
-                swallow most of the viewport (it covers ~75% of a 430px-wide window).
-                Dim the app behind it and close on outside click — the same pattern as
-                every other modal in this app — instead of a silent white takeover. */}
+            {/* Below the lg breakpoint the fixed panel (320px by default, user-resizable
+                on desktop via the left-edge handle) overlays the app and can swallow
+                most of the viewport (it covers ~75% of a 430px-wide window). Dim the
+                app behind it and close on outside click — the same pattern as every
+                other modal in this app — instead of a silent white takeover. */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1967,10 +2048,11 @@ export function AppModals(props: AppModalsProps) {
               className="fixed inset-0 z-20 bg-slate-900/50 backdrop-blur-sm lg:hidden"
             />
             <motion.aside
-              initial={{ x: 320 }}
+              initial={{ x: panelWidth }}
               animate={{ x: 0 }}
-              exit={{ x: 320 }}
-              className={`fixed right-0 top-0 h-full w-80 max-w-[88vw] ${currentTheme.card} border-l ${currentTheme.border} shadow-2xl z-30 flex flex-col`}
+              exit={{ x: panelWidth }}
+              style={{ width: panelWidth }}
+              className={`fixed right-0 top-0 h-full max-w-[88vw] ${currentTheme.card} border-l ${currentTheme.border} shadow-2xl z-30 flex flex-col`}
             >
             <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
               <h3 className="text-lg font-bold flex items-center gap-3">
@@ -2127,6 +2209,28 @@ export function AppModals(props: AppModalsProps) {
                 </div>
               </div>
             )}
+            {/* Desktop resize handle: drag the left edge (or focus it and use
+                ← to widen / → to narrow; Home/End snap to the bounds; double-click
+                resets to the 320px default). Hidden below lg — mobile keeps the
+                88vw cap and its backdrop. */}
+            <button
+              type="button"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={t.resizeProductivityPanel}
+              aria-valuemin={PANEL_WIDTH_MIN}
+              aria-valuemax={PANEL_WIDTH_MAX}
+              aria-valuenow={Math.round(panelWidth)}
+              onPointerDown={handleResizePointerDown}
+              onPointerMove={handleResizePointerMove}
+              onPointerUp={handleResizePointerEnd}
+              onPointerCancel={handleResizePointerEnd}
+              onDoubleClick={() => applyPanelWidth(PANEL_WIDTH_DEFAULT)}
+              onKeyDown={handleResizeKeyDown}
+              className="absolute left-0 top-0 z-10 hidden h-full w-2.5 cursor-col-resize touch-none select-none items-center justify-center group lg:flex"
+            >
+              <span className="h-16 w-1 rounded-full bg-slate-400/50 transition-colors group-hover:bg-blue-500 group-focus-visible:bg-blue-500" />
+            </button>
           </motion.aside>
           </>
         )}
