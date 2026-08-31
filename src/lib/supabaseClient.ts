@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
 
 const rawUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -19,7 +20,7 @@ if (isPlaceholder(rawUrl) || isPlaceholder(rawKey)) {
   );
 }
 
-export const supabase = createClient(rawUrl!, rawKey!, {
+export const supabase = createClient<Database>(rawUrl!, rawKey!, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabaseClient';
+import type { DbInsert, DbRow, DbUpdate } from './database.types';
 import { retryWithBackoff } from './networkUtils';
 import { 
   enqueueOfflineAction, 
@@ -145,108 +146,108 @@ const createTempId = (prefix: string): string =>
 
 // ─── Supabase row → App type mappers ─────────────────────────────────────────
 
-function mapParentRow(row: Record<string, unknown>): Parent {
+function mapParentRow(row: DbRow<'parents'>): Parent {
   return {
-    id: row.id as string,
-    fullName: row.full_name as string,
-    phones: (row.phones as string[] | null) || [],
-    email: (row.email as string | null) || undefined,
-    address: row.address as string,
-    occupation: row.occupation as string,
-    relationship: row.relationship as string,
-    notes: (row.notes as string | null) || undefined,
+    id: row.id,
+    fullName: row.full_name,
+    phones: row.phones,
+    email: row.email ?? undefined,
+    address: row.address,
+    occupation: row.occupation,
+    relationship: row.relationship,
+    notes: row.notes ?? undefined,
   };
 }
 
-function mapStudentRow(row: Record<string, unknown>, payments: Payment[]): Student {
+function mapStudentRow(row: DbRow<'students'>, payments: Payment[]): Student {
   return {
-    id: row.id as string,
-    parentId: (row.parent_id as string | null) || undefined,
-    name: row.name as string,
-    parentName: (row.parent_name as string | null) || '',
-    parentEmail: (row.parent_email as string | null) || '',
-    parentPhone: (row.parent_phone as string | null) || '',
+    id: row.id,
+    parentId: row.parent_id ?? undefined,
+    name: row.name,
+    parentName: row.parent_name ?? '',
+    parentEmail: row.parent_email ?? '',
+    parentPhone: row.parent_phone ?? '',
     totalDue: Number(row.total_due) || 0,
     amountPaid: Number(row.amount_paid) || 0,
     scholarshipDiscount: Number(row.scholarship_discount) || 0,
-    dueDate: (row.due_date as string | null) || '',
-    lastPaymentDate: (row.last_payment_date as string | null) || undefined,
+    dueDate: row.due_date ?? '',
+    lastPaymentDate: row.last_payment_date ?? undefined,
     payments: payments,
-    notes: (row.notes as string | null) || '',
-    lastNoteDate: (row.last_note_date as string | null) || undefined,
-    flagged: (row.flagged as boolean) || false,
-    academicYear: (row.academic_year as string | null) || undefined,
-    grade: (row.grade as string | null) || undefined,
-    studentId: (row.student_id as string | null) || undefined,
-    photo: (row.photo as string | null) || undefined,
-    emergencyContactName: (row.emergency_contact_name as string | null) || undefined,
-    emergencyContactRelation: (row.emergency_contact_relation as string | null) || undefined,
-    emergencyContactPhone: (row.emergency_contact_phone as string | null) || undefined,
-    medicalNotes: (row.medical_notes as string | null) || undefined,
-    enrollmentDate: (row.enrollment_date as string | null) || undefined,
-    previousSchool: (row.previous_school as string | null) || undefined,
+    notes: row.notes ?? '',
+    lastNoteDate: row.last_note_date ?? undefined,
+    flagged: Boolean(row.flagged),
+    academicYear: row.academic_year ?? undefined,
+    grade: row.grade ?? undefined,
+    studentId: row.student_id ?? undefined,
+    photo: row.photo ?? undefined,
+    emergencyContactName: row.emergency_contact_name ?? undefined,
+    emergencyContactRelation: row.emergency_contact_relation ?? undefined,
+    emergencyContactPhone: row.emergency_contact_phone ?? undefined,
+    medicalNotes: row.medical_notes ?? undefined,
+    enrollmentDate: row.enrollment_date ?? undefined,
+    previousSchool: row.previous_school ?? undefined,
     status: (row.status as Student['status']) || 'Active',
   };
 }
 
-function mapStaffRow(row: Record<string, unknown>): Staff {
+function mapStaffRow(row: DbRow<'staff'>): Staff {
   return {
-    id: row.id as string,
-    name: row.name as string,
-    position: row.position as string,
+    id: row.id,
+    name: row.name,
+    position: row.position,
     salary: Number(row.salary) || 0,
-    email: (row.email as string | null) || '',
-    phone: (row.phone as string | null) || '',
-    bankDetails: (row.bank_details as string | null) || '',
-    emergencyContact: (row.emergency_contact as string | null) || '',
-    academicYear: (row.academic_year as string | null) || undefined,
+    email: row.email ?? '',
+    phone: row.phone ?? '',
+    bankDetails: row.bank_details ?? '',
+    emergencyContact: row.emergency_contact ?? '',
+    academicYear: row.academic_year ?? undefined,
   };
 }
 
-function mapSalaryPaymentRow(row: Record<string, unknown>): SalaryPayment {
+function mapSalaryPaymentRow(row: DbRow<'salary_payments'>): SalaryPayment {
   return {
-    id: row.id as string,
-    staffId: row.staff_id as string,
+    id: row.id,
+    staffId: row.staff_id ?? '',
     amount: Number(row.amount) || 0,
-    date: row.date as string,
-    academicYear: (row.academic_year as string | null) || undefined,
+    date: row.date,
+    academicYear: row.academic_year ?? undefined,
   };
 }
 
-function mapExpenseRow(row: Record<string, unknown>): Expense {
+function mapExpenseRow(row: DbRow<'expenses'>): Expense {
   return {
-    id: row.id as string,
-    category: row.category as string,
-    description: row.description as string,
+    id: row.id,
+    category: row.category,
+    description: row.description,
     amount: Number(row.amount) || 0,
-    date: row.date as string,
-    academicYear: (row.academic_year as string | null) || undefined,
+    date: row.date,
+    academicYear: row.academic_year ?? undefined,
   };
 }
 
-function mapVendorExpenseRow(row: Record<string, unknown>): VendorExpense {
+function mapVendorExpenseRow(row: DbRow<'vendor_expenses'>): VendorExpense {
   return {
-    id: row.id as string,
-    vendorName: row.vendor_name as string,
-    category: row.category as string,
+    id: row.id,
+    vendorName: row.vendor_name,
+    category: row.category,
     amount: Number(row.amount) || 0,
-    dueDate: row.due_date as string,
+    dueDate: row.due_date,
     paymentStatus: row.payment_status as VendorExpense['paymentStatus'],
     amountPaid: Number(row.amount_paid) || 0,
-    description: (row.description as string | null) || undefined,
-    academicYear: (row.academic_year as string | null) || undefined,
+    description: row.description ?? undefined,
+    academicYear: row.academic_year ?? undefined,
     aidType: (row.aid_type as VendorExpense['aidType']) || undefined,
-    beneficiaryStudentName: (row.beneficiary_student_name as string | null) || undefined,
-    beneficiaryStudentGrade: (row.beneficiary_student_grade as string | null) || undefined,
+    beneficiaryStudentName: row.beneficiary_student_name ?? undefined,
+    beneficiaryStudentGrade: row.beneficiary_student_grade ?? undefined,
   };
 }
 
-function mapTodoRow(row: Record<string, unknown>): Todo {
+function mapTodoRow(row: DbRow<'todos'>): Todo {
   return {
-    id: row.id as string,
-    text: row.text as string,
-    completed: (row.completed as boolean) || false,
-    studentId: (row.student_id as string | null) || undefined,
+    id: row.id,
+    text: row.text,
+    completed: Boolean(row.completed),
+    studentId: row.student_id ?? undefined,
   };
 }
 
@@ -306,8 +307,8 @@ function staffToRow(s: Omit<Staff, 'id'>) {
   };
 }
 
-function studentUpdatesToRow(updates: Partial<Student>): Record<string, unknown> {
-  const row: Record<string, unknown> = {};
+function studentUpdatesToRow(updates: Partial<Student>): DbUpdate<'students'> {
+  const row: DbUpdate<'students'> = {};
   if (updates.name !== undefined) row.name = updates.name;
   if ('parentId' in updates) row.parent_id = updates.parentId || null;
   if (updates.parentName !== undefined) row.parent_name = updates.parentName;
@@ -333,6 +334,77 @@ function studentUpdatesToRow(updates: Partial<Student>): Record<string, unknown>
   if (updates.previousSchool !== undefined) row.previous_school = updates.previousSchool;
   if (updates.status !== undefined) row.status = updates.status;
   return row;
+}
+
+// ─── Excel Import typed reads ────────────────────────────────────────────────
+// Excel data arrives as `Record<string, unknown>` (untrusted). These interfaces
+// form a typed boundary so the coercion (String()/Number()/??) is explicit.
+
+interface StudentRec {
+  studentId?: string | null;
+  name?: string | null;
+  grade?: string | null;
+  parentName?: string | null;
+  parentPhone?: string | null;
+  parentEmail?: string | null;
+  totalDue?: number | null;
+  amountPaid?: number | null;
+  scholarshipDiscount?: number | null;
+  dueDate?: string | null;
+  notes?: string | null;
+}
+
+interface PaymentRec {
+  studentName?: string | null;
+  amount?: number | null;
+  date?: string | null;
+  receiptNumber?: string | null;
+}
+
+interface ParentRec {
+  fullName?: string | null;
+  phone1?: string | null;
+  phone2?: string | null;
+  email?: string | null;
+  address?: string | null;
+  occupation?: string | null;
+  relationship?: string | null;
+  notes?: string | null;
+}
+
+interface StaffRec {
+  name?: string | null;
+  position?: string | null;
+  salary?: number | null;
+  email?: string | null;
+  phone?: string | null;
+  bankDetails?: string | null;
+  emergencyContact?: string | null;
+}
+
+interface ExpenseRec {
+  description?: string | null;
+  amount?: number | null;
+  date?: string | null;
+  category?: string | null;
+}
+
+type ImportTable = 'students' | 'parents' | 'staff' | 'expenses';
+
+type ImportableRow =
+  | DbInsert<'students'>
+  | DbInsert<'parents'>
+  | DbInsert<'staff'>
+  | DbInsert<'expenses'>;
+
+/** Loose query-builder shape names the dynamic `from(table).insert(rows)` path. */
+interface InsertableBuilder {
+  insert: (rows: ImportableRow[]) => {
+    select: () => Promise<{
+      data: Array<Record<string, unknown>> | null;
+      error: { message: string } | null;
+    }>;
+  };
 }
 
 // ─── Main Data Hook ──────────────────────────────────────────────────────────
@@ -375,17 +447,17 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       }
 
       if (data) {
-        const mapped: AuditLogEntry[] = data.map((row: Record<string, unknown>) => ({
-          id: row.id as string,
-          userId: row.user_id as string,
-          userEmail: row.user_email as string,
-          userName: row.user_name as string,
-          userRole: row.user_role as string,
-          action: row.action as string,
-          targetType: row.target_type as string,
-          targetId: row.target_id as string,
-          details: row.details as string,
-          createdAt: row.created_at as string,
+        const mapped: AuditLogEntry[] = data.map((row: DbRow<'audit_logs'>) => ({
+          id: row.id,
+          userId: row.user_id ?? '',
+          userEmail: row.user_email ?? '',
+          userName: row.user_name ?? '',
+          userRole: row.user_role ?? '',
+          action: row.action,
+          targetType: row.target_type ?? '',
+          targetId: row.target_id ?? '',
+          details: row.details ?? '',
+          createdAt: row.created_at,
         }));
         setAuditLogs(mapped);
       }
@@ -485,7 +557,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           const { error } = await supabase.from('staff').insert(staffToRow(item.payload));
           if (!error) success = true;
         } else if (item.type === 'updateStaff') {
-          const row: Record<string, unknown> = {};
+          const row: DbUpdate<'staff'> = {};
           const u = item.payload.updates;
           if (u.name !== undefined) row.name = u.name;
           if (u.position !== undefined) row.position = u.position;
@@ -515,7 +587,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
             .single();
           if (!error && data) success = true;
         } else if (item.type === 'updateParent') {
-          const row: Record<string, unknown> = {};
+          const row: DbUpdate<'parents'> = {};
           const u = item.payload.updates;
           if (u.fullName !== undefined) row.full_name = u.fullName;
           if (u.phones !== undefined) row.phones = u.phones;
@@ -537,7 +609,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           });
           if (!error) success = true;
         } else if (item.type === 'updateTodo') {
-          const row: Record<string, unknown> = {};
+          const row: DbUpdate<'todos'> = {};
           if (item.payload.updates.text !== undefined) row.text = item.payload.updates.text;
           if (item.payload.updates.completed !== undefined) row.completed = item.payload.updates.completed;
           const { error } = await supabase.from('todos').update(row).eq('id', item.payload.id);
@@ -546,7 +618,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           const { error } = await supabase.from('todos').delete().eq('id', item.payload.id);
           if (!error) success = true;
         } else if (item.type === 'updateVendorExpense') {
-          const row: Record<string, unknown> = {};
+          const row: DbUpdate<'vendor_expenses'> = {};
           const u = item.payload.updates;
           if (u.vendorName !== undefined) row.vendor_name = u.vendorName;
           if (u.category !== undefined) row.category = u.category;
@@ -634,35 +706,36 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
         // Group payments by student_id
         const paymentsByStudent: Record<string, Payment[]> = {};
-        (paymentsRes.data || []).forEach((p: Record<string, unknown>) => {
-          const sid = p.student_id as string;
+        (paymentsRes.data || []).forEach((p: DbRow<'payments'>) => {
+          const sid = p.student_id;
+          if (!sid) return;
           if (!paymentsByStudent[sid]) paymentsByStudent[sid] = [];
           paymentsByStudent[sid].push({
-            date: p.date as string,
+            date: p.date,
             amount: Number(p.amount),
-            academicYear: (p.academic_year as string | null) || undefined,
-            receiptNumber: (p.receipt_number as string | null) || undefined,
+            academicYear: p.academic_year ?? undefined,
+            receiptNumber: p.receipt_number ?? undefined,
           });
         });
 
         // Map rows to app types
         setParents((parentsRes.data || []).map(mapParentRow));
-        setStudents((studentsRes.data || []).map((row: Record<string, unknown>) => 
-          mapStudentRow(row, paymentsByStudent[row.id as string] || [])
+        setStudents((studentsRes.data || []).map((row: DbRow<'students'>) => 
+          mapStudentRow(row, paymentsByStudent[row.id] || [])
         ));
         setStaff((staffRes.data || []).map(mapStaffRow));
         setSalaryPayments((salaryRes.data || []).map(mapSalaryPaymentRow));
         setExpenses((expensesRes.data || []).map(mapExpenseRow));
         setVendorExpenses((vendorRes.data || []).map(mapVendorExpenseRow));
         setTodos((todosRes.data || []).map(mapTodoRow));
-        setCustomClasses((customClassesRes.data || []).map((row: Record<string, unknown>) => ({
-          id: row.code as string,
-          rowId: row.id as string,
+        setCustomClasses((customClassesRes.data || []).map((row: DbRow<'custom_classes'>) => ({
+          id: row.code,
+          rowId: row.id,
           cycle: row.cycle as ClassCycle,
-          year: row.year as string,
-          section: row.section as string,
-          nameFr: row.name_fr as string,
-          nameEn: row.name_en as string,
+          year: row.year,
+          section: row.section,
+          nameFr: row.name_fr,
+          nameEn: row.name_en,
           isCustom: true,
         })));
       }, {
@@ -829,7 +902,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       notifySuccess('updateParent');
       return true;
     }
-    const row: Record<string, unknown> = {};
+    const row: DbUpdate<'parents'> = {};
     if (updates.fullName !== undefined) row.full_name = updates.fullName;
     if (updates.phones !== undefined) row.phones = updates.phones;
     if ('email' in updates) row.email = updates.email || null;
@@ -1012,7 +1085,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       notifySuccess('updateStaff');
       return true;
     }
-    const row: Record<string, unknown> = {};
+    const row: DbUpdate<'staff'> = {};
     if (updates.name !== undefined) row.name = updates.name;
     if (updates.position !== undefined) row.position = updates.position;
     if (updates.salary !== undefined) row.salary = updates.salary;
@@ -1141,7 +1214,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       notifySuccess('updateVendorExpense');
       return true;
     }
-    const row: Record<string, unknown> = {};
+    const row: DbUpdate<'vendor_expenses'> = {};
     if (updates.vendorName !== undefined) row.vendor_name = updates.vendorName;
     if (updates.category !== undefined) row.category = updates.category;
     if (updates.amount !== undefined) row.amount = updates.amount;
@@ -1207,7 +1280,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       enqueueOffline('updateTodo', { id, updates });
       return true;
     }
-    const row: Record<string, unknown> = {};
+    const row: DbUpdate<'todos'> = {};
     if (updates.text !== undefined) row.text = updates.text;
     if (updates.completed !== undefined) row.completed = updates.completed;
 
@@ -1321,15 +1394,15 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     const todayStr = new Date().toISOString().split('T')[0];
 
     const processBatch = async (
-      table: string,
-      rows: Record<string, unknown>[]
+      table: ImportTable,
+      rows: ImportableRow[]
     ): Promise<{ ok: number; err: number }> => {
       let ok = 0;
       let err = 0;
 
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
         const chunk = rows.slice(i, i + BATCH_SIZE);
-        const { data, error } = await supabase.from(table).insert(chunk).select();
+        const { data, error } = await (supabase.from(table) as unknown as InsertableBuilder).insert(chunk).select();
         if (error) {
           console.error(`[MAMA THERA] batchImport ${table} error:`, error.message);
           err += chunk.length;
@@ -1352,8 +1425,8 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           byNameGrade.set(`${s.name.toLowerCase().trim()}|${(s.grade || '').toLowerCase().trim()}`, s);
         });
 
-        const rows: Record<string, unknown>[] = [];
-        for (const r of records) {
+        const rows: DbInsert<'students'>[] = [];
+        for (const r of records as StudentRec[]) {
           const existing = (r.studentId ? byStudentId.get(String(r.studentId).toLowerCase().trim()) : undefined)
             || byNameGrade.get(`${String(r.name || '').toLowerCase().trim()}|${String(r.grade || '').toLowerCase().trim()}`);
 
@@ -1401,7 +1474,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
       } else if (category === 'payments') {
         // For payments, we need to match student names to IDs
-        for (const r of records) {
+        for (const r of records as PaymentRec[]) {
           const studentName = String(r.studentName || '');
           const matchedStudent = students.find(
             (s) => s.name.toLowerCase().trim() === studentName.toLowerCase().trim()
@@ -1443,14 +1516,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       } else if (category === 'parents') {
         const byKey = new Map<string, Parent>();
         parents.forEach(p => byKey.set(p.fullName.toLowerCase().trim(), p));
-        const rows: Record<string, unknown>[] = [];
-        for (const r of records) {
+        const rows: DbInsert<'parents'>[] = [];
+        for (const r of records as ParentRec[]) {
           const key = String(r.fullName || '').toLowerCase().trim();
           const existing = key ? byKey.get(key) : undefined;
           if (existing) {
             if (strategy === 'update') {
               const { error } = await supabase.from('parents').update({
-                phones: [r.phone1, r.phone2, ...(existing.phones || [])].filter(Boolean).slice(0, 2),
+                phones: [r.phone1, r.phone2, ...(existing.phones || [])].filter((p): p is string => Boolean(p)).slice(0, 2),
                 email: r.email ?? existing.email ?? null,
                 address: r.address ?? existing.address ?? '',
                 occupation: r.occupation ?? existing.occupation ?? '',
@@ -1465,7 +1538,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           } else {
             rows.push({
               full_name: r.fullName || '',
-              phones: [r.phone1, r.phone2].filter(Boolean),
+              phones: [r.phone1, r.phone2].filter((p): p is string => Boolean(p)),
               email: r.email || null,
               address: r.address || '',
               occupation: r.occupation || '',
@@ -1480,8 +1553,8 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       } else if (category === 'staff') {
         const byKey = new Map<string, Staff>();
         staff.forEach(s => byKey.set(s.name.toLowerCase().trim(), s));
-        const rows: Record<string, unknown>[] = [];
-        for (const r of records) {
+        const rows: DbInsert<'staff'>[] = [];
+        for (const r of records as StaffRec[]) {
           const key = String(r.name || '').toLowerCase().trim();
           const existing = key ? byKey.get(key) : undefined;
           if (existing) {
@@ -1520,8 +1593,8 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       } else if (category === 'expenses') {
         const byKey = new Map<string, Expense>();
         expenses.forEach(e => byKey.set(`${e.description.toLowerCase().trim()}|${e.date}|${e.amount}`, e));
-        const rows: Record<string, unknown>[] = [];
-        for (const r of records) {
+        const rows: DbInsert<'expenses'>[] = [];
+        for (const r of records as ExpenseRec[]) {
           const description = String(r.description || '').toLowerCase().trim();
           const amount = Number(r.amount) || 0;
           const date = r.date || todayStr;
