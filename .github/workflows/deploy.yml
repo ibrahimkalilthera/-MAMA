@@ -2,10 +2,13 @@ name: Deploy (Vercel)
 
 # Deploys to Vercel production on every push to `main`.
 #
-# The Vercel CLI is intentionally NOT a project dependency: it is installed
-# on-demand here (globally) so its `@vercel/*` transitive pins never enter
-# package.json / the lockfile. `vercel` was removed from devDependencies and
-# the old local `npm run deploy:prod` was retired in favour of this workflow.
+# The Vercel CLI is intentionally NOT a root dependency: it is pinned in
+# `tools/package.json` (its own lockfile) so its `@vercel/*` transitive pins
+# never enter the root package.json / lockfile. Dependabot watches `/tools`
+# and opens a reviewed PR whenever a new CLI ships — CI deploys with that
+# reviewed pin, so a broken CLI release only reaches production after its PR
+# merges. The old local `npm run deploy:prod` was retired in favour of this
+# workflow (see scripts/deploy-notice.mjs).
 #
 # Required repository secrets (Settings > Secrets and variables > Actions):
 #   VERCEL_TOKEN      — a Vercel access token (https://vercel.com/account/tokens)
@@ -52,14 +55,14 @@ jobs:
       - name: Tests
         run: npm test
 
-      - name: Install Vercel CLI (isolated — not a project dependency)
-        run: npm install -g vercel@latest
+      - name: Install deploy tooling (pinned Vercel CLI, watched by Dependabot)
+        run: npm ci --prefix tools
 
       - name: Pull Vercel production settings and environment
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: tools/node_modules/.bin/vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build app (Vite) and stage for Vercel
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: tools/node_modules/.bin/vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to production (prebuilt)
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: tools/node_modules/.bin/vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
