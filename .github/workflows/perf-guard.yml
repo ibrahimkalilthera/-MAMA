@@ -3,8 +3,10 @@ name: Quality & performance guard
 # Porte de qualité unique à chaque push sur main — remplace les deux anciens
 # workflows security-audit.yml (audit npm) et perf-guard.yml (Lighthouse) :
 #
-#   Job `quality`   : lint (ESLint no-explicit-any + tsc strict + câblage des
-#                     props), tests (node:test), puis le gate d'audit
+#   Job `quality`   : gate ESLint SANS WARNING (eslint --max-warnings 0 — le
+#                     moindre warning, même bénin, échoue le push), puis tsc
+#                     strict + câblage des props + gate des casts interdits,
+#                     tests (node:test), puis le gate d'audit
 #                     (scripts/check-audit.mjs) en deux volets :
 #                       1. Aucune vulnérabilité de PRODUCTION (les dépendances
 #                          runtime doivent être propres — tout ce qui est
@@ -53,8 +55,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (ESLint no-any/banned-comments + tsc strict + props wiring + forbidden casts)
-        run: npm run lint
+      - name: ESLint — zero-warning gate (any warning fails the push)
+        run: npx eslint . --max-warnings 0
+
+      - name: Typecheck strict + props wiring + forbidden casts
+        run: npx tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs
 
       - name: Tests
         run: npm test
