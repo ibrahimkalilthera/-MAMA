@@ -8,6 +8,7 @@ import type { CalendarEvent, CurrentTheme, ManagedClass, ParentForm, SalaryForm,
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useEscapeToClose } from '../lib/useEscapeToClose';
 
 /** Student add/edit form state (matches App.tsx). */
 export interface StudentForm {
@@ -209,6 +210,39 @@ export function AppModals(props: AppModalsProps) {
   const [parentClassFilter, setParentClassFilter] = useState('all');
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
   const { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, lang, newClassForm, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoInput, todos, toggleLanguage, toggleTodo, vendorExpenseForm, welcomeMessage } = props;
+
+  // Escape closes the topmost open overlay (keyboard consistency). The list
+  // below follows the JSX order: the LAST open entry is the visually topmost,
+  // and a single press closes exactly that one (stacked dialogs first).
+  const openOverlays: [boolean, () => void][] = [
+    [Boolean(selectedStudent), () => setSelectedStudent(null)],
+    [showStudentModal, () => setShowStudentModal(false)],
+    [showAddClassModal, () => setShowAddClassModal(false)],
+    [showEditClassModal, () => setShowEditClassModal(false)],
+    [showStaffModal, () => setShowStaffModal(false)],
+    [showExpenseModal, () => setShowExpenseModal(false)],
+    [showVendorExpenseModal, () => setShowVendorExpenseModal(false)],
+    [showSalaryModal, () => setShowSalaryModal(false)],
+    [showCalendarModal, () => setShowCalendarModal(false)],
+    [showTodoSidebar, () => setShowTodoSidebar(false)],
+    [showPaymentForm, () => setShowPaymentForm(false)],
+    [showAuditModal, () => setShowAuditModal(false)],
+    [Boolean(ticketStudent), () => setTicketStudent(null)],
+    [showParentModal, () => setShowParentModal(false)],
+    [showLinkStudentModal, () => setShowLinkStudentModal(false)],
+    [showNotifyModal, () => setShowNotifyModal(false)],
+  ];
+  useEscapeToClose(
+    openOverlays.some(([open]) => open),
+    () => {
+      for (let i = openOverlays.length - 1; i >= 0; i--) {
+        if (openOverlays[i][0]) {
+          openOverlays[i][1]();
+          return;
+        }
+      }
+    },
+  );
   return (
     <>
       {/* --- Parent Profile Modal --- */}

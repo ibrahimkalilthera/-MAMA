@@ -9,6 +9,7 @@ import { useAuth } from './lib/useAuth';
 import type { UserProfile } from './lib/useAuth';
 import { ToastContainer, OfflineBanner, EnvBadge } from './components/ToastNotification';
 import { useToast } from './lib/useToast';
+import { useEscapeToClose } from './lib/useEscapeToClose';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
@@ -875,6 +876,9 @@ export default function App() {
       ]);
     }
   }, [floatingChatMessages.length, t.helloIAmYourMamaTheraFinanceAssistantHowCanIAssistYouWithSchoolStatisticsTodayYouCanAskMeFinancialQuestionsOrClickOneOfTheQuickOptionsBelow]);
+
+  // Escape closes the floating chat panel (keyboard consistency with modals).
+  useEscapeToClose(isFloatingChatOpen, () => setIsFloatingChatOpen(false));
 
   const [ticketStudent, setTicketStudent] = useState<Student | null>(null);
 

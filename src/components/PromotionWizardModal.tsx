@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { Student } from '../lib/useSupabaseData';
 import { X, ArrowRight, CheckCircle2, GraduationCap, AlertCircle, RefreshCw, Layers, Users } from 'lucide-react';
 
@@ -151,6 +152,10 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
       }, 2000);
     }
   };
+
+  // Escape behaves like the cancel button — registered BEFORE the early
+  // return so the hook stays unconditional (rules of hooks).
+  useEscapeToClose(isOpen, onClose);
 
   if (!isOpen) return null;
 

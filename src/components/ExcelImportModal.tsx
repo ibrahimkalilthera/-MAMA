@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
+import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Upload,
@@ -71,6 +72,9 @@ export function ExcelImportModal({
   themeMuted = 'text-slate-400',
   themeIsDark = false,
 }: ExcelImportModalProps) {
+  // Escape behaves like the cancel button (mounted only while open).
+  useEscapeToClose(isOpen, onClose);
+
   // ── Wizard state ──
   const [step, setStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);

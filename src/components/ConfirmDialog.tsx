@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useEscapeToClose } from '../lib/useEscapeToClose';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -66,6 +67,9 @@ export function ConfirmDialog({
     setArmed(false);
     onCancel();
   };
+
+  // Escape behaves exactly like the cancel button (always mounted — `open` gates).
+  useEscapeToClose(open, handleCancel);
 
   return (
     <AnimatePresence>

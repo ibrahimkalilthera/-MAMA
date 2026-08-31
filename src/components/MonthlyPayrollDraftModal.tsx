@@ -1,4 +1,5 @@
 import React from 'react';
+import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
@@ -67,6 +68,9 @@ export function MonthlyPayrollDraftModal({
   themeIsDark,
   t,
 }: MonthlyPayrollDraftModalProps) {
+  // Escape behaves like the cancel button (mounted only while open).
+  useEscapeToClose(isOpen, onClose);
+
   if (!isOpen) return null;
 
   const isFr = lang === 'fr';

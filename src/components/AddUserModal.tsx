@@ -10,6 +10,7 @@ import { motion } from 'motion/react';
 import { UserPlus } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import type { UserProfile } from '../lib/useAuth';
+import { useEscapeToClose } from '../lib/useEscapeToClose';
 
 export interface NewUserForm {
   fullName: string;
@@ -59,6 +60,9 @@ export const AddUserModal = ({
 }: AddUserModalProps) => {
   const [newUserForm, setNewUserForm] = useState<NewUserForm>(EMPTY_FORM);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
+
+  // Escape behaves like the cancel button (mounted only while open).
+  useEscapeToClose(true, onClose);
 
   const handleCreateUser = async (e: FormEvent) => {
     e.preventDefault();
