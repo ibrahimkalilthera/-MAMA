@@ -144,7 +144,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
     setIsSubmitting(false);
 
     if (ok) {
-      setSuccessMessage(t.promotionSuccess.replace('{count}', promotionsList.length));
+      setSuccessMessage(t.promotionSuccess.replace('{count}', String(promotionsList.length)));
       setTimeout(() => {
         setSuccessMessage(null);
         onClose();

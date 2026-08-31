@@ -18,7 +18,7 @@ export function ExpensesView() {
                     {t.generalExpensesReport.replace('{year}', selectedYear)}
                     {vendorCategoryFilter !== 'all' && (
                       <span className="ml-2 px-2 py-0.5 bg-white/20 rounded font-bold">
-                        [{t.categoryWithValue.replace('{value}', t[vendorCategoryFilter] || vendorCategoryFilter)}]
+                        [{t.categoryWithValue.replace('{value}', (t as Record<string, string>)[vendorCategoryFilter] || vendorCategoryFilter)}]
                       </span>
                     )}
                   </p>
@@ -250,7 +250,7 @@ export function ExpensesView() {
                                     <td className="px-8 py-6">
                                       <span className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-700">
                                         {categoryIcon}
-                                        {t[v.category] || v.category}
+                                        {(t as Record<string, string>)[v.category] || v.category}
                                       </span>
                                     </td>
                                     <td className="px-8 py-6">
@@ -260,7 +260,7 @@ export function ExpensesView() {
                                           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                                             {v.aidType && (
                                               <span className="inline-block px-2 py-0.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-extrabold rounded-md text-[10px] tracking-wider uppercase">
-                                                ❤️ {t[v.aidType] || v.aidType}
+                                                ❤️ {(t as Record<string, string>)[v.aidType] || v.aidType}
                                               </span>
                                             )}
                                             {v.beneficiaryStudentName && (

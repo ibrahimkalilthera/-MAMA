@@ -19,7 +19,7 @@ if (isPlaceholder(rawUrl) || isPlaceholder(rawKey)) {
   );
 }
 
-export const supabase = createClient(rawUrl, rawKey, {
+export const supabase = createClient(rawUrl!, rawKey!, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,

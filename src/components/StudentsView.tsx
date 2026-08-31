@@ -156,7 +156,7 @@ export function StudentsView() {
                         <td className={`px-8 py-6 text-sm font-bold ${currentTheme.muted}`}>
                           <div className="flex flex-col">
                             <span>{formatCurrency(student.totalDue)}</span>
-                            {student.scholarshipDiscount > 0 && (
+                            {(student.scholarshipDiscount || 0) > 0 && (
                               <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">-{student.scholarshipDiscount}% {t.scholarship}</span>
                             )}
                           </div>

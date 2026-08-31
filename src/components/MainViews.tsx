@@ -123,6 +123,17 @@ export interface ParentLedgerEntry {
   academicYear?: string;
 }
 
+export interface ThemeOption {
+  id: ThemeId;
+  label: string;
+  color: string;
+}
+
+export interface RoleTab {
+  id: 'all' | 'admin' | 'staff';
+  label: string;
+}
+
 const DashboardCharts = lazy(() => import('./DashboardCharts').then(m => ({ default: m.DashboardCharts })));
 const DashboardView = lazy(() => import('./DashboardView').then(m => ({ default: m.DashboardView })));
 const StudentsView = lazy(() => import('./StudentsView').then(m => ({ default: m.StudentsView })));
@@ -636,14 +647,14 @@ export function MainViews(props: MainViewsProps) {
                 <div className="space-y-4 pt-4 border-t border-slate-100">
                   <h4 className={`text-sm font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.themeSettings}</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {[
+                    {([
                       { id: 'navy', label: t.corporateNavy, color: 'bg-[#0f172a]' },
                       { id: 'emerald', label: t.emeraldGreen, color: 'bg-[#064E3B]' },
                       { id: 'cream', label: t.warmCreamLedger, color: 'bg-[#FDFBF7]' },
                       { id: 'bordeaux', label: t.bordeauxRed, color: 'bg-[#881337]' },
                       { id: 'slate', label: t.slateSlate, color: 'bg-[#1E293B]' },
                       { id: 'midnight', label: t.midnightDark, color: 'bg-[#030712]' }
-                    ].map((tOption: { id: ThemeId; label: string; color: string }) => (
+                    ] as ThemeOption[]).map((tOption) => (
                       <button
                         key={tOption.id}
                         onClick={() => setTheme(tOption.id)}
@@ -971,11 +982,11 @@ export function MainViews(props: MainViewsProps) {
                     </div>
 
                     <div className="flex items-center gap-1 p-1 bg-white/5 rounded-xl border border-white/10 self-start">
-                      {[
+                      {([
                         { id: 'all', label: t.all },
                         { id: 'admin', label: 'Admins' },
                         { id: 'staff', label: t.staff2 },
-                      ].map((tab: { id: 'all' | 'admin' | 'staff'; label: string }) => (
+                      ] as RoleTab[]).map((tab) => (
                         <button
                           key={tab.id}
                           onClick={() => setUserRoleFilter(tab.id)}

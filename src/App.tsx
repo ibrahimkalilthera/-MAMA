@@ -103,6 +103,7 @@ import {
 import { translations } from './i18n/translations';
 import { DEFAULT_SCHOOL_CLASSES } from './app/types';
 import type { Language, User, Payment, Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, SchoolClass } from './app/types';
+import type { CalendarEvent } from './components/MainViews';
 
 
 // --- Components ---
@@ -226,7 +227,7 @@ export default function App() {
       toast.error(`${formatted.title}: ${formatted.message}`);
     },
     onRetry: (attempt) => {
-      toast.retrying(t.retryingConnection.replace('{n}', attempt));
+      toast.retrying(t.retryingConnection.replace('{n}', String(attempt)));
     },
   });
 
@@ -1630,11 +1631,12 @@ export default function App() {
       scholarshipDiscount: isPromoter
         ? (parseFloat(studentForm.scholarshipDiscount) || 0)
         : (editingStudent?.scholarshipDiscount || 0),
+      notes: editingStudent?.notes || '',
     };
 
     const savedStudent = editingStudent
       ? await updateStudent(editingStudent.id, studentData)
-      : await addStudent({ ...studentData, amountPaid: 0, payments: [] });
+      : await addStudent({ ...studentData, amountPaid: 0 });
     if (!savedStudent) return;
 
     setShowStudentModal(false);
@@ -2275,7 +2277,7 @@ export default function App() {
   };
 
   const deleteTodo = async (id: string) => {
-    await deleteTodoItem(id);
+    return deleteTodoItem(id);
   };
 
   const handleLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -2473,9 +2475,9 @@ export default function App() {
 
   const getDaysInMonth = (date: Date) => getCalendarDays(date);
 
-  const getEventsForDay = (date: Date) => {
+  const getEventsForDay = (date: Date): CalendarEvent[] => {
     const dateStr = date.toISOString().split('T')[0];
-    const dayEvents = [];
+    const dayEvents: CalendarEvent[] = [];
     
     // Student Due Dates
     const dueStudents = students.filter(s => s.dueDate === dateStr);
@@ -2740,7 +2742,26 @@ export default function App() {
             <button 
               onClick={() => {
                 setEditingStudent(null);
-                setStudentForm({ name: '', parentName: '', parentEmail: '', parentPhone: '', totalDue: '', dueDate: new Date().toISOString().split('T')[0] });
+                setStudentForm({
+                  name: '',
+                  parentName: '',
+                  parentEmail: '',
+                  parentPhone: '',
+                  totalDue: '',
+                  scholarshipDiscount: '0',
+                  dueDate: new Date().toISOString().split('T')[0],
+                  academicYear: selectedYear || '2024-2025',
+                  grade: '',
+                  studentId: '',
+                  photo: '',
+                  emergencyContactName: '',
+                  emergencyContactRelation: '',
+                  emergencyContactPhone: '',
+                  medicalNotes: 'None',
+                  enrollmentDate: new Date().toISOString().split('T')[0],
+                  previousSchool: '',
+                  status: 'Active'
+                });
                 setShowStudentModal(true);
               }}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition-all font-bold text-xs"
@@ -2974,7 +2995,26 @@ export default function App() {
               <button 
                 onClick={() => {
                   setEditingStudent(null);
-                  setStudentForm({ name: '', parentName: '', parentEmail: '', parentPhone: '', totalDue: '', dueDate: new Date().toISOString().split('T')[0] });
+                  setStudentForm({
+                    name: '',
+                    parentName: '',
+                    parentEmail: '',
+                    parentPhone: '',
+                    totalDue: '',
+                    scholarshipDiscount: '0',
+                    dueDate: new Date().toISOString().split('T')[0],
+                    academicYear: selectedYear || '2024-2025',
+                    grade: '',
+                    studentId: '',
+                    photo: '',
+                    emergencyContactName: '',
+                    emergencyContactRelation: '',
+                    emergencyContactPhone: '',
+                    medicalNotes: 'None',
+                    enrollmentDate: new Date().toISOString().split('T')[0],
+                    previousSchool: '',
+                    status: 'Active'
+                  });
                   setShowStudentModal(true);
                 }}
                 className={`${currentTheme.accentBg} text-white px-5 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}

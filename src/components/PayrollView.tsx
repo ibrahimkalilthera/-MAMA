@@ -68,7 +68,7 @@ export function PayrollView() {
                   const currentCalendarYear = new Date().getFullYear();
                   const currentCalendarMonth = new Date().getMonth();
                   const isFuture = index > currentCalendarMonth;
-                  const monthName = t[monthKey];
+                  const monthName = (t as Record<string, string>)[monthKey];
 
                   // calculate payroll status for this month
                   const monthPayments = salaryPayments.filter(p => {
