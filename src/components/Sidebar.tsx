@@ -57,7 +57,7 @@ export function Sidebar(props: SidebarProps) {
     `nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === tab ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`;
 
   return (
-    <aside className="w-64 text-white fixed h-full z-40 hidden lg:flex flex-col transition-colors duration-300" style={{ background: 'linear-gradient(180deg, #0C1222 0%, #111827 50%, #0F172A 100%)' }}>
+    <aside className="app-sidebar w-64 text-white fixed h-full z-40 hidden lg:flex flex-col transition-colors duration-300" style={{ background: 'linear-gradient(180deg, #0C1222 0%, #111827 50%, #0F172A 100%)' }}>
       <div className="p-6 pb-4" style={{ backgroundColor: 'transparent' }}>
         <div className="flex items-center gap-3 mb-1">
           {schoolLogo ? (

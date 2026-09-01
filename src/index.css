@@ -468,41 +468,45 @@ textarea:focus-visible {
   color: #FFFFFF !important;
 }
 
-/* Sidebar High-Contrast Text Protection across all themes */
-aside,
-aside h1,
-aside h2,
-aside h3,
-aside h4,
-aside p,
-aside span,
-aside button,
-.theme-cream aside,
-.theme-cream aside h1,
-.theme-cream aside h2,
-.theme-cream aside h3,
-.theme-cream aside h4,
-.theme-cream aside p,
-.theme-cream aside span,
-.theme-cream aside button {
+/* Sidebar High-Contrast Text Protection across all themes.
+   Scoped to .app-sidebar (the nav rail in Sidebar.tsx) — NOT the bare `aside`
+   tag: the Productivité panel is also a <motion.aside> and follows the theme
+   tokens (white card, dark text). The old unscoped selectors forced
+   `color:#FFFFFF !important` onto it, making the AI-tab text white-on-white. */
+.app-sidebar,
+.app-sidebar h1,
+.app-sidebar h2,
+.app-sidebar h3,
+.app-sidebar h4,
+.app-sidebar p,
+.app-sidebar span,
+.app-sidebar button,
+.theme-cream .app-sidebar,
+.theme-cream .app-sidebar h1,
+.theme-cream .app-sidebar h2,
+.theme-cream .app-sidebar h3,
+.theme-cream .app-sidebar h4,
+.theme-cream .app-sidebar p,
+.theme-cream .app-sidebar span,
+.theme-cream .app-sidebar button {
   color: #FFFFFF !important;
 }
 
-aside .text-white\/40,
-aside .text-white\/50,
-aside .text-white\/60,
-.theme-cream aside .text-white\/40,
-.theme-cream aside .text-white\/50,
-.theme-cream aside .text-white\/60 {
+.app-sidebar .text-white\/40,
+.app-sidebar .text-white\/50,
+.app-sidebar .text-white\/60,
+.theme-cream .app-sidebar .text-white\/40,
+.theme-cream .app-sidebar .text-white\/50,
+.theme-cream .app-sidebar .text-white\/60 {
   color: rgba(255, 255, 255, 0.65) !important;
 }
 
-aside .text-white\/70,
-aside .text-white\/80,
-aside .text-white\/90,
-.theme-cream aside .text-white\/70,
-.theme-cream aside .text-white\/80,
-.theme-cream aside .text-white\/90 {
+.app-sidebar .text-white\/70,
+.app-sidebar .text-white\/80,
+.app-sidebar .text-white\/90,
+.theme-cream .app-sidebar .text-white\/70,
+.theme-cream .app-sidebar .text-white\/80,
+.theme-cream .app-sidebar .text-white\/90 {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
