@@ -13,6 +13,7 @@ import { FloatingChat } from './components/FloatingChat';
 import { useAuthWelcome } from './app/useAuthWelcome';
 import { useTodoSidebar } from './app/useTodoSidebar';
 import { useParents } from './app/useParents';
+import { usePayments } from './app/usePayments';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
@@ -107,8 +108,8 @@ import {
 } from 'lucide-react';
 import { translations } from './i18n/translations';
 import { DEFAULT_SCHOOL_CLASSES } from './app/types';
-import type { Language, User, Payment, Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, SchoolClass } from './app/types';
-import type { CalendarEvent, ManagedClass, ThemeId } from './app/mainViewsProps';
+import type { Language, User, Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, SchoolClass } from './app/types';
+import type { ManagedClass, ThemeId } from './app/mainViewsProps';
 
 
 // --- Components ---
@@ -224,7 +225,6 @@ export default function App() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -301,7 +301,6 @@ export default function App() {
   const [staffSearchTerm, setStaffSearchTerm] = useState('');
   const [visibleBankDetails, setVisibleBankDetails] = useState<Record<string, boolean>>({});
   const [calendarDate, setCalendarDate] = useState(new Date());
-  const [selectedCalendarDay, setSelectedCalendarDay] = useState<Date | null>(null);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ category: 'Other', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
   const [vendorExpenseForm, setVendorExpenseForm] = useState({ 
@@ -363,11 +362,6 @@ export default function App() {
   const [studentDetailTab, setStudentDetailTab] = useState<'general' | 'parent' | 'medical'>('general');
   // State for triggering A4 student file printout
   const [printStudentFile, setPrintStudentFile] = useState<Student | null>(null);
-
-  // Payment Form State
-  const [paymentStudentId, setPaymentStudentId] = useState('');
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
 
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = new Date().getMonth();
@@ -985,49 +979,6 @@ export default function App() {
     showToast();
   };
 
-  const handlePaymentSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
-      return;
-    }
-    if (!paymentStudentId || !paymentAmount) return;
-
-    const amount = parseFloat(paymentAmount);
-    const targetStudent = students.find(s => s.id === paymentStudentId);
-    const receiptNo = `REC-${Date.now().toString().slice(-6)}`;
-
-    const newPayment = {
-      date: paymentDate,
-      amount,
-      academicYear: targetStudent?.academicYear || selectedYear,
-      receiptNumber: receiptNo,
-    };
-
-    await addPayment(paymentStudentId, newPayment);
-
-    // Auto-generate printable PDF receipt
-    if (targetStudent) {
-      try {
-        await generatePaymentReceiptPdf({
-          student: {
-            ...targetStudent,
-            amountPaid: targetStudent.amountPaid + amount,
-          },
-          payment: newPayment,
-          lang,
-          cashierName: currentUser?.name || 'Administration',
-        });
-      } catch (pdfErr) {
-        console.error('PDF receipt generation error:', pdfErr);
-      }
-    }
-
-    setPaymentStudentId('');
-    setPaymentAmount('');
-    setShowPaymentForm(false);
-  };
-
   const handleUpdateRole = async (targetProfile: UserProfile, newRole: 'admin' | 'staff' | 'dev') => {
     if (targetProfile.role === newRole) return;
     setUpdatingUserId(targetProfile.id);
@@ -1548,6 +1499,18 @@ export default function App() {
     setConfirmAction,
   });
 
+const {
+  showPaymentForm, setShowPaymentForm,
+  selectedCalendarDay, setSelectedCalendarDay,
+  paymentStudentId, setPaymentStudentId,
+  paymentAmount, setPaymentAmount,
+  paymentDate, setPaymentDate,
+  handlePaymentSubmit,
+  getEventsForDay,
+} = usePayments({
+  t, lang, selectedYear, lockedYears, students, staff, expenses, currentUser,
+  addPayment,
+});
 
   const formatDate = (dateStr: string) => formatDateLang(dateStr, lang);
 
@@ -1686,46 +1649,6 @@ export default function App() {
   };
 
   const getDaysInMonth = (date: Date) => getCalendarDays(date);
-
-  const getEventsForDay = (date: Date): CalendarEvent[] => {
-    const dateStr = date.toISOString().split('T')[0];
-    const dayEvents: CalendarEvent[] = [];
-    
-    // Student Due Dates
-    const dueStudents = students.filter(s => s.dueDate === dateStr);
-    if (dueStudents.length > 0) {
-      dayEvents.push({ 
-        type: 'due', 
-        count: dueStudents.length, 
-        label: `${dueStudents.length} ${t.navStudents} ${t.totalOutstanding}`,
-        details: dueStudents.map(s => ({ name: s.name, amount: s.totalDue - s.amountPaid }))
-      });
-    }
-    
-    // Salary Dates (Assuming 25th of each month if not specified, or use a fixed date for demo)
-    // For this app, let's say staff are paid on the 25th
-    if (date.getDate() === 25) {
-      dayEvents.push({ 
-        type: 'salary', 
-        count: staff.length, 
-        label: `${staff.length} ${t.navPayroll}`,
-        details: staff.map(s => ({ name: s.name, amount: s.salary }))
-      });
-    }
-    
-    // Expenses
-    const dayExpenses = expenses.filter(e => e.date === dateStr);
-    if (dayExpenses.length > 0) {
-      dayEvents.push({ 
-        type: 'expense', 
-        count: dayExpenses.length, 
-        label: `${dayExpenses.length} ${t.navExpenses}`,
-        details: dayExpenses.map(e => ({ name: e.description || e.category, amount: e.amount }))
-      });
-    }
-    
-    return dayEvents;
-  };
 
   const changeMonth = (offset: number) => {
     const newDate = new Date(calendarDate);
