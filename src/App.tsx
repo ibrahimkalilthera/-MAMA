@@ -17,6 +17,7 @@ import { usePayments } from './app/usePayments';
 import { usePayroll } from './app/usePayroll';
 import { useClasses } from './app/useClasses';
 import { useDashboard } from './app/useDashboard';
+import { useExports } from './app/useExports';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
@@ -581,85 +582,6 @@ export default function App() {
 
   // --- Handlers ---
 
-  const handleExport = async () => {
-    const XLSX = await import('xlsx');
-    const data = lateStudents.map(s => ({
-      [t.studentName]: s.name,
-      [t.parentName]: s.parentName,
-      [t.parentEmail]: s.parentEmail,
-      [t.parentPhone]: s.parentPhone,
-      [t.totalDue]: s.totalDue,
-      [t.balance]: s.totalDue - s.amountPaid,
-      'Due Date': s.dueDate
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Late Payments");
-    XLSX.writeFile(wb, "Late_Payments_Report.xlsx");
-  };
-
-  const handleExportAllData = async () => {
-    const XLSX = await import('xlsx');
-    const wb = XLSX.utils.book_new();
-    
-    // Students
-    const studentData = students.map(s => ({
-      ID: s.id,
-      Name: s.name,
-      Parent: s.parentName,
-      Email: s.parentEmail,
-      Phone: s.parentPhone,
-      'Total Due': s.totalDue,
-      'Scholarship %': s.scholarshipDiscount || 0,
-      'Amount Paid': s.amountPaid,
-      'Balance': (s.totalDue * (1 - (s.scholarshipDiscount || 0) / 100)) - s.amountPaid,
-      'Due Date': s.dueDate,
-      'Academic Year': s.academicYear || 'N/A'
-    }));
-    const wsStudents = XLSX.utils.json_to_sheet(studentData);
-    XLSX.utils.book_append_sheet(wb, wsStudents, "Students");
-
-    // Staff
-    const staffData = staff.map(s => ({
-      ID: s.id,
-      Name: s.name,
-      Position: s.position,
-      Salary: s.salary,
-      Email: s.email,
-      Phone: s.phone,
-      'Academic Year': s.academicYear || 'N/A'
-    }));
-    const wsStaff = XLSX.utils.json_to_sheet(staffData);
-    XLSX.utils.book_append_sheet(wb, wsStaff, "Staff");
-
-    // Expenses
-    const expenseData = expenses.map(e => ({
-      ID: e.id,
-      Category: e.category,
-      Description: e.description,
-      Amount: e.amount,
-      Date: e.date,
-      'Academic Year': e.academicYear || 'N/A'
-    }));
-    const wsExpenses = XLSX.utils.json_to_sheet(expenseData);
-    XLSX.utils.book_append_sheet(wb, wsExpenses, "Expenses");
-
-    // Salary Payments
-    const salaryData = salaryPayments.map(p => ({
-      ID: p.id,
-      'Staff ID': p.staffId,
-      Amount: p.amount,
-      Date: p.date,
-      'Academic Year': p.academicYear || 'N/A'
-    }));
-    const wsSalary = XLSX.utils.json_to_sheet(salaryData);
-    XLSX.utils.book_append_sheet(wb, wsSalary, "Salary Payments");
-
-    XLSX.writeFile(wb, "School_Data_Backup.xlsx");
-    showToast();
-  };
-
   const handleUpdateRole = async (targetProfile: UserProfile, newRole: 'admin' | 'staff' | 'dev') => {
     if (targetProfile.role === newRole) return;
     setUpdatingUserId(targetProfile.id);
@@ -1066,6 +988,16 @@ export default function App() {
     setTimeout(() => setShowSuccessToast(false), 3000);
   };
 
+  const {
+    handleExport,
+    handleExportAllData,
+    handlePrint,
+  } = useExports({
+    t, lateStudents,
+    students, staff, expenses, salaryPayments,
+    showToast,
+  });
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -1220,10 +1152,6 @@ const {
     const newDate = new Date(calendarDate);
     newDate.setMonth(newDate.getMonth() + offset);
     setCalendarDate(newDate);
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   const getMonthName = (monthIndex: number) => getMonthNameImpl(monthIndex, t);
