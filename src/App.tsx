@@ -21,6 +21,7 @@ import { useExports } from './app/useExports';
 import { useTheme } from './app/useTheme';
 import { useStudents } from './app/useStudents';
 import { useExpenses } from './app/useExpenses';
+import { useUsers } from './app/useUsers';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
@@ -141,11 +142,6 @@ export default function App() {
     }, 0);
   };
 
-  const [showAddUserModal, setShowAddUserModal] = useState(false);
-  const [userSearchTerm, setUserSearchTerm] = useState('');
-  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'admin' | 'staff' | 'dev'>('all');
-  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
-
   // Data is now fetched from Supabase via the useSupabaseData hook
   // Toast notifications provide user-facing feedback for all database operations
   const toast = useToast();
@@ -242,6 +238,22 @@ export default function App() {
     userProfiles, setUserProfiles,
     welcomeMessage, setWelcomeMessage,
   } = useAuthWelcome({ t, activeTab, setActiveTab });
+
+  // Users/settings domain (add-user modal, role management, password reset) —
+  // extracted to src/app/useUsers.ts.
+  const {
+    showAddUserModal, setShowAddUserModal,
+    userSearchTerm, setUserSearchTerm,
+    userRoleFilter, setUserRoleFilter,
+    updatingUserId, setUpdatingUserId,
+    handleUpdateRole,
+    handleToggleRole,
+    handleSendPasswordReset,
+  } = useUsers({
+    t, auth, userProfiles, setUserProfiles,
+    toast,
+  });
+
   const [selectedYear, setSelectedYear] = useState<string>('2026-2027');
   const [lockedYears, setLockedYears] = useState<string[]>([]);
   const [showAuditModal, setShowAuditModal] = useState(false);
@@ -368,34 +380,6 @@ export default function App() {
   });
 
   // --- Handlers ---
-
-  const handleUpdateRole = async (targetProfile: UserProfile, newRole: 'admin' | 'staff' | 'dev') => {
-    if (targetProfile.role === newRole) return;
-    setUpdatingUserId(targetProfile.id);
-    const ok = await auth.updateUserRole(targetProfile.id, newRole);
-    if (ok) {
-      setUserProfiles(prev => prev.map(p => p.id === targetProfile.id ? { ...p, role: newRole } : p));
-      const roleLabel = newRole === 'admin' ? t.roleAdminPromoter : newRole === 'dev' ? t.roleDeveloper : t.roleStaffAccountant;
-      toast.success(t.roleUpdated.replace('{name}', targetProfile.fullName).replace('{role}', roleLabel));
-    } else {
-      toast.error(t.failedToUpdateRole);
-    }
-    setUpdatingUserId(null);
-  };
-
-  const handleToggleRole = async (targetProfile: UserProfile) => {
-    const newRole = targetProfile.role === 'admin' ? 'staff' : 'admin';
-    await handleUpdateRole(targetProfile, newRole);
-  };
-
-  const handleSendPasswordReset = async (email: string) => {
-    const res = await auth.sendPasswordReset(email);
-    if (res.success) {
-      toast.success(t.passwordResetEmailSent.replace('{email}', email));
-    } else {
-      toast.error(res.error || (t.failedToSendResetEmail));
-    }
-  };
 
   const generateInstallmentMemo = (staffId: string, amount: number) => {
     const s = staff.find(st => st.id === staffId);
