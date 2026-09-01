@@ -73,7 +73,10 @@ export function MonthlyPayrollDraftModal({
   useEscapeToClose(isOpen, onClose);
   // Tab is confined to the draft sheet; focus returns to the trigger on close.
   const rootRef = useRef<HTMLDivElement | null>(null);
-  useFocusTrap(isOpen, () => rootRef.current);
+  // The first focusable is the month selector (the ✕ sits after it): declare
+  // the month picker as the explicit initial focus — the modal's primary
+  // control — so the intent survives any DOM reordering.
+  useFocusTrap(isOpen, () => rootRef.current, 'select');
 
   if (!isOpen) return null;
 
@@ -131,7 +134,7 @@ export function MonthlyPayrollDraftModal({
 
   return (
     <AnimatePresence>
-      <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.monthlyPayrollDisbursementDraft} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in no-print">
+      <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.monthlyPayrollDisbursementDraft} aria-labelledby="modal-title-payroll-draft" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in no-print">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -145,7 +148,7 @@ export function MonthlyPayrollDraftModal({
                 <FileText size={24} />
               </div>
               <div>
-                <h3 className="font-extrabold text-lg sm:text-xl tracking-tight">
+                <h3 id="modal-title-payroll-draft" className="font-extrabold text-lg sm:text-xl tracking-tight">
                   {t.monthlyPayrollDisbursementDraft}
                 </h3>
                 <p className="text-xs text-white/60 font-medium mt-0.5">

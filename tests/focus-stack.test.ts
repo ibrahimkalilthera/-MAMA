@@ -28,15 +28,20 @@ class FakeFocusable implements TrappedElement {
 
 class FakeContainer implements TrapContainer {
   readonly items: FakeFocusable[];
+  private readonly bySelector: Record<string, FakeFocusable>;
   private _focusCalls = 0;
-  constructor(items: FakeFocusable[] = []) {
+  constructor(items: FakeFocusable[] = [], bySelector: Record<string, FakeFocusable> = {}) {
     this.items = items;
+    this.bySelector = bySelector;
   }
   get focusCalls(): number {
     return this._focusCalls;
   }
   querySelectorAll(): FakeFocusable[] {
     return this.items;
+  }
+  querySelector(selector: string): FakeFocusable | null {
+    return this.bySelector[selector] ?? null;
   }
   contains(node: unknown): boolean {
     return node === this || this.items.includes(node as FakeFocusable);
@@ -171,6 +176,40 @@ describe('focus-stack — lifecycle', () => {
       popFocusTrap(id);
       assert.equal(inside.focusCalls, 0, 'nothing to restore — restoreTo was inside the overlay');
     });
+  });
+
+  it('focuses the explicit selector target instead of the first focusable', () => {
+    const [a, b] = [new FakeFocusable(), new FakeFocusable()];
+    const container = new FakeContainer([a, b], { 'input[type="text"]': b });
+    const id = pushFocusTrap(() => container, 'input[type="text"]');
+    assert.equal(b.focusCalls, 1, 'the selector target receives focus');
+    assert.equal(a.focusCalls, 0, 'the first DOM focusable is skipped');
+    popFocusTrap(id);
+  });
+
+  it('focuses the explicit function target (resolver form)', () => {
+    const [a, b] = [new FakeFocusable(), new FakeFocusable()];
+    const container = new FakeContainer([a, b]);
+    const id = pushFocusTrap(() => container, (c) => c?.querySelector('missing') ?? b);
+    assert.equal(b.focusCalls, 1, 'the resolver return value receives focus');
+    assert.equal(a.focusCalls, 0);
+    popFocusTrap(id);
+  });
+
+  it('falls back to the first focusable when the explicit target is missing', () => {
+    const [a] = [new FakeFocusable()];
+    const container = new FakeContainer([a]);
+    const id = pushFocusTrap(() => container, 'input[type="text"]');
+    assert.equal(a.focusCalls, 1, 'no match → first focusable, as before');
+    popFocusTrap(id);
+  });
+
+  it('ignores a throwing initialFocus resolver (never breaks the trap)', () => {
+    const [a] = [new FakeFocusable()];
+    const container = new FakeContainer([a]);
+    const id = pushFocusTrap(() => container, () => { throw new Error('boom'); });
+    assert.equal(a.focusCalls, 1, 'graceful fallback to the first focusable');
+    popFocusTrap(id);
   });
 
   it('closing the top overlay pulls focus into the next one when the trigger is gone', () => {

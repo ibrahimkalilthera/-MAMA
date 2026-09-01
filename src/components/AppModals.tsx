@@ -336,7 +336,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Parent Profile Modal --- */}
       <AnimatePresence>
         {selectedStudent && (
-          <div ref={(el) => { overlayRoots.current[0] = el; }} role="dialog" aria-modal="true" aria-label={t.studentDetails} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[0] = el; }} role="dialog" aria-modal="true" aria-label={t.studentDetails} aria-labelledby="modal-title-student-details" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -387,7 +387,7 @@ export function AppModals(props: AppModalsProps) {
                       <span className={`text-[10px] ${currentTheme.muted} font-black uppercase tracking-widest font-mono`}>
                         ID: {selectedStudent.studentId || '—'}
                       </span>
-                      <h3 className={`text-2xl font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} tracking-tight`}>
+                      <h3 id="modal-title-student-details" className={`text-2xl font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} tracking-tight`}>
                         {selectedStudent.name}
                       </h3>
                     </div>
@@ -674,7 +674,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Student Add/Edit Modal --- */}
       <AnimatePresence>
         {showStudentModal && (
-          <div ref={(el) => { overlayRoots.current[1] = el; }} role="dialog" aria-modal="true" aria-label={editingStudent ? t.editStudent : t.addStudent} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[1] = el; }} role="dialog" aria-modal="true" aria-label={editingStudent ? t.editStudent : t.addStudent} aria-labelledby="modal-title-student-form" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -689,7 +689,7 @@ export function AppModals(props: AppModalsProps) {
               className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
             >
               <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h2 className="text-xl font-bold flex items-center gap-3">
+                <h2 id="modal-title-student-form" className="text-xl font-bold flex items-center gap-3">
                   <Users size={24} className="text-blue-400" />
                   {editingStudent ? t.editStudent : t.addStudent}
                 </h2>
@@ -1024,7 +1024,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Add New Class / Section Modal --- */}
       <AnimatePresence>
         {showAddClassModal && (
-          <div ref={(el) => { overlayRoots.current[2] = el; }} role="dialog" aria-modal="true" aria-label={t.addClass} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[2] = el; }} role="dialog" aria-modal="true" aria-label={t.addClass} aria-labelledby="modal-title-add-class" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1039,7 +1039,7 @@ export function AppModals(props: AppModalsProps) {
               className={`relative ${currentTheme.card} w-full max-w-md rounded-[2.5rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
             >
               <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h3 className="text-lg font-bold flex items-center gap-2.5">
+                <h3 id="modal-title-add-class" className="text-lg font-bold flex items-center gap-2.5">
                   <Layers size={20} className="text-blue-400" />
                   <span>{t.addClass}</span>
                 </h3>
@@ -1191,7 +1191,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Edit Custom Class Modal --- */}
       <AnimatePresence>
         {showEditClassModal && (
-          <div ref={(el) => { overlayRoots.current[3] = el; }} role="dialog" aria-modal="true" aria-label={t.editClassSection} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[3] = el; }} role="dialog" aria-modal="true" aria-label={t.editClassSection} aria-labelledby="modal-title-edit-class" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1206,7 +1206,7 @@ export function AppModals(props: AppModalsProps) {
               className={`relative ${currentTheme.card} w-full max-w-md rounded-[2.5rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
             >
               <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h3 className="text-lg font-bold flex items-center gap-2.5">
+                <h3 id="modal-title-edit-class" className="text-lg font-bold flex items-center gap-2.5">
                   <Layers size={20} className="text-blue-400" />
                   <span>{t.editClassSection}</span>
                 </h3>
@@ -1358,7 +1358,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Staff Add/Edit Modal --- */}
       <AnimatePresence>
         {showStaffModal && (
-          <div ref={(el) => { overlayRoots.current[4] = el; }} role="dialog" aria-modal="true" aria-label={editingStaff ? t.editStaff : t.addStaff} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[4] = el; }} role="dialog" aria-modal="true" aria-label={editingStaff ? t.editStaff : t.addStaff} aria-labelledby="modal-title-staff-form" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1373,7 +1373,7 @@ export function AppModals(props: AppModalsProps) {
               className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
             >
               <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h2 className="text-xl font-bold flex items-center gap-3">
+                <h2 id="modal-title-staff-form" className="text-xl font-bold flex items-center gap-3">
                   <Briefcase size={24} className="text-blue-400" />
                   {editingStaff ? t.editStaff : t.addStaff}
                 </h2>
@@ -1479,7 +1479,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Expense Modal --- */}
       <AnimatePresence>
         {showExpenseModal && (
-          <div ref={(el) => { overlayRoots.current[5] = el; }} role="dialog" aria-modal="true" aria-label={t.addExpense} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[5] = el; }} role="dialog" aria-modal="true" aria-label={t.addExpense} aria-labelledby="modal-title-add-expense" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1494,7 +1494,7 @@ export function AppModals(props: AppModalsProps) {
               className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
             >
               <div className="p-8 border-b border-rose-100 flex justify-between items-center bg-rose-600 text-white">
-                <h2 className="text-xl font-bold flex items-center gap-3">
+                <h2 id="modal-title-add-expense" className="text-xl font-bold flex items-center gap-3">
                   <Receipt size={24} />
                   {t.addExpense}
                 </h2>
@@ -1563,7 +1563,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Vendor Expense Modal --- */}
       <AnimatePresence>
         {showVendorExpenseModal && (
-          <div ref={(el) => { overlayRoots.current[6] = el; }} role="dialog" aria-modal="true" aria-label={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[6] = el; }} role="dialog" aria-modal="true" aria-label={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense} aria-labelledby="modal-title-vendor-expense-form" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1581,7 +1581,7 @@ export function AppModals(props: AppModalsProps) {
               className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
             >
               <div className={`p-8 border-b ${currentTheme.border} flex justify-between items-center ${currentTheme.isDark ? 'bg-emerald-800' : 'bg-blue-600'} text-white`}>
-                <h2 className="text-xl font-bold flex items-center gap-3">
+                <h2 id="modal-title-vendor-expense-form" className="text-xl font-bold flex items-center gap-3">
                   <Receipt size={24} />
                   {editingVendorExpense ? t.editVendorExpense : t.addVendorExpense}
                 </h2>
@@ -1790,7 +1790,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Salary Payment Modal --- */}
       <AnimatePresence>
         {showSalaryModal && (
-          <div ref={(el) => { overlayRoots.current[7] = el; }} role="dialog" aria-modal="true" aria-label={t.recordSalary} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[7] = el; }} role="dialog" aria-modal="true" aria-label={t.recordSalary} aria-labelledby="modal-title-record-salary" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1805,7 +1805,7 @@ export function AppModals(props: AppModalsProps) {
               className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
             >
               <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h2 className="text-xl font-bold flex items-center gap-3">
+                <h2 id="modal-title-record-salary" className="text-xl font-bold flex items-center gap-3">
                   <DollarSign size={24} className="text-emerald-400" />
                   {t.recordSalaryPayment}
                 </h2>
@@ -1909,7 +1909,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Calendar Day Modal --- */}
       <AnimatePresence>
         {showCalendarModal && selectedCalendarDay && (
-          <div ref={(el) => { overlayRoots.current[8] = el; }} role="dialog" aria-modal="true" aria-label={t.paymentHistory} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[8] = el; }} role="dialog" aria-modal="true" aria-label={t.paymentHistory} aria-labelledby="modal-title-payment-history" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1924,7 +1924,7 @@ export function AppModals(props: AppModalsProps) {
               className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
             >
               <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h2 className="text-xl font-bold flex flex-col">
+                <h2 id="modal-title-payment-history" className="text-xl font-bold flex flex-col">
                   <span className="text-sm opacity-70 uppercase tracking-widest font-black">{getDayName(selectedCalendarDay.getDay())}</span>
                   <span>{selectedCalendarDay.toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                 </h2>
@@ -2070,7 +2070,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Payment Entry Modal --- */}
       <AnimatePresence>
         {showPaymentForm && (
-          <div ref={(el) => { overlayRoots.current[9] = el; }} role="dialog" aria-modal="true" aria-label={t.paymentEntry} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[9] = el; }} role="dialog" aria-modal="true" aria-label={t.paymentEntry} aria-labelledby="modal-title-payment-entry" className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2085,7 +2085,7 @@ export function AppModals(props: AppModalsProps) {
               className={`relative ${currentTheme.card} w-full max-w-md rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
             >
               <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h2 className="text-xl font-bold flex items-center gap-3">
+                <h2 id="modal-title-payment-entry" className="text-xl font-bold flex items-center gap-3">
                   <CreditCard size={24} className="text-blue-400" />
                   {t.paymentEntry}
                 </h2>
@@ -2156,7 +2156,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Yearly Final Audit Sheet Modal --- */}
       <AnimatePresence>
         {showAuditModal && auditYear && (
-          <div ref={(el) => { overlayRoots.current[10] = el; }} role="dialog" aria-modal="true" aria-label={t.auditSheet} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+          <div ref={(el) => { overlayRoots.current[10] = el; }} role="dialog" aria-modal="true" aria-label={t.auditSheet} aria-labelledby="modal-title-audit-sheet" className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2177,7 +2177,7 @@ export function AppModals(props: AppModalsProps) {
                     <TrendingUp size={24} />
                   </div>
                   <div>
-                    <h3 className={`text-2xl font-black ${currentTheme.text}`}>
+                    <h3 id="modal-title-audit-sheet" className={`text-2xl font-black ${currentTheme.text}`}>
                       {t.finalAcademicAuditSheet}
                     </h3>
                     <p className={`text-sm ${currentTheme.muted} mt-0.5`}>
@@ -2339,7 +2339,7 @@ export function AppModals(props: AppModalsProps) {
           const balance = discountedTotal - ticketStudent.amountPaid;
           
           return (
-            <div ref={(el) => { overlayRoots.current[11] = el; }} role="dialog" aria-modal="true" aria-label={t.latePaymentTicket} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+            <div ref={(el) => { overlayRoots.current[11] = el; }} role="dialog" aria-modal="true" aria-label={t.latePaymentTicket} aria-labelledby="modal-title-late-payment-ticket" className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -2354,7 +2354,7 @@ export function AppModals(props: AppModalsProps) {
                 className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
               >
                 <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                  <h2 className="text-xl font-bold flex items-center gap-3">
+                  <h2 id="modal-title-late-payment-ticket" className="text-xl font-bold flex items-center gap-3">
                     <Printer size={24} className="text-rose-400" />
                     {t.latePaymentTicket}
                   </h2>
@@ -2721,14 +2721,14 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Add / Edit Parent Modal --- */}
       {showParentModal && (
-        <div ref={(el) => { overlayRoots.current[12] = el; }} role="dialog" aria-modal="true" aria-label={editingParent ? t.editParent : t.addParent} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[12] = el; }} role="dialog" aria-modal="true" aria-label={editingParent ? t.editParent : t.addParent} aria-labelledby="modal-title-parent-form" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className={`w-full max-w-xl ${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto`}
           >
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-              <h3 className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
+              <h3 id="modal-title-parent-form" className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
                 {editingParent ? t.editParent : t.addParent}
               </h3>
               <button
@@ -3120,7 +3120,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Link Student Modal --- */}
       {showLinkStudentModal && activeLinkingParent && (
-        <div ref={(el) => { overlayRoots.current[13] = el; }} role="dialog" aria-modal="true" aria-label={t.linkStudent} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[13] = el; }} role="dialog" aria-modal="true" aria-label={t.linkStudent} aria-labelledby="modal-title-link-student" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -3128,7 +3128,7 @@ export function AppModals(props: AppModalsProps) {
           >
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <h3 className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
+                <h3 id="modal-title-link-student" className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
                   {t.linkStudent}
                 </h3>
                 <p className="text-xs text-slate-400">
@@ -3184,7 +3184,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Late Payment Notification Modal (WhatsApp / SMS Generator) --- */}
       {showNotifyModal && notifyParent && (
-        <div ref={(el) => { overlayRoots.current[14] = el; }} role="dialog" aria-modal="true" aria-label={t.reminderModalTitle} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[14] = el; }} role="dialog" aria-modal="true" aria-label={t.reminderModalTitle} aria-labelledby="modal-title-reminder" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -3197,7 +3197,7 @@ export function AppModals(props: AppModalsProps) {
                   <Bell size={24} />
                 </div>
                 <div>
-                  <h3 className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
+                  <h3 id="modal-title-reminder" className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
                     {t.reminderModalTitle}
                   </h3>
                   <p className="text-xs text-slate-400 font-medium">

@@ -168,6 +168,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
         role="dialog"
         aria-modal="true"
         aria-label={t.productivity}
+        aria-labelledby="panel-title-productivity"
         initial={{ x: panelWidth }}
         animate={{ x: 0 }}
         exit={{ x: panelWidth }}
@@ -175,7 +176,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
         className={`fixed right-0 top-0 h-full max-w-[88vw] ${themeCard} border-l ${themeBorder} shadow-2xl z-30 flex flex-col`}
       >
         <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: themeHeader }}>
-          <h3 className="text-lg font-bold flex items-center gap-3">
+          <h3 id="panel-title-productivity" className="text-lg font-bold flex items-center gap-3">
             {productivitySidebarTab === 'tasks' ? (
               <>
                 <CheckSquare size={20} className="text-amber-400" />

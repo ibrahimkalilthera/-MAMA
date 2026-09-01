@@ -263,7 +263,7 @@ export function ExcelImportModal({
   const textSecondary = themeIsDark ? 'text-white/60' : 'text-slate-500';
 
   return (
-    <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.title} className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.title} aria-labelledby="modal-title-excel-import" className="fixed inset-0 z-[120] flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -284,7 +284,7 @@ export function ExcelImportModal({
               <FileSpreadsheet size={20} className="text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-base">{t.title}</h3>
+              <h3 id="modal-title-excel-import" className="font-bold text-base">{t.title}</h3>
               <p className="text-[11px] text-white/50">{t.subtitle}</p>
             </div>
           </div>

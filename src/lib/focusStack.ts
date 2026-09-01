@@ -24,9 +24,20 @@ export interface TrappedElement {
 /** Minimal structural view of a trap container (an Element suffices). */
 export interface TrapContainer {
   querySelectorAll(selectors: string): Iterable<TrappedElement>;
+  querySelector(selectors: string): TrappedElement | null;
   contains(node: unknown): boolean;
   focus(options?: FocusOptions): void;
 }
+
+/**
+ * Where focus should land when an overlay opens — an explicit target that
+ * overrides the blind "first focusable" rule. A CSS selector is resolved
+ * against the trap container; a function receives the container (null when
+ * absent) and returns the element (or null to fall back).
+ */
+export type InitialFocus =
+  | string
+  | ((container: TrapContainer | null) => TrappedElement | null);
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -84,6 +95,21 @@ function focusFirst(container: TrapContainer): void {
   }
 }
 
+/** Resolve the explicit initial-focus target, if any (never throws). */
+function resolveInitialFocus(
+  container: TrapContainer | null,
+  initialFocus: InitialFocus | undefined,
+): TrappedElement | null {
+  if (!container || !initialFocus) return null;
+  try {
+    return typeof initialFocus === 'string'
+      ? container.querySelector(initialFocus)
+      : initialFocus(container);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Confine a Tab press to `container`. Exported as the pure decision core:
  * wraps at both ends (Tab on the last goes to the first, Shift+Tab on the
@@ -126,10 +152,15 @@ export function confineTab(opts: {
 /**
  * Register an open overlay's trap. Records the element that had focus (the
  * trigger) so it can be restored on close, and moves focus into the overlay —
- * unless focus is already inside it (e.g. an autofocused input in a
- * type-to-confirm dialog, which must keep the focus).
+ * onto the explicit `initialFocus` target when given (modals whose first
+ * focusable is a form field rather than the ✕ declare their intent), else the
+ * first focusable — unless focus is already inside it (e.g. an autofocused
+ * input in a type-to-confirm dialog, which must keep the focus).
  */
-export function pushFocusTrap(getContainer: () => TrapContainer | null): number {
+export function pushFocusTrap(
+  getContainer: () => TrapContainer | null,
+  initialFocus?: InitialFocus,
+): number {
   const id = nextId++;
   const container = getContainer();
   let current: TrappedElement | null = null;
@@ -141,7 +172,17 @@ export function pushFocusTrap(getContainer: () => TrapContainer | null): number 
   stack.push({ id, getContainer, restoreTo });
   ensureListener();
   if (container && (!current || !container.contains(current))) {
-    focusFirst(container);
+    const target = resolveInitialFocus(container, initialFocus);
+    if (target) {
+      try {
+        target.focus();
+      } catch {
+        /* inert or removed mid-flight — fall back below */
+        focusFirst(container);
+      }
+    } else {
+      focusFirst(container);
+    }
   }
   return id;
 }
@@ -221,14 +262,22 @@ export function handleTabPress(event: { shiftKey: boolean; preventDefault(): voi
  * Register `getContainer` as an active trap while `active` is true; the
  * registration is popped on unmount (or when the overlay closes). Mirrors
  * `useEscapeToClose` — the container resolver stays in a ref so the effect
- * only re-runs when the overlay opens/closes.
+ * only re-runs when the overlay opens/closes. `initialFocus` (selector or
+ * resolver) declares the element that receives focus on open; the resolver
+ * also stays in a ref so the effect never re-runs for a new function identity.
  */
-export function useFocusTrap(active: boolean, getContainer: () => TrapContainer | null): void {
+export function useFocusTrap(
+  active: boolean,
+  getContainer: () => TrapContainer | null,
+  initialFocus?: InitialFocus,
+): void {
   const getRef = useRef(getContainer);
   getRef.current = getContainer;
+  const initialFocusRef = useRef(initialFocus);
+  initialFocusRef.current = initialFocus;
   useEffect(() => {
     if (!active) return;
-    const id = pushFocusTrap(() => getRef.current());
+    const id = pushFocusTrap(() => getRef.current(), initialFocusRef.current);
     return () => popFocusTrap(id);
   }, [active]);
 }

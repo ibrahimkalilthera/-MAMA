@@ -73,12 +73,16 @@ export function ConfirmDialog({
   useEscapeToClose(open, handleCancel);
   // Tab is confined to the dialog while open; focus returns to the trigger on close.
   const rootRef = useRef<HTMLDivElement | null>(null);
-  useFocusTrap(open, () => rootRef.current);
+  // In type-to-confirm mode the confirmation input is the primary control:
+  // focus it explicitly (resolves to the ✕ when the input is absent).
+  useFocusTrap(open, () => rootRef.current, (container) =>
+    container?.querySelector('input[type="text"]') ?? null
+  );
 
   return (
     <AnimatePresence>
       {open && (
-        <div ref={rootRef} role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div ref={rootRef} role="dialog" aria-modal="true" aria-label={title} aria-labelledby="modal-title-confirm" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -97,7 +101,7 @@ export function ConfirmDialog({
                 <AlertTriangle size={20} />
               </div>
               <div className="flex-1 min-w-0 space-y-1.5">
-                <h3 className={`text-sm font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>{title}</h3>
+                <h3 id="modal-title-confirm" className={`text-sm font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>{title}</h3>
                 <p className={`text-xs font-semibold leading-relaxed ${currentTheme.muted}`}>{message}</p>
               </div>
               <button

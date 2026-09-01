@@ -80,6 +80,7 @@ export function FloatingChat(props: FloatingChatProps) {
             role="dialog"
             aria-modal="true"
             aria-label={t.floatingChatTitle ?? 'Mama Thera Assistant'}
+            aria-labelledby="modal-title-floating-chat"
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -93,7 +94,7 @@ export function FloatingChat(props: FloatingChatProps) {
               <div className="flex items-center gap-2">
                 <span className="text-xl">🤖</span>
                 <div>
-                  <h4 className="font-bold text-sm">
+                  <h4 id="modal-title-floating-chat" className="font-bold text-sm">
                     {t.floatingChatTitle ?? 'Mama Thera Assistant'}
                   </h4>
                   <p className="text-[10px] text-white/75 font-semibold">

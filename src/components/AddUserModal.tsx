@@ -100,7 +100,7 @@ export const AddUserModal = ({
   };
 
   return (
-    <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.addStaffAccount} className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.addStaffAccount} aria-labelledby="modal-title-add-staff-account" className="fixed inset-0 z-[120] flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -121,7 +121,7 @@ export const AddUserModal = ({
               <UserPlus size={20} className="text-white" />
             </div>
             <div>
-              <h3 className="font-bold text-base">
+              <h3 id="modal-title-add-staff-account" className="font-bold text-base">
                 {t.addStaffAccount}
               </h3>
               <p className="text-[11px] text-white/50">
