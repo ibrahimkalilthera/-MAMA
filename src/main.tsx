@@ -1,4 +1,5 @@
 import { StrictMode } from 'react';
+import { YearProvider } from './app/YearProvider';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 
@@ -11,7 +12,9 @@ import('./App.tsx')
   .then(({ default: App }) => {
     root.render(
       <StrictMode>
-        <App />
+        <YearProvider>
+          <App />
+        </YearProvider>
       </StrictMode>,
     );
   })

@@ -22,6 +22,8 @@ import { useTheme } from './app/useTheme';
 import { useStudents } from './app/useStudents';
 import { useExpenses } from './app/useExpenses';
 import { useUsers } from './app/useUsers';
+import { useYear } from './app/yearContext';
+import { useYearOps } from './app/useYearOps';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
@@ -254,8 +256,9 @@ export default function App() {
     toast,
   });
 
-  const [selectedYear, setSelectedYear] = useState<string>('2026-2027');
-  const [lockedYears, setLockedYears] = useState<string[]>([]);
+  // Academic-year state (selected/locked) — owned by the YearProvider, read
+  // here through the context and passed down to the domain hooks as deps.
+  const { selectedYear, setSelectedYear, lockedYears, setLockedYears } = useYear();
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditYear, setAuditYear] = useState<string | null>(null);
 
@@ -334,38 +337,6 @@ export default function App() {
 
   // --- Calculations ---
 
-  const getYearStats = (year: string) => {
-    const filteredStudents = students.filter(s => s.academicYear === year || (!s.academicYear && year === '2024-2025'));
-    const filteredExpenses = expenses.filter(e => e.academicYear === year || (!e.academicYear && year === '2024-2025'));
-    const filteredVendorExpenses = vendorExpenses.filter(v => v.academicYear === year || (!v.academicYear && year === '2024-2025'));
-    const filteredSalaryPayments = salaryPayments.filter(s => s.academicYear === year || (!s.academicYear && year === '2024-2025'));
-
-    const totalRevenue = filteredStudents.reduce((acc, s) => acc + s.amountPaid, 0);
-
-    const totalVendorExpensesPaid = filteredVendorExpenses.reduce((acc, v) => {
-      if (v.paymentStatus === 'paid') {
-        return acc + v.amount;
-      } else if (v.paymentStatus === 'partial') {
-        return acc + (v.amountPaid || 0);
-      }
-      return acc;
-    }, 0);
-
-    const totalExpenses = filteredExpenses.reduce((acc, e) => acc + e.amount, 0) + 
-                          filteredSalaryPayments.reduce((acc, s) => acc + s.amount, 0) +
-                          totalVendorExpensesPaid;
-
-    const balance = totalRevenue - totalExpenses;
-
-    return {
-      revenue: totalRevenue,
-      expenses: totalExpenses,
-      balance
-    };
-  };
-
-
-
   const {
     stats,
     notifications,
@@ -398,95 +369,17 @@ export default function App() {
     showToast();
   };
 
-  const handleCloseCurrentYear = async () => {
-    if (currentUser?.role !== 'admin' && currentUser?.role !== 'dev') {
-      alert(t.onlyPromoterOwnerCanCloseAcademicYears);
-      return;
-    }
-    if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsAlreadyLocked);
-      return;
-    }
-
-    const parts = selectedYear.split('-');
-    let nextYear = '';
-    if (parts.length === 2) {
-      const y1 = parseInt(parts[0], 10);
-      const y2 = parseInt(parts[1], 10);
-      if (!isNaN(y1) && !isNaN(y2)) {
-        nextYear = `${y1 + 1}-${y2 + 1}`;
-      }
-    }
-    if (!nextYear) {
-      nextYear = '2025-2026';
-    }
-
-    const currentYearStudents = students.filter(s => s.academicYear === selectedYear || (!s.academicYear && selectedYear === '2024-2025'));
-    const ops: Promise<boolean>[] = [];
-
-    // Group carry-over balances by next-year student name so that multiple
-    // current-year students sharing a name accumulate into a single next-year
-    // student (matching the previous local-state behaviour).
-    const carryOverByName = new Map<string, number>();
-    const firstByName = new Map<string, Student>();
-    currentYearStudents.forEach(student => {
-      const discount = student.scholarshipDiscount || 0;
-      const discountedTotal = student.totalDue * (1 - discount / 100);
-      const balance = discountedTotal - student.amountPaid;
-
-      if (balance <= 0) return;
-
-      carryOverByName.set(student.name, (carryOverByName.get(student.name) || 0) + balance);
-      if (!firstByName.has(student.name)) {
-        firstByName.set(student.name, student);
-      }
-    });
-
-    carryOverByName.forEach((balance, name) => {
-      const existing = students.find(s => s.name === name && s.academicYear === nextYear);
-      if (existing) {
-        const note = existing.notes
-          ? `${existing.notes}\nCarryover debt from ${selectedYear}: +${balance} CFA`
-          : `Carryover debt from ${selectedYear}: +${balance} CFA`;
-        ops.push(updateStudent(existing.id, { totalDue: existing.totalDue + balance, notes: note }));
-      } else {
-        const student = firstByName.get(name)!;
-        ops.push(addStudent({
-          name: student.name,
-          parentName: student.parentName,
-          parentEmail: student.parentEmail,
-          parentPhone: student.parentPhone,
-          totalDue: balance,
-          scholarshipDiscount: 0,
-          dueDate: student.dueDate,
-          amountPaid: 0,
-          notes: `Opening Balance (Debt carried over from ${selectedYear}): ${balance} CFA`,
-          academicYear: nextYear,
-          grade: student.grade || '',
-          status: 'Active',
-        }).then(r => r !== null));
-      }
-    });
-
-    const results = await Promise.all(ops);
-    if (results.some(ok => !ok)) {
-      alert(t.someCarryOverBalancesCouldNotBeSaved);
-      return;
-    }
-
-    setLockedYears(prev => [...prev, selectedYear]);
-
-    setAcademicYears(prev => {
-      if (!prev.includes(nextYear)) {
-        return [...prev, nextYear];
-      }
-      return prev;
-    });
-
-    setAuditYear(selectedYear);
-    setShowAuditModal(true);
-    showToast();
-  };
+  // Year-operations domain (close current year + year stats) — extracted to
+  // src/app/useYearOps.ts.
+  const {
+    handleCloseCurrentYear,
+    getYearStats,
+  } = useYearOps({
+    t, currentUser, students, expenses, vendorExpenses, salaryPayments,
+    updateStudent, addStudent,
+    selectedYear, lockedYears, setLockedYears, setAcademicYears, setAuditYear, setShowAuditModal,
+    showToast,
+  });
 
   // Chat IA (aba Productividade + widget flutuante) — dominio extraido para
   // src/app/useFloatingChat.ts (estado, saudacao, Escape e os 2 handlers).
