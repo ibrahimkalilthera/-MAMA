@@ -32,8 +32,9 @@ import { generateFinancialReportPdf } from './lib/pdfFinancialReport';
 import { generateMultiYearReportPdf } from './lib/pdfMultiYearReport';
 import { generateExpensesReportPdf } from './lib/pdfExpensesReport';
 import { generateMonthlyPayrollDraftPdf } from './lib/pdfPayrollDraft';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { NotificationsPanel } from './components/NotificationsPanel';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { Sidebar } from './components/Sidebar';
 import { AppHeader } from './components/AppHeader';
@@ -655,31 +656,13 @@ const {
       {/* --- Main Content --- */}
       <main className={`flex-1 lg:ml-64 p-8 lg:p-12 transition-all duration-300 ${showTodoSidebar ? 'lg:mr-80' : ''}`}>
         
-        {/* --- Notifications Panel --- */}
-        <AnimatePresence>
-          {notifications.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="mb-8 flex gap-4 overflow-x-auto pb-2 custom-scrollbar"
-            >
-              {notifications.map(n => (
-                <div 
-                  key={n.id}
-                  onClick={() => {
-                    const student = students.find(s => s.id === n.studentId);
-                    if (student) setSelectedStudent(student);
-                  }}
-                  className={`flex-shrink-0 flex items-center gap-3 px-6 py-4 rounded-2xl border cursor-pointer transition-all hover:scale-[1.02] ${n.type === 'due' ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-rose-50 border-rose-100 text-rose-700 animate-subtle-pulse'}`}
-                >
-                  <Bell size={18} className={n.type === 'due' ? 'text-amber-500' : 'text-rose-500'} />
-                  <span className="text-xs font-bold whitespace-nowrap">{n.message}</span>
-                </div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <NotificationsPanel
+          notifications={notifications}
+          onOpenStudent={(studentId) => {
+            const student = students.find(s => s.id === studentId);
+            if (student) setSelectedStudent(student);
+          }}
+        />
 
         <AppHeader
           t={t}
