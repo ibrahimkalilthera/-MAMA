@@ -20,6 +20,7 @@ import { useDashboard } from './app/useDashboard';
 import { useExports } from './app/useExports';
 import { useTheme } from './app/useTheme';
 import { useStudents } from './app/useStudents';
+import { useExpenses } from './app/useExpenses';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
@@ -38,8 +39,8 @@ const ArchivesView = lazy(() => import('./components/ArchivesView').then(m => ({
 const AppModals = lazy(() => import('./components/AppModals').then(m => ({ default: m.AppModals })));
 const MainViews = lazy(() => import('./components/MainViews').then(m => ({ default: m.MainViews })));
 import { HighlightText, ChartsFallback } from './components/SharedUi';
-import { formatCurrency as formatCurrencyImpl, formatDateLang, getGradeDisplay as getGradeDisplayImpl, getMonthName as getMonthNameImpl, getDayName as getDayNameImpl } from './lib/formatters';
-import { getCalendarDays, getStudentStanding } from './lib/classes';
+import { formatCurrency as formatCurrencyImpl, formatDateLang, getGradeDisplay as getGradeDisplayImpl } from './lib/formatters';
+import { getStudentStanding } from './lib/classes';
 import { Login } from './components/Login';
 import { AddUserModal } from './components/AddUserModal';
 import { ExcelImportHost, MonthlyDraftHost } from './components/ModalHosts';
@@ -259,37 +260,37 @@ export default function App() {
     handleLogoUpload,
   } = useTheme();
 
-  // New State for Payroll & Expenses
-  // staff, expenses, vendorExpenses, salaryPayments are now provided by useSupabaseData hook above
-  
-  const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [showVendorExpenseModal, setShowVendorExpenseModal] = useState(false);
-  const [vendorExpensesTab, setVendorExpensesTab] = useState<'general' | 'vendors'>('general');
-  const [generalExpenseCategoryFilter, setGeneralExpenseCategoryFilter] = useState<string>('all');
-  const [generalExpenseSearch, setGeneralExpenseSearch] = useState<string>('');
-  const [vendorSearch, setVendorSearch] = useState('');
-  const [vendorCategoryFilter, setVendorCategoryFilter] = useState<string>('all');
-  const [vendorStatusFilter, setVendorStatusFilter] = useState<string>('all');
-  
-  const [calendarDate, setCalendarDate] = useState(new Date());
-  const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({ category: 'Other', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
-  const [vendorExpenseForm, setVendorExpenseForm] = useState({ 
-    vendorName: '', 
-    category: 'stationery', 
-    amount: '', 
-    dueDate: new Date().toISOString().split('T')[0], 
-    paymentStatus: 'unpaid', 
-    amountPaid: '', 
-    description: '',
-    aidType: '',
-    beneficiaryStudentName: '',
-    beneficiaryStudentGrade: ''
+  // Expenses/vendors domain (modals, filters, calendar, forms, tickets) —
+  // extracted to src/app/useExpenses.ts.
+  const {
+    showExpenseModal, setShowExpenseModal,
+    showVendorExpenseModal, setShowVendorExpenseModal,
+    vendorExpensesTab, setVendorExpensesTab,
+    generalExpenseCategoryFilter, setGeneralExpenseCategoryFilter,
+    generalExpenseSearch, setGeneralExpenseSearch,
+    vendorSearch, setVendorSearch,
+    vendorCategoryFilter, setVendorCategoryFilter,
+    vendorStatusFilter, setVendorStatusFilter,
+    calendarDate, setCalendarDate,
+    showCalendarModal, setShowCalendarModal,
+    expenseForm, setExpenseForm,
+    vendorExpenseForm, setVendorExpenseForm,
+    editingVendorExpense, setEditingVendorExpense,
+    ticketStudent, setTicketStudent,
+    expenseCategoryList,
+    handleExpenseSubmit,
+    handleVendorExpenseSubmit,
+    handleEditVendorExpense,
+    handleDeleteVendorExpense,
+    getDaysInMonth,
+    changeMonth,
+    getMonthName,
+    getDayName,
+  } = useExpenses({
+    t, lang, selectedYear, lockedYears, isPromoter, currentUser,
+    addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense,
+    showToast,
   });
-  
-  const [editingVendorExpense, setEditingVendorExpense] = useState<VendorExpense | null>(null);
-
-  const [ticketStudent, setTicketStudent] = useState<Student | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -318,32 +319,6 @@ export default function App() {
     showToast,
   });
   const currentMonth = new Date().getMonth();
-
-  const expenseCategoryList = useMemo(() => {
-    const keys = [
-      'insurance',
-      'social_cases',
-      'exam_bac',
-      'exam_def',
-      'electricity',
-      'water',
-      'social_events',
-      'internet',
-      'stationery',
-      'security_maintenance',
-      'machine_management',
-      'taxes',
-      'furniture',
-      'solar_energy',
-      'reforestation',
-      'catering',
-      'works_renovation',
-      'training'
-    ];
-    return keys
-      .map(key => ({ key, label: (t as Record<string, string>)[key] || key }))
-      .sort((a, b) => a.label.localeCompare(b.label, lang === 'en' ? 'en' : 'fr', { sensitivity: 'base' }));
-  }, [t, lang]);
 
   // --- Calculations ---
 
@@ -420,105 +395,6 @@ export default function App() {
     } else {
       toast.error(res.error || (t.failedToSendResetEmail));
     }
-  };
-
-  const handleExpenseSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
-      return;
-    }
-    const amount = parseFloat(expenseForm.amount);
-    if (isNaN(amount) || amount < 0) return;
-
-    const saved = await addExpense({ ...expenseForm, amount, academicYear: selectedYear });
-    if (!saved) return;
-    setShowExpenseModal(false);
-    setExpenseForm({ category: 'Other', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
-    showToast();
-  };
-
-  const handleVendorExpenseSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!editingVendorExpense && !isPromoter) {
-      alert(t.onlyThePromoterCanCreateAVendorExpense);
-      return;
-    }
-    if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
-      return;
-    }
-    const parsedAmount = parseFloat(vendorExpenseForm.amount);
-    const amountPaid = parseFloat(vendorExpenseForm.amountPaid) || 0;
-    const amount = isPromoter ? parsedAmount : (editingVendorExpense?.amount ?? parsedAmount);
-    if (isNaN(amount) || amount < 0) return;
-
-    const vendorData = {
-      vendorName: isPromoter ? vendorExpenseForm.vendorName.trim() : (editingVendorExpense?.vendorName || vendorExpenseForm.vendorName.trim()),
-      category: vendorExpenseForm.category,
-      amount,
-      dueDate: vendorExpenseForm.dueDate,
-      paymentStatus: vendorExpenseForm.paymentStatus as VendorExpense['paymentStatus'],
-      amountPaid: vendorExpenseForm.paymentStatus === 'paid' ? amount : (vendorExpenseForm.paymentStatus === 'unpaid' ? 0 : amountPaid),
-      description: vendorExpenseForm.description.trim(),
-      academicYear: selectedYear,
-      aidType: vendorExpenseForm.category === 'social_cases' ? (vendorExpenseForm.aidType as VendorExpense['aidType']) : undefined,
-      beneficiaryStudentName: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.beneficiaryStudentName : undefined,
-      beneficiaryStudentGrade: vendorExpenseForm.category === 'social_cases' ? vendorExpenseForm.beneficiaryStudentGrade : undefined,
-    };
-
-    const saved = editingVendorExpense
-      ? await updateVendorExpense(editingVendorExpense.id, vendorData)
-      : await addVendorExpense(vendorData);
-    if (!saved) return;
-
-    if (editingVendorExpense) {
-      setEditingVendorExpense(null);
-    }
-
-    setShowVendorExpenseModal(false);
-    setVendorExpenseForm({
-      vendorName: '',
-      category: 'stationery',
-      amount: '',
-      dueDate: new Date().toISOString().split('T')[0],
-      paymentStatus: 'unpaid',
-      amountPaid: '',
-      description: '',
-      aidType: '',
-      beneficiaryStudentName: '',
-      beneficiaryStudentGrade: '',
-    });
-    showToast();
-  };
-
-  const handleEditVendorExpense = (v: VendorExpense) => {
-    setEditingVendorExpense(v);
-    setVendorExpenseForm({
-      vendorName: v.vendorName,
-      category: v.category,
-      amount: String(v.amount),
-      dueDate: v.dueDate,
-      paymentStatus: v.paymentStatus,
-      amountPaid: String(v.amountPaid),
-      description: v.description || '',
-      aidType: v.aidType || '',
-      beneficiaryStudentName: v.beneficiaryStudentName || '',
-      beneficiaryStudentGrade: v.beneficiaryStudentGrade || ''
-    });
-    setShowVendorExpenseModal(true);
-  };
-
-  const handleDeleteVendorExpense = async (id: string) => {
-    if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
-      return;
-    }
-    if (currentUser?.role !== 'admin' && currentUser?.role !== 'dev') {
-      alert(t.onlyThePromoterCanDeleteExpenses);
-      return;
-    }
-    if (await deleteVendorExpense(id)) showToast();
   };
 
   const generateInstallmentMemo = (staffId: string, amount: number) => {
@@ -809,18 +685,6 @@ const {
       standing: t.partial
     };
   };
-
-  const getDaysInMonth = (date: Date) => getCalendarDays(date);
-
-  const changeMonth = (offset: number) => {
-    const newDate = new Date(calendarDate);
-    newDate.setMonth(newDate.getMonth() + offset);
-    setCalendarDate(newDate);
-  };
-
-  const getMonthName = (monthIndex: number) => getMonthNameImpl(monthIndex, t);
-
-  const getDayName = (dayIndex: number) => getDayNameImpl(dayIndex, t);
 
   return (
     <>
