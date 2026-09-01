@@ -15,6 +15,7 @@ import { useTodoSidebar } from './app/useTodoSidebar';
 import { useParents } from './app/useParents';
 import { usePayments } from './app/usePayments';
 import { usePayroll } from './app/usePayroll';
+import { useClasses } from './app/useClasses';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
@@ -34,7 +35,7 @@ const AppModals = lazy(() => import('./components/AppModals').then(m => ({ defau
 const MainViews = lazy(() => import('./components/MainViews').then(m => ({ default: m.MainViews })));
 import { HighlightText, ChartsFallback } from './components/SharedUi';
 import { formatCurrency as formatCurrencyImpl, formatDateLang, getGradeDisplay as getGradeDisplayImpl, getMonthName as getMonthNameImpl, getDayName as getDayNameImpl } from './lib/formatters';
-import { buildClassCode, getCalendarDays, getStudentStanding } from './lib/classes';
+import { getCalendarDays, getStudentStanding } from './lib/classes';
 import { Login } from './components/Login';
 import { AddUserModal } from './components/AddUserModal';
 import { ExcelImportHost, MonthlyDraftHost } from './components/ModalHosts';
@@ -108,9 +109,8 @@ import {
   Hammer
 } from 'lucide-react';
 import { translations } from './i18n/translations';
-import { DEFAULT_SCHOOL_CLASSES } from './app/types';
 import type { Language, User, Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, SchoolClass } from './app/types';
-import type { ManagedClass, ThemeId } from './app/mainViewsProps';
+import type { ThemeId } from './app/mainViewsProps';
 
 
 // --- Components ---
@@ -247,35 +247,7 @@ export default function App() {
   const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
 
-  // Classes & Sections Management (single source of truth: Supabase custom_classes)
-  const availableClasses = useMemo<ManagedClass[]>(() => {
-    const seen = new Set(DEFAULT_SCHOOL_CLASSES.map(c => c.id.toLowerCase()));
-    return [...DEFAULT_SCHOOL_CLASSES, ...customClasses.filter(c => !seen.has(c.id.toLowerCase()))];
-  }, [customClasses]);
-
-  const [showEditClassModal, setShowEditClassModal] = useState(false);
-  const [editingClassRowId, setEditingClassRowId] = useState<string | null>(null);
-  const [editClassForm, setEditClassForm] = useState<{
-    cycle: 'cycle1' | 'cycle2' | 'lycee' | 'maternelle' | 'other';
-    year: string;
-    section: string;
-    customName: string;
-  }>({ cycle: 'other', year: '1', section: 'D', customName: '' });
-
   const [studentGradeFilter, setStudentGradeFilter] = useState<string>('all');
-  const [showAddClassModal, setShowAddClassModal] = useState<boolean>(false);
-  const [newClassForm, setNewClassForm] = useState<{
-    cycle: 'cycle1' | 'cycle2' | 'lycee' | 'maternelle' | 'other';
-    year: string;
-    section: string;
-    customName: string;
-  }>({
-    cycle: 'cycle1',
-    year: '1',
-    section: 'D',
-    customName: ''
-  });
-
   const [theme, setTheme] = useState<'navy' | 'cream' | 'slate' | 'emerald' | 'bordeaux' | 'midnight'>('navy');
   const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
   const [logoColor, setLogoColor] = useState<string | null>(null);
@@ -1419,103 +1391,29 @@ const {
   addStaff, updateStaff, addSalaryPayment,
 });
 
+  const {
+    availableClasses,
+    showEditClassModal, setShowEditClassModal,
+    editingClassRowId, setEditingClassRowId,
+    editClassForm, setEditClassForm,
+    showAddClassModal, setShowAddClassModal,
+    newClassForm, setNewClassForm,
+    handleCreateClassSubmit,
+    openEditClass,
+    handleEditClassSubmit,
+    handleDeleteClass,
+  } = useClasses({
+    t, customClasses, toast,
+    autoSelectGrade: (grade: string) => setStudentForm(prev => ({ ...prev, grade })),
+    setConfirmAction,
+    addCustomClass, updateCustomClass, deleteCustomClass,
+  });
+
   const formatDate = (dateStr: string) => formatDateLang(dateStr, lang);
 
   const getGradeDisplay = (grade: string | undefined, currentLang: 'en' | 'fr' = lang) =>
     getGradeDisplayImpl(grade, availableClasses, t, currentLang);
 
-  const handleCreateClassSubmit = async (e?: FormEvent) => {
-    if (e) e.preventDefault();
-    
-    const { code, nameFr, nameEn } = buildClassCode(newClassForm);
-    
-    // Check if class code already exists
-    if (availableClasses.some(c => c.id.toLowerCase() === code.toLowerCase())) {
-      toast.warning(t.classAlreadyExists.replace('{code}', code));
-      setStudentForm(prev => ({ ...prev, grade: code }));
-      setShowAddClassModal(false);
-      return;
-    }
-    
-    const result = await addCustomClass({
-      code,
-      cycle: newClassForm.cycle,
-      year: newClassForm.year,
-      section: newClassForm.section.toUpperCase(),
-      nameFr,
-      nameEn,
-    });
-    if (!result) {
-      toast.error(t.failedToAddClass);
-      return;
-    }
-    
-    // Auto-select in student form
-    setStudentForm(prev => ({ ...prev, grade: code }));
-    
-    toast.success(t.classAddedSuccessfully.replace('{code}', code));
-    
-    setShowAddClassModal(false);
-    setNewClassForm({
-      cycle: 'cycle1',
-      year: '1',
-      section: 'D',
-      customName: ''
-    });
-  };
-
-  const openEditClass = (c: ManagedClass) => {
-    setEditingClassRowId(c.rowId || null);
-    setEditClassForm({
-      cycle: c.cycle,
-      year: String(c.year),
-      section: c.section,
-      customName: c.cycle === 'other' ? c.id : '',
-    });
-    setShowEditClassModal(true);
-  };
-
-  const handleEditClassSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!editingClassRowId) return;
-
-    const { code, nameFr, nameEn } = buildClassCode(editClassForm);
-
-    // Prevent colliding with another class code
-    if (availableClasses.some(c => c.id.toLowerCase() === code.toLowerCase() && c.rowId !== editingClassRowId)) {
-      toast.warning(t.classAlreadyExists.replace('{code}', code));
-      return;
-    }
-
-    const ok = await updateCustomClass(editingClassRowId, {
-      code,
-      cycle: editClassForm.cycle,
-      year: editClassForm.year,
-      section: editClassForm.section.toUpperCase(),
-      nameFr,
-      nameEn,
-    });
-    if (!ok) return;
-    toast.success(t.classUpdated.replace('{code}', code));
-    setShowEditClassModal(false);
-    setEditingClassRowId(null);
-  };
-
-  const handleDeleteClass = async (c: ManagedClass) => {
-    if (!c.rowId) return;
-    const rowId = c.rowId;
-    setConfirmAction({
-      title: t.deleteClass,
-      message: t.deleteClassConfirm.replace('{id}', c.id),
-      confirmLabel: t.deleteClass,
-      onConfirm: async () => {
-        const ok = await deleteCustomClass(rowId);
-        if (ok) {
-          toast.success(t.classDeleted.replace('{id}', c.id));
-        }
-      },
-    });
-  };
 
   const getStatus = (student: Student) => {
     const standing = getStudentStanding(student, today);
