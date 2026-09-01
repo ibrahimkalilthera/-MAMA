@@ -30,7 +30,21 @@ const extractProps = (file, name) => {
   };
 };
 
-// Attribute names passed at the render site (explicit props only; spreads skipped).
+// Resolve an object-literal spread used at the render site: <Name {...viewsProps} />
+// becomes the keys of the `const viewsProps: … = { … }` literal in the same file,
+// so the guard keeps verifying the full wiring even when the JSX is a spread.
+const resolveSpreadLiteral = (src, spreadName) => {
+  const m = src.match(new RegExp(`const ${spreadName}\\s*:\\s*[^=]+=\\s*\\{([\\s\\S]*?)\\n\\s*\\};`));
+  if (!m) throw new Error(`objet-littéral \`${spreadName}\` introuvable dans le fichier de rendu`);
+  return [...m[1].matchAll(/^\s{2}([A-Za-z0-9_]+),/gm)].map((x) => x[1]);
+};
+
+// Attribute names passed at the render site: explicit props plus any resolved
+// object-literal spreads ({...viewsProps}). Returns { passed, hasSpread } —
+// hasSpread tells the caller that the site relies on a typed object literal
+// (whose keys tsc verifies against the intersection type), so the `extra` check
+// is intentionally skipped there: a shared object like viewsProps carries BOTH
+// shell contracts, and its superset keys are by design.
 const extractPassed = (render, name) => {
   const src = read(render);
   const start = src.indexOf(`<${name}\n`);
@@ -40,15 +54,20 @@ const extractPassed = (render, name) => {
   const close = src.indexOf('/>', from);
   if (close < 0) throw new Error(`fermeture du tag <${name}> introuvable dans ${render}`);
   const tag = src.slice(from, close);
-  return [...tag.matchAll(/([A-Za-z0-9_]+)=\{/g)].map((x) => x[1]);
+  const passed = [...tag.matchAll(/([A-Za-z0-9_]+)=\{/g)].map((x) => x[1]);
+  const spreads = [...tag.matchAll(/\{\.\.\.([A-Za-z0-9_]+)\}/g)];
+  for (const spread of spreads) {
+    passed.push(...resolveSpreadLiteral(src, spread[1]));
+  }
+  return { passed, hasSpread: spreads.length > 0 };
 };
 
 let ok = true;
 for (const { name, file, render } of COMPONENTS) {
   const { required, all } = extractProps(file, name);
-  const passed = extractPassed(render, name);
+  const { passed, hasSpread } = extractPassed(render, name);
   const missing = required.filter((p) => !passed.includes(p));
-  const extra = passed.filter((p) => !all.includes(p));
+  const extra = hasSpread ? [] : passed.filter((p) => !all.includes(p));
   if (missing.length || extra.length) {
     ok = false;
     console.error(`❌ ${name}: ${required.length} props requises, ${passed.length} passées`);
