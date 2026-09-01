@@ -8,6 +8,7 @@ import type { CalendarEvent, CurrentTheme, ManagedClass, ParentForm, SalaryForm,
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import { ConfirmDialog } from './ConfirmDialog';
+import { ProductivityPanel } from './ProductivityPanel';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useOverlayTraps } from '../lib/focusStack';
 
@@ -305,7 +306,6 @@ export function AppModals(props: AppModalsProps) {
     [showVendorExpenseModal, () => setShowVendorExpenseModal(false)],
     [showSalaryModal, () => setShowSalaryModal(false)],
     [showCalendarModal, () => setShowCalendarModal(false)],
-    [showTodoSidebar, () => setShowTodoSidebar(false)],
     [showPaymentForm, () => setShowPaymentForm(false)],
     [showAuditModal, () => setShowAuditModal(false)],
     [Boolean(ticketStudent), () => setTicketStudent(null)],
@@ -2039,219 +2039,38 @@ export function AppModals(props: AppModalsProps) {
         )}
       </AnimatePresence>
 
-      {/* --- To-Do Sidebar --- */}
+      {/* --- To-Do Sidebar (Productivité panel) --- */}
       <AnimatePresence>
         {showTodoSidebar && (
-          <>
-            {/* Below the lg breakpoint the fixed panel (320px by default, user-resizable
-                on desktop via the left-edge handle) overlays the app and can swallow
-                most of the viewport (it covers ~75% of a 430px-wide window). Dim the
-                app behind it and close on outside click — the same pattern as every
-                other modal in this app — instead of a silent white takeover. */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowTodoSidebar(false)}
-              className="fixed inset-0 z-20 bg-slate-900/50 backdrop-blur-sm lg:hidden"
-            />
-            <motion.aside
-              ref={(el) => { overlayRoots.current[9] = el; }}
-              role="dialog"
-              aria-modal="true"
-              aria-label={t.productivity}
-              initial={{ x: panelWidth }}
-              animate={{ x: 0 }}
-              exit={{ x: panelWidth }}
-              style={{ width: panelWidth }}
-              className={`fixed right-0 top-0 h-full max-w-[88vw] ${currentTheme.card} border-l ${currentTheme.border} shadow-2xl z-30 flex flex-col`}
-            >
-            <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-              <h3 className="text-lg font-bold flex items-center gap-3">
-                {productivitySidebarTab === 'tasks' ? (
-                  <>
-                    <CheckSquare size={20} className="text-amber-400" />
-                    <span data-i18n="todoList">{t.todoList}</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={20} className="text-blue-400" />
-                    <span data-i18n="aiTitle">{t.aiTitle}</span>
-                  </>
-                )}
-              </h3>
-              <button 
-                onClick={() => setShowTodoSidebar(false)}
-                className="p-2 hover:bg-white/10 rounded-xl transition-all"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Tab switch */}
-            <div className="flex border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10">
-              <button 
-                onClick={() => setProductivitySidebarTab('tasks')}
-                className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest border-b-2 transition-all ${productivitySidebarTab === 'tasks' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              >
-                {t.toDo}
-              </button>
-              <button 
-                onClick={() => setProductivitySidebarTab('ai')}
-                className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest border-b-2 transition-all ${productivitySidebarTab === 'ai' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              >
-                {t.aiAssistant}
-              </button>
-            </div>
-
-            {productivitySidebarTab === 'ai' ? (
-              <div className="flex-1 flex flex-col min-h-0 bg-slate-50/20 dark:bg-slate-900/5">
-                {/* Messages list */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                  {aiMessages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs font-semibold ${msg.sender === 'user' ? 'bg-blue-600 text-white' : (currentTheme.isDark ? 'bg-slate-800 text-emerald-400 border border-emerald-900/20' : 'bg-slate-100 text-slate-700')}`}>
-                        <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Suggestions Chips */}
-                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
-                    {t.quickQuestions}
-                  </span>
-                  <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto custom-scrollbar">
-                    <button 
-                      onClick={() => handleAiQuery(t.aiQuickQuestion1)}
-                      className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
-                    >
-                      💡 {t.aiQuickQuestion1}
-                    </button>
-                    <button 
-                      onClick={() => handleAiQuery(t.aiQuickQuestion2)}
-                      className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
-                    >
-                      💡 {t.aiQuickQuestion2}
-                    </button>
-                    <button 
-                      onClick={() => handleAiQuery(t.aiQuickQuestion3)}
-                      className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
-                    >
-                      💡 {t.aiQuickQuestion3}
-                    </button>
-                    <button 
-                      onClick={() => handleAiQuery(t.aiQuickQuestion4)}
-                      className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
-                    >
-                      💡 {t.aiQuickQuestion4}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Ask Form */}
-                <form 
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleAiQuery(aiInput);
-                  }}
-                  className="p-6 border-t border-slate-100 dark:border-slate-800 flex gap-2 bg-white dark:bg-slate-900"
-                >
-                  <input 
-                    type="text"
-                    value={aiInput}
-                    onChange={(e) => setAiInput(e.target.value)}
-                    placeholder={t.aiAskPlaceholder}
-                    className={`flex-1 px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-800'} border rounded-xl text-xs font-semibold`}
-                  />
-                  <button 
-                    type="submit"
-                    className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl transition-all flex items-center justify-center flex-shrink-0"
-                  >
-                    <Sparkles size={16} />
-                  </button>
-                </form>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
-                <form onSubmit={handleAddTodo} className="space-y-3">
-                  <input 
-                    type="text"
-                    value={todoInput}
-                    onChange={(e) => setTodoInput(e.target.value)}
-                    placeholder={t.taskPlaceholder}
-                    className={`w-full px-5 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                  />
-                  <button 
-                    type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2"
-                  >
-                    <Plus size={16} />
-                    <span data-i18n="addTask">{t.addTask}</span>
-                  </button>
-                </form>
-
-                <div className="space-y-3">
-                  {todos.map(todo => (
-                    <motion.div 
-                      layout
-                      key={todo.id}
-                      className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${todo.completed ? (currentTheme.isDark ? 'bg-emerald-900/10 border-emerald-900/20 opacity-60' : 'bg-slate-50 border-slate-100 opacity-60') : (currentTheme.isDark ? 'bg-emerald-900/20 border-emerald-800/50 shadow-sm' : 'bg-white border-slate-100 shadow-sm')}`}
-                    >
-                      <div className="flex items-center gap-3 flex-1">
-                        <button 
-                          onClick={() => toggleTodo(todo.id)}
-                          className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${todo.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 hover:border-blue-400'}`}
-                        >
-                          {todo.completed && <CheckCircle2 size={14} />}
-                        </button>
-                        <span className={`text-sm font-bold ${todo.completed ? (currentTheme.isDark ? 'text-emerald-500/50 line-through' : 'text-slate-400 line-through') : (currentTheme.isDark ? 'text-emerald-500' : 'text-slate-700')}`}>
-                          {todo.text}
-                        </span>
-                      </div>
-                      <button 
-                        onClick={() => deleteTodo(todo.id)}
-                        className={`p-2 ${currentTheme.muted} hover:text-rose-500 transition-all`}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {/* Desktop resize handle: drag the left edge (or focus it and use
-                ← to widen / → to narrow; Home/End snap to the bounds; double-click
-                resets to the 320px default). Hidden below lg — mobile keeps the
-                88vw cap and its backdrop. */}
-            <button
-              type="button"
-              role="separator"
-              aria-orientation="vertical"
-              aria-label={t.resizeProductivityPanel}
-              aria-valuemin={PANEL_WIDTH_MIN}
-              aria-valuemax={PANEL_WIDTH_MAX}
-              aria-valuenow={Math.round(panelWidth)}
-              onPointerDown={handleResizePointerDown}
-              onPointerMove={handleResizePointerMove}
-              onPointerUp={handleResizePointerEnd}
-              onPointerCancel={handleResizePointerEnd}
-              onDoubleClick={() => applyPanelWidth(PANEL_WIDTH_DEFAULT)}
-              onKeyDown={handleResizeKeyDown}
-              className="absolute left-0 top-0 z-10 hidden h-full w-2.5 cursor-col-resize touch-none select-none items-center justify-center group lg:flex"
-            >
-              <span className="h-16 w-1 rounded-full bg-slate-400/50 transition-colors group-hover:bg-blue-500 group-focus-visible:bg-blue-500" />
-            </button>
-          </motion.aside>
-          </>
+          <ProductivityPanel
+            t={t}
+            open={showTodoSidebar}
+            onClose={() => setShowTodoSidebar(false)}
+            productivitySidebarTab={productivitySidebarTab}
+            setProductivitySidebarTab={setProductivitySidebarTab}
+            aiMessages={aiMessages}
+            aiInput={aiInput}
+            setAiInput={setAiInput}
+            handleAiQuery={handleAiQuery}
+            todoInput={todoInput}
+            setTodoInput={setTodoInput}
+            handleAddTodo={handleAddTodo}
+            todos={todos}
+            toggleTodo={toggleTodo}
+            deleteTodo={deleteTodo}
+            themeCard={currentTheme.card}
+            themeBorder={currentTheme.border}
+            themeMuted={currentTheme.muted}
+            themeIsDark={currentTheme.isDark}
+            themeHeader={currentTheme.header}
+          />
         )}
       </AnimatePresence>
 
       {/* --- Payment Entry Modal --- */}
       <AnimatePresence>
         {showPaymentForm && (
-          <div ref={(el) => { overlayRoots.current[10] = el; }} role="dialog" aria-modal="true" aria-label={t.paymentEntry} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div ref={(el) => { overlayRoots.current[9] = el; }} role="dialog" aria-modal="true" aria-label={t.paymentEntry} className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2337,7 +2156,7 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Yearly Final Audit Sheet Modal --- */}
       <AnimatePresence>
         {showAuditModal && auditYear && (
-          <div ref={(el) => { overlayRoots.current[11] = el; }} role="dialog" aria-modal="true" aria-label={t.auditSheet} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+          <div ref={(el) => { overlayRoots.current[10] = el; }} role="dialog" aria-modal="true" aria-label={t.auditSheet} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2520,7 +2339,7 @@ export function AppModals(props: AppModalsProps) {
           const balance = discountedTotal - ticketStudent.amountPaid;
           
           return (
-            <div ref={(el) => { overlayRoots.current[12] = el; }} role="dialog" aria-modal="true" aria-label={t.latePaymentTicket} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
+            <div ref={(el) => { overlayRoots.current[11] = el; }} role="dialog" aria-modal="true" aria-label={t.latePaymentTicket} className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -2902,7 +2721,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Add / Edit Parent Modal --- */}
       {showParentModal && (
-        <div ref={(el) => { overlayRoots.current[13] = el; }} role="dialog" aria-modal="true" aria-label={editingParent ? t.editParent : t.addParent} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[12] = el; }} role="dialog" aria-modal="true" aria-label={editingParent ? t.editParent : t.addParent} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -3301,7 +3120,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Link Student Modal --- */}
       {showLinkStudentModal && activeLinkingParent && (
-        <div ref={(el) => { overlayRoots.current[14] = el; }} role="dialog" aria-modal="true" aria-label={t.linkStudent} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[13] = el; }} role="dialog" aria-modal="true" aria-label={t.linkStudent} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -3365,7 +3184,7 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Late Payment Notification Modal (WhatsApp / SMS Generator) --- */}
       {showNotifyModal && notifyParent && (
-        <div ref={(el) => { overlayRoots.current[15] = el; }} role="dialog" aria-modal="true" aria-label={t.reminderModalTitle} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
+        <div ref={(el) => { overlayRoots.current[14] = el; }} role="dialog" aria-modal="true" aria-label={t.reminderModalTitle} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
