@@ -34,6 +34,11 @@ import { generateExpensesReportPdf } from './lib/pdfExpensesReport';
 import { generateMonthlyPayrollDraftPdf } from './lib/pdfPayrollDraft';
 import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { AppLoadingScreen } from './components/AppLoadingScreen';
+import { Sidebar } from './components/Sidebar';
+import { AppHeader } from './components/AppHeader';
+import { WelcomeBanner } from './components/WelcomeBanner';
+import { LockedYearBanner } from './components/LockedYearBanner';
 
 const PromotionWizardModal = lazy(() => import('./components/PromotionWizardModal').then(m => ({ default: m.PromotionWizardModal })));
 const DashboardCharts = lazy(() => import('./components/DashboardCharts').then(m => ({ default: m.DashboardCharts })));
@@ -563,38 +568,40 @@ const {
     };
   };
 
+  // Open the add-student modal (shared by the sidebar and header buttons).
+  const openAddStudentModal = () => {
+    setEditingStudent(null);
+    setStudentForm({
+      name: '',
+      parentName: '',
+      parentEmail: '',
+      parentPhone: '',
+      totalDue: '',
+      scholarshipDiscount: '0',
+      dueDate: new Date().toISOString().split('T')[0],
+      academicYear: selectedYear || '2024-2025',
+      grade: '',
+      studentId: '',
+      photo: '',
+      emergencyContactName: '',
+      emergencyContactRelation: '',
+      emergencyContactPhone: '',
+      medicalNotes: 'None',
+      enrollmentDate: new Date().toISOString().split('T')[0],
+      previousSchool: '',
+      status: 'Active'
+    });
+    setShowStudentModal(true);
+  };
+
   return (
     <>
       {authLoading ? (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0C1222 0%, #111827 50%, #0F172A 100%)' }}>
-          <div className="text-center">
-            <div className="relative w-14 h-14 mx-auto mb-8">
-              <div className="absolute inset-0 rounded-full border-2 border-white/[0.06]"></div>
-              <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"></div>
-              <div className="absolute inset-2 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <ShieldCheck size={18} className="text-emerald-400" />
-              </div>
-            </div>
-            <h2 className="text-xl font-semibold text-white tracking-tight mb-2">{t.restoringSession}</h2>
-            <p className="text-slate-500 text-sm font-medium">{t.checkingAuthentication}</p>
-          </div>
-        </div>
+<AppLoadingScreen title={t.restoringSession} subtitle={t.checkingAuthentication} />
       ) : !currentUser ? (
         <Login onLogin={auth.signIn} lang={lang} setLang={toggleLanguage} t={t} />
       ) : supabaseLoading ? (
-        <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #0C1222 0%, #111827 50%, #0F172A 100%)' }}>
-          <div className="text-center">
-            <div className="relative w-14 h-14 mx-auto mb-8">
-              <div className="absolute inset-0 rounded-full border-2 border-white/[0.06]"></div>
-              <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"></div>
-              <div className="absolute inset-2 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <ShieldCheck size={18} className="text-emerald-400" />
-              </div>
-            </div>
-            <h2 className="text-xl font-semibold text-white tracking-tight mb-2">{t.loadingFinanceSuite}</h2>
-            <p className="text-slate-500 text-sm font-medium">{t.connectingToDatabase}</p>
-          </div>
-        </div>
+<AppLoadingScreen title={t.loadingFinanceSuite} subtitle={t.connectingToDatabase} />
       ) : (
         <div className={`min-h-screen ${currentTheme.bg} flex font-sans ${currentTheme.text} transition-colors duration-300 theme-${theme} ${ticketStudent ? 'no-print-ticket' : ''}`}>
           {/* Environment Badge (dev/staging only) */}
@@ -629,201 +636,21 @@ const {
         </div>
       </div>
       
-      {/* --- Sidebar --- */}
-      <aside className={`w-64 text-white fixed h-full z-40 hidden lg:flex flex-col transition-colors duration-300`} style={{ background: 'linear-gradient(180deg, #0C1222 0%, #111827 50%, #0F172A 100%)' }}>
-        <div className="p-6 pb-4" style={{ backgroundColor: 'transparent' }}>
-          <div className="flex items-center gap-3 mb-1">
-            {schoolLogo ? (
-              <img src={schoolLogo} alt="Logo" className="w-9 h-9 rounded-lg object-cover ring-2 ring-white/10" referrerPolicy="no-referrer" />
-            ) : (
-              <div className="bg-emerald-600/90 p-2 rounded-lg shadow-lg shadow-emerald-500/20">
-                <ShieldCheck size={22} />
-              </div>
-            )}
-            <div>
-              <h1 className="font-bold text-base leading-tight tracking-tight" style={{ color: '#FFFFFF' }}>{t.title}</h1>
-              <p className="text-[9px] uppercase tracking-[0.12em] font-semibold mt-0.5" style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{t.subtitle}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mx-4 mb-3 border-t border-white/[0.06]"></div>
-
-        <nav className="flex-1 px-3 space-y-0.5 mt-1 custom-scrollbar overflow-y-auto">
-          <button 
-            onClick={() => setActiveTab('dashboard')}
-            className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'dashboard' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
-          >
-            <LayoutDashboard size={20} />
-            <span className="font-semibold text-sm" data-i18n="navDashboard">{t.navDashboard}</span>
-          </button>
-          
-          <button 
-            onClick={() => setActiveTab('students')}
-            className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'students' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
-          >
-            <Users size={20} />
-            <span className="font-semibold text-sm" data-i18n="navStudents">{t.navStudents}</span>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('parents')}
-            className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'parents' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
-          >
-            <MessageSquare size={20} />
-            <span className="font-semibold text-sm" data-i18n="navParents">{t.navParents}</span>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('payroll')}
-            className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'payroll' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
-          >
-            <div className="flex items-center justify-between w-full gap-2">
-              <div className="flex items-center gap-3 min-w-0">
-                <Briefcase size={20} className="flex-shrink-0" />
-                <span className="font-semibold text-sm truncate" data-i18n="payroll">{t.payroll}</span>
-              </div>
-              {payrollWindowStatus.isOverdue ? (
-                <span className="bg-rose-700 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0" data-i18n="overdue">
-                  {t.overdue}
-                </span>
-              ) : payrollWindowStatus.isOpen ? (
-                <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm flex-shrink-0">
-                  {t.open}
-                </span>
-              ) : (
-                <Lock size={14} className="text-white/40 flex-shrink-0" />
-              )}
-            </div>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('expenses')}
-            className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'expenses' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
-          >
-            <Receipt size={20} />
-            <span className="font-semibold text-sm" data-i18n="expenses">{t.expenses}</span>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('calendar')}
-            className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'calendar' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
-          >
-            <Calendar size={20} />
-            <span className="font-semibold text-sm" data-i18n="navCalendar">{t.navCalendar}</span>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('notes')}
-            className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'notes' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
-          >
-            <StickyNote size={20} />
-            <span className="font-semibold text-sm" data-i18n="notes">{t.notes}</span>
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('archives')}
-            className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'archives' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
-          >
-            <TrendingUp size={20} />
-            <span className="font-semibold text-sm" data-i18n="navArchives">{t.navArchives}</span>
-          </button>
-
-          {(currentUser?.role === 'admin' || currentUser?.role === 'dev') && (
-            <>
-              <button 
-                onClick={() => {
-                  setActiveTab('audit');
-                  fetchAuditLogs();
-                }}
-                className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'audit' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
-              >
-                <ShieldCheck size={20} />
-                <span className="font-semibold text-sm">{t.auditTrail}</span>
-              </button>
-
-              <button 
-                onClick={() => setActiveTab('settings')}
-                className={`nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === 'settings' ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`}
-              >
-                <Globe size={20} />
-                <span className="font-semibold text-sm" data-i18n="navSettings">{t.navSettings}</span>
-              </button>
-            </>
-          )}
-
-          <button 
-            onClick={() => setShowTodoSidebar(!showTodoSidebar)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${showTodoSidebar ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
-          >
-            <CheckSquare size={20} />
-            <span className="font-semibold text-sm" data-i18n="productivity">{t.productivity}</span>
-          </button>
-          
-          <div className="pt-4 pb-2 px-4">
-            <p className="text-[10px] font-black text-white/20 uppercase tracking-widest" data-i18n="actions">{t.actions}</p>
-          </div>
-
-          <button 
-            onClick={() => auth.signOut()}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 mt-auto"
-          >
-            <LogOut size={20} />
-            <span className="font-semibold text-sm" data-i18n="signOut">{t.signOut}</span>
-          </button>
-
-          <div className="space-y-2 pt-2">
-            <button 
-              onClick={() => {
-                setEditingStudent(null);
-                setStudentForm({
-                  name: '',
-                  parentName: '',
-                  parentEmail: '',
-                  parentPhone: '',
-                  totalDue: '',
-                  scholarshipDiscount: '0',
-                  dueDate: new Date().toISOString().split('T')[0],
-                  academicYear: selectedYear || '2024-2025',
-                  grade: '',
-                  studentId: '',
-                  photo: '',
-                  emergencyContactName: '',
-                  emergencyContactRelation: '',
-                  emergencyContactPhone: '',
-                  medicalNotes: 'None',
-                  enrollmentDate: new Date().toISOString().split('T')[0],
-                  previousSchool: '',
-                  status: 'Active'
-                });
-                setShowStudentModal(true);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition-all font-bold text-xs"
-            >
-              <Plus size={18} className="text-emerald-400" />
-              <span>{t.addStudent}</span>
-            </button>
-
-            <button 
-              onClick={() => setShowPaymentForm(true)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition-all font-bold text-xs"
-            >
-              <DollarSign size={18} />
-              <span>{t.recordPayment}</span>
-            </button>
-          </div>
-        </nav>
-
-        <div className="p-6 border-t border-white/5">
-          <button 
-            onClick={() => toggleLanguage(lang === 'en' ? 'fr' : 'en')}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-sm font-bold"
-          >
-            <Globe size={18} />
-            {t.langToggle}
-          </button>
-        </div>
-      </aside>
+      <Sidebar
+        t={t}
+        schoolLogo={schoolLogo}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        payrollWindowStatus={payrollWindowStatus}
+        currentUser={currentUser}
+        fetchAuditLogs={fetchAuditLogs}
+        showTodoSidebar={showTodoSidebar}
+        setShowTodoSidebar={setShowTodoSidebar}
+        onSignOut={() => auth.signOut()}
+        onToggleLanguage={() => toggleLanguage(lang === 'en' ? 'fr' : 'en')}
+        onAddStudent={openAddStudentModal}
+        onRecordPayment={() => setShowPaymentForm(true)}
+      />
 
       {/* --- Main Content --- */}
       <main className={`flex-1 lg:ml-64 p-8 lg:p-12 transition-all duration-300 ${showTodoSidebar ? 'lg:mr-80' : ''}`}>
@@ -854,274 +681,65 @@ const {
           )}
         </AnimatePresence>
 
-        {/* --- Header --- */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-          <div>
-            <h2 className={`text-3xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} tracking-tight`}>
-              {activeTab === 'dashboard' ? t.dashboard : 
-               activeTab === 'students' ? t.students :
-               activeTab === 'parents' ? t.parents :
-               activeTab === 'payroll' ? t.payroll :
-               activeTab === 'expenses' ? t.expenses : 
-               activeTab === 'calendar' ? t.calendar : 
-               activeTab === 'archives' ? t.yearlyArchives : 
-               activeTab === 'audit' ? (t.auditTrail) : t.settings}
-            </h2>
-            <p className={`${currentTheme.muted} text-sm mt-1 flex items-center gap-2`}>
-              <Calendar size={14} />
-              {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR', { month: 'long', day: 'numeric', year: 'numeric' })}
-            </p>
-          </div>
+        <AppHeader
+          t={t}
+          lang={lang}
+          currentTheme={currentTheme}
+          activeTab={activeTab}
+          currentUser={currentUser}
+          selectedYear={selectedYear}
+          setSelectedYear={setSelectedYear}
+          academicYears={academicYears}
+          availableClasses={availableClasses}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          studentGradeFilter={studentGradeFilter}
+          setStudentGradeFilter={setStudentGradeFilter}
+          onPromoteClass={() => setIsPromotionWizardOpen(true)}
+          onImportExcel={() => setShowExcelImport(true)}
+          onOpenMonthlyDraft={() => {
+            setSelectedDraftMonth(new Date().getMonth());
+            setSelectedDraftYear(new Date().getFullYear());
+            setShowMonthlyDraftModal(true);
+          }}
+          onAddStudent={openAddStudentModal}
+          onPrintReport={() => {
+            if (activeTab === 'archives') {
+              generateMultiYearReportPdf({
+                academicYears,
+                lockedYears,
+                students,
+                expenses,
+                vendorExpenses,
+                salaryPayments,
+                lang,
+              });
+            } else if (activeTab === 'expenses') {
+              generateExpensesReportPdf({
+                expenses,
+                vendorExpenses,
+                selectedYear,
+                subTab: vendorExpensesTab,
+                lang,
+              });
+            } else {
+              handlePrint();
+            }
+          }}
+          onExportLate={handleExport}
+          onFinancialReportPdf={() => generateFinancialReportPdf({
+            students,
+            expenses,
+            vendorExpenses,
+            salaryPayments,
+            selectedYear,
+            lang
+          })}
+        />
 
-          <div className="flex items-center gap-4 w-full md:w-auto no-print">
-            <div className="relative">
-              <select 
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className={`pl-10 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-${currentTheme.accent}/5 focus:border-${currentTheme.accent} transition-all text-sm font-bold ${currentTheme.text} appearance-none cursor-pointer`}
-              >
-                <option value="">{t.allYears}</option>
-                {academicYears.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-              <Calendar className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={16} />
-            </div>
+        <WelcomeBanner t={t} currentUser={currentUser} />
 
-            {activeTab === 'students' && (
-              <button 
-                onClick={() => setIsPromotionWizardOpen(true)}
-                className="px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-2xl shadow-lg shadow-emerald-700/20 transition-all flex items-center gap-2"
-              >
-                <GraduationCap size={18} />
-                <span className="hidden sm:inline uppercase tracking-widest">{t.promoteClass}</span>
-              </button>
-            )}
-
-            {/* Import Excel Button — visible on data tabs */}
-            {(activeTab === 'students' || activeTab === 'parents' || activeTab === 'payroll' || activeTab === 'expenses') && (currentUser?.role === 'admin' || currentUser?.role === 'dev') && (
-              <button 
-                onClick={() => setShowExcelImport(true)}
-                className="px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-violet-600/20 transition-all flex items-center gap-2 active:scale-[0.97]"
-              >
-                <FileSpreadsheet size={18} />
-                <span className="hidden sm:inline uppercase tracking-widest">{t.importExcel}</span>
-              </button>
-            )}
-
-            {activeTab === 'payroll' && (
-              <button 
-                onClick={() => {
-                  setSelectedDraftMonth(new Date().getMonth());
-                  setSelectedDraftYear(new Date().getFullYear());
-                  setShowMonthlyDraftModal(true);
-                }}
-                className="px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-2xl shadow-lg shadow-emerald-700/20 transition-all flex items-center gap-2 active:scale-[0.97]"
-                title={t.monthlyPayrollDraft}
-              >
-                <FileText size={18} />
-                <span className="hidden sm:inline uppercase tracking-widest">{t.monthlyDraft}</span>
-              </button>
-            )}
-
-            {(activeTab === 'students' || activeTab === 'payroll' || activeTab === 'archives' || activeTab === 'expenses') && (
-              <button 
-                onClick={() => {
-                  if (activeTab === 'archives') {
-                    generateMultiYearReportPdf({
-                      academicYears,
-                      lockedYears,
-                      students,
-                      expenses,
-                      vendorExpenses,
-                      salaryPayments,
-                      lang,
-                    });
-                  } else if (activeTab === 'expenses') {
-                    generateExpensesReportPdf({
-                      expenses,
-                      vendorExpenses,
-                      selectedYear,
-                      subTab: vendorExpensesTab,
-                      lang,
-                    });
-                  } else {
-                    handlePrint();
-                  }
-                }}
-                className={`p-3 rounded-2xl ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center gap-2`}
-                title={activeTab === 'archives' ? (t.downloadMultiYearPdf) : activeTab === 'expenses' ? (t.downloadExpensesPdf) : t.printReport}
-              >
-                {(activeTab === 'archives' || activeTab === 'expenses') ? <FileText size={20} /> : <Printer size={20} />}
-                <span className="hidden sm:inline font-bold text-xs uppercase tracking-widest">
-                  {activeTab === 'archives' ? (t.multiYearPdf) : activeTab === 'expenses' ? (t.expensesPdf) : t.printReport}
-                </span>
-              </button>
-            )}
-            {(activeTab === 'students' || activeTab === 'parents') && (
-              <div className="relative flex-1 md:w-80">
-                <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={18} />
-                <input 
-                  type="text" 
-                  placeholder={t.searchPlaceholder}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className={`w-full pl-12 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-${currentTheme.accent}/5 focus:border-${currentTheme.accent} transition-all text-sm ${currentTheme.text}`}
-                />
-              </div>
-            )}
-            {activeTab === 'students' && (
-              <div className="relative min-w-[170px]">
-                <select
-                  value={studentGradeFilter}
-                  onChange={(e) => setStudentGradeFilter(e.target.value)}
-                  className={`w-full pl-10 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-bold ${currentTheme.text} appearance-none cursor-pointer`}
-                >
-                  <option value="all">{t.allClasses}</option>
-                  <optgroup label={t.firstCycle1stTo6th}>
-                    {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
-                      <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label={t.secondCycle7thTo9th}>
-                    {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
-                      <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
-                    ))}
-                  </optgroup>
-                  {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
-                    <optgroup label={t.otherClasses}>
-                      {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
-                        <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
-                <Layers className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={16} />
-              </div>
-            )}
-            {activeTab === 'dashboard' && (
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => generateFinancialReportPdf({
-                    students,
-                    expenses,
-                    vendorExpenses,
-                    salaryPayments,
-                    selectedYear,
-                    lang
-                  })}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98]"
-                  title={t.exportFinancialReportPdf}
-                >
-                  <FileText size={18} />
-                  <span className="hidden sm:inline">{t.financialReportPdf}</span>
-                </button>
-                <button 
-                  onClick={handleExport}
-                  className={`${currentTheme.card} border ${currentTheme.border} ${currentTheme.text} px-5 py-3 rounded-2xl text-sm font-bold hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm`}
-                >
-                  <Download size={18} />
-                  <span className="hidden sm:inline">{t.exportLate}</span>
-                </button>
-              </div>
-            )}
-            {activeTab === 'students' && (
-              <button 
-                onClick={() => {
-                  setEditingStudent(null);
-                  setStudentForm({
-                    name: '',
-                    parentName: '',
-                    parentEmail: '',
-                    parentPhone: '',
-                    totalDue: '',
-                    scholarshipDiscount: '0',
-                    dueDate: new Date().toISOString().split('T')[0],
-                    academicYear: selectedYear || '2024-2025',
-                    grade: '',
-                    studentId: '',
-                    photo: '',
-                    emergencyContactName: '',
-                    emergencyContactRelation: '',
-                    emergencyContactPhone: '',
-                    medicalNotes: 'None',
-                    enrollmentDate: new Date().toISOString().split('T')[0],
-                    previousSchool: '',
-                    status: 'Active'
-                  });
-                  setShowStudentModal(true);
-                }}
-                className={`${currentTheme.accentBg} text-white px-5 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
-              >
-                <Plus size={18} />
-                <span className="hidden sm:inline">{t.addStudent}</span>
-              </button>
-            )}
-          </div>
-        </header>
-
-        {/* --- Persistent Welcome Banner (No Print) --- */}
-        <div className="welcome-banner mb-8 p-5 rounded-2xl relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print shadow-md" style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div className="flex items-center gap-3.5 z-10">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/25 flex-shrink-0">
-              <ShieldCheck size={20} className="text-white" />
-            </div>
-            <div>
-              <h3 className="font-bold text-base tracking-tight" style={{ color: '#FFFFFF' }}>
-                {t.welcomeBack}, <span style={{ color: '#34D399' }}>{currentUser?.name || currentUser?.username}</span> !
-              </h3>
-              <p className="text-[11px] font-medium" style={{ color: '#94A3B8' }}>
-                {(currentUser?.name || currentUser?.username || '').toLowerCase().includes('mamadou')
-                  ? (t.generalManagerFullAdministrationFinancialAccess)
-                  : (currentUser?.name || currentUser?.username || '').toLowerCase().includes('fanta')
-                  ? (t.schoolPromoterDirectorExecutiveOversight)
-                  : currentUser?.role === 'dev'
-                  ? (t.systemDeveloperFullTechnicalAdminAccess)
-                  : currentUser?.role === 'admin' 
-                  ? (t.administratorFullSystemAccess)
-                  : (t.accountantAccessFinanceReceipts)}
-              </p>
-            </div>
-          </div>
-          <div className="z-10 flex items-center gap-2">
-            <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.08em] ${
-              currentUser?.role === 'dev' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/20' :
-              currentUser?.role === 'admin' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' : 'bg-blue-500/20 text-blue-400 border border-blue-500/20'
-            }`}>
-              {(currentUser?.name || currentUser?.username || '').toLowerCase().includes('mamadou')
-                ? (t.generalManager)
-                : (currentUser?.name || currentUser?.username || '').toLowerCase().includes('fanta')
-                ? (t.promoter)
-                : currentUser?.role === 'dev'
-                ? (t.developer)
-                : currentUser?.role === 'admin'
-                ? (t.admin)
-                : (t.accountant)}
-            </span>
-          </div>
-        </div>
-
-        {/* --- Locked Academic Year Banner --- */}
-        {lockedYears.includes(selectedYear) && (
-          <div className="mb-8 flex items-center justify-between p-6 bg-rose-50 border border-rose-200 rounded-3xl text-rose-800 shadow-sm no-print">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-rose-100 rounded-2xl text-rose-600">
-                <Lock size={24} />
-              </div>
-              <div>
-                <p className="font-extrabold text-lg">
-                  {t.academicYearLocked}
-                </p>
-                <p className="text-xs opacity-90">
-                  {t.thisAcademicYearHasBeenClosedAndArchivedAllRecordsAreCurrentlyInReadOnlyMode}
-                </p>
-              </div>
-            </div>
-            <span className="px-4 py-1.5 bg-rose-600 text-white rounded-xl text-xs font-black uppercase tracking-wider">
-              {t.readOnly}
-            </span>
-          </div>
-        )}
+        <LockedYearBanner t={t} show={lockedYears.includes(selectedYear)} />
 
         {/* --- Views (dashboard, students, parents, payroll, expenses, calendar, notes, audit, settings) --- */}
         <Suspense fallback={<div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}><div className="h-6 w-64 bg-slate-300 dark:bg-slate-700 rounded-lg mb-8" /><div className="h-[400px] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" /></div>}>
