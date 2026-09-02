@@ -53,12 +53,15 @@ const FIX = process.argv.includes('--fix');
 
 // ── Politique rôles : comptes propriétaires documentés dans le repo ─────────
 // (supabase/create_user.mjs, supabase/run-migrations.mjs, supabase/_update_role.cjs)
+// Rôles système : admin, staff, dev, general_manager (Gestionnaire Principal),
+// econome — staff et econome partagent le même palier d'autorité.
 const OWNER_ROLES = {
   'ibrahimkalilthera@mamathera.org': 'dev',
   'ibrahimkalilthera@yahoo.com': 'admin',
-  'mamadoulaminethera@mamathera.org': 'staff',
+  'mamadoulaminethera@mamathera.org': 'general_manager',
+  'aggeediarra@mamathera.org': 'staff',
 };
-const VALID_ROLES = new Set(['admin', 'staff', 'dev']);
+const VALID_ROLES = new Set(['admin', 'staff', 'dev', 'general_manager', 'econome']);
 const NAME_PLACEHOLDERS = new Set(['new user', 'nouvel utilisateur', 'null', 'undefined', 'user']);
 
 // Dérive un nom lisible depuis le local-part de l'email
