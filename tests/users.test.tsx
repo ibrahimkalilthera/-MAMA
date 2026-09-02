@@ -165,7 +165,8 @@ describe('useUsers', () => {
       ['admin', t.roleAdminPromoter],
       ['dev', t.roleDeveloper],
       ['general_manager', t.roleGeneralManager],
-      ['staff', t.roleStaffAccountant],
+      ['econome', t.roleEconome],
+      ['staff', t.roleStaff],
     ] as const;
     for (const [role, label] of cases) {
       // gm is already general_manager — use staffU for every role except that one

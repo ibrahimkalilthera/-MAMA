@@ -625,7 +625,7 @@ export function MainViews(props: MainViewsProps) {
                           <span>💼</span> {t.staffAccountants}
                         </span>
                         <span className="text-xs font-black bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
-                          {userProfiles.filter(p => p.role === 'staff').length}
+                          {userProfiles.filter(p => p.role === 'staff' || p.role === 'econome').length}
                         </span>
                       </div>
                       <p className={`text-[11px] ${currentTheme.isDark ? 'text-blue-300/80' : 'text-blue-800'}`}>
@@ -666,6 +666,7 @@ export function MainViews(props: MainViewsProps) {
                         { id: 'all', label: t.all },
                         { id: 'admin', label: 'Admins' },
                         { id: 'staff', label: t.staff2 },
+                        { id: 'econome', label: t.roleEconome },
                       ] as RoleTab[]).map((tab) => (
                         <button
                           key={tab.id}
@@ -710,7 +711,7 @@ export function MainViews(props: MainViewsProps) {
                           const isDev = profile.role === 'dev';
                           const isAdmin = profile.role === 'admin';
                           const isGM = profile.role === 'general_manager';
-                          const isStaff = profile.role === 'staff';
+                          const isStaff = profile.role === 'staff' || profile.role === 'econome';
 
                           return (
                             <div 
@@ -750,14 +751,17 @@ export function MainViews(props: MainViewsProps) {
                                       {isDev && <span>⚡</span>}
                                       {isAdmin && <span>👑</span>}
                                       {isGM && <span>🧭</span>}
-                                      {isStaff && <span>💼</span>}
+                                      {profile.role === 'staff' && <span>💼</span>}
+                                      {profile.role === 'econome' && <span>🧾</span>}
                                       {isDev 
                                         ? (t.developer)
                                         : isAdmin 
                                         ? (t.promoterAdmin2) 
                                         : isGM
                                         ? (t.generalManager)
-                                        : (t.staffAccountant)}
+                                        : profile.role === 'econome'
+                                        ? (t.roleEconome)
+                                        : (t.roleStaff)}
                                     </span>
                                   </div>
                                   <p className={`text-xs ${currentTheme.muted} mt-0.5`}>{profile.email}</p>
@@ -790,7 +794,10 @@ export function MainViews(props: MainViewsProps) {
                                         🧭 {t.generalManager}
                                       </option>
                                       <option value="staff" className="bg-slate-800 text-white">
-                                        💼 {t.staffAccountant}
+                                        💼 {t.roleStaff}
+                                      </option>
+                                      <option value="econome" className="bg-slate-800 text-white">
+                                        🧾 {t.roleEconome}
                                       </option>
                                     </select>
                                   </div>

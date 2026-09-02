@@ -10,7 +10,7 @@
 export type Language = 'en' | 'fr';
 export interface User {
   username: string;
-  role: 'admin' | 'staff' | 'dev' | 'general_manager';
+  role: 'admin' | 'staff' | 'dev' | 'general_manager' | 'econome';
   name?: string;
 }
 

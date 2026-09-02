@@ -18,9 +18,10 @@ import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
  *  - general_manager Gestionnaire Principal: full FINANCE administration
  *                    (vendor expenses, scholarships, imports, staff & salary
  *                    writes) but NOT user management, settings or audit
- *  - staff          accountant: daily entries only
+ *  - staff / econome positions: daily entries only — two distinct job
+ *    titles sharing the exact same (baseline) authority in the app
  */
-export type AppRole = 'admin' | 'staff' | 'dev' | 'general_manager';
+export type AppRole = 'admin' | 'staff' | 'dev' | 'general_manager' | 'econome';
 
 export interface UserProfile {
   id: string;
@@ -49,7 +50,7 @@ export interface AuthState {
   /** Update user role (admin only) */
   updateUserRole: (userId: string, newRole: AppRole) => Promise<boolean>;
   /** Create a new staff or admin user account */
-  createStaffUser: (email: string, password: string, fullName: string, role: Extract<AppRole, 'admin' | 'staff' | 'general_manager'>) => Promise<{ success: boolean; error?: string }>;
+  createStaffUser: (email: string, password: string, fullName: string, role: Extract<AppRole, 'admin' | 'staff' | 'general_manager' | 'econome'>) => Promise<{ success: boolean; error?: string }>;
   /** Trigger password reset email */
   sendPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>;
 }
@@ -95,7 +96,7 @@ export function useAuth(): AuthState {
           id: user.id,
           email: user.email || '',
           fullName: meta.full_name || user.email || 'User',
-          role: (['admin', 'dev', 'general_manager'].includes(meta.role) ? meta.role : 'staff') as UserProfile['role'],
+          role: (['admin', 'dev', 'general_manager', 'econome'].includes(meta.role) ? meta.role : 'staff') as UserProfile['role'],
         };
       }
       return null;
@@ -218,7 +219,7 @@ export function useAuth(): AuthState {
     email: string,
     password: string,
     fullName: string,
-    role: 'admin' | 'staff' | 'general_manager'
+    role: 'admin' | 'staff' | 'general_manager' | 'econome'
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       const { createClient } = await import('@supabase/supabase-js');

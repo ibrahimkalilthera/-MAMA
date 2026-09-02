@@ -16,7 +16,7 @@ import type { TranslationDict } from '../i18n/translations';
 
 import type { AppRole } from '../lib/useAuth';
 
-export type UserRoleFilter = 'all' | 'admin' | 'staff' | 'dev' | 'general_manager';
+export type UserRoleFilter = 'all' | 'admin' | 'staff' | 'dev' | 'general_manager' | 'econome';
 
 export interface UseUsersDeps {
   t: TranslationDict;
@@ -40,7 +40,7 @@ export function useUsers(deps: UseUsersDeps) {
     const ok = await auth.updateUserRole(targetProfile.id, newRole);
     if (ok) {
       setUserProfiles(prev => prev.map(p => p.id === targetProfile.id ? { ...p, role: newRole } : p));
-      const roleLabel = newRole === 'admin' ? t.roleAdminPromoter : newRole === 'dev' ? t.roleDeveloper : newRole === 'general_manager' ? t.roleGeneralManager : t.roleStaffAccountant;
+      const roleLabel = newRole === 'admin' ? t.roleAdminPromoter : newRole === 'dev' ? t.roleDeveloper : newRole === 'general_manager' ? t.roleGeneralManager : newRole === 'econome' ? t.roleEconome : t.roleStaff;
       toast.success(t.roleUpdated.replace('{name}', targetProfile.fullName).replace('{role}', roleLabel));
     } else {
       toast.error(t.failedToUpdateRole);

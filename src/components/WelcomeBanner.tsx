@@ -49,7 +49,9 @@ export function WelcomeBanner({ t, currentUser }: WelcomeBannerProps) {
             ? (t.developer)
             : currentUser?.role === 'admin'
             ? (t.admin)
-            : (t.accountant)}
+            : currentUser?.role === 'econome'
+            ? (t.roleEconome)
+            : (t.roleStaff)}
         </span>
       </div>
     </div>

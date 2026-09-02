@@ -17,7 +17,7 @@ export interface NewUserForm {
   fullName: string;
   email: string;
   password: string;
-  role: 'admin' | 'staff' | 'general_manager';
+  role: 'admin' | 'staff' | 'general_manager' | 'econome';
 }
 
 export interface AddUserModalProps {
@@ -27,7 +27,7 @@ export interface AddUserModalProps {
     email: string,
     password: string,
     fullName: string,
-    role: 'admin' | 'staff' | 'general_manager',
+    role: 'admin' | 'staff' | 'general_manager' | 'econome',
   ) => Promise<{ success: boolean; error?: string }>;
   fetchAllProfiles: () => Promise<UserProfile[]>;
   t: TranslationDict;
@@ -193,7 +193,7 @@ export const AddUserModal = ({
             <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
               {t.assignedRolePermissions}
             </label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setNewUserForm({ ...newUserForm, role: 'staff' })}
@@ -206,13 +206,33 @@ export const AddUserModal = ({
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-base">💼</span>
                   <span className={`text-xs font-bold ${newUserForm.role === 'staff' ? 'text-blue-500' : themeIsDark ? 'text-white' : 'text-slate-800'}`}>
-                    {t.staffAccountant}
+                    {t.roleStaff}
                   </span>
                 </div>
                 <p className={`text-[10px] ${themeMuted} leading-snug`}>
                   {t.dailyEntriesFeesReceiptsStudentsExpenses}
                 </p>
-              </button>              <button
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewUserForm({ ...newUserForm, role: 'econome' })}
+                className={`p-3.5 rounded-2xl border text-left transition-all ${
+                  newUserForm.role === 'econome'
+                    ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30'
+                    : `${themeBorder} hover:bg-white/5`
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base">🧾</span>
+                  <span className={`text-xs font-bold ${newUserForm.role === 'econome' ? 'text-blue-500' : themeIsDark ? 'text-white' : 'text-slate-800'}`}>
+                    {t.roleEconome}
+                  </span>
+                </div>
+                <p className={`text-[10px] ${themeMuted} leading-snug`}>
+                  {t.dailyEntriesFeesReceiptsStudentsExpenses}
+                </p>
+              </button>
+              <button
                 type="button"
                 onClick={() => setNewUserForm({ ...newUserForm, role: 'general_manager' })}
                 className={`p-3.5 rounded-2xl border text-left transition-all ${

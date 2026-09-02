@@ -28,7 +28,7 @@ import type { AppRole } from '../lib/useAuth';
 
 export type ThemeId = 'navy' | 'cream' | 'slate' | 'emerald' | 'bordeaux' | 'midnight';
 export type ManagedClass = SchoolClass & { rowId?: string };
-export type RoleFilter = 'all' | 'admin' | 'staff' | 'dev' | 'general_manager';
+export type RoleFilter = 'all' | 'admin' | 'staff' | 'dev' | 'general_manager' | 'econome';
 export type SortKey = 'name' | 'parentName' | 'balance' | 'dueDate';
 export type ParentSort = 'highest_balance' | 'alphabetical';
 
@@ -143,7 +143,7 @@ export interface ThemeOption {
 }
 
 export interface RoleTab {
-  id: 'all' | 'admin' | 'staff' | 'general_manager';
+  id: 'all' | 'admin' | 'staff' | 'general_manager' | 'econome';
   label: string;
 }
 
