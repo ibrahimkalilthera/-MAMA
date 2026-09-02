@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, FormEvent, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, FormEvent, lazy, Suspense } from 'react';
 import { useSupabaseData } from './lib/useSupabaseData';
 import type { UserProfile } from './lib/useAuth';
 import type { MainViewsProps } from './app/mainViewsProps';
@@ -30,6 +30,8 @@ import { logAuditEvent } from './lib/auditLogger';
 import { InactivityWarning } from './components/InactivityWarning';
 import { useYear } from './app/yearContext';
 import { getReadNotificationIds, saveReadNotificationIds } from './lib/notificationReads';
+import { playNotificationChime } from './lib/notificationSound';
+import { findNewNotifications } from './lib/notificationWatch';
 import { useYearOps } from './app/useYearOps';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
@@ -422,6 +424,37 @@ export default function App() {
   const markAllNotificationsRead = (): void => {
     setReadNotificationIds(notifications.map(n => n.id));
   };
+
+  // --- In-session notification alerts (chime + toast) ---
+
+  const prevNotifIdsRef = useRef<ReadonlySet<string> | null>(null);
+
+  useEffect(() => {
+    const prev = prevNotifIdsRef.current;
+    const fresh = findNewNotifications(prev, notifications);
+    prevNotifIdsRef.current = new Set(notifications.map(n => n.id));
+    // First observation (session start) never alerts.
+    if (!prev || fresh.length === 0) return;
+    playNotificationChime();
+    if (fresh.length === 1) {
+      toast.warning(`🔔 ${fresh[0].message}`);
+    } else {
+      toast.warning(t.newNotifications.replace('{n}', String(fresh.length)));
+    }
+  }, [notifications, t, toast]);
+
+  // Light background refresh so reminders can actually appear mid-session
+  // (another staff member's changes). Silent: no loading flash, no error
+  // banner; skipped when the tab is hidden or the device is offline.
+  useEffect(() => {
+    if (!auth.user) return;
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        void fetchAll({ silent: true });
+      }
+    }, 60000);
+    return () => clearInterval(poll);
+  }, [auth.user, fetchAll]);
 
   // --- Handlers ---
 

@@ -447,9 +447,11 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
   // ── Fetch all data ──────────────────────────────────────────────────────
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchAll = useCallback(async (opts?: { silent?: boolean }) => {
+    // Silent refreshes (periodic polling) must not flash the loading screen
+    // nor surface transient errors — only the initial/retry loads do.
+    if (!opts?.silent) setLoading(true);
+    if (!opts?.silent) setError(null);
     try {
       // Wrap in retry for network resilience (Bamako connectivity)
       await retryWithBackoff(async () => {
@@ -529,10 +531,12 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to fetch data';
-      console.error('[MAMA THERA] fetchAll failed after retries:', msg);
-      setError(msg);
+      if (!opts?.silent) {
+        console.error('[MAMA THERA] fetchAll failed after retries:', msg);
+        setError(msg);
+      }
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
