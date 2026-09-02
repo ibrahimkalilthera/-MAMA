@@ -25,13 +25,11 @@
  */
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { act, createElement } from 'react';
-import { createRoot } from 'react-dom/client';
-import type { Root } from 'react-dom/client';
-import { Window } from 'happy-dom';
+import { act } from 'react';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { Student, User, Payment } from '../src/app/types';
+import { installDomGlobals, stubAlert, renderHook } from './harness';
 
 // ── module mock: receipt PDF (registered BEFORE importing the hook) ─────────
 interface ReceiptCall {
@@ -56,36 +54,7 @@ const { usePayments } = await import('../src/app/usePayments');
 
 const t = translations.fr as TranslationDict;
 
-/** Install happy-dom's window/document (and friends) on globalThis. */
-function installDomGlobals(): Window {
-  const win = new Window({ url: 'http://localhost/' });
-  const define = (key: string, value: unknown): void => {
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  };
-  define('window', win);
-  define('document', win.document);
-  define('navigator', win.navigator);
-  define('HTMLElement', win.HTMLElement);
-  define('Element', win.Element);
-  define('Node', win.Node);
-  define('Event', win.Event);
-  define('CustomEvent', win.CustomEvent);
-  define('getComputedStyle', win.getComputedStyle.bind(win));
-  define('localStorage', win.localStorage);
-  define('IS_REACT_ACT_ENVIRONMENT', true);
-  return win;
-}
-
 const win = installDomGlobals();
-
-type PaymentsApi = ReturnType<typeof usePayments>;
-type ApiRef = { current: PaymentsApi | null };
-
-/** Renders the hook inside a component and keeps a live ref to its API. */
-function Harness(props: { args: Parameters<typeof usePayments>[0]; api: ApiRef }): null {
-  props.api.current = usePayments(props.args);
-  return null;
-}
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 
@@ -148,32 +117,18 @@ function baseDeps(overrides: DepsOverrides = {}): {
   return { args: args as Parameters<typeof usePayments>[0], spies };
 }
 
-/** Stub globalThis.alert (node has none) and restore after the test. */
-function stubAlert(target: string[]): () => void {
-  const original = globalThis.alert as unknown;
-  globalThis.alert = ((msg: string) => { target.push(msg); }) as typeof alert;
-  return () => {
-    globalThis.alert = original as typeof alert;
-  };
-}
-
 /** Mounts the hook, lets the test drive the form state, then submits. */
 async function setup(
   args: Parameters<typeof usePayments>[0],
   form: { studentId: string; amount: string; date?: string },
   alertTarget: string[] = [],
 ): Promise<{
-  ref: ApiRef;
-  root: Root;
+  ref: { current: ReturnType<typeof usePayments> | null };
+  root: { unmount: () => void };
   restoreAlert: () => void;
 }> {
-  const container = win.document.createElement('div');
-  win.document.body.appendChild(container);
-  const root = createRoot(container as unknown as Element);
-  const ref: ApiRef = { current: null };
-  act(() => {
-    root.render(createElement(Harness, { args, api: ref }));
-  });
+  const ref: { current: ReturnType<typeof usePayments> | null } = { current: null };
+  const { unmount } = renderHook(usePayments, args, ref);
   const restoreAlert = stubAlert(alertTarget);
   await act(async () => {
     ref.current!.setShowPaymentForm(true);
@@ -181,7 +136,7 @@ async function setup(
     ref.current!.setPaymentAmount(form.amount);
     if (form.date) ref.current!.setPaymentDate(form.date);
   });
-  return { ref, root, restoreAlert };
+  return { ref, root: { unmount }, restoreAlert };
 }
 
 describe('usePayments.handlePaymentSubmit', () => {

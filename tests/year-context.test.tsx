@@ -13,29 +13,9 @@ import assert from 'node:assert/strict';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
-import { Window } from 'happy-dom';
 import { YearProvider } from '../src/app/YearProvider';
 import { useYear } from '../src/app/yearContext';
-
-/** Install happy-dom's window/document (and friends) on globalThis. */
-function installDomGlobals(): Window {
-  const win = new Window({ url: 'http://localhost/' });
-  const define = (key: string, value: unknown): void => {
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  };
-  define('window', win);
-  define('document', win.document);
-  define('navigator', win.navigator);
-  define('HTMLElement', win.HTMLElement);
-  define('Element', win.Element);
-  define('Node', win.Node);
-  define('Event', win.Event);
-  define('CustomEvent', win.CustomEvent);
-  define('getComputedStyle', win.getComputedStyle.bind(win));
-  define('localStorage', win.localStorage);
-  define('IS_REACT_ACT_ENVIRONMENT', true);
-  return win;
-}
+import { installDomGlobals } from './harness';
 
 installDomGlobals();
 

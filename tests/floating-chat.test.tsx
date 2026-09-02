@@ -24,50 +24,36 @@ import { act, createElement } from 'react';
 import type { ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
-import { Window } from 'happy-dom';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import { useFloatingChat } from '../src/app/useFloatingChat';
 import type { DashboardStats } from '../src/app/mainViewsProps';
 import { FloatingChat } from '../src/components/FloatingChat';
+import { installDomGlobals } from './harness';
 
 const t = translations.en as TranslationDict;
 const greeting = t.helloIAmYourMamaTheraFinanceAssistantHowCanIAssistYouWithSchoolStatisticsTodayYouCanAskMeFinancialQuestionsOrClickOneOfTheQuickOptionsBelow;
 // The quick prompts are truncated in the button label when longer than 35 chars.
 const prompt1Label = t.aiPrompt1.length > 35 ? `${t.aiPrompt1.slice(0, 32)}...` : t.aiPrompt1;
 
-/** Install happy-dom's window/document (and friends) on globalThis for this file. */
-function installDomGlobals(): Window {
-  const win = new Window({ url: 'http://localhost/' });
-  // defineProperty everywhere: some node globals (navigator) are getter-only
-  // and would throw on plain assignment.
-  const define = (key: string, value: unknown): void => {
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  };
-  define('window', win);
-  define('document', win.document);
-  define('navigator', win.navigator);
-  define('HTMLElement', win.HTMLElement);
-  define('Element', win.Element);
-  define('Node', win.Node);
-  define('Event', win.Event);
-  define('MouseEvent', win.MouseEvent);
-  define('KeyboardEvent', win.KeyboardEvent);
-  define('CustomEvent', win.CustomEvent);
-  define('getComputedStyle', win.getComputedStyle.bind(win));
-  define('localStorage', win.localStorage);
-  define('IS_REACT_ACT_ENVIRONMENT', true);
-  // rAF: happy-dom's own never fires its callbacks (verified) — use a
-  // setTimeout-based frame loop for the non-WAAPI path.
-  define('requestAnimationFrame', (cb: FrameRequestCallback): number =>
-    setTimeout(() => cb(performance.now()), 16) as unknown as number
-  );
-  define('cancelAnimationFrame', (id: number): void => clearTimeout(id));
-  // Motion resolves `window.requestAnimationFrame` off the window object, not
-  // the global — patch the window instance too.
-  win.requestAnimationFrame = ((cb: FrameRequestCallback): number =>
-    setTimeout(() => cb(performance.now()), 16) as unknown as number) as unknown as typeof win.requestAnimationFrame;
-  win.cancelAnimationFrame = ((id: number): void => clearTimeout(id)) as unknown as typeof win.cancelAnimationFrame;
+const win = installDomGlobals({
+  extra: {
+    // A setTimeout-driven rAF loop (happy-dom's own rAF never fires its
+    // callbacks — verified) for the non-WAAPI animation path.
+    requestAnimationFrame: (cb: FrameRequestCallback): number =>
+      setTimeout(() => cb(performance.now()), 16) as unknown as number,
+    cancelAnimationFrame: (id: number): void => clearTimeout(id),
+  },
+});
+// File-specific event constructors (need the returned window instance, so
+// they are wired after the shared install).
+Object.defineProperty(globalThis, 'MouseEvent', { value: win.MouseEvent, configurable: true, writable: true });
+Object.defineProperty(globalThis, 'KeyboardEvent', { value: win.KeyboardEvent, configurable: true, writable: true });
+// Motion resolves `window.requestAnimationFrame` off the window object, not
+// the global — patch the window instance too.
+win.requestAnimationFrame = ((cb: FrameRequestCallback): number =>
+  setTimeout(() => cb(performance.now()), 16) as unknown as number) as unknown as typeof win.requestAnimationFrame;
+win.cancelAnimationFrame = ((id: number): void => clearTimeout(id)) as unknown as typeof win.cancelAnimationFrame;
   // WAAPI: happy-dom implements Element.animate but its virtual ticker never
   // advances, so motion (which prefers WAAPI over rAF) would wait forever on
   // any animation. Replace it with an instantly-finished stub — enter/exit
@@ -91,8 +77,6 @@ function installDomGlobals(): Window {
   win.Element.prototype.animate = (() => finishedAnimation) as unknown as typeof win.Element.prototype.animate;
   win.Element.prototype.getAnimations = (() => []) as unknown as typeof win.Element.prototype.getAnimations;
   (win.HTMLElement.prototype as { animate?: unknown }).animate = finishedAnimation;
-  return win;
-}
 
 const stats: DashboardStats = {
   totalOutstanding: 0,
@@ -137,8 +121,6 @@ function Harness(): ReactNode {
     />
   );
 }
-
-const win = installDomGlobals();
 
 function mount(): { root: Root; container: Element } {
   const container = win.document.createElement('div');

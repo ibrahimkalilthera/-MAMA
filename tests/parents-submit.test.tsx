@@ -22,59 +22,32 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { act, createElement } from 'react';
+import { act } from 'react';
 import type { FormEvent } from 'react';
-import { createRoot } from 'react-dom/client';
-import type { Root } from 'react-dom/client';
-import { Window } from 'happy-dom';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import { useParents } from '../src/app/useParents';
 import type { UseParentsArgs } from '../src/app/useParents';
 import type { Parent, Student } from '../src/app/types';
+import { installDomGlobals, renderHook } from './harness';
 
 const t = translations.en as TranslationDict;
-
-/** Install happy-dom's window/document (and friends) on globalThis. */
-function installDomGlobals(): Window {
-  const win = new Window({ url: 'http://localhost/' });
-  const define = (key: string, value: unknown): void => {
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  };
-  define('window', win);
-  define('document', win.document);
-  define('navigator', win.navigator);
-  define('HTMLElement', win.HTMLElement);
-  define('Element', win.Element);
-  define('Node', win.Node);
-  define('Event', win.Event);
-  define('CustomEvent', win.CustomEvent);
-  define('getComputedStyle', win.getComputedStyle.bind(win));
-  define('localStorage', win.localStorage);
-  define('IS_REACT_ACT_ENVIRONMENT', true);
-  return win;
-}
 
 const win = installDomGlobals();
 
 type ParentsApi = ReturnType<typeof useParents>;
-type ApiRef = { current: ParentsApi | null };
 
-/** Renders the hook inside a component and keeps a live ref to its API. */
-function Harness(props: { args: UseParentsArgs; api: ApiRef }): null {
-  props.api.current = useParents(props.args);
-  return null;
-}
-
-function mount(args: UseParentsArgs): { root: Root; container: Element; ref: ApiRef } {
-  const container = win.document.createElement('div');
-  win.document.body.appendChild(container);
-  const root = createRoot(container as unknown as Element);
-  const ref: ApiRef = { current: null };
-  act(() => {
-    root.render(createElement(Harness, { args, api: ref }));
-  });
-  return { root, container: container as unknown as Element, ref };
+/** Renders the hook and returns a live API ref (container cleanup is part of unmount). */
+function mount(args: UseParentsArgs): {
+  root: { unmount: () => void };
+  container: { remove: () => void };
+  ref: { current: ParentsApi | null };
+} {
+  const ref: { current: ParentsApi | null } = { current: null };
+  const { unmount } = renderHook(useParents, args, ref);
+  // container.remove() is already covered by unmount — kept as a no-op shim
+  // so the test bodies keep their existing finally-block shape.
+  return { ref, root: { unmount }, container: { remove: () => {} } };
 }
 
 // ── fixtures ─────────────────────────────────────────────────────────────────

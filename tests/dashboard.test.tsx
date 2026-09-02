@@ -9,35 +9,13 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { act, createElement } from 'react';
-import { createRoot } from 'react-dom/client';
-import type { Root } from 'react-dom/client';
-import { Window } from 'happy-dom';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { Student, Staff, Expense, SalaryPayment, VendorExpense } from '../src/app/types';
 import { useDashboard } from '../src/app/useDashboard';
+import { installDomGlobals, renderHook } from './harness';
 
 const t = translations.fr as TranslationDict;
-
-let win: Window;
-function installDomGlobals(): void {
-  win = new Window({ url: 'http://localhost/' });
-  const define = (key: string, value: unknown): void => {
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  };
-  define('window', win);
-  define('document', win.document);
-  define('navigator', win.navigator);
-  define('HTMLElement', win.HTMLElement);
-  define('Element', win.Element);
-  define('Node', win.Node);
-  define('Event', win.Event);
-  define('CustomEvent', win.CustomEvent);
-  define('getComputedStyle', win.getComputedStyle.bind(win));
-  define('localStorage', win.localStorage);
-  define('IS_REACT_ACT_ENVIRONMENT', true);
-}
 
 installDomGlobals();
 
@@ -52,25 +30,14 @@ const pad = (n: number): string => String(n).padStart(2, '0');
 const dateIn = (y: number, m: number, d = 15): string => `${y}-${pad(m + 1)}-${pad(d)}`;
 
 type Api = ReturnType<typeof useDashboard>;
-type ApiRef = { current: Api | null };
 
-function Harness(props: { args: Parameters<typeof useDashboard>[0]; api: ApiRef }): null {
-  props.api.current = useDashboard(props.args);
-  return null;
-}
-
-let root: Root;
-let container: HTMLElement;
+/** Renders the pure-derivation hook, reads its API, unmounts immediately. */
 function compute(args: Parameters<typeof useDashboard>[0]): Api {
-  const api: ApiRef = { current: null };
-  container = document.createElement('div');
-  document.body.appendChild(container);
-  root = createRoot(container);
-  act(() => root.render(createElement(Harness, { args, api })));
-  act(() => root.unmount());
-  container.remove();
-  if (!api.current) throw new Error('hook did not render');
-  return api.current;
+  const { api, unmount } = renderHook(useDashboard, args);
+  const result = api.current;
+  unmount();
+  if (!result) throw new Error('hook did not render');
+  return result;
 }
 
 function student(overrides: Partial<Student>): Student {

@@ -15,47 +15,16 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { act, createElement } from 'react';
-import { createRoot } from 'react-dom/client';
-import type { Root } from 'react-dom/client';
-import { Window } from 'happy-dom';
+import { act } from 'react';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { UserProfile } from '../src/lib/useAuth';
 import { useUsers } from '../src/app/useUsers';
+import { installDomGlobals, renderHook } from './harness';
 
 const t = translations.fr as TranslationDict;
 
-/** Install happy-dom's window/document (and friends) on globalThis. */
-function installDomGlobals(): Window {
-  const win = new Window({ url: 'http://localhost/' });
-  const define = (key: string, value: unknown): void => {
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  };
-  define('window', win);
-  define('document', win.document);
-  define('navigator', win.navigator);
-  define('HTMLElement', win.HTMLElement);
-  define('Element', win.Element);
-  define('Node', win.Node);
-  define('Event', win.Event);
-  define('CustomEvent', win.CustomEvent);
-  define('getComputedStyle', win.getComputedStyle.bind(win));
-  define('localStorage', win.localStorage);
-  define('IS_REACT_ACT_ENVIRONMENT', true);
-  return win;
-}
-
 const win = installDomGlobals();
-
-type UsersApi = ReturnType<typeof useUsers>;
-type ApiRef = { current: UsersApi | null };
-
-/** Renders the hook inside a component and keeps a live ref to its API. */
-function Harness(props: { args: Parameters<typeof useUsers>[0]; api: ApiRef }): null {
-  props.api.current = useUsers(props.args);
-  return null;
-}
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 
@@ -116,15 +85,13 @@ function baseDeps(overrides: DepsOverrides = {}): {
   return { args: args as Parameters<typeof useUsers>[0], spies };
 }
 
-async function setup(args: Parameters<typeof useUsers>[0]): Promise<{ ref: ApiRef; root: Root }> {
-  const container = win.document.createElement('div');
-  win.document.body.appendChild(container);
-  const root = createRoot(container as unknown as Element);
-  const ref: ApiRef = { current: null };
-  act(() => {
-    root.render(createElement(Harness, { args, api: ref }));
-  });
-  return { ref, root };
+async function setup(args: Parameters<typeof useUsers>[0]): Promise<{
+  ref: { current: ReturnType<typeof useUsers> | null };
+  root: { unmount: () => void };
+}> {
+  const ref: { current: ReturnType<typeof useUsers> | null } = { current: null };
+  const { unmount } = renderHook(useUsers, args, ref);
+  return { ref, root: { unmount } };
 }
 
 describe('useUsers', () => {

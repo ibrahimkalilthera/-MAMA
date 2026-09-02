@@ -9,11 +9,10 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { act, createElement } from 'react';
-import { createRoot } from 'react-dom/client';
-import type { Root } from 'react-dom/client';
-import { Window } from 'happy-dom';
+import { act } from 'react';
 import { useTheme } from '../src/app/useTheme';
+import { installDomGlobals, renderHook } from './harness';
+import type { HookRender } from './harness';
 
 // ── global stubs ─────────────────────────────────────────────────────────────
 // FileReader is stubbed as a plain global class (no node:test mock): the test
@@ -28,50 +27,24 @@ class StubFileReader {
   readAsDataURL(_f: unknown): void { /* the instance is already registered */ }
 }
 
-/** Install happy-dom globals (localStorage included). */
-function installDomGlobals(): Window {
-  const win = new Window({ url: 'http://localhost/' });
-  const define = (key: string, value: unknown): void => {
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  };
-  define('window', win);
-  define('document', win.document);
-  define('navigator', win.navigator);
-  define('HTMLElement', win.HTMLElement);
-  define('Element', win.Element);
-  define('Node', win.Node);
-  define('Event', win.Event);
-  define('CustomEvent', win.CustomEvent);
-  define('getComputedStyle', win.getComputedStyle.bind(win));
-  define('localStorage', win.localStorage);
-  define('Image', win.Image ?? win.HTMLImageElement);
-  define('FileReader', StubFileReader);
-  define('IS_REACT_ACT_ENVIRONMENT', true);
-  return win;
-}
-
 const win = installDomGlobals();
+// File-specific extras (Image needed by handleLogoUpload's color extraction
+// path, FileReader replaced by the controllable stub).
+Object.defineProperty(globalThis, 'Image', { value: win.Image ?? win.HTMLImageElement, configurable: true, writable: true });
+Object.defineProperty(globalThis, 'FileReader', { value: StubFileReader, configurable: true, writable: true });
 
 type ThemeApi = ReturnType<typeof useTheme>;
 type ApiRef = { current: ThemeApi | null };
 type UploadEvent = Parameters<NonNullable<ThemeApi>['handleLogoUpload']>[0];
 
-function Harness(props: { api: ApiRef }): null {
-  props.api.current = useTheme();
-  return null;
-}
-
-let root: Root;
-let container: HTMLElement;
+let mounted: HookRender<undefined, ThemeApi> | null = null;
 function render(api: ApiRef): void {
-  container = document.createElement('div');
-  document.body.appendChild(container);
-  root = createRoot(container);
-  act(() => root.render(createElement(Harness, { api })));
+  mounted?.unmount();
+  mounted = renderHook(useTheme, undefined, api);
 }
 function unmount(): void {
-  if (root) { act(() => root.unmount()); root = null as unknown as Root; }
-  if (container) container.remove();
+  mounted?.unmount();
+  mounted = null;
 }
 
 const KEY_THEME = 'school-finance-theme';

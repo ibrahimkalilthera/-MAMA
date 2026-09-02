@@ -21,13 +21,11 @@
  */
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { act, createElement } from 'react';
-import { createRoot } from 'react-dom/client';
-import type { Root } from 'react-dom/client';
-import { Window } from 'happy-dom';
+import { act } from 'react';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { Staff, SalaryPayment } from '../src/app/types';
+import { installDomGlobals, stubAlert, renderHook } from './harness';
 
 // ── module mock: xlsx (registered BEFORE importing the hook) ─────────────────
 interface SheetRow {
@@ -60,37 +58,7 @@ const { usePayroll } = await import('../src/app/usePayroll');
 
 const t = translations.fr as TranslationDict;
 
-/** Install happy-dom's window/document (and friends) on globalThis. */
-function installDomGlobals(): Window {
-  const win = new Window({ url: 'http://localhost/' });
-  const define = (key: string, value: unknown): void => {
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  };
-  define('window', win);
-  define('document', win.document);
-  define('navigator', win.navigator);
-  define('HTMLElement', win.HTMLElement);
-  define('Element', win.Element);
-  define('Node', win.Node);
-  define('Event', win.Event);
-  define('CustomEvent', win.CustomEvent);
-  define('getComputedStyle', win.getComputedStyle.bind(win));
-  define('localStorage', win.localStorage);
-  define('IS_REACT_ACT_ENVIRONMENT', true);
-  define('alert', (msg: string) => { (win as unknown as { alert?: (m: string) => void }).alert?.(msg); });
-  return win;
-}
-
-const win = installDomGlobals();
-
-type PayrollApi = ReturnType<typeof usePayroll>;
-type ApiRef = { current: PayrollApi | null };
-
-/** Renders the hook inside a component and keeps a live ref to its API. */
-function Harness(props: { args: Parameters<typeof usePayroll>[0]; api: ApiRef }): null {
-  props.api.current = usePayroll(props.args);
-  return null;
-}
+const win = installDomGlobals({ forwardAlert: true });
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 
@@ -154,25 +122,13 @@ function baseDeps(overrides: DepsOverrides = {}): {
   return { args: args as Parameters<typeof usePayroll>[0], spies };
 }
 
-/** Redirect the happy-dom `alert` into a target array; restore after. */
-function stubAlert(target: string[]): () => void {
-  const w = win as unknown as { alert?: (m: string) => void };
-  const original = w.alert;
-  w.alert = (msg: string) => { target.push(msg); };
-  return () => {
-    w.alert = original;
-  };
-}
-
-async function mount(args: Parameters<typeof usePayroll>[0]): Promise<{ ref: ApiRef; root: Root }> {
-  const container = win.document.createElement('div');
-  win.document.body.appendChild(container);
-  const root = createRoot(container as unknown as Element);
-  const ref: ApiRef = { current: null };
-  await act(async () => {
-    root.render(createElement(Harness, { args, api: ref }));
-  });
-  return { ref, root };
+async function mount(args: Parameters<typeof usePayroll>[0]): Promise<{
+  ref: { current: ReturnType<typeof usePayroll> | null };
+  root: { unmount: () => void };
+}> {
+  const ref: { current: ReturnType<typeof usePayroll> | null } = { current: null };
+  const { unmount } = renderHook(usePayroll, args, ref);
+  return { ref, root: { unmount } };
 }
 
 const submitEvent = { preventDefault: () => {} } as never;

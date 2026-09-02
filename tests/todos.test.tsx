@@ -9,15 +9,14 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { act, createElement } from 'react';
-import { createRoot } from 'react-dom/client';
-import type { Root } from 'react-dom/client';
+import { act } from 'react';
 import type { FormEvent } from 'react';
-import { Window } from 'happy-dom';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { Todo } from '../src/lib/useSupabaseData';
 import { useTodoSidebar } from '../src/app/useTodoSidebar';
+import { installDomGlobals, renderHook } from './harness';
+import type { HookRender } from './harness';
 
 const t = translations.fr as TranslationDict;
 
@@ -30,25 +29,6 @@ let deleteTodoResult = true;
 const addCalls: Array<Omit<Todo, 'id'>> = [];
 const updateCalls: Array<{ id: string; updates: Partial<Todo> }> = [];
 const deleteCalls: string[] = [];
-
-function installDomGlobals(): Window {
-  const win = new Window({ url: 'http://localhost/' });
-  const define = (key: string, value: unknown): void => {
-    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
-  };
-  define('window', win);
-  define('document', win.document);
-  define('navigator', win.navigator);
-  define('HTMLElement', win.HTMLElement);
-  define('Element', win.Element);
-  define('Node', win.Node);
-  define('Event', win.Event);
-  define('CustomEvent', win.CustomEvent);
-  define('getComputedStyle', win.getComputedStyle.bind(win));
-  define('localStorage', win.localStorage);
-  define('IS_REACT_ACT_ENVIRONMENT', true);
-  return win;
-}
 
 installDomGlobals();
 
@@ -69,22 +49,14 @@ function makeArgs(todos: Todo[]): Parameters<typeof useTodoSidebar>[0] {
 type Api = ReturnType<typeof useTodoSidebar>;
 type ApiRef = { current: Api | null };
 
-function Harness(props: { args: Parameters<typeof useTodoSidebar>[0]; api: ApiRef }): null {
-  props.api.current = useTodoSidebar(props.args);
-  return null;
-}
-
-let root: Root;
-let container: HTMLElement;
+let mounted: HookRender<Parameters<typeof useTodoSidebar>[0], Api> | null = null;
 function render(args: Parameters<typeof useTodoSidebar>[0], api: ApiRef): void {
-  container = document.createElement('div');
-  document.body.appendChild(container);
-  root = createRoot(container);
-  act(() => root.render(createElement(Harness, { args, api })));
+  mounted?.unmount();
+  mounted = renderHook(useTodoSidebar, args, api);
 }
 function unmount(): void {
-  if (root) { act(() => root.unmount()); root = null as unknown as Root; }
-  if (container) container.remove();
+  mounted?.unmount();
+  mounted = null;
 }
 
 const event = () => ({ preventDefault: () => {} }) as unknown as FormEvent;
