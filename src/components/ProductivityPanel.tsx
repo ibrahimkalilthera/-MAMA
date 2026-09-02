@@ -8,7 +8,7 @@
  * through the shared escape stack). The desktop resize logic (drag handle,
  * arrow keys, localStorage persistence) lives here too.
  */
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Dispatch, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, SetStateAction } from 'react';
 import { motion } from 'motion/react';
 import { CheckCircle2, CheckSquare, Plus, Sparkles, Trash2, X } from 'lucide-react';
@@ -17,6 +17,7 @@ import { useEscapeToClose } from '../lib/useEscapeToClose';
 import type { TranslationDict } from '../i18n/translations';
 import type { ChatMessage } from '../app/useFloatingChat';
 import type { Todo } from '../lib/useSupabaseData';
+import { sortTodosByDate } from '../lib/todoSort';
 
 // ─── Panel sizing (resizable on desktop) ────────────────────────────────────
 const PANEL_WIDTH_KEY = 'mama-thera:productivity-panel-width';
@@ -150,6 +151,19 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* pointer already released */ }
     applyPanelWidth(drag.startWidth + (drag.pointerX - e.clientX));
   };
+
+  // Local date in YYYY-MM-DD (toISOString would be UTC — off by a day for
+  // evening users west of Greenwich).
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${month}-${day}`;
+  }, []);
+  const sortedTodos = useMemo(
+    () => sortTodosByDate(todos, todayStr),
+    [todos, todayStr]
+  );
 
   const handleResizeKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>): void => {
     // Left widens (the left edge moves left), right narrows — mirroring the
@@ -320,7 +334,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
             </form>
 
             <div className="space-y-3">
-              {todos.map(todo => (
+              {sortedTodos.map(todo => (
                 <motion.div
                   layout
                   key={todo.id}
