@@ -37,6 +37,8 @@ export interface UseExpensesDeps {
   selectedYear: string;
   lockedYears: string[];
   isPromoter: boolean;
+  /** Gestionnaire Principal — finance admin without user/settings/audit access. */
+  isGeneralManager: boolean;
   currentUser: User | null;
   addExpense: (exp: Omit<Expense, 'id'>) => Promise<Expense | null>;
   addVendorExpense: (ve: Omit<VendorExpense, 'id'>) => Promise<VendorExpense | null>;
@@ -65,8 +67,12 @@ const emptyVendorExpenseForm = (): VendorExpenseForm => ({
   beneficiaryStudentGrade: '',
 });
 
-export function useExpenses(deps: UseExpensesDeps) {
-  const { t, lang, selectedYear, lockedYears, isPromoter, currentUser, addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast } = deps;
+export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser, addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast
+  } = deps;
+  // Finance admins (promoter/admin, dev, general manager) share the vendor
+  // create/delete powers; only the promoter keeps the amount/vendorName edit
+  // monopoly on existing records.
+  const isFinanceAdmin = isPromoter || isGeneralManager;
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showVendorExpenseModal, setShowVendorExpenseModal] = useState(false);
@@ -130,7 +136,7 @@ export function useExpenses(deps: UseExpensesDeps) {
 
   const handleVendorExpenseSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!editingVendorExpense && !isPromoter) {
+    if (!editingVendorExpense && !isFinanceAdmin) {
       alert(t.onlyThePromoterCanCreateAVendorExpense);
       return;
     }
@@ -193,7 +199,7 @@ export function useExpenses(deps: UseExpensesDeps) {
       alert(t.thisAcademicYearIsLocked);
       return;
     }
-    if (currentUser?.role !== 'admin' && currentUser?.role !== 'dev') {
+    if (!isFinanceAdmin) {
       alert(t.onlyThePromoterCanDeleteExpenses);
       return;
     }

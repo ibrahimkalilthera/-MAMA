@@ -100,7 +100,7 @@ export function AppHeader(props: AppHeaderProps) {
         )}
 
         {/* Import Excel Button — visible on data tabs */}
-        {(activeTab === 'students' || activeTab === 'parents' || activeTab === 'payroll' || activeTab === 'expenses') && (currentUser?.role === 'admin' || currentUser?.role === 'dev') && (
+        {(activeTab === 'students' || activeTab === 'parents' || activeTab === 'payroll' || activeTab === 'expenses') && (currentUser?.role === 'admin' || currentUser?.role === 'dev' || currentUser?.role === 'general_manager') && (
           <button 
             onClick={onImportExcel}
             className="px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-violet-600/20 transition-all flex items-center gap-2 active:scale-[0.97]"

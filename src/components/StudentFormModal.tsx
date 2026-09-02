@@ -62,6 +62,8 @@ export interface StudentFormModalProps {
   availableClasses: ManagedClass[];
   academicYears: string[];
   isPromoter: boolean;
+  /** Gestionnaire Principal — may edit scholarship discounts like the promoter. */
+  isGeneralManager: boolean;
   /** Theme tokens from the app theme engine. */
   themeCard: string;
   themeBorder: string;
@@ -85,12 +87,17 @@ export function StudentFormModal(props: StudentFormModalProps) {
     availableClasses,
     academicYears,
     isPromoter,
+    isGeneralManager,
     themeCard,
     themeBorder,
     themeHeader,
     themeMuted,
     themeIsDark,
   } = props;
+
+  // Scholarship editing is a finance-admin power (promoter/admin + Gestionnaire
+  // Principal) — mirrors the gate in useStudents.handleStudentSubmit.
+  const canEditScholarship = isPromoter || isGeneralManager;
 
   // Tab is confined to the modal while open; focus returns to the trigger on
   // close. Escape closes it (stacked with every other overlay).
@@ -378,7 +385,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
             <div className="space-y-2">
               <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest flex items-center justify-between`}>
                 <span>{t.scholarship}</span>
-                {!isPromoter && (
+                {!canEditScholarship && (
                   <span className="text-[9px] text-rose-500 font-bold">
                     ({t.promoterOnly})
                   </span>
@@ -391,8 +398,8 @@ export function StudentFormModal(props: StudentFormModalProps) {
                 step="1"
                 value={studentForm.scholarshipDiscount}
                 onChange={(e) => setStudentForm({ ...studentForm, scholarshipDiscount: e.target.value })}
-                disabled={!isPromoter}
-                className={`w-full px-6 py-4 ${!isPromoter ? 'bg-slate-150 cursor-not-allowed opacity-70' : (themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50')} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                disabled={!canEditScholarship}
+                className={`w-full px-6 py-4 ${!canEditScholarship ? 'bg-slate-150 cursor-not-allowed opacity-70' : (themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50')} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
                 placeholder="0"
               />
             </div>

@@ -109,6 +109,8 @@ interface Spies {
   alerts: string[];
   addPaymentCalls: Array<{ studentId: string; payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string } }>;
   addPaymentResults: boolean[];
+  updateCalls: Array<{ id: string; updates: Partial<Student> }>;
+  updateResults: boolean[];
 }
 
 interface DepsOverrides {
@@ -124,7 +126,7 @@ function baseDeps(overrides: DepsOverrides = {}): {
   args: Parameters<typeof usePayments>[0];
   spies: Spies;
 } {
-  const spies: Spies = { alerts: [], addPaymentCalls: [], addPaymentResults: overrides.addPaymentResults ?? [true] };
+  const spies: Spies = { alerts: [], addPaymentCalls: [], addPaymentResults: overrides.addPaymentResults ?? [true], updateCalls: [], updateResults: [true] };
   const args = {
     t,
     lang: 'fr' as const,
@@ -137,6 +139,10 @@ function baseDeps(overrides: DepsOverrides = {}): {
     addPayment: async (studentId: string, payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string }) => {
       spies.addPaymentCalls.push({ studentId, payment });
       return spies.addPaymentResults[spies.addPaymentCalls.length - 1] ?? true;
+    },
+    updateStudent: async (id: string, updates: Partial<Student>) => {
+      spies.updateCalls.push({ id, updates });
+      return spies.updateResults[spies.updateCalls.length - 1] ?? true;
     },
   };
   return { args: args as Parameters<typeof usePayments>[0], spies };

@@ -5,7 +5,10 @@ import { ConfirmDialog } from './ConfirmDialog';
 
 export function ExpensesView() {
   const [confirmDeleteVendor, setConfirmDeleteVendor] = useState<VendorExpense | null>(null);
-  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, getGradeDisplay, handleDeleteVendorExpense, handlePrint, isPromoter, lang, selectedYear, setEditingVendorExpense, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorSearch, vendorStatusFilter } = useMainViews();
+  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, getGradeDisplay, handleDeleteVendorExpense, handlePrint, isPromoter, isGeneralManager, lang, selectedYear, setEditingVendorExpense, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorSearch, vendorStatusFilter } = useMainViews();
+  // Vendor create/delete are finance-admin powers (promoter/admin + Gestionnaire
+  // Principal) — mirrors the isFinanceAdmin gate in useExpenses.
+  const canManageVendors = isPromoter || isGeneralManager;
   return (
     <>
           <div className="space-y-8">
@@ -87,7 +90,7 @@ export function ExpensesView() {
                           <Printer size={16} />
                           <span className="hidden sm:inline">{t.print}</span>
                         </button>
-                        {isPromoter && (
+                        {canManageVendors && (
                           <button
                             onClick={() => {
                               setEditingVendorExpense(null);
@@ -328,14 +331,14 @@ export function ExpensesView() {
                                         >
                                           <FileText size={16} />
                                         </button>
-                                        <button 
-                                          onClick={() => setConfirmDeleteVendor(v)}
-                                          disabled={!isPromoter}
-                                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                                          title={isPromoter ? (t.deleteExpense) : (t.promoterOnly2)}
-                                        >
-                                          <Trash2 size={16} />
-                                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteVendor(v)}
+                          disabled={!canManageVendors}
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={canManageVendors ? (t.deleteExpense) : (t.promoterOnly2)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
                                       </div>
                                     </td>
                                   </tr>

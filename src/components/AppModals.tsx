@@ -110,6 +110,14 @@ export interface AppModalsProps {
   generatePaymentReceiptPdf: (opts: ReceiptDataOptions) => Promise<void>;
   getDayName: (dayIndex: number) => string;
   getEventsForDay: (date: Date) => CalendarEvent[];
+  /** Notes ⇄ Calendar bridge: dated notes for a day + the entry form state. */
+  getNotesForDay: (date: Date) => { id: string; studentName: string; text: string }[];
+  noteStudentId: string;
+  noteText: string;
+  savingNoteOnDate: boolean;
+  saveNoteOnDate: (date: Date) => Promise<boolean>;
+  setNoteStudentId: Dispatch<SetStateAction<string>>;
+  setNoteText: Dispatch<SetStateAction<string>>;
   getGradeDisplay: (grade: string | undefined, currentLang?: 'en' | 'fr') => string;
   getParentOutstandingBalance: (parent: Parent) => number;
   getYearStats: (year: string) => { revenue: number; expenses: number; balance: number };
@@ -124,13 +132,15 @@ export interface AppModalsProps {
   handleParentSubmit: (e: FormEvent) => Promise<void>;
   handlePaymentSubmit: (e: FormEvent) => Promise<void>;
   handleSalarySubmit: (e: FormEvent) => Promise<void>;
-  handleSaveNote: (studentId: string, note: string) => Promise<void>;
+  handleSaveNote: (studentId: string, note: string, noteDate?: string) => Promise<void>;
   handleSendSMS: () => void;
   handleSendWhatsApp: () => void;
   handleStaffSubmit: (e: FormEvent) => Promise<void>;
   handleStudentSubmit: (e: FormEvent) => Promise<void>;
   handleVendorExpenseSubmit: (e: FormEvent) => Promise<void>;
   isPromoter: boolean;
+  /** Gestionnaire Principal — finance admin without user/settings/audit access. */
+  isGeneralManager: boolean;
   lang: 'en' | 'fr';
   newClassForm: ClassForm;
   notifyCustomText: string;
@@ -220,7 +230,9 @@ export function AppModals(props: AppModalsProps) {
   const [parentStudentSearch, setParentStudentSearch] = useState('');
   const [parentClassFilter, setParentClassFilter] = useState('all');
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
-  const { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, lang, newClassForm, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoInput, todos, toggleLanguage, toggleTodo, vendorExpenseForm, welcomeMessage } = props;
+  // Notes ⇄ Calendar bridge: optional date picked next to the sticky note.
+  const [noteDateInput, setNoteDateInput] = useState('');
+  const { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Heart, Layers, MessageSquare, Phone, Plus, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, isGeneralManager, lang, newClassForm, noteStudentId, noteText, savingNoteOnDate, saveNoteOnDate, setNoteStudentId, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoInput, todos, toggleLanguage, toggleTodo, vendorExpenseForm, welcomeMessage } = props;
 
   // Productivité panel width — resizable on desktop (drag handle or arrow
   // keys), persisted per browser. Local UI state only: it never touches the
@@ -589,11 +601,25 @@ export function AppModals(props: AppModalsProps) {
                     </h4>
                     <textarea 
                       defaultValue={selectedStudent.notes}
-                      onBlur={(e) => handleSaveNote(selectedStudent.id, e.target.value)}
+                      onBlur={(e) => {
+                        const d = noteDateInput || undefined;
+                        void handleSaveNote(selectedStudent.id, e.target.value, d);
+                        setNoteDateInput('');
+                      }}
                       placeholder={t.notesPlaceholder}
                       className="w-full bg-transparent border-none focus:ring-0 text-xs font-bold text-yellow-900 placeholder-yellow-700/40 resize-none min-h-[80px] custom-scrollbar"
                     />
-                    <div className="mt-2 flex justify-end">
+                    <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
+                      <label className="flex items-center gap-1.5 text-[9px] font-black text-yellow-600/70 uppercase tracking-widest">
+                        <Calendar size={11} />
+                        {t.alsoShowOnCalendar}
+                        <input
+                          type="date"
+                          value={noteDateInput}
+                          onChange={(e) => setNoteDateInput(e.target.value)}
+                          className="ml-1 px-2 py-1 rounded-lg border border-yellow-300 bg-white/80 text-[10px] font-bold text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-500/30"
+                        />
+                      </label>
                       <span className="text-[9px] font-black text-yellow-600/50 uppercase tracking-widest">
                         {selectedStudent.lastNoteDate ? `Last updated: ${formatDate(selectedStudent.lastNoteDate)}` : ''}
                       </span>
@@ -658,8 +684,9 @@ export function AppModals(props: AppModalsProps) {
             onOpenAddClass={() => setShowAddClassModal(true)}
             onDeleteRequest={(student) => setConfirmDeleteStudent(student)}
             availableClasses={availableClasses}
-            academicYears={academicYears}
-            isPromoter={isPromoter}
+    academicYears={academicYears}
+    isPromoter={isPromoter}
+    isGeneralManager={isGeneralManager}
             themeCard={currentTheme.card}
             themeBorder={currentTheme.border}
             themeHeader={currentTheme.header}
@@ -1288,7 +1315,8 @@ export function AppModals(props: AppModalsProps) {
               <div className="p-10 space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
                 {(() => {
                   const dayEvents = getEventsForDay(selectedCalendarDay);
-                  if (dayEvents.length === 0) {
+                  const dayNotes = getNotesForDay(selectedCalendarDay);
+                  if (dayEvents.length === 0 && dayNotes.length === 0) {
                     return (
                       <div className="py-10 text-center">
                         <div className={`w-16 h-16 rounded-full ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-400'} flex items-center justify-center mx-auto mb-4`}>
@@ -1301,6 +1329,31 @@ export function AppModals(props: AppModalsProps) {
 
                   return (
                     <div className="space-y-6">
+                      {dayNotes.length > 0 && (
+                        <div className="p-6 rounded-2xl border border-yellow-200 bg-yellow-50/60">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className="p-3 rounded-xl bg-yellow-100 text-yellow-600">
+                              <StickyNote size={20} />
+                            </div>
+                            <div>
+                              <h4 className="font-black uppercase tracking-widest text-[10px] text-yellow-700">
+                                {t.notes}
+                              </h4>
+                              <p className={`text-lg font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
+                                {dayNotes.length}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            {dayNotes.map((n) => (
+                              <div key={n.id} className="flex justify-between items-start gap-3 text-sm py-2 border-t border-yellow-200">
+                                <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} flex-shrink-0`}>{n.studentName}</span>
+                                <span className={`${currentTheme.muted} text-right`}>{n.text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {dayEvents.map((event, idx) => (
                         <div key={idx} className={`p-6 rounded-2xl border ${currentTheme.border} ${
                           event.type === 'due' ? 'bg-rose-50/30' :
@@ -1344,6 +1397,44 @@ export function AppModals(props: AppModalsProps) {
                     </div>
                   );
                 })()}
+
+                {/* Add a note on this date (Notes ⇄ Calendar bridge) */}
+                <div className="pt-2 border-t border-slate-100">
+                  <div className="bg-[#FEF9C3] p-5 rounded-2xl border border-yellow-200/70">                      <h4 className="text-[9px] font-black text-yellow-700 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                      <StickyNote size={12} />
+                      {t.addNoteForThisDay}
+                    </h4>
+                    <div className="space-y-2.5">
+                      <select
+                        value={noteStudentId}
+                        onChange={(e) => setNoteStudentId(e.target.value)}
+                        className={`w-full px-3 py-2.5 rounded-xl border ${currentTheme.border} text-xs font-semibold ${currentTheme.isDark ? 'bg-white/5 text-white' : 'bg-white text-slate-800'} focus:outline-none focus:ring-2 focus:ring-yellow-500/30`}
+                      >
+                        <option value="">{t.chooseStudent}</option>
+                        {students.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                      <textarea
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder={t.notesPlaceholder}
+                        rows={2}
+                        className="w-full bg-white/70 border border-yellow-200 rounded-xl px-3 py-2 text-xs font-semibold text-yellow-900 placeholder-yellow-700/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/30 resize-none custom-scrollbar"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          disabled={savingNoteOnDate || !noteStudentId || !noteText.trim()}
+                          onClick={() => { void saveNoteOnDate(selectedCalendarDay); }}
+                          className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all active:scale-95"
+                        >
+                          {savingNoteOnDate ? t.saving : t.save}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -1384,6 +1475,8 @@ export function AppModals(props: AppModalsProps) {
                   ? (t.systemDeveloperPortal)
                   : currentUser?.role === 'admin' 
                   ? (t.promoterOwnerPortal) 
+                  : currentUser?.role === 'general_manager'
+                  ? (t.generalManagerPortal)
                   : (t.accountantAccess)}
               </p>
             </div>

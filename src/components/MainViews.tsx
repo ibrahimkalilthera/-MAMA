@@ -7,6 +7,7 @@ import { HighlightText, ChartsFallback } from './SharedUi';
 // truth, imported here and by src/App.tsx; the views consume them through the
 // MainViewsContext (src/app/mainViewsContext.ts), which this file only provides.
 import type { MainViewsProps, RoleTab, ThemeOption } from '../app/mainViewsProps';
+import type { AppRole } from '../lib/useAuth';
 import { MainViewsContext } from '../app/mainViewsContext';
 
 const DashboardCharts = lazy(() => import('./DashboardCharts').then(m => ({ default: m.DashboardCharts })));
@@ -607,10 +608,10 @@ export function MainViews(props: MainViewsProps) {
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                          <span>👑</span> {t.promoterAdmins}
+                          <span>👑</span> {t.promoterAdminsPlusGM}
                         </span>
                         <span className="text-xs font-black bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full">
-                          {userProfiles.filter(p => p.role === 'admin').length}
+                          {userProfiles.filter(p => p.role === 'admin' || p.role === 'general_manager').length}
                         </span>
                       </div>
                       <p className={`text-[11px] ${currentTheme.isDark ? 'text-emerald-300/80' : 'text-emerald-800'}`}>
@@ -708,6 +709,7 @@ export function MainViews(props: MainViewsProps) {
                           const isCurrentUser = auth.profile?.id === profile.id;
                           const isDev = profile.role === 'dev';
                           const isAdmin = profile.role === 'admin';
+                          const isGM = profile.role === 'general_manager';
                           const isStaff = profile.role === 'staff';
 
                           return (
@@ -721,6 +723,7 @@ export function MainViews(props: MainViewsProps) {
                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-sm shadow-md flex-shrink-0 ${
                                   isDev ? 'bg-purple-600 shadow-purple-500/20' :
                                   isAdmin ? 'bg-emerald-600 shadow-emerald-500/20' : 
+                                  isGM ? 'bg-cyan-600 shadow-cyan-500/20' :
                                   'bg-blue-600 shadow-blue-500/20'
                                 }`}>
                                   {profile.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
@@ -740,15 +743,20 @@ export function MainViews(props: MainViewsProps) {
                                         ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' 
                                         : isAdmin 
                                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                        : isGM
+                                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                                         : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                                     }`}>
                                       {isDev && <span>⚡</span>}
                                       {isAdmin && <span>👑</span>}
+                                      {isGM && <span>🧭</span>}
                                       {isStaff && <span>💼</span>}
                                       {isDev 
                                         ? (t.developer)
                                         : isAdmin 
                                         ? (t.promoterAdmin2) 
+                                        : isGM
+                                        ? (t.generalManager)
                                         : (t.staffAccountant)}
                                     </span>
                                   </div>
@@ -766,15 +774,20 @@ export function MainViews(props: MainViewsProps) {
                                     <select
                                       value={profile.role}
                                       disabled={updatingUserId === profile.id}
-                                      onChange={(e) => handleUpdateRole(profile, e.target.value as 'admin' | 'staff' | 'dev')}
+                                      onChange={(e) => handleUpdateRole(profile, e.target.value as AppRole)}
                                       className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                                         isAdmin
                                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20'
+                                          : isGM
+                                          ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-500 hover:bg-cyan-500/20'
                                           : 'bg-blue-500/10 border-blue-500/30 text-blue-500 hover:bg-blue-500/20'
                                       } ${updatingUserId === profile.id ? 'opacity-50 cursor-wait' : ''}`}
                                     >
                                       <option value="admin" className="bg-slate-800 text-white">
                                         👑 {t.promoterAdminFull}
+                                      </option>
+                                      <option value="general_manager" className="bg-slate-800 text-white">
+                                        🧭 {t.generalManager}
                                       </option>
                                       <option value="staff" className="bg-slate-800 text-white">
                                         💼 {t.staffAccountant}

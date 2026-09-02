@@ -244,7 +244,7 @@ export default function App() {
   // Auth/welcome domain (session, greeting banner, profiles, admin tab guard) —
   // extracted to src/app/useAuthWelcome.ts.
   const {
-    auth, currentUser, isPromoter, authLoading,
+    auth, currentUser, isPromoter, isGeneralManager, authLoading,
     userProfiles, setUserProfiles,
     welcomeMessage, setWelcomeMessage,
   } = useAuthWelcome({ t, activeTab, setActiveTab });
@@ -310,7 +310,7 @@ export default function App() {
     getMonthName,
     getDayName,
   } = useExpenses({
-    t, lang, selectedYear, lockedYears, isPromoter, currentUser,
+    t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser,
     addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense,
     showToast,
   });
@@ -337,7 +337,7 @@ export default function App() {
     handleSaveNote,
     toggleFlag,
   } = useStudents({
-    t, lang, today, selectedYear, lockedYears, isPromoter,
+    t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager,
     students, addStudent, updateStudent,
     showToast,
   });
@@ -483,9 +483,15 @@ const {
   paymentDate, setPaymentDate,
   handlePaymentSubmit,
   getEventsForDay,
+  noteStudentId, setNoteStudentId,
+  noteText, setNoteText,
+  savingNoteOnDate,
+  saveNoteOnDate,
+  getNotesForDay,
 } = usePayments({
   t, lang, selectedYear, lockedYears, students, staff, expenses, currentUser,
   addPayment,
+  updateStudent,
 });
 
 const {
@@ -691,6 +697,7 @@ const {
   getDayName,
   getDaysInMonth,
   getEventsForDay,
+  getNotesForDay,
   getGradeDisplay,
   getMonthName,
   getParentOutstandingBalance,
@@ -709,6 +716,7 @@ const {
   handleUnlinkStudent,
   handleUpdateRole,
   isPromoter,
+  isGeneralManager,
   lang,
   lateStudents,
   logoColor,
@@ -831,12 +839,16 @@ const {
   notifyParent,
   notifySelectedPhone,
   notifyTemplateType,
+  noteStudentId,
+  noteText,
   parentForm,
   paymentAmount,
   paymentDate,
   paymentStudentId,
   printStudentFile,
   productivitySidebarTab,
+  savingNoteOnDate,
+  saveNoteOnDate,
   selectedCalendarDay,
   selectedStudent,
   setAiInput,
@@ -844,6 +856,8 @@ const {
   setExpenseForm,
   setNewClassForm,
   setNotifyCustomText,
+  setNoteStudentId,
+  setNoteText,
   setNotifySelectedPhone,
   setPaymentAmount,
   setPaymentDate,

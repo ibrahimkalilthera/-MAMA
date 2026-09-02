@@ -29,6 +29,8 @@ export interface UseStudentsDeps {
   selectedYear: string;
   lockedYears: string[];
   isPromoter: boolean;
+  /** Gestionnaire Principal — may edit scholarship discounts like the promoter. */
+  isGeneralManager: boolean;
   students: Student[];
   addStudent: (s: Omit<Student, 'id' | 'payments'>) => Promise<Student | null>;
   updateStudent: (id: string, updates: Partial<Student>) => Promise<boolean>;
@@ -58,7 +60,10 @@ const emptyStudentForm = (): StudentForm => ({
 });
 
 export function useStudents(deps: UseStudentsDeps) {
-  const { t, lang, today, selectedYear, lockedYears, isPromoter, students, addStudent, updateStudent, showToast } = deps;
+  const { t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager, students, addStudent, updateStudent, showToast } = deps;
+  // Scholarship discounts are a finance-admin power: promoter/admin AND the
+  // Gestionnaire Principal.
+  const canEditScholarship = isPromoter || isGeneralManager;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -173,7 +178,7 @@ export function useStudents(deps: UseStudentsDeps) {
       ...studentForm,
       parentEmail: studentForm.parentEmail.trim(),
       totalDue: amount,
-      scholarshipDiscount: isPromoter
+      scholarshipDiscount: canEditScholarship
         ? (parseFloat(studentForm.scholarshipDiscount) || 0)
         : (editingStudent?.scholarshipDiscount || 0),
       notes: editingStudent?.notes || '',
@@ -234,11 +239,21 @@ export function useStudents(deps: UseStudentsDeps) {
     setShowStudentModal(true);
   };
 
-  const handleSaveNote = async (studentId: string, note: string) => {
-    const ok = await updateStudent(studentId, { notes: note, lastNoteDate: today });
+  /**
+   * Saves the sticky-note text on the student record. When `noteDate` is
+   * provided (Notes ⇄ Calendar bridge), the note is ALSO recorded as a dated
+   * entry visible on that calendar day.
+   */
+  const handleSaveNote = async (studentId: string, note: string, noteDate?: string) => {
+    const student = students.find(s => s.id === studentId);
+    const updates: Partial<Student> = { notes: note, lastNoteDate: today };
+    if (noteDate && note.trim()) {
+      updates.noteEntries = [...(student?.noteEntries || []), { date: noteDate, text: note.trim() }];
+    }
+    const ok = await updateStudent(studentId, updates);
     if (!ok) return;
     if (selectedStudent?.id === studentId) {
-      setSelectedStudent({ ...selectedStudent, notes: note, lastNoteDate: today });
+      setSelectedStudent({ ...selectedStudent, ...updates });
     }
     showToast();
   };

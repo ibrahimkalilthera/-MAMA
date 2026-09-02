@@ -48,6 +48,8 @@ export function useAuthWelcome(deps: AuthWelcomeDeps) {
       }
     : null;
   const isPromoter = auth.isAdmin;
+  // Gestionnaire Principal: finance admin without user-management/settings/audit.
+  const isGeneralManager = auth.profile?.role === 'general_manager';
 
   // Auth loading state (checking session on page load)
   const authLoading = auth.loading;
@@ -96,6 +98,7 @@ export function useAuthWelcome(deps: AuthWelcomeDeps) {
     auth,
     currentUser,
     isPromoter,
+    isGeneralManager,
     authLoading,
     userProfiles,
     setUserProfiles,

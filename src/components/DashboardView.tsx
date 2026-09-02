@@ -192,10 +192,32 @@ export function DashboardView() {
                     <TrendingUp size={18} className="rotate-180" />
                   </div>
                 </div>
-                <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5`}>
-                  <TrendingUp size={11} className="rotate-180 text-rose-500" />
-                  <span className="text-rose-500">{t.n12VsLastMonth}</span>
-                </span>
+                {(() => {
+                  // Real month-over-month movement of the outstanding balance:
+                  // (outstanding − prevOutstanding) / prevOutstanding. Hidden
+                  // when there is no prior-month payment base to compare.
+                  const prev = stats.prevMonthCollected || 0;
+                  const nowCollected = stats.collectedMonth || 0;
+                  if (prev <= 0) {
+                    return (
+                      <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                        {t.outstandingNoComparison}
+                      </span>
+                    );
+                  }
+                  // Delta on COLLECTIONS: positive = collecting faster than last month (good).
+                  const delta = Math.round(((nowCollected - prev) / prev) * 100);
+                  const up = delta >= 0;
+                  return (
+                    <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5`}>
+                      <TrendingUp size={11} className={up ? 'text-emerald-500' : 'rotate-180 text-rose-500'} />
+                      <span className={up ? 'text-emerald-500' : 'text-rose-500'}>
+                        {t.outstandingVsLastMonth.replace('{delta}', up ? `+${delta}` : String(delta))}
+                      </span>
+                    </span>
+                  );
+                })()}
               </motion.div>
 
               {/* Parents en Retard (Late Parents) */}

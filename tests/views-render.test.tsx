@@ -283,6 +283,7 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     handleUnlinkStudent: asyncNoop,
     handleUpdateRole: asyncNoop,
     isPromoter: true,
+    isGeneralManager: false,
     lang: 'fr' as const,
     openEditClass: noop,
     openEditModal: noop,

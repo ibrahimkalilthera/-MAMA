@@ -14,7 +14,9 @@ import type { AuthState, UserProfile } from '../lib/useAuth';
 import type { useToast } from '../lib/useToast';
 import type { TranslationDict } from '../i18n/translations';
 
-export type UserRoleFilter = 'all' | 'admin' | 'staff' | 'dev';
+import type { AppRole } from '../lib/useAuth';
+
+export type UserRoleFilter = 'all' | 'admin' | 'staff' | 'dev' | 'general_manager';
 
 export interface UseUsersDeps {
   t: TranslationDict;
@@ -32,13 +34,13 @@ export function useUsers(deps: UseUsersDeps) {
   const [userRoleFilter, setUserRoleFilter] = useState<UserRoleFilter>('all');
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
-  const handleUpdateRole = async (targetProfile: UserProfile, newRole: 'admin' | 'staff' | 'dev') => {
+  const handleUpdateRole = async (targetProfile: UserProfile, newRole: AppRole) => {
     if (targetProfile.role === newRole) return;
     setUpdatingUserId(targetProfile.id);
     const ok = await auth.updateUserRole(targetProfile.id, newRole);
     if (ok) {
       setUserProfiles(prev => prev.map(p => p.id === targetProfile.id ? { ...p, role: newRole } : p));
-      const roleLabel = newRole === 'admin' ? t.roleAdminPromoter : newRole === 'dev' ? t.roleDeveloper : t.roleStaffAccountant;
+      const roleLabel = newRole === 'admin' ? t.roleAdminPromoter : newRole === 'dev' ? t.roleDeveloper : newRole === 'general_manager' ? t.roleGeneralManager : t.roleStaffAccountant;
       toast.success(t.roleUpdated.replace('{name}', targetProfile.fullName).replace('{role}', roleLabel));
     } else {
       toast.error(t.failedToUpdateRole);

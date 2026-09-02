@@ -24,10 +24,11 @@ import type { SchoolClass } from './types';
 import type { CalendarDay } from '../lib/classes';
 import type { PayslipDataOptions } from '../lib/pdfPayroll';
 import type { ExpensesReportOptions } from '../lib/pdfExpensesReport';
+import type { AppRole } from '../lib/useAuth';
 
 export type ThemeId = 'navy' | 'cream' | 'slate' | 'emerald' | 'bordeaux' | 'midnight';
 export type ManagedClass = SchoolClass & { rowId?: string };
-export type RoleFilter = 'all' | 'admin' | 'staff' | 'dev';
+export type RoleFilter = 'all' | 'admin' | 'staff' | 'dev' | 'general_manager';
 export type SortKey = 'name' | 'parentName' | 'balance' | 'dueDate';
 export type ParentSort = 'highest_balance' | 'alphabetical';
 
@@ -54,7 +55,7 @@ export interface PayrollWindowStatus {
 }
 
 export interface CalendarEvent {
-  type: 'due' | 'salary' | 'expense';
+  type: 'due' | 'salary' | 'expense' | 'note';
   count: number;
   label: string;
   details: { name: string; amount: number }[];
@@ -142,7 +143,7 @@ export interface ThemeOption {
 }
 
 export interface RoleTab {
-  id: 'all' | 'admin' | 'staff';
+  id: 'all' | 'admin' | 'staff' | 'general_manager';
   label: string;
 }
 
@@ -255,8 +256,10 @@ export interface MainViewsProps {
   handleSendPasswordReset: (email: string) => Promise<void>;
   handleSort: (key: SortKey) => void;
   handleUnlinkStudent: (studentId: string) => Promise<void>;
-  handleUpdateRole: (targetProfile: UserProfile, newRole: 'admin' | 'staff' | 'dev') => Promise<void>;
+  handleUpdateRole: (targetProfile: UserProfile, newRole: AppRole) => Promise<void>;
   isPromoter: boolean;
+  /** Gestionnaire Principal — finance admin without user/settings/audit access. */
+  isGeneralManager: boolean;
   lang: 'en' | 'fr';
   lateStudents: Student[];
   logoColor: string | null;

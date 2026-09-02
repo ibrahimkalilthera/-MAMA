@@ -1,7 +1,7 @@
 /**
  * Persistent welcome banner — extracted verbatim from App.tsx. Greets the
  * user by name with a role-based subtitle and role badge (with the
- * mamadou/fanta special cases).
+ * fanta special case kept for the promoter display name).
  */
 import { ShieldCheck } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
@@ -23,28 +23,28 @@ export function WelcomeBanner({ t, currentUser }: WelcomeBannerProps) {
           <h3 className="font-bold text-base tracking-tight" style={{ color: '#FFFFFF' }}>
             {t.welcomeBack}, <span style={{ color: '#34D399' }}>{currentUser?.name || currentUser?.username}</span> !
           </h3>
-          <p className="text-[11px] font-medium" style={{ color: '#94A3B8' }}>
-            {(currentUser?.name || currentUser?.username || '').toLowerCase().includes('mamadou')
-              ? (t.generalManagerFullAdministrationFinancialAccess)
-              : (currentUser?.name || currentUser?.username || '').toLowerCase().includes('fanta')
-              ? (t.schoolPromoterDirectorExecutiveOversight)
-              : currentUser?.role === 'dev'
-              ? (t.systemDeveloperFullTechnicalAdminAccess)
-              : currentUser?.role === 'admin' 
-              ? (t.administratorFullSystemAccess)
-              : (t.accountantAccessFinanceReceipts)}
+          <p className="text-[11px] font-medium" style={{ color: '#94A3B8' }}>        {(currentUser?.name || currentUser?.username || '').toLowerCase().includes('fanta')
+          ? (t.schoolPromoterDirectorExecutiveOversight)
+          : currentUser?.role === 'general_manager'
+          ? (t.generalManagerFullAdministrationFinancialAccess)
+          : currentUser?.role === 'dev'
+          ? (t.systemDeveloperFullTechnicalAdminAccess)
+          : currentUser?.role === 'admin'
+          ? (t.administratorFullSystemAccess)
+          : (t.accountantAccessFinanceReceipts)}
           </p>
         </div>
       </div>
       <div className="z-10 flex items-center gap-2">
         <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.08em] ${
           currentUser?.role === 'dev' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/20' :
-          currentUser?.role === 'admin' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' : 'bg-blue-500/20 text-blue-400 border border-blue-500/20'
+          currentUser?.role === 'admin' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20' :
+          currentUser?.role === 'general_manager' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/20' : 'bg-blue-500/20 text-blue-400 border border-blue-500/20'
         }`}>
-          {(currentUser?.name || currentUser?.username || '').toLowerCase().includes('mamadou')
-            ? (t.generalManager)
-            : (currentUser?.name || currentUser?.username || '').toLowerCase().includes('fanta')
+          {(currentUser?.name || currentUser?.username || '').toLowerCase().includes('fanta')
             ? (t.promoter)
+            : currentUser?.role === 'general_manager'
+            ? (t.generalManager)
             : currentUser?.role === 'dev'
             ? (t.developer)
             : currentUser?.role === 'admin'

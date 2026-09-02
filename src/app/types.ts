@@ -10,7 +10,7 @@
 export type Language = 'en' | 'fr';
 export interface User {
   username: string;
-  role: 'admin' | 'staff' | 'dev';
+  role: 'admin' | 'staff' | 'dev' | 'general_manager';
   name?: string;
 }
 
@@ -32,6 +32,12 @@ export interface Parent {
   notes?: string;
 }
 
+/** A dated note entry — the Notes ⇄ Calendar bridge record. */
+export interface StudentNoteEntry {
+  date: string; // YYYY-MM-DD (local date chosen in the calendar)
+  text: string;
+}
+
 export interface Student {
   id: string;
   parentId?: string;
@@ -47,6 +53,8 @@ export interface Student {
   payments: Payment[];
   notes: string;
   lastNoteDate?: string;
+  /** Dated note entries (Notes ⇄ Calendar bridge) — complements the free-text `notes`. */
+  noteEntries?: StudentNoteEntry[];
   flagged?: boolean;
   academicYear?: string;
   grade?: string;

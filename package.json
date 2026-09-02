@@ -16,7 +16,7 @@
     "seed:staging": "node --env-file=.env.staging supabase/seed.mjs",
     "seed:production": "node --env-file=.env.production supabase/seed-production.mjs",
     "clean": "rm -rf dist",
-    "lint": "eslint . --max-warnings 0 && tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs",
+    "lint": "eslint . --max-warnings 0 && tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs && node scripts/check-css-selectors.mjs",
     "test": "node --import tsx --experimental-test-module-mocks --test \"tests/*.test.ts\" \"tests/*.test.tsx\"",
     "prepare": "husky"
   },
