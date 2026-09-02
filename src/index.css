@@ -368,6 +368,8 @@ textarea:focus-visible {
 
 /* ─── 6. Theme Overrides ───────────────────────────────────────────────────── */
 
+/* stylelint-disable declaration-no-important -- zone 1 (theme tokens): every
+   !important below is deliberate — the tokens must beat Tailwind utilities */
 /* --- Warm Cream Ledger Theme --- */
 .theme-cream {
   --surface-card: #FFFDF9;
@@ -710,6 +712,12 @@ textarea:focus-visible {
   background-color: rgba(139, 125, 96, 0.04);
 }
 
+/* stylelint-enable declaration-no-important -- zone 1 ends */
+
+/* stylelint-disable declaration-no-important -- zone 2 (print): !important is
+   required to beat screen/inline styles. Both zones are checked by
+   reportNeedlessDisables — if a zone ends up violation-free, the disable
+   comment itself becomes the lint error. */
 /* ─── 7. Print Styles ──────────────────────────────────────────────────────── */
 
 @media print {
@@ -771,3 +779,5 @@ textarea:focus-visible {
     color: black !important;
   }
 }
+/* stylelint-enable declaration-no-important -- zone 2 ends; everything after
+   this line is subject to the strict no-!important rule again */
