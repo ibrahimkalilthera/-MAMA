@@ -16,7 +16,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { generatePaymentReceiptPdf } from '../lib/pdfReceipt';
-import type { Student, Staff, Expense, Payment, User } from '../app/types';
+import type { Student, Staff, Expense, Payment, User, Todo } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import type { CalendarEvent } from './mainViewsProps';
 
@@ -28,13 +28,14 @@ interface UsePaymentsDeps {
   students: Student[];
   staff: Staff[];
   expenses: Expense[];
+  todos: Todo[];
   currentUser: User | null;
   addPayment: (studentId: string, payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string }) => Promise<boolean>;
   /** Calendar ⇄ Notes bridge: persist a dated note on the student record. */
 }
 
 export function usePayments(deps: UsePaymentsDeps) {
-  const { t, lang, selectedYear, lockedYears, students, staff, expenses, currentUser, addPayment } = deps;
+  const { t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser, addPayment } = deps;
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<Date | null>(null);
@@ -180,6 +181,17 @@ export function usePayments(deps: UsePaymentsDeps) {
         count: dayNotes.length,
         label: `${dayNotes.length} ${t.notes}`,
         details: [],
+      });
+    }
+
+    // To-Do tasks dated on this exact day (Tasks ⇄ Calendar bridge)
+    const dayTodos = todos.filter(td => td.date === dateKey);
+    if (dayTodos.length > 0) {
+      dayEvents.push({
+        type: 'todo',
+        count: dayTodos.filter(td => !td.completed).length,
+        label: `${dayTodos.length} ${t.tasks}`,
+        details: dayTodos.map(td => ({ name: td.text, completed: td.completed })),
       });
     }
 

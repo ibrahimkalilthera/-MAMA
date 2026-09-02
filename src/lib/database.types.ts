@@ -330,6 +330,7 @@ export interface Database {
           text: string;
           completed: boolean | null;
           student_id: string | null;
+          due_date: string | null;
           created_at: string;
         };
         Insert: {
@@ -337,6 +338,7 @@ export interface Database {
           text: string;
           completed?: boolean | null;
           student_id?: string | null;
+          due_date?: string | null;
           created_at?: string;
         };
         Update: {
@@ -344,6 +346,7 @@ export interface Database {
           text?: string;
           completed?: boolean | null;
           student_id?: string | null;
+          due_date?: string | null;
           created_at?: string;
         };
         Relationships: [];

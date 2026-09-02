@@ -83,14 +83,28 @@ describe('useTodoSidebar', () => {
     unmount();
   });
 
-  it('adds a trimmed task and clears the input on success', async () => {
+  it('adds a trimmed task dated today and clears the input on success', async () => {
     resetSpies();
+    const today = new Date().toISOString().split('T')[0];
     const apiRef: ApiRef = { current: null };
     render(makeArgs([]), apiRef);
     act(() => { apiRef.current?.setTodoInput('  Appeler le parent de Fatou  '); });
     await act(async () => { await apiRef.current?.handleAddTodo(event()); });
-    assert.deepEqual(addCalls, [{ text: 'Appeler le parent de Fatou', completed: false }]);
+    assert.deepEqual(addCalls, [{ text: 'Appeler le parent de Fatou', completed: false, date: today }]);
     assert.equal(apiRef.current?.todoInput, '');
+    unmount();
+  });
+
+  it('stamps the chosen calendar date on the task', async () => {
+    resetSpies();
+    const apiRef: ApiRef = { current: null };
+    render(makeArgs([]), apiRef);
+    act(() => {
+      apiRef.current?.setTodoDate('2026-09-15');
+      apiRef.current?.setTodoInput('Réunion parents');
+    });
+    await act(async () => { await apiRef.current?.handleAddTodo(event()); });
+    assert.deepEqual(addCalls, [{ text: 'Réunion parents', completed: false, date: '2026-09-15' }]);
     unmount();
   });
 

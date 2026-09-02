@@ -26,13 +26,14 @@ export function useTodoSidebar(deps: TodoSidebarDeps) {
   const { todos, t, handleSaveNote, addTodoItem, updateTodoItem, deleteTodoItem } = deps;
 
   const [todoInput, setTodoInput] = useState('');
+  const [todoDate, setTodoDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [showTodoSidebar, setShowTodoSidebar] = useState(false);
   const [productivitySidebarTab, setProductivitySidebarTab] = useState<'tasks' | 'ai'>('tasks');
 
   const handleAddTodo = async (e: FormEvent) => {
     e.preventDefault();
     if (!todoInput.trim()) return;
-    const saved = await addTodoItem({ text: todoInput.trim(), completed: false });
+    const saved = await addTodoItem({ text: todoInput.trim(), completed: false, date: todoDate });
     if (!saved) return;
     setTodoInput('');
   };
@@ -56,6 +57,8 @@ export function useTodoSidebar(deps: TodoSidebarDeps) {
   return {
     todoInput,
     setTodoInput,
+    todoDate,
+    setTodoDate,
     showTodoSidebar,
     setShowTodoSidebar,
     productivitySidebarTab,

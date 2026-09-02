@@ -120,6 +120,8 @@ export interface Todo {
   text: string;
   completed: boolean;
   studentId?: string;
+  /** Optional calendar date (YYYY-MM-DD) — tasks appear on the calendar. */
+  date?: string;
 }
 
 export interface SchoolClass {

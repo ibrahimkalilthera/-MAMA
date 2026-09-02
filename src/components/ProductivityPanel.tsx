@@ -63,6 +63,9 @@ export interface ProductivityPanelProps {
   /** To-Do tab state + actions. */
   todoInput: string;
   setTodoInput: (value: string) => void;
+  /** Calendar date for new tasks (YYYY-MM-DD, defaults to today). */
+  todoDate: string;
+  setTodoDate: (value: string) => void;
   handleAddTodo: (e: FormEvent) => void;
   todos: Todo[];
   toggleTodo: (id: string) => void;
@@ -88,6 +91,8 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
     handleAiQuery,
     todoInput,
     setTodoInput,
+    todoDate,
+    setTodoDate,
     handleAddTodo,
     todos,
     toggleTodo,
@@ -292,6 +297,13 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                 placeholder={t.taskPlaceholder}
                 className={`w-full px-5 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
               />
+              <input
+                type="date"
+                value={todoDate}
+                onChange={(e) => setTodoDate(e.target.value)}
+                aria-label={t.taskDate}
+                className={`w-full px-5 py-3.5 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-semibold ${themeIsDark ? 'text-emerald-500 [color-scheme:dark]' : 'text-slate-800'}`}
+              />
               <button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2"
@@ -318,6 +330,11 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                     <span className={`text-sm font-bold ${todo.completed ? (themeIsDark ? 'text-emerald-500/50 line-through' : 'text-slate-400 line-through') : (themeIsDark ? 'text-emerald-500' : 'text-slate-700')}`}>
                       {todo.text}
                     </span>
+                    {todo.date && (
+                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${themeIsDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-50 text-blue-600'}`}>
+                        {todo.date.split('-').reverse().join('/')}
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => deleteTodo(todo.id)}

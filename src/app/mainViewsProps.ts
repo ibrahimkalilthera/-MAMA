@@ -55,10 +55,10 @@ export interface PayrollWindowStatus {
 }
 
 export interface CalendarEvent {
-  type: 'due' | 'salary' | 'expense' | 'note';
+  type: 'due' | 'salary' | 'expense' | 'note' | 'todo';
   count: number;
   label: string;
-  details: { name: string; amount: number }[];
+  details: { name: string; amount?: number; completed?: boolean }[];
 }
 
 export interface StaffForm {
@@ -328,6 +328,8 @@ export interface MainViewsProps {
   theme: ThemeId;
   today: string;
   todoInput: string;
+  todoDate: string;
+  setTodoDate: Dispatch<SetStateAction<string>>;
   todos: Todo[];
   toggleFlag: (id: string) => Promise<void>;
   toggleLanguage: (lang: 'en' | 'fr') => void;

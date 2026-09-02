@@ -88,6 +88,7 @@ interface DepsOverrides {
   lockedYears?: string[];
   staff?: Array<{ id: string; name: string; salary: number }>;
   expenses?: Array<{ id: string; category: string; description: string; amount: number; date: string }>;
+  todos?: Array<{ id: string; text: string; completed: boolean; date?: string }>;
   addPaymentResults?: boolean[];
 }
 
@@ -104,6 +105,7 @@ function baseDeps(overrides: DepsOverrides = {}): {
     students: overrides.students ?? [ali()],
     staff: (overrides.staff ?? []) as never[],
     expenses: (overrides.expenses ?? []) as never[],
+    todos: (overrides.todos ?? []) as never[],
     currentUser: cashier,
     addPayment: async (studentId: string, payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string }) => {
       spies.addPaymentCalls.push({ studentId, payment });
@@ -292,6 +294,11 @@ describe('usePayments.getEventsForDay', () => {
         { id: 'e2', category: 'electricity', description: '', amount: 45000, date: '2026-05-12' },
         { id: 'e3', category: 'water', description: 'Autre jour', amount: 9000, date: '2026-05-20' },
       ],
+      todos: [
+        { id: 'td1', text: 'Réunion parents', completed: false, date: '2026-05-12' },
+        { id: 'td2', text: 'Commander les fournitures', completed: true, date: '2026-05-12' },
+        { id: 'td3', text: 'Autre jour', completed: false, date: '2026-05-20' },
+      ],
     });
     const { ref, root } = await setup(args, { studentId: '', amount: '' });
     try {
@@ -324,6 +331,19 @@ describe('usePayments.getEventsForDay', () => {
         'description || category per expense, same-day only',
       );
 
+      // todos: dated tasks appear with the completion flag; count = open tasks
+      assert.ok(byType.todo, 'a todo event exists');
+      assert.equal(byType.todo.count, 1, 'only the open task counts');
+      assert.deepEqual(
+        byType.todo.details.map((d) => d.name).sort(),
+        ['Commander les fournitures', 'Réunion parents'],
+        'both dated tasks listed, completed one flagged',
+      );
+      const done = byType.todo.details.find((d) => d.name === 'Commander les fournitures')!;
+      assert.equal(done.completed, true);
+      const open = byType.todo.details.find((d) => d.name === 'Réunion parents')!;
+      assert.equal(open.completed, false);
+
       // salaries on the 25th
       const payday = new Date('2026-05-25T12:00:00Z');
       const payEvents = ref.current!.getEventsForDay(payday);
@@ -334,7 +354,7 @@ describe('usePayments.getEventsForDay', () => {
         salaryEvent.details.map((d) => d.name).sort(),
         ['Aminata Touré', 'Moussa Keïta'],
       );
-      assert.deepEqual(salaryEvent.details.map((d) => d.amount).sort((a, b) => a - b), [95000, 120000]);
+      assert.deepEqual(salaryEvent.details.map((d) => d.amount ?? 0).sort((a, b) => a - b), [95000, 120000]);
     } finally {
       act(() => root.unmount());
     }

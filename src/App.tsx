@@ -403,7 +403,8 @@ export default function App() {
 
   // To-Do list + Productivité panel domain — extracted to src/app/useTodoSidebar.ts.
   const {
-    todoInput, setTodoInput, showTodoSidebar, setShowTodoSidebar,
+    todoInput, setTodoInput, todoDate, setTodoDate,
+    showTodoSidebar, setShowTodoSidebar,
     productivitySidebarTab, setProductivitySidebarTab,
     handleAddTodo, toggleTodo, deleteTodo,
   } = useTodoSidebar({
@@ -488,7 +489,7 @@ const {
   saveNoteOnDate,
   getNotesForDay,
 } = usePayments({
-  t, lang, selectedYear, lockedYears, students, staff, expenses, currentUser,
+  t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser,
   addPayment,
 });
 
@@ -782,6 +783,8 @@ const {
   t,
   theme,
   today,
+  todoDate,
+  setTodoDate,
   todoInput,
   todos,
   toggleFlag,

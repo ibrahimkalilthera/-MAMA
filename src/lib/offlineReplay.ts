@@ -213,12 +213,14 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       text: item.payload.text,
       completed: item.payload.completed,
       student_id: item.payload.studentId || null,
+      due_date: item.payload.date || null,
     });
     if (!error) success = true;
   } else if (item.type === 'updateTodo') {
     const row: DbUpdate<'todos'> = {};
     if (item.payload.updates.text !== undefined) row.text = item.payload.updates.text;
     if (item.payload.updates.completed !== undefined) row.completed = item.payload.updates.completed;
+    if (item.payload.updates.date !== undefined) row.due_date = item.payload.updates.date;
     const { error } = await db.from('todos').update(row).eq('id', item.payload.id);
     if (!error) success = true;
   } else if (item.type === 'deleteTodo') {

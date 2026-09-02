@@ -129,6 +129,8 @@ export interface Todo {
   text: string;
   completed: boolean;
   studentId?: string;
+  /** Optional calendar date (YYYY-MM-DD) — tasks appear on the calendar. */
+  date?: string;
 }
 
 export type ClassCycle = 'cycle1' | 'cycle2' | 'lycee' | 'maternelle' | 'other';
@@ -257,6 +259,7 @@ function mapTodoRow(row: DbRow<'todos'>): Todo {
     text: row.text,
     completed: Boolean(row.completed),
     studentId: row.student_id ?? undefined,
+    date: row.due_date ?? undefined,
   };
 }
 
@@ -1042,6 +1045,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
         text: todo.text,
         completed: todo.completed,
         student_id: todo.studentId || null,
+        due_date: todo.date || null,
       })
       .select()
       .single();
@@ -1061,6 +1065,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     const row: DbUpdate<'todos'> = {};
     if (updates.text !== undefined) row.text = updates.text;
     if (updates.completed !== undefined) row.completed = updates.completed;
+    if (updates.date !== undefined) row.due_date = updates.date;
 
     const { error } = await supabase.from('todos').update(row).eq('id', id);
     if (error) { console.error('updateTodo error:', error.message); notifyError('updateTodo', error.message); return false; }

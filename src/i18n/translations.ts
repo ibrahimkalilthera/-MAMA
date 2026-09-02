@@ -102,6 +102,7 @@ export const translations = {
     saveNote: "Save Note",
     todoList: "To-Do List",
     addTask: "Add Task",
+    taskDate: "Date for this task (appears on the calendar)",
     taskPlaceholder: "What needs to be done?",
     notifications: "Notifications",
     dueReminder: "Payment due in less than 2 days",
@@ -274,6 +275,7 @@ export const translations = {
     navVendorExpenses: "Vendor & Utilities",
     actions: "Actions",
     noTasks: "No financial tasks for this day",
+    tasks: "Tasks",
 
     // Parent/Guardian Management
     parentGuardian: "Parent/Guardian",
@@ -926,6 +928,7 @@ export const translations = {
     saveNote: "Enregistrer la Note",
     todoList: "Liste de Tâches",
     addTask: "Ajouter Tâche",
+    taskDate: "Date de cette tâche (apparaît sur le calendrier)",
     taskPlaceholder: "Que faut-il faire ?",
     notifications: "Notifications",
     dueReminder: "Paiement dû dans moins de 2 jours",
@@ -1098,6 +1101,7 @@ export const translations = {
     navVendorExpenses: "Dépenses Fournisseurs",
     actions: "Actions",
     noTasks: "Aucune tâche financière pour ce jour",
+    tasks: "Tâches",
 
     // Parent/Guardian Management
     parentGuardian: "Parent/Tuteur",
