@@ -289,6 +289,32 @@ describe('NotificationsPanel — happy-dom render', () => {
     }
   });
 
+  it('a payroll alert (no student) dismisses without opening a profile', async () => {
+    const opened: string[] = [];
+    const marked: string[] = [];
+    const payroll: DashboardNotification = {
+      id: 'payroll-2026-5', type: 'payroll', message: 'Attention : Aucun paiement de salaire enregistré pour Juin', date: '2026-06-01',
+    };
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [payroll], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: (id: string) => marked.push(id), onMarkAllRead: () => {}, onMarkUnread: () => {},
+        }));
+      });
+      assert.equal(bell()?.getAttribute('aria-label'), 'Notifications (1)');
+      await act(async () => { click(bell() as Element); });
+      assert.ok(q('[role="dialog"]')?.textContent?.includes(payroll.message), 'payroll alert is listed');
+
+      act(() => { click(rowWithText(payroll.message) as Element); });
+      assert.deepEqual(opened, [], 'no student profile for a payroll alert');
+      assert.deepEqual(marked, ['payroll-2026-5'], 'the payroll alert is marked read');
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
   it('empty notifications show the all-clear state and no badge', async () => {
     const { root, container } = mount();
     try {

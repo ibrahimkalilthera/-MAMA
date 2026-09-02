@@ -186,6 +186,25 @@ describe('useDashboard', () => {
     assert.deepEqual(api.missedMonths, expected);
   });
 
+  it('flags missed payroll months as bell notifications', () => {
+    const emptyStaff = compute(baseArgs({ staff: [], salaryPayments: [] }));
+    assert.deepEqual(emptyStaff.notifications.filter(n => n.type === 'payroll'), [], 'no payroll alerts without staff');
+
+    const api = compute(baseArgs({ staff, salaryPayments: [] }));
+    const payrollAlerts = api.notifications.filter(n => n.type === 'payroll');
+    assert.deepEqual(
+      payrollAlerts.map(n => n.id),
+      api.missedMonths.map(m => `payroll-${now.getFullYear()}-${m}`),
+      'one payroll alert per missed month, id anchored on year+month',
+    );
+    assert.equal(payrollAlerts[0]?.studentId, undefined, 'team alert has no student');
+    assert.ok(
+      payrollAlerts[0]?.message.includes(t.noPayrollWarning.split('{month}')[0] || '') &&
+        !payrollAlerts[0]?.message.includes('{month}'),
+      'the alert carries the localized no-payroll message with a real month',
+    );
+  });
+
   it('deactivates the payroll window when there is no staff', () => {
     const api = compute(baseArgs({ staff: [] }));
     assert.equal(api.payrollWindowStatus.isOpen, false);

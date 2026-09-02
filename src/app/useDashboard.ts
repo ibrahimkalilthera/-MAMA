@@ -19,12 +19,15 @@ import type { TranslationDict } from '../i18n/translations';
 
 export interface DashboardNotification {
   id: string;
-  type: 'due' | 'note';
+  type: 'due' | 'note' | 'payroll';
   message: string;
-  studentId: string;
-  /** Anchor date of the reminder (due date / last note date). */
+  /** Present for student reminders; absent for team-wide alerts (payroll). */
+  studentId?: string;
+  /** Anchor date of the reminder (due date / last note date / missed month start). */
   date: string;
 }
+
+const MONTH_KEYS: (keyof TranslationDict)[] = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
 export interface UseDashboardDeps {
   t: TranslationDict;
@@ -140,53 +143,6 @@ export function useDashboard(deps: UseDashboardDeps) {
     };
   }, [students, today, currentMonth, expenses, vendorExpenses, salaryPayments, staff, selectedYear]);
 
-  const notifications = useMemo<DashboardNotification[]>(() => {
-    const list: DashboardNotification[] = [];
-    
-    const relevantStudents = students.filter(s => !selectedYear || s.academicYear === selectedYear);
-
-    relevantStudents.forEach(s => {
-      const balance = s.totalDue - s.amountPaid;
-      if (balance > 0) {
-        // Due Date < 2 days
-        const due = new Date(s.dueDate);
-        const now = new Date(today);
-        const diffTime = due.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        if (diffDays >= 0 && diffDays < 2) {
-          list.push({
-            id: `due-${s.id}`,
-            type: 'due',
-            message: `${s.name}: ${t.dueReminder}`,
-            studentId: s.id,
-            date: s.dueDate
-          });
-        }
-
-        // Late parent + note > 3 days ago + no payment update
-        // We check if balance is still > 0 and s.dueDate < today
-        if (diffDays < 0 && s.lastNoteDate) {
-          const noteDate = new Date(s.lastNoteDate);
-          const diffNoteTime = now.getTime() - noteDate.getTime();
-          const diffNoteDays = Math.floor(diffNoteTime / (1000 * 60 * 60 * 24));
-          
-          if (diffNoteDays > 3) {
-            list.push({
-              id: `note-${s.id}`,
-              type: 'note',
-              message: `${s.name}: ${t.noteReminder}`,
-              studentId: s.id,
-              date: s.lastNoteDate
-            });
-          }
-        }
-      }
-    });
-
-    return list;
-  }, [students, today, t, selectedYear]);
-
   const lateStudents = useMemo<Student[]>(() => {
     return students.filter(s => {
       const discount = s.scholarshipDiscount || 0;
@@ -259,6 +215,66 @@ export function useDashboard(deps: UseDashboardDeps) {
     }
     return missed;
   }, [salaryPayments, staff.length, selectedYear]);
+
+  const notifications = useMemo<DashboardNotification[]>(() => {
+    const list: DashboardNotification[] = [];
+    
+    const relevantStudents = students.filter(s => !selectedYear || s.academicYear === selectedYear);
+
+    relevantStudents.forEach(s => {
+      const balance = s.totalDue - s.amountPaid;
+      if (balance > 0) {
+        // Due Date < 2 days
+        const due = new Date(s.dueDate);
+        const now = new Date(today);
+        const diffTime = due.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays >= 0 && diffDays < 2) {
+          list.push({
+            id: `due-${s.id}`,
+            type: 'due',
+            message: `${s.name}: ${t.dueReminder}`,
+            studentId: s.id,
+            date: s.dueDate
+          });
+        }
+
+        // Late parent + note > 3 days ago + no payment update
+        // We check if balance is still > 0 and s.dueDate < today
+        if (diffDays < 0 && s.lastNoteDate) {
+          const noteDate = new Date(s.lastNoteDate);
+          const diffNoteTime = now.getTime() - noteDate.getTime();
+          const diffNoteDays = Math.floor(diffNoteTime / (1000 * 60 * 60 * 24));
+          
+          if (diffNoteDays > 3) {
+            list.push({
+              id: `note-${s.id}`,
+              type: 'note',
+              message: `${s.name}: ${t.noteReminder}`,
+              studentId: s.id,
+              date: s.lastNoteDate
+            });
+          }
+        }
+      }
+    });
+
+    // Missed payroll months → bell alerts (one per month without salary
+    // payments; anchored on the month's start so the relative label reads
+    // as a date for older months).
+    const currentCalendarYear = new Date().getFullYear();
+    for (const m of missedMonths) {
+      list.push({
+        id: `payroll-${currentCalendarYear}-${m}`,
+        type: 'payroll',
+        message: t.noPayrollWarning.replace('{month}', t[MONTH_KEYS[m]]),
+        date: `${currentCalendarYear}-${String(m + 1).padStart(2, '0')}-01`,
+      });
+    }
+
+    return list;
+  }, [students, today, t, selectedYear, missedMonths]);
 
   const payrollWindowStatus = useMemo<PayrollWindowStatus>(() => {
     const currentDay = new Date().getDate();

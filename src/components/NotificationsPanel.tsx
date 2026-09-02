@@ -138,7 +138,9 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                 notifications.map(n => {
                   const isRead = read.has(n.id);
                   const openStudent = () => {
-                    onOpenStudent(n.studentId);
+                    // Student reminders open the profile; team alerts (payroll)
+                    // only dismiss.
+                    if (n.studentId) onOpenStudent(n.studentId);
                     onMarkRead(n.id);
                     setOpen(false);
                   };

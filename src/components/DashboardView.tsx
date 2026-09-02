@@ -3,7 +3,7 @@ import { useMainViews } from '../app/mainViewsContext';
 import type { TranslationDict } from '../i18n/translations';
 
 export function DashboardView() {
-  const { AlertCircle, Calendar, ChartsFallback, CheckCircle2, ChevronRight, Clock, Coins, DashboardCharts, GraduationCap, PieChart, Suspense, TrendingDown, TrendingUp, Wallet, chartData, currentTheme, formatCurrency, lateStudents, missedMonths, payrollWindowStatus, pieData, setSelectedStudent, stats, t, theme } = useMainViews();
+  const { AlertCircle, Calendar, ChartsFallback, CheckCircle2, ChevronRight, Clock, Coins, DashboardCharts, GraduationCap, PieChart, Suspense, TrendingDown, TrendingUp, Wallet, chartData, currentTheme, formatCurrency, lateStudents, payrollWindowStatus, pieData, setSelectedStudent, stats, t, theme } = useMainViews();
   return (
           <div className="space-y-12">
             {/* Payroll Window Banner Alerts */}
@@ -46,30 +46,6 @@ export function DashboardView() {
                 </div>
               );
             })()}
-
-            {/* Missed Payroll Warning Banners */}
-            {missedMonths.length > 0 && (
-              <div className="space-y-3 no-print">
-                {missedMonths.map(m => {
-                  const monthKeys: (keyof TranslationDict)[] = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-                  return (
-                    <div key={m} className="p-5 bg-rose-50 border border-rose-200 rounded-3xl flex items-center gap-4 text-rose-700 shadow-lg shadow-rose-500/5 animate-subtle-pulse">
-                      <div className="p-2 bg-rose-100 rounded-xl text-rose-600">
-                        <AlertCircle size={20} />
-                      </div>
-                      <div>
-                        <h4 className="font-black text-sm">
-                          {t.noPayrollWarning.replace('{month}', t[monthKeys[m]])}
-                        </h4>
-                        <p className="text-xs text-rose-600/80 font-semibold mt-0.5">
-                          {t.immediateActionRequiredToReconcileOutstandingLiabilities}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
 
             {/* --- Premium KPI Cards --- */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 no-print">
