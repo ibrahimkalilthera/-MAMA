@@ -51,8 +51,21 @@ win.Element.prototype.animate = (() => finishedAnimation) as unknown as typeof w
 win.Element.prototype.getAnimations = (() => []) as unknown as typeof win.Element.prototype.getAnimations;
 (win.HTMLElement.prototype as { animate?: unknown }).animate = finishedAnimation;
 
-const due: DashboardNotification = { id: 'due-s1', type: 'due', message: 'A: Paiement dû dans moins de 2 jours', studentId: 's1' };
-const note: DashboardNotification = { id: 'note-s2', type: 'note', message: 'B: Pas de mise à jour depuis la note (3+ jours)', studentId: 's2' };
+/** Local calendar date `n` days before now (date-only — the panel parses
+ *  date-only strings as local days, so the label is deterministic even near
+ *  midnight in UTC+ timezones, where toISOString() would shift the day). */
+const daysAgoISO = (n: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+// due → anchored today, note → anchored 3 days ago (stable labels).
+const due: DashboardNotification = { id: 'due-s1', type: 'due', message: 'A: Paiement dû dans moins de 2 jours', studentId: 's1', date: daysAgoISO(0) };
+const note: DashboardNotification = { id: 'note-s2', type: 'note', message: 'B: Pas de mise à jour depuis la note (3+ jours)', studentId: 's2', date: daysAgoISO(3) };
 
 interface Fixture {
   notifications: DashboardNotification[];
@@ -69,6 +82,7 @@ function Harness(props: Fixture & {
       notifications={props.notifications}
       onOpenStudent={props.onOpenStudent}
       t={t}
+      lang="fr"
       readIds={props.readIds}
       onMarkRead={props.onMarkRead}
       onMarkAllRead={props.onMarkAllRead}
@@ -144,6 +158,7 @@ describe('NotificationsPanel — happy-dom render', () => {
       assert.equal(dialog?.getAttribute('aria-label'), t.notifications);
       assert.ok(dialog?.textContent?.includes(note.message), 'unread reminder is listed');
       assert.ok(!dialog?.textContent?.includes(due.message), 'read reminder is not listed');
+      assert.ok(dialog?.textContent?.includes(t.daysAgo.replace('{n}', '3')), 'relative date "il y a 3 jours" is shown');
     } finally {
       await act(async () => root.unmount());
       container.remove();
@@ -187,6 +202,8 @@ describe('NotificationsPanel — happy-dom render', () => {
       await act(async () => { click(bell() as Element); });
       const btn = buttonWithText(t.markAllRead);
       assert.ok(btn, 'mark-all button rendered when unread > 0');
+      const dialog = q('[role="dialog"]');
+      assert.ok(dialog?.textContent?.includes(t.today), 'relative date "Aujourd\'hui" is shown for the due reminder');
       await act(async () => { click(btn as Element); });
       assert.deepEqual(markedAll, [true]);
 

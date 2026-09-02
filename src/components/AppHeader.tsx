@@ -86,6 +86,7 @@ export function AppHeader(props: AppHeaderProps) {
             notifications={notifications}
             onOpenStudent={onOpenStudent}
             t={t}
+            lang={lang}
             readIds={readNotificationIds}
             onMarkRead={onMarkNotificationRead}
             onMarkAllRead={onMarkAllNotificationsRead}

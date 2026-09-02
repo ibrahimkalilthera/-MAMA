@@ -22,6 +22,8 @@ export interface DashboardNotification {
   type: 'due' | 'note';
   message: string;
   studentId: string;
+  /** Anchor date of the reminder (due date / last note date). */
+  date: string;
 }
 
 export interface UseDashboardDeps {
@@ -139,7 +141,7 @@ export function useDashboard(deps: UseDashboardDeps) {
   }, [students, today, currentMonth, expenses, vendorExpenses, salaryPayments, staff, selectedYear]);
 
   const notifications = useMemo<DashboardNotification[]>(() => {
-    const list: { id: string; type: 'due' | 'note'; message: string; studentId: string }[] = [];
+    const list: DashboardNotification[] = [];
     
     const relevantStudents = students.filter(s => !selectedYear || s.academicYear === selectedYear);
 
@@ -157,7 +159,8 @@ export function useDashboard(deps: UseDashboardDeps) {
             id: `due-${s.id}`,
             type: 'due',
             message: `${s.name}: ${t.dueReminder}`,
-            studentId: s.id
+            studentId: s.id,
+            date: s.dueDate
           });
         }
 
@@ -173,7 +176,8 @@ export function useDashboard(deps: UseDashboardDeps) {
               id: `note-${s.id}`,
               type: 'note',
               message: `${s.name}: ${t.noteReminder}`,
-              studentId: s.id
+              studentId: s.id,
+              date: s.lastNoteDate
             });
           }
         }

@@ -19,17 +19,28 @@ import { motion, AnimatePresence } from 'motion/react';
 import type { DashboardNotification } from '../app/useDashboard';
 import type { TranslationDict } from '../i18n/translations';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
+import { relativeDateLabel } from '../lib/relativeDate';
 
 export interface NotificationsPanelProps {
   notifications: DashboardNotification[];
   onOpenStudent: (studentId: string) => void;
   t: TranslationDict;
+  lang: 'en' | 'fr';
   readIds: string[];
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
 }
 
-export function NotificationsPanel({ notifications, onOpenStudent, t, readIds, onMarkRead, onMarkAllRead }: NotificationsPanelProps) {
+export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, onMarkRead, onMarkAllRead }: NotificationsPanelProps) {
+  const now = new Date();
+
+  const relativeLabel = (date: string): string => {
+    const label = relativeDateLabel(date, now);
+    if (label.kind === 'today') return t.today;
+    if (label.kind === 'yesterday') return t.yesterday;
+    if (label.kind === 'daysAgo') return t.daysAgo.replace('{n}', String(label.days));
+    return new Date(label.date).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
   const [open, setOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -126,7 +137,10 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, readIds, o
                     }`}
                   >
                     <Bell size={16} className={`mt-0.5 flex-shrink-0 ${n.type === 'due' ? 'text-amber-500' : 'text-rose-500'}`} />
-                    <span className="text-xs font-bold leading-relaxed">{n.message}</span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-bold leading-relaxed">{n.message}</span>
+                      <span className="block text-[10px] font-semibold opacity-60 mt-0.5">{relativeLabel(n.date)}</span>
+                    </span>
                   </button>
                 ))
               )}
