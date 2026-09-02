@@ -334,6 +334,7 @@ export interface MainViewsProps {
   toggleFlag: (id: string) => Promise<void>;
   toggleLanguage: (lang: 'en' | 'fr') => void;
   toggleTodo: (id: string) => Promise<void>;
+  handleUpdateTodoDate: (id: string, date: string) => Promise<boolean>;
   updatingUserId: string | null;
   passwordTarget: UserProfile | null;
   setPasswordTarget: Dispatch<SetStateAction<UserProfile | null>>;

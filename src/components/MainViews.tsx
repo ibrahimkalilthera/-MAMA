@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap } from 'lucide-react';
 import { HighlightText, ChartsFallback } from './SharedUi';
@@ -21,7 +21,10 @@ const ExpensesView = lazy(() => import('./ExpensesView').then(m => ({ default: m
 // MainViewsContext (imported above) instead of receiving the full 186-prop
 // object through {…props}.
 export function MainViews(props: MainViewsProps) {
-  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, currentTheme, deleteTodo, fetchAuditLogs, getDayName, getDaysInMonth, getEventsForDay, getMonthName, handleAddTodo, handleDeleteClass, handleExportAllData, handleLogoUpload, handleSendPasswordReset, handleUpdateRole, lang, logoColor, logoInputRef, openEditClass, parents, schoolLogo, setCalendarDate, setLogoColor, setSchoolLogo, setSelectedCalendarDay, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setTheme, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, staff, t, theme, today, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, passwordTarget, setPasswordTarget, passwordInput, setPasswordInput, handleSetPassword } = props;
+  // Task whose date chip is being edited inline (Notes view).
+  const [editingDateId, setEditingDateId] = useState<string | null>(null);
+
+  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, currentTheme, deleteTodo, fetchAuditLogs, getDayName, getDaysInMonth, getEventsForDay, getMonthName, handleAddTodo, handleDeleteClass, handleExportAllData, handleLogoUpload, handleSendPasswordReset, handleUpdateRole, lang, logoColor, logoInputRef, openEditClass, parents, schoolLogo, setCalendarDate, setLogoColor, setSchoolLogo, setSelectedCalendarDay, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setTheme, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, staff, t, theme, today, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, passwordTarget, setPasswordTarget, passwordInput, setPasswordInput, handleSetPassword } = props;
   return (
     <MainViewsContext.Provider value={props}>
     <>
@@ -197,10 +200,28 @@ export function MainViews(props: MainViewsProps) {
                         <span className={`text-sm font-bold ${todo.completed ? 'line-through text-slate-300' : (currentTheme.isDark ? 'text-emerald-500' : 'text-slate-700')}`}>
                           {todo.text}
                         </span>
-                        {todo.date && (
-                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${currentTheme.isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-50 text-blue-600'}`}>
-                            {todo.date.split('-').reverse().join('/')}
-                          </span>
+                        {editingDateId === todo.id ? (
+                          <input
+                            type="date"
+                            defaultValue={todo.date}
+                            autoFocus
+                            aria-label={t.taskDate}
+                            onChange={(e) => {
+                              setEditingDateId(null);
+                              void handleUpdateTodoDate(todo.id, e.target.value);
+                            }}
+                            onBlur={() => setEditingDateId(null)}
+                            className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${currentTheme.isDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40 [color-scheme:dark]' : 'bg-white text-slate-700 border-blue-200'}`}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setEditingDateId(todo.id)}
+                            title={t.taskDate}
+                            className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all hover:ring-2 hover:ring-blue-400/50 ${currentTheme.isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                          >
+                            {todo.date ? todo.date.split('-').reverse().join('/') : t.addDate}
+                          </button>
                         )}
                       </div>
                       <button 

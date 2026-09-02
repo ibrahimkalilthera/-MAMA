@@ -286,6 +286,7 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     handleSort: noop,
     handleUnlinkStudent: asyncNoop,
     handleUpdateRole: asyncNoop,
+    handleUpdateTodoDate: boolNoop,
     isPromoter: true,
     isGeneralManager: false,
     lang: 'fr' as const,

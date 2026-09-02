@@ -54,6 +54,11 @@ export function useTodoSidebar(deps: TodoSidebarDeps) {
     return deleteTodoItem(id);
   };
 
+  /** Edit an existing task's calendar date (empty string removes it). */
+  const handleUpdateTodoDate = async (id: string, date: string): Promise<boolean> => {
+    return updateTodoItem(id, date ? { date } : { date: undefined });
+  };
+
   return {
     todoInput,
     setTodoInput,
@@ -66,5 +71,6 @@ export function useTodoSidebar(deps: TodoSidebarDeps) {
     handleAddTodo,
     toggleTodo,
     deleteTodo,
+    handleUpdateTodoDate,
   };
 }

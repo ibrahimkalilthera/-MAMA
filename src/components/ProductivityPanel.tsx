@@ -70,6 +70,8 @@ export interface ProductivityPanelProps {
   todos: Todo[];
   toggleTodo: (id: string) => void;
   deleteTodo: (id: string) => void;
+  /** Edit an existing task's calendar date (empty string removes it). */
+  handleUpdateTodoDate: (id: string, date: string) => Promise<boolean>;
   /** Theme tokens from the app theme engine. */
   themeCard: string;
   themeBorder: string;
@@ -97,6 +99,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
     todos,
     toggleTodo,
     deleteTodo,
+    handleUpdateTodoDate,
     themeCard,
     themeBorder,
     themeMuted,
@@ -109,6 +112,9 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   useFocusTrap(open, () => rootRef.current);
   useEscapeToClose(open, onClose);
+
+  // Task whose date chip is currently being edited (inline date input).
+  const [editingDateId, setEditingDateId] = useState<string | null>(null);
 
   // Panel width — resizable on desktop (drag handle or arrow keys), persisted.
   const [panelWidth, setPanelWidth] = useState<number>(loadPanelWidth);
@@ -330,10 +336,28 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                     <span className={`text-sm font-bold ${todo.completed ? (themeIsDark ? 'text-emerald-500/50 line-through' : 'text-slate-400 line-through') : (themeIsDark ? 'text-emerald-500' : 'text-slate-700')}`}>
                       {todo.text}
                     </span>
-                    {todo.date && (
-                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${themeIsDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-50 text-blue-600'}`}>
-                        {todo.date.split('-').reverse().join('/')}
-                      </span>
+                    {editingDateId === todo.id ? (
+                      <input
+                        type="date"
+                        defaultValue={todo.date}
+                        autoFocus
+                        aria-label={t.taskDate}
+                        onChange={(e) => {
+                          setEditingDateId(null);
+                          void handleUpdateTodoDate(todo.id, e.target.value);
+                        }}
+                        onBlur={() => setEditingDateId(null)}
+                        className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${themeIsDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40 [color-scheme:dark]' : 'bg-white text-slate-700 border-blue-200'}`}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setEditingDateId(todo.id)}
+                        title={t.taskDate}
+                        className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all hover:ring-2 hover:ring-blue-400/50 ${themeIsDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                      >
+                        {todo.date ? todo.date.split('-').reverse().join('/') : t.addDate}
+                      </button>
                     )}
                   </div>
                   <button

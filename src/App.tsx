@@ -409,7 +409,7 @@ export default function App() {
     todoInput, setTodoInput, todoDate, setTodoDate,
     showTodoSidebar, setShowTodoSidebar,
     productivitySidebarTab, setProductivitySidebarTab,
-    handleAddTodo, toggleTodo, deleteTodo,
+    handleAddTodo, toggleTodo, deleteTodo, handleUpdateTodoDate,
   } = useTodoSidebar({
     todos, t,
     handleSaveNote,
@@ -794,6 +794,7 @@ const {
   toggleFlag,
   toggleLanguage,
   toggleTodo,
+  handleUpdateTodoDate,
   passwordInput,
   passwordTarget,
   setPasswordInput,

@@ -172,6 +172,23 @@ describe('useTodoSidebar', () => {
     unmount();
   });
 
+  it('edits an existing task date (and removes it when cleared)', async () => {
+    resetSpies();
+    const todo: Todo = { id: 't6', text: 'Réunion parents', completed: false, date: '2026-09-01' };
+    const apiRef: ApiRef = { current: null };
+    render(makeArgs([todo]), apiRef);
+
+    // change the date
+    await act(async () => { await apiRef.current?.handleUpdateTodoDate('t6', '2026-09-15'); });
+    assert.deepEqual(updateCalls, [{ id: 't6', updates: { date: '2026-09-15' } }]);
+
+    // clearing the input removes the date
+    updateCalls.length = 0;
+    await act(async () => { await apiRef.current?.handleUpdateTodoDate('t6', ''); });
+    assert.deepEqual(updateCalls, [{ id: 't6', updates: { date: undefined } }]);
+    unmount();
+  });
+
   it('deletes through the mutator passthrough', async () => {
     resetSpies();
     const apiRef: ApiRef = { current: null };

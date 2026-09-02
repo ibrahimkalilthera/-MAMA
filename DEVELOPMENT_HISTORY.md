@@ -313,3 +313,11 @@ graph TD
 - **Types** : fonction ajoutée aux types générés (database.types.ts Functions) pour un `supabase.rpc` typé.
 - **Tests** : users +3 (succès → toast + fermeture, échec → toast + modal ouvert, trop court → aucun appel).
 - Chaîne complète verte : lint 0 warning, l10n ✓ (5 nouvelles clés en+fr), **181/181 tests**, build ✓.
+
+## [2026-09-02] Date de tâche modifiable depuis sa ligne (chip cliquable)
+
+- La puce date de chaque tâche (panneau Productivité ET vue Notes) est maintenant un bouton : un clic la transforme en input type=date inline (autofocus) ; choisir une date → handleUpdateTodoDate(id, date) persiste via updateTodoItem et referme l'éditeur ; vider le champ → la date est retirée (date: undefined). Les tâches sans date affichent « + Date » pour en poser une.
+- useTodoSidebar expose handleUpdateTodoDate ; câblage viewsProps → MainViewsProps/AppModalsProps → ProductivityPanel. État local editingDateId dans les deux listes.
+- Clé l10n addDate (en+fr, parité ✓).
+- Tests : todos +1 (changement de date + retrait par champ vide) ; views-render props complétées.
+- Chaîne complète verte : lint 0 warning, l10n ✓, **182/182 tests**, build ✓.
