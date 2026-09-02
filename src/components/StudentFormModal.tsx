@@ -226,17 +226,6 @@ export function StudentFormModal(props: StudentFormModalProps) {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.passportPhotoLink}</label>
-            <input
-              type="text"
-              value={studentForm.photo}
-              onChange={(e) => setStudentForm({ ...studentForm, photo: e.target.value })}
-              className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
-              placeholder="https://images.unsplash.com/photo-..."
-            />
-          </div>
-
           {/* --- Parents Contact & Details --- */}
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">

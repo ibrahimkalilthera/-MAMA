@@ -10,7 +10,7 @@ const frBlock = src.match(/fr: \{([\s\S]*?)\r?\n  \},?\r?\n\};/)[1];
 const parseKeys = (block) => {
   const keys = [];
   for (const line of block.split(/\r?\n/)) {
-    if (!/^\s{4}\w+:/.test(line)) continue;
+    if (!/^\s{2,}\w+:/.test(line)) continue;
     for (const m of line.matchAll(/(\w+):\s*"[^"]*"/g)) keys.push(m[1]);
   }
   return keys;
@@ -50,6 +50,7 @@ if (missing.size === 0) {
   for (const [k, files] of [...missing.entries()].sort()) {
     console.log(`  ${k}  [${[...files].join(',')}]`);
   }
+  process.exitCode = 1;
 }
 
 // Vérifier aussi la parité stricte
@@ -59,4 +60,5 @@ if (onlyEn.length || onlyFr.length) {
   console.log(`\n⚠️ Déséquilibre : ${onlyEn.length} seulement en, ${onlyFr.length} seulement fr`);
   console.log('  en:', onlyEn.slice(0, 10).join(', '));
   console.log('  fr:', onlyFr.slice(0, 10).join(', '));
+  process.exitCode = 1;
 }
