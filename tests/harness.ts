@@ -15,6 +15,15 @@
  * --experimental-test-module-mocks) must keep registering their mock BEFORE
  * importing the hook — this module imports neither hooks nor mocked modules,
  * so importing it first is always safe.
+ *
+ * When NOT to use it — pure-logic suites run DOM-free in plain node ON
+ * PURPOSE and must not call installDomGlobals: escape-stack, focus-stack
+ * (decision cores driven with structural fakes), offline-replay, offline-sync
+ * (fake ReplayDb / in-memory queue backend), offline-notes, utils,
+ * excelImporter (pure parsers), mainviews-props (types-only contract).
+ * Installing happy-dom globals there would mask accidental global coupling
+ * (a function silently reading document/localStorage instead of taking
+ * parameters) and slow the suites down for nothing.
  */
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';

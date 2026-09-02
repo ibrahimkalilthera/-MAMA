@@ -1,3 +1,6 @@
+// Pure-parser suite for src/lib/excelImporter: no DOM, no React — the shared
+// happy-dom harness is intentionally unused (see tests/harness.ts "When NOT
+// to use it"); the parsers only transform strings/numbers.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {

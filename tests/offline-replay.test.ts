@@ -1,3 +1,5 @@
+// Pure replay-core suite: no DOM/React (see tests/harness.ts "When NOT to
+// use it") — replayOfflineItem is exercised against a plain fake ReplayDb.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { replayOfflineItem } from '../src/lib/offlineReplay';

@@ -8,6 +8,8 @@
 //   4. prop names are unique
 //   5. the wiring guard (scripts/check-component-props.mjs) parses THIS module
 //   6. the module is types-only: importing it has zero runtime side effects
+//   7. DOM-free contract: nothing renders or reads globals, so the shared
+//      happy-dom harness is intentionally unused (see harness.ts)
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

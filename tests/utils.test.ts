@@ -1,3 +1,6 @@
+// Pure-formatter suite (src/lib/formatters, src/lib/classes): no DOM, no
+// React — runs in plain node by design, see tests/harness.ts "When NOT to
+// use it".
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { formatCurrency, formatDate, formatDateLang } from '../src/lib/formatters';
