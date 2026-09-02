@@ -38,6 +38,11 @@ export interface Parent {
   notes?: string;
 }
 
+export interface StudentNoteEntry {
+  date: string;
+  text: string;
+}
+
 export interface Payment {
   date: string;
   amount: number;
@@ -60,6 +65,7 @@ export interface Student {
   payments: Payment[];
   notes: string;
   lastNoteDate?: string;
+  noteEntries?: StudentNoteEntry[];
   flagged?: boolean;
   academicYear?: string;
   grade?: string;
@@ -177,6 +183,7 @@ function mapStudentRow(row: DbRow<'students'>, payments: Payment[]): Student {
     payments: payments,
     notes: row.notes ?? '',
     lastNoteDate: row.last_note_date ?? undefined,
+    noteEntries: Array.isArray(row.note_entries) ? row.note_entries as unknown as StudentNoteEntry[] : undefined,
     flagged: Boolean(row.flagged),
     academicYear: row.academic_year ?? undefined,
     grade: row.grade ?? undefined,

@@ -7,7 +7,7 @@
  * drives the same function with the real client.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database, DbUpdate } from './database.types';
+import type { Database, DbUpdate, Json } from './database.types';
 import type { QueueItem } from './offlineQueue';
 import type { Parent, Student, Staff } from '../app/types';
 
@@ -43,6 +43,7 @@ export function studentToRow(student: Omit<Student, 'id' | 'payments'>) {
     last_payment_date: student.lastPaymentDate || null,
     notes: student.notes || null,
     last_note_date: student.lastNoteDate || null,
+    note_entries: (student.noteEntries || []) as unknown as Json,
     flagged: student.flagged || false,
     academic_year: student.academicYear || null,
     grade: student.grade || null,
@@ -84,6 +85,7 @@ export function studentUpdatesToRow(updates: Partial<Student>): DbUpdate<'studen
   if (updates.lastPaymentDate !== undefined) row.last_payment_date = updates.lastPaymentDate;
   if (updates.notes !== undefined) row.notes = updates.notes;
   if (updates.lastNoteDate !== undefined) row.last_note_date = updates.lastNoteDate;
+  if (updates.noteEntries !== undefined) row.note_entries = updates.noteEntries as unknown as Json;
   if (updates.flagged !== undefined) row.flagged = updates.flagged;
   if (updates.academicYear !== undefined) row.academic_year = updates.academicYear;
   if (updates.grade !== undefined) row.grade = updates.grade;

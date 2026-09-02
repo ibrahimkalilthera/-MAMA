@@ -76,6 +76,7 @@ export interface Database {
           last_payment_date: string | null;
           notes: string | null;
           last_note_date: string | null;
+          note_entries: Json;
           flagged: boolean | null;
           academic_year: string | null;
           grade: string | null;
@@ -104,6 +105,7 @@ export interface Database {
           last_payment_date?: string | null;
           notes?: string | null;
           last_note_date?: string | null;
+          note_entries?: Json;
           flagged?: boolean | null;
           academic_year?: string | null;
           grade?: string | null;
@@ -132,6 +134,7 @@ export interface Database {
           last_payment_date?: string | null;
           notes?: string | null;
           last_note_date?: string | null;
+          note_entries?: Json;
           flagged?: boolean | null;
           academic_year?: string | null;
           grade?: string | null;

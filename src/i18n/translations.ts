@@ -255,6 +255,7 @@ export const translations = {
   addNoteForThisDay: "Add a note for this day",
   alsoShowOnCalendar: "Also show on:",
   chooseStudent: "Choose a student…",
+  addStudentFirstForNotes: "Add a student first — notes are attached to a student.",
   saving: "Saving…",
   save: "Save",
 
@@ -1080,6 +1081,7 @@ export const translations = {
   addNoteForThisDay: "Ajouter une note pour ce jour",
   alsoShowOnCalendar: "Afficher aussi le :",
   chooseStudent: "Choisir un élève…",
+  addStudentFirstForNotes: "Ajoutez d'abord un élève — les notes sont rattachées à un élève.",
   saving: "Enregistrement…",
   save: "Enregistrer",
 

@@ -1358,24 +1358,28 @@ export function AppModals(props: AppModalsProps) {
                         <div key={idx} className={`p-6 rounded-2xl border ${currentTheme.border} ${
                           event.type === 'due' ? 'bg-rose-50/30' :
                           event.type === 'salary' ? 'bg-emerald-50/30' :
+                          event.type === 'note' ? 'bg-yellow-50/60' :
                           'bg-blue-50/30'
                         }`}>
                           <div className="flex items-center gap-4 mb-4">
                             <div className={`p-3 rounded-xl ${
                               event.type === 'due' ? 'bg-rose-100 text-rose-600' :
                               event.type === 'salary' ? 'bg-emerald-100 text-emerald-600' :
+                              event.type === 'note' ? 'bg-yellow-100 text-yellow-600' :
                               'bg-blue-100 text-blue-600'
                             }`}>
-                              {event.type === 'due' ? <Users size={20} /> : event.type === 'salary' ? <Briefcase size={20} /> : <Receipt size={20} />}
+                              {event.type === 'due' ? <Users size={20} /> : event.type === 'salary' ? <Briefcase size={20} /> : event.type === 'note' ? <StickyNote size={20} /> : <Receipt size={20} />}
                             </div>
                             <div>
                               <h4 className={`font-black uppercase tracking-widest text-[10px] ${
                                 event.type === 'due' ? 'text-rose-600' :
                                 event.type === 'salary' ? 'text-emerald-600' :
+                                event.type === 'note' ? 'text-yellow-700' :
                                 'text-blue-600'
                               }`}>
                                 {event.type === 'due' ? (t.studentFeesDue) : 
                                  event.type === 'salary' ? (t.staffSalaries) : 
+                                 event.type === 'note' ? (t.notes) : 
                                  (t.expenses)}
                               </h4>
                               <p className={`text-lg font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
@@ -1415,6 +1419,9 @@ export function AppModals(props: AppModalsProps) {
                           <option key={s.id} value={s.id}>{s.name}</option>
                         ))}
                       </select>
+                      {students.length === 0 && (
+                        <p className="text-[10px] font-semibold text-yellow-800/70">{t.addStudentFirstForNotes}</p>
+                      )}
                       <textarea
                         value={noteText}
                         onChange={(e) => setNoteText(e.target.value)}

@@ -117,12 +117,14 @@ export function MainViews(props: MainViewsProps) {
                             className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${
                               event.type === 'due' ? 'bg-rose-100 text-rose-600' :
                               event.type === 'salary' ? 'bg-emerald-100 text-emerald-600' :
+                              event.type === 'note' ? 'bg-yellow-100 text-yellow-700' :
                               'bg-blue-100 text-blue-600'
                             }`}
                           >
                             <div className={`w-1.5 h-1.5 rounded-full ${
                               event.type === 'due' ? 'bg-rose-500' :
                               event.type === 'salary' ? 'bg-emerald-500' :
+                              event.type === 'note' ? 'bg-yellow-500' :
                               'bg-blue-500'
                             }`} />
                             {event.count}
