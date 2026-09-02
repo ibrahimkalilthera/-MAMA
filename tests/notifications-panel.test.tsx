@@ -143,22 +143,31 @@ describe('NotificationsPanel — happy-dom render', () => {
     }
   });
 
-  it('opens the dropdown listing only unread reminders', async () => {
+  it('opening the dropdown marks everything read and lists all reminders (read dimmed)', async () => {
+    const markedAll: boolean[] = [];
     const { root, container } = mount();
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {},
+          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true),
         }));
       });
       await act(async () => { click(bell() as Element); });
 
+      assert.deepEqual(markedAll, [true], 'opening fires onMarkAllRead once (badge disappears in the app)');
       const dialog = q('[role="dialog"]');
       assert.ok(dialog, 'dropdown opens as a dialog');
       assert.equal(dialog?.getAttribute('aria-label'), t.notifications);
       assert.ok(dialog?.textContent?.includes(note.message), 'unread reminder is listed');
-      assert.ok(!dialog?.textContent?.includes(due.message), 'read reminder is not listed');
+      assert.ok(dialog?.textContent?.includes(due.message), 'read reminder is still listed (dimmed)');
       assert.ok(dialog?.textContent?.includes(t.daysAgo.replace('{n}', '3')), 'relative date "il y a 3 jours" is shown');
+
+      // Read items render dimmed (opacity-50), unread ones do not.
+      const buttons = dialogButtons();
+      const dueBtn = buttons.find(b => b.textContent?.includes(due.message));
+      const noteBtn = buttons.find(b => b.textContent?.includes(note.message));
+      assert.ok(dueBtn?.classList.contains('opacity-50'), 'read reminder is dimmed');
+      assert.ok(!noteBtn?.classList.contains('opacity-50'), 'unread reminder is not dimmed');
     } finally {
       await act(async () => root.unmount());
       container.remove();
@@ -190,7 +199,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     }
   });
 
-  it('mark-all button appears only with unread items and fires onMarkAllRead', async () => {
+  it('mark-all button dismisses late-arriving unread items', async () => {
     const markedAll: boolean[] = [];
     const { root, container } = mount();
     try {
@@ -200,21 +209,24 @@ describe('NotificationsPanel — happy-dom render', () => {
         }));
       });
       await act(async () => { click(bell() as Element); });
+      assert.deepEqual(markedAll, [true], 'opening already fired onMarkAllRead');
       const btn = buttonWithText(t.markAllRead);
-      assert.ok(btn, 'mark-all button rendered when unread > 0');
+      assert.ok(btn, 'mark-all button rendered while props still report unread items');
       const dialog = q('[role="dialog"]');
       assert.ok(dialog?.textContent?.includes(t.today), 'relative date "Aujourd\'hui" is shown for the due reminder');
       await act(async () => { click(btn as Element); });
-      assert.deepEqual(markedAll, [true]);
+      assert.deepEqual(markedAll, [true, true], 'manual mark-all fires again');
 
-      // Everything read → button disappears and the all-clear state shows.
+      // Parent adopts all ids → button gone, reminders stay listed (dimmed).
       await act(async () => {
         root.render(createElement(Harness, {
           notifications: [due, note], readIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true),
         }));
       });
-      assert.equal(buttonWithText(t.markAllRead), undefined, 'no mark-all button when nothing is unread');
-      assert.ok(q('[role="dialog"]')?.textContent?.includes(t.noNotifications), 'all-clear state when everything is read');
+      assert.equal(buttonWithText(t.markAllRead), undefined, 'no mark-all button when everything is read');
+      const d = q('[role="dialog"]');
+      assert.ok(d?.textContent?.includes(due.message) && d?.textContent?.includes(note.message), 'read reminders remain listed (dimmed)');
+      assert.ok(!d?.textContent?.includes(t.noNotifications), 'no all-clear state while reminders exist');
     } finally {
       await act(async () => root.unmount());
       container.remove();

@@ -7,11 +7,12 @@
  * stack as every other overlay), clicking outside closes it, and focus
  * moves to the panel's close button when it opens.
  *
- * Read-state: the parent owns the dismissed-id list (`readIds`); the badge
- * only counts notifications not in it, "mark all as read" dismisses every
- * current reminder, clicking a reminder dismisses it and opens the
- * student's profile. The list only shows unread reminders — when everything
- * is dismissed the panel shows the all-clear state.
+ * Read-state: the parent owns the dismissed-id list (`readIds`). Opening
+ * the dropdown marks every current reminder as read, so the bell badge
+ * disappears right away; reminders that arrive while the panel is open can
+ * still be dismissed with the "mark all as read" button. The list shows
+ * ALL reminders (read ones dimmed) so they stay reviewable, and clicking
+ * one opens the student's profile.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Bell, CheckCircle2, CheckCheck, X } from 'lucide-react';
@@ -43,8 +44,17 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
   };
   const [open, setOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const wasOpenRef = useRef(false);
 
   useEscapeToClose(open, () => setOpen(false));
+
+  // Opening the dropdown dismisses every current reminder (badge disappears).
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      onMarkAllRead();
+    }
+    wasOpenRef.current = open;
+  }, [open, onMarkAllRead]);
 
   useEffect(() => {
     if (open) closeRef.current?.focus();
@@ -117,32 +127,37 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
             </div>
 
             <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
-              {unread.length === 0 ? (
+              {notifications.length === 0 ? (
                 <div className="px-5 py-8 text-center">
                   <CheckCircle2 size={24} className="mx-auto mb-2 text-emerald-500" />
                   <p className="text-xs font-bold text-slate-400 dark:text-slate-500">{t.noNotifications}</p>
                 </div>
               ) : (
-                unread.map(n => (
-                  <button
-                    key={n.id}
-                    type="button"
-                    onClick={() => {
-                      onOpenStudent(n.studentId);
-                      onMarkRead(n.id);
-                      setOpen(false);
-                    }}
-                    className={`w-full text-left px-5 py-3.5 flex items-start gap-3 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors last:border-b-0 ${
-                      n.type === 'due' ? 'text-amber-700 dark:text-amber-300' : 'text-rose-700 dark:text-rose-300'
-                    }`}
-                  >
-                    <Bell size={16} className={`mt-0.5 flex-shrink-0 ${n.type === 'due' ? 'text-amber-500' : 'text-rose-500'}`} />
-                    <span className="min-w-0">
-                      <span className="block text-xs font-bold leading-relaxed">{n.message}</span>
-                      <span className="block text-[10px] font-semibold opacity-60 mt-0.5">{relativeLabel(n.date)}</span>
-                    </span>
-                  </button>
-                ))
+                notifications.map(n => {
+                  const isRead = read.has(n.id);
+                  return (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => {
+                        onOpenStudent(n.studentId);
+                        onMarkRead(n.id);
+                        setOpen(false);
+                      }}
+                      className={`w-full text-left px-5 py-3.5 flex items-start gap-3 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors last:border-b-0 ${
+                        isRead ? 'opacity-50' : ''
+                      } ${
+                        n.type === 'due' ? 'text-amber-700 dark:text-amber-300' : 'text-rose-700 dark:text-rose-300'
+                      }`}
+                    >
+                      <Bell size={16} className={`mt-0.5 flex-shrink-0 ${n.type === 'due' ? 'text-amber-500' : 'text-rose-500'}`} />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-bold leading-relaxed">{n.message}</span>
+                        <span className="block text-[10px] font-semibold opacity-60 mt-0.5">{relativeLabel(n.date)}</span>
+                      </span>
+                    </button>
+                  );
+                })
               )}
             </div>
           </motion.div>
