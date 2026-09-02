@@ -81,6 +81,9 @@ export function useAuthWelcome(deps: AuthWelcomeDeps) {
     }
     if (!authProfile) {
       setHasShownWelcome(false);
+      // Session ended — hide the greeting so it cannot linger on the login
+      // screen, and the next login shows it again (hasShownWelcome re-armed).
+      setWelcomeMessage(null);
     }
     // setActiveTab is the useState setter App passes in — stable, listed for
     // exhaustive-deps since it arrives as a prop here, not from a local useState.
