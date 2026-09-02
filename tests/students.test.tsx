@@ -48,7 +48,7 @@ function student(overrides: Partial<Student> & { id: string; name: string; total
 
 const ali = (): Student => student({ id: 'ST1', name: 'Ali Diallo', totalDue: 150000, amountPaid: 50000, academicYear: '2026-2027', grade: '6e' });
 const binta = (): Student => student({ id: 'ST2', name: 'Binta Fall', parentName: 'Ousmane Fall', totalDue: 80000, amountPaid: 80000, academicYear: '2026-2027', grade: '5e', dueDate: '2026-06-01' });
-const omar = (): Student => student({ id: 'ST3', name: 'Omar Sy', parentName: 'Fatou Sy', totalDue: 60000, amountPaid: 0, academicYear: '2026-2027', grade: '3e', studentId: 'MT-2026-003' });
+const omar = (): Student => student({ id: 'ST3', name: 'Omar Sy', parentName: 'Fatou Sy', totalDue: 60000, amountPaid: 0, academicYear: '2026-2027', grade: '9C', studentId: 'MT-2026-003' });
 
 interface Spies {
   alerts: string[];
@@ -153,7 +153,7 @@ describe('useStudents.filteredStudents', () => {
     const { ref, root } = await setup(args);
     try {
       // Omar, though matching the search below, belongs to 2025-2026 → year scope excludes him
-      const prevYear = student({ id: 'ST4', name: 'Omar Sy', parentName: 'Fatou Sy', totalDue: 60000, amountPaid: 0, academicYear: '2025-2026', grade: '3e', studentId: 'MT-2026-003' });
+      const prevYear = student({ id: 'ST4', name: 'Omar Sy', parentName: 'Fatou Sy', totalDue: 60000, amountPaid: 0, academicYear: '2025-2026', grade: '9C', studentId: 'MT-2026-003' });
       assert.deepEqual(ref.current!.filteredStudents.map((s) => s.name).sort(), ['Ali Diallo', 'Binta Fall', 'Omar Sy']);
       // the previous-year student is never visible
       await act(async () => { ref.current!.setSearchTerm('mt-2026-003'); });
@@ -286,6 +286,37 @@ describe('useStudents.handleStudentSubmit', () => {
     } finally {
       act(() => root.unmount());
       restoreAlert();
+    }
+  });
+
+  it('keeps matricules only for ninth-grade submissions', async () => {
+    {
+      const { args, spies } = baseDeps({ students: [] });
+      const { ref, root, restoreAlert } = await setup(args, spies.alerts);
+      try {
+        await act(async () => {
+          ref.current!.setStudentForm(fullForm({ grade: '6B', studentId: 'NOT-FOR-6B' }) as never);
+        });
+        await act(async () => { await ref.current!.handleStudentSubmit(submitEvent); });
+        assert.equal(spies.addStudentCalls[0]?.studentId, undefined, 'non-9th matricules are discarded');
+      } finally {
+        act(() => root.unmount());
+        restoreAlert();
+      }
+    }
+    {
+      const { args, spies } = baseDeps({ students: [] });
+      const { ref, root, restoreAlert } = await setup(args, spies.alerts);
+      try {
+        await act(async () => {
+          ref.current!.setStudentForm(fullForm({ grade: '9D', studentId: ' MT-2026-004 ' }) as never);
+        });
+        await act(async () => { await ref.current!.handleStudentSubmit(submitEvent); });
+        assert.equal(spies.addStudentCalls[0]?.studentId, 'MT-2026-004', 'ninth-grade matricules are trimmed and retained');
+      } finally {
+        act(() => root.unmount());
+        restoreAlert();
+      }
     }
   });
 
@@ -451,7 +482,7 @@ describe('useStudents.openEditModal & toggleFlag', () => {
       const f = ref.current!.studentForm;
       assert.equal(f.name, 'Fatou Bâ');
       assert.equal(f.totalDue, '40000', 'numeric totalDue becomes a form string');
-      assert.equal(f.studentId, 'MT-2026-7', 'studentId auto-format from the record id');
+      assert.equal(f.studentId, '', 'non-9th students do not receive a matricule fallback');
       assert.equal(f.medicalNotes, 'None', 'default for missing medicalNotes');
       assert.equal(f.status, 'Active', 'default for missing status');
       assert.equal(ref.current!.showStudentModal, true);

@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useMainViews } from '../app/mainViewsContext';
+import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
 
 export function ParentsView() {
   const { AlertCircle, ArrowUpDown, Bell, Briefcase, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CreditCard, Download, Edit2, FileText, HighlightText, Mail, MapPin, Phone, Plus, Receipt, Search, Trash2, Unlink, UserCheck, UserPlus, Users, X, currentTheme, expandedParentId, formatCurrency, getChildrenForParent, getParentOutstandingBalance, getParentPaymentHistory, handleDeleteParent, handleExportParentLedgerPdf, handleUnlinkStudent, openEditParentModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, selectedYear, setActiveLinkingParent, setEditingParent, setExpandedParentId, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setSelectedStudent, setShowLinkStudentModal, setShowParentModal, setStudentToLinkId, t } = useMainViews();
@@ -75,7 +76,7 @@ export function ParentsView() {
                 const search = parentSearchTerm.toLowerCase().trim();
                 if (!search) return true;
                 const children = getChildrenForParent(p);
-                const hasMatchingChild = children.some(c => c.name.toLowerCase().includes(search) || (c.studentId && c.studentId.toLowerCase().includes(search)) || c.id.toLowerCase().includes(search));
+                const hasMatchingChild = children.some(c => c.name.toLowerCase().includes(search) || (visibleStudentIdentifier(c.grade, c.studentId)?.toLowerCase().includes(search) ?? false) || c.id.toLowerCase().includes(search));
                 return p.fullName.toLowerCase().includes(search) ||
                   p.occupation.toLowerCase().includes(search) ||
                   p.address.toLowerCase().includes(search) ||
@@ -128,7 +129,7 @@ export function ParentsView() {
                   const search = parentSearchTerm.toLowerCase().trim();
                   if (!search) return true;
                   const children = getChildrenForParent(p);
-                  const hasMatchingChild = children.some(c => c.name.toLowerCase().includes(search) || (c.studentId && c.studentId.toLowerCase().includes(search)) || c.id.toLowerCase().includes(search));
+                  const hasMatchingChild = children.some(c => c.name.toLowerCase().includes(search) || (visibleStudentIdentifier(c.grade, c.studentId)?.toLowerCase().includes(search) ?? false) || c.id.toLowerCase().includes(search));
                   return p.fullName.toLowerCase().includes(search) ||
                     p.occupation.toLowerCase().includes(search) ||
                     p.address.toLowerCase().includes(search) ||
@@ -466,9 +467,11 @@ export function ParentsView() {
                                               <span className="font-bold text-sm text-slate-900 dark:text-white">
                                                 {child.name}
                                               </span>
-                                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                                                {child.studentId || child.id}
-                                              </span>
+                                              {visibleStudentIdentifier(child.grade, child.studentId) && (
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                                  {visibleStudentIdentifier(child.grade, child.studentId)}
+                                                </span>
+                                              )}
                                               {child.grade && (
                                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                                                   {child.grade}
@@ -556,7 +559,7 @@ export function ParentsView() {
                                             {item.receiptNumber}
                                           </td>
                                           <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-200">
-                                            {item.studentName} <span className="text-[10px] font-normal text-slate-400">({item.studentId})</span>
+                                            {item.studentName}{item.studentId && <span className="text-[10px] font-normal text-slate-400"> ({item.studentId})</span>}
                                           </td>
                                           <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">
                                             {item.date}

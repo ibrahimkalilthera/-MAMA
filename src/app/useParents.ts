@@ -17,6 +17,7 @@ import { useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import type { TranslationDict } from '../i18n/translations';
 import type { Language, Parent, Student } from './types';
+import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
 
 export interface UseParentsArgs {
   t: TranslationDict;
@@ -177,7 +178,7 @@ export function useParents({
         ledger.push({
           receiptNumber: p.receiptNumber || `REC-${child.id}-${idx + 1}`,
           studentName: child.name,
-          studentId: child.studentId || child.id,
+          studentId: visibleStudentIdentifier(child.grade, child.studentId) || '',
           date: p.date,
           amount: p.amount,
           academicYear: p.academicYear
@@ -194,6 +195,11 @@ export function useParents({
     const totalOutstanding = getParentOutstandingBalance(parent);
     const paymentHistory = getParentPaymentHistory(parent);
     const totalPaymentsEver = paymentHistory.reduce((sum, item) => sum + item.amount, 0);
+    const hasNinthGradeChild = children.some(child => Boolean(visibleStudentIdentifier(child.grade, child.studentId)));
+    const studentNameX = hasNinthGradeChild ? 50 : 18;
+    const gradeX = hasNinthGradeChild ? 105 : 75;
+    const totalDueX = hasNinthGradeChild ? 135 : 125;
+    const balanceX = hasNinthGradeChild ? 165 : 160;
 
     const doc = new jsPDF({
       orientation: 'portrait',
@@ -284,11 +290,11 @@ export function useParents({
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(71, 85, 105);
-    doc.text(t.studentId, 18, y + 5);
-    doc.text(t.fullName, 50, y + 5);
-    doc.text(t.grade, 105, y + 5);
-    doc.text(t.totalDue2, 135, y + 5);
-    doc.text(t.balance2, 165, y + 5);
+    if (hasNinthGradeChild) doc.text(t.studentId, 18, y + 5);
+    doc.text(t.fullName, studentNameX, y + 5);
+    doc.text(t.grade, gradeX, y + 5);
+    doc.text(t.totalDue2, totalDueX, y + 5);
+    doc.text(t.balance2, balanceX, y + 5);
     y += 7;
 
     doc.setFont('helvetica', 'normal');
@@ -300,11 +306,12 @@ export function useParents({
     } else {
       children.forEach((child) => {
         const remaining = Math.max(0, child.totalDue - child.amountPaid);
-        doc.text(child.studentId || child.id, 18, y + 5);
-        doc.text(child.name.substring(0, 26), 50, y + 5);
-        doc.text(child.grade || '-', 105, y + 5);
-        doc.text(formatPdfAmount(child.totalDue), 135, y + 5);
-        doc.text(formatPdfAmount(remaining), 165, y + 5);
+        const studentIdentifier = visibleStudentIdentifier(child.grade, child.studentId);
+        if (hasNinthGradeChild && studentIdentifier) doc.text(studentIdentifier, 18, y + 5);
+        doc.text(child.name.substring(0, 26), studentNameX, y + 5);
+        doc.text(child.grade || '-', gradeX, y + 5);
+        doc.text(formatPdfAmount(child.totalDue), totalDueX, y + 5);
+        doc.text(formatPdfAmount(remaining), balanceX, y + 5);
         y += 6;
 
         doc.setDrawColor(241, 245, 249);

@@ -19,6 +19,7 @@ import type { FormEvent } from 'react';
 import type { Student } from './types';
 import type { StudentForm } from '../components/StudentFormModal';
 import type { TranslationDict } from '../i18n/translations';
+import { isNinthGradeClass, visibleStudentIdentifier } from '../lib/studentIdentifiers';
 
 export type StudentSortKey = 'name' | 'parentName' | 'balance' | 'dueDate';
 
@@ -105,14 +106,18 @@ export function useStudents(deps: UseStudentsDeps) {
   }, [printStudentFile]);
 
   const filteredStudents = useMemo(() => {
-    const list = students.filter(s => 
-      (!selectedYear || s.academicYear === selectedYear || !s.academicYear) &&
-      (studentGradeFilter === 'all' || (s.grade && s.grade.toLowerCase() === studentGradeFilter.toLowerCase())) &&
-      (s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       s.parentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       (s.studentId && s.studentId.toLowerCase().includes(searchTerm.toLowerCase())) ||
-       (s.grade && s.grade.toLowerCase().includes(searchTerm.toLowerCase())))
-    );
+    const normalizedSearch = searchTerm.toLowerCase();
+    const list = students.filter(s => {
+      const searchableStudentId = visibleStudentIdentifier(s.grade, s.studentId)?.toLowerCase();
+      return (
+        (!selectedYear || s.academicYear === selectedYear || !s.academicYear) &&
+        (studentGradeFilter === 'all' || (s.grade && s.grade.toLowerCase() === studentGradeFilter.toLowerCase())) &&
+        (s.name.toLowerCase().includes(normalizedSearch) ||
+         s.parentName.toLowerCase().includes(normalizedSearch) ||
+         (searchableStudentId?.includes(normalizedSearch) ?? false) ||
+         (s.grade && s.grade.toLowerCase().includes(normalizedSearch)))
+      );
+    });
 
     if (studentSortKey) {
       list.sort((a, b) => {
@@ -178,6 +183,11 @@ export function useStudents(deps: UseStudentsDeps) {
       ...studentForm,
       parentEmail: studentForm.parentEmail.trim(),
       totalDue: amount,
+      // Matricules are reserved for 9th-year classes. The explicit undefined
+      // is intentional: studentUpdatesToRow turns it into SQL NULL on edits.
+      studentId: isNinthGradeClass(studentForm.grade)
+        ? studentForm.studentId.trim() || undefined
+        : undefined,
       scholarshipDiscount: canEditScholarship
         ? (parseFloat(studentForm.scholarshipDiscount) || 0)
         : (editingStudent?.scholarshipDiscount || 0),
@@ -226,7 +236,9 @@ export function useStudents(deps: UseStudentsDeps) {
       dueDate: student.dueDate,
       academicYear: student.academicYear || '2024-2025',
       grade: student.grade || '',
-      studentId: student.studentId || `MT-2026-${student.id.replace('ST', '')}`,
+      studentId: isNinthGradeClass(student.grade)
+        ? (student.studentId || `MT-2026-${student.id.replace('ST', '')}`)
+        : '',
       photo: student.photo || '',
       emergencyContactName: student.emergencyContactName || '',
       emergencyContactRelation: student.emergencyContactRelation || '',

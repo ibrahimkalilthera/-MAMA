@@ -22,6 +22,7 @@ import { useEscapeToClose } from '../lib/useEscapeToClose';
 import type { TranslationDict } from '../i18n/translations';
 import type { Student } from '../lib/useSupabaseData';
 import type { ManagedClass } from '../app/mainViewsProps';
+import { isNinthGradeClass } from '../lib/studentIdentifiers';
 
 /** Student add/edit form state (matches App.tsx). */
 export interface StudentForm {
@@ -135,7 +136,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
 
         <form onSubmit={handleStudentSubmit} className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           {/* --- Student Profiles & Enrollment Core Fields --- */}
-          <div className="grid grid-cols-2 gap-6">
+          <div className={`${isNinthGradeClass(studentForm.grade) ? 'grid-cols-2' : 'grid-cols-1'} grid gap-6`}>
             <div className="space-y-2">
               <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.studentName}</label>
               <input
@@ -147,16 +148,18 @@ export function StudentFormModal(props: StudentFormModalProps) {
                 placeholder="Ibrahim"
               />
             </div>
-            <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.studentIdUnique}</label>
-              <input
-                type="text"
-                value={studentForm.studentId}
-                onChange={(e) => setStudentForm({ ...studentForm, studentId: e.target.value })}
-                className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                placeholder="MT-2026-001 (Optional)"
-              />
-            </div>
+            {isNinthGradeClass(studentForm.grade) && (
+              <div className="space-y-2">
+                <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.studentIdUnique}</label>
+                <input
+                  type="text"
+                  value={studentForm.studentId}
+                  onChange={(e) => setStudentForm({ ...studentForm, studentId: e.target.value })}
+                  className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                  placeholder="MT-2026-001 (Optional)"
+                />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-6">
@@ -181,7 +184,12 @@ export function StudentFormModal(props: StudentFormModalProps) {
                   if (e.target.value === '__ADD_NEW_CLASS__') {
                     onOpenAddClass();
                   } else {
-                    setStudentForm({ ...studentForm, grade: e.target.value });
+                    const nextGrade = e.target.value;
+                    setStudentForm({
+                      ...studentForm,
+                      grade: nextGrade,
+                      studentId: isNinthGradeClass(nextGrade) ? studentForm.studentId : '',
+                    });
                   }
                 }}
                 className={`w-full px-6 py-4 ${themeIsDark ? 'bg-slate-800 text-emerald-500' : 'bg-slate-50 text-slate-800'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold`}

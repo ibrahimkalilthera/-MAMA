@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, DbUpdate, Json } from './database.types';
 import type { QueueItem } from './offlineQueue';
 import type { Parent, Student, Staff } from '../app/types';
+import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
 
 /** The surface of the Supabase client that replay touches. */
 export type ReplayDb = Pick<SupabaseClient<Database>, 'from'>;
@@ -31,7 +32,7 @@ export function parentToRow(parent: Omit<Parent, 'id'>) {
 export function studentToRow(student: Omit<Student, 'id' | 'payments'>) {
   return {
     parent_id: student.parentId || null,
-    student_id: student.studentId || null,
+    student_id: visibleStudentIdentifier(student.grade, student.studentId) || null,
     name: student.name,
     parent_name: student.parentName,
     parent_email: student.parentEmail || null,
@@ -88,8 +89,12 @@ export function studentUpdatesToRow(updates: Partial<Student>): DbUpdate<'studen
   if (updates.noteEntries !== undefined) row.note_entries = updates.noteEntries as unknown as Json;
   if (updates.flagged !== undefined) row.flagged = updates.flagged;
   if (updates.academicYear !== undefined) row.academic_year = updates.academicYear;
-  if (updates.grade !== undefined) row.grade = updates.grade;
-  if (updates.studentId !== undefined) row.student_id = updates.studentId;
+  if (updates.grade !== undefined) {
+    row.grade = updates.grade;
+    row.student_id = visibleStudentIdentifier(updates.grade, updates.studentId) ?? null;
+  } else if (updates.studentId !== undefined) {
+    row.student_id = updates.studentId.trim() || null;
+  }
   if (updates.photo !== undefined) row.photo = updates.photo;
   if (updates.emergencyContactName !== undefined) row.emergency_contact_name = updates.emergencyContactName;
   if (updates.emergencyContactRelation !== undefined) row.emergency_contact_relation = updates.emergencyContactRelation;

@@ -52,11 +52,17 @@ describe('studentToRow (offline insert)', () => {
   });
 
   it('still maps the other student fields alongside note_entries', () => {
-    const row = studentToRow(student({ noteEntries: entries, amountPaid: 75000, flagged: true }));
+    const row = studentToRow(student({ grade: '9A', studentId: ' MT-2026-001 ', noteEntries: entries, amountPaid: 75000, flagged: true }));
     assert.equal(row.amount_paid, 75000);
     assert.equal(row.flagged, true);
     assert.equal(row.name, 'Ali Diallo');
+    assert.equal(row.student_id, 'MT-2026-001', 'eligible matricules are trimmed at the DB boundary');
     assert.deepEqual(row.note_entries, entries);
+  });
+
+  it('drops a matricule from an insert for a non-9th class', () => {
+    const row = studentToRow(student({ grade: '6B', studentId: 'MT-2026-006' }));
+    assert.equal(row.student_id, null);
   });
 });
 
@@ -80,9 +86,20 @@ describe('studentUpdatesToRow (offline update)', () => {
   });
 
   it('maps noteEntries alongside the other updated fields', () => {
-    const row = studentUpdatesToRow({ name: 'Ali', noteEntries: entries, totalDue: 180000 });
+    const row = studentUpdatesToRow({ name: 'Ali', grade: '9D', studentId: 'MT-2026-009', noteEntries: entries, totalDue: 180000 });
     assert.deepEqual(row.note_entries, entries);
     assert.equal(row.name, 'Ali');
     assert.equal(row.total_due, 180000);
+    assert.equal(row.student_id, 'MT-2026-009');
+  });
+
+  it('clears the DB matricule when an update moves a student outside 9th grade', () => {
+    const row = studentUpdatesToRow({ grade: '8C', studentId: 'MT-2026-008' });
+    assert.equal(row.student_id, null);
+  });
+
+  it('clears an old value when a non-9th student is moved into 9th without a new matricule', () => {
+    const row = studentUpdatesToRow({ grade: '9A' });
+    assert.equal(row.student_id, null);
   });
 });

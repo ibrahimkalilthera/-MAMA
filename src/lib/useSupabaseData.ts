@@ -24,6 +24,7 @@ import {
 import { logAuditEvent, AuditLogEntry } from './auditLogger';
 import { parentToRow, studentToRow, staffToRow, studentUpdatesToRow } from './offlineReplay';
 import { drainOfflineQueue } from './offlineSync';
+import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
 
 // ─── Type Definitions (matching App.tsx types) ───────────────────────────────
 
@@ -189,7 +190,7 @@ function mapStudentRow(row: DbRow<'students'>, payments: Payment[]): Student {
     flagged: Boolean(row.flagged),
     academicYear: row.academic_year ?? undefined,
     grade: row.grade ?? undefined,
-    studentId: row.student_id ?? undefined,
+    studentId: visibleStudentIdentifier(row.grade ?? undefined, row.student_id ?? undefined),
     photo: row.photo ?? undefined,
     emergencyContactName: row.emergency_contact_name ?? undefined,
     emergencyContactRelation: row.emergency_contact_relation ?? undefined,
@@ -716,17 +717,21 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   // ── CRUD: Students ──────────────────────────────────────────────────────
 
   const addStudent = async (student: Omit<Student, 'id' | 'payments'>): Promise<Student | null> => {
+    const normalizedStudent = {
+      ...student,
+      studentId: visibleStudentIdentifier(student.grade, student.studentId),
+    };
     if (isOffline()) {
       const tempId = createTempId('student');
-      const local: Student = { id: tempId, ...student, payments: [] };
+      const local: Student = { id: tempId, ...normalizedStudent, payments: [] };
       setStudents(prev => [...prev, local]);
-      enqueueOffline('addStudent', student);
+      enqueueOffline('addStudent', normalizedStudent);
       notifySuccess('addStudent');
       return local;
     }
     const { data, error } = await supabase
       .from('students')
-      .insert(studentToRow(student))
+      .insert(studentToRow(normalizedStudent))
       .select()
       .single();
     if (error) { console.error('addStudent error:', error.message); notifyError('addStudent', error.message); return null; }
@@ -737,16 +742,25 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   };
 
   const updateStudent = async (id: string, updates: Partial<Student>): Promise<boolean> => {
+    const currentStudent = students.find(s => s.id === id);
+    const resultingGrade = updates.grade ?? currentStudent?.grade;
+    const normalizedUpdates = !isNinthGradeClass(resultingGrade)
+      ? { ...updates, studentId: '' }
+      : updates.studentId !== undefined
+        ? { ...updates, studentId: visibleStudentIdentifier(resultingGrade, updates.studentId) ?? '' }
+        : updates.grade !== undefined
+          ? { ...updates, studentId: visibleStudentIdentifier(resultingGrade, currentStudent?.studentId) ?? '' }
+          : updates;
     if (isOffline()) {
-      setStudents(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
-      enqueueOffline('updateStudent', { id, updates });
+      setStudents(prev => prev.map(s => s.id === id ? { ...s, ...normalizedUpdates } : s));
+      enqueueOffline('updateStudent', { id, updates: normalizedUpdates });
       notifySuccess('updateStudent');
       return true;
     }
-    const row = studentUpdatesToRow(updates);
+    const row = studentUpdatesToRow(normalizedUpdates);
     const { error } = await supabase.from('students').update(row).eq('id', id);
     if (error) { console.error('updateStudent error:', error.message); notifyError('updateStudent', error.message); return false; }
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...normalizedUpdates } : s));
     notifySuccess('updateStudent');
     return true;
   };
@@ -1106,13 +1120,17 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
         const rowUpdates: {
           academic_year?: string;
           grade?: string;
+          student_id?: string | null;
           total_due?: number;
           amount_paid?: number;
           status?: 'Active' | 'Graduated' | 'Left';
         } = {};
         if (item.action === 'promote' || item.action === 'repeat') {
           rowUpdates.academic_year = item.targetAcademicYear;
-          if (item.targetGrade) rowUpdates.grade = item.targetGrade;
+          if (item.targetGrade) {
+            rowUpdates.grade = item.targetGrade;
+            rowUpdates.student_id = visibleStudentIdentifier(item.targetGrade, student.studentId) ?? null;
+          }
           if (item.newTotalDue !== undefined) rowUpdates.total_due = item.newTotalDue;
           rowUpdates.amount_paid = 0; // reset balance for new school year
           rowUpdates.status = 'Active';
@@ -1137,6 +1155,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
                 ...s,
                 academicYear: rowUpdates.academic_year ?? s.academicYear,
                 grade: rowUpdates.grade ?? s.grade,
+                studentId: rowUpdates.student_id === undefined ? s.studentId : rowUpdates.student_id ?? undefined,
                 totalDue: rowUpdates.total_due ?? s.totalDue,
                 amountPaid: rowUpdates.amount_paid !== undefined ? rowUpdates.amount_paid : s.amountPaid,
                 status: rowUpdates.status ?? s.status,
@@ -1210,13 +1229,17 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
         const rows: DbInsert<'students'>[] = [];
         for (const r of records as StudentRec[]) {
-          const existing = (r.studentId ? byStudentId.get(String(r.studentId).toLowerCase().trim()) : undefined)
+          const importedStudentId = visibleStudentIdentifier(r.grade, r.studentId);
+          const existing = (importedStudentId ? byStudentId.get(importedStudentId.toLowerCase()) : undefined)
             || byNameGrade.get(`${String(r.name || '').toLowerCase().trim()}|${String(r.grade || '').toLowerCase().trim()}`);
 
           if (existing) {
             if (strategy === 'update') {
               const { error } = await supabase.from('students').update({
                 grade: r.grade ?? existing.grade ?? null,
+                student_id: isNinthGradeClass(r.grade ?? existing.grade ?? undefined)
+                  ? (visibleStudentIdentifier(r.grade ?? existing.grade ?? undefined, r.studentId ?? existing.studentId) ?? null)
+                  : null,
                 parent_name: r.parentName ?? existing.parentName ?? '',
                 parent_phone: r.parentPhone ?? existing.parentPhone ?? '',
                 parent_email: r.parentEmail ?? existing.parentEmail ?? null,
@@ -1237,7 +1260,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
             rows.push({
               name: r.name || '',
               grade: r.grade || null,
-              student_id: r.studentId || null,
+              student_id: visibleStudentIdentifier(r.grade ?? undefined, r.studentId ?? undefined) ?? null,
               parent_name: r.parentName || '',
               parent_phone: r.parentPhone || '',
               parent_email: r.parentEmail || '',
