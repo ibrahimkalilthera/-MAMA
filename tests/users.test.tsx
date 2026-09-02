@@ -37,6 +37,8 @@ interface Spies {
   updateRoleResults: boolean[];
   resetCalls: string[];
   resetResults: Array<{ success: boolean; error?: string }>;
+  setPasswordCalls: Array<{ id: string; password: string }>;
+  setPasswordResults: Array<{ success: boolean; error?: string }>;
   toasts: Array<{ kind: 'success' | 'error'; msg: string }>;
   profiles: UserProfile[];
 }
@@ -45,6 +47,7 @@ interface DepsOverrides {
   profiles?: UserProfile[];
   updateRoleResults?: boolean[];
   resetResults?: Array<{ success: boolean; error?: string }>;
+  setPasswordResults?: Array<{ success: boolean; error?: string }>;
 }
 
 function baseDeps(overrides: DepsOverrides = {}): {
@@ -56,6 +59,8 @@ function baseDeps(overrides: DepsOverrides = {}): {
     updateRoleResults: overrides.updateRoleResults ?? [true],
     resetCalls: [],
     resetResults: overrides.resetResults ?? [{ success: true }],
+    setPasswordCalls: [],
+    setPasswordResults: overrides.setPasswordResults ?? [{ success: true }],
     toasts: [],
     profiles: [...(overrides.profiles ?? [admin, staffU, gm])],
   };
@@ -69,6 +74,10 @@ function baseDeps(overrides: DepsOverrides = {}): {
       sendPasswordReset: async (email: string) => {
         spies.resetCalls.push(email);
         return spies.resetResults[spies.resetCalls.length - 1] ?? { success: true };
+      },
+      setUserPassword: async (id: string, password: string) => {
+        spies.setPasswordCalls.push({ id, password });
+        return spies.setPasswordResults[spies.setPasswordCalls.length - 1] ?? { success: true };
       },
     },
     userProfiles: [...(overrides.profiles ?? [admin, staffU, gm])],
@@ -217,6 +226,62 @@ describe('useUsers', () => {
       } finally {
         act(() => root.unmount());
       }
+    }
+  });
+
+  it('sets any account password directly and closes the modal on success', async () => {
+    const { args, spies } = baseDeps();
+    const { ref, root } = await setup(args);
+    try {
+      await act(async () => {
+        ref.current!.setPasswordTarget(staffU);
+        ref.current!.setPasswordInput('Matricule1667');
+      });
+      await act(async () => { await ref.current!.handleSetPassword(); });
+
+      assert.deepEqual(spies.setPasswordCalls, [{ id: 'u2', password: 'Matricule1667' }]);
+      assert.deepEqual(spies.toasts, [
+        { kind: 'success', msg: t.passwordUpdated.replace('{name}', 'Sékou Traoré') },
+      ]);
+      assert.equal(ref.current!.passwordTarget, null, 'modal closed');
+      assert.equal(ref.current!.passwordInput, '', 'input cleared');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('keeps the modal open and error-toasts when the password change fails', async () => {
+    const { args, spies } = baseDeps({ setPasswordResults: [{ success: false, error: 'permission denied' }] });
+    const { ref, root } = await setup(args);
+    try {
+      await act(async () => {
+        ref.current!.setPasswordTarget(staffU);
+        ref.current!.setPasswordInput('Matricule1667');
+      });
+      await act(async () => { await ref.current!.handleSetPassword(); });
+
+      assert.equal(spies.setPasswordCalls.length, 1, 'the RPC was attempted');
+      assert.deepEqual(spies.toasts, [{ kind: 'error', msg: 'permission denied' }]);
+      assert.ok(ref.current!.passwordTarget, 'modal stays open');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('ignores a password shorter than 6 characters', async () => {
+    const { args, spies } = baseDeps();
+    const { ref, root } = await setup(args);
+    try {
+      await act(async () => {
+        ref.current!.setPasswordTarget(staffU);
+        ref.current!.setPasswordInput('abc');
+      });
+      await act(async () => { await ref.current!.handleSetPassword(); });
+
+      assert.equal(spies.setPasswordCalls.length, 0, 'no RPC call for a too-short password');
+      assert.equal(spies.toasts.length, 0);
+    } finally {
+      act(() => root.unmount());
     }
   });
 

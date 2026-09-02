@@ -53,6 +53,8 @@ export interface AuthState {
   createStaffUser: (email: string, password: string, fullName: string, role: Extract<AppRole, 'admin' | 'staff' | 'general_manager' | 'econome'>) => Promise<{ success: boolean; error?: string }>;
   /** Trigger password reset email */
   sendPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>;
+  /** Admin/dev only: set any account's password directly (no email). */
+  setUserPassword: (userId: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 // ─── Helper: Map DB row to UserProfile ───────────────────────────────────────
@@ -264,6 +266,22 @@ export function useAuth(): AuthState {
     return { success: true };
   }, []);
 
+  // ── Admin/dev: set any account's password directly ──────────────────────
+  // Backed by the SECURITY DEFINER RPC `admin_set_user_password` which
+  // re-checks the caller's role server-side (only admin/dev profiles).
+
+  const setUserPassword = useCallback(async (userId: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    const { data, error: rpcError } = await supabase.rpc('admin_set_user_password', {
+      target_user_id: userId,
+      new_password: newPassword,
+    });
+    if (rpcError) {
+      console.error('[MAMA THERA Auth] Set password error:', rpcError.message);
+      return { success: false, error: rpcError.message };
+    }
+    return { success: data === true, error: data === true ? undefined : 'Failed to set password' };
+  }, []);
+
   // ── Return ──────────────────────────────────────────────────────────────
 
   return {
@@ -278,5 +296,6 @@ export function useAuth(): AuthState {
     updateUserRole,
     createStaffUser,
     sendPasswordReset,
+    setUserPassword,
   };
 }

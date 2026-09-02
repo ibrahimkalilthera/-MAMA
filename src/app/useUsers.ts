@@ -20,7 +20,7 @@ export type UserRoleFilter = 'all' | 'admin' | 'staff' | 'dev' | 'general_manage
 
 export interface UseUsersDeps {
   t: TranslationDict;
-  auth: Pick<AuthState, 'updateUserRole' | 'sendPasswordReset'>;
+  auth: Pick<AuthState, 'updateUserRole' | 'sendPasswordReset' | 'setUserPassword'>;
   userProfiles: UserProfile[];
   setUserProfiles: Dispatch<SetStateAction<UserProfile[]>>;
   toast: Pick<ReturnType<typeof useToast>, 'success' | 'error'>;
@@ -33,6 +33,9 @@ export function useUsers(deps: UseUsersDeps) {
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<UserRoleFilter>('all');
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  /** Target of the direct password-set modal (null = modal closed). */
+  const [passwordTarget, setPasswordTarget] = useState<UserProfile | null>(null);
+  const [passwordInput, setPasswordInput] = useState('');
 
   const handleUpdateRole = async (targetProfile: UserProfile, newRole: AppRole) => {
     if (targetProfile.role === newRole) return;
@@ -62,13 +65,28 @@ export function useUsers(deps: UseUsersDeps) {
     }
   };
 
+  const handleSetPassword = async () => {
+    if (!passwordTarget || passwordInput.trim().length < 6) return;
+    const res = await auth.setUserPassword(passwordTarget.id, passwordInput.trim());
+    if (res.success) {
+      toast.success(t.passwordUpdated.replace('{name}', passwordTarget.fullName));
+      setPasswordTarget(null);
+      setPasswordInput('');
+    } else {
+      toast.error(res.error || t.failedToSetPassword);
+    }
+  };
+
   return {
     showAddUserModal, setShowAddUserModal,
     userSearchTerm, setUserSearchTerm,
     userRoleFilter, setUserRoleFilter,
     updatingUserId, setUpdatingUserId,
+    passwordTarget, setPasswordTarget,
+    passwordInput, setPasswordInput,
     handleUpdateRole,
     handleToggleRole,
     handleSendPasswordReset,
+    handleSetPassword,
   };
 }

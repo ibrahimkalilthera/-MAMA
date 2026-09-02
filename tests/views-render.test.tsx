@@ -94,6 +94,7 @@ const auth: AuthState = {
   updateUserRole: async () => true,
   createStaffUser: async () => ({ success: true }),
   sendPasswordReset: async () => ({ success: true }),
+  setUserPassword: async () => ({ success: true }),
 };
 
 const salaryForm: SalaryForm = { staffId: '', amount: '', date: '' };
@@ -224,6 +225,8 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     parentChildrenSortBy: 'highest_balance' as ParentSort,
     parentSearchTerm: '',
     parents: [],
+    passwordInput: '',
+    passwordTarget: null,
     payrollWindowStatus,
     pieData: [],
     salaryForm,
@@ -291,6 +294,7 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     openEditParentModal: noop,
     openEditStaffModal: noop,
     openNotifyModal: noop,
+    handleSetPassword: asyncNoop,
     toggleFlag: asyncNoop,
     toggleLanguage: noop,
     toggleTodo: asyncNoop,
@@ -305,6 +309,8 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     setLogoColor: noopSetter,
     setParentChildrenSortBy: noopSetter,
     setParentForm: noopSetter,
+    setPasswordInput: noopSetter,
+    setPasswordTarget: noopSetter,
     setParentSearchTerm: noopSetter,
     setSalaryForm: noopSetter,
     setSchoolLogo: noopSetter,

@@ -335,6 +335,11 @@ export interface MainViewsProps {
   toggleLanguage: (lang: 'en' | 'fr') => void;
   toggleTodo: (id: string) => Promise<void>;
   updatingUserId: string | null;
+  passwordTarget: UserProfile | null;
+  setPasswordTarget: Dispatch<SetStateAction<UserProfile | null>>;
+  passwordInput: string;
+  setPasswordInput: Dispatch<SetStateAction<string>>;
+  handleSetPassword: () => Promise<void>;
   userProfiles: UserProfile[];
   userRoleFilter: RoleFilter;
   userSearchTerm: string;

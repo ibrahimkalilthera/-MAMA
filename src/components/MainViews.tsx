@@ -21,7 +21,7 @@ const ExpensesView = lazy(() => import('./ExpensesView').then(m => ({ default: m
 // MainViewsContext (imported above) instead of receiving the full 186-prop
 // object through {…props}.
 export function MainViews(props: MainViewsProps) {
-  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, currentTheme, deleteTodo, fetchAuditLogs, getDayName, getDaysInMonth, getEventsForDay, getMonthName, handleAddTodo, handleDeleteClass, handleExportAllData, handleLogoUpload, handleSendPasswordReset, handleUpdateRole, lang, logoColor, logoInputRef, openEditClass, parents, schoolLogo, setCalendarDate, setLogoColor, setSchoolLogo, setSelectedCalendarDay, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setTheme, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, staff, t, theme, today, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, updatingUserId, userProfiles, userRoleFilter, userSearchTerm } = props;
+  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, currentTheme, deleteTodo, fetchAuditLogs, getDayName, getDaysInMonth, getEventsForDay, getMonthName, handleAddTodo, handleDeleteClass, handleExportAllData, handleLogoUpload, handleSendPasswordReset, handleUpdateRole, lang, logoColor, logoInputRef, openEditClass, parents, schoolLogo, setCalendarDate, setLogoColor, setSchoolLogo, setSelectedCalendarDay, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setTheme, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, staff, t, theme, today, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, passwordTarget, setPasswordTarget, passwordInput, setPasswordInput, handleSetPassword } = props;
   return (
     <MainViewsContext.Provider value={props}>
     <>
@@ -833,7 +833,17 @@ export function MainViews(props: MainViewsProps) {
                                   </div>
                                 )}
 
-                                {/* Password Reset Button */}
+                                {/* Set Password Button (admin/dev: direct password change) */}
+                                <button
+                                  onClick={() => { setPasswordInput(''); setPasswordTarget(profile); }}
+                                  className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 border border-white/10"
+                                  title={t.setPassword}
+                                >
+                                  <span>🔒</span>
+                                  <span>{t.setPassword}</span>
+                                </button>
+
+                                {/* Password Reset Email Button */}
                                 <button
                                   onClick={() => handleSendPasswordReset(profile.email)}
                                   className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 border border-white/10"
@@ -854,6 +864,59 @@ export function MainViews(props: MainViewsProps) {
           </div>
         )}
 
+        {/* Set-Password Modal (admin/dev: direct password change) */}
+        <AnimatePresence>
+          {passwordTarget && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+              onClick={() => setPasswordTarget(null)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 40 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 40 }}
+                onClick={(e) => e.stopPropagation()}
+                className={`relative ${currentTheme.card} w-full max-w-md rounded-[2rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
+              >
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center" style={{ backgroundColor: currentTheme.header }}>
+                  <h2 className="text-lg font-bold text-white">{t.setPasswordTitle.replace('{name}', passwordTarget.fullName)}</h2>
+                  <button onClick={() => setPasswordTarget(null)} className="p-2 hover:bg-white/10 rounded-xl transition-all text-white">
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <label className={`block text-xs font-bold ${currentTheme.muted}`}>{t.newPasswordLabel}</label>
+                  <input
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder="••••••••"
+                    autoFocus
+                    className={`w-full px-4 py-3 rounded-xl border ${currentTheme.border} text-sm font-semibold ${currentTheme.isDark ? 'bg-white/5 text-white' : 'bg-white text-slate-800'} focus:outline-none focus:ring-2 focus:ring-blue-500/30`}
+                  />
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      onClick={() => setPasswordTarget(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 hover:bg-slate-50 transition-all"
+                    >
+                      {t.cancel}
+                    </button>
+                    <button
+                      disabled={passwordInput.trim().length < 6}
+                      onClick={() => { void handleSetPassword(); }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all active:scale-95"
+                    >
+                      {t.save}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
     </>
     </MainViewsContext.Provider>
   );
