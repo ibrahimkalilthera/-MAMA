@@ -6,7 +6,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, FileText, Globe, HighlightText, Mail, Phone, Plus, Search, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
+  const { AlertCircle, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Search, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
   return (
     <>
           <div className="space-y-8">
@@ -310,6 +310,13 @@ export function PayrollView() {
                             {t.recordSalary}
                           </button>
                         )}
+                        <button 
+                          onClick={() => handleExportStaffReceiptPdf(s)}
+                          className={`p-2 rounded-xl border ${paidThisMonth > 0 || payDatePassed ? 'border-white/30 text-white hover:bg-white/10' : 'border-slate-100 text-slate-600 hover:bg-emerald-50'} text-xs font-bold transition-all`}
+                          title={t.downloadReceiptPdf}
+                        >
+                          <Download size={16} />
+                        </button>
                         <button 
                           onClick={() => setConfirmDeleteStaff(s)}
                           className={`p-2 rounded-xl border ${paidThisMonth > 0 || payDatePassed ? 'border-white/30 text-white hover:bg-rose-500/30' : 'border-rose-100 text-rose-500 hover:bg-rose-50'} text-xs font-bold transition-all`}

@@ -251,6 +251,7 @@ export interface MainViewsProps {
   handleDeleteVendorExpense: (id: string) => Promise<void>;
   handleExportAllData: () => Promise<void>;
   handleExportParentLedgerPdf: (parent: Parent) => Promise<void>;
+  handleExportStaffReceiptPdf: (staffMember: Staff) => Promise<void>;
   handleLogoUpload: (e: ChangeEvent<HTMLInputElement>) => void;
   handlePrint: () => void;
   handleSendPasswordReset: (email: string) => Promise<void>;

@@ -54,6 +54,34 @@ mock.module('xlsx', {
   },
 });
 
+// ── module mock: jspdf (for the per-employee salary receipt PDF) ─────────────
+// The receipt handler dynamically imports jsPDF; the fake records every
+// `save()` call (filename) and every `text()` payload so the PDF content can
+// be asserted without a real PDF library.
+const pdfSaveCalls: string[] = [];
+const pdfTextCalls: string[] = [];
+class FakeJsPDF {
+  setFillColor() {}
+  setDrawColor() {}
+  setTextColor() {}
+  setFont() {}
+  setFontSize() {}
+  rect() {}
+  roundedRect() {}
+  line() {}
+  addPage() {}
+  text(payload: string) {
+    pdfTextCalls.push(payload);
+  }
+  save(fileName: string) {
+    pdfSaveCalls.push(fileName);
+  }
+}
+
+mock.module('jspdf', {
+  namedExports: { jsPDF: FakeJsPDF },
+});
+
 const { usePayroll } = await import('../src/app/usePayroll');
 
 const t = translations.fr as TranslationDict;
@@ -318,6 +346,36 @@ describe('usePayroll.handleExportMonthlyPayrollExcel (bordereau XLSX)', () => {
       // Both stamped with the academic year
       assert.equal(fatouRow[t.academicYear2], YEAR);
       assert.equal(moussaRow[t.academicYear2], YEAR);
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('exports a per-employee salary receipt PDF with the payment history', async () => {
+    const salaryPayments: SalaryPayment[] = [
+      { id: 'p1', staffId: 'st1', amount: 60000, date: '2026-09-05', academicYear: YEAR },
+      { id: 'p2', staffId: 'st1', amount: 60000, date: '2026-09-20', academicYear: YEAR },
+      { id: 'p3', staffId: 'st2', amount: 30000, date: '2026-09-11' }, // other employee → excluded
+    ];
+    const { args } = baseDeps({ salaryPayments });
+    const { ref, root } = await mount(args);
+    try {
+      pdfSaveCalls.length = 0;
+      pdfTextCalls.length = 0;
+      await act(async () => { await ref.current!.handleExportStaffReceiptPdf(fatou()); });
+
+      assert.equal(pdfSaveCalls.length, 1, 'one PDF saved');
+      assert.match(pdfSaveCalls[0], /^Recu_Salaire_Fatou_Traor/, 'filename carries the employee name');
+      assert.match(pdfSaveCalls[0], /\.pdf$/, 'filename ends with .pdf');
+      assert.ok(pdfTextCalls.includes(t.consolidatedSalaryReceipt), 'the receipt title is drawn');
+      assert.ok(pdfTextCalls.some(c => c.includes('Fatou Traoré')), 'the employee name is drawn');
+      const frFormatted = (120000).toLocaleString('fr-FR') + ' FCFA';
+      assert.ok(pdfTextCalls.some(c => c.includes(frFormatted)), 'the monthly salary is drawn');
+      assert.ok(pdfTextCalls.some(c => c.includes(frFormatted)), 'the cumulative total is drawn');
+      assert.ok(pdfTextCalls.includes('SAL-P1'), 'history row 1 drawn (receipt ref)');
+      assert.ok(pdfTextCalls.includes('SAL-P2'), 'history row 2 drawn (receipt ref)');
+      assert.ok(pdfTextCalls.includes('2026-09-05'), 'history row 1 date drawn');
+      assert.ok(!pdfTextCalls.includes(t.noPaymentRecordsFound), 'history is not empty');
     } finally {
       act(() => root.unmount());
     }

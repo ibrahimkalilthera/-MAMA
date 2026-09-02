@@ -549,6 +549,7 @@ const {
   handleStaffSubmit,
   handleSalarySubmit,
   openEditStaffModal,
+  handleExportStaffReceiptPdf,
   handleExportMonthlyPayrollExcel,
 } = usePayroll({
   t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast,
@@ -749,6 +750,7 @@ const {
   handleDeleteVendorExpense,
   handleExportAllData,
   handleExportParentLedgerPdf,
+  handleExportStaffReceiptPdf,
   handleLogoUpload,
   handlePrint,
   handleSendPasswordReset,
