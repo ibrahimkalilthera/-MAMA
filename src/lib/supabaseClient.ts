@@ -20,10 +20,25 @@ if (isPlaceholder(rawUrl) || isPlaceholder(rawKey)) {
   );
 }
 
+// Legacy cleanup: sessions used to live in localStorage (supabase default).
+// Since the switch to tab-scoped sessionStorage below, remove any stale token
+// so it never resurfaces (e.g. on a future config rollback).
+try {
+  const projectRef = rawUrl!.match(/^https:\/\/([^.]+)\.supabase\.co/)?.[1];
+  if (projectRef) localStorage.removeItem(`sb-${projectRef}-auth-token`);
+} catch {
+  /* storage unavailable — nothing to clean */
+}
+
 export const supabase = createClient<Database>(rawUrl!, rawKey!, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    // Session tied to the TAB (sessionStorage): closing the page logs out
+    // automatically, while a simple refresh (F5) keeps the session. This is
+    // deliberate for shared-computer usage — nobody stays logged in after
+    // leaving the app.
+    storage: sessionStorage,
   },
 });
