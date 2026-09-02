@@ -53,7 +53,6 @@ mock.module('xlsx', {
     writeFile: (_wb: unknown, fileName: string) => {
       writeFileCalls.push({ fileName });
     },
-    default: undefined,
   },
 });
 
