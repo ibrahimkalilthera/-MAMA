@@ -77,6 +77,7 @@ function Harness(props: Fixture & {
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
   onMarkUnread: (id: string) => void;
+  onOpenCalendarDate: (date: string) => void;
 }): React.ReactNode {
   return (
     <NotificationsPanel
@@ -88,6 +89,7 @@ function Harness(props: Fixture & {
       onMarkRead={props.onMarkRead}
       onMarkAllRead={props.onMarkAllRead}
       onMarkUnread={props.onMarkUnread}
+      onOpenCalendarDate={props.onOpenCalendarDate}
     />
   );
 }
@@ -123,21 +125,21 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {},
+          notifications: [due, note], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
         }));
       });
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications (2)');
 
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {},
+          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
         }));
       });
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications (1)');
 
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {},
+          notifications: [due, note], readIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
         }));
       });
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications');
@@ -154,7 +156,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true), onMarkUnread: () => {},
+          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true), onMarkUnread: () => {}, onOpenCalendarDate: () => {},
         }));
       });
       await act(async () => { click(bell() as Element); });
@@ -185,7 +187,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: (id: string) => marked.push(id), onMarkAllRead: () => {}, onMarkUnread: () => {},
+          notifications: [due, note], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: (id: string) => marked.push(id), onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
         }));
       });
       await act(async () => { click(bell() as Element); });
@@ -209,7 +211,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true), onMarkUnread: () => {},
+          notifications: [due, note], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true), onMarkUnread: () => {}, onOpenCalendarDate: () => {},
         }));
       });
       await act(async () => { click(bell() as Element); });
@@ -224,7 +226,7 @@ describe('NotificationsPanel — happy-dom render', () => {
       // Parent adopts all ids → button gone, reminders stay listed (dimmed).
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true), onMarkUnread: () => {},
+          notifications: [due, note], readIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true), onMarkUnread: () => {}, onOpenCalendarDate: () => {},
         }));
       });
       assert.equal(buttonWithText(t.markAllRead), undefined, 'no mark-all button when everything is read');
@@ -244,7 +246,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: (id: string) => opened.push(id), onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: (id: string) => unmarked.push(id),
+          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: (id: string) => opened.push(id), onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: (id: string) => unmarked.push(id), onOpenCalendarDate: () => {},
         }));
       });
       await act(async () => { click(bell() as Element); });
@@ -271,7 +273,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: (id: string) => unmarked.push(id),
+          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: (id: string) => unmarked.push(id), onOpenCalendarDate: () => {},
         }));
       });
       await act(async () => { click(bell() as Element); });
@@ -299,7 +301,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [payroll], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: (id: string) => marked.push(id), onMarkAllRead: () => {}, onMarkUnread: () => {},
+          notifications: [payroll], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: (id: string) => marked.push(id), onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
         }));
       });
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications (1)');
@@ -315,12 +317,35 @@ describe('NotificationsPanel — happy-dom render', () => {
     }
   });
 
+  it('clicking the relative date opens the calendar on that day', async () => {
+    const opened: string[] = [];
+    const calendarDates: string[] = [];
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: (id: string) => opened.push(id), onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: (date: string) => calendarDates.push(date),
+        }));
+      });
+      await act(async () => { click(bell() as Element); });
+
+      const dateButton = rowWithText(note.message)?.querySelector(`[title="${t.openInCalendar}"]`);
+      assert.ok(dateButton, 'the relative date renders as a calendar button');
+      act(() => { click(dateButton as Element); });
+      assert.deepEqual(calendarDates, [note.date], 'the calendar opens on the reminder\'s anchor date');
+      assert.deepEqual(opened, [], 'the date button must not open the student profile');
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
   it('empty notifications show the all-clear state and no badge', async () => {
     const { root, container } = mount();
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {},
+          notifications: [], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
         }));
       });
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications');

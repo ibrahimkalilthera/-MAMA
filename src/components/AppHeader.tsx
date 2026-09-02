@@ -52,6 +52,7 @@ export interface AppHeaderProps {
   onMarkNotificationRead: (id: string) => void;
   onMarkAllNotificationsRead: () => void;
   onMarkNotificationUnread: (id: string) => void;
+  onOpenCalendarDate: (date: string) => void;
 }
 
 export function AppHeader(props: AppHeaderProps) {
@@ -63,6 +64,7 @@ export function AppHeader(props: AppHeaderProps) {
     onPrintReport, onExportLate, onFinancialReportPdf,
     notifications, onOpenStudent, readNotificationIds,
     onMarkNotificationRead, onMarkAllNotificationsRead, onMarkNotificationUnread,
+    onOpenCalendarDate,
   } = props;
 
   return (
@@ -92,6 +94,7 @@ export function AppHeader(props: AppHeaderProps) {
             onMarkRead={onMarkNotificationRead}
             onMarkAllRead={onMarkAllNotificationsRead}
             onMarkUnread={onMarkNotificationUnread}
+            onOpenCalendarDate={onOpenCalendarDate}
           />
         </div>
       </div>

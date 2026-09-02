@@ -32,9 +32,10 @@ export interface NotificationsPanelProps {
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
   onMarkUnread: (id: string) => void;
+  onOpenCalendarDate: (date: string) => void;
 }
 
-export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, onMarkRead, onMarkAllRead, onMarkUnread }: NotificationsPanelProps) {
+export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, onMarkRead, onMarkAllRead, onMarkUnread, onOpenCalendarDate }: NotificationsPanelProps) {
   const now = new Date();
 
   const relativeLabel = (date: string): string => {
@@ -170,7 +171,19 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                       <Bell size={16} className={`mt-0.5 flex-shrink-0 ${n.type === 'due' ? 'text-amber-500' : 'text-rose-500'}`} />
                       <span className="min-w-0 flex-1">
                         <span className="block text-xs font-bold leading-relaxed">{n.message}</span>
-                        <span className="block text-[10px] font-semibold opacity-60 mt-0.5">{relativeLabel(n.date)}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenCalendarDate(n.date);
+                            setOpen(false);
+                          }}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          title={t.openInCalendar}
+                          className="block text-[10px] font-semibold opacity-60 mt-0.5 hover:opacity-100 hover:underline transition-opacity text-left"
+                        >
+                          {relativeLabel(n.date)}
+                        </button>
                       </span>
                       {isRead && (
                         <button

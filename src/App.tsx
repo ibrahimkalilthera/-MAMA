@@ -425,6 +425,17 @@ export default function App() {
     setReadNotificationIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : prev));
   };
 
+  const openCalendarOnDate = (date: string): void => {
+    // Parse as a LOCAL calendar day (never UTC midnight — month display
+    // must not shift in negative-UTC timezones).
+    const [y, m, d] = date.split('-').map(Number);
+    const day = new Date(y, m - 1, d);
+    setCalendarDate(day);
+    setSelectedCalendarDay(day);
+    setShowCalendarModal(true);
+    setActiveTab('calendar');
+  };
+
   const markAllNotificationsRead = (): void => {
     setReadNotificationIds(notifications.map(n => n.id));
   };
@@ -1132,6 +1143,7 @@ const {
           onMarkNotificationRead={markNotificationRead}
           onMarkAllNotificationsRead={markAllNotificationsRead}
           onMarkNotificationUnread={markNotificationUnread}
+          onOpenCalendarDate={openCalendarOnDate}
         />
 
         <WelcomeBanner t={t} currentUser={currentUser} />
