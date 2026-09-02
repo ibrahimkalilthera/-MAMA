@@ -48,6 +48,9 @@ export interface AppHeaderProps {
   onFinancialReportPdf: () => void;
   notifications: DashboardNotification[];
   onOpenStudent: (studentId: string) => void;
+  readNotificationIds: string[];
+  onMarkNotificationRead: (id: string) => void;
+  onMarkAllNotificationsRead: () => void;
 }
 
 export function AppHeader(props: AppHeaderProps) {
@@ -57,7 +60,8 @@ export function AppHeader(props: AppHeaderProps) {
     searchTerm, setSearchTerm, studentGradeFilter, setStudentGradeFilter,
     onPromoteClass, onImportExcel, onOpenMonthlyDraft, onAddStudent,
     onPrintReport, onExportLate, onFinancialReportPdf,
-    notifications, onOpenStudent,
+    notifications, onOpenStudent, readNotificationIds,
+    onMarkNotificationRead, onMarkAllNotificationsRead,
   } = props;
 
   return (
@@ -78,7 +82,14 @@ export function AppHeader(props: AppHeaderProps) {
             <Calendar size={14} />
             {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR', { month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
-          <NotificationsPanel notifications={notifications} onOpenStudent={onOpenStudent} t={t} />
+          <NotificationsPanel
+            notifications={notifications}
+            onOpenStudent={onOpenStudent}
+            t={t}
+            readIds={readNotificationIds}
+            onMarkRead={onMarkNotificationRead}
+            onMarkAllRead={onMarkAllNotificationsRead}
+          />
         </div>
       </div>
 

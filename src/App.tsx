@@ -29,6 +29,7 @@ import { fetchInactivityMinutes, saveInactivityMinutes } from './lib/teamSetting
 import { logAuditEvent } from './lib/auditLogger';
 import { InactivityWarning } from './components/InactivityWarning';
 import { useYear } from './app/yearContext';
+import { getReadNotificationIds, saveReadNotificationIds } from './lib/notificationReads';
 import { useYearOps } from './app/useYearOps';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
@@ -397,6 +398,30 @@ export default function App() {
     t, today, currentMonth, selectedYear,
     students, staff, expenses, vendorExpenses, salaryPayments,
   });
+
+  // --- Notification read-state (persisted per user in localStorage) ---
+
+  const notifUserId = auth.profile?.id ?? 'guest';
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setReadNotificationIds(getReadNotificationIds(notifUserId));
+  }, [notifUserId]);
+
+  useEffect(() => {
+    // Prune dismissed ids that no longer correspond to a live reminder, so a
+    // reminder that comes back later (new due period) notifies again.
+    const liveIds = new Set(notifications.map(n => n.id));
+    saveReadNotificationIds(notifUserId, readNotificationIds.filter(id => liveIds.has(id)));
+  }, [readNotificationIds, notifUserId, notifications]);
+
+  const markNotificationRead = (id: string): void => {
+    setReadNotificationIds(prev => (prev.includes(id) ? prev : [...prev, id]));
+  };
+
+  const markAllNotificationsRead = (): void => {
+    setReadNotificationIds(notifications.map(n => n.id));
+  };
 
   // --- Handlers ---
 
@@ -1066,6 +1091,9 @@ const {
             const student = students.find(s => s.id === studentId);
             if (student) setSelectedStudent(student);
           }}
+          readNotificationIds={readNotificationIds}
+          onMarkNotificationRead={markNotificationRead}
+          onMarkAllNotificationsRead={markAllNotificationsRead}
         />
 
         <WelcomeBanner t={t} currentUser={currentUser} />
