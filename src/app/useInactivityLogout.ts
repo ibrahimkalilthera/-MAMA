@@ -7,8 +7,11 @@
  *     throttled) restarts the full timer and dismisses the warning.
  *   • When the timer fires, a warning modal shows a 60-second countdown;
  *     the session is only ended when the countdown reaches zero.
- *   • The window is configurable (0 = disabled) and persisted in
- *     localStorage, so each browser keeps its own preference.
+ *   • The window is a TEAM setting: `teamMinutes` (loaded from the
+ *     app_settings table by the caller) is authoritative when present;
+ *     localStorage only serves as a fast-start cache while no DB value has
+ *     loaded yet. Changes are committed through `onMinutesCommit` so the
+ *     caller can persist them team-wide.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -50,9 +53,14 @@ export interface InactivityLogoutApi {
 export function useInactivityLogout(deps: {
   enabled: boolean;
   signOut: () => Promise<void>;
+  /** Team-wide window from the DB (null while not loaded) — authoritative. */
+  teamMinutes?: number | null;
+  /** Called when the user changes the window (persist team-wide). */
+  onMinutesCommit?: (minutes: number) => void;
 }): InactivityLogoutApi {
-  const { enabled, signOut } = deps;
-  const [minutes, setMinutesState] = useState<number>(loadMinutes);
+  const { enabled, signOut, teamMinutes = null, onMinutesCommit } = deps;
+  // Fast start from the local cache; the DB value overrides it once loaded.
+  const [minutes, setMinutesState] = useState<number>(() => teamMinutes ?? loadMinutes());
   const [warningOpen, setWarningOpen] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState(INACTIVITY_WARN_SECONDS);
 
@@ -148,8 +156,24 @@ export function useInactivityLogout(deps: {
     } catch {
       /* storage unavailable — window stays for this session only */
     }
+    onMinutesCommit?.(clamped);
     reset();
-  }, [reset]);
+  }, [reset, onMinutesCommit]);
+
+  // The DB is the source of truth: whenever the team value arrives (or
+  // changes), adopt it — and refresh the local cache so the next start is
+  // instant even offline.
+  useEffect(() => {
+    if (teamMinutes === null || teamMinutes === undefined) return;
+    minutesRef.current = teamMinutes;
+    setMinutesState(teamMinutes);
+    try {
+      localStorage.setItem(INACTIVITY_STORAGE_KEY, String(teamMinutes));
+    } catch {
+      /* storage unavailable — session value is enough */
+    }
+    reset();
+  }, [teamMinutes, reset]);
 
   return {
     warningOpen,

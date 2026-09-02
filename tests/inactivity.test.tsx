@@ -166,4 +166,62 @@ describe('useInactivityLogout', () => {
     assert.equal(ref.current!.warningOpen, false);
     act(() => unmount());
   });
+
+  it('adopts the team window from the DB over the local cache', () => {
+    win.localStorage.setItem(INACTIVITY_STORAGE_KEY, '45');
+    const ref: { current: Api | null } = { current: null };
+    const deps = makeDeps(async () => {});
+    const { unmount, rerender } = renderHook(
+      useInactivityLogout,
+      { ...deps, teamMinutes: null as number | null },
+      ref
+    );
+    assert.equal(ref.current!.minutes, 45, 'local cache while the DB value is still loading');
+
+    rerender({ ...deps, teamMinutes: 15 });
+    assert.equal(ref.current!.minutes, 15, 'DB value is authoritative once loaded');
+    assert.equal(win.localStorage.getItem(INACTIVITY_STORAGE_KEY), '15', 'local cache refreshed');
+
+    rerender({ ...deps, teamMinutes: 0 });
+    assert.equal(ref.current!.minutes, 0, '0 from the DB disables the timer team-wide');
+    assert.equal(win.localStorage.getItem(INACTIVITY_STORAGE_KEY), '0');
+
+    act(() => unmount());
+  });
+
+  it('keeps the local cache while the DB has no row yet', () => {
+    win.localStorage.setItem(INACTIVITY_STORAGE_KEY, '7');
+    const ref: { current: Api | null } = { current: null };
+    const deps = makeDeps(async () => {});
+    const { unmount, rerender } = renderHook(
+      useInactivityLogout,
+      { ...deps, teamMinutes: null },
+      ref
+    );
+    assert.equal(ref.current!.minutes, 7);
+    rerender({ ...deps, teamMinutes: null });
+    assert.equal(ref.current!.minutes, 7, 'still cached after a rerender without a DB value');
+    act(() => unmount());
+  });
+
+  it('commits window changes team-wide through onMinutesCommit', () => {
+    const commits: number[] = [];
+    const ref: { current: Api | null } = { current: null };
+    const { unmount } = renderHook(
+      useInactivityLogout,
+      {
+        enabled: true,
+        signOut: async () => {},
+        onMinutesCommit: (m) => { commits.push(m); },
+      },
+      ref
+    );
+    act(() => { ref.current!.setMinutes(20); });
+    assert.deepEqual(commits, [20], 'change committed team-wide');
+    act(() => { ref.current!.setMinutes(-5); });
+    assert.deepEqual(commits, [20, 0], 'negative clamps to 0 before committing');
+    act(() => { ref.current!.setMinutes(99999); });
+    assert.deepEqual(commits, [20, 0, 480], 'oversized clamps to 480 before committing');
+    act(() => unmount());
+  });
 });

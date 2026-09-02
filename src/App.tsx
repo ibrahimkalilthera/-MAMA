@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo, FormEvent, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, FormEvent, lazy, Suspense } from 'react';
 import { useSupabaseData } from './lib/useSupabaseData';
 import type { UserProfile } from './lib/useAuth';
 import type { MainViewsProps } from './app/mainViewsProps';
@@ -25,6 +25,8 @@ import { useStudents } from './app/useStudents';
 import { useExpenses } from './app/useExpenses';
 import { useUsers } from './app/useUsers';
 import { useInactivityLogout } from './app/useInactivityLogout';
+import { fetchInactivityMinutes, saveInactivityMinutes } from './lib/teamSettings';
+import { logAuditEvent } from './lib/auditLogger';
 import { InactivityWarning } from './components/InactivityWarning';
 import { useYear } from './app/yearContext';
 import { useYearOps } from './app/useYearOps';
@@ -251,10 +253,38 @@ export default function App() {
     welcomeMessage, setWelcomeMessage,
   } = useAuthWelcome({ t, activeTab, setActiveTab });
 
-  // Inactivity auto-logout: configurable window, warning countdown before cut.
+  // Inactivity auto-logout: TEAM-wide configurable window (stored in the
+  // app_settings table, applied by every account), warning countdown before
+  // cut. localStorage only caches the team value for an instant start.
+  const [teamInactivityMinutes, setTeamInactivityMinutes] = useState<number | null>(null);
+  useEffect(() => {
+    if (!auth.user) {
+      setTeamInactivityMinutes(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchInactivityMinutes().then((value) => {
+      if (!cancelled) setTeamInactivityMinutes(value);
+    });
+    return () => { cancelled = true; };
+  }, [auth.user]);
+
   const inactivity = useInactivityLogout({
     enabled: !!auth.user && !authLoading,
     signOut: auth.signOut,
+    teamMinutes: teamInactivityMinutes,
+    onMinutesCommit: (m) => {
+      setTeamInactivityMinutes(m);
+      void saveInactivityMinutes(m);
+      void logAuditEvent({
+        action: 'update_setting',
+        targetType: 'app_settings',
+        details: JSON.stringify({ key: 'inactivity_minutes', value: m }),
+        user: auth.profile
+          ? { id: auth.profile.id, email: auth.profile.email, full_name: auth.profile.fullName, role: auth.profile.role }
+          : null,
+      });
+    },
   });
 
   // Users/settings domain (add-user modal, role management, password reset) —
