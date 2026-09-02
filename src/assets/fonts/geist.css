@@ -6,9 +6,9 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @font-face {
+  font-display: swap;
   font-family: 'Geist';
   font-style: normal;
   font-weight: 300 900;
-  font-display: swap;
   src: url('/fonts/geist/Geist-Variable.woff2') format('woff2');
 }
