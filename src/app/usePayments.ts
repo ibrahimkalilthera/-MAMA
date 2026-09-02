@@ -16,7 +16,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { generatePaymentReceiptPdf } from '../lib/pdfReceipt';
-import type { Student, StudentNoteEntry, Staff, Expense, Payment, User } from '../app/types';
+import type { Student, Staff, Expense, Payment, User } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import type { CalendarEvent } from './mainViewsProps';
 
@@ -31,11 +31,10 @@ interface UsePaymentsDeps {
   currentUser: User | null;
   addPayment: (studentId: string, payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string }) => Promise<boolean>;
   /** Calendar ⇄ Notes bridge: persist a dated note on the student record. */
-  updateStudent: (id: string, updates: Partial<Student>) => Promise<boolean>;
 }
 
 export function usePayments(deps: UsePaymentsDeps) {
-  const { t, lang, selectedYear, lockedYears, students, staff, expenses, currentUser, addPayment, updateStudent } = deps;
+  const { t, lang, selectedYear, lockedYears, students, staff, expenses, currentUser, addPayment } = deps;
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<Date | null>(null);
@@ -45,41 +44,57 @@ export function usePayments(deps: UsePaymentsDeps) {
 
   // ── Notes ⇄ Calendar bridge ─────────────────────────────────────────────
   // Dated note entry from the calendar day modal (side 2 of the bridge:
-  // pick a date → add a note that lands on that date). The note is stored
-  // on the student record as `noteEntries` (see Student type).
-  const [noteStudentId, setNoteStudentId] = useState('');
+  // pick a date → add a note that lands on that date). Standalone notes
+  // (no student required) are stored locally under DAY_NOTES_KEY; notes
+  // attached to a student from the student sheet still live on the
+  // student's `noteEntries` and are merged in for display.
+  const DAY_NOTES_KEY = 'calendar-day-notes';
+  interface DayNote { id: string; date: string; text: string; }
+
+  const readDayNotes = (): DayNote[] => {
+    try {
+      const raw = localStorage.getItem(DAY_NOTES_KEY);
+      if (!raw) return [];
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed as DayNote[] : [];
+    } catch {
+      return [];
+    }
+  };
+
   const [noteText, setNoteText] = useState('');
   const [savingNoteOnDate, setSavingNoteOnDate] = useState(false);
 
-  const getNotesForDay = (date: Date): { id: string; studentName: string; text: string }[] => {
+  const getNotesForDay = (date: Date): { id: string; studentName?: string; text: string }[] => {
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return students.flatMap(s =>
+    const standalone = readDayNotes()
+      .filter(n => n.date === dateStr)
+      .map(n => ({ id: n.id, text: n.text }));
+    const studentNotes = students.flatMap(s =>
       (s.noteEntries || [])
         .filter(n => n.date === dateStr)
         .map(n => ({ id: `${s.id}:${n.date}:${n.text.slice(0, 24)}`, studentName: s.name, text: n.text }))
     );
+    return [...standalone, ...studentNotes];
   };
 
   const saveNoteOnDate = async (date: Date): Promise<boolean> => {
     const text = noteText.trim();
-    if (!noteStudentId || !text) return false;
+    if (!text) return false;
     setSavingNoteOnDate(true);
-    const student = students.find(s => s.id === noteStudentId);
-    if (!student) {
-      setSavingNoteOnDate(false);
-      return false;
-    }
     // Local-date key (not toISOString) so the entry matches the day the
     // user clicked in their own timezone.
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const entry: StudentNoteEntry = { date: dateStr, text };
-    const ok = await updateStudent(student.id, {
-      noteEntries: [...(student.noteEntries || []), entry],
-    });
+    const entry: DayNote = { id: `day-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date: dateStr, text };
+    const entries = [...readDayNotes(), entry];
+    try {
+      localStorage.setItem(DAY_NOTES_KEY, JSON.stringify(entries));
+    } catch {
+      setSavingNoteOnDate(false);
+      return false;
+    }
     setSavingNoteOnDate(false);
-    if (!ok) return false;
     setNoteText('');
-    setNoteStudentId('');
     return true;
   };
 
@@ -152,9 +167,13 @@ export function usePayments(deps: UsePaymentsDeps) {
       });
     }
 
-    // Notes saved on this exact date (Notes ⇄ Calendar bridge)
+    // Notes saved on this exact date (Notes ⇄ Calendar bridge) — both the
+    // standalone local day-notes and the student-attached dated entries.
     const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const dayNotes = students.flatMap(s => (s.noteEntries || []).filter(n => n.date === dateKey));
+    const dayNotes = [
+      ...readDayNotes().filter(n => n.date === dateKey),
+      ...students.flatMap(s => (s.noteEntries || []).filter(n => n.date === dateKey)),
+    ];
     if (dayNotes.length > 0) {
       dayEvents.push({
         type: 'note',
@@ -186,7 +205,6 @@ export function usePayments(deps: UsePaymentsDeps) {
     paymentDate, setPaymentDate,
     handlePaymentSubmit,
     getEventsForDay,
-    noteStudentId, setNoteStudentId,
     noteText, setNoteText,
     savingNoteOnDate,
     saveNoteOnDate,

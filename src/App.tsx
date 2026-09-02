@@ -483,7 +483,6 @@ const {
   paymentDate, setPaymentDate,
   handlePaymentSubmit,
   getEventsForDay,
-  noteStudentId, setNoteStudentId,
   noteText, setNoteText,
   savingNoteOnDate,
   saveNoteOnDate,
@@ -491,7 +490,6 @@ const {
 } = usePayments({
   t, lang, selectedYear, lockedYears, students, staff, expenses, currentUser,
   addPayment,
-  updateStudent,
 });
 
 const {
@@ -839,7 +837,6 @@ const {
   notifyParent,
   notifySelectedPhone,
   notifyTemplateType,
-  noteStudentId,
   noteText,
   parentForm,
   paymentAmount,
@@ -856,7 +853,6 @@ const {
   setExpenseForm,
   setNewClassForm,
   setNotifyCustomText,
-  setNoteStudentId,
   setNoteText,
   setNotifySelectedPhone,
   setPaymentAmount,
