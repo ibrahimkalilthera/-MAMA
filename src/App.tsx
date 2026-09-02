@@ -421,6 +421,10 @@ export default function App() {
     setReadNotificationIds(prev => (prev.includes(id) ? prev : [...prev, id]));
   };
 
+  const markNotificationUnread = (id: string): void => {
+    setReadNotificationIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : prev));
+  };
+
   const markAllNotificationsRead = (): void => {
     setReadNotificationIds(notifications.map(n => n.id));
   };
@@ -1127,6 +1131,7 @@ const {
           readNotificationIds={readNotificationIds}
           onMarkNotificationRead={markNotificationRead}
           onMarkAllNotificationsRead={markAllNotificationsRead}
+          onMarkNotificationUnread={markNotificationUnread}
         />
 
         <WelcomeBanner t={t} currentUser={currentUser} />

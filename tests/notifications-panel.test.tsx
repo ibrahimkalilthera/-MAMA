@@ -76,6 +76,7 @@ function Harness(props: Fixture & {
   onOpenStudent: (id: string) => void;
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
+  onMarkUnread: (id: string) => void;
 }): React.ReactNode {
   return (
     <NotificationsPanel
@@ -86,6 +87,7 @@ function Harness(props: Fixture & {
       readIds={props.readIds}
       onMarkRead={props.onMarkRead}
       onMarkAllRead={props.onMarkAllRead}
+      onMarkUnread={props.onMarkUnread}
     />
   );
 }
@@ -111,6 +113,9 @@ const bell = (): Element | null => q('button[aria-expanded]');
 const dialogButtons = (): Element[] => qa('[role="dialog"] button');
 const buttonWithText = (text: string): Element | undefined =>
   dialogButtons().find(b => b.textContent?.includes(text));
+const dialogRows = (): Element[] => qa('[role="dialog"] [role="button"]');
+const rowWithText = (text: string): Element | undefined =>
+  dialogRows().find(r => r.textContent?.includes(text));
 
 describe('NotificationsPanel — happy-dom render', () => {
   it('badge and aria-label reflect only unread notifications', async () => {
@@ -118,21 +123,21 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {},
+          notifications: [due, note], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {},
         }));
       });
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications (2)');
 
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {},
+          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {},
         }));
       });
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications (1)');
 
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {},
+          notifications: [due, note], readIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {},
         }));
       });
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications');
@@ -149,7 +154,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true),
+          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true), onMarkUnread: () => {},
         }));
       });
       await act(async () => { click(bell() as Element); });
@@ -163,11 +168,10 @@ describe('NotificationsPanel — happy-dom render', () => {
       assert.ok(dialog?.textContent?.includes(t.daysAgo.replace('{n}', '3')), 'relative date "il y a 3 jours" is shown');
 
       // Read items render dimmed (opacity-50), unread ones do not.
-      const buttons = dialogButtons();
-      const dueBtn = buttons.find(b => b.textContent?.includes(due.message));
-      const noteBtn = buttons.find(b => b.textContent?.includes(note.message));
-      assert.ok(dueBtn?.classList.contains('opacity-50'), 'read reminder is dimmed');
-      assert.ok(!noteBtn?.classList.contains('opacity-50'), 'unread reminder is not dimmed');
+      const dueRow = rowWithText(due.message);
+      const noteRow = rowWithText(note.message);
+      assert.ok(dueRow?.classList.contains('opacity-50'), 'read reminder is dimmed');
+      assert.ok(!noteRow?.classList.contains('opacity-50'), 'unread reminder is not dimmed');
     } finally {
       await act(async () => root.unmount());
       container.remove();
@@ -181,7 +185,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: (id: string) => marked.push(id), onMarkAllRead: () => {},
+          notifications: [due, note], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: (id: string) => marked.push(id), onMarkAllRead: () => {}, onMarkUnread: () => {},
         }));
       });
       await act(async () => { click(bell() as Element); });
@@ -189,7 +193,7 @@ describe('NotificationsPanel — happy-dom render', () => {
       // completes under happy-dom — see floating-chat.test.tsx), so the
       // dispatch runs in a SYNC act: handlers fire synchronously and the
       // close/exit path is left to a real-browser e2e.
-      act(() => { click(buttonWithText(due.message) as Element); });
+      act(() => { click(rowWithText(due.message) as Element); });
 
       assert.deepEqual(opened, ['s1']);
       assert.deepEqual(marked, ['due-s1']);
@@ -205,7 +209,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true),
+          notifications: [due, note], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true), onMarkUnread: () => {},
         }));
       });
       await act(async () => { click(bell() as Element); });
@@ -220,7 +224,7 @@ describe('NotificationsPanel — happy-dom render', () => {
       // Parent adopts all ids → button gone, reminders stay listed (dimmed).
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [due, note], readIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true),
+          notifications: [due, note], readIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => markedAll.push(true), onMarkUnread: () => {},
         }));
       });
       assert.equal(buttonWithText(t.markAllRead), undefined, 'no mark-all button when everything is read');
@@ -233,12 +237,64 @@ describe('NotificationsPanel — happy-dom render', () => {
     }
   });
 
+  it('a read reminder can be flagged back as unread with its button', async () => {
+    const unmarked: string[] = [];
+    const opened: string[] = [];
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: (id: string) => opened.push(id), onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: (id: string) => unmarked.push(id),
+        }));
+      });
+      await act(async () => { click(bell() as Element); });
+
+      // Only the read (due) row carries the unread button.
+      const unreadButtons = dialogButtons().filter(b => b.getAttribute('aria-label') === t.markAsUnread);
+      assert.equal(unreadButtons.length, 1, 'one unread button, on the read row');
+      const noteRow = rowWithText(note.message);
+      assert.ok(!noteRow?.querySelector(`[aria-label="${t.markAsUnread}"]`), 'unread rows have no unread button');
+
+      act(() => { click(unreadButtons[0] as Element); });
+      assert.deepEqual(unmarked, ['due-s1']);
+      assert.deepEqual(opened, [], 'the unread button must not open the student (stopPropagation)');
+      assert.ok(q('[role="dialog"]'), 'panel stays open after flagging unread');
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('right-click flags a read reminder back as unread', async () => {
+    const unmarked: string[] = [];
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [due, note], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: (id: string) => unmarked.push(id),
+        }));
+      });
+      await act(async () => { click(bell() as Element); });
+
+      const dueRow = rowWithText(due.message) as Element;
+      const noteRow = rowWithText(note.message) as Element;
+      act(() => {
+        dueRow.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+        noteRow.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      });
+      assert.deepEqual(unmarked, ['due-s1'], 'right-click marks only the read row unread');
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
   it('empty notifications show the all-clear state and no badge', async () => {
     const { root, container } = mount();
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {},
+          notifications: [], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {},
         }));
       });
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications');

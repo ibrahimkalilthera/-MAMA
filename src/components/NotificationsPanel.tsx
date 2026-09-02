@@ -12,10 +12,11 @@
  * disappears right away; reminders that arrive while the panel is open can
  * still be dismissed with the "mark all as read" button. The list shows
  * ALL reminders (read ones dimmed) so they stay reviewable, and clicking
- * one opens the student's profile.
+ * one opens the student's profile. A read reminder can be flagged back as
+ * unread (badge reappears) via right-click or its hover button.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Bell, CheckCircle2, CheckCheck, X } from 'lucide-react';
+import { Bell, CheckCircle2, CheckCheck, RotateCcw, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { DashboardNotification } from '../app/useDashboard';
 import type { TranslationDict } from '../i18n/translations';
@@ -30,9 +31,10 @@ export interface NotificationsPanelProps {
   readIds: string[];
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
+  onMarkUnread: (id: string) => void;
 }
 
-export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, onMarkRead, onMarkAllRead }: NotificationsPanelProps) {
+export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, onMarkRead, onMarkAllRead, onMarkUnread }: NotificationsPanelProps) {
   const now = new Date();
 
   const relativeLabel = (date: string): string => {
@@ -135,27 +137,54 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
               ) : (
                 notifications.map(n => {
                   const isRead = read.has(n.id);
+                  const openStudent = () => {
+                    onOpenStudent(n.studentId);
+                    onMarkRead(n.id);
+                    setOpen(false);
+                  };
                   return (
-                    <button
+                    <div
                       key={n.id}
-                      type="button"
-                      onClick={() => {
-                        onOpenStudent(n.studentId);
-                        onMarkRead(n.id);
-                        setOpen(false);
+                      role="button"
+                      tabIndex={0}
+                      onClick={openStudent}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openStudent();
+                        }
                       }}
-                      className={`w-full text-left px-5 py-3.5 flex items-start gap-3 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors last:border-b-0 ${
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (isRead) onMarkUnread(n.id);
+                      }}
+                      title={isRead ? t.markAsUnread : undefined}
+                      className={`group w-full text-left px-5 py-3.5 flex items-start gap-3 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors last:border-b-0 cursor-pointer ${
                         isRead ? 'opacity-50' : ''
                       } ${
                         n.type === 'due' ? 'text-amber-700 dark:text-amber-300' : 'text-rose-700 dark:text-rose-300'
                       }`}
                     >
                       <Bell size={16} className={`mt-0.5 flex-shrink-0 ${n.type === 'due' ? 'text-amber-500' : 'text-rose-500'}`} />
-                      <span className="min-w-0">
+                      <span className="min-w-0 flex-1">
                         <span className="block text-xs font-bold leading-relaxed">{n.message}</span>
                         <span className="block text-[10px] font-semibold opacity-60 mt-0.5">{relativeLabel(n.date)}</span>
                       </span>
-                    </button>
+                      {isRead && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onMarkUnread(n.id);
+                          }}
+                          aria-label={t.markAsUnread}
+                          title={t.markAsUnread}
+                          className="flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                        >
+                          <RotateCcw size={13} />
+                        </button>
+                      )}
+                    </div>
                   );
                 })
               )}
