@@ -36,7 +36,9 @@ const extractProps = (file, name) => {
 const resolveSpreadLiteral = (src, spreadName) => {
   const m = src.match(new RegExp(`const ${spreadName}\\s*:\\s*[^=]+=\\s*\\{([\\s\\S]*?)\\n\\s*\\};`));
   if (!m) throw new Error(`objet-littéral \`${spreadName}\` introuvable dans le fichier de rendu`);
-  return [...m[1].matchAll(/^\s{2}([A-Za-z0-9_]+),/gm)].map((x) => x[1]);
+  // Accept both bare keys (`name,`) and assigned keys (`name: value,`)
+  // — the spread literal is a typed object, so tsc already checks the values.
+  return [...m[1].matchAll(/^\s{2}([A-Za-z0-9_]+)(?:\?:|:|,)/gm)].map((x) => x[1]);
 };
 
 // Attribute names passed at the render site: explicit props plus any resolved

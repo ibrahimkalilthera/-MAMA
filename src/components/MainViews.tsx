@@ -24,7 +24,7 @@ export function MainViews(props: MainViewsProps) {
   // Task whose date chip is being edited inline (Notes view).
   const [editingDateId, setEditingDateId] = useState<string | null>(null);
 
-  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, currentTheme, deleteTodo, fetchAuditLogs, getDayName, getDaysInMonth, getEventsForDay, getMonthName, handleAddTodo, handleDeleteClass, handleExportAllData, handleLogoUpload, handleSendPasswordReset, handleUpdateRole, lang, logoColor, logoInputRef, openEditClass, parents, schoolLogo, setCalendarDate, setLogoColor, setSchoolLogo, setSelectedCalendarDay, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setTheme, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, staff, t, theme, today, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, passwordTarget, setPasswordTarget, passwordInput, setPasswordInput, handleSetPassword } = props;
+  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, currentTheme, deleteTodo, fetchAuditLogs, getDayName, getDaysInMonth, getEventsForDay, getMonthName, handleAddTodo, handleDeleteClass, handleExportAllData, handleLogoUpload, handleSendPasswordReset, handleUpdateRole, lang, logoColor, logoInputRef, openEditClass, parents, schoolLogo, setCalendarDate, setLogoColor, setSchoolLogo, setSelectedCalendarDay, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setTheme, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, staff, t, theme, today, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, passwordTarget, setPasswordTarget, passwordInput, setPasswordInput, handleSetPassword, inactivityMinutes, setInactivityMinutes } = props;
   return (
     <MainViewsContext.Provider value={props}>
     <>
@@ -387,6 +387,27 @@ export function MainViews(props: MainViewsProps) {
                         <span className={`text-xs font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} text-center`}>{tOption.label}</span>
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Inactivity auto-logout window */}
+                <div className={`space-y-4 pt-4 border-t ${currentTheme.border}`}>
+                  <h4 className={`text-sm font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.inactivityMinutesLabel}</h4>
+                  <div className={`flex items-center justify-between p-6 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-3xl`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 ${currentTheme.card} rounded-2xl text-amber-600 shadow-sm`}>
+                        <Clock size={20} />
+                      </div>
+                      <p className={`text-xs ${currentTheme.muted}`}>{t.inactivityMinutesLabel}</p>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={480}
+                      value={inactivityMinutes}
+                      onChange={(e) => setInactivityMinutes(Number(e.target.value))}
+                      className={`w-24 px-3 py-2 rounded-xl border ${currentTheme.border} text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${currentTheme.isDark ? 'bg-white/5 text-emerald-400 [color-scheme:dark]' : 'bg-white text-slate-800'}`}
+                    />
                   </div>
                 </div>
 

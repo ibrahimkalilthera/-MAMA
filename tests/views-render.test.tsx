@@ -242,6 +242,8 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     t: translations.en as TranslationDict,
     theme: 'navy' as ThemeId,
     today: '2026-01-15',
+    inactivityMinutes: 0,
+    setInactivityMinutes: noop,
     todoDate: '2026-01-15',
     todoInput: '',
     todos: [],

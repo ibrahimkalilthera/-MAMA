@@ -24,6 +24,8 @@ import { useTheme } from './app/useTheme';
 import { useStudents } from './app/useStudents';
 import { useExpenses } from './app/useExpenses';
 import { useUsers } from './app/useUsers';
+import { useInactivityLogout } from './app/useInactivityLogout';
+import { InactivityWarning } from './components/InactivityWarning';
 import { useYear } from './app/yearContext';
 import { useYearOps } from './app/useYearOps';
 import type { ImportCategory } from './lib/excelImporter';
@@ -248,6 +250,12 @@ export default function App() {
     userProfiles, setUserProfiles,
     welcomeMessage, setWelcomeMessage,
   } = useAuthWelcome({ t, activeTab, setActiveTab });
+
+  // Inactivity auto-logout: configurable window, warning countdown before cut.
+  const inactivity = useInactivityLogout({
+    enabled: !!auth.user && !authLoading,
+    signOut: auth.signOut,
+  });
 
   // Users/settings domain (add-user modal, role management, password reset) —
   // extracted to src/app/useUsers.ts.
@@ -795,6 +803,8 @@ const {
   toggleLanguage,
   toggleTodo,
   handleUpdateTodoDate,
+  inactivityMinutes: inactivity.minutes,
+  setInactivityMinutes: inactivity.setMinutes,
   passwordInput,
   passwordTarget,
   setPasswordInput,
@@ -1184,6 +1194,15 @@ const {
           action?.onConfirm();
         }}
         onCancel={() => setConfirmAction(null)}
+        currentTheme={currentTheme}
+      />
+
+      {/* Inactivity auto-logout warning (see useInactivityLogout) */}
+      <InactivityWarning
+        open={inactivity.warningOpen}
+        remainingSeconds={inactivity.remainingSeconds}
+        onStay={inactivity.reset}
+        t={t}
         currentTheme={currentTheme}
       />
     </>
