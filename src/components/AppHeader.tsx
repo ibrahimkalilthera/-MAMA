@@ -22,6 +22,8 @@ import type { TranslationDict } from '../i18n/translations';
 import type { User } from '../app/types';
 import type { CurrentTheme, ManagedClass } from '../app/mainViewsProps';
 import type { AppTab } from './Sidebar';
+import type { DashboardNotification } from '../app/useDashboard';
+import { NotificationsPanel } from './NotificationsPanel';
 
 export interface AppHeaderProps {
   t: TranslationDict;
@@ -44,6 +46,8 @@ export interface AppHeaderProps {
   onPrintReport: () => void;
   onExportLate: () => void;
   onFinancialReportPdf: () => void;
+  notifications: DashboardNotification[];
+  onOpenStudent: (studentId: string) => void;
 }
 
 export function AppHeader(props: AppHeaderProps) {
@@ -53,6 +57,7 @@ export function AppHeader(props: AppHeaderProps) {
     searchTerm, setSearchTerm, studentGradeFilter, setStudentGradeFilter,
     onPromoteClass, onImportExcel, onOpenMonthlyDraft, onAddStudent,
     onPrintReport, onExportLate, onFinancialReportPdf,
+    notifications, onOpenStudent,
   } = props;
 
   return (
@@ -68,10 +73,13 @@ export function AppHeader(props: AppHeaderProps) {
            activeTab === 'archives' ? t.yearlyArchives : 
            activeTab === 'audit' ? (t.auditTrail) : t.settings}
         </h2>
-        <p className={`${currentTheme.muted} text-sm mt-1 flex items-center gap-2`}>
-          <Calendar size={14} />
-          {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR', { month: 'long', day: 'numeric', year: 'numeric' })}
-        </p>
+        <div className="flex items-center gap-4 mt-1">
+          <p className={`${currentTheme.muted} text-sm flex items-center gap-2`}>
+            <Calendar size={14} />
+            {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </p>
+          <NotificationsPanel notifications={notifications} onOpenStudent={onOpenStudent} t={t} />
+        </div>
       </div>
 
       <div className="flex items-center gap-4 w-full md:w-auto no-print">

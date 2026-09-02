@@ -40,7 +40,6 @@ import { generateExpensesReportPdf } from './lib/pdfExpensesReport';
 import { generateMonthlyPayrollDraftPdf } from './lib/pdfPayrollDraft';
 import { AnimatePresence } from 'motion/react';
 import { ConfirmDialog } from './components/ConfirmDialog';
-import { NotificationsPanel } from './components/NotificationsPanel';
 import { AppLoadingScreen } from './components/AppLoadingScreen';
 import { Sidebar } from './components/Sidebar';
 import { AppHeader } from './components/AppHeader';
@@ -1008,14 +1007,6 @@ const {
       {/* --- Main Content --- */}
       <main className={`flex-1 lg:ml-64 p-8 lg:p-12 transition-all duration-300 ${showTodoSidebar ? 'lg:mr-80' : ''}`}>
         
-        <NotificationsPanel
-          notifications={notifications}
-          onOpenStudent={(studentId) => {
-            const student = students.find(s => s.id === studentId);
-            if (student) setSelectedStudent(student);
-          }}
-        />
-
         <AppHeader
           t={t}
           lang={lang}
@@ -1070,6 +1061,11 @@ const {
             selectedYear,
             lang
           })}
+          notifications={notifications}
+          onOpenStudent={(studentId) => {
+            const student = students.find(s => s.id === studentId);
+            if (student) setSelectedStudent(student);
+          }}
         />
 
         <WelcomeBanner t={t} currentUser={currentUser} />
