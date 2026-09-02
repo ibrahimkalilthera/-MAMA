@@ -606,7 +606,7 @@ export function MainViews(props: MainViewsProps) {
                   </div>
 
                   {/* Role Definitions & Stats Banner */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
@@ -624,14 +624,28 @@ export function MainViews(props: MainViewsProps) {
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-blue-950/20 border-blue-500/30' : 'bg-blue-50/70 border-blue-200'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                          <span>💼</span> {t.staffAccountants}
+                          <span>💼</span> {t.roleStaff}
                         </span>
                         <span className="text-xs font-black bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
-                          {userProfiles.filter(p => p.role === 'staff' || p.role === 'econome').length}
+                          {userProfiles.filter(p => p.role === 'staff').length}
                         </span>
                       </div>
                       <p className={`text-[11px] ${currentTheme.isDark ? 'text-blue-300/80' : 'text-blue-800'}`}>
                         {t.studentEnrollmentPaymentReceiptsPayrollDailyExpenses}
+                      </p>
+                    </div>
+
+                    <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-teal-950/20 border-teal-500/30' : 'bg-teal-50/70 border-teal-200'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
+                          <span>🧾</span> {t.roleEconome}
+                        </span>
+                        <span className="text-xs font-black bg-teal-500/20 text-teal-600 dark:text-teal-400 px-2 py-0.5 rounded-full">
+                          {userProfiles.filter(p => p.role === 'econome').length}
+                        </span>
+                      </div>
+                      <p className={`text-[11px] ${currentTheme.isDark ? 'text-teal-300/80' : 'text-teal-800'}`}>
+                        {t.economeDailyFinancialEntries}
                       </p>
                     </div>
 
