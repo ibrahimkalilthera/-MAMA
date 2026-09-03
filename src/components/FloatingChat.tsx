@@ -121,7 +121,7 @@ export function FloatingChat(props: FloatingChatProps) {
                   <div
                     className={`max-w-[85%] px-4 py-2.5 text-xs font-semibold leading-relaxed shadow-sm ${
                       msg.sender === 'user'
-                        ? `${themeIsDark ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'} rounded-t-2xl rounded-bl-2xl`
+                        ? `${themeIsDark ? 'bg-emerald-700 text-white' : 'bg-blue-600 text-white'} rounded-t-2xl rounded-bl-2xl`
                         : `${themeIsDark ? 'bg-[#334155] border-[#475569] text-white' : 'bg-white border-slate-100 text-slate-800'} border rounded-t-2xl rounded-br-2xl`
                     }`}
                     style={{ whiteSpace: 'pre-line' }}
@@ -175,7 +175,7 @@ export function FloatingChat(props: FloatingChatProps) {
                 disabled={!floatingChatInput.trim()}
                 className={`px-4 py-2 rounded-xl text-white font-extrabold text-xs transition-all ${
                   floatingChatInput.trim()
-                    ? `${themeIsDark ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} shadow-lg`
+                    ? `${themeIsDark ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-blue-600 hover:bg-blue-700'} shadow-lg`
                     : 'bg-slate-300 cursor-not-allowed'
                 }`}
               >
@@ -192,7 +192,7 @@ export function FloatingChat(props: FloatingChatProps) {
             aria-label={t.mamaTheraAiAssistant}
             className={`px-6 py-4 rounded-full text-white font-extrabold text-sm transition-all flex items-center gap-2 shadow-2xl active:scale-[0.98] ${
               themeIsDark
-                ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/30'
+                ? 'bg-emerald-700 hover:bg-emerald-800 shadow-emerald-500/30'
                 : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'
             }`}
           >

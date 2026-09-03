@@ -76,11 +76,72 @@ if (violations.length > 0) {
   for (const v of violations) console.error(`   ${v}`);
   console.error(
     '\n   A naked `aside`/`header`/`footer`/`nav`/`main` segment matches EVERY\n' +
-    '   element of that tag in the app — including themed overlays (Productivité\n' +
-    '   panel, side panels). That is how the white-on-white overlay bug happened.\n' +
+    '   element of that tag in the app — including themed overlays (Productivité\n' +    '   panel, side panels). That is how the white-on-white overlay bug happened.\n' +
     '   Scope it: `.app-sidebar` for the nav rail, `.app-header`, or any other\n' +
     '   component class. Same rule of thumb for any tag shared by overlays:\n' +
     '   scope by class, never by bare tag.'
+  );
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// White-text regression guards (the "parent name invisible" family of bugs).
+// ---------------------------------------------------------------------------
+// The app theme is class-based; `dark:` must follow the `.dark` ancestor, and
+// the slate theme's !important remap layer must keep darkening the pastel
+// alert/badge family. Any of the checks below failing = a white-on-white
+// surface is back.
+
+const CSS_GUARDS = [
+  {
+    file: 'src/index.css',
+    needle: 'prefers-color-scheme',
+    absent: true, // must NOT be present — the OS media query must never reappear
+    label: 'the OS media query must never reappear',
+  },
+  {
+    file: 'src/index.css',
+    needle: '.theme-slate .bg-rose-50',
+    label: 'the slate pastel-surface remap must stay (white headings on pastel cards otherwise)',
+  },
+  {
+    file: 'src/index.css',
+    needle: '.theme-slate .text-rose-600',
+    label: 'the slate rose-text remap must stay (dark rose on dark cards is unreadable)',
+  },
+  {
+    file: 'src/components/AppModals.tsx',
+    needle: 'text-sm font-black text-slate-900 dark:text-white',
+    label: 'the Relance parent-name span must stay theme-safe (dark in light themes, white in dark themes)',
+  },
+];
+
+const guardViolations = [];
+for (const g of CSS_GUARDS) {
+  if (!fs.existsSync(g.file)) {
+    guardViolations.push(`${g.file}  —  missing (${g.label})`);
+    continue;
+  }
+  // CSS files: comments are stripped so an explanatory comment can mention
+  // `prefers-color-scheme` without tripping the OS-media-query guard.
+  const content = g.file.endsWith('.css')
+    ? stripComments(fs.readFileSync(g.file, 'utf8'))
+    : fs.readFileSync(g.file, 'utf8');
+  const found = content.includes(g.needle);
+  if ((g.absent && found) || (!g.absent && !found)) {
+    guardViolations.push(
+      `${g.file}  —  ${g.absent ? 'must NOT contain' : 'must contain'} ${JSON.stringify(g.needle)}  (${g.label})`
+    );
+  }
+}
+
+if (guardViolations.length > 0) {
+  console.error('❌ White-text regression guards failed:');
+  for (const v of guardViolations) console.error(`   ${v}`);
+  console.error(
+    '\n   These guards lock the fixes for the invisible-parent-name bugs.\n' +
+    '   If you are intentionally changing the theming model, update the guards\n' +
+    '   and re-verify contrast in ALL six themes.'
   );
   process.exit(1);
 }

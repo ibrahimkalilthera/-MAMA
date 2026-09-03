@@ -598,6 +598,111 @@ textarea:focus-visible {
   border-color: #475569 !important;
 }
 
+/* Slate dark-mode: the light pastel "alert/badge" family (rose/blue/amber/
+   emerald/yellow/teal -50/-100 and their /alpha card variants) is NOT
+   covered by the remaps above. With .theme-slate h1..h4 forced to #F8FAFC
+   and the emerald/blue text remapped bright, any heading or accent text
+   inside such a fixed-light card (payroll banners, overdue alerts, stat
+   cards, status chips) rendered white/bright on a pale background —
+   invisible. Remap those surfaces to dark equivalents (translucent for the
+   /alpha classes so table row tints keep their translucency) and their
+   text colors to light variants. */
+.theme-slate .bg-rose-50 {
+  background-color: #4C1D2E !important;
+}
+.theme-slate .bg-rose-100 {
+  background-color: #7F1D1D !important;
+}
+.theme-slate .bg-rose-50\/40 {
+  background-color: rgba(190, 18, 60, 0.35) !important;
+}
+.theme-slate .bg-rose-50\/50 {
+  background-color: rgba(190, 18, 60, 0.42) !important;
+}
+.theme-slate .bg-rose-50\/60 {
+  background-color: rgba(190, 18, 60, 0.5) !important;
+}
+.theme-slate .bg-blue-50,
+.theme-slate .bg-blue-100 {
+  background-color: #1E3A8A !important;
+}
+.theme-slate .bg-blue-50\/30 {
+  background-color: rgba(30, 58, 138, 0.35) !important;
+}
+.theme-slate .bg-emerald-50 {
+  background-color: #064E3B !important;
+}
+.theme-slate .bg-emerald-50\/50 {
+  background-color: rgba(6, 78, 59, 0.5) !important;
+}
+.theme-slate .bg-amber-50 {
+  background-color: #78350F !important;
+}
+.theme-slate .bg-amber-50\/50 {
+  background-color: rgba(120, 53, 15, 0.5) !important;
+}
+.theme-slate .bg-yellow-50 {
+  background-color: #713F12 !important;
+}
+.theme-slate .bg-yellow-50\/60 {
+  background-color: rgba(113, 63, 18, 0.55) !important;
+}
+.theme-slate .bg-teal-50 {
+  background-color: #134E4A !important;
+}
+.theme-slate .bg-teal-50\/70 {
+  background-color: rgba(19, 78, 74, 0.65) !important;
+}
+.theme-slate .bg-purple-50 {
+  background-color: #4C1D95 !important;
+}
+.theme-slate .bg-purple-50\/70 {
+  background-color: rgba(76, 29, 149, 0.65) !important;
+}
+
+.theme-slate .text-rose-600,
+.theme-slate .text-rose-700,
+.theme-slate .text-rose-800 {
+  color: #FDA4AF !important;
+}
+.theme-slate .text-rose-600\/80 {
+  color: rgba(253, 164, 175, 0.85) !important;
+}
+.theme-slate .text-amber-600,
+.theme-slate .text-amber-700 {
+  color: #FBBF24 !important;
+}
+.theme-slate .text-yellow-700 {
+  color: #FDE047 !important;
+}
+.theme-slate .text-blue-700 {
+  color: #93C5FD !important;
+}
+.theme-slate .text-blue-600\/80 {
+  color: rgba(147, 197, 253, 0.85) !important;
+}
+.theme-slate .border-rose-100,
+.theme-slate .border-rose-200 {
+  border-color: #7F1D1D !important;
+}
+.theme-slate .border-blue-100,
+.theme-slate .border-blue-200 {
+  border-color: #1E3A8A !important;
+}
+.theme-slate .border-amber-100 {
+  border-color: #78350F !important;
+}
+.theme-slate .border-emerald-100 {
+  border-color: #064E3B !important;
+}
+.theme-slate .border-yellow-100,
+.theme-slate .border-yellow-200 {
+  border-color: #713F12 !important;
+}
+.theme-slate .border-teal-100 {
+  border-color: #134E4A !important;
+}
+
 /* Slate dark-mode specific overrides */
 .theme-slate .bg-[#121212],
 .theme-slate .bg-[#1E1E1E],
