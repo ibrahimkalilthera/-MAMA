@@ -2,8 +2,9 @@
 // (sortTodosByDate): no DOM, no React — runs in plain node by design, see
 // tests/harness.ts "When NOT to use it".
 //
-// Order contract: today first, then upcoming (ascending), then overdue
-// (ascending), then undated — ISO strings compare chronologically.
+// Order contract: OVERDUE first (oldest = most urgent at the top), then
+// today, then upcoming (ascending), then undated — ISO strings compare
+// chronologically.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -15,7 +16,18 @@ const todo = (id: string, date?: string): Todo => ({ id, text: `task-${id}`, com
 describe('sortTodosByDate', () => {
   const TODAY = '2026-09-02';
 
-  it('puts today first, then upcoming dates in ascending order', () => {
+  it('puts overdue tasks on top (oldest = most urgent first), then today, then upcoming', () => {
+    const sorted = sortTodosByDate([
+      todo('next-week', '2026-09-14'),
+      todo('late-old', '2026-08-20'),
+      todo('today', TODAY),
+      todo('late-recent', '2026-09-01'),
+      todo('tomorrow', '2026-09-03'),
+    ], TODAY);
+    assert.deepEqual(sorted.map((t) => t.id), ['late-old', 'late-recent', 'today', 'tomorrow', 'next-week']);
+  });
+
+  it('keeps today before upcoming dates in ascending order', () => {
     const sorted = sortTodosByDate([
       todo('next-week', '2026-09-14'),
       todo('tomorrow', '2026-09-03'),
@@ -23,15 +35,6 @@ describe('sortTodosByDate', () => {
       todo('month-end', '2026-09-30'),
     ], TODAY);
     assert.deepEqual(sorted.map((t) => t.id), ['today', 'tomorrow', 'next-week', 'month-end']);
-  });
-
-  it('keeps overdue tasks after upcoming, oldest due first', () => {
-    const sorted = sortTodosByDate([
-      todo('future', '2026-09-10'),
-      todo('late-old', '2026-08-20'),
-      todo('late-recent', '2026-09-01'),
-    ], TODAY);
-    assert.deepEqual(sorted.map((t) => t.id), ['future', 'late-old', 'late-recent']);
   });
 
   it('sends undated tasks to the bottom, preserving their relative order', () => {
@@ -53,6 +56,8 @@ describe('sortTodosByDate', () => {
 
   it('is stable for tasks with the same date', () => {
     const input = [todo('first', '2026-09-05'), todo('second', '2026-09-05'), todo('third', TODAY)];
+    // 09-05 is UPCOMING here (after TODAY): today still outranks it, and the
+    // two same-date upcoming tasks keep their insertion order.
     const sorted = sortTodosByDate(input, TODAY);
     assert.deepEqual(sorted.map((t) => t.id), ['third', 'first', 'second']);
   });

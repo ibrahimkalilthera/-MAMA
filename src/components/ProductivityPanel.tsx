@@ -166,9 +166,10 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
   // by a group header with its counter; empty buckets are hidden entirely.
   const sections = useMemo(() => {
     const defs: { key: TodoGroupKey; label: string }[] = [
+      // Most urgent first: overdue on top, then today, upcoming, undated.
+      { key: 'overdue', label: t.overdue },
       { key: 'today', label: t.today },
       { key: 'upcoming', label: t.upcoming },
-      { key: 'overdue', label: t.overdue },
       { key: 'undated', label: t.noDate },
     ];
     return defs.flatMap(({ key, label }) => {

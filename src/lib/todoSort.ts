@@ -1,8 +1,8 @@
 /**
  * Task date ordering for the Productivité panel (and any future task list):
- * today first, then upcoming (ascending), then overdue (ascending), then
- * undated. ISO dates (YYYY-MM-DD) compare lexicographically, so ascending
- * string order is chronological.
+ * OVERDUE first (oldest = most urgent at the top), then today, then upcoming
+ * (ascending), then undated. ISO dates (YYYY-MM-DD) compare lexicographically,
+ * so ascending string order is chronological.
  *
  * Pure and DOM-free — locked by tests/productivity-sort.test.ts (no harness,
  * see tests/harness.ts "When NOT to use it").
@@ -26,9 +26,10 @@ export const todoGroupKey = (date: string | undefined, today: string): TodoGroup
 };
 
 /**
- * Group tasks into Aujourd'hui / À venir / En retard / Sans date buckets, each
+ * Group tasks into En retard / Aujourd'hui / À venir / Sans date buckets, each
  * bucket sorted by the same contract as sortTodosByDate (ascending dates;
- * stable, so insertion order survives for equal dates).
+ * stable, so insertion order survives for equal dates). The panel renders the
+ * buckets in that order: overdue on top, undated at the bottom.
  */
 export function groupTodosByDate(todos: Todo[], today: string): TodoGroups {
   const groups: TodoGroups = { today: [], upcoming: [], overdue: [], undated: [] };
@@ -44,8 +45,8 @@ export function groupTodosByDate(todos: Todo[], today: string): TodoGroups {
 export function sortTodosByDate(todos: Todo[], today: string): Todo[] {
   const rank = (date: string | undefined): number => {
     if (!date) return 3;
-    if (date === today) return 0;
-    return date > today ? 1 : 2;
+    if (date === today) return 1;
+    return date > today ? 2 : 0;
   };
   return [...todos].sort(
     (a, b) => rank(a.date) - rank(b.date) || (a.date ?? '').localeCompare(b.date ?? '')

@@ -1,3 +1,14 @@
+## [2026-09-03] Tâches en retard en tête de liste (les plus urgentes d'abord)
+
+Le rang des tâches en retard est inversé dans le panneau Productivité : En
+retard passe tout en haut (la plus ancienne d'abord = la plus urgente), puis
+Aujourd'hui, puis À venir, puis Sans date. Changement dans
+src/lib/todoSort.ts (rank overdue=0, today=1, upcoming=2, undated=3 — le tri
+ascendant dans chaque groupe est inchangé, donc la tâche la plus en retard
+monte en premier) et dans l'ordre des sections du panneau (ProductivityPanel,
+en-têtes de groupe). Tests mis à jour : nouveau contrat vérifié (overdue en
+tête, puis today, puis upcoming), stabilité conservée. Chaîne complète verte.
+
 ## [2026-09-03] Fakes partagés : tests/fakes.ts (makeFakeDb unifié)
 
 Inventaire des fakes locaux répétés entre suites : la seule vraie duplication
