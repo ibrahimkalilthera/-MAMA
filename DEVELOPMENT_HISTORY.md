@@ -1,3 +1,16 @@
+## [2026-09-03] Test : le reçu parent dessine le tampon aux bonnes coordonnées
+
+Nouvelle suite tests/pdf-receipt-stamp.test.ts (node:test + module-mocks, sans
+happy-dom — le code du reçu ne touche rien hors jsPDF une fois les deux
+modules mockés). FakeJsPDF enregistre les appels de dessin (rect/roundedRect/
+save) et pdfStamp est un espion enregistreur : le VRAI code de génération de
+pdfReceipt.ts s'exécute, seul l'environnement (fetch + canvas du tampon) est
+remplacé. Vérifie que le tampon est dessiné exactement une fois, centré dans
+la zone « cachet » (cx = 39,5 mm, cy = haut de la boîte + 11 mm, diamètre
+20 mm, contenu dans la boîte 55×22 mm), que la boîte signature est alignée à
+droite, que le nom de fichier est Recu_<N°>_<Nom>.pdf et que la génération
+reste non bloquante quand le tampon est indisponible (résolu sans erreur,
+document sauvé). Chaîne complète verte : 290/290 tests (+3).
 ## [2026-09-03] Tampon officiel sur tous les PDF + thème clair : fin du texte blanc invisible
 
 **Tampon sur tous les documents PDF.** Le tampon officiel du Complexe Scolaire
