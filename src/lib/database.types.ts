@@ -7,7 +7,7 @@
  * project. It covers the final schema (12 tables):
  *   parents, students, payments, staff, salary_payments, expenses,
  *   vendor_expenses, todos, user_profiles, audit_logs, academic_years,
- *   custom_classes.
+ *   custom_classes, app_settings, calendar_notes.
  * (`custom_grades` is dropped by migration 20260828000004 and is intentionally
  * absent.) No Postgres enums exist; `user_profiles.role` uses a TEXT + CHECK
  * and is therefore typed `string`, mirroring what the official tool emits.
@@ -47,6 +47,38 @@ export interface Database {
           {
             foreignKeyName: "app_settings_updated_by_fkey";
             columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      calendar_notes: {
+        Row: {
+          id: string;
+          note_date: string;
+          text: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          note_date: string;
+          text: string;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          note_date?: string;
+          text?: string;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "calendar_notes_created_by_fkey";
+            columns: ["created_by"];
             isOneToOne: false;
             referencedRelation: "users";
             referencedColumns: ["id"];

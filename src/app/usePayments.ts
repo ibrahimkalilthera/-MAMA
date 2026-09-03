@@ -13,9 +13,10 @@
  * currentUser and the `addPayment` mutator as arguments, so App.tsx must
  * call it after those are declared.
  */
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { generatePaymentReceiptPdf } from '../lib/pdfReceipt';
+import { fetchCalendarDayNotes, saveCalendarDayNote, deleteCalendarDayNote } from '../lib/calendarNotes';
 import type { Student, Staff, Expense, Payment, User, Todo } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import type { CalendarEvent } from './mainViewsProps';
@@ -45,8 +46,10 @@ export function usePayments(deps: UsePaymentsDeps) {
 
   // ── Notes ⇄ Calendar bridge ─────────────────────────────────────────────
   // Dated note entry from the calendar day modal (side 2 of the bridge:
-  // pick a date → add a note that lands on that date). Standalone notes
-  // (no student required) are stored locally under DAY_NOTES_KEY; notes
+  // pick a date → add a note that lands on that date). Day notes are TEAM
+  // artefacts: they live in the `calendar_notes` table so every account sees
+  // them (like todos); localStorage only serves as a fast-start cache of the
+  // last fetched list while the DB read is in flight (or degraded). Notes
   // attached to a student from the student sheet still live on the
   // student's `noteEntries` and are merged in for display.
   const DAY_NOTES_KEY = 'calendar-day-notes';
@@ -63,12 +66,33 @@ export function usePayments(deps: UsePaymentsDeps) {
     }
   };
 
+  const writeDayNotesCache = useCallback((notes: DayNote[]): void => {
+    try {
+      localStorage.setItem(DAY_NOTES_KEY, JSON.stringify(notes));
+    } catch {
+      /* storage unavailable — the DB remains the source of truth */
+    }
+  }, []);
+
+  const [dayNotes, setDayNotes] = useState<DayNote[]>(readDayNotes);
+
+  // Pull the team's notes once on mount (refreshed after each write).
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCalendarDayNotes().then(notes => {
+      if (cancelled || !notes) return;
+      setDayNotes(notes);
+      writeDayNotesCache(notes);
+    });
+    return () => { cancelled = true; };
+  }, [writeDayNotesCache]);
+
   const [noteText, setNoteText] = useState('');
   const [savingNoteOnDate, setSavingNoteOnDate] = useState(false);
 
   const getNotesForDay = (date: Date): { id: string; studentName?: string; text: string }[] => {
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const standalone = readDayNotes()
+    const standalone = dayNotes
       .filter(n => n.date === dateStr)
       .map(n => ({ id: n.id, text: n.text }));
     const studentNotes = students.flatMap(s =>
@@ -86,14 +110,18 @@ export function usePayments(deps: UsePaymentsDeps) {
     // Local-date key (not toISOString) so the entry matches the day the
     // user clicked in their own timezone.
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const entry: DayNote = { id: `day-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, date: dateStr, text };
-    const entries = [...readDayNotes(), entry];
-    try {
-      localStorage.setItem(DAY_NOTES_KEY, JSON.stringify(entries));
-    } catch {
+    // Team-wide write: the note goes to the calendar_notes table; on success
+    // the returned row (real UUID) replaces the optimistic state + cache.
+    const saved = await saveCalendarDayNote(dateStr, text);
+    if (!saved) {
       setSavingNoteOnDate(false);
       return false;
     }
+    setDayNotes(prev => {
+      const next = [...prev, { id: saved.id, date: saved.date, text: saved.text }];
+      writeDayNotesCache(next);
+      return next;
+    });
     setSavingNoteOnDate(false);
     setNoteText('');
     return true;

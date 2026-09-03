@@ -1,3 +1,20 @@
+## [2026-09-03] Notes de calendrier visibles par toute l'équipe (table calendar_notes)
+
+Les notes ajoutées depuis le calendrier (modale du jour) étaient stockées en
+localStorage (clé calendar-day-notes) — invisibles pour les autres comptes.
+Elles vivent désormais dans la table Supabase public.calendar_notes
+(id, note_date, text, created_by, created_at) : toute personne authentifiée
+peut lire/écrire (RLS : auth.role() = 'authenticated', lecture anonyme
+filtrée, insert anonyme rejeté — vérifié en production via REST). Le
+localStorage ne sert plus que de cache de démarrage rapide en lecture
+(fast-start) pendant la lecture DB. Nouveau module src/lib/calendarNotes.ts
+(fetch/save/delete), usePayments branché dessus (fetch au montage, save avec
+l'id réel retourné, delete par id), type calendar_notes ajouté à
+database.types.ts. Migration 20260903000001_calendar_notes.sql appliquée à la
+production. 6 nouveaux tests (mock module supabaseClient : lecture ordonnée,
+échec lecture, insert avec payload, échec écriture, delete par id, échec
+delete). Chaîne complète verte (286 tests).
+
 ## [2026-09-03] Profession du parent facultative dans le formulaire d'ajout
 
 Le champ Profession du formulaire parent (AppModals.tsx) n'est plus requis :

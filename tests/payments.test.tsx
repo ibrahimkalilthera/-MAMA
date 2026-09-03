@@ -50,6 +50,18 @@ mock.module('../src/lib/pdfReceipt', {
   },
 });
 
+// usePayments now imports calendarNotes → supabaseClient (sessionStorage at
+// module load, before installDomGlobals). The DB persistence itself is
+// covered by calendar-notes-db.test.ts — here the hook just needs the module
+// to load, so it is mocked the same way as pdfReceipt.
+mock.module('../src/lib/calendarNotes', {
+  namedExports: {
+    fetchCalendarDayNotes: async () => [],
+    saveCalendarDayNote: async () => null,
+    deleteCalendarDayNote: async () => true,
+  },
+});
+
 const { usePayments } = await import('../src/app/usePayments');
 
 const t = translations.fr as TranslationDict;
