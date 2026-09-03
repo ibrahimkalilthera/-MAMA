@@ -292,6 +292,10 @@ export interface MainViewsProps {
   setParentChildrenSortBy: Dispatch<SetStateAction<ParentSort>>;
   setParentForm: Dispatch<SetStateAction<ParentForm>>;
   setParentSearchTerm: Dispatch<SetStateAction<string>>;
+  /** Payment quick-actions (parent card): prefill the entry form + open it. */
+  setPaymentAmount: Dispatch<SetStateAction<string>>;
+  setPaymentStudentId: Dispatch<SetStateAction<string>>;
+  setShowPaymentForm: Dispatch<SetStateAction<boolean>>;
   setSalaryForm: Dispatch<SetStateAction<SalaryForm>>;
   setSchoolLogo: Dispatch<SetStateAction<string | null>>;
   setSelectedCalendarDay: Dispatch<SetStateAction<Date | null>>;

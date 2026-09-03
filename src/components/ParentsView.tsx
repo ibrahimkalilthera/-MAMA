@@ -3,7 +3,7 @@ import { useMainViews } from '../app/mainViewsContext';
 import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
 
 export function ParentsView() {
-  const { AlertCircle, ArrowUpDown, Bell, Briefcase, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CreditCard, Download, Edit2, FileText, HighlightText, Mail, MapPin, Phone, Plus, Receipt, Search, Trash2, Unlink, UserCheck, UserPlus, Users, X, currentTheme, expandedParentId, formatCurrency, getChildrenForParent, getParentOutstandingBalance, getParentPaymentHistory, handleDeleteParent, handleExportParentLedgerPdf, handleUnlinkStudent, openEditParentModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, selectedYear, setActiveLinkingParent, setEditingParent, setExpandedParentId, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setSelectedStudent, setShowLinkStudentModal, setShowParentModal, setStudentToLinkId, t } = useMainViews();
+  const { AlertCircle, ArrowUpDown, Bell, Briefcase, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CreditCard, DollarSign, Download, Edit2, FileText, HighlightText, Mail, MapPin, Phone, Plus, Receipt, Search, Trash2, Unlink, UserCheck, UserPlus, Users, X, currentTheme, expandedParentId, formatCurrency, getChildrenForParent, getParentOutstandingBalance, getParentPaymentHistory, handleDeleteParent, handleExportParentLedgerPdf, handleUnlinkStudent, openEditParentModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, selectedYear, setActiveLinkingParent, setEditingParent, setExpandedParentId, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setPaymentAmount, setPaymentStudentId, setShowPaymentForm, setSelectedStudent, setShowLinkStudentModal, setShowParentModal, setStudentToLinkId, t } = useMainViews();
   return (
           <div className="space-y-8">
             {/* Header & Search Bar */}
@@ -185,7 +185,7 @@ export function ParentsView() {
                           <div className="flex flex-col items-start lg:items-end">
                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.listOfChildren}</span>
                             <span className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                              <Users size={14} className="text-emerald-500" />
+                              <Users size={14} className="text-emerald-500 flex-shrink-0" />
                               {children.length} {t.studentsCountLabel}
                             </span>
                           </div>
@@ -196,7 +196,7 @@ export function ParentsView() {
                             {totalOutstanding > 0 ? (
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-600 border border-rose-200 font-black text-sm flex items-center gap-1 animate-pulse">
-                                  <AlertCircle size={14} />
+                                  <AlertCircle size={14} className="flex-shrink-0" />
                                   {formatCurrency(totalOutstanding)}
                                 </span>
                                 <button
@@ -205,9 +205,9 @@ export function ParentsView() {
                                     e.stopPropagation();
                                     openNotifyModal(parent);
                                   }}
-                                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all active:scale-95"
+                                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all active:scale-95 flex-shrink-0"
                                 >
-                                  <Bell size={14} />
+                                  <Bell size={14} className="flex-shrink-0" />
                                   <span>{t.notify}</span>
                                 </button>
                               </div>
@@ -219,8 +219,28 @@ export function ParentsView() {
                             )}
                           </div>
 
-                          {/* Quick Actions */}
+                          {/* Quick Actions — equal 40px tap targets, non-squashable 16px icons */}
                           <div className="flex items-center gap-2">
+                            {/* Record payment (+ auto PDF receipt) prefilled with this family's first child with a balance */}
+                            {(() => {
+                              const debtor = children.find(c => Math.max(0, c.totalDue * (1 - (c.scholarshipDiscount || 0) / 100) - c.amountPaid) > 0) || children[0];
+                              if (!debtor) return null;
+                              return (
+                                <button
+                                  title={t.recordPayment}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPaymentStudentId(debtor.id);
+                                    setPaymentAmount('');
+                                    setShowPaymentForm(true);
+                                  }}
+                                  className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center"
+                                >
+                                  <DollarSign size={16} className="flex-shrink-0" />
+                                </button>
+                              );
+                            })()}
+
                             <button
                               title={t.linkStudent}
                               onClick={(e) => {
@@ -229,10 +249,9 @@ export function ParentsView() {
                                 setStudentToLinkId('');
                                 setShowLinkStudentModal(true);
                               }}
-                              className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 transition-all font-bold text-xs flex items-center gap-1"
+                              className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all flex items-center justify-center"
                             >
-                              <UserPlus size={16} />
-                              <span className="hidden sm:inline">{t.linkStudent}</span>
+                              <UserPlus size={16} className="flex-shrink-0" />
                             </button>
 
                             <button
@@ -241,9 +260,9 @@ export function ParentsView() {
                                 e.stopPropagation();
                                 openEditParentModal(parent);
                               }}
-                              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-all"
+                              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center justify-center flex-shrink-0"
                             >
-                              <Edit2 size={16} />
+                              <Edit2 size={16} className="flex-shrink-0" />
                             </button>
 
                             <button
@@ -252,16 +271,16 @@ export function ParentsView() {
                                 e.stopPropagation();
                                 handleDeleteParent(parent.id);
                               }}
-                              className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 hover:bg-rose-100 transition-all"
+                              className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all flex items-center justify-center flex-shrink-0"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={16} className="flex-shrink-0" />
                             </button>
 
                             <button
                               onClick={() => setExpandedParentId(isExpanded ? null : parent.id)}
-                              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-all"
+                              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center justify-center flex-shrink-0"
                             >
-                              {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                              {isExpanded ? <ChevronUp size={16} className="flex-shrink-0" /> : <ChevronDown size={16} className="flex-shrink-0" />}
                             </button>
                           </div>
                         </div>
@@ -492,6 +511,20 @@ export function ParentsView() {
                                           </div>
 
                                           <div className="flex items-center gap-2">
+                                            {/* Record payment for THIS child (+ auto PDF receipt on submit) */}
+                                            <button
+                                              onClick={() => {
+                                                setPaymentStudentId(child.id);
+                                                setPaymentAmount('');
+                                                setShowPaymentForm(true);
+                                              }}
+                                              title={t.recordPayment}
+                                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 transition-all shadow-sm shadow-emerald-600/20"
+                                            >
+                                              <DollarSign size={14} className="flex-shrink-0" />
+                                              <span className="hidden md:inline">{t.recordPayment}</span>
+                                            </button>
+
                                             {/* Quick Link Navigation to Student Profile */}
                                             <button
                                               onClick={() => setSelectedStudent(child)}
