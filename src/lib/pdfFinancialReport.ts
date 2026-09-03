@@ -219,8 +219,18 @@ export async function generateFinancialReportPdf({
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7);
   doc.text(isFr ? '[ Signature et Date ]' : '[ Signature & Date ]', 35, y + 28);
-  // Official school stamp over the management visa
-  await drawSchoolStamp(doc, 135, y + 24, 22);
+  // Official school stamp — below the approval block (never over the visa
+  // labels or signatures). The block grows to make room; a page overflow
+  // moves the stamp to a fresh page.
+  {
+    const STAMP_DIAMETER = 22;
+    let stampCy = y + 35 + 6 + STAMP_DIAMETER / 2;
+    if (stampCy + STAMP_DIAMETER / 2 + 8 > 289) {
+      doc.addPage();
+      stampCy = 30;
+    }
+    await drawSchoolStamp(doc, 105, stampCy, STAMP_DIAMETER);
+  }
 
   y += 42;
 

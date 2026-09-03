@@ -394,20 +394,25 @@ export function useParents({
     doc.text(t.totalCumulativePaymentsRecorded, 18, y + 5.5);
     doc.text(formatPdfAmount(totalPaymentsEver), 165, y + 5.5);
 
-    y += 18;
-    if (y > 275) {
+    // Official school stamp — always BELOW the content so it can never hide
+    // anything (history rows, dates, footer): 10 mm under the totals row, the
+    // footer note pushed below the stamp. A nearly-full page moves the whole
+    // stamp block to a fresh page instead of overlapping content.
+    y += 10;
+    const STAMP_DIAMETER = 22;
+    let stampCy = y + STAMP_DIAMETER / 2;
+    if (stampCy + STAMP_DIAMETER / 2 + 8 > 289) {
       doc.addPage();
-      y = 250;
+      stampCy = 30;
     }
-    // Official school stamp above the footer note
-    await drawSchoolStamp(doc, 105, y - 14, 22);
+    await drawSchoolStamp(doc, 105, stampCy, STAMP_DIAMETER);
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
     doc.text(
       t.officialElectronicDocumentGeneratedByExecutiveFinanceComplexeScolaireMamaThera,
       105,
-      y,
+      stampCy + STAMP_DIAMETER / 2 + 6,
       { align: 'center' }
     );
 

@@ -60,14 +60,21 @@ mock.module('xlsx', {
 // be asserted without a real PDF library.
 const pdfSaveCalls: string[] = [];
 const pdfTextCalls: string[] = [];
+const pdfRectCalls: unknown[][] = [];
+// Stamp geometry recorded by the pdfStamp module mock below: (cx, cy, diameterMm).
+const stampGeometry: Array<{ cx: number; cy: number; diameterMm: number }> = [];
 class FakeJsPDF {
   setFillColor() {}
   setDrawColor() {}
   setTextColor() {}
   setFont() {}
   setFontSize() {}
-  rect() {}
-  roundedRect() {}
+  rect(...args: unknown[]) {
+    pdfRectCalls.push(args);
+  }
+  roundedRect(...args: unknown[]) {
+    pdfRectCalls.push(args);
+  }
   line() {}
   addPage() {}
   text(payload: string) {
@@ -77,6 +84,19 @@ class FakeJsPDF {
     pdfSaveCalls.push(fileName);
   }
 }
+
+mock.module('../src/lib/pdfStamp', {
+  namedExports: {
+    drawSchoolStamp: async (
+      _doc: unknown,
+      cx: number,
+      cy: number,
+      diameterMm: number,
+    ): Promise<void> => {
+      stampGeometry.push({ cx, cy, diameterMm });
+    },
+  },
+});
 
 mock.module('jspdf', {
   namedExports: { jsPDF: FakeJsPDF },
@@ -376,6 +396,40 @@ describe('usePayroll.handleExportMonthlyPayrollExcel (bordereau XLSX)', () => {
       assert.ok(pdfTextCalls.includes('SAL-P2'), 'history row 2 drawn (receipt ref)');
       assert.ok(pdfTextCalls.includes('2026-09-05'), 'history row 1 date drawn');
       assert.ok(!pdfTextCalls.includes(t.noPaymentRecordsFound), 'history is not empty');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('draws the school stamp fully BELOW the payment history (it must never cover the dates)', async () => {
+    const salaryPayments: SalaryPayment[] = [
+      { id: 'p1', staffId: 'st1', amount: 60000, date: '2026-09-05', academicYear: YEAR },
+      { id: 'p2', staffId: 'st1', amount: 60000, date: '2026-09-20', academicYear: YEAR },
+    ];
+    const { args } = baseDeps({ salaryPayments });
+    const { ref, root } = await mount(args);
+    try {
+      pdfRectCalls.length = 0;
+      stampGeometry.length = 0;
+      await act(async () => { await ref.current!.handleExportStaffReceiptPdf(fatou()); });
+
+      assert.equal(stampGeometry.length, 1, 'the stamp is drawn exactly once');
+      const stamp = stampGeometry[0];
+
+      // The totals band is the last filled rect before the stamp zone
+      // (182 mm wide totals row). Its bottom edge is the content floor.
+      const totals = pdfRectCalls.filter(r => r[2] === 182);
+      assert.ok(totals.length > 0, 'the totals band is drawn');
+      const totalsBottom = Math.max(...totals.map(r => (r[1] as number) + (r[3] as number)));
+
+      // Invariant: the stamp circle sits strictly BELOW every content band,
+      // so it can never hide a date, an amount or the footer text.
+      assert.ok(
+        stamp.cy - stamp.diameterMm / 2 >= totalsBottom,
+        `stamp top edge (${stamp.cy - stamp.diameterMm / 2} mm) starts at or below the content bottom (${totalsBottom} mm)`,
+      );
+      // And the stamp fits on the page (or the generator moved it to a new one).
+      assert.ok(stamp.cy + stamp.diameterMm / 2 <= 289, 'stamp bottom stays inside the A4 page');
     } finally {
       act(() => root.unmount());
     }
