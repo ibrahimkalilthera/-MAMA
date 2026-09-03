@@ -1,6 +1,14 @@
 # Complexe Scolaire MAMA THERA — Full Development & Architecture History
 
 This document serves as a complete history, architectural record, and technical changelog for the **Complexe Scolaire MAMA THERA Finance Suite** (Bamako, Mali). It documents every phase, feature addition, security enhancement, and design decision made during development.
+## [2026-09-03] Notifications triées par date décroissante dans la cloche
+
+Le dropdown de la cloche affiche désormais les rappels du plus récent au plus
+ancien (tri par date d'ancrage : dueDate / lastNoteDate / début de mois pour la
+paie). Tri stable dans NotificationsPanel via useMemo (comparaison de chaînes
+YYYY-MM-DD, ordre source conservé à dates égales) — le hook useDashboard reste
+inchangé. 1 test de panneau ajouté (4 rappels mélangés réordonnés). Chaîne
+complète verte.
 
 ---
 ## [2026-09-03] Alerte de paie cliquable — ouvre l'onglet Paie/Salaires

@@ -344,6 +344,34 @@ describe('NotificationsPanel — happy-dom render', () => {
     }
   });
 
+  it('renders reminders most-recent-first (descending anchor date)', async () => {
+    const { root, container } = mount();
+    try {
+      const old: DashboardNotification = { id: 'note-s9', type: 'note', message: 'Vieille note', studentId: 's9', date: daysAgoISO(10) };
+      const mid: DashboardNotification = { id: 'note-s8', type: 'note', message: 'Note moyenne', studentId: 's8', date: daysAgoISO(5) };
+      const payroll: DashboardNotification = { id: 'payroll-2026-3', type: 'payroll', message: 'Paie ancienne', date: '2026-04-01' };
+      const recent: DashboardNotification = { id: 'due-s7', type: 'due', message: 'Due aujourd\'hui', studentId: 's7', date: daysAgoISO(0) };
+      // Shuffled on purpose: the dropdown must reorder them.
+      const shuffled = [old, recent, payroll, mid];
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: shuffled, readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
+        }));
+      });
+      await act(async () => { click(bell() as Element); });
+
+      const order = dialogRows().map(r => r.textContent ?? '');
+      const pos = (text: string): number => order.findIndex(o => o.includes(text));
+      assert.ok(pos(recent.message) !== -1 && pos(mid.message) !== -1 && pos(old.message) !== -1 && pos(payroll.message) !== -1, 'all four reminders are listed');
+      assert.ok(pos(recent.message) < pos(mid.message), 'today before 5 days ago');
+      assert.ok(pos(mid.message) < pos(old.message), '5 days ago before 10 days ago');
+      assert.ok(pos(old.message) < pos(payroll.message), '10 days ago before the fixed payroll date');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
   it('empty notifications show the all-clear state and no badge', async () => {
     const { root, container } = mount();
     try {

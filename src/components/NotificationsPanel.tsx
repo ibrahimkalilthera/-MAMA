@@ -14,8 +14,11 @@
  * ALL reminders (read ones dimmed) so they stay reviewable, and clicking
  * one opens the student's profile. A read reminder can be flagged back as
  * unread (badge reappears) via right-click or its hover button.
+ *
+ * Ordering: reminders render most-recent-first (descending by anchor date),
+ * so the newest due/note/payroll alert sits at the top of the dropdown.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, CheckCircle2, CheckCheck, RotateCcw, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { DashboardNotification } from '../app/useDashboard';
@@ -67,6 +70,14 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
   const read = new Set(readIds);
   const unread = notifications.filter(n => !read.has(n.id));
   const unreadCount = unread.length;
+
+  // Most recent first. All anchor dates are YYYY-MM-DD (or full ISO), so a
+  // plain string comparison is chronological; the sort is stable, keeping the
+  // source order (dues, then notes, then payroll) for equal dates.
+  const sorted = useMemo(
+    () => [...notifications].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+    [notifications],
+  );
 
   return (
     <div className="relative">
@@ -137,7 +148,7 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                   <p className="text-xs font-bold text-slate-400 dark:text-slate-500">{t.noNotifications}</p>
                 </div>
               ) : (
-                notifications.map(n => {
+                sorted.map(n => {
                   const isRead = read.has(n.id);
                   const openStudent = () => {
                     // Student reminders open the profile; team alerts (payroll)
