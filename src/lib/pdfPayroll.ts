@@ -179,7 +179,6 @@ export async function generateStaffPayslipPdf({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text(isFr ? 'Cachet & Signature Employeur' : 'Employer Stamp & Signature', 108.5, y + 18, { align: 'center' });
 
   doc.setLineDashPattern([], 0);
 

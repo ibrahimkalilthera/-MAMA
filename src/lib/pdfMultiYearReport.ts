@@ -255,8 +255,7 @@ export async function generateMultiYearReportPdf({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(isFr ? 'Signature & Cachet' : 'Signature & Stamp', 25, y + 5);
-  doc.text(isFr ? 'Signature & Cachet Officiel' : 'Official Signature & Stamp', 140, y + 5);
+  doc.text(isFr ? 'Signature' : 'Signature', 25, y + 5);
 
   // Official school stamp over the official-signature area
   await drawSchoolStamp(doc, 165, y + 17, 24);

@@ -304,7 +304,6 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
   doc.text(isFr ? 'Signature & Visa de paiement' : 'Signature & Payment Verification', 30, y + 4.5);
-  doc.text(isFr ? 'Approbation & Cachet Officiel' : 'Approval & Official Stamp', 190, y + 4.5);
 
   // Official school stamp over the director's approval area
   await drawSchoolStamp(doc, 225, y + 16, 24);

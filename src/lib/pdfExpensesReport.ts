@@ -563,7 +563,6 @@ export async function generateExpensesReportPdf({
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
   doc.text(isFr ? 'Signature & Visa' : 'Signature & Verification', 25, y + 5);
-  doc.text(isFr ? 'Approbation & Cachet' : 'Approval & Official Stamp', 140, y + 5);
 
   // Official school stamp over the approval area
   await drawSchoolStamp(doc, 165, y + 17, 24);
