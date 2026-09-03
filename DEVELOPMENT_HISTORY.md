@@ -1,3 +1,11 @@
+## [2026-09-03] Profession du parent facultative dans le formulaire d'ajout
+
+Le champ Profession du formulaire parent (AppModals.tsx) n'est plus requis :
+l'astérisque et l'attribut required sont retirés — la soumission passe même si
+le champ est vide (useParents.ts coerce déjà vide → 'N/A', à l'image de
+l'adresse). 1 test de régression ajouté (occupation vide/espaces → parent créé
+avec 'N/A', liaison des élèves inchangée). Chaîne complète verte.
+
 ## [2026-09-03] Tâches en retard en tête de liste (les plus urgentes d'abord)
 
 Le rang des tâches en retard est inversé dans le panneau Productivité : En

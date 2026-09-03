@@ -2524,10 +2524,9 @@ export function AppModals(props: AppModalsProps) {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.occupation} *</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.occupation}</label>
                 <input
                   type="text"
-                  required
                   value={parentForm.occupation}
                   onChange={(e) => setParentForm({ ...parentForm, occupation: e.target.value })}
                   placeholder={t.eGCivilEngineerBankerMerchant}

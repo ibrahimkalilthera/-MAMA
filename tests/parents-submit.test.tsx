@@ -178,6 +178,32 @@ describe('useParents.handleParentSubmit — creation mode', () => {
     }
   });
 
+  it('accepts an empty occupation (optional field, coerced to "N/A")', async () => {
+    const { args, spies } = spyArgs({ updateStudentResults: [true] });
+    const { root, container, ref } = mount(args);
+    try {
+      act(() => {
+        ref.current?.setShowParentModal(true);
+        ref.current?.setParentForm({ ...filledForm(['s1']), occupation: '   ' });
+      });
+
+      await act(async () => {
+        await ref.current?.handleParentSubmit(submitEvent);
+      });
+
+      assert.equal(spies.addParentCalls.length, 1, 'the parent is still created');
+      assert.equal(spies.addParentCalls[0].occupation, 'N/A', 'blank occupation is stored as N/A');
+      assert.deepEqual(
+        spies.updateStudentCalls.map(([id]) => id),
+        ['s1'],
+        'linkage proceeds normally',
+      );
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
   it('stops at the first failed link and reports the partial linkage', async () => {
     const { args, spies } = spyArgs({ updateStudentResults: [true, false] });
     const { root, container, ref } = mount(args);
