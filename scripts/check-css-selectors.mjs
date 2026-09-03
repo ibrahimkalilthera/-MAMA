@@ -135,6 +135,89 @@ for (const g of CSS_GUARDS) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Slate heading scoping — the blanket `.theme-slate h1..h4` whitening must
+// never come back, and the scoped heading rule must mirror every background
+// the slate theme actually paints dark.
+// ---------------------------------------------------------------------------
+// The old catch-all whitened headings on EVERY surface — including surfaces
+// that stay light (pastel badges, ticket/print zones), i.e. white-on-pale.
+// Headings are now flipped to light only when an ancestor belongs to the
+// slate dark system (the scoped `:is(h1, h2, h3, h4)` rule). Two invariants:
+//
+//   1. No bare `.theme-slate h1`..`h4` element selector may exist anywhere
+//      (comment-stripped): that is the blanket rule by definition.
+//   2. Every *dark* surface the slate theme remaps (bg-*/card-* with a dark
+//      value) must also appear in the heading scope. Bright accent surfaces
+//      (bg-emerald-500/600, bg-blue-600, …) are excluded by luminance — no
+//      heading ever sits on a CTA button, and whitening one there would
+//      break it.
+
+const INDEX_CSS = stripComments(fs.readFileSync('src/index.css', 'utf8'));
+
+// 1. Blanket rule absent.
+if (/\n\.theme-slate\s+h[1-4](?=[,{])/.test('\n' + INDEX_CSS)) {
+  guardViolations.push(
+    'src/index.css  —  the blanket `.theme-slate h1..h4 { color:#F8FAFC !important }` ' +
+    'whitening is back; headings must only be whitened by the scoped dark-surface rule'
+  );
+}
+
+// 2. Heading scope ⊇ dark surface remaps.
+function relativeLuminance(hex) {
+  const h = hex.replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return 0.5; // unknown → assume dark-ish/intent
+  const chan = [0, 2, 4].map((i) => {
+    const c = parseInt(h.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * chan[0] + 0.7152 * chan[1] + 0.0722 * chan[2];
+}
+
+const darkSurfaceTokens = new Set();
+const indexLines = INDEX_CSS.split(/\r?\n/);
+for (let i = 0; i < indexLines.length; i++) {
+  const sel = indexLines[i].match(/^\.theme-slate \.([^\s,{]+),?\{?$/);
+  if (!sel) continue;
+  const token = sel[1];
+  // Only background/card surface rules feed the scope list (text-/border-/
+  // hover-bg remaps and accent utilities never contain headings).
+  if (!/^(bg-|card-)/.test(token)) continue;
+  // Scan this rule for its background declaration (same or following lines).
+  let bg = null;
+  for (let j = i + 1; j < Math.min(i + 6, indexLines.length); j++) {
+    const line = indexLines[j].trim();
+    const bm = line.match(/^background(?:-color)?:\s*([^;!]+)/);
+    if (bm) {
+      bg = bm[1].trim();
+      break;
+    }
+    if (line.startsWith('}') || /^[^:]+:\s*#/.test(line)) break; // other decl or block end
+  }
+  if (!bg) continue;
+  const isTranslucent = bg.startsWith('rgba') || bg.startsWith('rgb(') || bg.startsWith('linear-gradient');
+  const hex = bg.match(/#[0-9a-fA-F]{6}/);
+  // Translucent tints sit on the theme's own dark cards → dark. Solid hex
+  // counts only if darker than the bright-accent threshold.
+  if (isTranslucent || (hex && relativeLuminance(hex[0]) < 0.32)) {
+    darkSurfaceTokens.add(token);
+  }
+}
+
+const missingFromScope = [];
+for (const token of darkSurfaceTokens) {
+  if (!INDEX_CSS.includes(`.theme-slate .${token} :is(h1, h2, h3, h4)`)) {
+    missingFromScope.push(token);
+  }
+}
+if (missingFromScope.length > 0) {
+  guardViolations.push(
+    'src/index.css  —  slate surfaces painted dark without a matching heading scope entry: ' +
+    missingFromScope.join(', ') +
+    ' (add `.theme-slate .' + missingFromScope[0] + ' :is(h1, h2, h3, h4)` to the scoped rule)'
+  );
+}
+
 if (guardViolations.length > 0) {
   console.error('❌ White-text regression guards failed:');
   for (const v of guardViolations) console.error(`   ${v}`);

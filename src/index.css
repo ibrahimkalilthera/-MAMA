@@ -625,14 +625,58 @@ textarea:focus-visible {
 .theme-slate .text-slate-700,
 .theme-slate .text-slate-600,
 .theme-slate .text-slate-950,
-.theme-slate h1,
-.theme-slate h2,
-.theme-slate h3,
-.theme-slate h4,
 .theme-slate select,
 .theme-slate option,
 .theme-slate input,
 .theme-slate textarea {
+  color: #F8FAFC !important;
+}
+
+/* Slate headings are whitened ONLY inside containers this theme paints dark.
+   The former `.theme-slate h1..h4 { color:#F8FAFC !important }` catch-all
+   whitened EVERY heading under the theme — including headings inside
+   surfaces that deliberately stay light (pastel badges, ticket/print zones,
+   any future fixed-light card), which is how white-on-pale headings kept
+   reappearing. Headings now keep their normal (dark) color unless an
+   ancestor belongs to the slate dark system listed below: the card system
+   plus every background utility remapped to dark in this file. A heading on
+   any other container is left dark → readable on a light surface by
+   construction. Keep this list in sync with the background remaps
+   (scripts/check-css-selectors.mjs cross-checks them). */
+.theme-slate .bg-white :is(h1, h2, h3, h4),
+.theme-slate .bg-\[#F8FAFC\] :is(h1, h2, h3, h4),
+.theme-slate .bg-slate-50 :is(h1, h2, h3, h4),
+.theme-slate .bg-slate-50\/50 :is(h1, h2, h3, h4),
+.theme-slate .bg-slate-50\/30 :is(h1, h2, h3, h4),
+.theme-slate .bg-rose-50 :is(h1, h2, h3, h4),
+.theme-slate .bg-rose-100 :is(h1, h2, h3, h4),
+.theme-slate .bg-rose-50\/40 :is(h1, h2, h3, h4),
+.theme-slate .bg-rose-50\/50 :is(h1, h2, h3, h4),
+.theme-slate .bg-rose-50\/60 :is(h1, h2, h3, h4),
+.theme-slate .bg-blue-50 :is(h1, h2, h3, h4),
+.theme-slate .bg-blue-100 :is(h1, h2, h3, h4),
+.theme-slate .bg-blue-50\/30 :is(h1, h2, h3, h4),
+.theme-slate .bg-emerald-50 :is(h1, h2, h3, h4),
+.theme-slate .bg-emerald-50\/50 :is(h1, h2, h3, h4),
+.theme-slate .bg-amber-50 :is(h1, h2, h3, h4),
+.theme-slate .bg-amber-50\/50 :is(h1, h2, h3, h4),
+.theme-slate .bg-yellow-50 :is(h1, h2, h3, h4),
+.theme-slate .bg-yellow-50\/60 :is(h1, h2, h3, h4),
+.theme-slate .bg-teal-50 :is(h1, h2, h3, h4),
+.theme-slate .bg-teal-50\/70 :is(h1, h2, h3, h4),
+.theme-slate .bg-purple-50 :is(h1, h2, h3, h4),
+.theme-slate .bg-purple-50\/70 :is(h1, h2, h3, h4),
+.theme-slate .bg-\[#121212\] :is(h1, h2, h3, h4),
+.theme-slate .bg-\[#1E1E1E\] :is(h1, h2, h3, h4),
+.theme-slate .bg-\[#1A1A1A\] :is(h1, h2, h3, h4),
+.theme-slate .bg-\[#2A2A2A\] :is(h1, h2, h3, h4),
+.theme-slate .bg-\[#2a2a2a\] :is(h1, h2, h3, h4),
+.theme-slate .bg-emerald-900\/10 :is(h1, h2, h3, h4),
+.theme-slate .bg-emerald-900\/20 :is(h1, h2, h3, h4),
+.theme-slate .card-elevated :is(h1, h2, h3, h4),
+.theme-slate .card-stat :is(h1, h2, h3, h4),
+.theme-slate .card-inset :is(h1, h2, h3, h4),
+.theme-slate .card-hero :is(h1, h2, h3, h4) {
   color: #F8FAFC !important;
 }
 
@@ -641,7 +685,7 @@ textarea:focus-visible {
   color: #94A3B8 !important;
 }
 
-.theme-slate .bg-[#F8FAFC],
+.theme-slate .bg-\[#F8FAFC\],
 .theme-slate .bg-slate-50,
 .theme-slate .bg-slate-50\/50,
 .theme-slate .bg-slate-50\/30 {
@@ -660,13 +704,13 @@ textarea:focus-visible {
 
 /* Slate dark-mode: the light pastel "alert/badge" family (rose/blue/amber/
    emerald/yellow/teal -50/-100 and their /alpha card variants) is NOT
-   covered by the remaps above. With .theme-slate h1..h4 forced to #F8FAFC
-   and the emerald/blue text remapped bright, any heading or accent text
-   inside such a fixed-light card (payroll banners, overdue alerts, stat
-   cards, status chips) rendered white/bright on a pale background —
-   invisible. Remap those surfaces to dark equivalents (translucent for the
+   covered by the remaps above. Headings inside such a fixed-light card
+   (payroll banners, overdue alerts, stat cards, status chips) used to be
+   whitened by the old blanket `.theme-slate h1..h4` — invisible on the pale
+   background. Remap those surfaces to dark equivalents (translucent for the
    /alpha classes so table row tints keep their translucency) and their
-   text colors to light variants. */
+   text colors to light variants; the scoped heading rule above then
+   whitens headings only because the surface itself is dark. */
 .theme-slate .bg-rose-50 {
   background-color: #4C1D2E !important;
 }
@@ -764,11 +808,11 @@ textarea:focus-visible {
 }
 
 /* Slate dark-mode specific overrides */
-.theme-slate .bg-[#121212],
-.theme-slate .bg-[#1E1E1E],
-.theme-slate .bg-[#1A1A1A],
-.theme-slate .bg-[#2A2A2A],
-.theme-slate .bg-[#2a2a2a] {
+.theme-slate .bg-\[#121212\],
+.theme-slate .bg-\[#1E1E1E\],
+.theme-slate .bg-\[#1A1A1A\],
+.theme-slate .bg-\[#2A2A2A\],
+.theme-slate .bg-\[#2a2a2a\] {
   background-color: #1E293B !important;
 }
 
