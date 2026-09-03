@@ -17,6 +17,7 @@ import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Staff, SalaryPayment } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
+import { drawSchoolStamp } from '../lib/pdfStamp';
 
 interface UsePayrollDeps {
   t: TranslationDict;
@@ -267,6 +268,8 @@ export function usePayroll(deps: UsePayrollDeps) {
       doc.addPage();
       y = 250;
     }
+    // Official school stamp above the footer note
+    await drawSchoolStamp(doc, 105, y - 14, 22);
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);

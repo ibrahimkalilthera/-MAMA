@@ -1,4 +1,5 @@
 import type { Student, Expense, VendorExpense, SalaryPayment } from './useSupabaseData';
+import { drawSchoolStamp } from './pdfStamp';
 
 export interface FinancialReportDataOptions {
   students: Student[];
@@ -218,7 +219,8 @@ export async function generateFinancialReportPdf({
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7);
   doc.text(isFr ? '[ Signature et Date ]' : '[ Signature & Date ]', 35, y + 28);
-  doc.text(isFr ? '[ Cachet Officiel MAMA THERA ]' : '[ Official MAMA THERA Stamp ]', 135, y + 28);
+  // Official school stamp over the management visa
+  await drawSchoolStamp(doc, 135, y + 24, 22);
 
   y += 42;
 

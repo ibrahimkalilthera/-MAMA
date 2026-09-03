@@ -1,4 +1,5 @@
 import type { Staff, SalaryPayment } from './useSupabaseData';
+import { drawSchoolStamp } from './pdfStamp';
 
 export interface PayslipDataOptions {
   staffMember: Staff;
@@ -172,9 +173,13 @@ export async function generateStaffPayslipPdf({
   doc.text(isFr ? 'Signature du Salarié' : 'Employee Signature', 39.5, y + 6, { align: 'center' });
   doc.text(isFr ? '(Pour acquit)' : '(Acknowledged)', 39.5, y + 16, { align: 'center' });
 
-  // Right: Employer Stamp & Signature
+  // Right: Employer Stamp (official school stamp) & Signature
   doc.roundedRect(81, y, 55, 22, 1, 1, 'D');
-  doc.text(isFr ? 'Cachet & Signature Employeur' : 'Employer Stamp & Signature', 108.5, y + 6, { align: 'center' });
+  await drawSchoolStamp(doc, 108.5, y + 11, 20);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text(isFr ? 'Cachet & Signature Employeur' : 'Employer Stamp & Signature', 108.5, y + 18, { align: 'center' });
 
   doc.setLineDashPattern([], 0);
 

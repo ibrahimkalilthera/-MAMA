@@ -1,4 +1,5 @@
 import type { Student, Expense, VendorExpense, SalaryPayment } from './useSupabaseData';
+import { drawSchoolStamp } from './pdfStamp';
 
 export interface MultiYearReportOptions {
   academicYears: string[];
@@ -256,6 +257,9 @@ export async function generateMultiYearReportPdf({
   doc.setTextColor(100, 116, 139);
   doc.text(isFr ? 'Signature & Cachet' : 'Signature & Stamp', 25, y + 5);
   doc.text(isFr ? 'Signature & Cachet Officiel' : 'Official Signature & Stamp', 140, y + 5);
+
+  // Official school stamp over the official-signature area
+  await drawSchoolStamp(doc, 165, y + 17, 24);
 
   doc.setDrawColor(203, 213, 225);
   doc.line(25, y + 25, 80, y + 25);

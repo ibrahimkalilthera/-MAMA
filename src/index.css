@@ -1,6 +1,16 @@
 @import './assets/fonts/geist.css';
 @import "tailwindcss";
 
+/* The app theme is class-based (theme-slate / theme-midnight = dark, the rest
+   light) but Tailwind v4 defaults `dark:` to the OS `prefers-color-scheme`.
+   That mismatch is how white-on-white text crept in: on a dark-mode OS with a
+   LIGHT theme selected, every `dark:text-*` utility fired while the surfaces
+   stayed light (invisible names/headers); on a light OS with the slate theme,
+   the same utilities stayed silent. Re-bind `dark:` to a `.dark` ancestor
+   class — the shell toggles it from currentTheme.isDark — so dark: utilities
+   always follow the app theme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MAMA Finance — Design System
    Taste-Skill Redesign: Geist typography, tinted surfaces, refined depth

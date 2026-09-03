@@ -1,4 +1,5 @@
 import type { Student, Payment } from './useSupabaseData';
+import { drawSchoolStamp } from './pdfStamp';
 
 export interface ReceiptDataOptions {
   student: Student;
@@ -171,15 +172,15 @@ export async function generatePaymentReceiptPdf({
   doc.setDrawColor(203, 213, 225);
   doc.setLineDashPattern([1, 1], 0);
 
-  // Left box: Stamp
+  // Left box: School stamp (the official MAMA THERA rubber stamp image)
   doc.roundedRect(12, y, 55, 22, 1, 1, 'D');
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text(isFr ? '[ Cachet de l\'Établissement ]' : '[ School Official Stamp ]', 39.5, y + 12, { align: 'center' });
+  await drawSchoolStamp(doc, 39.5, y + 11, 20);
 
   // Right box: Signature
   doc.roundedRect(81, y, 55, 22, 1, 1, 'D');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
   doc.text(isFr ? '[ Signature du Caissier ]' : '[ Cashier Signature ]', 108.5, y + 12, { align: 'center' });
 
   doc.setLineDashPattern([], 0); // reset line pattern

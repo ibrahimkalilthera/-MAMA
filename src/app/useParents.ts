@@ -18,6 +18,7 @@ import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import type { TranslationDict } from '../i18n/translations';
 import type { Language, Parent, Student } from './types';
 import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { drawSchoolStamp } from '../lib/pdfStamp';
 
 export interface UseParentsArgs {
   t: TranslationDict;
@@ -398,6 +399,8 @@ export function useParents({
       doc.addPage();
       y = 250;
     }
+    // Official school stamp above the footer note
+    await drawSchoolStamp(doc, 105, y - 14, 22);
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);

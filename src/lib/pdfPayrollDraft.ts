@@ -1,4 +1,5 @@
 import type { Staff, SalaryPayment } from './useSupabaseData';
+import { drawSchoolStamp } from './pdfStamp';
 
 export interface MonthlyPayrollDraftOptions {
   monthIndex: number; // 0 to 11
@@ -304,6 +305,9 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setTextColor(100, 116, 139);
   doc.text(isFr ? 'Signature & Visa de paiement' : 'Signature & Payment Verification', 30, y + 4.5);
   doc.text(isFr ? 'Approbation & Cachet Officiel' : 'Approval & Official Stamp', 190, y + 4.5);
+
+  // Official school stamp over the director's approval area
+  await drawSchoolStamp(doc, 225, y + 16, 24);
 
   doc.setDrawColor(203, 213, 225);
   doc.line(30, y + 20, 100, y + 20);

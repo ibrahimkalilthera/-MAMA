@@ -1,3 +1,35 @@
+## [2026-09-03] Tampon officiel sur tous les PDF + thème clair : fin du texte blanc invisible
+
+**Tampon sur tous les documents PDF.** Le tampon officiel du Complexe Scolaire
+MAMA THERA (image fournie par l'utilisateur, public/tampon.png) est désormais
+dessiné dans la zone « cachet » de TOUS les PDF générés : reçu de paiement
+parent (pdfReceipt), fiche de paie employé (pdfPayroll + émission directe dans
+usePayroll), bordereau de paie (pdfPayrollDraft), relevé parent (useParents),
+rapports financiers/dépenses/multi-années. Nouveau module partagé
+src/lib/pdfStamp.ts : fetch du PNG au moment de la génération, décodage +
+redimensionnement à ≤ 420 px sur canvas (le fichier source fait 1254 px /
+1,4 Mo — l'embarquer en brut gonflerait chaque PDF à ~5 Mo), data URL mise en
+cache. Strictement non bloquant : si l'image est indisponible (hors-ligne,
+tests), le PDF se génère quand même, seul le tampon est omis. addImage validé
+contre le vrai PNG (smoke test jsPDF).
+
+**Thème clair + OS sombre : fin du texte blanc sur blanc (cause racine des
+« entêtes blanches »).** Le thème de l'app est piloté par classe
+(theme-slate / theme-midnight = sombre, les autres clairs) mais Tailwind
+résout par défaut les variantes dark: sur prefers-color-scheme du système.
+Résultat : sur un OS en mode sombre avec un thème CLAIR sélectionné, toutes
+les utilitaires dark:text-* s'activaient quand même — noms et en-têtes
+blancs sur fond clair (ex. le nom du parent dans la modale « Relancer le
+parent ») ; et sur OS clair + thème slate elles restaient inertes. Fix
+racine : @custom-variant dark (&:where(.dark, .dark *)) dans index.css
+(87 règles dark: compilées sous cette forme, plus aucune @media) + la classe
+.dark est ajoutée par la coquille App uniquement quand currentTheme.isDark.
+dark: suit désormais toujours le thème de l'app — toutes les
+modales/en-têtes de l'app corrigées d'un coup (Login et l'écran de
+chargement n'utilisent aucune variante dark:, vérifié).
+
+Chaîne complète verte : lint 0 warning (tsc strict + guards + stylelint),
+l10n ✓, 287/287 tests, build ✓.
 ## [2026-09-03] Alertes paie : les mois antérieurs à septembre ne comptent plus
 
 Le calcul des mois sans paie (missedMonths, qui alimente les alertes de la

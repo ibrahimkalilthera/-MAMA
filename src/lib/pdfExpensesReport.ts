@@ -1,4 +1,5 @@
 import type { Expense, VendorExpense } from './useSupabaseData';
+import { drawSchoolStamp } from './pdfStamp';
 
 export interface ExpensesReportOptions {
   expenses: Expense[];
@@ -563,6 +564,9 @@ export async function generateExpensesReportPdf({
   doc.setTextColor(100, 116, 139);
   doc.text(isFr ? 'Signature & Visa' : 'Signature & Verification', 25, y + 5);
   doc.text(isFr ? 'Approbation & Cachet' : 'Approval & Official Stamp', 140, y + 5);
+
+  // Official school stamp over the approval area
+  await drawSchoolStamp(doc, 165, y + 17, 24);
 
   doc.setDrawColor(203, 213, 225);
   doc.line(25, y + 25, 80, y + 25);
