@@ -64,7 +64,7 @@ export function DashboardView() {
                     </h3>
                   </div>
                   <div className="p-3 rounded-xl bg-emerald-500/[0.12] text-emerald-400 border border-emerald-500/[0.08]">
-                    <Coins size={22} />
+                    <Coins size={24} />
                   </div>
                 </div>
                 <div className="flex items-center gap-3 mt-2">
@@ -187,7 +187,7 @@ export function DashboardView() {
                   const up = delta >= 0;
                   return (
                     <span className={`text-[10px] font-semibold ${currentTheme.muted} flex items-center gap-1.5`}>
-                      <TrendingUp size={11} className={up ? 'text-emerald-500' : 'rotate-180 text-rose-500'} />
+                      <TrendingUp size={12} className={up ? 'text-emerald-500' : 'rotate-180 text-rose-500'} />
                       <span className={up ? 'text-emerald-500' : 'text-rose-500'}>
                         {t.outstandingVsLastMonth.replace('{delta}', up ? `+${delta}` : String(delta))}
                       </span>

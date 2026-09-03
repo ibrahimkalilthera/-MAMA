@@ -125,7 +125,7 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                     onClick={onMarkAllRead}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
                   >
-                    <CheckCheck size={13} />
+                    <CheckCheck size={12} />
                     <span className="hidden sm:inline">{t.markAllRead}</span>
                   </button>
                 )}
@@ -209,7 +209,7 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                           title={t.markAsUnread}
                           className="flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                         >
-                          <RotateCcw size={13} />
+                          <RotateCcw size={12} />
                         </button>
                       )}
                     </div>

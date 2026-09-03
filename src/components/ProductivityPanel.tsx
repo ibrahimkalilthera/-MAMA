@@ -11,7 +11,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Dispatch, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, SetStateAction } from 'react';
 import { motion } from 'motion/react';
-import { CheckCircle2, CheckSquare, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { CheckCircle2, CheckSquare, Lightbulb, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { useFocusTrap } from '../lib/focusStack';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import type { TranslationDict } from '../i18n/translations';
@@ -278,25 +278,25 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                   onClick={() => handleAiQuery(t.aiQuickQuestion1)}
                   className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${themeBorder} ${themeCard} ${themeIsDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
-                  💡 {t.aiQuickQuestion1}
+                  <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion1}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion2)}
                   className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${themeBorder} ${themeCard} ${themeIsDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
-                  💡 {t.aiQuickQuestion2}
+                  <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion2}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion3)}
                   className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${themeBorder} ${themeCard} ${themeIsDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
-                  💡 {t.aiQuickQuestion3}
+                  <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion3}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion4)}
                   className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${themeBorder} ${themeCard} ${themeIsDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
-                  💡 {t.aiQuickQuestion4}
+                  <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion4}
                 </button>
               </div>
             </div>

@@ -6,7 +6,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Search, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
+  const { AlertCircle, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
   return (
     <>
           <div className="space-y-8">
@@ -373,7 +373,7 @@ export function PayrollView() {
                                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ml-auto active:scale-95"
                                 title={t.downloadPayslipPdf}
                               >
-                                📄 {t.payslip}
+                                <Receipt size={12} /> {t.payslip}
                               </button>
                             )}
                           </td>

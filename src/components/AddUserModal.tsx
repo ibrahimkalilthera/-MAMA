@@ -7,7 +7,7 @@
 
 import { useState, useRef, FormEvent } from 'react';
 import { motion } from 'motion/react';
-import { UserPlus } from 'lucide-react';
+import { Briefcase, Compass, Crown, Receipt, UserPlus } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import type { UserProfile } from '../lib/useAuth';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
@@ -204,7 +204,7 @@ export const AddUserModal = ({
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base">💼</span>
+                  <Briefcase size={16} className="text-sky-500 flex-shrink-0" />
                   <span className={`text-xs font-bold ${newUserForm.role === 'staff' ? 'text-blue-500' : themeIsDark ? 'text-white' : 'text-slate-800'}`}>
                     {t.roleStaff}
                   </span>
@@ -223,7 +223,7 @@ export const AddUserModal = ({
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base">🧾</span>
+                  <Receipt size={16} className="text-violet-500 flex-shrink-0" />
                   <span className={`text-xs font-bold ${newUserForm.role === 'econome' ? 'text-blue-500' : themeIsDark ? 'text-white' : 'text-slate-800'}`}>
                     {t.roleEconome}
                   </span>
@@ -241,7 +241,7 @@ export const AddUserModal = ({
                     : `${themeBorder} hover:bg-white/5`
                 }`}>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base">🧭</span>
+                  <Compass size={16} className="text-violet-500 flex-shrink-0" />
                   <span className={`text-xs font-bold ${newUserForm.role === 'general_manager' ? 'text-cyan-500' : themeIsDark ? 'text-white' : 'text-slate-800'}`}>
                     {t.generalManager}
                   </span>
@@ -260,7 +260,7 @@ export const AddUserModal = ({
                     : `${themeBorder} hover:bg-white/5`
                 }`}>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base">👑</span>
+                  <Crown size={16} className="text-amber-500 flex-shrink-0" />
                   <span className={`text-xs font-bold ${newUserForm.role === 'admin' ? 'text-emerald-500' : themeIsDark ? 'text-white' : 'text-slate-800'}`}>
                     {t.promoterAdmin}
                   </span>
@@ -293,7 +293,7 @@ export const AddUserModal = ({
                 </>
               ) : (
                 <>
-                  <UserPlus size={15} />
+                  <UserPlus size={16} />
                   <span>{t.createAccount}</span>
                 </>
               )}

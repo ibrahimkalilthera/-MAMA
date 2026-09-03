@@ -309,14 +309,14 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
                     onClick={() => handleSelectAllAction('promote')}
                     className="px-2 py-1 text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 rounded font-medium hover:bg-emerald-200 transition-colors"
                   >
-                    🟢 {t.promoteAll}
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-500" /> {t.promoteAll}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSelectAllAction('repeat')}
                     className="px-2 py-1 text-xs bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 rounded font-medium hover:bg-amber-200 transition-colors"
                   >
-                    🟠 {t.repeatAll}
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-amber-500" /> {t.repeatAll}
                   </button>
                 </div>
               </div>

@@ -498,7 +498,7 @@ export function AppModals(props: AppModalsProps) {
                                     className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-all shadow-sm flex items-center gap-1"
                                     title={t.downloadReceiptPdf}
                                   >
-                                    📄 {t.receipt2}
+                                    <Receipt size={12} /> {t.receipt2}
                                   </button>
                                 </div>
                               </div>
@@ -615,7 +615,7 @@ export function AppModals(props: AppModalsProps) {
                     />
                     <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
                       <label className="flex items-center gap-1.5 text-[9px] font-black text-yellow-800 uppercase tracking-widest">
-                        <Calendar size={11} />
+                        <Calendar size={12} />
                         {t.alsoShowOnCalendar}
                         <input
                           type="date"
@@ -632,37 +632,37 @@ export function AppModals(props: AppModalsProps) {
                 </div>
 
                 {/* --- Bottom Actions Bar --- */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-100">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100">
                   <button 
                     onClick={() => {
                       openEditModal(selectedStudent);
                       setSelectedStudent(null);
                     }}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2"
+                    className="h-11 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap"
                   >
-                    <FileText size={14} />
-                    Edit Profile
+                    <FileText size={16} className="flex-shrink-0" />
+                    <span className="truncate">{t.editProfile}</span>
                   </button>
 
                   <button 
                     onClick={() => setPrintStudentFile(selectedStudent)}
-                    className="flex-1 bg-slate-800 hover:bg-slate-900 text-white py-3.5 rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2"
+                    className="h-11 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap"
                   >
-                    <Printer size={14} />
-                    Print Student File
+                    <Printer size={16} className="flex-shrink-0" />
+                    <span className="truncate">{t.printStudentFile}</span>
                   </button>
 
                   <button 
                     onClick={() => setConfirmDeleteStudent(selectedStudent)}
-                    className="px-6 py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs transition-all shadow-md flex items-center justify-center gap-2"
+                    className="h-11 px-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap"
                   >
-                    <Trash2 size={14} />
-                    {t.deleteStudent}
+                    <Trash2 size={16} className="flex-shrink-0" />
+                    <span className="truncate">{t.deleteStudent}</span>
                   </button>
 
                   <button 
                     onClick={() => setSelectedStudent(null)}
-                    className={`px-6 py-3.5 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 hover:bg-slate-50 rounded-2xl font-bold text-xs transition-all text-center`}
+                    className={`h-11 px-3 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 hover:bg-slate-50 rounded-2xl font-bold text-xs transition-all flex items-center justify-center whitespace-nowrap`}
                   >
                     {t.close}
                   </button>
@@ -2307,7 +2307,7 @@ export function AppModals(props: AppModalsProps) {
                                 className="p-0.5 rounded-full text-emerald-600 dark:text-emerald-300 hover:bg-emerald-600/20 transition-all flex-shrink-0"
                                 title="×"
                               >
-                                <X size={10} />
+                                <X size={12} />
                               </button>
                             </span>
                           );
@@ -2383,7 +2383,7 @@ export function AppModals(props: AppModalsProps) {
                                 }}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px] font-black text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
                               >
-                                <X size={10} />
+                                <X size={12} />
                                 {t.clearSearch}
                               </button>
                             )}
@@ -2448,7 +2448,7 @@ export function AppModals(props: AppModalsProps) {
                           onClick={() => setParentForm({ ...parentForm, linkedStudentIds: [] })}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black text-rose-500 hover:bg-rose-500/10 transition-all"
                         >
-                          <X size={10} />
+                          <X size={12} />
                           {t.deselectAll}
                         </button>
                       </div>

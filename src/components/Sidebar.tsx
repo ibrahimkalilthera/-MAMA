@@ -64,7 +64,7 @@ export function Sidebar(props: SidebarProps) {
             <img src={schoolLogo} alt="Logo" className="w-9 h-9 rounded-lg object-cover ring-2 ring-white/10" referrerPolicy="no-referrer" />
           ) : (
             <div className="bg-emerald-600/90 p-2 rounded-lg shadow-lg shadow-emerald-500/20">
-              <ShieldCheck size={22} />
+              <ShieldCheck size={24} />
             </div>
           )}
           <div>

@@ -117,7 +117,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                             <td className="px-6 py-4 text-center">
                               {isLocked ? (
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-700 text-xs font-black rounded-full uppercase tracking-wider border border-rose-200">
-                                  <Lock size={10} />
+                                  <Lock size={12} />
                                   {t.lockedTag}
                                 </span>
                               ) : (

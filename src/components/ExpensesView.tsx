@@ -120,7 +120,7 @@ export function ExpensesView() {
                     {/* Overdue Alert Banner if active overdue items exist */}
                     {overdueVendorCount > 0 && (
                       <div className="bg-rose-50 border border-rose-200 text-rose-800 p-6 rounded-3xl flex items-center gap-4 animate-pulse">
-                        <AlertCircle size={28} className="text-rose-600 flex-shrink-0" />
+                        <AlertCircle size={24} className="text-rose-600 flex-shrink-0" />
                         <div>
                           <h4 className="font-bold text-base">
                             {t.overduePaymentsDetected.replace('{count}', String(overdueVendorCount))}

@@ -307,7 +307,7 @@ export function ExcelImportModal({
                   ? 'bg-emerald-500/20 text-emerald-400'
                   : 'text-white/30'
               }`}>
-                {step > i + 1 ? <Check size={10} /> : <span>{i + 1}</span>}
+                {step > i + 1 ? <Check size={12} /> : <span>{i + 1}</span>}
                 <span className="hidden sm:inline">{label}</span>
               </div>
               {i < 3 && <ArrowRight size={12} className="text-white/20 mx-0.5" />}

@@ -88,7 +88,7 @@ export function ParentsView() {
                 parents.length === 0 ? (
                   <div className={`p-12 text-center rounded-[2rem] ${currentTheme.card} border ${currentTheme.border} space-y-4`}>
                     <div className="mx-auto w-16 h-16 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center">
-                      <Users size={28} className="text-slate-400" />
+                      <Users size={24} className="text-slate-400" />
                     </div>
                     <div className="space-y-1.5">
                       <p className={`text-sm font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-700'}`}>{t.noParentsInSystemTitle}</p>
@@ -118,7 +118,7 @@ export function ParentsView() {
                   </div>
                 ) : (
                   <div className={`p-12 text-center rounded-[2rem] ${currentTheme.card} border ${currentTheme.border}`}>
-                    <Users size={48} className="mx-auto mb-4 text-slate-300" />
+                    <Users size={32} className="mx-auto mb-4 text-slate-300" />
                     <p className={`text-sm font-bold ${currentTheme.muted}`}>
                       {t.noParentProfilesFoundMatchingYourSearch}
                     </p>
@@ -280,7 +280,7 @@ export function ParentsView() {
                             <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-600/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                               <div className="flex items-center gap-3">
                                 <div className="p-3 rounded-xl bg-white/10 backdrop-blur-md">
-                                  <CreditCard size={22} className="text-emerald-200" />
+                                  <CreditCard size={24} className="text-emerald-200" />
                                 </div>
                                 <div>
                                   <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200">

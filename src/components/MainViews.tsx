@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Compass, Cpu, CreditCard, Crown, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, KeyRound, Landmark, Layers, Lock, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap } from 'lucide-react';
 import { HighlightText, ChartsFallback } from './SharedUi';
 
 // Contract types moved to src/app/mainViewsProps.ts — the single source of
@@ -529,7 +529,7 @@ export function MainViews(props: MainViewsProps) {
                                   title={t.renameClass}
                                   className="ml-1 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-500 transition-all"
                                 >
-                                  <Edit2 size={11} />
+                                  <Edit2 size={12} />
                                 </button>
                                 <button
                                   type="button"
@@ -537,7 +537,7 @@ export function MainViews(props: MainViewsProps) {
                                   title={t.deleteClass}
                                   className="p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-rose-500 transition-all"
                                 >
-                                  <Trash2 size={11} />
+                                  <Trash2 size={12} />
                                 </button>
                               </>
                             )}
@@ -568,7 +568,7 @@ export function MainViews(props: MainViewsProps) {
                                   title={t.renameClass}
                                   className="ml-1 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-500 transition-all"
                                 >
-                                  <Edit2 size={11} />
+                                  <Edit2 size={12} />
                                 </button>
                                 <button
                                   type="button"
@@ -576,7 +576,7 @@ export function MainViews(props: MainViewsProps) {
                                   title={t.deleteClass}
                                   className="p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-rose-500 transition-all"
                                 >
-                                  <Trash2 size={11} />
+                                  <Trash2 size={12} />
                                 </button>
                               </>
                             )}
@@ -607,7 +607,7 @@ export function MainViews(props: MainViewsProps) {
                                     title={t.renameClass}
                                     className="ml-1 p-0.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-400 hover:text-blue-600 transition-all"
                                   >
-                                    <Edit2 size={11} />
+                                    <Edit2 size={12} />
                                   </button>
                                   <button
                                     type="button"
@@ -615,7 +615,7 @@ export function MainViews(props: MainViewsProps) {
                                     title={t.deleteClass}
                                     className="p-0.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-400 hover:text-rose-500 transition-all"
                                   >
-                                    <Trash2 size={11} />
+                                    <Trash2 size={12} />
                                   </button>
                                 </>
                               )}
@@ -667,7 +667,7 @@ export function MainViews(props: MainViewsProps) {
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-emerald-50/70 border-emerald-200'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                          <span>👑</span> {t.promoterAdminsPlusGM}
+                          <Crown size={14} className="text-amber-500 flex-shrink-0" /> {t.promoterAdminsPlusGM}
                         </span>
                         <span className="text-xs font-black bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'admin' || p.role === 'general_manager').length}
@@ -681,7 +681,7 @@ export function MainViews(props: MainViewsProps) {
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-blue-950/20 border-blue-500/30' : 'bg-blue-50/70 border-blue-200'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
-                          <span>💼</span> {t.roleStaff}
+                          <Briefcase size={14} className="text-sky-500 flex-shrink-0" /> {t.roleStaff}
                         </span>
                         <span className="text-xs font-black bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'staff').length}
@@ -695,7 +695,7 @@ export function MainViews(props: MainViewsProps) {
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-teal-950/20 border-teal-500/30' : 'bg-teal-50/70 border-teal-200'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
-                          <span>🧾</span> {t.roleEconome}
+                          <Receipt size={14} className="text-violet-500 flex-shrink-0" /> {t.roleEconome}
                         </span>
                         <span className="text-xs font-black bg-teal-500/20 text-teal-600 dark:text-teal-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'econome').length}
@@ -709,7 +709,7 @@ export function MainViews(props: MainViewsProps) {
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-purple-950/20 border-purple-500/30' : 'bg-purple-50/70 border-purple-200'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
-                          <span>⚡</span> {t.engineeringDev}
+                          <Zap size={14} className="text-amber-500 flex-shrink-0" /> {t.engineeringDev}
                         </span>
                         <span className="text-xs font-black bg-purple-500/20 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'dev').length}
@@ -731,7 +731,7 @@ export function MainViews(props: MainViewsProps) {
                         placeholder={t.searchByNameOrEmail}
                         className={`w-full pl-10 pr-4 py-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-white/5 text-white' : 'bg-slate-50 text-slate-800'} text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30`}
                       />
-                      <Users size={15} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
+                      <Users size={16} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
                     </div>
 
                     <div className="flex items-center gap-1 p-1 bg-white/5 rounded-xl border border-white/10 self-start">
@@ -821,11 +821,11 @@ export function MainViews(props: MainViewsProps) {
                                         ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                                         : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                                     }`}>
-                                      {isDev && <span>⚡</span>}
-                                      {isAdmin && <span>👑</span>}
-                                      {isGM && <span>🧭</span>}
-                                      {profile.role === 'staff' && <span>💼</span>}
-                                      {profile.role === 'econome' && <span>🧾</span>}
+                                      {isDev && <Zap size={12} className="text-amber-500 flex-shrink-0" />}
+                                      {isAdmin && <Crown size={12} className="text-amber-500 flex-shrink-0" />}
+                                      {isGM && <Compass size={12} className="text-violet-500 flex-shrink-0" />}
+                                      {profile.role === 'staff' && <Briefcase size={12} className="text-sky-500 flex-shrink-0" />}
+                                      {profile.role === 'econome' && <Receipt size={12} className="text-violet-500 flex-shrink-0" />}
                                       {isDev 
                                         ? (t.developer)
                                         : isAdmin 
@@ -861,16 +861,16 @@ export function MainViews(props: MainViewsProps) {
                                       } ${updatingUserId === profile.id ? 'opacity-50 cursor-wait' : ''}`}
                                     >
                                       <option value="admin" className="bg-slate-800 text-white">
-                                        👑 {t.promoterAdminFull}
+                                        <Crown size={14} className="text-amber-500 flex-shrink-0" /> {t.promoterAdminFull}
                                       </option>
                                       <option value="general_manager" className="bg-slate-800 text-white">
-                                        🧭 {t.generalManager}
+                                        <Compass size={14} className="text-violet-500 flex-shrink-0" /> {t.generalManager}
                                       </option>
                                       <option value="staff" className="bg-slate-800 text-white">
-                                        💼 {t.roleStaff}
+                                        <Briefcase size={14} className="text-sky-500 flex-shrink-0" /> {t.roleStaff}
                                       </option>
                                       <option value="econome" className="bg-slate-800 text-white">
-                                        🧾 {t.roleEconome}
+                                        <Receipt size={14} className="text-violet-500 flex-shrink-0" /> {t.roleEconome}
                                       </option>
                                     </select>
                                   </div>
@@ -882,7 +882,7 @@ export function MainViews(props: MainViewsProps) {
                                   className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 border border-white/10"
                                   title={t.setPassword}
                                 >
-                                  <span>🔒</span>
+                                  <Lock size={14} className="text-slate-400 flex-shrink-0" />
                                   <span>{t.setPassword}</span>
                                 </button>
 
@@ -892,7 +892,7 @@ export function MainViews(props: MainViewsProps) {
                                   className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 border border-white/10"
                                   title={t.sendPasswordResetEmail}
                                 >
-                                  <span>🔑</span>
+                                  <KeyRound size={14} className="text-slate-400 flex-shrink-0" />
                                   <span>{t.resetPass}</span>
                                 </button>
                               </div>
