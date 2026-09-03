@@ -33,9 +33,10 @@ export interface NotificationsPanelProps {
   onMarkAllRead: () => void;
   onMarkUnread: (id: string) => void;
   onOpenCalendarDate: (date: string) => void;
+  onOpenPayroll: () => void;
 }
 
-export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, onMarkRead, onMarkAllRead, onMarkUnread, onOpenCalendarDate }: NotificationsPanelProps) {
+export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, onMarkRead, onMarkAllRead, onMarkUnread, onOpenCalendarDate, onOpenPayroll }: NotificationsPanelProps) {
   const now = new Date();
 
   const relativeLabel = (date: string): string => {
@@ -140,8 +141,9 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                   const isRead = read.has(n.id);
                   const openStudent = () => {
                     // Student reminders open the profile; team alerts (payroll)
-                    // only dismiss.
+                    // jump straight to the Payroll tab.
                     if (n.studentId) onOpenStudent(n.studentId);
+                    else onOpenPayroll();
                     onMarkRead(n.id);
                     setOpen(false);
                   };

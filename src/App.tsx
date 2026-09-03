@@ -1143,8 +1143,9 @@ const {
           onMarkNotificationRead={markNotificationRead}
           onMarkAllNotificationsRead={markAllNotificationsRead}
           onMarkNotificationUnread={markNotificationUnread}
-          onOpenCalendarDate={openCalendarOnDate}
-        />
+  onOpenCalendarDate={openCalendarOnDate}
+onOpenPayroll={() => setActiveTab('payroll')}
+/>
 
         <WelcomeBanner t={t} currentUser={currentUser} />
 

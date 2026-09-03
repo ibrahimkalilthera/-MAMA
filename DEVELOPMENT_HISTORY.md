@@ -3,6 +3,14 @@
 This document serves as a complete history, architectural record, and technical changelog for the **Complexe Scolaire MAMA THERA Finance Suite** (Bamako, Mali). It documents every phase, feature addition, security enhancement, and design decision made during development.
 
 ---
+## [2026-09-03] Alerte de paie cliquable — ouvre l'onglet Paie/Salaires
+
+Un rappel de paie dans la cloche de notifications (sans élève lié) ouvre désormais
+directement l'onglet Paie/Salaires au clic (ou Entrée/Espace), au lieu de se
+contenter de se marquer comme lu. Nouvelle prop onOpenPayroll câblée
+App -> AppHeader -> NotificationsPanel (setActiveTab('payroll')); l'alerte est
+toujours marquée lue et le panneau se ferme. Test du panneau mis à jour
+(onOpenPayroll déclenché, aucun profil élève ouvert). Chaîne complète verte.
 
 ## 📍 School Context & Project Scope
 

@@ -78,6 +78,7 @@ function Harness(props: Fixture & {
   onMarkAllRead: () => void;
   onMarkUnread: (id: string) => void;
   onOpenCalendarDate: (date: string) => void;
+  onOpenPayroll?: () => void;
 }): React.ReactNode {
   return (
     <NotificationsPanel
@@ -90,6 +91,7 @@ function Harness(props: Fixture & {
       onMarkAllRead={props.onMarkAllRead}
       onMarkUnread={props.onMarkUnread}
       onOpenCalendarDate={props.onOpenCalendarDate}
+      onOpenPayroll={props.onOpenPayroll ?? (() => {})}
     />
   );
 }
@@ -291,9 +293,10 @@ describe('NotificationsPanel — happy-dom render', () => {
     }
   });
 
-  it('a payroll alert (no student) dismisses without opening a profile', async () => {
+  it('a payroll alert (no student) opens the Payroll tab and marks it read', async () => {
     const opened: string[] = [];
     const marked: string[] = [];
+    const payrollOpened: boolean[] = [];
     const payroll: DashboardNotification = {
       id: 'payroll-2026-5', type: 'payroll', message: 'Attention : Aucun paiement de salaire enregistré pour Juin', date: '2026-06-01',
     };
@@ -301,7 +304,7 @@ describe('NotificationsPanel — happy-dom render', () => {
     try {
       await act(async () => {
         root.render(createElement(Harness, {
-          notifications: [payroll], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: (id: string) => marked.push(id), onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
+          notifications: [payroll], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: (id: string) => marked.push(id), onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {}, onOpenPayroll: () => payrollOpened.push(true),
         }));
       });
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications (1)');
@@ -310,6 +313,7 @@ describe('NotificationsPanel — happy-dom render', () => {
 
       act(() => { click(rowWithText(payroll.message) as Element); });
       assert.deepEqual(opened, [], 'no student profile for a payroll alert');
+      assert.deepEqual(payrollOpened, [true], 'the payroll alert opens the Payroll tab');
       assert.deepEqual(marked, ['payroll-2026-5'], 'the payroll alert is marked read');
     } finally {
       act(() => root.unmount());
