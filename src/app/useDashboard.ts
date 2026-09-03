@@ -195,22 +195,30 @@ export function useDashboard(deps: UseDashboardDeps) {
     ];
   }, [students, selectedYear, t]);
 
-  const missedMonths = useMemo<number[]>(() => {
+  const missedMonths = useMemo<{ year: number; month: number }[]>(() => {
     // If no staff members exist yet, do not trigger false missed-payroll warnings
     if (staff.length === 0) return [];
 
     const currentCalendarYear = new Date().getFullYear();
     const currentCalendarMonth = new Date().getMonth();
-    const missed: number[] = [];
-    
-    for (let m = 0; m <= currentCalendarMonth; m++) {
-      const monthPayments = salaryPayments.filter(p => {
-        const payDate = new Date(p.date);
-        return payDate.getFullYear() === currentCalendarYear && payDate.getMonth() === m && (!selectedYear || p.academicYear === selectedYear);
-      });
-      const totalPaid = monthPayments.reduce((sum, p) => sum + p.amount, 0);
-      if (totalPaid === 0) {
-        missed.push(m);
+    // The school year starts in September. Months before September belong to
+    // the previous school year — they are never flagged (the app launched in
+    // September 2026; pre-launch months do not count).
+    const schoolYearStartYear = currentCalendarMonth >= 8 ? currentCalendarYear : currentCalendarYear - 1;
+    const missed: { year: number; month: number }[] = [];
+
+    for (let y = schoolYearStartYear; y <= currentCalendarYear; y++) {
+      const from = y === schoolYearStartYear ? 8 : 0;
+      const to = y === currentCalendarYear ? currentCalendarMonth : 11;
+      for (let m = from; m <= to; m++) {
+        const monthPayments = salaryPayments.filter(p => {
+          const payDate = new Date(p.date);
+          return payDate.getFullYear() === y && payDate.getMonth() === m && (!selectedYear || p.academicYear === selectedYear);
+        });
+        const totalPaid = monthPayments.reduce((sum, p) => sum + p.amount, 0);
+        if (totalPaid === 0) {
+          missed.push({ year: y, month: m });
+        }
       }
     }
     return missed;
@@ -263,13 +271,12 @@ export function useDashboard(deps: UseDashboardDeps) {
     // Missed payroll months → bell alerts (one per month without salary
     // payments; anchored on the month's start so the relative label reads
     // as a date for older months).
-    const currentCalendarYear = new Date().getFullYear();
-    for (const m of missedMonths) {
+    for (const { year, month: m } of missedMonths) {
       list.push({
-        id: `payroll-${currentCalendarYear}-${m}`,
+        id: `payroll-${year}-${m}`,
         type: 'payroll',
         message: t.noPayrollWarning.replace('{month}', t[MONTH_KEYS[m]]),
-        date: `${currentCalendarYear}-${String(m + 1).padStart(2, '0')}-01`,
+        date: `${year}-${String(m + 1).padStart(2, '0')}-01`,
       });
     }
 

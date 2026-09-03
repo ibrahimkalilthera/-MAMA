@@ -1,3 +1,17 @@
+## [2026-09-03] Alertes paie : les mois antérieurs à septembre ne comptent plus
+
+Le calcul des mois sans paie (missedMonths, qui alimente les alertes de la
+cloche « Aucun paiement de salaire enregistré pour X ») parcourait l'année
+civile depuis JANVIER : janvier→août étaient donc signalés comme mois manqués
+alors que l'application (et l'année scolaire) ne démarre qu'en septembre.
+Le scan est désormais calé sur l'année scolaire (démarrage en septembre) et
+conscient des changements d'année civile : seuls les mois de septembre→mois
+courant de l'année scolaire en cours sont évalués, les mois antérieurs ne
+sont jamais signalés. missedMonths passe de number[] à {year, month}[] (ids
+de notification et dates d'ancrage utilisent l'année réelle de chaque mois).
+2 nouveaux tests (aucun mois < septembre signalé ; contrat scolaire year-aware),
+test existant mis à jour. Chaîne complète verte (287 tests).
+
 ## [2026-09-03] Notes de calendrier visibles par toute l'équipe (table calendar_notes)
 
 Les notes ajoutées depuis le calendrier (modale du jour) étaient stockées en

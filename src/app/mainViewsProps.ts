@@ -265,7 +265,8 @@ export interface MainViewsProps {
   lateStudents: Student[];
   logoColor: string | null;
   logoInputRef: RefObject<HTMLInputElement | null>;
-  missedMonths: number[];
+  /** Missed payroll months of the current school year (Sep start, year-aware). */
+  missedMonths: { year: number; month: number }[];
   openEditClass: (c: ManagedClass) => void;
   openEditModal: (student: Student) => void;
   openEditParentModal: (parent: Parent) => void;

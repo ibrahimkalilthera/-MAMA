@@ -175,15 +175,33 @@ describe('useDashboard', () => {
     ]);
   });
 
-  it('reports every month without salary payments as missed, only when staff exist', () => {
+  it('reports every school-year month without salary payments as missed, only when staff exist', () => {
     const emptyStaff = compute(baseArgs({ staff: [], salaryPayments: [] }));
     assert.deepEqual(emptyStaff.missedMonths, []);
 
-    // One payment lands this month → this month is not missed anymore
+    // One payment lands this month → this month is not missed anymore.
+    // Months before September belong to the previous school year and are
+    // never flagged (the app launched in September 2026).
     const api = compute(baseArgs({ staff, salaryPayments: [salaryPayment()] }));
-    const expected = [];
-    for (let m = 0; m <= month; m++) if (m !== month) expected.push(m);
+    const schoolYearStartYear = month >= 8 ? year : year - 1;
+    const expected: { year: number; month: number }[] = [];
+    for (let y = schoolYearStartYear; y <= year; y++) {
+      const from = y === schoolYearStartYear ? 8 : 0;
+      const to = y === year ? month : 11;
+      for (let m = from; m <= to; m++) {
+        if (!(y === year && m === month)) expected.push({ year: y, month: m });
+      }
+    }
     assert.deepEqual(api.missedMonths, expected);
+  });
+
+  it('never flags months before September (pre-launch school year)', () => {
+    // September 2026 with a payment this month → zero missed months, even
+    // though January→August 2026 have no payments at all.
+    const api = compute(baseArgs({ staff, salaryPayments: [salaryPayment()] }));
+    for (const { month: m } of api.missedMonths) {
+      assert.ok(m >= 8, `month ${m} is before September and must never be flagged`);
+    }
   });
 
   it('flags missed payroll months as bell notifications', () => {
@@ -194,7 +212,7 @@ describe('useDashboard', () => {
     const payrollAlerts = api.notifications.filter(n => n.type === 'payroll');
     assert.deepEqual(
       payrollAlerts.map(n => n.id),
-      api.missedMonths.map(m => `payroll-${now.getFullYear()}-${m}`),
+      api.missedMonths.map(m => `payroll-${m.year}-${m.month}`),
       'one payroll alert per missed month, id anchored on year+month',
     );
     assert.equal(payrollAlerts[0]?.studentId, undefined, 'team alert has no student');
