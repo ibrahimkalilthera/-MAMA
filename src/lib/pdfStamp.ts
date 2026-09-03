@@ -3,10 +3,16 @@
  * (receipts, payslips, bordereaux, reports) in their "cachet" zone.
  *
  * The stamp PNG lives in `public/tampon.png` and is loaded at runtime via
- * fetch → decoded + downscaled on a canvas. The source file is a 1254px
- * distressed-texture PNG (~1.4 MB); embedding it at full size would balloon
- * every generated PDF (≈5 MB), so it is downscaled to ≤ 420px here — far more
- * than enough for the ~20 mm stamp box, at a fraction of the payload.
+ * fetch. The COMMITTED asset is already optimised: 300 px, flattened on pure
+ * white (~52 KB). The original stamp was a 1254 px distressed-texture PNG of
+ * ~1.4 MB — embedding it at full size ballooned every generated PDF to
+ * ≈5 MB; the optimised 300 px file keeps ~380 dpi in the 20 mm stamp box
+ * (≈320 dpi in the widest 24 mm box) while the PDF payload drops to ~90 KB.
+ *
+ * A canvas guard (STAMP_MAX_EDGE) remains for robustness: if the file in
+ * `public/` is ever replaced by a larger one, it is decoded and downscaled
+ * here so documents never regress in size. When the fetched image is already
+ * within the cap, its raw data URL is used as-is (no lossy second encode).
  *
  * Strictly non-blocking: if the image cannot be loaded or decoded (offline,
  * tests, missing file), the document is still generated — only the stamp is
@@ -25,7 +31,7 @@ interface StampableDoc {
   ) => void;
 }
 
-const STAMP_MAX_EDGE = 420;
+const STAMP_MAX_EDGE = 300;
 
 let stampDataUrlPromise: Promise<string | null> | null = null;
 
@@ -58,9 +64,14 @@ async function downscaleStampBlob(blob: Blob): Promise<string> {
         img.onerror = () => reject(new Error('image decode failed'));
         img.src = objectUrl;
       });
-      const scale = Math.min(1, STAMP_MAX_EDGE / Math.max(img.width, img.height));
-      const w = Math.max(1, Math.round(img.width * scale));
-      const h = Math.max(1, Math.round(img.height * scale));
+      const srcW = img.naturalWidth || img.width;
+      const srcH = img.naturalHeight || img.height;
+      const scale = Math.min(1, STAMP_MAX_EDGE / Math.max(srcW, srcH));
+      // Already within the cap — use the fetched file untouched (no second
+      // encode, no quality loss).
+      if (scale === 1) return rawDataUrl;
+      const w = Math.max(1, Math.round(srcW * scale));
+      const h = Math.max(1, Math.round(srcH * scale));
       const canvas = document.createElement('canvas');
       canvas.width = w;
       canvas.height = h;

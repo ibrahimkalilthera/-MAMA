@@ -1,3 +1,15 @@
+## [2026-09-03] Tampon optimisé : 1,4 Mo → 52 Ko (300 px, ~380 dpi à l'impression)
+
+public/tampon.png est retaillé de 1254 px / 1,4 Mo à 300 px / 52 Ko (lanczos3,
+aplati sur fond blanc pur — ~4 % du poids initial). Le tampon original était
+massivement suréchantillonné : dans une boîte de 20 mm il représentait
+~1600 dpi, alors que 300 px suffisent à ~380 dpi (impression standard ≥ 300
+dpi, ~320 dpi dans la plus grande boîte de 24 mm). Effet mesuré sur un PDF
+de reçu A5 : l'image embarquée passe de ~4,6 Mo à ~92 Ko (50×).
+src/lib/pdfStamp.ts : la garde canvas passe à STAMP_MAX_EDGE = 300 et renvoie
+le data URL brut quand l'image chargée est déjà dans la limite (aucun
+second encodage, aucune perte) — le garde-fou ne sert plus que si un fichier
+plus grand remplace un jour l'asset. Chaîne complète verte (290 tests).
 ## [2026-09-03] Test : le reçu parent dessine le tampon aux bonnes coordonnées
 
 Nouvelle suite tests/pdf-receipt-stamp.test.ts (node:test + module-mocks, sans
