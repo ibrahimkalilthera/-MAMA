@@ -25,51 +25,7 @@ import {
   removeOfflineAction,
   clearOfflineQueue,
 } from '../src/lib/offlineQueue';
-import type { ReplayDb } from '../src/lib/offlineReplay';
-
-// ─── Fake Supabase client ────────────────────────────────────────────────────
-
-type OkResult = { data: Record<string, unknown>; error: null };
-type ErrResult = { data: null; error: { message: string } };
-interface FakeBuilder extends Promise<OkResult | ErrResult> {
-  insert(): FakeBuilder;
-  update(): FakeBuilder;
-  delete(): FakeBuilder;
-  eq(): FakeBuilder;
-  select(): FakeBuilder;
-  single(): FakeBuilder;
-}
-
-/**
- * Fake ReplayDb: records every queried table in call order, succeeds by
- * default, fails only for `failTables`, and (optionally) throws synchronously
- * from `from()` to exercise the drain's stop-on-throw branch.
- */
-function makeFakeDb(opts: { failTables?: string[]; throwOnFrom?: boolean } = {}) {
-  const queries: string[] = [];
-  const ok: OkResult = { data: {}, error: null };
-  const bad: ErrResult = { data: null, error: { message: 'boom' } };
-
-  const mk = (fail: boolean): FakeBuilder => {
-    const p = Promise.resolve<OkResult | ErrResult>(fail ? bad : ok);
-    return Object.assign(p, {
-      insert: () => mk(fail),
-      update: () => mk(fail),
-      delete: () => mk(fail),
-      eq: () => mk(fail),
-      select: () => mk(fail),
-      single: () => mk(fail),
-    }) as unknown as FakeBuilder;
-  };
-
-  const from = (table: string): FakeBuilder => {
-    if (opts.throwOnFrom) throw new Error('network down');
-    queries.push(table);
-    return mk(Boolean(opts.failTables?.includes(table)));
-  };
-
-  return { db: { from } as unknown as ReplayDb, queries };
-}
+import { makeFakeDb } from './fakes';
 
 // ─── Seeds (real enqueueOfflineAction calls with typed payloads) ─────────────
 

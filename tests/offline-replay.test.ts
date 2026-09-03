@@ -3,8 +3,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { replayOfflineItem } from '../src/lib/offlineReplay';
-import type { ReplayDb } from '../src/lib/offlineReplay';
 import type { OfflineActionType, OfflinePayload, QueueItem } from '../src/lib/offlineQueue';
+import { makeFakeDb } from './fakes';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -18,41 +18,7 @@ function itemOf<T extends OfflineActionType>(
   return { id: `q_${type}`, createdAt: '2026-01-01T00:00:00.000Z', attempts: 0, type, payload } as QueueItem;
 }
 
-type OkResult = { data: Record<string, unknown>; error: null };
-/** A Promise that also exposes the count-of-key builder chain used by Supabase. */
-interface FakeBuilder extends Promise<OkResult> {
-  insert(): FakeBuilder;
-  update(): FakeBuilder;
-  delete(): FakeBuilder;
-  eq(): FakeBuilder;
-  select(): FakeBuilder;
-  single(): FakeBuilder;
-}
 
-/**
- * Build a fake Supabase client that records every queried table and resolves
- * every operation with no error (`data` stays truthy so `.select().single()`
- * branches report success). Pass `errorMode` to exercise the failure path.
- */
-function makeFakeDb(errorMode = false) {
-  const tables: string[] = [];
-  const result: OkResult = errorMode
-    ? { data: null as unknown as Record<string, unknown>, error: { message: 'boom' } as never }
-    : { data: {}, error: null };
-
-  const mk = (): FakeBuilder => {
-    const p = Promise.resolve<OkResult>(result as never);
-    return Object.assign(p, {
-      insert: mk, update: mk, delete: mk, eq: mk, select: mk, single: mk,
-    }) as unknown as FakeBuilder;
-  };
-  const from = (table: string): FakeBuilder => {
-    tables.push(table);
-    return mk();
-  };
-  const db = { from } as unknown as ReplayDb;
-  return { db, tables };
-}
 
 /** The player with the full typed payloads, and the table each one should hit. */
 const CASES: { type: OfflineActionType; build: () => QueueItem; table: string }[] = [
@@ -98,15 +64,15 @@ describe('offline queue replay (replayOfflineItem)', () => {
 
   for (const { type, build, table } of CASES) {
     it(`replays '${type}' without error and queries '${table}'`, async () => {
-      const { db, tables } = makeFakeDb();
+      const { db, queries } = makeFakeDb();
       const ok = await replayOfflineItem(db, build());
       assert.equal(ok, true, `${type} should report success on a healthy db`);
-      assert.ok(tables.includes(table), `${type} should hit table '${table}' (got ${tables.join(', ')})`);
+      assert.ok(queries.includes(table), `${type} should hit table '${table}' (got ${queries.join(', ')})`);
     });
   }
 
   it('reports failure (success=false) when the db returns an error', async () => {
-    const { db } = makeFakeDb(true);
+    const { db } = makeFakeDb({ allFail: true });
     const ok = await replayOfflineItem(db, itemOf('addExpense', { category: 'stationery', description: 'd', amount: 5, date: '2026-01-01' }));
     assert.equal(ok, false, 'an errored insert must not count as synced');
   });

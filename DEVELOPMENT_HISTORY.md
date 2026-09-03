@@ -1,3 +1,19 @@
+## [2026-09-03] Fakes partagés : tests/fakes.ts (makeFakeDb unifié)
+
+Inventaire des fakes locaux répétés entre suites : la seule vraie duplication
+était le fake client Supabase ReplayDb (makeFakeDb) — une copie dans
+offline-replay.test.ts (mode errorMode, enregistrait tables) et une dans
+offline-sync.test.ts (failTables/throwOnFrom, enregistrait queries). Les deux
+sont fusionnées dans tests/fakes.ts avec une API unifiée
+({ failTables?, allFail?, throwOnFrom? } → { db, queries }) et importées par
+les deux suites (28 tests inchangés). Les autres fakes sont à usage unique et
+restent dans leur suite par conception : FakeFocusable/FakeContainer/
+withActiveElement (focus-stack), FakeJsPDF (payroll), FakeGain
+(notification-sound), fakeSupabase (team-settings) — les documenter suffit,
+les extraire ajouterait de l'indirection sans réutilisation. L'en-tête de
+tests/harness.ts pointe désormais vers tests/fakes.ts pour la frontière
+« fakes partagés vs fakes de suite ». Chaîne complète verte.
+
 # Complexe Scolaire MAMA THERA — Full Development & Architecture History
 ## [2026-09-03] En-têtes de groupe avec compteurs dans le panneau Productivité
 

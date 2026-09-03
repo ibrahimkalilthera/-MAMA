@@ -24,6 +24,11 @@
  * Installing happy-dom globals there would mask accidental global coupling
  * (a function silently reading document/localStorage instead of taking
  * parameters) and slow the suites down for nothing.
+ *
+ * Shared FAKES live in tests/fakes.ts (currently: makeFakeDb, the ReplayDb-
+ * compatible fake Supabase client used by offline-replay and offline-sync).
+ * Single-suite fakes (FakeFocusable, FakeJsPDF, FakeGain, ...) stay in their
+ * suite on purpose.
  */
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
