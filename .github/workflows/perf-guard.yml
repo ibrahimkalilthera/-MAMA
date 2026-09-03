@@ -113,6 +113,45 @@ jobs:
           LH_RUNS: '3'
         run: npm run check:perf
 
+  # Gate contraste : construit l'app (clés publiques client Supabase — anon,
+  # non secrètes), démarre vite preview et pilote un Chrome headless sur les
+  # 6 thèmes × 8 overlays (dashboard, modales Ajout Élève / Saisie de Paiement,
+  # notifications, fiche élève, relance parent, productivité, chat IA).
+  # Toute paire texte/fond mesurée < 3:1 échoue le job — la même mesure qui a
+  # chassé les textes blancs sur blancs, désormais automatisée et CI-gated.
+  # Le compte de login est fourni par les secrets AUDIT_EMAIL/AUDIT_PASSWORD
+  # (compte admin seedé — ex. l'administrateur principal de l'école).
+  theme-contrast:
+    name: Contraste thèmes (WCAG >= 3:1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Provide public env vars for the build (anon key = client key, non secret)
+        run: |
+          cat > .env <<'EOF'
+          VITE_SUPABASE_URL=https://rpcjdohfxwukbqngbprw.supabase.co
+          VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
+          VITE_APP_ENV=production
+          EOF
+
+      - name: Theme contrast audit (6 thèmes x 8 overlays, échoue < 3:1)
+        env:
+          AUDIT_EMAIL: ${{ secrets.AUDIT_EMAIL }}
+          AUDIT_PASSWORD: ${{ secrets.AUDIT_PASSWORD }}
+          AUDIT_URL: http://127.0.0.1:4173/
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/theme-contrast-audit.mjs
+
   # Warning-only: the isolated deploy CLI (tools/) keeps its dev-only pins on
   # purpose — they must stay visible without ever blocking deploys, because
   # deploy.yml is triggered by THIS workflow's success.

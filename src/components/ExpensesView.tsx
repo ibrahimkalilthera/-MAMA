@@ -140,7 +140,7 @@ export function ExpensesView() {
                         <h4 className="text-2xl font-black text-emerald-700">{formatCurrency(totalVendorPaid)}</h4>
                       </div>
                       <div className="bg-amber-50/50 p-6 rounded-[2rem] border border-amber-100 shadow-sm">
-                        <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-amber-600">{t.outstandingBalanceVendor}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-amber-700">{t.outstandingBalanceVendor}</p>
                         <h4 className="text-2xl font-black text-amber-700">{formatCurrency(totalVendorOutstanding)}</h4>
                       </div>
                       <div className={`${overdueVendorCount > 0 ? 'bg-rose-100 border-rose-200' : 'bg-slate-50 border-slate-100'} p-6 rounded-[2rem] border shadow-sm transition-all`}>

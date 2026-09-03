@@ -48,7 +48,7 @@ export function InactivityWarning(props: InactivityWarningProps) {
             </p>
             <button
               onClick={onStay}
-              className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-sm transition-all active:scale-95 shadow-lg shadow-amber-500/20"
+              className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-amber-950 rounded-2xl font-black text-sm transition-all active:scale-95 shadow-lg shadow-amber-500/20"
             >
               {t.stayLoggedIn}
             </button>

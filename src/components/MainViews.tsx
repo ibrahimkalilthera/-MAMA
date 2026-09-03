@@ -382,7 +382,7 @@ export function MainViews(props: MainViewsProps) {
                         }`}
                       >
                         <div className={`w-10 h-10 rounded-full ${tOption.color} border border-slate-200 shadow-inner flex items-center justify-center`}>
-                          {theme === tOption.id && <span className="text-white text-xs">✓</span>}
+                          {theme === tOption.id && <span className={`text-xs ${tOption.id === 'cream' ? 'text-slate-800' : 'text-white'}`}>✓</span>}
                         </div>
                         <span className={`text-xs font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} text-center`}>{tOption.label}</span>
                       </button>

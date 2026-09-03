@@ -351,7 +351,7 @@ export function AppModals(props: AppModalsProps) {
                 {/* --- Student Card Layout --- */}
                 <div className={`flex flex-col sm:flex-row items-center gap-6 p-6 rounded-[2.5rem] border ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-900/5' : 'bg-slate-50/50'}`}>
                   {/* Photo Placeholder / Image */}
-                  <div className={`w-28 h-28 flex-shrink-0 border-2 ${currentTheme.border} rounded-[2rem] overflow-hidden bg-slate-100 flex items-center justify-center relative shadow-inner`}>
+                  <div className={`w-28 h-28 flex-shrink-0 border-2 ${currentTheme.border} rounded-[2rem] overflow-hidden ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-400'} flex items-center justify-center relative shadow-inner`}>
                     {selectedStudent.photo ? (
                       <img 
                         src={selectedStudent.photo} 
@@ -361,8 +361,8 @@ export function AppModals(props: AppModalsProps) {
                       />
                     ) : (
                       <div className="text-center">
-                        <Users size={32} className="text-slate-400 mx-auto mb-1" />
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">PHOTO</span>
+                        <Users size={32} className="mx-auto mb-1" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">PHOTO</span>
                       </div>
                     )}
                   </div>
@@ -467,7 +467,7 @@ export function AppModals(props: AppModalsProps) {
                             {formatCurrency(selectedStudent.amountPaid)}
                           </p>
                         </div>
-                        <div className={`p-4 ${currentTheme.isDark ? 'bg-[#FFF1F2]' : 'bg-rose-50'} rounded-2xl text-center`}>
+                        <div className={`p-4 bg-rose-50 rounded-2xl text-center`}>
                           <span className="text-[9px] font-black uppercase tracking-widest text-rose-500">{t.balance}</span>
                           <p className="text-xs font-black text-rose-600 mt-1">
                             {formatCurrency(selectedStudent.totalDue * (1 - (selectedStudent.scholarshipDiscount || 0) / 100) - selectedStudent.amountPaid)}
@@ -599,7 +599,7 @@ export function AppModals(props: AppModalsProps) {
                     <div className="absolute top-5 right-6 text-yellow-600/30">
                       <StickyNote size={24} />
                     </div>
-                    <h4 className="text-[9px] font-black text-yellow-700 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <h4 className="text-[9px] font-black text-yellow-900 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                       <FileText size={12} />
                       {t.accountingNotes}
                     </h4>
@@ -614,7 +614,7 @@ export function AppModals(props: AppModalsProps) {
                       className="w-full bg-transparent border-none focus:ring-0 text-xs font-bold text-yellow-900 placeholder-yellow-700/40 resize-none min-h-[80px] custom-scrollbar"
                     />
                     <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
-                      <label className="flex items-center gap-1.5 text-[9px] font-black text-yellow-600/70 uppercase tracking-widest">
+                      <label className="flex items-center gap-1.5 text-[9px] font-black text-yellow-800 uppercase tracking-widest">
                         <Calendar size={11} />
                         {t.alsoShowOnCalendar}
                         <input
@@ -624,7 +624,7 @@ export function AppModals(props: AppModalsProps) {
                           className="ml-1 px-2 py-1 rounded-lg border border-yellow-300 bg-white/80 text-[10px] font-bold text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-500/30"
                         />
                       </label>
-                      <span className="text-[9px] font-black text-yellow-600/50 uppercase tracking-widest">
+                      <span className="text-[9px] font-black text-yellow-800/70 uppercase tracking-widest">
                         {selectedStudent.lastNoteDate ? `Last updated: ${formatDate(selectedStudent.lastNoteDate)}` : ''}
                       </span>
                     </div>
@@ -1416,7 +1416,7 @@ export function AppModals(props: AppModalsProps) {
 
                 {/* Add a note on this date (Notes ⇄ Calendar bridge) */}
                 <div className="pt-2 border-t border-slate-100">
-                  <div className="bg-[#FEF9C3] p-5 rounded-2xl border border-yellow-200/70">                      <h4 className="text-[9px] font-black text-yellow-700 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <div className="bg-[#FEF9C3] p-5 rounded-2xl border border-yellow-200/70">                      <h4 className="text-[9px] font-black text-yellow-900 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                       <StickyNote size={12} />
                       {t.addNoteForThisDay}
                     </h4>
@@ -1476,7 +1476,7 @@ export function AppModals(props: AppModalsProps) {
             </div>
             <div className="text-left">
               <p className="leading-tight">{welcomeMessage}</p>
-              <p className="text-[10px] text-white/60 font-medium">
+              <p className="text-[10px] text-white/90 font-medium">
                 {currentUser?.role === 'dev'
                   ? (t.systemDeveloperPortal)
                   : currentUser?.role === 'admin' 

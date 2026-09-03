@@ -537,6 +537,16 @@ textarea:focus-visible {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
+/* Amber productivity toggle inside the sidebar: the white-text protection
+   above would force the label white on the amber-500 chip (2.1:1). The
+   active chip keeps its amber fill but uses dark text (≈7:1). */
+.app-sidebar .bg-amber-500,
+.app-sidebar .bg-amber-500 span,
+.app-sidebar .bg-amber-500 button,
+.app-sidebar .bg-amber-500 svg {
+  color: #451A03 !important;
+}
+
 .theme-cream .welcome-banner .text-emerald-400,
 .theme-cream .welcome-banner .text-emerald-300 {
   color: #34D399 !important;
@@ -576,6 +586,11 @@ textarea:focus-visible {
 .theme-bordeaux .text-emerald-600 {
   color: #047857 !important;
 }
+.theme-navy .text-emerald-500,
+.theme-emerald .text-emerald-500,
+.theme-bordeaux .text-emerald-500 {
+  color: #047857 !important;
+}
 .theme-navy .text-rose-600,
 .theme-emerald .text-rose-600,
 .theme-bordeaux .text-rose-600 {
@@ -600,6 +615,21 @@ textarea:focus-visible {
 .theme-emerald .hover\:bg-emerald-700:hover,
 .theme-bordeaux .hover\:bg-emerald-700:hover {
   background-color: #065F46 !important;
+}
+
+/* Recharts legends render the series name in the series color — emerald-500
+   and red-500 read 2.5:1 on the light cards and 2.75:1 on slate's dark card.
+   The legend text is informational chrome, not the swatch: force a readable
+   neutral (dark on the light themes, light on slate) while the colored
+   swatch squares stay untouched. Midnight's own values already pass. */
+.theme-navy .recharts-legend-item-text,
+.theme-emerald .recharts-legend-item-text,
+.theme-cream .recharts-legend-item-text,
+.theme-bordeaux .recharts-legend-item-text {
+  color: #334155 !important;
+}
+.theme-slate .recharts-legend-item-text {
+  color: #E2E8F0 !important;
 }
 
 /* --- Slate Theme --- */
@@ -658,10 +688,12 @@ textarea:focus-visible {
 .theme-slate .bg-blue-50\/30 :is(h1, h2, h3, h4),
 .theme-slate .bg-emerald-50 :is(h1, h2, h3, h4),
 .theme-slate .bg-emerald-50\/50 :is(h1, h2, h3, h4),
+.theme-slate .bg-emerald-100 :is(h1, h2, h3, h4),
 .theme-slate .bg-amber-50 :is(h1, h2, h3, h4),
 .theme-slate .bg-amber-50\/50 :is(h1, h2, h3, h4),
 .theme-slate .bg-yellow-50 :is(h1, h2, h3, h4),
 .theme-slate .bg-yellow-50\/60 :is(h1, h2, h3, h4),
+.theme-slate .bg-yellow-100 :is(h1, h2, h3, h4),
 .theme-slate .bg-teal-50 :is(h1, h2, h3, h4),
 .theme-slate .bg-teal-50\/70 :is(h1, h2, h3, h4),
 .theme-slate .bg-purple-50 :is(h1, h2, h3, h4),
@@ -671,6 +703,9 @@ textarea:focus-visible {
 .theme-slate .bg-\[#1A1A1A\] :is(h1, h2, h3, h4),
 .theme-slate .bg-\[#2A2A2A\] :is(h1, h2, h3, h4),
 .theme-slate .bg-\[#2a2a2a\] :is(h1, h2, h3, h4),
+.theme-slate .bg-emerald-500 :is(h1, h2, h3, h4),
+.theme-slate .bg-emerald-600 :is(h1, h2, h3, h4),
+.theme-slate .bg-blue-600 :is(h1, h2, h3, h4),
 .theme-slate .bg-emerald-900\/10 :is(h1, h2, h3, h4),
 .theme-slate .bg-emerald-900\/20 :is(h1, h2, h3, h4),
 .theme-slate .card-elevated :is(h1, h2, h3, h4),
@@ -733,7 +768,8 @@ textarea:focus-visible {
 .theme-slate .bg-blue-50\/30 {
   background-color: rgba(30, 58, 138, 0.35) !important;
 }
-.theme-slate .bg-emerald-50 {
+.theme-slate .bg-emerald-50,
+.theme-slate .bg-emerald-100 {
   background-color: #064E3B !important;
 }
 .theme-slate .bg-emerald-50\/50 {
@@ -745,7 +781,8 @@ textarea:focus-visible {
 .theme-slate .bg-amber-50\/50 {
   background-color: rgba(120, 53, 15, 0.5) !important;
 }
-.theme-slate .bg-yellow-50 {
+.theme-slate .bg-yellow-50,
+.theme-slate .bg-yellow-100 {
   background-color: #713F12 !important;
 }
 .theme-slate .bg-yellow-50\/60 {
@@ -853,10 +890,11 @@ textarea:focus-visible {
 .theme-slate .bg-emerald-600,
 .theme-slate .bg-blue-600,
 .theme-slate .bg-indigo-600 {
-  background-color: #38BDF8 !important;
+  background-color: #0369A1 !important;
 }
 .theme-slate .text-emerald-500,
 .theme-slate .text-emerald-600,
+.theme-slate .text-blue-500,
 .theme-slate .text-blue-600,
 .theme-slate .text-indigo-600 {
   color: #38BDF8 !important;
@@ -869,7 +907,7 @@ textarea:focus-visible {
 }
 .theme-slate .hover\:bg-emerald-700:hover,
 .theme-slate .hover\:bg-blue-700:hover {
-  background-color: #0EA5E9 !important;
+  background-color: #075985 !important;
 }
 
 /* Slate card system */

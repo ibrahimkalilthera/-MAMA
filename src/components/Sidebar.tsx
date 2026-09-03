@@ -154,7 +154,7 @@ export function Sidebar(props: SidebarProps) {
 
         <button
           onClick={() => setShowTodoSidebar(!showTodoSidebar)}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${showTodoSidebar ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${showTodoSidebar ? 'bg-amber-500 text-amber-950 shadow-lg shadow-amber-500/20' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
         >
           <CheckSquare size={20} />
           <span className="font-semibold text-sm" data-i18n="productivity">{t.productivity}</span>

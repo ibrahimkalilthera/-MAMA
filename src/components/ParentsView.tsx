@@ -205,7 +205,7 @@ export function ParentsView() {
                                     e.stopPropagation();
                                     openNotifyModal(parent);
                                   }}
-                                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all active:scale-95"
+                                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-bold text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all active:scale-95"
                                 >
                                   <Bell size={14} />
                                   <span>{t.notify}</span>

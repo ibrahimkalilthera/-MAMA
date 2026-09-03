@@ -82,16 +82,16 @@ export function PayrollView() {
                   let statusText = "";
                   
                   if (isFuture) {
-                    boxClass = `${currentTheme.isDark ? 'bg-emerald-950/10 border-emerald-950/20 text-emerald-900/50' : 'bg-slate-50 border-slate-100 text-slate-300'}`;
+                    boxClass = `${currentTheme.isDark ? 'bg-emerald-950/10 border-emerald-950/20 text-emerald-500/80' : 'bg-slate-50 border-slate-100 text-slate-500'}`;
                     statusText = t.scheduled;
                   } else if (totalPaid === 0) {
                     boxClass = "bg-rose-500 text-white border-rose-600 animate-pulse shadow-lg shadow-rose-500/20";
                     statusText = t.unpaid;
                   } else if (totalPaid >= totalExpected) {
-                    boxClass = "bg-emerald-500 text-white border-emerald-600 shadow-lg shadow-emerald-500/20";
+                    boxClass = "bg-emerald-600 text-white border-emerald-700 shadow-lg shadow-emerald-600/20";
                     statusText = t.settle;
                   } else {
-                    boxClass = "bg-amber-500 text-white border-amber-600 shadow-lg shadow-amber-500/20";
+                    boxClass = "bg-amber-500 text-amber-950 border-amber-600 shadow-lg shadow-amber-500/20";
                     statusText = t.partial2;
                   }
 
@@ -171,17 +171,17 @@ export function PayrollView() {
                 
                 if (paidThisMonth === 0) {
                   if (payDatePassed) {
-                    statusColor = "bg-rose-500 text-white shadow-lg shadow-rose-500/40 border-rose-600";
+                    statusColor = "bg-rose-700 text-white shadow-lg shadow-rose-700/40 border-rose-800";
                     statusLabel = t.unpaid;
                   } else {
                     statusColor = `${currentTheme.card} border ${currentTheme.border}`;
                     statusLabel = t.unpaid;
                   }
                 } else if (balance > 0) {
-                  statusColor = "bg-amber-400 text-white shadow-lg shadow-amber-400/40 border-amber-500";
+                  statusColor = "bg-amber-700 text-white shadow-lg shadow-amber-700/40 border-amber-800";
                   statusLabel = t.partialPaid;
                 } else {
-                  statusColor = "bg-emerald-500 text-white shadow-lg shadow-emerald-500/40 border-emerald-600";
+                  statusColor = "bg-emerald-700 text-white shadow-lg shadow-emerald-700/40 border-emerald-800";
                   statusLabel = t.fullyPaid;
                 }
 
@@ -231,17 +231,17 @@ export function PayrollView() {
                       {/* Contact Details */}
                       <div className={`pt-4 border-t ${paidThisMonth > 0 || payDatePassed ? 'border-white/10' : currentTheme.border} space-y-3`}>
                         <div className="flex items-center gap-3 text-xs">
-                          <Phone size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/50' : currentTheme.muted} />
+                          <Phone size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted} />
                           <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600'}>
                             <HighlightText text={s.phone} highlight={staffSearchTerm} />
                           </span>
                         </div>
                         <div className="flex items-center gap-3 text-xs">
-                          <Mail size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/50' : currentTheme.muted} />
+                          <Mail size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted} />
                           <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600'}>{s.email}</span>
                         </div>
                         <div className="flex items-center gap-3 text-xs">
-                          <AlertCircle size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/50' : currentTheme.muted} />
+                          <AlertCircle size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted} />
                           <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600'}>
                             <span className="font-bold mr-1">{t.emergencyContact}:</span> {s.emergencyContact}
                           </span>
@@ -251,10 +251,10 @@ export function PayrollView() {
                       {/* Bank Details with Privacy Toggle */}
                       <div className={`p-4 rounded-2xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/10' : (currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50')} border ${paidThisMonth > 0 || payDatePassed ? 'border-white/10' : currentTheme.border}`}>
                         <div className="flex justify-between items-center mb-2">
-                          <span className={`text-[10px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/50' : currentTheme.muted}`}>{t.bankDetails}</span>
+                          <span className={`text-[10px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted}`}>{t.bankDetails}</span>
                           <button 
                             onClick={() => setVisibleBankDetails(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
-                            className={`p-1 rounded-lg ${paidThisMonth > 0 || payDatePassed ? 'hover:bg-white/10 text-white/50' : 'hover:bg-slate-200 text-slate-400'} transition-all`}
+                            className={`p-1 rounded-lg ${paidThisMonth > 0 || payDatePassed ? 'hover:bg-white/10 text-white/80' : 'hover:bg-slate-200 text-slate-400'} transition-all`}
                             title={isBankVisible ? t.hideBankDetails : t.showBankDetails}
                           >
                             <Globe size={14} />
@@ -282,7 +282,7 @@ export function PayrollView() {
                       {/* Ledger View (Mini) */}
                       {paymentsThisMonth.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
-                          <p className={`text-[10px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/50' : currentTheme.muted}`}>{t.paymentHistory}</p>
+                          <p className={`text-[10px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted}`}>{t.paymentHistory}</p>
                           {paymentsThisMonth.map(p => (
                             <div key={p.id} className="flex justify-between text-[10px] font-bold">
                               <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/60' : currentTheme.muted}>{p.date}</span>
