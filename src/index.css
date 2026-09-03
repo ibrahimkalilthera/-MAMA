@@ -466,6 +466,10 @@ textarea:focus-visible {
 .theme-cream .bg-emerald-600 {
   background-color: #1E5E3A !important;
 }
+.theme-cream .text-rose-500,
+.theme-cream .text-rose-600 {
+  color: #BE123C !important;
+}
 
 /* Explicit protection for white text, badges, and welcome banner in cream theme */
 .theme-cream .text-white,
@@ -477,6 +481,17 @@ textarea:focus-visible {
 .theme-cream .welcome-banner p,
 .theme-cream .welcome-banner span,
 .theme-cream .welcome-banner div {
+  color: #FFFFFF !important;
+}
+
+/* Modal/panel headers opt into a light-on-accent surface with a container
+   `text-white` utility. The blanket heading rules above would otherwise force
+   those titles back to dark text — keep every heading under such a container
+   white (the container itself is the intent signal). */
+.theme-cream .text-white h1,
+.theme-cream .text-white h2,
+.theme-cream .text-white h3,
+.theme-cream .text-white h4 {
   color: #FFFFFF !important;
 }
 
@@ -540,6 +555,51 @@ textarea:focus-visible {
 
 .theme-cream .welcome-banner .text-blue-400 {
   color: #60A5FA !important;
+}
+
+/* Light themes without their own remap layer (navy / emerald / bordeaux):
+   unlike cream and slate they ship no block below, so hardcoded utility
+   text colors stay at the base Tailwind values. On the white cards those
+   values measure 2.5–4.0:1 — below the 4.5:1 AA threshold for the modal
+   micro-labels, positive/negative values and link texts. Remap the exact
+   families that fail (muted slate-400, emerald-600/rose-600 accents,
+   blue-500 links and the white-on-emerald-600 CTAs) one step darker. Dark
+   themes never match these selectors (their shell class differs), so their
+   own mappings keep working. */
+.theme-navy .text-slate-400,
+.theme-emerald .text-slate-400,
+.theme-bordeaux .text-slate-400 {
+  color: #475569 !important;
+}
+.theme-navy .text-emerald-600,
+.theme-emerald .text-emerald-600,
+.theme-bordeaux .text-emerald-600 {
+  color: #047857 !important;
+}
+.theme-navy .text-rose-600,
+.theme-emerald .text-rose-600,
+.theme-bordeaux .text-rose-600 {
+  color: #BE123C !important;
+}
+.theme-navy .text-rose-500,
+.theme-emerald .text-rose-500,
+.theme-bordeaux .text-rose-500 {
+  color: #BE123C !important;
+}
+.theme-navy .text-blue-500,
+.theme-emerald .text-blue-500,
+.theme-bordeaux .text-blue-500 {
+  color: #1D4ED8 !important;
+}
+.theme-navy .bg-emerald-600,
+.theme-emerald .bg-emerald-600,
+.theme-bordeaux .bg-emerald-600 {
+  background-color: #047857 !important;
+}
+.theme-navy .hover\:bg-emerald-700:hover,
+.theme-emerald .hover\:bg-emerald-700:hover,
+.theme-bordeaux .hover\:bg-emerald-700:hover {
+  background-color: #065F46 !important;
 }
 
 /* --- Slate Theme --- */
