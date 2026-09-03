@@ -1,4 +1,17 @@
 # Complexe Scolaire MAMA THERA — Full Development & Architecture History
+## [2026-09-03] En-têtes de groupe avec compteurs dans le panneau Productivité
+
+La liste des tâches du panneau Productivité est désormais découpée en sections
+avec en-têtes + compteurs, rendant le tri par date visible : Aujourd'hui
+(ambre), À venir (émeraude), En retard (rose), Sans date (gris) — dans cet
+ordre, cohérent avec le tri existant. Les groupes vides sont masqués ; un filet
+sépare les sections suivantes. Nouveau helper pur groupTodosByDate + type
+TodoGroupKey dans src/lib/todoSort.ts (mêmes buckets/ordres que
+sortTodosByDate, stable, n'est pas destructif) ; clés l10n upcoming (À venir /
+Upcoming) et noDate (Sans date / No date) ajoutées en+fr. 3 nouveaux tests
+purs (classification des bornes, buckets + compteurs, groupes vides, non
+mutant). Chaîne complète verte.
+
 
 ## [2026-09-03] Audit DOM-trap : les 8 suites pures ne lisent aucun global DOM
 

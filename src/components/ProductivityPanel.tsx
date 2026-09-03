@@ -17,7 +17,7 @@ import { useEscapeToClose } from '../lib/useEscapeToClose';
 import type { TranslationDict } from '../i18n/translations';
 import type { ChatMessage } from '../app/useFloatingChat';
 import type { Todo } from '../lib/useSupabaseData';
-import { sortTodosByDate } from '../lib/todoSort';
+import { groupTodosByDate, type TodoGroupKey } from '../lib/todoSort';
 
 // ─── Panel sizing (resizable on desktop) ────────────────────────────────────
 const PANEL_WIDTH_KEY = 'mama-thera:productivity-panel-width';
@@ -160,10 +160,26 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
     const day = String(d.getDate()).padStart(2, '0');
     return `${d.getFullYear()}-${month}-${day}`;
   }, []);
-  const sortedTodos = useMemo(
-    () => sortTodosByDate(todos, todayStr),
-    [todos, todayStr]
-  );
+  const groups = useMemo(() => groupTodosByDate(todos, todayStr), [todos, todayStr]);
+
+  // Flatten the four date buckets into renderable sections, each introduced
+  // by a group header with its counter; empty buckets are hidden entirely.
+  const sections = useMemo(() => {
+    const defs: { key: TodoGroupKey; label: string }[] = [
+      { key: 'today', label: t.today },
+      { key: 'upcoming', label: t.upcoming },
+      { key: 'overdue', label: t.overdue },
+      { key: 'undated', label: t.noDate },
+    ];
+    return defs.flatMap(({ key, label }) => {
+      const items = groups[key];
+      if (items.length === 0) return [];
+      return [
+        { kind: 'header' as const, key, label, count: items.length },
+        ...items.map(todo => ({ kind: 'task' as const, todo })),
+      ];
+    });
+  }, [groups, t]);
 
   const handleResizeKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>): void => {
     // Left widens (the left edge moves left), right narrows — mirroring the
@@ -334,54 +350,75 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
             </form>
 
             <div className="space-y-3">
-              {sortedTodos.map(todo => (
-                <motion.div
-                  layout
-                  key={todo.id}
-                  className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${todo.completed ? (themeIsDark ? 'bg-emerald-900/10 border-emerald-900/20 opacity-60' : 'bg-slate-50 border-slate-100 opacity-60') : (themeIsDark ? 'bg-emerald-900/20 border-emerald-800/50 shadow-sm' : 'bg-white border-slate-100 shadow-sm')}`}
-                >
-                  <div className="flex items-center gap-3 flex-1">
-                    <button
-                      onClick={() => toggleTodo(todo.id)}
-                      className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${todo.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 hover:border-blue-400'}`}
-                    >
-                      {todo.completed && <CheckCircle2 size={14} />}
-                    </button>
-                    <span className={`text-sm font-bold ${todo.completed ? (themeIsDark ? 'text-emerald-500/50 line-through' : 'text-slate-400 line-through') : (themeIsDark ? 'text-emerald-500' : 'text-slate-700')}`}>
-                      {todo.text}
-                    </span>
-                    {editingDateId === todo.id ? (
-                      <input
-                        type="date"
-                        defaultValue={todo.date}
-                        autoFocus
-                        aria-label={t.taskDate}
-                        onChange={(e) => {
-                          setEditingDateId(null);
-                          void handleUpdateTodoDate(todo.id, e.target.value);
-                        }}
-                        onBlur={() => setEditingDateId(null)}
-                        className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${themeIsDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40 [color-scheme:dark]' : 'bg-white text-slate-700 border-blue-200'}`}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setEditingDateId(todo.id)}
-                        title={t.taskDate}
-                        className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all hover:ring-2 hover:ring-blue-400/50 ${themeIsDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
-                      >
-                        {todo.date ? todo.date.split('-').reverse().join('/') : t.addDate}
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => deleteTodo(todo.id)}
-                    className={`p-2 ${themeMuted} hover:text-rose-500 transition-all`}
+              {sections.map((section, idx) =>
+                section.kind === 'header' ? (
+                  <div
+                    key={`header-${section.key}`}
+                    className={`flex items-center gap-2 ${idx > 0 ? 'pt-5 mt-1 border-t border-slate-100 dark:border-slate-800' : ''}`}
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </motion.div>
-              ))}
+                    <span
+                      className={`text-[10px] font-black uppercase tracking-widest ${
+                        section.key === 'overdue' ? 'text-rose-500' :
+                        section.key === 'today' ? 'text-amber-500' :
+                        section.key === 'upcoming' ? 'text-emerald-500' :
+                        'text-slate-400'
+                      }`}
+                    >
+                      {section.label}
+                    </span>
+                    <span className={`min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${themeIsDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-500'}`}>
+                      {section.count}
+                    </span>
+                  </div>
+                ) : (
+                  <motion.div
+                    layout
+                    key={section.todo.id}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${section.todo.completed ? (themeIsDark ? 'bg-emerald-900/10 border-emerald-900/20 opacity-60' : 'bg-slate-50 border-slate-100 opacity-60') : (themeIsDark ? 'bg-emerald-900/20 border-emerald-800/50 shadow-sm' : 'bg-white border-slate-100 shadow-sm')}`}
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <button
+                        onClick={() => toggleTodo(section.todo.id)}
+                        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${section.todo.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 hover:border-blue-400'}`}
+                      >
+                        {section.todo.completed && <CheckCircle2 size={14} />}
+                      </button>
+                      <span className={`text-sm font-bold ${section.todo.completed ? (themeIsDark ? 'text-emerald-500/50 line-through' : 'text-slate-400 line-through') : (themeIsDark ? 'text-emerald-500' : 'text-slate-700')}`}>
+                        {section.todo.text}
+                      </span>
+                      {editingDateId === section.todo.id ? (
+                        <input
+                          type="date"
+                          defaultValue={section.todo.date}
+                          autoFocus
+                          aria-label={t.taskDate}
+                          onChange={(e) => {
+                            setEditingDateId(null);
+                            void handleUpdateTodoDate(section.todo.id, e.target.value);
+                          }}
+                          onBlur={() => setEditingDateId(null)}
+                          className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${themeIsDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40 [color-scheme:dark]' : 'bg-white text-slate-700 border-blue-200'}`}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingDateId(section.todo.id)}
+                          title={t.taskDate}
+                          className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all hover:ring-2 hover:ring-blue-400/50 ${themeIsDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                        >
+                          {section.todo.date ? section.todo.date.split('-').reverse().join('/') : t.addDate}
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => deleteTodo(section.todo.id)}
+                      className={`p-2 ${themeMuted} hover:text-rose-500 transition-all`}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </motion.div>
+                )
+              )}
             </div>
           </div>
         )}

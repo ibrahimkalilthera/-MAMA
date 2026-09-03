@@ -7,7 +7,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { sortTodosByDate } from '../src/lib/todoSort';
+import { groupTodosByDate, sortTodosByDate, todoGroupKey } from '../src/lib/todoSort';
 import type { Todo } from '../src/lib/useSupabaseData';
 
 const todo = (id: string, date?: string): Todo => ({ id, text: `task-${id}`, completed: false, date });
@@ -55,5 +55,56 @@ describe('sortTodosByDate', () => {
     const input = [todo('first', '2026-09-05'), todo('second', '2026-09-05'), todo('third', TODAY)];
     const sorted = sortTodosByDate(input, TODAY);
     assert.deepEqual(sorted.map((t) => t.id), ['third', 'first', 'second']);
+  });
+});
+
+describe('todoGroupKey', () => {
+  const TODAY = '2026-09-02';
+
+  it('classifies each bucket boundary', () => {
+    assert.equal(todoGroupKey(undefined, TODAY), 'undated');
+    assert.equal(todoGroupKey('', TODAY), 'undated');
+    assert.equal(todoGroupKey(TODAY, TODAY), 'today');
+    assert.equal(todoGroupKey('2026-09-03', TODAY), 'upcoming');
+    assert.equal(todoGroupKey('2026-09-01', TODAY), 'overdue');
+  });
+});
+
+describe('groupTodosByDate', () => {
+  const TODAY = '2026-09-02';
+
+  it('buckets tasks with counters, each bucket ascending by date', () => {
+    const groups = groupTodosByDate([
+      todo('late-old', '2026-08-20'),
+      todo('undated-2'),
+      todo('tomorrow', '2026-09-03'),
+      todo('today', TODAY),
+      todo('late-recent', '2026-09-01'),
+      todo('undated-1'),
+      todo('later', '2026-09-30'),
+    ], TODAY);
+    assert.deepEqual(groups.today.map((t) => t.id), ['today']);
+    assert.deepEqual(groups.upcoming.map((t) => t.id), ['tomorrow', 'later']);
+    assert.deepEqual(groups.overdue.map((t) => t.id), ['late-old', 'late-recent']);
+    assert.deepEqual(groups.undated.map((t) => t.id), ['undated-2', 'undated-1'], 'stable for undated');
+    assert.deepEqual(
+      [groups.today.length, groups.upcoming.length, groups.overdue.length, groups.undated.length],
+      [1, 2, 2, 2],
+      'counters reflect each bucket',
+    );
+  });
+
+  it('empty groups are empty arrays (panel hides them)', () => {
+    const groups = groupTodosByDate([todo('today', TODAY)], TODAY);
+    assert.deepEqual(groups.upcoming, []);
+    assert.deepEqual(groups.overdue, []);
+    assert.deepEqual(groups.undated, []);
+  });
+
+  it('does not mutate the input array', () => {
+    const input = [todo('a', '2026-09-10'), todo('b', TODAY)];
+    const snapshot = [...input];
+    groupTodosByDate(input, TODAY);
+    assert.deepEqual(input, snapshot, 'input untouched');
   });
 });
