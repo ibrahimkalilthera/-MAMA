@@ -1,3 +1,18 @@
+## [2026-09-03] Pipeline d'optimisation du tampon 100 % Node (aucune dépendance externe)
+
+Nouveau script scripts/optimize-stamp.mjs : régénère public/tampon.png depuis
+une capture source (ex. le PNG 1254 px d'origine) SANS bibliothèque image
+externe — il embarque un mini codec PNG complet (parse des chunks,
+dé-filtrage des scanlines, inflate zlib, encodeur avec sélection de filtre
+par ligne + deflate 9 + CRC32). Pipeline : décodage (8-bit RGB/RGBA/gris/
+gris+alpha et palette PLTE/tRNS) → redimensionnement area-average avec
+compositing alpha sur blanc → encodage auto : PNG indexé ≤ 256 couleurs
+(median-cut) si plus léger, sinon truecolor. Résultat : 300 px, 38 Ko
+(contre 52 Ko via sharp, 1,4 Mo à l'origine), PDF embarqué ~94 Ko.
+public/tampon.png est régénéré par ce script (source de vérité reproductible)
+et npm run optimize:stamp documente l'usage. Nouvelle suite pure
+tests/stamp-codec.test.ts (7 tests : round-trip lossless, palette, rejets,
+compositing, choix indexé/truecolor). Chaîne complète verte (297 tests).
 ## [2026-09-03] Tampon optimisé : 1,4 Mo → 52 Ko (300 px, ~380 dpi à l'impression)
 
 public/tampon.png est retaillé de 1254 px / 1,4 Mo à 300 px / 52 Ko (lanczos3,

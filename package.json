@@ -10,6 +10,7 @@
     "build:staging": "vite build --mode staging",
     "build:production": "vite build --mode production",
     "preview": "vite preview",
+    "optimize:stamp": "node scripts/optimize-stamp.mjs",
     "check:perf": "node scripts/check-performance.mjs",
     "deploy:prod": "node scripts/deploy-notice.mjs",
     "seed": "node --env-file=.env supabase/seed.mjs",

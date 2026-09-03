@@ -3,11 +3,14 @@
  * (receipts, payslips, bordereaux, reports) in their "cachet" zone.
  *
  * The stamp PNG lives in `public/tampon.png` and is loaded at runtime via
- * fetch. The COMMITTED asset is already optimised: 300 px, flattened on pure
- * white (~52 KB). The original stamp was a 1254 px distressed-texture PNG of
- * ~1.4 MB — embedding it at full size ballooned every generated PDF to
- * ≈5 MB; the optimised 300 px file keeps ~380 dpi in the 20 mm stamp box
- * (≈320 dpi in the widest 24 mm box) while the PDF payload drops to ~90 KB.
+ * fetch. The COMMITTED asset is already optimised: 300 px, palette-indexed,
+ * flattened on pure white (~38 KB). The original stamp was a 1254 px
+ * distressed-texture PNG of ~1.4 MB — embedding it at full size ballooned
+ * every generated PDF to ≈5 MB; the optimised 300 px file keeps ~380 dpi in
+ * the 20 mm stamp box (≈320 dpi in the widest 24 mm box) while the PDF
+ * payload drops to ~90 KB. Regenerate it from any larger capture with
+ * `node scripts/optimize-stamp.mjs` — a pure-Node PNG pipeline, no external
+ * image dependency.
  *
  * A canvas guard (STAMP_MAX_EDGE) remains for robustness: if the file in
  * `public/` is ever replaced by a larger one, it is decoded and downscaled
