@@ -1,5 +1,23 @@
 # Complexe Scolaire MAMA THERA — Full Development & Architecture History
 
+## [2026-09-03] Audit DOM-trap : les 8 suites pures ne lisent aucun global DOM
+
+Vérification demandée exécutée : les 8 suites pures (escape-stack, focus-stack,
+offline-replay, offline-sync, offline-notes, utils, excelImporter,
+mainviews-props — 89 tests) ont été relancées avec un piège DOM préchargé
+(.git/dom-trap.mjs) qui redéfinit document/window/localStorage/… en getters
+ENREGISTREURS renvoyant undefined (sémantique exacte de Node sans globals).
+
+Résultat : 0 lecture réelle de global DOM. Les seuls accès enregistrés (66)
+sont des sondes SSR délibérées 'typeof x !== undefined' documentées :
+useEscapeToClose.ts:31 (window), focusStack.ts:67/167 (window/document),
+offlineQueue.ts:69/74/81 (localStorage → fallback mémoire). Note : une variante
+à getters JETANTS donne des faux positifs sur ces 3 modules — typeof appelle le
+getter et lève, alors que le code gère proprement l'absence du global ; la
+variante enregistreuse est donc l'outil correct. xlsx (excelImporter) ne touche
+aucun global DOM au chargement. Vérification reproductible : node
+.git/verify-dom-trap.mjs.
+
 This document serves as a complete history, architectural record, and technical changelog for the **Complexe Scolaire MAMA THERA Finance Suite** (Bamako, Mali). It documents every phase, feature addition, security enhancement, and design decision made during development.
 ## [2026-09-03] Notifications triées par date décroissante dans la cloche
 
