@@ -1766,7 +1766,7 @@ export function AppModals(props: AppModalsProps) {
               <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
                 <button 
                   onClick={() => setShowAuditModal(false)}
-                  className={`px-6 py-3 rounded-2xl border ${currentTheme.border} ${currentTheme.text} hover:bg-slate-50 text-sm font-bold transition-all`}
+                  className={`h-11 px-4 rounded-2xl border ${currentTheme.border} ${currentTheme.text} hover:bg-slate-50 text-xs font-black transition-all whitespace-nowrap`}
                 >
                   {t.closePreview}
                 </button>
@@ -1774,9 +1774,9 @@ export function AppModals(props: AppModalsProps) {
                   onClick={() => {
                     setTimeout(() => window.print(), 100);
                   }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-8 py-3 rounded-2xl text-sm transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold h-11 px-4 rounded-2xl text-xs transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 whitespace-nowrap"
                 >
-                  <Printer size={18} />
+                  <Printer size={16} className="flex-shrink-0" />
                   {t.printAudit}
                 </button>
               </div>
@@ -2561,13 +2561,13 @@ export function AppModals(props: AppModalsProps) {
                 <button
                   type="button"
                   onClick={() => setShowParentModal(false)}
-                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400"
+                  className="h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap"
                 >
                   {t.close}
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-lg shadow-emerald-600/20"
+                  className="h-11 px-4 rounded-2xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 whitespace-nowrap"
                 >
                   {t.saveChanges}
                 </button>
@@ -2624,14 +2624,14 @@ export function AppModals(props: AppModalsProps) {
                 <button
                   type="button"
                   onClick={() => setShowLinkStudentModal(false)}
-                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400"
+                  className="h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap"
                 >
                   {t.close}
                 </button>
                 <button
                   type="submit"
                   disabled={!studentToLinkId}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-600/20"
+                  className="h-11 px-4 rounded-2xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-600/20 whitespace-nowrap"
                 >
                   {t.linkStudent}
                 </button>
@@ -2771,10 +2771,9 @@ export function AppModals(props: AppModalsProps) {
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={handleCopyNotifyMessage}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-2 transition-all"
-              >
-                <Copy size={16} />
+                onClick={handleCopyNotifyMessage}                  className="w-full sm:w-auto h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-2 transition-all whitespace-nowrap"
+                >
+                  <Copy size={16} className="flex-shrink-0" />
                 <span>{t.copyMessage}</span>
               </button>
 
@@ -2782,18 +2781,18 @@ export function AppModals(props: AppModalsProps) {
                 <button
                   type="button"
                   onClick={handleSendSMS}
-                  className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all"
+                  className="flex-1 sm:flex-initial h-11 px-4 rounded-2xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all whitespace-nowrap"
                 >
-                  <MessageSquare size={16} />
+                  <MessageSquare size={16} className="flex-shrink-0" />
                   <span>{t.sendSMS}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleSendWhatsApp}
-                  className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all"
+                  className="flex-1 sm:flex-initial h-11 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all whitespace-nowrap"
                 >
-                  <MessageSquare size={16} className="text-emerald-200" />
+                  <MessageSquare size={16} className="text-emerald-200 flex-shrink-0" />
                   <span>{t.openWhatsApp}</span>
                 </button>
               </div>

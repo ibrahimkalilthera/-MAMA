@@ -132,14 +132,14 @@ export function ConfirmDialog({
             <div className="flex justify-end gap-3">
               <button
                 onClick={handleCancel}
-                className={`px-4 py-2.5 rounded-xl border ${currentTheme.border} text-xs font-bold ${currentTheme.muted} hover:bg-slate-100 dark:hover:bg-white/10 transition-all`}
+                className={`h-11 px-4 rounded-2xl border ${currentTheme.border} text-xs font-bold ${currentTheme.muted} hover:bg-slate-100 dark:hover:bg-white/10 transition-all whitespace-nowrap`}
               >
                 {cancelLabel}
               </button>
               <button
                 onClick={handleConfirmClick}
                 disabled={!canConfirm}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black text-white transition-all shadow-lg flex items-center gap-1.5 ${
+                className={`h-11 px-4 rounded-2xl text-xs font-black text-white transition-all shadow-lg flex items-center gap-1.5 whitespace-nowrap ${
                   isArmed
                     ? 'bg-rose-700 hover:bg-rose-800 shadow-rose-700/30'
                     : 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'

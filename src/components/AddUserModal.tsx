@@ -277,14 +277,14 @@ export const AddUserModal = ({
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold ${themeMuted} hover:text-white transition-all`}
+              className={`h-11 px-4 rounded-2xl text-xs font-bold ${themeMuted} hover:text-white transition-all whitespace-nowrap`}
             >
               {t.cancel}
             </button>
             <button
               type="submit"
               disabled={isCreatingUser}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95"
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white h-11 px-4 rounded-2xl text-xs font-black transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95 whitespace-nowrap"
             >
               {isCreatingUser ? (
                 <>
@@ -293,7 +293,7 @@ export const AddUserModal = ({
                 </>
               ) : (
                 <>
-                  <UserPlus size={16} />
+                  <UserPlus size={16} className="flex-shrink-0" />
                   <span>{t.createAccount}</span>
                 </>
               )}
