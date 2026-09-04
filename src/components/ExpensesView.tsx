@@ -143,9 +143,9 @@ export function ExpensesView() {
                         <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-amber-700 dark:text-amber-300">{t.outstandingBalanceVendor}</p>
                         <h4 className="text-2xl font-black text-amber-700 dark:text-amber-200">{formatCurrency(totalVendorOutstanding)}</h4>
                       </div>
-                      <div className={`${overdueVendorCount > 0 ? 'bg-rose-100 border-rose-200' : 'bg-slate-50 border-slate-100'} p-6 rounded-[2rem] border shadow-sm transition-all`}>
-                        <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${overdueVendorCount > 0 ? 'text-rose-600' : 'text-slate-500'}`}>{t.overdueUnpaid}</p>
-                        <h4 className={`text-2xl font-black ${overdueVendorCount > 0 ? 'text-rose-700' : (currentTheme.isDark ? 'text-white' : 'text-slate-700')}`}>{overdueVendorCount} {t.billsCountLabel}</h4>
+                      <div className={`${overdueVendorCount > 0 ? 'bg-rose-100 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20' : 'bg-slate-50 dark:bg-slate-800/80 border-slate-100 dark:border-slate-700'} p-6 rounded-[2rem] border shadow-sm transition-all`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${overdueVendorCount > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'}`}>{t.overdueUnpaid}</p>
+                        <h4 className={`text-2xl font-black ${overdueVendorCount > 0 ? 'text-rose-700 dark:text-rose-300' : (currentTheme.isDark ? 'text-white' : 'text-slate-700')}`}>{overdueVendorCount} {t.billsCountLabel}</h4>
                       </div>
                     </div>
 
