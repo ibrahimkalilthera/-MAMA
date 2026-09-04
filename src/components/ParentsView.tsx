@@ -582,7 +582,7 @@ export function ParentsView() {
                                         <th className="py-2.5 px-3">{t.studentName}</th>
                                         <th className="py-2.5 px-3">{t.date}</th>
                                         <th className="py-2.5 px-3">{t.amount}</th>
-                                        <th className="py-2.5 px-3">{t.academicYear || 'Year'}</th>
+                                        <th className="py-2.5 px-3">{t.academicYear}</th>
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">

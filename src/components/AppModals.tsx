@@ -625,7 +625,7 @@ export function AppModals(props: AppModalsProps) {
                         />
                       </label>
                       <span className="text-[9px] font-black text-yellow-800/70 uppercase tracking-widest">
-                        {selectedStudent.lastNoteDate ? `Last updated: ${formatDate(selectedStudent.lastNoteDate)}` : ''}
+                        {selectedStudent.lastNoteDate ? `${t.lastUpdated}: ${formatDate(selectedStudent.lastNoteDate)}` : ''}
                       </span>
                     </div>
                   </div>
@@ -1833,23 +1833,23 @@ export function AppModals(props: AppModalsProps) {
 
                     <div className="space-y-2 py-2">
                       <div className="flex justify-between">
-                        <span className="font-bold">STUDENT:</span>
+                        <span className="font-bold">{t.student}:</span>
                         <span>{ticketStudent.name}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-bold">GRADE:</span>
+                        <span className="font-bold">{t.grade}:</span>
                         <span>Classe : {getGradeDisplay(ticketStudent.grade, 'fr')} / Grade: {getGradeDisplay(ticketStudent.grade, 'en')}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-bold">PARENT:</span>
+                        <span className="font-bold">{t.parentLabel}:</span>
                         <span>{ticketStudent.parentName}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-bold">DUE DATE:</span>
+                        <span className="font-bold">{t.dueDate}:</span>
                         <span>{formatDate(ticketStudent.dueDate)}</span>
                       </div>
                       <div className="flex justify-between border-t border-dashed border-slate-300 pt-2 text-rose-600 font-bold">
-                        <span>TOTAL OWED:</span>
+                        <span>{t.totalOwed}:</span>
                         <span>{formatCurrency(balance)}</span>
                       </div>
                     </div>
@@ -1901,23 +1901,23 @@ export function AppModals(props: AppModalsProps) {
 
             <div className="space-y-3 py-2 text-base">
               <div className="flex justify-between">
-                <span className="font-bold">STUDENT:</span>
+                <span className="font-bold">{t.student}:</span>
                 <span>{ticketStudent.name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-bold">GRADE:</span>
+                <span className="font-bold">{t.grade}:</span>
                 <span>Classe : {getGradeDisplay(ticketStudent.grade, 'fr')} / Grade: {getGradeDisplay(ticketStudent.grade, 'en')}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-bold">PARENT:</span>
+                <span className="font-bold">{t.parentLabel}:</span>
                 <span>{ticketStudent.parentName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-bold">DUE DATE:</span>
+                <span className="font-bold">{t.dueDate}:</span>
                 <span>{formatDate(ticketStudent.dueDate)}</span>
               </div>
               <div className="flex justify-between border-t border-black pt-2 font-bold text-lg">
-                <span>TOTAL OWED:</span>
+                <span>{t.totalOwed}:</span>
                 <span>{formatCurrency(balance)}</span>
               </div>
             </div>
@@ -2035,7 +2035,7 @@ export function AppModals(props: AppModalsProps) {
               <div>
                 <h1 className="font-black text-2xl tracking-tight text-slate-900">COMPLEXE SCOLAIRE MAMA THERA</h1>
                 <p className="text-xs uppercase tracking-widest text-slate-500 font-bold mt-1">{t.officialStudentProfileAcademicFile}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Phone: +223 70 00 00 00 | Email: contact@mamathera.edu.ml</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{t.phone2}: +223 70 00 00 00 | {t.email2} contact@mamathera.edu.ml</p>
               </div>
               {visibleStudentIdentifier(printStudentFile.grade, printStudentFile.studentId) && (
                 <div className="border border-slate-300 px-4 py-2 text-center rounded-xl bg-slate-50">

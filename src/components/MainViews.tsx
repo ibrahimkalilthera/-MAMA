@@ -294,7 +294,7 @@ export function MainViews(props: MainViewsProps) {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex flex-col">
-                                <span className={`text-xs font-bold ${currentTheme.text}`}>{log.userName || 'Staff'}</span>
+                                <span className={`text-xs font-bold ${currentTheme.text}`}>{log.userName || t.roleStaff}</span>
                                 <span className="text-[10px] text-slate-400 font-mono">{log.userEmail}</span>
                               </div>
                             </td>
@@ -430,7 +430,7 @@ export function MainViews(props: MainViewsProps) {
                       ) : (
                         <>
                           <UploadCloud size={24} className={currentTheme.muted} />
-                          <span className={`text-[10px] ${currentTheme.muted} mt-2 font-bold`}>Upload</span>
+                          <span className={`text-[10px] ${currentTheme.muted} mt-2 font-bold`}>{t.upload}</span>
                         </>
                       )}
                     </div>
