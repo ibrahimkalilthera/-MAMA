@@ -1,11 +1,14 @@
 # Typecheck (strict + noImplicitAny), prop-wiring check, the full test suite
 # and the audit gate must pass before every commit. npm.cmd is not directly
-# executable by sh on Windows, so the scripts are run through node with cmd.exe
-# shell resolution — package.json stays the single source of truth for checks.
+# executable by sh on Windows, so everything runs through the async watchdog
+# runner (scripts/quality-chain.mjs) — spawn-only, no shell strings, no
+# execSync chains: a slow step is killed tree-wide on timeout instead of
+# wedging the msys fork table (the documented reason commits used to need
+# core.hooksPath=/dev/null, see DEVELOPMENT_HISTORY.md).
 #
-# The audit gate runs last (lint/tests fail faster and cheaper first) with a
-# lockfile-hash cache (node_modules/.cache/audit-gate.json, 24h TTL): commits
-# that don't touch dependencies re-audit instantly from the cache. Offline
-# (registry unreachable) it only warns — the CI quality job re-checks on push.
+# The audit gate runs with a lockfile-hash cache
+# (node_modules/.cache/audit-gate.json, 24h TTL) so commits that don't touch
+# dependencies re-audit instantly; offline (registry unreachable) it only
+# warns — the CI quality job re-checks on push.
 # `git commit --no-verify` skips all of this in an emergency.
-AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 node -e "require('child_process').execSync('npm run lint && npm test && node scripts/check-audit.mjs',{stdio:'inherit',shell:true})"
+AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 node scripts/quality-chain.mjs lint test audit
