@@ -153,7 +153,7 @@ export function usePayroll(deps: UsePayrollDeps) {
     doc.setFontSize(10);
     doc.text(t.consolidatedSalaryReceipt, 14, 20);
     doc.setFontSize(9);
-    doc.text(`Date: ${todayStr}`, 196, 12, { align: 'right' });
+    doc.text(`${t.pdfDateColon} ${todayStr}`, 196, 12, { align: 'right' });
     doc.text(`REF: REC-SAL-${staffMember.id.toUpperCase()}`, 196, 20, { align: 'right' });
 
     let y = 36;

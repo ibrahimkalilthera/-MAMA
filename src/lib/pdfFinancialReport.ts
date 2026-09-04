@@ -1,5 +1,7 @@
 import type { Student, Expense, VendorExpense, SalaryPayment } from './useSupabaseData';
 import { drawSchoolStamp } from './pdfStamp';
+import { translations } from '../i18n/translations';
+import type { TranslationDict } from '../i18n/translations';
 
 export interface FinancialReportDataOptions {
   students: Student[];
@@ -22,6 +24,7 @@ export async function generateFinancialReportPdf({
   lang = 'fr',
 }: FinancialReportDataOptions): Promise<void> {
   const { jsPDF } = await import('jspdf');
+  const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;
@@ -67,14 +70,14 @@ export async function generateFinancialReportPdf({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.text(
-    isFr ? `RAPPORT FINANCIER & CONSOLIDE — ANNEE SCOLAIRE ${selectedYear}` : `CONSOLIDATED FINANCIAL REPORT — ACADEMIC YEAR ${selectedYear}`,
+    t.pdfFinancialTitle.replace('{year}', selectedYear),
     14,
     22
   );
 
   doc.setFontSize(9);
   doc.text(`Bamako, Mali`, 196, 13, { align: 'right' });
-  doc.text(`${isFr ? 'Date :' : 'Date:'} ${todayStr}`, 196, 22, { align: 'right' });
+  doc.text(`${t.pdfDateColon} ${todayStr}`, 196, 22, { align: 'right' });
 
   let y = 38;
 
@@ -91,7 +94,7 @@ export async function generateFinancialReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(6, 95, 70);
-  doc.text(isFr ? 'RECETTES ENCAISSÉES' : 'REVENUE COLLECTED', startX + 4, y + 6);
+  doc.text(t.pdfRevenueCollected, startX + 4, y + 6);
   doc.setFontSize(10);
   doc.text(formatAmount(totalTuitionCollected), startX + 4, y + 16);
 
@@ -103,7 +106,7 @@ export async function generateFinancialReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(153, 27, 27);
-  doc.text(isFr ? 'TOTAL DÉPENSES' : 'TOTAL OUTFLOWS', startX + 4, y + 6);
+  doc.text(t.pdfTotalOutflowsTitle, startX + 4, y + 6);
   doc.setFontSize(10);
   doc.text(formatAmount(totalOperatingOutflows), startX + 4, y + 16);
 
@@ -116,7 +119,7 @@ export async function generateFinancialReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(isPositive ? 6 : 153, isPositive ? 95 : 27, isPositive ? 70 : 27);
-  doc.text(isFr ? 'SOLDE NET EN CAISSE' : 'NET OPERATING INCOME', startX + 4, y + 6);
+  doc.text(t.pdfNetIncome, startX + 4, y + 6);
   doc.setFontSize(10);
   doc.text(formatAmount(netOperatingIncome), startX + 4, y + 16);
 
@@ -128,7 +131,7 @@ export async function generateFinancialReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(30, 41, 59);
-  doc.text(isFr ? 'TAUX DE RECOUVREMENT' : 'COLLECTION RATE', startX + 4, y + 6);
+  doc.text(t.pdfCollectionRate, startX + 4, y + 6);
   doc.setFontSize(11);
   doc.text(`${collectionRate} %`, startX + 4, y + 16);
 
@@ -140,7 +143,7 @@ export async function generateFinancialReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
-  doc.text(isFr ? '1. RECOUVREMENT DES FRAIS DE SCOLARITÉ' : '1. TUITION FEE COLLECTION SUMMARY', 18, y + 5);
+  doc.text(t.pdfTuitionSummary, 18, y + 5);
 
   y += 10;
 
@@ -149,10 +152,10 @@ export async function generateFinancialReportPdf({
   doc.setTextColor(71, 85, 105);
 
   const revenueRows = [
-    [isFr ? 'Scolarités totales dues' : 'Total Tuition Expected', formatAmount(totalTuitionDue)],
-    [isFr ? 'Scolarités effectivement encaissées' : 'Total Tuition Collected', formatAmount(totalTuitionCollected)],
-    [isFr ? 'Reste à recouvrir (Impayés)' : 'Total Outstanding Balance', formatAmount(totalTuitionOutstanding)],
-    [isFr ? 'Effectif des élèves inscrits' : 'Total Enrolled Students', `${students.length} ${isFr ? 'élèves' : 'students'}`],
+    [t.pdfTuitionExpected, formatAmount(totalTuitionDue)],
+    [t.pdfTuitionCollected, formatAmount(totalTuitionCollected)],
+    [t.pdfTuitionOutstanding, formatAmount(totalTuitionOutstanding)],
+    [t.pdfEnrolledStudents, `${students.length} ${t.pdfStudentsWord}`],
   ];
 
   revenueRows.forEach(([label, value]) => {
@@ -175,15 +178,15 @@ export async function generateFinancialReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
-  doc.text(isFr ? '2. DÉPENSES D\'EXPLOITATION & SALAIRES' : '2. OPERATING EXPENSES & PAYROLL', 18, y + 5);
+  doc.text(t.pdfOperatingPayroll, 18, y + 5);
 
   y += 10;
 
   const expenseRows = [
-    [isFr ? 'Salaires du Personnel versés' : 'Staff Salary Outflows', formatAmount(totalStaffSalariesPaid)],
-    [isFr ? 'Charges et Fournisseurs payés' : 'Vendor Expenses Paid', formatAmount(totalVendorExpensesPaid)],
-    [isFr ? 'Autres Dépenses générales' : 'General Operating Expenses', formatAmount(totalGeneralExpenses)],
-    [isFr ? 'TOTAL DES DÉCAISSEMENTS' : 'TOTAL OPERATING OUTFLOWS', formatAmount(totalOperatingOutflows)],
+    [t.pdfStaffSalaries, formatAmount(totalStaffSalariesPaid)],
+    [t.pdfVendorPaid, formatAmount(totalVendorExpensesPaid)],
+    [t.pdfGeneralOperating, formatAmount(totalGeneralExpenses)],
+    [t.pdfTotalOperatingOutflows, formatAmount(totalOperatingOutflows)],
   ];
 
   expenseRows.forEach(([label, value], idx) => {
@@ -208,17 +211,17 @@ export async function generateFinancialReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
-  doc.text(isFr ? 'APPROBATION ET CERTIFICATION DES COMPTES' : 'ACCOUNT APPROVAL & CERTIFICATION', 18, y + 7);
+  doc.text(t.pdfApprovalCertification, 18, y + 7);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text(isFr ? 'Visa du Comptable Principal' : 'Head Accountant Visa', 35, y + 16);
-  doc.text(isFr ? 'Visa de la Direction / Promoteur' : 'School Management Visa', 135, y + 16);
+  doc.text(t.pdfAccountantVisa, 35, y + 16);
+  doc.text(t.pdfManagementVisa, 135, y + 16);
 
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7);
-  doc.text(isFr ? '[ Signature et Date ]' : '[ Signature & Date ]', 35, y + 28);
+  doc.text(t.pdfSignatureDate, 35, y + 28);
   // Official school stamp — below the approval block (never over the visa
   // labels or signatures). The block grows to make room; a page overflow
   // moves the stamp to a fresh page.
@@ -239,9 +242,7 @@ export async function generateFinancialReportPdf({
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    isFr
-      ? 'Document confidentiel généré par le système de gestion financière MAMA THERA — Bamako, Mali.'
-      : 'Confidential document generated by MAMA THERA Finance Suite — Bamako, Mali.',
+    t.pdfFinancialFooter,
     105,
     285,
     { align: 'center' }

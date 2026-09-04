@@ -1,5 +1,7 @@
 import type { Student, Expense, VendorExpense, SalaryPayment } from './useSupabaseData';
 import { drawSchoolStamp } from './pdfStamp';
+import { translations } from '../i18n/translations';
+import type { TranslationDict } from '../i18n/translations';
 
 export interface MultiYearReportOptions {
   academicYears: string[];
@@ -24,6 +26,7 @@ export async function generateMultiYearReportPdf({
   lang = 'fr',
 }: MultiYearReportOptions): Promise<void> {
   const { jsPDF } = await import('jspdf');
+  const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;
@@ -86,14 +89,14 @@ export async function generateMultiYearReportPdf({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.text(
-    isFr ? 'BILAN MULTI-ANNUEL & ARCHIVES FINANCIÈRES' : 'MULTI-YEAR COMPARISON & FINANCIAL ARCHIVES',
+    t.pdfMultiYearTitle,
     14,
     22
   );
 
   doc.setFontSize(9);
   doc.text(`Bamako, Mali`, 196, 13, { align: 'right' });
-  doc.text(`${isFr ? 'Date :' : 'Date:'} ${todayStr}`, 196, 22, { align: 'right' });
+  doc.text(`${t.pdfDateColon} ${todayStr}`, 196, 22, { align: 'right' });
 
   let y = 38;
 
@@ -110,7 +113,7 @@ export async function generateMultiYearReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(6, 95, 70);
-  doc.text(isFr ? 'TOTAL RECETTES CUMULÉES' : 'TOTAL CUMULATIVE REVENUE', startX + 4, y + 7);
+  doc.text(t.pdfCumulativeRevenue, startX + 4, y + 7);
   doc.setFontSize(11);
   doc.text(formatAmount(grandTotalRevenue), startX + 4, y + 16);
 
@@ -122,7 +125,7 @@ export async function generateMultiYearReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(153, 27, 27);
-  doc.text(isFr ? 'TOTAL DÉPENSES CUMULÉES' : 'TOTAL CUMULATIVE EXPENSES', startX + 4, y + 7);
+  doc.text(t.pdfCumulativeExpenses, startX + 4, y + 7);
   doc.setFontSize(11);
   doc.text(formatAmount(grandTotalExpenses), startX + 4, y + 16);
 
@@ -134,7 +137,7 @@ export async function generateMultiYearReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(30, 41, 59);
-  doc.text(isFr ? 'SOLDE NET GLOBAL' : 'NET GLOBAL BALANCE', startX + 4, y + 7);
+  doc.text(t.pdfNetGlobalBalance, startX + 4, y + 7);
   doc.setFontSize(11);
   doc.setTextColor(grandNetBalance >= 0 ? 5 : 220, grandNetBalance >= 0 ? 150 : 38, grandNetBalance >= 0 ? 105 : 38);
   doc.text(formatAmount(grandNetBalance), startX + 4, y + 16);
@@ -150,12 +153,12 @@ export async function generateMultiYearReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(51, 65, 85);
-  doc.text(isFr ? 'ANNÉE SCOLAIRE' : 'ACADEMIC YEAR', 18, y + 5.5);
-  doc.text(isFr ? 'ÉLÈVES' : 'STUDENTS', 65, y + 5.5, { align: 'right' });
-  doc.text(isFr ? 'RECETTES (FCFA)' : 'REVENUE (FCFA)', 105, y + 5.5, { align: 'right' });
-  doc.text(isFr ? 'DÉPENSES (FCFA)' : 'EXPENSES (FCFA)', 145, y + 5.5, { align: 'right' });
-  doc.text(isFr ? 'SOLDE NET' : 'NET BALANCE', 175, y + 5.5, { align: 'right' });
-  doc.text(isFr ? 'STATUT' : 'STATUS', 194, y + 5.5, { align: 'right' });
+  doc.text(t.pdfAcademicYearHeader, 18, y + 5.5);
+  doc.text(t.pdfStudentsHeader, 65, y + 5.5, { align: 'right' });
+  doc.text(t.pdfRevenueFcfa, 105, y + 5.5, { align: 'right' });
+  doc.text(t.pdfExpensesFcfa, 145, y + 5.5, { align: 'right' });
+  doc.text(t.pdfNetBalance, 175, y + 5.5, { align: 'right' });
+  doc.text(t.pdfStatus, 194, y + 5.5, { align: 'right' });
 
   y += 8;
 
@@ -188,7 +191,7 @@ export async function generateMultiYearReportPdf({
 
     doc.setFontSize(7.5);
     doc.setTextColor(yd.isLocked ? 185 : 5, yd.isLocked ? 28 : 150, yd.isLocked ? 28 : 105);
-    doc.text(yd.isLocked ? (isFr ? 'Clôturée' : 'Locked') : (isFr ? 'Active' : 'Active'), 194, y + 6, { align: 'right' });
+    doc.text(yd.isLocked ? t.pdfLocked : t.pdfActive, 194, y + 6, { align: 'right' });
 
     y += 9;
   });
@@ -202,7 +205,7 @@ export async function generateMultiYearReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
-  doc.text(isFr ? 'TOTAL GÉNÉRAL CUMULÉ' : 'CUMULATIVE GRAND TOTAL', 18, y + 6.5);
+  doc.text(t.pdfGrandTotalCumulative, 18, y + 6.5);
 
   doc.setTextColor(5, 150, 105);
   doc.text(formatAmount(grandTotalRevenue), 105, y + 6.5, { align: 'right' });
@@ -223,20 +226,12 @@ export async function generateMultiYearReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(30, 41, 59);
-  doc.text(isFr ? 'NOTE EXPLICATIVE & CONDITIONS D\'ARCHIVAGE :' : 'EXPLANATORY NOTE & ARCHIVE CONDITIONS:', 18, y + 7);
+  doc.text(t.pdfExplanatoryNote, 18, y + 7);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  const noteLines = isFr ? [
-    '• Ce document récapitule les performances financières certifiées par exercice scolaire du Complexe Scolaire Mama Thera.',
-    '• Les exercices clôturés et archivés sont figés en mode lecture seule pour garantir l\'intégrité comptable.',
-    '• Les arriérés de scolarité non recouvrés sont reportés comme soldes d\'ouverture dans l\'exercice suivant.',
-  ] : [
-    '• This document summarizes certified financial performance by school year for Complexe Scolaire Mama Thera.',
-    '• Closed and archived academic years are locked in read-only mode to guarantee accounting integrity.',
-    '• Uncollected tuition arrears are carried forward as opening balances in the following academic year.',
-  ];
+  const noteLines = [t.pdfNoteLine1, t.pdfNoteLine2, t.pdfNoteLine3];
 
   noteLines.forEach((line, i) => {
     doc.text(line, 18, y + 14 + (i * 5));
@@ -249,13 +244,13 @@ export async function generateMultiYearReportPdf({
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
 
-  doc.text(isFr ? 'Pour le Gestionnaire / Économe' : 'For the General Manager / Accountant', 25, y);
-  doc.text(isFr ? 'Pour la Direction / Promotrice' : 'For the Director / Promoter', 140, y);
+  doc.text(t.pdfForManagerEconome, 25, y);
+  doc.text(t.pdfForDirectorShort, 140, y);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(isFr ? 'Signature' : 'Signature', 25, y + 5);
+  doc.text(t.pdfSignature, 25, y + 5);
 
   // Official school stamp over the official-signature area
   await drawSchoolStamp(doc, 165, y + 17, 24);
@@ -268,7 +263,7 @@ export async function generateMultiYearReportPdf({
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    `Complexe Scolaire MAMA THERA — Document Comptable Officiel Multi-Annuel — ${todayStr}`,
+    t.pdfMultiYearFooter.replace('{date}', todayStr),
     105,
     288,
     { align: 'center' }

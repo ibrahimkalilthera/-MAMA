@@ -232,7 +232,7 @@ export function useParents({
       day: 'numeric'
     });
     doc.setFontSize(9);
-    doc.text(`Date: ${todayStr}`, 196, 12, { align: 'right' });
+    doc.text(`${t.pdfDateColon} ${todayStr}`, 196, 12, { align: 'right' });
     doc.text(`REF: LEDGER-${parent.id.toUpperCase()}`, 196, 20, { align: 'right' });
 
     let y = 36;
@@ -255,7 +255,7 @@ export function useParents({
     doc.text(`${t.address}: ${parent.address}`, 18, y + 27);
 
     doc.text(`${t.occupation}: ${parent.occupation}`, 115, y + 15);
-    doc.text(`Email: ${parent.email || 'N/A'}`, 115, y + 21);
+    doc.text(`${t.email2} ${parent.email || 'N/A'}`, 115, y + 21);
 
     y += 40;
 
@@ -341,7 +341,7 @@ export function useParents({
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(71, 85, 105);
     doc.text(t.receipt, 18, y + 5);
-    doc.text('DATE', 48, y + 5);
+    doc.text(t.pdfDate, 48, y + 5);
     doc.text(t.student, 75, y + 5);
     doc.text(t.year, 125, y + 5);
     doc.text(t.amount2, 165, y + 5);
@@ -364,7 +364,7 @@ export function useParents({
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(71, 85, 105);
           doc.text(t.receipt, 18, y + 5);
-          doc.text('DATE', 48, y + 5);
+          doc.text(t.pdfDate, 48, y + 5);
           doc.text(t.student, 75, y + 5);
           doc.text(t.year, 125, y + 5);
           doc.text(t.amount2, 165, y + 5);

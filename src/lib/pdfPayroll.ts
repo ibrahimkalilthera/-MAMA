@@ -1,5 +1,7 @@
 import type { Staff, SalaryPayment } from './useSupabaseData';
 import { drawSchoolStamp } from './pdfStamp';
+import { translations } from '../i18n/translations';
+import type { TranslationDict } from '../i18n/translations';
 
 export interface PayslipDataOptions {
   staffMember: Staff;
@@ -16,6 +18,7 @@ export async function generateStaffPayslipPdf({
   lang = 'fr',
 }: PayslipDataOptions): Promise<void> {
   const { jsPDF } = await import('jspdf');
+  const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;
@@ -46,10 +49,10 @@ export async function generateStaffPayslipPdf({
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text(isFr ? 'BULLETIN DE PAIE' : 'SALARY PAYSLIP', 138, 10, { align: 'right' });
+  doc.text(t.pdfPayslipTitle, 138, 10, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(`${isFr ? 'Réf:' : 'Ref:'} ${payslipNo}`, 138, 16, { align: 'right' });
+  doc.text(`${t.pdfRefNo} ${payslipNo}`, 138, 16, { align: 'right' });
 
   let y = 28;
 
@@ -61,34 +64,34 @@ export async function generateStaffPayslipPdf({
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.text(isFr ? 'IDENTIFICATION DU SALARIÉ' : 'EMPLOYEE INFORMATION', 12, y + 6);
+  doc.text(t.pdfEmployeeInfo, 12, y + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Nom & Prénom' : 'Full Name'}:`, 12, y + 13);
+  doc.text(`${t.pdfFullName}:`, 12, y + 13);
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.text(staffMember.name, 35, y + 13);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Poste / Fonction' : 'Position'}:`, 80, y + 13);
+  doc.text(`${t.pdfPosition}:`, 80, y + 13);
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.text(staffMember.position, 105, y + 13);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Téléphone' : 'Phone'}:`, 12, y + 20);
+  doc.text(`${t.pdfPhone}:`, 12, y + 20);
   doc.setTextColor(15, 23, 42);
   doc.text(staffMember.phone || '—', 35, y + 20);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Mode de Paiement' : 'Bank Info'}:`, 80, y + 20);
+  doc.text(`${t.pdfBankInfo}:`, 80, y + 20);
   doc.setTextColor(15, 23, 42);
-  doc.text(staffMember.bankDetails || (isFr ? 'Espèces / Virement' : 'Cash / Transfer'), 110, y + 20);
+  doc.text(staffMember.bankDetails || t.pdfCashTransfer, 110, y + 20);
 
   y += 34;
 
@@ -99,14 +102,14 @@ export async function generateStaffPayslipPdf({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Date de Règlement' : 'Payment Date'}:`, 12, y + 9);
+  doc.text(`${t.pdfPaymentDate}:`, 12, y + 9);
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.text(dateStr, 42, y + 9);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Année Académique' : 'Academic Year'}:`, 80, y + 9);
+  doc.text(`${t.pdfAcademicYear}:`, 80, y + 9);
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.text(payment.academicYear || staffMember.academicYear || '2025-2026', 110, y + 9);
@@ -119,8 +122,8 @@ export async function generateStaffPayslipPdf({
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.text(isFr ? 'ELEMENTS DE REMUNERATION' : 'SALARY BREAKDOWN', 12, y + 5);
-  doc.text(isFr ? 'MONTANT (FCFA)' : 'AMOUNT (FCFA)', 136, y + 5, { align: 'right' });
+  doc.text(t.pdfSalaryBreakdown, 12, y + 5);
+  doc.text(t.pdfAmountFcfa, 136, y + 5, { align: 'right' });
 
   y += 7;
 
@@ -131,7 +134,7 @@ export async function generateStaffPayslipPdf({
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(isFr ? 'Salaire de Base Contractuel' : 'Contractual Base Salary', 12, y + 6);
+  doc.text(t.pdfBaseSalary, 12, y + 6);
   doc.text(formatAmount(staffMember.salary), 136, y + 6, { align: 'right' });
 
   y += 10;
@@ -140,7 +143,7 @@ export async function generateStaffPayslipPdf({
   doc.setFillColor(248, 250, 252);
   doc.rect(8, y, 132, 10, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.text(isFr ? 'Montant Versé / Payé ce jour' : 'Salary Payment Paid', 12, y + 6);
+  doc.text(t.pdfPaidToday, 12, y + 6);
   doc.setTextColor(5, 150, 105);
   doc.text(formatAmount(payment.amount), 136, y + 6, { align: 'right' });
 
@@ -154,7 +157,7 @@ export async function generateStaffPayslipPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
-  doc.text(isFr ? 'NET A PAYER VERSE :' : 'TOTAL NET PAID :', 12, y + 10);
+  doc.text(t.pdfNetPaid, 12, y + 10);
   doc.setFontSize(11);
   doc.setTextColor(5, 150, 105);
   doc.text(formatAmount(payment.amount), 136, y + 10, { align: 'right' });
@@ -170,8 +173,8 @@ export async function generateStaffPayslipPdf({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text(isFr ? 'Signature du Salarié' : 'Employee Signature', 39.5, y + 6, { align: 'center' });
-  doc.text(isFr ? '(Pour acquit)' : '(Acknowledged)', 39.5, y + 16, { align: 'center' });
+  doc.text(t.pdfEmployeeSignature, 39.5, y + 6, { align: 'center' });
+  doc.text(t.pdfAcknowledged, 39.5, y + 16, { align: 'center' });
 
   // Right: Employer Stamp (official school stamp) & Signature
   doc.roundedRect(81, y, 55, 22, 1, 1, 'D');
@@ -189,9 +192,7 @@ export async function generateStaffPayslipPdf({
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    isFr 
-      ? 'Bulletin de paie établi par l\'administration du Complexe Scolaire MAMA THERA. Conserver sans limitation de durée.'
-      : 'Payslip issued by the administration of Complexe Scolaire MAMA THERA.',
+    t.pdfPayslipFooter,
     74, 
     y, 
     { align: 'center' }

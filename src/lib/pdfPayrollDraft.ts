@@ -1,5 +1,7 @@
 import type { Staff, SalaryPayment } from './useSupabaseData';
 import { drawSchoolStamp } from './pdfStamp';
+import { translations } from '../i18n/translations';
+import type { TranslationDict } from '../i18n/translations';
 
 export interface MonthlyPayrollDraftOptions {
   monthIndex: number; // 0 to 11
@@ -9,16 +11,6 @@ export interface MonthlyPayrollDraftOptions {
   selectedAcademicYear?: string;
   lang?: 'en' | 'fr';
 }
-
-const MONTH_NAMES_FR = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
-];
-
-const MONTH_NAMES_EN = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
 
 /**
  * Generates an executive A4 Monthly Payroll Draft / Bordereau Récapitulatif de Paie for Complexe Scolaire MAMA THERA.
@@ -32,6 +24,7 @@ export async function generateMonthlyPayrollDraftPdf({
   lang = 'fr',
 }: MonthlyPayrollDraftOptions): Promise<void> {
   const { jsPDF } = await import('jspdf');
+  const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;
@@ -42,7 +35,8 @@ export async function generateMonthlyPayrollDraftPdf({
     format: 'a4',
   });
 
-  const monthName = isFr ? MONTH_NAMES_FR[monthIndex] : MONTH_NAMES_EN[monthIndex];
+  const monthNames = [t.jan, t.feb, t.mar, t.apr, t.may, t.jun, t.jul, t.aug, t.sep, t.oct, t.nov, t.dec];
+  const monthName = monthNames[monthIndex];
 
   const todayStr = new Date().toLocaleDateString(isFr ? 'fr-FR' : 'en-US', {
     year: 'numeric',
@@ -61,11 +55,11 @@ export async function generateMonthlyPayrollDraftPdf({
     const balance = Math.max(0, s.salary - totalPaid);
     const lastPayDate = paymentsThisMonth.length > 0 ? paymentsThisMonth[paymentsThisMonth.length - 1].date : '—';
 
-    let status = isFr ? 'Non payé' : 'Unpaid';
+    let status = t.pdfUnpaid;
     if (totalPaid >= s.salary && s.salary > 0) {
-      status = isFr ? 'Entièrement payé' : 'Fully Paid';
+      status = t.pdfFullyPaid;
     } else if (totalPaid > 0) {
-      status = isFr ? 'Acompte versé' : 'Partial Paid';
+      status = t.pdfPartialPaid;
     }
 
     return {
@@ -102,16 +96,14 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
   doc.text(
-    isFr
-      ? `ÉTAT RÉCAPITULATIF & BORDEREAU DE PAIE DU PERSONNEL — MOIS DE ${monthName.toUpperCase()} ${year}`
-      : `MONTHLY PAYROLL SUMMARY & SALARY DISBURSEMENT DRAFT — ${monthName.toUpperCase()} ${year}`,
+    t.pdfDraftTitle.replace('{month}', monthName.toUpperCase()).replace('{year}', String(year)),
     14,
     20
   );
 
   doc.setFontSize(8.5);
-  doc.text(`${isFr ? 'Année Scolaire :' : 'Academic Year:'} ${selectedAcademicYear}`, 283, 11, { align: 'right' });
-  doc.text(`${isFr ? 'Édité le :' : 'Generated on:'} ${todayStr}`, 283, 20, { align: 'right' });
+  doc.text(`${t.pdfAcademicYearColon} ${selectedAcademicYear}`, 283, 11, { align: 'right' });
+  doc.text(`${t.pdfGeneratedOn} ${todayStr}`, 283, 20, { align: 'right' });
 
   let y = 35;
 
@@ -128,7 +120,7 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  doc.text(isFr ? 'MASSE SALARIALE THÉORIQUE' : 'TOTAL SALARY BUDGET', startX + 4, y + 6);
+  doc.text(t.pdfSalaryBudget, startX + 4, y + 6);
   doc.setFontSize(10.5);
   doc.setTextColor(15, 23, 42);
   doc.text(formatAmount(grandTotalExpected), startX + 4, y + 14);
@@ -141,7 +133,7 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(6, 95, 70);
-  doc.text(isFr ? 'TOTAL SALAIRES PAYÉS CE MOIS' : 'TOTAL SALARIES PAID THIS MONTH', startX + 4, y + 6);
+  doc.text(t.pdfSalariesPaidMonth, startX + 4, y + 6);
   doc.setFontSize(10.5);
   doc.setTextColor(5, 150, 105);
   doc.text(formatAmount(grandTotalPaid), startX + 4, y + 14);
@@ -154,7 +146,7 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(153, 27, 27);
-  doc.text(isFr ? 'TOTAL RELIQUATS RESTANTS DÛS' : 'TOTAL REMAINING ARREARS', startX + 4, y + 6);
+  doc.text(t.pdfRemainingArrears, startX + 4, y + 6);
   doc.setFontSize(10.5);
   doc.setTextColor(220, 38, 38);
   doc.text(formatAmount(grandTotalRemaining), startX + 4, y + 14);
@@ -167,10 +159,10 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(31, 41, 55);
-  doc.text(isFr ? 'TAUX D\'EXÉCUTION PAIE' : 'PAYROLL EXECUTION RATE', startX + 4, y + 6);
+  doc.text(t.pdfExecutionRate, startX + 4, y + 6);
   doc.setFontSize(10.5);
   const execRate = grandTotalExpected > 0 ? ((grandTotalPaid / grandTotalExpected) * 100).toFixed(1) : '0';
-  doc.text(`${execRate}% (${paidEmployeesCount}/${staff.length} ${isFr ? 'employés réglés' : 'staff paid'})`, startX + 4, y + 14);
+  doc.text(`${execRate}% (${paidEmployeesCount}/${staff.length} ${t.pdfStaffPaid})`, startX + 4, y + 14);
 
   y += 24;
 
@@ -183,15 +175,15 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(51, 65, 85);
-  doc.text(isFr ? 'N°' : 'No.', 16, y + 5);
-  doc.text(isFr ? 'NOM & PRÉNOM' : 'EMPLOYEE NAME', 28, y + 5);
-  doc.text(isFr ? 'POSTE / FONCTION' : 'POSITION / ROLE', 82, y + 5);
-  doc.text(isFr ? 'SALAIRE BASE' : 'BASE SALARY', 135, y + 5, { align: 'right' });
-  doc.text(isFr ? 'VERSÉ CE MOIS' : 'PAID THIS MONTH', 170, y + 5, { align: 'right' });
-  doc.text(isFr ? 'RELIQUAT DÛ' : 'REMAINING', 205, y + 5, { align: 'right' });
-  doc.text(isFr ? 'DATE PAIE' : 'PAY DATE', 222, y + 5);
-  doc.text(isFr ? 'STATUT' : 'STATUS', 248, y + 5);
-  doc.text(isFr ? 'ÉMARGEMENT' : 'SIGNATURE', 281, y + 5, { align: 'right' });
+  doc.text(t.pdfNo, 16, y + 5);
+  doc.text(t.pdfEmployeeName, 28, y + 5);
+  doc.text(t.pdfPositionRole, 82, y + 5);
+  doc.text(t.pdfBaseSalaryHeader, 135, y + 5, { align: 'right' });
+  doc.text(t.pdfPaidThisMonth, 170, y + 5, { align: 'right' });
+  doc.text(t.pdfRemainingDue, 205, y + 5, { align: 'right' });
+  doc.text(t.pdfPayDate, 222, y + 5);
+  doc.text(t.pdfStatus, 248, y + 5);
+  doc.text(t.pdfSigning, 281, y + 5, { align: 'right' });
 
   y += 7.5;
 
@@ -265,7 +257,7 @@ export async function generateMonthlyPayrollDraftPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(15, 23, 42);
-    doc.text(isFr ? 'TOTAUX GÉNÉRAUX' : 'GRAND TOTALS', 28, y + 5.5);
+    doc.text(t.pdfGrandTotals, 28, y + 5.5);
 
     doc.text(formatAmount(grandTotalExpected), 135, y + 5.5, { align: 'right' });
     doc.setTextColor(5, 150, 105);
@@ -278,7 +270,7 @@ export async function generateMonthlyPayrollDraftPdf({
     doc.setFontSize(8.5);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      isFr ? 'Aucun membre du personnel enregistré pour cette période.' : 'No staff members registered for this period.',
+      t.pdfNoStaffPeriod,
       14,
       y + 8
     );
@@ -297,13 +289,13 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
 
-  doc.text(isFr ? 'Pour le Gestionnaire / Comptable :' : 'For the General Manager / Accountant:', 30, y);
-  doc.text(isFr ? 'Pour la Direction / Promotrice :' : 'For the Director / Promoter:', 190, y);
+  doc.text(t.pdfForManager, 30, y);
+  doc.text(t.pdfForDirector, 190, y);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(isFr ? 'Signature & Visa de paiement' : 'Signature & Payment Verification', 30, y + 4.5);
+  doc.text(t.pdfSignatureVisa, 30, y + 4.5);
 
   // Official school stamp over the director's approval area
   await drawSchoolStamp(doc, 225, y + 16, 24);
@@ -316,7 +308,7 @@ export async function generateMonthlyPayrollDraftPdf({
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    `Complexe Scolaire MAMA THERA — Bordereau Mensuel de Paie — ${monthName} ${year} — Document Comptable Officiel`,
+    t.pdfDraftFooter.replace('{month}', monthName).replace('{year}', String(year)),
     148.5,
     202,
     { align: 'center' }

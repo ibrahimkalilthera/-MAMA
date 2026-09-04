@@ -1,5 +1,7 @@
 import type { Student, Payment } from './useSupabaseData';
 import { drawSchoolStamp } from './pdfStamp';
+import { translations } from '../i18n/translations';
+import type { TranslationDict } from '../i18n/translations';
 
 export interface ReceiptDataOptions {
   student: Student;
@@ -18,6 +20,7 @@ export async function generatePaymentReceiptPdf({
   cashierName = 'Administration',
 }: ReceiptDataOptions): Promise<void> {
   const { jsPDF } = await import('jspdf');
+  const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;
@@ -48,10 +51,10 @@ export async function generatePaymentReceiptPdf({
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text(isFr ? 'REÇU DE PAIEMENT' : 'PAYMENT RECEIPT', 138, 10, { align: 'right' });
+  doc.text(t.pdfReceiptTitle, 138, 10, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(`${isFr ? 'N°:' : 'Ref:'} ${receiptNo}`, 138, 16, { align: 'right' });
+  doc.text(`${t.pdfRefNo} ${receiptNo}`, 138, 16, { align: 'right' });
 
   let y = 28;
 
@@ -63,26 +66,26 @@ export async function generatePaymentReceiptPdf({
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.text(isFr ? 'DÉTAILS DE LA TRANSACTION' : 'TRANSACTION DETAILS', 12, y + 6);
+  doc.text(t.pdfTransactionDetails, 12, y + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Date' : 'Date'}:`, 12, y + 12);
+  doc.text(`${t.date}:`, 12, y + 12);
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.text(dateStr, 25, y + 12);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Année scol.' : 'Acad. Year'}:`, 75, y + 12);
+  doc.text(`${t.pdfAcadYearShort}:`, 75, y + 12);
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.text(payment.academicYear || student.academicYear || '2025-2026', 100, y + 12);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Caissier' : 'Cashier'}:`, 12, y + 17);
+  doc.text(`${t.pdfCashier}:`, 12, y + 17);
   doc.setTextColor(15, 23, 42);
   doc.text(cashierName, 30, y + 17);
 
@@ -95,25 +98,25 @@ export async function generatePaymentReceiptPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(15, 23, 42);
-  doc.text(isFr ? 'INFORMATIONSÉLÈVE & PARENT' : 'STUDENT & PARENT INFO', 12, y + 6);
+  doc.text(t.pdfStudentParentInfo, 12, y + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Élève' : 'Student'}:`, 12, y + 13);
+  doc.text(`${t.pdfStudent}:`, 12, y + 13);
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.text(student.name, 30, y + 13);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Classe' : 'Grade'}:`, 85, y + 13);
+  doc.text(`${t.pdfGrade}:`, 85, y + 13);
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.text(student.grade || '—', 100, y + 13);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text(`${isFr ? 'Parent/Tuteur' : 'Parent/Guardian'}:`, 12, y + 20);
+  doc.text(`${t.pdfParentGuardian}:`, 12, y + 20);
   doc.setTextColor(15, 23, 42);
   doc.text(`${student.parentName} (${student.parentPhone || '—'})`, 38, y + 20);
 
@@ -125,8 +128,8 @@ export async function generatePaymentReceiptPdf({
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.text(isFr ? 'DESCRIPTION / MOTIF DE PAIEMENT' : 'DESCRIPTION / PAYMENT ITEM', 12, y + 5);
-  doc.text(isFr ? 'MONTANT REÇU' : 'AMOUNT RECEIVED', 136, y + 5, { align: 'right' });
+  doc.text(t.pdfPaymentItem, 12, y + 5);
+  doc.text(t.pdfAmountReceived, 136, y + 5, { align: 'right' });
 
   y += 7;
 
@@ -138,7 +141,7 @@ export async function generatePaymentReceiptPdf({
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text(isFr ? 'Frais de Scolarité / PAIEMENT REÇU' : 'Tuition Fees / PAYMENT RECEIVED', 12, y + 7);
+  doc.text(t.pdfTuitionReceived, 12, y + 7);
   doc.setFont('helvetica', 'bold');
   doc.text(formatAmount(payment.amount), 136, y + 7, { align: 'right' });
 
@@ -154,16 +157,16 @@ export async function generatePaymentReceiptPdf({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text(isFr ? 'Total Scolarité dûe:' : 'Total Due:', 12, y + 7);
+  doc.text(t.pdfTotalDueColon, 12, y + 7);
   doc.text(formatAmount(student.totalDue), 60, y + 7);
 
-  doc.text(isFr ? 'Total Cumulé Payé:' : 'Total Cumulative Paid:', 12, y + 13);
+  doc.text(t.pdfTotalPaidColon, 12, y + 13);
   doc.text(formatAmount(student.amountPaid), 60, y + 13);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(remaining > 0 ? 185 : 5, remaining > 0 ? 28 : 150, remaining > 0 ? 28 : 105);
-  doc.text(isFr ? 'Reste à Payer / Solde:' : 'Remaining Balance:', 12, y + 21);
+  doc.text(t.pdfRemainingBalanceColon, 12, y + 21);
   doc.text(formatAmount(remaining), 136, y + 21, { align: 'right' });
 
   y += 32;
@@ -181,7 +184,7 @@ export async function generatePaymentReceiptPdf({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text(isFr ? '[ Signature du Caissier ]' : '[ Cashier Signature ]', 108.5, y + 12, { align: 'center' });
+  doc.text(t.pdfCashierSignature, 108.5, y + 12, { align: 'center' });
 
   doc.setLineDashPattern([], 0); // reset line pattern
 
@@ -192,9 +195,7 @@ export async function generatePaymentReceiptPdf({
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    isFr 
-      ? 'Document officiel délivré par le Complexe Scolaire MAMA THERA. Conserver ce reçu comme preuve de paiement.' 
-      : 'Official document issued by Complexe Scolaire MAMA THERA. Keep this receipt as proof of payment.',
+    t.pdfReceiptFooter,
     74, 
     y, 
     { align: 'center' }

@@ -1,5 +1,7 @@
 import type { Expense, VendorExpense } from './useSupabaseData';
 import { drawSchoolStamp } from './pdfStamp';
+import { translations } from '../i18n/translations';
+import type { TranslationDict } from '../i18n/translations';
 
 export interface ExpensesReportOptions {
   expenses: Expense[];
@@ -12,72 +14,45 @@ export interface ExpensesReportOptions {
   lang?: 'en' | 'fr';
 }
 
-const CATEGORY_LABELS_FR: Record<string, string> = {
-  all: 'Toutes les catégories',
-  Supplies: 'Fournitures',
-  Fournitures: 'Fournitures',
-  Utilities: 'Services Publics',
-  'Services Publics': 'Services Publics',
-  Maintenance: 'Maintenance & Entretien',
-  Entretien: 'Maintenance & Entretien',
-  Other: 'Autres charges',
-  Autre: 'Autres charges',
-  stationery: 'Fournitures & Papeterie',
-  solar_energy: 'Panneaux Solaires & Batteries',
-  electricity: 'Électricité EDM-SA',
-  water: 'Entretien de forage',
-  taxes: 'Impôts & Taxes',
-  insurance: 'Assurances',
-  security_maintenance: "Gardiennage & Entretien de l'établissement",
-  security_guarding: 'Frais de gardiennage',
-  facility_maintenance: "Entretien de l'établissement",
-  works_renovation: 'Travaux et Aménagements',
-  machine_management: 'Gestion Machine',
-  reforestation: 'Reboisement & Espaces Verts',
-  catering: 'Restauration & Cantine',
-  training: 'Volet Formation',
-  social_events: 'Événements Sociaux',
-  exam_def: 'Dépenses liées au DEF',
-  exam_bac: 'Dépenses liées au BAC',
-  exams: 'Examens Nationaux (DEF & BAC)',
-  furniture: 'Mobilier & Équipements',
-  internet: 'Internet & Télécoms',
-  cleaning: 'Nettoyage & Propreté',
-  social_cases: 'Cas Sociaux & Aides Liés aux Élèves',
+/** Category → central translation key (single language source). */
+const CATEGORY_KEY: Record<string, keyof TranslationDict> = {
+  all: 'allCategories',
+  Supplies: 'supplies',
+  Fournitures: 'supplies',
+  Utilities: 'utilities',
+  'Services Publics': 'utilities',
+  Maintenance: 'maintenance',
+  Entretien: 'maintenance',
+  Other: 'other',
+  Autre: 'other',
+  stationery: 'stationery',
+  solar_energy: 'solar_energy',
+  electricity: 'electricity',
+  water: 'water',
+  taxes: 'taxes',
+  insurance: 'insurance',
+  security_maintenance: 'security_maintenance',
+  security_guarding: 'security_guarding',
+  facility_maintenance: 'facility_maintenance',
+  works_renovation: 'works_renovation',
+  machine_management: 'machine_management',
+  reforestation: 'reforestation',
+  catering: 'catering',
+  training: 'training',
+  social_events: 'social_events',
+  exam_def: 'exam_def',
+  exam_bac: 'exam_bac',
+  exams: 'pdfExams',
+  furniture: 'furniture',
+  internet: 'internet',
+  cleaning: 'cleaning',
+  social_cases: 'social_cases',
 };
 
-const CATEGORY_LABELS_EN: Record<string, string> = {
-  all: 'All Categories',
-  Supplies: 'Supplies',
-  Fournitures: 'Supplies',
-  Utilities: 'Utilities',
-  'Services Publics': 'Utilities',
-  Maintenance: 'Maintenance',
-  Entretien: 'Maintenance',
-  Other: 'Other Expenses',
-  Autre: 'Other Expenses',
-  stationery: 'Supplies & Stationery',
-  solar_energy: 'Solar Panels & Batteries',
-  electricity: 'EDM-SA Electricity',
-  water: 'Borehole Maintenance & Water',
-  taxes: 'Taxes & Fiscal Duties',
-  insurance: 'Insurance',
-  security_maintenance: 'Guarding & Campus Maintenance',
-  security_guarding: 'Security & Guarding Services',
-  facility_maintenance: 'Campus & Facility Maintenance',
-  works_renovation: 'Works & Improvements',
-  machine_management: 'Machinery & Equipment Management',
-  reforestation: 'Reforestation & Green Spaces',
-  catering: 'Catering & Meals',
-  training: 'Staff Training & Workshops',
-  social_events: 'Social Events & Ceremonies',
-  exam_def: 'DEF Examination Expenses',
-  exam_bac: 'BAC Examination Expenses',
-  exams: 'National Exams (DEF & BAC)',
-  furniture: 'Furniture & Equipment',
-  internet: 'Internet Providers',
-  cleaning: 'Cleaning Services',
-  social_cases: 'Student Welfare & Social Aid',
+/** Resolve a category to its translated label, falling back to the raw key. */
+const categoryLabel = (category: string, t: TranslationDict): string => {
+  const key = CATEGORY_KEY[category];
+  return key ? t[key] : category;
 };
 
 /**
@@ -129,6 +104,7 @@ export async function generateExpensesReportPdf({
   lang = 'fr',
 }: ExpensesReportOptions): Promise<void> {
   const { jsPDF } = await import('jspdf');
+  const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const isFr = lang === 'fr';
   const currencySuffix = ' FCFA';
   const formatAmount = (val: number) => (val || 0).toLocaleString('fr-FR') + currencySuffix;
@@ -145,9 +121,7 @@ export async function generateExpensesReportPdf({
     day: 'numeric',
   });
 
-  const categoryName = isFr
-    ? (CATEGORY_LABELS_FR[selectedCategory] || selectedCategory)
-    : (CATEGORY_LABELS_EN[selectedCategory] || selectedCategory);
+  const categoryName = categoryLabel(selectedCategory, t);
 
   const isFilteredByCategory = selectedCategory && selectedCategory !== 'all';
 
@@ -204,25 +178,25 @@ export async function generateExpensesReportPdf({
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
   const filterSubtitle = isFilteredByCategory
-    ? (isFr ? `FILTRE ACTIF : ${categoryName.toUpperCase()} — ANNÉE ${selectedYear}` : `FILTER APPLIED: ${categoryName.toUpperCase()} — YEAR ${selectedYear}`)
-    : (isFr ? `RAPPORT GLOBAL DES CHARGES D'EXPLOITATION — ANNÉE ${selectedYear}` : `GLOBAL OPERATING OUTFLOWS REPORT — YEAR ${selectedYear}`);
+    ? t.pdfFilterActive.replace('{category}', categoryName.toUpperCase()).replace('{year}', selectedYear)
+    : t.pdfGlobalReport.replace('{year}', selectedYear);
 
   doc.text(filterSubtitle, 14, 20);
 
   doc.setFontSize(8);
   doc.text(
     subTab === 'general'
-      ? (isFr ? 'Section: Dépenses Générales' : 'Section: General Expenses')
+      ? t.pdfSectionGeneral
       : subTab === 'vendors'
-      ? (isFr ? 'Section: Fournisseurs & Services' : 'Section: Vendors & Services')
-      : (isFr ? 'Section: Toutes Dépenses' : 'Section: All Outflows'),
+      ? t.pdfSectionVendors
+      : t.pdfSectionAll,
     14,
     27
   );
 
   doc.setFontSize(8.5);
   doc.text(`Bamako, Mali`, 196, 11, { align: 'right' });
-  doc.text(`${isFr ? 'Édité le :' : 'Generated on:'} ${todayStr}`, 196, 20, { align: 'right' });
+  doc.text(`${t.pdfGeneratedOn} ${todayStr}`, 196, 20, { align: 'right' });
 
   let y = 39;
 
@@ -240,7 +214,7 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(159, 18, 57);
-    doc.text(isFr ? 'TOTAL DÉPENSES SÉLECTIONNÉES' : 'SELECTED EXPENSES TOTAL', startX + 4, y + 6);
+    doc.text(t.pdfSelectedTotal, startX + 4, y + 6);
     doc.setFontSize(10.5);
     doc.text(formatAmount(totalGeneral), startX + 4, y + 14);
 
@@ -252,9 +226,9 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(31, 41, 55);
-    doc.text(isFr ? 'NOMBRE D\'OPÉRATIONS' : 'NUMBER OF RECORDS', startX + 4, y + 6);
+    doc.text(t.pdfNumberOfRecords, startX + 4, y + 6);
     doc.setFontSize(10.5);
-    doc.text(`${filteredGeneralExpenses.length} ${isFr ? 'entrées' : 'items'}`, startX + 4, y + 14);
+    doc.text(`${filteredGeneralExpenses.length} ${t.pdfEntries}`, startX + 4, y + 14);
 
     // Card 3: Filter Category Tag
     startX += boxWidth + gap;
@@ -264,7 +238,7 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(6, 95, 70);
-    doc.text(isFr ? 'CATÉGORIE FILTRÉE' : 'FILTERED CATEGORY', startX + 4, y + 6);
+    doc.text(t.pdfFilteredCategory, startX + 4, y + 6);
     doc.setFontSize(9.5);
     doc.text(categoryName.length > 20 ? categoryName.slice(0, 18) + '...' : categoryName, startX + 4, y + 14);
   } else if (subTab === 'vendors') {
@@ -275,7 +249,7 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(31, 41, 55);
-    doc.text(isFr ? 'TOTAL FACTURÉ' : 'TOTAL INVOICED', startX + 4, y + 6);
+    doc.text(t.pdfTotalInvoiced, startX + 4, y + 6);
     doc.setFontSize(10.5);
     doc.text(formatAmount(totalVendorInvoiced), startX + 4, y + 14);
 
@@ -287,7 +261,7 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(6, 95, 70);
-    doc.text(isFr ? 'MONTANTS RÉGLÉS' : 'PAID PORTIONS', startX + 4, y + 6);
+    doc.text(t.pdfPaidPortions, startX + 4, y + 6);
     doc.setFontSize(10.5);
     doc.text(formatAmount(totalVendorPaid), startX + 4, y + 14);
 
@@ -299,7 +273,7 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(153, 27, 27);
-    doc.text(isFr ? 'SOLDE RESTANT DÛ' : 'OUTSTANDING BALANCE', startX + 4, y + 6);
+    doc.text(t.pdfOutstandingBalance, startX + 4, y + 6);
     doc.setFontSize(10.5);
     doc.text(formatAmount(totalVendorOutstanding), startX + 4, y + 14);
   } else {
@@ -310,7 +284,7 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(159, 18, 57);
-    doc.text(isFr ? 'DÉPENSES GÉNÉRALES' : 'GENERAL EXPENSES', startX + 4, y + 6);
+    doc.text(t.pdfGeneralExpensesCard, startX + 4, y + 6);
     doc.setFontSize(10.5);
     doc.text(formatAmount(totalGeneral), startX + 4, y + 14);
 
@@ -321,7 +295,7 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(31, 41, 55);
-    doc.text(isFr ? 'FOURNISSEURS RÉGLÉS' : 'VENDOR CHARGES PAID', startX + 4, y + 6);
+    doc.text(t.pdfVendorChargesPaid, startX + 4, y + 6);
     doc.setFontSize(10.5);
     doc.text(formatAmount(totalVendorPaid), startX + 4, y + 14);
 
@@ -332,7 +306,7 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(185, 28, 28);
-    doc.text(isFr ? 'TOTAL DÉCAISSEMENTS' : 'TOTAL OUTFLOWS', startX + 4, y + 6);
+    doc.text(t.pdfTotalOutflows, startX + 4, y + 6);
     doc.setFontSize(10.5);
     doc.text(formatAmount(grandTotalOutflows), startX + 4, y + 14);
   }
@@ -347,9 +321,7 @@ export async function generateExpensesReportPdf({
     doc.setFontSize(9.5);
     doc.setTextColor(15, 23, 42);
     doc.text(
-      isFr
-        ? `1. Journal des Dépenses Générales ${isFilteredByCategory ? `[${categoryName}]` : ''}`
-        : `1. General Expenses Log ${isFilteredByCategory ? `[${categoryName}]` : ''}`,
+      `${t.pdfGeneralLog}${isFilteredByCategory ? ` [${categoryName}]` : ''}`,
       14,
       y
     );
@@ -363,10 +335,10 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(51, 65, 85);
-    doc.text(isFr ? 'DATE' : 'DATE', 18, y + 5);
-    doc.text(isFr ? 'CATÉGORIE' : 'CATEGORY', 48, y + 5);
-    doc.text(isFr ? 'DESCRIPTION / MOTIF' : 'DESCRIPTION', 95, y + 5);
-    doc.text(isFr ? 'MONTANT (FCFA)' : 'AMOUNT (FCFA)', 190, y + 5, { align: 'right' });
+    doc.text(t.pdfDate, 18, y + 5);
+    doc.text(t.pdfCategory, 48, y + 5);
+    doc.text(t.pdfDescription, 95, y + 5);
+    doc.text(t.pdfAmountFcfa, 190, y + 5, { align: 'right' });
 
     y += 7;
 
@@ -392,7 +364,7 @@ export async function generateExpensesReportPdf({
 
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(159, 18, 57);
-        const catDisplay = isFr ? (CATEGORY_LABELS_FR[exp.category] || exp.category) : (CATEGORY_LABELS_EN[exp.category] || exp.category);
+        const catDisplay = categoryLabel(exp.category, t);
         doc.text(catDisplay, 48, y + 5);
 
         doc.setFont('helvetica', 'normal');
@@ -414,7 +386,7 @@ export async function generateExpensesReportPdf({
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(15, 23, 42);
-      doc.text(isFr ? 'SOUS-TOTAL DÉPENSES GÉNÉRALES' : 'SUBTOTAL GENERAL EXPENSES', 18, y + 5);
+      doc.text(t.pdfSubtotalGeneral, 18, y + 5);
       doc.text(formatAmount(totalGeneral), 190, y + 5, { align: 'right' });
       y += 10;
     } else {
@@ -422,9 +394,7 @@ export async function generateExpensesReportPdf({
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
       doc.text(
-        isFr
-          ? `Aucune dépense générale trouvée pour le filtre sélectionné (${categoryName}).`
-          : `No general expenses found for the selected filter (${categoryName}).`,
+        t.pdfNoGeneralFilter.replace('{category}', categoryName),
         18,
         y + 6
       );
@@ -445,9 +415,7 @@ export async function generateExpensesReportPdf({
     doc.setFontSize(9.5);
     doc.setTextColor(15, 23, 42);
     doc.text(
-      isFr
-        ? `2. Fournisseurs, Services & Cas Sociaux ${isFilteredByCategory ? `[${categoryName}]` : ''}`
-        : `2. Vendors, Services & Social Cases ${isFilteredByCategory ? `[${categoryName}]` : ''}`,
+      `${t.pdfVendorsLog}${isFilteredByCategory ? ` [${categoryName}]` : ''}`,
       14,
       y
     );
@@ -461,11 +429,11 @@ export async function generateExpensesReportPdf({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(51, 65, 85);
-    doc.text(isFr ? 'FOURNISSEUR / BÉNÉFICIAIRE' : 'VENDOR / BENEFICIARY', 18, y + 5);
-    doc.text(isFr ? 'CATÉGORIE' : 'CATEGORY', 80, y + 5);
-    doc.text(isFr ? 'ÉCHÉANCE' : 'DUE DATE', 120, y + 5);
-    doc.text(isFr ? 'STATUT' : 'STATUS', 150, y + 5);
-    doc.text(isFr ? 'MONTANT (FCFA)' : 'AMOUNT (FCFA)', 190, y + 5, { align: 'right' });
+    doc.text(t.pdfVendorBeneficiary, 18, y + 5);
+    doc.text(t.pdfCategory, 80, y + 5);
+    doc.text(t.pdfDueDate, 120, y + 5);
+    doc.text(t.pdfStatus, 150, y + 5);
+    doc.text(t.pdfAmountFcfa, 190, y + 5, { align: 'right' });
 
     y += 7;
 
@@ -492,7 +460,7 @@ export async function generateExpensesReportPdf({
 
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(71, 85, 105);
-        const vCatDisplay = isFr ? (CATEGORY_LABELS_FR[ve.category] || ve.category) : (CATEGORY_LABELS_EN[ve.category] || ve.category);
+        const vCatDisplay = categoryLabel(ve.category, t);
         doc.text(vCatDisplay, 80, y + 5);
         doc.text(ve.dueDate || '—', 120, y + 5);
 
@@ -501,13 +469,13 @@ export async function generateExpensesReportPdf({
         doc.setFontSize(7);
         if (ve.paymentStatus === 'paid') {
           doc.setTextColor(5, 150, 105);
-          doc.text(isFr ? 'Payé' : 'Paid', 150, y + 5);
+          doc.text(t.pdfPaid, 150, y + 5);
         } else if (ve.paymentStatus === 'partial') {
           doc.setTextColor(217, 119, 6);
-          doc.text(isFr ? 'Partiel' : 'Partial', 150, y + 5);
+          doc.text(t.pdfPartial, 150, y + 5);
         } else {
           doc.setTextColor(220, 38, 38);
-          doc.text(isFr ? 'Non payé' : 'Unpaid', 150, y + 5);
+          doc.text(t.pdfUnpaid, 150, y + 5);
         }
 
         doc.setFont('helvetica', 'bold');
@@ -526,7 +494,7 @@ export async function generateExpensesReportPdf({
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(15, 23, 42);
-      doc.text(isFr ? 'SOUS-TOTAL FACTURÉ / RÉGLÉ' : 'SUBTOTAL INVOICED / PAID', 18, y + 5);
+      doc.text(t.pdfSubtotalInvoicedPaid, 18, y + 5);
       doc.text(`${formatAmount(totalVendorPaid)} / ${formatAmount(totalVendorInvoiced)}`, 190, y + 5, { align: 'right' });
       y += 10;
     } else {
@@ -534,9 +502,7 @@ export async function generateExpensesReportPdf({
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
       doc.text(
-        isFr
-          ? `Aucun engagement fournisseur ou cas social trouvé pour le filtre sélectionné (${categoryName}).`
-          : `No vendor commitments or social cases found for the selected filter (${categoryName}).`,
+        t.pdfNoVendorFilter.replace('{category}', categoryName),
         18,
         y + 6
       );
@@ -556,13 +522,13 @@ export async function generateExpensesReportPdf({
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
 
-  doc.text(isFr ? 'L\'Économe / Responsable Achats' : 'The Accountant / Purchasing Lead', 25, y);
-  doc.text(isFr ? 'La Direction / Promotrice' : 'The Director / Promoter', 140, y);
+  doc.text(t.pdfAccountant, 25, y);
+  doc.text(t.pdfDirector, 140, y);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(isFr ? 'Signature & Visa' : 'Signature & Verification', 25, y + 5);
+  doc.text(t.pdfSignatureVisaShort, 25, y + 5);
 
   // Official school stamp over the approval area
   await drawSchoolStamp(doc, 165, y + 17, 24);
@@ -575,7 +541,7 @@ export async function generateExpensesReportPdf({
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    `Complexe Scolaire MAMA THERA — Bilan des Charges & Dépenses [${categoryName}] — ${todayStr}`,
+    t.pdfExpensesFooter.replace('{category}', categoryName).replace('{date}', todayStr),
     105,
     288,
     { align: 'center' }

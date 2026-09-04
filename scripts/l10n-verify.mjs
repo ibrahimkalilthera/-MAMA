@@ -23,7 +23,21 @@ const frKeys = new Set(parseKeys(frBlock));
 // des clés de traduction.
 const NON_I18N_KEYS = new Set(['id', 'type']);
 
-const files = ['src/App.tsx', ...fs.readdirSync('src/components').filter(f => f.endsWith('.tsx')).map(f => `src/components/${f}`)];
+// PDF generators and the domain hooks that draw PDF text must ALSO use the
+// central dictionary — same parity gate as the UI (reçus, bordereaux,
+// rapports follow the chosen language from this single place).
+const files = [
+  'src/App.tsx',
+  ...fs.readdirSync('src/components').filter(f => f.endsWith('.tsx')).map(f => `src/components/${f}`),
+  'src/lib/pdfReceipt.ts',
+  'src/lib/pdfPayroll.ts',
+  'src/lib/pdfPayrollDraft.ts',
+  'src/lib/pdfExpensesReport.ts',
+  'src/lib/pdfFinancialReport.ts',
+  'src/lib/pdfMultiYearReport.ts',
+  'src/app/useParents.ts',
+  'src/app/usePayroll.ts',
+];
 
 const missing = new Map(); // key -> [files]
 for (const f of files) {
