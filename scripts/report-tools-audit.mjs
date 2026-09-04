@@ -21,15 +21,28 @@ const SPAWN_OPTS = { shell: process.platform === 'win32' };
 
 /** Total vulnerabilities of the tools/ lockfile tree — no install needed. */
 function auditTools() {
-  const r = spawnSync(NPM, ['audit', '--json'], { cwd: 'tools', encoding: 'utf8', ...SPAWN_OPTS });
-  if (!r.stdout) return null;
-  try {
-    const data = JSON.parse(r.stdout);
-    const total = data.metadata && data.metadata.vulnerabilities && data.metadata.vulnerabilities.total;
-    return typeof total === 'number' ? total : null;
-  } catch {
-    return null;
+  // Bounded + retried: the npm audit endpoint has gone 503/timeout for hours
+  // during registry incidents. A hanging spawn would otherwise trip the CI
+  // job timeout, and a job TIMED OUT cancels the whole workflow run — which
+  // deploy.yml gates on — so this warning-only job must never hang. Two
+  // short attempts, then give up gracefully (exit 0 path below).
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const r = spawnSync(NPM, ['audit', '--json', '--fetch-timeout=45000', '--fetch-retries=1'], {
+      cwd: 'tools', encoding: 'utf8', timeout: 90000, ...SPAWN_OPTS,
+    });
+    if (r.stdout) {
+      try {
+        const data = JSON.parse(r.stdout);
+        const total = data.metadata && data.metadata.vulnerabilities && data.metadata.vulnerabilities.total;
+        if (typeof total === 'number') return total;
+      } catch {
+        // fall through to retry / unavailable
+      }
+    }
+    if (r.status === 0) return 0; // clean exit, nothing to report
+    if (attempt === 1) console.log('• tools/ audit attempt 1 failed, retrying…');
   }
+  return null;
 }
 
 function appendSummary(markdown) {

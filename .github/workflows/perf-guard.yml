@@ -175,7 +175,11 @@ jobs:
   tools-audit:
     name: Tools audit (warning-only)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Headroom above the script's own 2×90s bounded audit: even when the npm
+    # audit endpoint stalls, the job must COMPLETE (exit 0 warning), never hit
+    # its timeout — a timed-out job cancels the whole workflow run regardless
+    # of continue-on-error, and deploy.yml gates on that run succeeding.
+    timeout-minutes: 10
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
