@@ -2680,7 +2680,7 @@ export function AppModals(props: AppModalsProps) {
                 <span className="text-xs text-slate-500 block">({t[notifyParent.relationship.toLowerCase() as keyof typeof t] || notifyParent.relationship})</span>
               </div>
               <div className="text-left sm:text-right">
-                <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 block">{t.totalOutstandingBalance}</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 dark:text-rose-300 block">{t.totalOutstandingBalance}</span>
                 <span className="text-lg font-black text-rose-600 dark:text-rose-400 font-mono">
                   {formatCurrency(getParentOutstandingBalance(notifyParent))}
                 </span>

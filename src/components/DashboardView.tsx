@@ -21,7 +21,7 @@ export function DashboardView() {
                         <h4 className="font-black text-sm">
                           {t.payrollWindowClosed.replace('{month}', currentMonthName)}
                         </h4>
-                        <p className="text-xs text-rose-600/80 font-semibold mt-0.5">
+                        <p className="text-xs text-rose-600/80 dark:text-rose-300/80 font-semibold mt-0.5">
                           {t.highPriorityActionRequiredToProcessCurrentMonthPayroll}
                         </p>
                       </div>
@@ -37,7 +37,7 @@ export function DashboardView() {
                         <h4 className="font-black text-sm">
                           {t.payrollWindowOpen.replace('{month}', currentMonthName)}
                         </h4>
-                        <p className="text-xs text-blue-600/80 font-semibold mt-0.5">
+                        <p className="text-xs text-blue-600/80 dark:text-blue-300/80 font-semibold mt-0.5">
                           {t.thePayrollWindowIsActiveFromThe1stToThe10thOfTheMonth}
                         </p>
                       </div>
