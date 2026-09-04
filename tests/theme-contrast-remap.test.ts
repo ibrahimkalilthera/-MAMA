@@ -272,10 +272,9 @@ describe('midnight lock: light fills carry a dark: counterpart', () => {
     // then the ParentFormModal extraction, -1)
     // AppModals line numbers shift when a modal block is extracted — these are
     // the hidden print surfaces + promoter-locked fills (see the extraction
-    // comments on past diffs). Last shifted by the VendorExpenseModal
-    // extraction (−203 lines above the removed block; its two promoter-locked
-    // fills moved into the extracted file, listed below).
-    'components/AppModals.tsx': [1211, 1367, 1427, 1439, 1460, 1463, 1486, 1490, 1494],
+    // comments on past diffs). Last shifted by the YearlyAuditSheetModal
+    // extraction (−159 lines above the removed block).
+    'components/AppModals.tsx': [1052, 1208, 1268, 1280, 1301, 1304, 1327, 1331, 1335],
     // Promoter-locked read-only fields in the vendor form (bg-slate-100
     // disabled input, shown to non-promoters) — carried over from AppModals.
     'components/VendorExpenseModal.tsx': [99, 220],
