@@ -278,12 +278,12 @@ export function MainViews(props: MainViewsProps) {
                         const isDelete = log.action.includes('DELETE');
 
                         const badgeColor = isPayment
-                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20'
                           : isExpense
-                          ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                          ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20'
                           : isDelete
-                          ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-                          : 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+                          ? 'bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20'
+                          : 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/20';
 
                         return (
                           <tr key={log.id} className={`${currentTheme.rowHover} transition-all`}>
