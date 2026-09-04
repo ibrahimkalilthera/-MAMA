@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { Dispatch, SetStateAction, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Layers, MessageSquare, Phone, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X } from 'lucide-react';
+import { Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Layers, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense } from '../lib/useSupabaseData';
 import type { CalendarEvent, CurrentTheme, ManagedClass, ParentForm, SalaryForm, StaffForm, VendorExpenseForm } from '../app/mainViewsProps';
@@ -15,6 +15,7 @@ import { StudentFormModal } from './StudentFormModal';
 import type { StudentForm } from './StudentFormModal';
 import { VendorExpenseModal } from './VendorExpenseModal';
 import { YearlyAuditSheetModal } from './YearlyAuditSheetModal';
+import { NotifyParentModal } from './NotifyParentModal';
 import { AddClassModal } from './AddClassModal';
 import type { ClassForm } from './AddClassModal';
 import { EditClassModal } from './EditClassModal';
@@ -200,7 +201,7 @@ export interface AppModalsProps {
 
 export function AppModals(props: AppModalsProps) {
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
-  const { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Layers, MessageSquare, Phone, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, isGeneralManager, lang, newClassForm, noteText, savingNoteOnDate, saveNoteOnDate, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, vendorExpenseForm, welcomeMessage } = props;
+  const { Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Layers, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, isGeneralManager, lang, newClassForm, noteText, savingNoteOnDate, saveNoteOnDate, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, vendorExpenseForm, welcomeMessage } = props;
 
   // Escape closes the topmost open overlay (keyboard consistency). The list
   // below follows the JSX order: the LAST open entry is the visually topmost,
@@ -1493,162 +1494,25 @@ export function AppModals(props: AppModalsProps) {
 
       {/* --- Late Payment Notification Modal (WhatsApp / SMS Generator) --- */}
       {showNotifyModal && notifyParent && (
-        <div ref={(el) => { overlayRoots.current[11] = el; }} role="dialog" aria-modal="true" aria-label={t.reminderModalTitle} aria-labelledby="modal-title-reminder" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className={`w-full max-w-xl ${currentTheme.card} p-6 sm:p-8 rounded-[2rem] border ${currentTheme.border} shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto`}
-          >
-            {/* Modal Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
-                  <Bell size={24} />
-                </div>
-                <div>
-                  <h3 id="modal-title-reminder" className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
-                    {t.reminderModalTitle}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-medium">
-                    {t.reminderModalSubtitle}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowNotifyModal(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Parent Summary Card */}
-            <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">{t.parentName}</span>
-                <span className="text-sm font-black text-slate-900 dark:text-white">{notifyParent.fullName}</span>
-                <span className="text-xs text-slate-500 block">({t[notifyParent.relationship.toLowerCase() as keyof typeof t] || notifyParent.relationship})</span>
-              </div>
-              <div className="text-left sm:text-right">
-                <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 dark:text-rose-300 block">{t.totalOutstandingBalance}</span>
-                <span className="text-lg font-black text-rose-600 dark:text-rose-400 font-mono">
-                  {formatCurrency(getParentOutstandingBalance(notifyParent))}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {/* Recipient Phone Selection */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectPhone} *</label>
-                <div className="flex items-center gap-2">
-                  <Phone size={16} className="text-slate-400" />
-                  <select
-                    value={notifySelectedPhone}
-                    onChange={(e) => setNotifySelectedPhone(e.target.value)}
-                    className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
-                  >
-                    {notifyParent.phones.map((ph, idx) => (
-                      <option key={idx} value={ph}>
-                        {ph} {idx === 0 ? `(${t.primaryPhone})` : `(${t.secondaryPhone})`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Template Selection Radio Buttons / Pills */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectTemplate}</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleNotifyTemplateChange('polite')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                      notifyTemplateType === 'polite'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
-                    }`}
-                  >
-                    {t.templatePolite}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleNotifyTemplateChange('urgent')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                      notifyTemplateType === 'urgent'
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-md shadow-rose-600/20'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
-                    }`}
-                  >
-                    {t.templateUrgent}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleNotifyTemplateChange('detailed')}
-                    className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                      notifyTemplateType === 'detailed'
-                        ? 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/20'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
-                    }`}
-                  >
-                    {t.templateDetailed}
-                  </button>
-                </div>
-              </div>
-
-              {/* Editable Message Text Box */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.customMessage}</label>
-                  {copiedToast && (
-                    <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 animate-pulse">
-                      <CheckCircle2 size={12} />
-                      {t.copiedToClipboard}
-                    </span>
-                  )}
-                </div>
-                <textarea
-                  rows={6}
-                  value={notifyCustomText}
-                  onChange={(e) => setNotifyCustomText(e.target.value)}
-                  className={`w-full p-3.5 text-xs font-mono font-medium rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'} leading-relaxed`}
-                />
-              </div>
-            </div>
-
-            {/* One-Click Action Buttons */}
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={handleCopyNotifyMessage}                  className="w-full sm:w-auto h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-2 transition-all whitespace-nowrap"
-                >
-                  <Copy size={16} className="flex-shrink-0" />
-                <span>{t.copyMessage}</span>
-              </button>
-
-              <div className="w-full sm:w-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleSendSMS}
-                  className="flex-1 sm:flex-initial h-11 px-4 rounded-2xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all whitespace-nowrap"
-                >
-                  <MessageSquare size={16} className="flex-shrink-0" />
-                  <span>{t.sendSMS}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSendWhatsApp}
-                  className="flex-1 sm:flex-initial h-11 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all whitespace-nowrap"
-                >
-                  <MessageSquare size={16} className="text-emerald-200 flex-shrink-0" />
-                  <span>{t.openWhatsApp}</span>
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
+        <NotifyParentModal
+          t={t}
+          currentTheme={currentTheme}
+          notifyParent={notifyParent}
+          notifySelectedPhone={notifySelectedPhone}
+          setNotifySelectedPhone={setNotifySelectedPhone}
+          notifyCustomText={notifyCustomText}
+          setNotifyCustomText={setNotifyCustomText}
+          notifyTemplateType={notifyTemplateType}
+          handleNotifyTemplateChange={handleNotifyTemplateChange}
+          handleCopyNotifyMessage={handleCopyNotifyMessage}
+          handleSendSMS={handleSendSMS}
+          handleSendWhatsApp={handleSendWhatsApp}
+          copiedToast={copiedToast}
+          formatCurrency={formatCurrency}
+          getParentOutstandingBalance={getParentOutstandingBalance}
+          overlayRef={(el) => { overlayRoots.current[11] = el; }}
+          onClose={() => setShowNotifyModal(false)}
+        />
       )}
 
       {/* --- Student Delete Confirmation --- */}
