@@ -94,7 +94,11 @@ jobs:
 
   lighthouse:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Headroom calibrée sur les durées observées (56s à 917s selon le runner
+    # partagé) : un job qui dépasse son timeout est ANNULÉ et annule tout le
+    # workflow — ce qui bloque la porte deploy.yml. 25 min laissent 3 audits
+    # Lighthouse + build se terminer même sur un runner lent.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 

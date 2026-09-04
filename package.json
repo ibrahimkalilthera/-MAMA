@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "optimize:stamp": "node scripts/optimize-stamp.mjs",
     "check:perf": "node scripts/check-performance.mjs",
+    "quality": "node scripts/quality-chain.mjs",
     "check:contrast": "node scripts/theme-contrast-audit.mjs",
     "deploy:prod": "node scripts/deploy-notice.mjs",
     "seed": "node --env-file=.env supabase/seed.mjs",

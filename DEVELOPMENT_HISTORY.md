@@ -1,3 +1,31 @@
+## [2026-09-04] Runner qualité async + watchdog (anti-blocage Node/msys)
+
+Nouveau script `scripts/quality-chain.mjs` (script npm `quality` : lint →
+l10n → test → build en UNE commande) appliquant les trois correctifs
+anti-blocage demandés :
+
+- **Aucune fonction synchrone** : chaque étape est lancée via
+  `child_process.spawn` async (jamais `execSync`), le parent ne bloque
+  jamais l'event loop — plus aucun gel possible pendant la chaîne.
+- **Erreurs globales** : `unhandledRejection` / `uncaughtException`
+  interceptés → message + exit code 1 au lieu d'une mort silencieuse.
+- **Mémoire** : chaque étape log RSS/heap ; l'étape tests (scanne AST
+  TypeScript de tout src/) tourne avec `--max-old-space-size=4096`.
+- **Watchdog anti-fork-panic msys** : timeout par étape, kill de TOUT
+  l'arbre du processus enfant (`taskkill /pid X /T /F` sous Windows,
+  SIGKILL de groupe ailleurs) — l'orphelin node.exe qui déclenche la
+  panne de fork ne peut plus être laissé.
+- **Zéro shell** : npm est invoqué via son CLI JS
+  (`node_modules/npm/bin/npm-cli.js` résolu à côté de node.exe), donc
+  aucune commande ne passe plus par bash/cmd — la panne msys ne peut
+  plus être déclenchée par la chaîne qualité.
+
+Vérifié : lint 0 warning, l10n ✅, 393/393 tests, build ✅ en une seule
+invocation `node scripts/quality-chain.mjs` (première exécution réelle
+déroulée sans panne).
+
+---
+
 ## [2026-09-03] Pipeline d'optimisation du tampon 100 % Node (aucune dépendance externe)
 
 Nouveau script scripts/optimize-stamp.mjs : régénère public/tampon.png depuis
