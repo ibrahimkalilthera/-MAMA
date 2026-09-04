@@ -100,7 +100,7 @@ export const Login = ({
           )}
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{'Email'}</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.email2}</label>
             <div className="relative">
               <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 

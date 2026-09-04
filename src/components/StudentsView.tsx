@@ -82,7 +82,7 @@ export function StudentsView() {
                         )}
                       </div>
                     </th>
-                    <th className="px-8 py-6 text-right select-none">Actions</th>
+                    <th className="px-8 py-6 text-right select-none">{t.actions}</th>
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${currentTheme.border}`}>
@@ -126,7 +126,7 @@ export function StudentsView() {
                               className="flex items-center gap-4 cursor-pointer"
                               onClick={() => setSelectedStudent(student)}
                             >
-                              <div className={`w-10 h-10 rounded-xl ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-400'} font-bold text-xs group-hover:bg-blue-600 group-hover:text-white transition-all flex items-center justify-center`}>
+                              <div className={`w-10 h-10 rounded-xl ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} font-bold text-xs group-hover:bg-blue-600 group-hover:text-white transition-all flex items-center justify-center`}>
                                 {student.name.split(' ').map(n => n[0]).join('')}
                               </div>
                               <div>

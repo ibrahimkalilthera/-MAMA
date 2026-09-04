@@ -37,7 +37,7 @@ export function InactivityWarning(props: InactivityWarningProps) {
             aria-label={t.inactivityTitle}
             className={`relative ${currentTheme.card} w-full max-w-md rounded-[2rem] shadow-2xl border ${currentTheme.border} overflow-hidden p-8 text-center`}
           >
-            <div className={`w-16 h-16 rounded-full ${currentTheme.isDark ? 'bg-amber-900/20 text-amber-500' : 'bg-amber-100 text-amber-600'} flex items-center justify-center mx-auto mb-4`}>
+            <div className={`w-16 h-16 rounded-full ${currentTheme.isDark ? 'bg-amber-900/20 text-amber-500' : 'bg-amber-100 text-amber-800'} flex items-center justify-center mx-auto mb-4`}>
               <Clock size={24} />
             </div>
             <h2 className={`text-xl font-black mb-2 ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>

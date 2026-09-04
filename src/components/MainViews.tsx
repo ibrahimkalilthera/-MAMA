@@ -121,8 +121,8 @@ export function MainViews(props: MainViewsProps) {
                               event.type === 'due' ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300' :
                               event.type === 'salary' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300' :
                               event.type === 'note' ? 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300' :
-                              event.type === 'todo' ? 'bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-300' :
-                              'bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300'
+                              event.type === 'todo' ? 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300' :
+                              'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
                             }`}
                           >
                             <div className={`w-1.5 h-1.5 rounded-full ${
@@ -266,7 +266,7 @@ export function MainViews(props: MainViewsProps) {
                     <tr className={`${currentTheme.isDark ? 'bg-emerald-900/20' : 'bg-slate-50/50'} ${currentTheme.muted} text-[10px] font-black uppercase tracking-[0.2em]`}>
                       <th className="px-6 py-4">{t.timestamp}</th>
                       <th className="px-6 py-4">{t.staffUser}</th>
-                      <th className="px-6 py-4">{'Action'}</th>
+                      <th className="px-6 py-4">{t.actions}</th>
                       <th className="px-6 py-4">{t.details}</th>
                     </tr>
                   </thead>
@@ -327,7 +327,7 @@ export function MainViews(props: MainViewsProps) {
         {activeTab === 'settings' && auth?.isAdmin && (
           <div className="max-w-2xl space-y-8">
             <div className={`${currentTheme.card} p-10 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50`}>
-              <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} mb-8`}>Localization & Preferences</h3>
+              <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} mb-8`}>{t.localizationAndPreferences}</h3>
               <div className="space-y-6">
                 <div className={`flex items-center justify-between p-6 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-3xl`}>
                   <div className="flex items-center gap-4">
@@ -513,7 +513,7 @@ export function MainViews(props: MainViewsProps) {
                           {t.firstCycle1stTo6thYear}
                         </p>
                         <span className="text-[10px] font-bold text-slate-400">
-                          {availableClasses.filter(c => c.cycle === 'cycle1').length} {'classes'}
+                          {availableClasses.filter(c => c.cycle === 'cycle1').length} {t.classesWord}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -552,7 +552,7 @@ export function MainViews(props: MainViewsProps) {
                           {t.secondCycle7thTo9thYear}
                         </p>
                         <span className="text-[10px] font-bold text-slate-400">
-                          {availableClasses.filter(c => c.cycle === 'cycle2').length} {'classes'}
+                          {availableClasses.filter(c => c.cycle === 'cycle2').length} {t.classesWord}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -697,7 +697,7 @@ export function MainViews(props: MainViewsProps) {
                         <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-400 flex items-center gap-1.5">
                           <Receipt size={14} className="text-violet-500 flex-shrink-0" /> {t.roleEconome}
                         </span>
-                        <span className="text-xs font-black bg-teal-500/20 text-teal-700 dark:text-teal-400 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-black bg-teal-500/20 text-teal-800 dark:text-teal-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'econome').length}
                         </span>
                       </div>
@@ -854,10 +854,10 @@ export function MainViews(props: MainViewsProps) {
                                       onChange={(e) => handleUpdateRole(profile, e.target.value as AppRole)}
                                       className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                                         isAdmin
-                                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20'
+                                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/20'
                                           : isGM
-                                          ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-500 hover:bg-cyan-500/20'
-                                          : 'bg-blue-500/10 border-blue-500/30 text-blue-500 hover:bg-blue-500/20'
+                                          ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-700 hover:bg-cyan-500/20'
+                                          : 'bg-blue-500/10 border-blue-500/30 text-blue-700 hover:bg-blue-500/20'
                                       } ${updatingUserId === profile.id ? 'opacity-50 cursor-wait' : ''}`}
                                     >
                                       <option value="admin" className="bg-slate-800 text-white">

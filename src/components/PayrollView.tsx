@@ -196,7 +196,7 @@ export function PayrollView() {
                   >
                     <div className="flex items-start justify-between mb-6">
                       <div className="flex items-center gap-4">
-                        <div className={`w-14 h-14 rounded-2xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : (currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-400')} flex items-center justify-center font-bold text-xl`}>
+                        <div className={`w-14 h-14 rounded-2xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : (currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600')} flex items-center justify-center font-bold text-xl`}>
                           {s.name.charAt(0)}
                         </div>
                         <div>
@@ -209,13 +209,13 @@ export function PayrollView() {
                       <div className="flex gap-2">
                         <a 
                           href={`tel:${s.phone}`}
-                          className={`p-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-300 hover:text-blue-600'} transition-all`}
+                          className={`p-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600'} transition-all`}
                         >
                           <Phone size={16} />
                         </a>
                         <a 
                           href={`mailto:${s.email}`}
-                          className={`p-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-300 hover:text-blue-600'} transition-all`}
+                          className={`p-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600'} transition-all`}
                         >
                           <Mail size={16} />
                         </a>
@@ -328,7 +328,7 @@ export function PayrollView() {
                     </div>
 
                     <div className="absolute top-4 right-4">
-                      <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-300'}`}>
+                      <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
                         {statusLabel}
                       </span>
                     </div>
@@ -349,7 +349,7 @@ export function PayrollView() {
                       <th className="px-8 py-6">{t.staffName}</th>
                       <th className="px-8 py-6">{t.date}</th>
                       <th className="px-8 py-6">{t.amount}</th>
-                      <th className="px-8 py-6 text-right">Actions</th>
+                      <th className="px-8 py-6 text-right">{t.actions}</th>
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${currentTheme.border}`}>

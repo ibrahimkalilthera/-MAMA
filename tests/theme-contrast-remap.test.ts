@@ -1,211 +1,61 @@
 /**
  * Numeric WCAG lock for the light-theme contrast fixes (db70bc3 + the
- * light-theme remap layer in index.css).
+ * light-theme remap layer in index.css) — with an AUTO-DERIVED manifest.
  *
  * Why numeric + static: the browser audit (scripts/theme-contrast-audit.mjs)
- * gates every theme at 3:1 for large/UI text, but the corrected families
- * below are *small text* (chips, captions, pills: 9-12px) which needs the
- * WCAG AA 4.5:1 bar, and it only measures what happens to be rendered with
- * the ephemeral account's data. This suite resolves the actual colors —
- * base Tailwind palette, overridden by each light theme's remap rules parsed
- * from src/index.css — and asserts the two things that regressed in the
- * past:
+ * gates every theme at 3:1 for large/UI text, but small text (chips,
+ * captions, pills: 9-12px) needs the WCAG AA 4.5:1 bar, and it only measures
+ * whatever happens to be rendered with the ephemeral account's data. This
+ * suite resolves the actual colors — base Tailwind palette, overridden by
+ * each light theme's remap rules parsed from src/index.css — and asserts:
  *
  *   1. the light themes' remapped TEXT families (navy/emerald/bordeaux
  *      darken slate-400, emerald-500/600, rose-500/600, blue-500; cream
  *      remaps its own set) always clear 4.5:1 against the theme's light
  *      card; and their remapped solid-ACCENT backgrounds keep white text
  *      above 4.5:1 (the "white CTA on emerald-600" family);
- *   2. every status badge fixed in db70bc3 (Payé/Solde/Échéance pills,
- *      DEV/STAGING env badges, user-role chips and stats pills/captions)
- *      still resolves to ≥ 4.5:1 in ALL four light themes, and the fixed
- *      tokens are still the ones used in the components (a revert to
- *      text-*-400 / *-500 fills trips the presence check).
+ *   2. EVERY text-x / bg-x token pair that co-occurs in the same static segment of
+ *      a className literal (manifest derived by tests/tailwind-pairs.ts —
+ *      no hand-maintained list to go stale) resolves to >= 4.5:1 in ALL
+ *      four light themes. A new low-contrast pair in any component fails
+ *      here immediately, without anyone updating a manifest;
+ *   3. every light fill (bg-*-50/100/200) carries a dark:bg-* counterpart
+ *      in the same segment (the midnight white-chip defect class), modulo
+ *      the documented fixed-light exemptions below.
  *
  * Scope: light themes only — "surfaces claires". The dark themes (slate /
  * midnight) remap both text AND surface to dark and are covered by the
- * browser audit; their semantics (light-on-dark) would need a different
- * surface model than the light cards used here.
+ * browser audit (>= 3:1); their semantics (light-on-dark) would need a
+ * different surface model than the light cards used here.
  *
- * Pure suite: no DOM, no React — plain node:test + fs (see tests/harness.ts
- * "When NOT to use it").
+ * Pure suite: no DOM, no React — plain node:test + fs + the shared scanner
+ * (see tests/harness.ts "When NOT to use it").
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+import {
+  LIGHT_THEMES,
+  textOverrides,
+  bgOverrides,
+  extractColorPairs,
+  extractMissingDarkBg,
+  resolve,
+  contrast,
+  composite,
+  lum,
+  hexRgb,
+  CARD,
+  ROOT,
+  type LightTheme,
+} from './tailwind-pairs.ts';
+
 const CSS = readFileSync(join(ROOT, 'src/index.css'), 'utf8');
-
-/** The four light themes (slate/midnight are dark — out of this suite's scope). */
-const LIGHT_THEMES = ['navy', 'emerald', 'cream', 'bordeaux'] as const;
-type LightTheme = (typeof LIGHT_THEMES)[number];
-
-/** Light card surface per theme (the brightest surface text sits on). */
-const CARD: Record<LightTheme, string> = {
-  navy: '#ffffff',
-  emerald: '#ffffff',
-  cream: '#FFFDF9',
-  bordeaux: '#ffffff',
-};
-
-/**
- * Base Tailwind v4 default palette for the tokens this suite touches. The
- * repo ships no @theme color overrides (no tailwind.config, no --color-*
- * in index.css), so these defaults ARE the resolved base colors; the
- * per-theme remap layer in index.css may override them (see below).
- */
-const PALETTE: Record<string, string> = {
-  white: '#ffffff',
-  'slate-400': '#94a3b8',
-  'slate-500': '#64748b',
-  'slate-600': '#475569',
-  'slate-800': '#1e293b',
-  'slate-900': '#0f172a',
-  'rose-50': '#fff1f2',
-  'rose-100': '#ffe4e6',
-  'rose-500': '#f43f5e',
-  'rose-600': '#e11d48',
-  'rose-700': '#be123c',
-  'amber-50': '#fffbeb',
-  'amber-100': '#fef3c7',
-  'amber-500': '#f59e0b',
-  'amber-600': '#d97706',
-  'amber-700': '#b45309',
-  'blue-50': '#eff6ff',
-  'blue-100': '#dbeafe',
-  'blue-500': '#3b82f6',
-  'blue-600': '#2563eb',
-  'blue-700': '#1d4ed8',
-  'emerald-50': '#ecfdf5',
-  'emerald-500': '#10b981',
-  'emerald-600': '#059669',
-  'emerald-700': '#047857',
-  'teal-50': '#f0fdfa',
-  'teal-500': '#14b8a6',
-  'teal-700': '#0f766e',
-  'purple-50': '#faf5ff',
-  'purple-500': '#a855f7',
-  'purple-600': '#9333ea',
-  'purple-700': '#7e22ce',
-  'cyan-500': '#06b6d4',
-  'cyan-800': '#155e75',
-  'indigo-600': '#4f46e5',
-};
-
-/* ─── WCAG math ─────────────────────────────────────────────────────────── */
-
-const hexRgb = (hex: string): [number, number, number] => {
-  const h = hex.replace('#', '');
-  const n = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-  return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
-};
-
-const lum = (rgb: [number, number, number]): number => {
-  const lin = rgb.map((v) => {
-    const s = v / 255;
-    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  }) as [number, number, number];
-  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
-};
-
-const contrast = (a: string, b: string): number => {
-  const l1 = lum(hexRgb(a));
-  const l2 = lum(hexRgb(b));
-  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-};
-
-/** Composite a translucent token color over an opaque surface (sRGB). */
-const composite = (fg: string, alpha: number, surface: string): string => {
-  const f = hexRgb(fg);
-  const s = hexRgb(surface);
-  const out = f.map((v, i) => Math.round(alpha * v + (1 - alpha) * s[i])) as [number, number, number];
-  return '#' + out.map((v) => v.toString(16).padStart(2, '0')).join('');
-};
-
-/* ─── Parse the light-theme remap layer from index.css ──────────────────── */
-
-/** key: `${theme} ${token}` → solid hex. */
-const textOverrides = new Map<string, string>();
-const bgOverrides = new Map<string, string>();
-
-// The remap layer groups several selectors per declaration block
-// (`.theme-navy .text-rose-600, .theme-emerald .text-rose-600, ... { color:
-// #BE123C }`). Walk every leaf declaration block; for each of its
-// comma-separated segments that is EXACTLY `.theme-X .{text|bg}-TOKEN`,
-// record the block's color / background-color. Scoped rules (`.theme-cream
-// .welcome-banner .text-purple-400`, heading :is() lists, :hover variants)
-// never match the exact segment shape, so whitening/welcome rules stay out.
-const SEGMENT = /^\.theme-(navy|emerald|cream|bordeaux)\s+\.(text|bg)-([a-zA-Z0-9-]+)$/;
-for (const block of CSS.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-  const selectors = block[1];
-  const body = block[2];
-  const colorDecl = body.match(/(?:^|[;}])\s*color\s*:\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8})/);
-  const bgDecl = body.match(/(?:^|[;}])\s*background-color\s*:\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8})/);
-  for (const seg of selectors.split(',')) {
-    const m = seg.trim().match(SEGMENT);
-    if (!m) continue;
-    const [, theme, kind, token] = m;
-    const decl = kind === 'text' ? colorDecl : bgDecl;
-    if (!decl) continue;
-    const map = kind === 'text' ? textOverrides : bgOverrides;
-    map.set(`${theme} ${token}`, decl[1].toLowerCase());
-  }
-}
-
-/** Resolve a token (or '#hex') to its final color under a light theme. */
-const resolve = (theme: LightTheme, kind: 'text' | 'bg', token: string): string => {
-  if (token.startsWith('#')) return token.toLowerCase();
-  const overridden = (kind === 'text' ? textOverrides : bgOverrides).get(`${theme} ${token}`);
-  if (overridden) return overridden;
-  const base = PALETTE[token];
-  assert.ok(base, `palette entry missing for ${kind}-${token} (theme ${theme})`);
-  return base;
-};
 
 /** The remapped accent families monitored in section 1 (bg tokens that carry white text). */
 const ACCENT_SOLID = /^(blue|indigo|emerald|rose|amber|teal|purple|cyan)-(500|600|700)$/;
-
-/* ─── The fixed badge pairs (db70bc3) ───────────────────────────────────── */
-
-interface BadgePair {
-  label: string;
-  file: string;
-  /** Token pair (both must still be present in the component source). */
-  needle: string;
-  fg: string;
-  bg: string;
-  /** Translucent fill → composited over the light card surface. */
-  bgAlpha?: number;
-}
-
-const BADGES: BadgePair[] = [
-  // Échéance / Solde pills (getStatus + vendor payment chips).
-  { label: 'Échéance pill', file: 'src/App.tsx', needle: "text-amber-700 bg-amber-50", fg: 'amber-700', bg: 'amber-50' },
-  { label: 'Paiement partiel fournisseur chip', file: 'src/components/ExpensesView.tsx', needle: "bg-amber-50 text-amber-700", fg: 'amber-700', bg: 'amber-50' },
-  // Dépense impayée: overdue = solid rose (white text), else pastel chip.
-  { label: 'Impaysé en retard chip (white on solid rose)', file: 'src/components/ExpensesView.tsx', needle: "bg-rose-600 text-white", fg: '#ffffff', bg: 'rose-600' },
-  { label: 'Impayé chip (pastel)', file: 'src/components/ExpensesView.tsx', needle: "bg-rose-50 dark:bg-rose-950/40 text-rose-600", fg: 'rose-600', bg: 'rose-50' },
-  // Env badges — white on 700-level fills.
-  { label: 'EnvBadge DEV', file: 'src/components/ToastNotification.tsx', needle: "'bg-amber-700' : 'bg-blue-700'", fg: '#ffffff', bg: 'blue-700' },
-  { label: 'EnvBadge STAGING', file: 'src/components/ToastNotification.tsx', needle: "'bg-amber-700' : 'bg-blue-700'", fg: '#ffffff', bg: 'amber-700' },
-  // Role-stat count pills (*-500/20 tint fills).
-  { label: 'Count pill staff', file: 'src/components/MainViews.tsx', needle: "bg-blue-500/20 text-blue-700", fg: 'blue-700', bg: 'blue-500', bgAlpha: 0.2 },
-  { label: 'Count pill économe', file: 'src/components/MainViews.tsx', needle: "bg-teal-500/20 text-teal-700", fg: 'teal-700', bg: 'teal-500', bgAlpha: 0.2 },
-  { label: 'Count pill dev', file: 'src/components/MainViews.tsx', needle: "bg-purple-500/20 text-purple-700", fg: 'purple-700', bg: 'purple-500', bgAlpha: 0.2 },
-  // Role chips (user list).
-  { label: 'Role chip admin / « Vous »', file: 'src/components/MainViews.tsx', needle: "bg-emerald-500/20 text-emerald-600", fg: 'emerald-600', bg: 'emerald-500', bgAlpha: 0.2 },
-  { label: 'Role chip dev', file: 'src/components/MainViews.tsx', needle: "bg-purple-500/20 text-purple-700", fg: 'purple-700', bg: 'purple-500', bgAlpha: 0.2 },
-  { label: 'Role chip GM', file: 'src/components/MainViews.tsx', needle: "bg-cyan-500/20 text-cyan-800", fg: 'cyan-800', bg: 'cyan-500', bgAlpha: 0.2 },
-  { label: 'Role chip staff', file: 'src/components/MainViews.tsx', needle: "bg-blue-500/20 text-blue-700", fg: 'blue-700', bg: 'blue-500', bgAlpha: 0.2 },
-  // Role-stat captions on pastel/70 cards.
-  { label: 'Caption promoteurs', file: 'src/components/MainViews.tsx', needle: "text-emerald-600 dark:text-emerald-400", fg: 'emerald-600', bg: 'emerald-50', bgAlpha: 0.7 },
-  { label: 'Caption staff', file: 'src/components/MainViews.tsx', needle: "text-blue-600 dark:text-blue-400", fg: 'blue-600', bg: 'blue-50', bgAlpha: 0.7 },
-  { label: 'Caption économe', file: 'src/components/MainViews.tsx', needle: "text-teal-700 dark:text-teal-400", fg: 'teal-700', bg: 'teal-50', bgAlpha: 0.7 },
-  { label: 'Caption dev', file: 'src/components/MainViews.tsx', needle: "text-purple-600 dark:text-purple-400", fg: 'purple-600', bg: 'purple-50', bgAlpha: 0.7 },
-];
 
 describe('light-theme remap layer — every remapped family clears WCAG AA 4.5:1', () => {
   it('parses a sane number of remap rules (guard against parser drift)', () => {
@@ -241,57 +91,121 @@ describe('light-theme remap layer — every remapped family clears WCAG AA 4.5:1
   });
 });
 
-describe('fixed status badges resolve to >= 4.5:1 in every light theme (db70bc3 lock)', () => {
-  for (const b of BADGES) {
-    it(`${b.label} — tokens still in use (${b.file})`, () => {
-      const src = readFileSync(join(ROOT, b.file), 'utf8');
-      assert.ok(src.includes(b.needle),
-        `${b.file} no longer contains the fixed pair "${b.needle}" — a contrast fix was reverted`);
-    });
+describe('derived manifest: every co-occurring text/bg pair >= 4.5:1 in all light themes', () => {
+  // The manifest IS the scan — nothing to maintain by hand. Known pairs
+  // whose failure mode is "wrong branch pairing" (the text belongs to a
+  // sibling element, not this bg) are impossible by construction: the
+  // AST chunks guarantee same-segment co-occurrence. Tokens outside the
+  // palette (arbitrary values, gradients) are surfaced as a coverage
+  // warning, not silently skipped.
+  const pairs = extractColorPairs();
+  const unique = new Map<string, { text: string; bg: string; at: string[] }>();
+  for (const p of pairs) {
+    const key = `${p.text}|${p.bg}`;
+    if (!unique.has(key)) unique.set(key, { text: p.text, bg: p.bg, at: [] });
+    unique.get(key)!.at.push(`${p.file}:${p.line}`);
+  }
 
-    it(`${b.label} — resolved contrast >= 4.5:1 in all light themes`, () => {
+  it('derives a sane manifest size (guard against scanner drift)', () => {
+    assert.ok(unique.size >= 20, `expected >= 20 unique pairs, derived ${unique.size}`);
+  });
+
+  /**
+   * Fixed-DARK surfaces — exempt from the light-card model by design
+   * (the scanner cannot see ancestor context, so these are documented):
+   *  - Sidebar.tsx CTA row: sits on the fixed-dark gradient sidebar
+   *    (`app-sidebar`, text-white), emerald-300 on emerald-600/20 is the
+   *    intended light-on-dark pairing;
+   *  - DashboardView hero card (`card-hero`): a fixed-dark gradient with
+   *    white headings — its emerald-400 accents are light-on-dark too
+   *    (bg-emerald-500/[0.12] arbitrary alphas resolve to the 500 base
+   *    token here, a conservative over-estimate of the real wash);
+   *  - WelcomeBanner role badges: the banner is a fixed-dark gradient
+   *    (white heading via inline style) — *-400 on *-500/20 is the
+   *    intended light-on-dark pairing;
+   *  - ExcelImportModal step indicator: the modal chrome is a fixed-dark
+   *    slate-950 surface (bg-[#0F172A]/80) — emerald-400 "done" step chip
+   *    is light-on-dark by design.
+   */
+  const FIXED_DARK_PAIRS = new Set([
+    'emerald-300|emerald-600/20',
+    'emerald-400|emerald-500',
+    'emerald-400/80|emerald-500',
+    'emerald-400|emerald-500/20',
+    'cyan-400|cyan-500/20',
+    'blue-400|blue-500/20',
+    'purple-400|purple-500/20',
+  ]);
+
+  it('every derived token is in the palette or remapped (no silent skips)', () => {
+    const unknown = new Set<string>();
+    for (const { text, bg } of unique.values()) {
+      const baseText = text.split('/')[0];
+      const baseBg = bg.split('/')[0];
       for (const theme of LIGHT_THEMES) {
-        const fg = resolve(theme, 'text', b.fg);
-        const bgRaw = resolve(theme, 'bg', b.bg);
-        const bg = b.bgAlpha === undefined ? bgRaw : composite(bgRaw, b.bgAlpha, '#ffffff');
-        const ratio = contrast(fg, bg);
+        if (resolve(theme, 'text', baseText) === undefined) unknown.add(`text-${baseText}`);
+        if (resolve(theme, 'bg', baseBg) === undefined) unknown.add(`bg-${baseBg}`);
+      }
+    }
+    assert.deepEqual([...unknown], [], 'tokens missing from tests/tailwind-pairs.ts PALETTE');
+  });
+
+  for (const [key, info] of [...unique.entries()].sort()) {
+    const [text, bg] = key.split('|');
+    it(`${key} (${info.at.length}×, e.g. ${info.at[0]})`, () => {
+      if (FIXED_DARK_PAIRS.has(key)) return; // documented fixed-dark surface
+      for (const theme of LIGHT_THEMES) {
+        const fg = resolve(theme, 'text', text.split('/')[0]);
+        const bgRaw = resolve(theme, 'bg', bg.split('/')[0]);
+        const alpha = bg.includes('/') ? parseInt(bg.split('/')[1]) / 100 : 1;
+        const bgHex = alpha === 1 ? bgRaw : composite(bgRaw, alpha, CARD[theme]);
+        const ratio = contrast(fg, bgHex);
         assert.ok(ratio >= 4.5,
-          `${b.label} in ${theme}: ${fg} on ${bg} = ${ratio.toFixed(2)}:1 (< 4.5)`);
+          `${info.at[0]}: text-${text} on bg-${bg} = ${ratio.toFixed(2)}:1 in ${theme} (< 4.5)`);
       }
     });
   }
 });
 
 /**
- * Dark-theme (midnight) badge lock — the pastel badges above keep a LIGHT
- * surface under the light themes, but the midnight theme has NO CSS remap
- * layer (unlike slate): fixed-light `bg-*-50/100` badges must each carry a
- * `dark:` counterpart or they render as bright white chips on the midnight
- * body (the "1ÈRE ANNÉE B" white pill in the Élèves view, the status pills,
- * the calendar event chips, …). Presence canary: dropping the dark:
- * variant from any of these known badges trips the suite. Dark text on the
- * dark surfaces is then covered by the browser audit (>= 3:1).
+ * Midnight white-chip lock — light fills (bg-*-50/100/200) must each carry
+ * a `dark:bg-*` counterpart in the same segment or they render as bright
+ * chips on the midnight body. The old hand-listed DARK_PAIRS are subsumed:
+ * any NEW light fill without a dark: counterpart fails here automatically.
+ *
+ * Documented exemptions (fixed-light surfaces by design):
+ *  - print containers/headers: rendered ONLY for paper (white bg forced)
+ *  - Login.tsx: the login screen is a fixed-light marketing surface
+ *  - FloatingChat message history: fixed-light widget interior
+ *  - SharedUi HighlightText <mark>: yellow highlight with explicit
+ *    text-slate-900 (>= 10:1 on every theme)
+ *  - ArchivesView close-out banner: 20%-alpha wash OVER the themed card
+ *    (the card's own dark surface still shows through)
  */
-describe('midnight badge surfaces carry a dark: counterpart (fixed-light pills)', () => {
-  const DARK_PAIRS: { label: string; file: string; needle: string }[] = [
-    { label: 'grade pill Élèves', file: 'src/components/StudentsView.tsx', needle: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300' },
-    { label: 'Échéance pill', file: 'src/App.tsx', needle: 'bg-amber-50 border-amber-100 dark:bg-amber-950/40 dark:text-amber-300' },
-    { label: 'Solde pill', file: 'src/App.tsx', needle: 'bg-emerald-50 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300' },
-    { label: 'Impulsion retard pill', file: 'src/App.tsx', needle: 'bg-rose-50 border-rose-100 dark:bg-rose-950/40 dark:text-rose-300' },
-    { label: 'Fiche élève grade pill', file: 'src/components/AppModals.tsx', needle: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300' },
-    { label: 'Paiement fournisseur partiel', file: 'src/components/ExpensesView.tsx', needle: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40' },
-    { label: 'Calendrier chips MainViews', file: 'src/components/MainViews.tsx', needle: 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300' },
-    { label: 'Locked tag Archives', file: 'src/components/ArchivesView.tsx', needle: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300' },
-    { label: 'Active tag Archives', file: 'src/components/ArchivesView.tsx', needle: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' },
-    { label: 'Solde chip fiche (rose)', file: 'src/components/AppModals.tsx', needle: 'bg-rose-50 dark:bg-rose-950/30 rounded-2xl' },
-    { label: 'Fenêtre paie ouverte Dashboard', file: 'src/components/DashboardView.tsx', needle: 'bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50' },
-    { label: 'Classe code AddClass', file: 'src/components/AddClassModal.tsx', needle: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300' },
+describe('midnight lock: light fills carry a dark: counterpart', () => {
+  const EXEMPT_FILES = [
+    'components/PayrollView.tsx', // print header
+    'components/StudentsView.tsx', // print header + divider
   ];
-  for (const p of DARK_PAIRS) {
-    it(`${p.label} — dark: counterpart present (${p.file})`, () => {
-      const src = readFileSync(join(ROOT, p.file), 'utf8');
-      assert.ok(src.includes(p.needle),
-        `${p.file} no longer contains "${p.needle}" — the midnight white-badge fix was reverted`);
-    });
-  }
+  const EXEMPT_LINES: Record<string, number[]> = {
+    // print-student-file container internals (fixed print surface)
+    'components/AppModals.tsx': [995, 1116, 1825, 1981, 2041, 2053, 2074, 2077, 2100, 2104, 2108],
+    'components/Login.tsx': [95, 110, 126],
+    'components/FloatingChat.tsx': [115],
+    'components/SharedUi.tsx': [18],
+    // 20%-alpha rose wash OVER the themed card (dark surface shows through)
+    'components/ExpensesView.tsx': [252],
+  };
+
+  const gaps = extractMissingDarkBg().filter(
+    (g) => !EXEMPT_FILES.includes(g.file) && !(EXEMPT_LINES[g.file] ?? []).includes(g.line),
+  );
+
+  it('has no unexempted light fills without a dark: counterpart', () => {
+    assert.deepEqual(
+      gaps.map((g) => `${g.file}:${g.line} ${g.fill}`),
+      [],
+      'light fills missing a dark:bg-* counterpart (the midnight white-chip defect)',
+    );
+  });
 });

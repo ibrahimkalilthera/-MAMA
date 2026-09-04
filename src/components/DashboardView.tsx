@@ -30,7 +30,7 @@ export function DashboardView() {
 
                   {payrollWindowStatus.isOpen && (
                     <div className="p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-3xl flex items-center gap-4 text-blue-700 dark:text-blue-300 shadow-lg shadow-blue-500/5">
-                      <div className="p-2 bg-blue-100 dark:bg-blue-950/60 rounded-xl text-blue-600 dark:text-blue-300 flex-shrink-0">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-950/60 rounded-xl text-blue-700 dark:text-blue-300 flex-shrink-0">
                         <Calendar size={20} />
                       </div>
                       <div>
@@ -210,7 +210,7 @@ export function DashboardView() {
                       {stats.lateParentsCount}
                     </h3>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600">
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-800">
                     <Clock size={18} />
                   </div>
                 </div>
@@ -316,7 +316,7 @@ export function DashboardView() {
                         className={`p-6 ${currentTheme.rowHover} transition-all cursor-pointer flex items-center justify-between group`}
                       >
                         <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-2xl ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-400'} flex items-center justify-center font-bold group-hover:bg-blue-600 group-hover:text-white transition-all`}>
+                          <div className={`w-12 h-12 rounded-2xl ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} flex items-center justify-center font-bold group-hover:bg-blue-600 group-hover:text-white transition-all`}>
                             {s.name.charAt(0)}
                           </div>
                           <div>
@@ -339,7 +339,7 @@ export function DashboardView() {
                     <CheckCircle2 size={40} />
                   </div>
                   <h4 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} mb-2`}>{t.allUpToDate}</h4>
-                  <p className={`${currentTheme.muted} max-w-xs mx-auto text-sm`}>Great job! All accounts are currently settled or within their grace period.</p>
+                  <p className={`${currentTheme.muted} max-w-xs mx-auto text-sm`}>{t.allAccountsSettled}</p>
                 </div>
               )}
             </div>

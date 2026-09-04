@@ -328,7 +328,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
                     <tr>
                       <th className="p-3">#</th>
                       <th className="p-3">{t.studentName}</th>
-                      <th className="p-3">{'Parent / Contact'}</th>
+                      <th className="p-3">{t.parentContact2}</th>
                       <th className="p-3">{t.sourcePayment}</th>
                       <th className="p-3 text-right">{t.actionDecision}</th>
                     </tr>

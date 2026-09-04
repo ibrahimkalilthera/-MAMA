@@ -33,7 +33,7 @@ export function DashboardCharts({ chartData, pieData, t, currentTheme }: Dashboa
       >
         <div className="flex items-center justify-between mb-6">
           <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'} tracking-tight`}>{t.incomeVsExpenses}</h3>
-          <div className={`p-2 ${isDark ? 'bg-white/[0.06] text-white/60' : 'bg-slate-100 text-slate-500'} rounded-lg`}>
+          <div className={`p-2 ${isDark ? 'bg-white/[0.06] text-white/60' : 'bg-slate-100 text-slate-600'} rounded-lg`}>
             <TrendingUp size={16} />
           </div>
         </div>
@@ -63,7 +63,7 @@ export function DashboardCharts({ chartData, pieData, t, currentTheme }: Dashboa
       >
         <div className="flex items-center justify-between mb-6">
           <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-800'} tracking-tight`}>{t.feeStatus}</h3>
-          <div className={`p-2 ${isDark ? 'bg-white/[0.06] text-white/60' : 'bg-slate-100 text-slate-500'} rounded-lg`}>
+          <div className={`p-2 ${isDark ? 'bg-white/[0.06] text-white/60' : 'bg-slate-100 text-slate-600'} rounded-lg`}>
             <PieChart size={16} />
           </div>
         </div>

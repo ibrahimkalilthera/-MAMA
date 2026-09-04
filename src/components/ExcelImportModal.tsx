@@ -395,7 +395,7 @@ export function ExcelImportModal({
                               onClick={() => handleSheetChange(i)}
                               className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
                                 selectedSheetIdx === i
-                                  ? 'border-blue-500 bg-blue-500/10 text-blue-500'
+                                  ? 'border-blue-500 bg-blue-500/10 text-blue-700'
                                   : `${themeBorder} ${textSecondary} hover:bg-white/5`
                               }`}
                             >

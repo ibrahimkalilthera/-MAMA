@@ -105,7 +105,7 @@ export function FloatingChat(props: FloatingChatProps) {
               <button
                 onClick={() => setIsFloatingChatOpen(false)}
                 className="p-1.5 hover:bg-white/10 rounded-xl transition-all"
-                aria-label="Close chat"
+                aria-label={t.closeChat}
               >
                 <X size={16} />
               </button>

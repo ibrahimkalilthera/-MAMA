@@ -153,9 +153,9 @@ export function AddClassModal(props: AddClassModalProps) {
                   )}
                   {newClassForm.cycle === 'maternelle' && (
                     <>
-                      <option value="PS">{'Petite Section (PS)'}</option>
-                      <option value="MS">{'Moyenne Section (MS)'}</option>
-                      <option value="GS">{'Grande Section (GS)'}</option>
+                      <option value="PS">{t.petiteSection}</option>
+                      <option value="MS">{t.moyenneSection}</option>
+                      <option value="GS">{t.grandeSection}</option>
                     </>
                   )}
                 </select>

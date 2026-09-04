@@ -205,7 +205,7 @@ export function ExpensesView() {
                               <th className="px-8 py-6 text-right">{t.amountPaid}</th>
                               <th className="px-8 py-6">{t.dueDate2}</th>
                               <th className="px-8 py-6">{t.paymentStatus}</th>
-                              <th className="px-8 py-6 text-right no-print">{'Actions'}</th>
+                              <th className="px-8 py-6 text-right no-print">{t.actions}</th>
                             </tr>
                           </thead>
                           <tbody className={`divide-y ${currentTheme.border}`}>
@@ -251,7 +251,7 @@ export function ExpensesView() {
                                 return (
                                   <tr key={v.id} className={`${currentTheme.rowHover} transition-all ${isOverdue ? 'bg-rose-50/10 hover:bg-rose-50/20' : ''}`}>
                                     <td className="px-8 py-6">
-                                      <span className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-700">
+                                      <span className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">
                                         {categoryIcon}
                                         {(t as Record<string, string>)[v.category] || v.category}
                                       </span>

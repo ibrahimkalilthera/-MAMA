@@ -351,7 +351,7 @@ export function AppModals(props: AppModalsProps) {
                 {/* --- Student Card Layout --- */}
                 <div className={`flex flex-col sm:flex-row items-center gap-6 p-6 rounded-[2.5rem] border ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-900/5' : 'bg-slate-50/50'}`}>
                   {/* Photo Placeholder / Image */}
-                  <div className={`w-28 h-28 flex-shrink-0 border-2 ${currentTheme.border} rounded-[2rem] overflow-hidden ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-400'} flex items-center justify-center relative shadow-inner`}>
+                  <div className={`w-28 h-28 flex-shrink-0 border-2 ${currentTheme.border} rounded-[2rem] overflow-hidden ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} flex items-center justify-center relative shadow-inner`}>
                     {selectedStudent.photo ? (
                       <img 
                         src={selectedStudent.photo} 
@@ -484,7 +484,7 @@ export function AppModals(props: AppModalsProps) {
                               <div key={`${p.date}-${p.amount}-${idx}`} className={`flex items-center justify-between p-3 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-xl text-xs`}>
                                 <div className="flex flex-col">
                                   <span className={currentTheme.muted}>{formatDate(p.date)}</span>
-                                  {p.receiptNumber && <span className="text-[10px] text-slate-400 font-mono">{lang === 'fr' ? 'N°' : 'Ref'} {p.receiptNumber}</span>}
+                                  {p.receiptNumber && <span className="text-[10px] text-slate-400 font-mono">{t.receiptNoShort} {p.receiptNumber}</span>}
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <span className="font-bold text-emerald-600">+{formatCurrency(p.amount)}</span>
@@ -1082,7 +1082,7 @@ export function AppModals(props: AppModalsProps) {
                               <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                             ))}
                           </optgroup>
-                          <optgroup label={'Second Cycle'}>
+                          <optgroup label={t.secondCycleShort}>
                             {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
                               <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                             ))}
@@ -1323,7 +1323,7 @@ export function AppModals(props: AppModalsProps) {
                   if (dayEvents.length === 0 && dayNotes.length === 0) {
                     return (
                       <div className="py-10 text-center">
-                        <div className={`w-16 h-16 rounded-full ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-400'} flex items-center justify-center mx-auto mb-4`}>
+                        <div className={`w-16 h-16 rounded-full ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} flex items-center justify-center mx-auto mb-4`}>
                           <Calendar size={32} />
                         </div>
                         <p className={currentTheme.muted}>{t.noTasks}</p>
@@ -1336,7 +1336,7 @@ export function AppModals(props: AppModalsProps) {
                       {dayNotes.length > 0 && (
                         <div className="p-6 rounded-2xl border border-yellow-200 dark:border-yellow-900/40 bg-yellow-50/60 dark:bg-yellow-950/30">
                           <div className="flex items-center gap-4 mb-4">
-                            <div className="p-3 rounded-xl bg-yellow-100 dark:bg-yellow-950/60 text-yellow-600 dark:text-yellow-300">
+                            <div className="p-3 rounded-xl bg-yellow-100 dark:bg-yellow-950/60 text-yellow-800 dark:text-yellow-300">
                               <StickyNote size={20} />
                             </div>
                             <div>
@@ -1372,9 +1372,9 @@ export function AppModals(props: AppModalsProps) {
                             <div className={`p-3 rounded-xl ${
                               event.type === 'due' ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300' :
                               event.type === 'salary' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300' :
-                              event.type === 'note' ? 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-600 dark:text-yellow-300' :
-                              event.type === 'todo' ? 'bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-300' :
-                              'bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300'
+                              event.type === 'note' ? 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300' :
+                              event.type === 'todo' ? 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300' :
+                              'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
                             }`}>
                               {event.type === 'due' ? <Users size={20} /> : event.type === 'salary' ? <Briefcase size={20} /> : event.type === 'note' ? <StickyNote size={20} /> : event.type === 'todo' ? <CheckSquare size={20} /> : <Receipt size={20} />}
                             </div>
@@ -1980,7 +1980,7 @@ export function AppModals(props: AppModalsProps) {
                   <thead>
                     <tr className="bg-slate-100 border-b border-black font-bold">
                       <th className="px-3 py-2 border-r border-black">{t.studentName2}</th>
-                      <th className="px-3 py-2 border-r border-black">{'Parent / Contact'}</th>
+                      <th className="px-3 py-2 border-r border-black">{t.parentContact2}</th>
                       <th className="px-3 py-2 text-right">{t.debtCarriedOver}</th>
                     </tr>
                   </thead>
@@ -2652,7 +2652,7 @@ export function AppModals(props: AppModalsProps) {
             {/* Modal Header */}
             <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-500/20">
                   <Bell size={24} />
                 </div>
                 <div>
