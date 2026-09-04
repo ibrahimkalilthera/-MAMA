@@ -683,7 +683,7 @@ export function MainViews(props: MainViewsProps) {
                         <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
                           <Briefcase size={14} className="text-sky-500 flex-shrink-0" /> {t.roleStaff}
                         </span>
-                        <span className="text-xs font-black bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-black bg-blue-500/20 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'staff').length}
                         </span>
                       </div>
@@ -694,10 +694,10 @@ export function MainViews(props: MainViewsProps) {
 
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-teal-950/20 border-teal-500/30' : 'bg-teal-50/70 border-teal-200'}`}>
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-400 flex items-center gap-1.5">
                           <Receipt size={14} className="text-violet-500 flex-shrink-0" /> {t.roleEconome}
                         </span>
-                        <span className="text-xs font-black bg-teal-500/20 text-teal-600 dark:text-teal-400 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-black bg-teal-500/20 text-teal-700 dark:text-teal-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'econome').length}
                         </span>
                       </div>
@@ -711,7 +711,7 @@ export function MainViews(props: MainViewsProps) {
                         <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
                           <Zap size={14} className="text-amber-500 flex-shrink-0" /> {t.engineeringDev}
                         </span>
-                        <span className="text-xs font-black bg-purple-500/20 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded-full">
+                        <span className="text-xs font-black bg-purple-500/20 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'dev').length}
                         </span>
                       </div>
@@ -808,18 +808,18 @@ export function MainViews(props: MainViewsProps) {
                                       {profile.fullName}
                                     </p>
                                     {isCurrentUser && (
-                                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                                         {t.you}
                                       </span>
                                     )}
                                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
                                       isDev 
-                                        ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' 
+                                        ? 'bg-purple-500/20 text-purple-700 dark:text-purple-400 border border-purple-500/30' 
                                         : isAdmin 
-                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' 
                                         : isGM
-                                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                                        : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                        ? 'bg-cyan-500/20 text-cyan-800 dark:text-cyan-400 border border-cyan-500/30'
+                                        : 'bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-500/30'
                                     }`}>
                                       {isDev && <Zap size={12} className="text-amber-500 flex-shrink-0" />}
                                       {isAdmin && <Crown size={12} className="text-amber-500 flex-shrink-0" />}

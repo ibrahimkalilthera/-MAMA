@@ -677,7 +677,7 @@ const {
     if (standing.key === 'dueSoon') {
       return { 
         label: t.dueSoon, 
-        color: 'text-amber-600 bg-amber-50 border-amber-100', 
+        color: 'text-amber-700 bg-amber-50 border-amber-100', 
         icon: <AlertCircle size={14} />,
         standing: t.partial
       };

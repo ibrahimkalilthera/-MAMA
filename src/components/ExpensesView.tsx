@@ -303,7 +303,7 @@ export function ExpensesView() {
                                         </span>
                                       )}
                                       {v.paymentStatus === 'unpaid' && (
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${isOverdue ? 'bg-rose-500 text-white border-rose-600 animate-pulse' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${isOverdue ? 'bg-rose-600 text-white border-rose-700 animate-pulse' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
                                           {t.unpaid}
                                         </span>
                                       )}

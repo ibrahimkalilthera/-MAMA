@@ -181,8 +181,10 @@ export function EnvBadge({ env }: EnvBadgeProps) {
   // Only show in non-production environments
   if (env === 'production') return null;
 
+  // Solid accent fills: white text needs ≥ 4.5:1, so the 500-level fills
+  // (blue-500 3.7:1, amber-500 2.2:1) are too light — use 700-level.
   const label = env === 'staging' ? 'STAGING' : 'DEV';
-  const color = env === 'staging' ? 'bg-amber-500' : 'bg-blue-500';
+  const color = env === 'staging' ? 'bg-amber-700' : 'bg-blue-700';
 
   return (
     <div className={`fixed top-2 left-2 z-[9997] ${color} text-white text-[10px] font-black tracking-widest px-2.5 py-1 rounded-full shadow-lg uppercase pointer-events-none`}>
