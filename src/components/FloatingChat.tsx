@@ -11,7 +11,7 @@
  */
 import { useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X } from 'lucide-react';
+import { Bot, X } from 'lucide-react';
 import { useFocusTrap } from '../lib/focusStack';
 import type { TranslationDict } from '../i18n/translations';
 import type { ChatMessage } from '../app/useFloatingChat';
@@ -92,7 +92,7 @@ export function FloatingChat(props: FloatingChatProps) {
               style={{ backgroundColor: themeHeader }}
             >
               <div className="flex items-center gap-2">
-                <span className="text-xl">🤖</span>
+                <Bot size={20} className="flex-shrink-0" />
                 <div>
                   <h4 id="modal-title-floating-chat" className="font-bold text-sm">
                     {t.floatingChatTitle ?? 'Mama Thera Assistant'}
@@ -196,7 +196,7 @@ export function FloatingChat(props: FloatingChatProps) {
                 : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'
             }`}
           >
-            <span className="text-lg">🤖</span>
+            <Bot size={18} className="flex-shrink-0" />
             <span>{t.mamaTheraAiAssistant}</span>
           </motion.button>
         )}

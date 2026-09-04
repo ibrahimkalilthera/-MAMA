@@ -262,8 +262,9 @@ export function ExpensesView() {
                                         {v.category === 'social_cases' && (
                                           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                                             {v.aidType && (
-                                              <span className="inline-block px-2 py-0.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-extrabold rounded-md text-[10px] tracking-wider uppercase">
-                                                ❤️ {(t as Record<string, string>)[v.aidType] || v.aidType}
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-extrabold rounded-md text-[10px] tracking-wider uppercase">
+                                                <Heart size={11} className="flex-shrink-0" />
+                                                {(t as Record<string, string>)[v.aidType] || v.aidType}
                                               </span>
                                             )}
                                             {v.beneficiaryStudentName && (

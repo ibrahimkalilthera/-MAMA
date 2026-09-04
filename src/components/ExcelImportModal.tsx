@@ -376,9 +376,9 @@ export function ExcelImportModal({
                       </div>
                       <button
                         onClick={() => { setFile(null); setSheets([]); setDetection(null); }}
-                        className="p-2 hover:bg-white/10 rounded-lg text-rose-500 text-xs font-bold"
+                        className="p-2 hover:bg-white/10 rounded-lg text-rose-500 flex items-center justify-center"
                       >
-                        ✕
+                        <X size={16} />
                       </button>
                     </div>
 

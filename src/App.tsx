@@ -110,6 +110,7 @@ import {
   Droplet,
   Wifi,
   Sparkles,
+  AlertTriangle,
   BookOpen,
   Heart,
   UserPlus,
@@ -227,7 +228,7 @@ export default function App() {
     onMutationSuccess: (operation) => {
       const label = operationLabels[operation];
       if (label) {
-        toast.success(`✅ ${label[lang]}`);
+        toast.success(label[lang]);
       }
     },
     onMutationError: (operation, errorMessage) => {
@@ -452,7 +453,7 @@ export default function App() {
     if (!prev || fresh.length === 0) return;
     playNotificationChime();
     if (fresh.length === 1) {
-      toast.warning(`🔔 ${fresh[0].message}`);
+      toast.warning(fresh[0].message);
     } else {
       toast.warning(t.newNotifications.replace('{n}', String(fresh.length)));
     }
@@ -1037,7 +1038,7 @@ const {
           <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
           {supabaseError && (
             <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white text-center py-2 text-xs font-semibold flex items-center justify-center gap-3">
-              <span>⚠️ {t.databaseConnectionIssue}: {supabaseError}</span>
+              <span className="flex items-center gap-1.5"><AlertTriangle size={14} className="flex-shrink-0" /> {t.databaseConnectionIssue}: {supabaseError}</span>
               <button
                 onClick={() => fetchAll()}
                 className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors"

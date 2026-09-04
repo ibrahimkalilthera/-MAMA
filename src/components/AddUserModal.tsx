@@ -7,7 +7,7 @@
 
 import { useState, useRef, FormEvent } from 'react';
 import { motion } from 'motion/react';
-import { Briefcase, Compass, Crown, Receipt, UserPlus } from 'lucide-react';
+import { Briefcase, Compass, Crown, Receipt, UserPlus, X } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import type { UserProfile } from '../lib/useAuth';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
@@ -131,9 +131,9 @@ export const AddUserModal = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all text-sm font-bold"
+            className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center"
           >
-            ✕
+            <X size={16} />
           </button>
         </div>
 

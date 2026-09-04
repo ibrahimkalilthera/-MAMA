@@ -1,4 +1,5 @@
 import { StrictMode } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { YearProvider } from './app/YearProvider';
 import { createRoot } from 'react-dom/client';
 import './index.css';
@@ -45,7 +46,9 @@ function ConfigErrorScreen({ message }: { message: string }) {
           boxShadow: '0 20px 60px rgba(0,0,0,.35)',
         }}
       >
-        <div style={{ fontSize: 40, marginBottom: 8 }}>⚠️</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+          <AlertTriangle size={44} strokeWidth={1.5} color="#dc2626" />
+        </div>
         <h1 style={{ margin: '0 0 8px', fontSize: 20, color: '#0f172a' }}>
           Configuration manquante / Missing configuration
         </h1>

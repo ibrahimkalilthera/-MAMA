@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Compass, Cpu, CreditCard, Crown, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, KeyRound, Landmark, Layers, Lock, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award,  Bell, BookOpen, Briefcase, Calendar, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Compass, Cpu, CreditCard, Crown, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, KeyRound, Landmark, Layers, Lock, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap } from 'lucide-react';
 import { HighlightText, ChartsFallback } from './SharedUi';
 
 // Contract types moved to src/app/mainViewsProps.ts — the single source of
@@ -382,7 +382,7 @@ export function MainViews(props: MainViewsProps) {
                         }`}
                       >
                         <div className={`w-10 h-10 rounded-full ${tOption.color} border border-slate-200 shadow-inner flex items-center justify-center`}>
-                          {theme === tOption.id && <span className={`text-xs ${tOption.id === 'cream' ? 'text-slate-800' : 'text-white'}`}>✓</span>}
+                          {theme === tOption.id && <Check size={14} className={`flex-shrink-0 ${tOption.id === 'cream' ? 'text-slate-800' : 'text-white'}`} />}
                         </div>
                         <span className={`text-xs font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} text-center`}>{tOption.label}</span>
                       </button>
