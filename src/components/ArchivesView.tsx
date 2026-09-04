@@ -162,7 +162,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                       <Lock size={12} />
                       {t.adminController}
                     </div>
-                    <h3 className={`text-2xl font-black text-rose-950 dark:text-rose-400`}>
+                    <h3 className={`text-2xl font-black text-rose-950 dark:text-rose-300`}>
                       {t.closeActiveSchoolYear}
                     </h3>
                     <p className={`text-sm text-rose-800 dark:text-rose-300`}>

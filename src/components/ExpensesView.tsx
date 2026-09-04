@@ -135,13 +135,13 @@ export function ExpensesView() {
                         <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${currentTheme.muted}`}>{t.totalVendorBills}</p>
                         <h4 className={`text-2xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(totalVendorAmount)}</h4>
                       </div>
-                      <div className="bg-emerald-50/50 p-6 rounded-[2rem] border border-emerald-100 shadow-sm">
-                        <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-emerald-600">{t.paidPortions}</p>
-                        <h4 className="text-2xl font-black text-emerald-700">{formatCurrency(totalVendorPaid)}</h4>
+                      <div className="bg-emerald-50/50 dark:bg-emerald-500/10 p-6 rounded-[2rem] border border-emerald-100 dark:border-emerald-500/20 shadow-sm">
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-emerald-600 dark:text-emerald-300">{t.paidPortions}</p>
+                        <h4 className="text-2xl font-black text-emerald-700 dark:text-emerald-200">{formatCurrency(totalVendorPaid)}</h4>
                       </div>
-                      <div className="bg-amber-50/50 p-6 rounded-[2rem] border border-amber-100 shadow-sm">
-                        <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-amber-700">{t.outstandingBalanceVendor}</p>
-                        <h4 className="text-2xl font-black text-amber-700">{formatCurrency(totalVendorOutstanding)}</h4>
+                      <div className="bg-amber-50/50 dark:bg-amber-500/10 p-6 rounded-[2rem] border border-amber-100 dark:border-amber-500/20 shadow-sm">
+                        <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-amber-700 dark:text-amber-300">{t.outstandingBalanceVendor}</p>
+                        <h4 className="text-2xl font-black text-amber-700 dark:text-amber-200">{formatCurrency(totalVendorOutstanding)}</h4>
                       </div>
                       <div className={`${overdueVendorCount > 0 ? 'bg-rose-100 border-rose-200' : 'bg-slate-50 border-slate-100'} p-6 rounded-[2rem] border shadow-sm transition-all`}>
                         <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${overdueVendorCount > 0 ? 'text-rose-600' : 'text-slate-500'}`}>{t.overdueUnpaid}</p>

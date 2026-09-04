@@ -159,22 +159,35 @@ const SCANNER = (minRatio) => {
       if (r.right < 0 || r.left > window.innerWidth || r.bottom < 0 || r.top > window.innerHeight) continue;
       const fgP = css2rgb(cs.color);
       if (!fgP) continue;
-      // Walk ancestors for the background (composite alpha over what lies
-      // below; stop at the first opaque painted surface or a gradient).
-      let bg = null;
+      // Walk ancestors for the background, then composite TOP-DOWN (root
+      // first, element last) — the order real painting uses. Compositing
+      // bottom-up is wrong: an opaque ancestor (e.g. the page body) would
+      // overwrite a translucent surface beneath it (e.g. a toast with
+      // bg-amber-900/90), measuring light toast text against the page
+      // background instead of against the toast itself (the "1.06:1 toast on
+      // emerald-50" false positive).
+      const painted = [];
       let anc = el;
       while (anc) {
         const acs = getComputedStyle(anc);
-        if (acs.backgroundImage && acs.backgroundImage !== 'none') { bg = DARK_GRADIENT; break; }
+        if (acs.backgroundImage && acs.backgroundImage !== 'none') { painted.push({ c: DARK_GRADIENT, a: 1 }); break; }
         const b = css2rgb(acs.backgroundColor);
         if (b) {
           const a = b.length > 3 ? b[3] : 1;
-          if (a > 0.02) bg = bg ? [a * b[0] + (1 - a) * bg[0], a * b[1] + (1 - a) * bg[1], a * b[2] + (1 - a) * bg[2]] : [b[0], b[1], b[2]];
+          if (a > 0.02) painted.push({ c: b, a });
           if (a >= 0.999) break;
         }
         anc = anc.parentElement;
       }
-      if (!bg) bg = [255, 255, 255];
+      // Composite every collected surface farthest→nearest (no break: an
+      // opaque body still lets a translucent toast nearer to the text paint
+      // over it). The collection walk above already stopped at the first
+      // opaque ancestor, so nothing invisible was collected.
+      let bg = [255, 255, 255];
+      for (let i = painted.length - 1; i >= 0; i--) {
+        const { c, a } = painted[i];
+        bg = [a * c[0] + (1 - a) * bg[0], a * c[1] + (1 - a) * bg[1], a * c[2] + (1 - a) * bg[2]];
+      }
       // Composite translucent foregrounds over the resolved background.
       const a = fgP.length > 3 ? fgP[3] : 1;
       const fg = a >= 0.999 ? [fgP[0], fgP[1], fgP[2]] : [a * fgP[0] + (1 - a) * bg[0], a * fgP[1] + (1 - a) * bg[1], a * fgP[2] + (1 - a) * bg[2]];

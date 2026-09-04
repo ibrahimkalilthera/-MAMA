@@ -133,7 +133,7 @@ export function FloatingChat(props: FloatingChatProps) {
             </div>
 
             {/* Quick Prompt Suggesters */}
-            <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800 flex gap-2 overflow-x-auto whitespace-nowrap bg-white custom-scrollbar">
+            <div className="px-3 py-2 border-t border-slate-100 dark:border-slate-800 flex gap-2 overflow-x-auto whitespace-nowrap bg-white dark:bg-[#1E293B] custom-scrollbar">
               {(
                 [
                   t.aiPrompt1,
@@ -148,7 +148,7 @@ export function FloatingChat(props: FloatingChatProps) {
                   key={idx}
                   type="button"
                   onClick={() => q && handleFloatingAiQuery(q)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-full text-[10px] transition-all shrink-0 border border-slate-200/50"
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-100 font-bold rounded-full text-[10px] transition-all shrink-0 border border-slate-200/50 dark:border-slate-600"
                 >
                   {(q ?? '').length > 35 ? (q ?? '').substring(0, 32) + '...' : q}
                 </button>
@@ -161,14 +161,14 @@ export function FloatingChat(props: FloatingChatProps) {
                 e.preventDefault();
                 handleFloatingAiQuery(floatingChatInput);
               }}
-              className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white flex gap-2 items-center"
+              className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1E293B] flex gap-2 items-center"
             >
               <input
                 type="text"
                 value={floatingChatInput}
                 onChange={(e) => setFloatingChatInput(e.target.value)}
                 placeholder={t.askAFinancialQuestion}
-                className="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="flex-1 px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               />
               <button
                 type="submit"
@@ -176,7 +176,7 @@ export function FloatingChat(props: FloatingChatProps) {
                 className={`px-4 py-2 rounded-xl text-white font-extrabold text-xs transition-all ${
                   floatingChatInput.trim()
                     ? `${themeIsDark ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-blue-600 hover:bg-blue-700'} shadow-lg`
-                    : 'bg-slate-300 cursor-not-allowed'
+                    : 'bg-slate-500 cursor-not-allowed'
                 }`}
               >
                 {t.send}
