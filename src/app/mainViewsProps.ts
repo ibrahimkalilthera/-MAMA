@@ -250,6 +250,16 @@ export interface MainViewsProps {
   handleDeleteParent: (parentId: string) => Promise<void>;
   handleDeleteVendorExpense: (id: string) => Promise<void>;
   handleExportAllData: () => Promise<void>;
+  /** One-click JSON snapshot download (Settings, admin/dev only). */
+  handleExportBackup: () => Promise<void>;
+  /** Opens the hidden restore file picker (admin/dev only). */
+  openBackupRestorePicker: () => void;
+  /** Restore file-input onChange — call with the typed-confirmation result. */
+  handleBackupFileSelected: (e: ChangeEvent<HTMLInputElement>, confirmed: boolean) => Promise<void>;
+  /** Ref for the hidden restore file input. */
+  backupFileInputRef: RefObject<HTMLInputElement | null>;
+  /** True while an export/restore round-trip is in flight. */
+  backupBusy: boolean;
   handleExportParentLedgerPdf: (parent: Parent) => Promise<void>;
   handleExportStaffReceiptPdf: (staffMember: Staff) => Promise<void>;
   handleLogoUpload: (e: ChangeEvent<HTMLInputElement>) => void;

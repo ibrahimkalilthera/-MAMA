@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement, createRef, Suspense } from 'react';
 import type { ReactNode } from 'react';
+import type { ChangeEvent } from 'react';
 import { renderToString } from 'react-dom/server';
 import type { LucideIcon } from 'lucide-react';
 import { translations } from '../src/i18n/translations';
@@ -281,6 +282,11 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     handleDeleteParent: asyncNoop,
     handleDeleteVendorExpense: asyncNoop,
   handleExportAllData: asyncNoop,
+  handleExportBackup: asyncNoop,
+  handleBackupFileSelected: asyncNoop as unknown as (e: ChangeEvent<HTMLInputElement>, confirmed: boolean) => Promise<void>,
+  openBackupRestorePicker: noop,
+  backupFileInputRef: { current: null },
+  backupBusy: false,
   handleExportParentLedgerPdf: asyncNoop,
   handleExportStaffReceiptPdf: asyncNoop,
   handleLogoUpload: noop,

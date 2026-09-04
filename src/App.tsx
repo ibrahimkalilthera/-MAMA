@@ -20,6 +20,7 @@ import { usePayroll } from './app/usePayroll';
 import { useClasses } from './app/useClasses';
 import { useDashboard } from './app/useDashboard';
 import { useExports } from './app/useExports';
+import { useBackup } from './app/useBackup';
 import { useTheme } from './app/useTheme';
 import { useStudents } from './app/useStudents';
 import { useExpenses } from './app/useExpenses';
@@ -538,6 +539,20 @@ export default function App() {
     showToast,
   });
 
+  // Backup/restore domain (Settings tab, admin/dev only) — src/app/useBackup.ts.
+  const {
+    backupBusy,
+    fileInputRef: backupFileInputRef,
+    handleExportBackup,
+    openRestorePicker: openBackupRestorePicker,
+    handleRestoreFileSelected: handleBackupFileSelected,
+  } = useBackup({
+    t,
+    profile: auth.profile,
+    isAdmin: auth.isAdmin,
+    toast,
+  });
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -822,6 +837,11 @@ const {
   handleDeleteParent,
   handleDeleteVendorExpense,
   handleExportAllData,
+  handleExportBackup,
+  handleBackupFileSelected,
+  openBackupRestorePicker,
+  backupFileInputRef,
+  backupBusy,
   handleExportParentLedgerPdf,
   handleExportStaffReceiptPdf,
   handleLogoUpload,

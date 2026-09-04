@@ -1,7 +1,10 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award,  Bell, BookOpen, Briefcase, Calendar, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Compass, Cpu, CreditCard, Crown, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, KeyRound, Landmark, Layers, Lock, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap } from 'lucide-react';
 import { HighlightText, ChartsFallback } from './SharedUi';
+import { ConfirmDialog } from './ConfirmDialog';
+import { RESTORE_CONFIRM_WORD } from '../lib/backup';
 
 // Contract types moved to src/app/mainViewsProps.ts — the single source of
 // truth, imported here and by src/App.tsx; the views consume them through the
@@ -23,8 +26,12 @@ const ExpensesView = lazy(() => import('./ExpensesView').then(m => ({ default: m
 export function MainViews(props: MainViewsProps) {
   // Task whose date chip is being edited inline (Notes view).
   const [editingDateId, setEditingDateId] = useState<string | null>(null);
+  // Restore wizard: the typed-confirmation dialog opens when a file has been
+  // picked; the restore itself only runs through handleBackupFileSelected
+  // AFTER the user types the confirmation word.
+  const [pendingRestoreFile, setPendingRestoreFile] = useState<File | null>(null);
 
-  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, calendarDate, changeMonth, currentTheme, deleteTodo, fetchAuditLogs, getDayName, getDaysInMonth, getEventsForDay, getMonthName, handleAddTodo, handleDeleteClass, handleExportAllData, handleLogoUpload, handleSendPasswordReset, handleUpdateRole, lang, logoColor, logoInputRef, openEditClass, parents, schoolLogo, setCalendarDate, setLogoColor, setSchoolLogo, setSelectedCalendarDay, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setTheme, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, staff, t, theme, today, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, passwordTarget, setPasswordTarget, passwordInput, setPasswordInput, handleSetPassword, inactivityMinutes, setInactivityMinutes } = props;
+  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, Bell, BookOpen, Briefcase, Calendar, ChartsFallback, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Coins, Cpu, CreditCard, DashboardCharts, DollarSign, Download, Droplet, Edit2, FileText, Flag, Globe, GraduationCap, Hammer, Heart, HighlightText, Landmark, Layers, Mail, MapPin, Phone, PieChart, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, StickyNote, Sun, Suspense, Trash2, TrendingDown, TrendingUp, Unlink, UploadCloud, UserCheck, UserPlus, Users, Utensils, Wallet, Wifi, X, Zap, activeTab, auditLogs, auth, availableClasses, backupBusy, backupFileInputRef, calendarDate, changeMonth, currentTheme, deleteTodo, fetchAuditLogs, getDayName, getDaysInMonth, getEventsForDay, getMonthName, handleAddTodo, handleBackupFileSelected, handleDeleteClass, handleExportAllData, handleExportBackup, handleLogoUpload, handleSendPasswordReset, handleUpdateRole, lang, logoColor, logoInputRef, openBackupRestorePicker, openEditClass, parents, schoolLogo, setCalendarDate, setLogoColor, setSchoolLogo, setSelectedCalendarDay, setShowAddClassModal, setShowAddUserModal, setShowCalendarModal, setTheme, setTodoInput, setUserProfiles, setUserRoleFilter, setUserSearchTerm, staff, t, theme, today, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, updatingUserId, userProfiles, userRoleFilter, userSearchTerm, passwordTarget, setPasswordTarget, passwordInput, setPasswordInput, handleSetPassword, inactivityMinutes, setInactivityMinutes } = props;
   return (
     <MainViewsContext.Provider value={props}>
     <>
@@ -483,6 +490,37 @@ export function MainViews(props: MainViewsProps) {
                       <Download size={20} />
                       {t.exportData}
                     </button>
+                  </div>
+
+                  {/* JSON snapshot: one-click full backup (admin/dev only) */}
+                  <div className={`p-8 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-[2.5rem] border ${currentTheme.border} flex flex-col md:flex-row items-center justify-between gap-6`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`p-4 ${currentTheme.card} rounded-3xl text-emerald-600 shadow-lg`}>
+                        <ShieldCheck size={32} />
+                      </div>
+                      <div>
+                        <p className={`text-lg font-black ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{t.backupFileButton}</p>
+                        <p className={`text-xs ${currentTheme.muted}`}>{t.backupConfirmRestoreMessage}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button 
+                        onClick={() => void handleExportBackup()}
+                        disabled={backupBusy}
+                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center gap-2 shadow-xl shadow-emerald-800/20 active:scale-[0.98]"
+                      >
+                        <Download size={20} />
+                        {t.backupFileButton}
+                      </button>
+                      <button 
+                        onClick={openBackupRestorePicker}
+                        disabled={backupBusy}
+                        className="bg-slate-800 hover:bg-slate-900 disabled:opacity-40 disabled:cursor-not-allowed text-white px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center gap-2 shadow-xl shadow-slate-800/20 active:scale-[0.98]"
+                      >
+                        <UploadCloud size={20} />
+                        {backupBusy ? t.backupRestoring : t.backupRestoreButton}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 {/* Classes & Sections Configuration Card */}
@@ -960,6 +998,48 @@ export function MainViews(props: MainViewsProps) {
             </motion.div>
           )}
         </AnimatePresence>
+        {/* Hidden restore file picker — opens via openBackupRestorePicker; the
+            picked file parks in pendingRestoreFile until the typed confirmation. */}
+        <input
+          type="file"
+          ref={backupFileInputRef}
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.currentTarget.files?.[0] ?? null;
+            e.currentTarget.value = '';
+            if (file) setPendingRestoreFile(file);
+          }}
+        />
+
+        {/* Restore confirmation — type-to-confirm (word: RESTAURER). The actual
+            restore runs through handleBackupFileSelected(e, true). */}
+        <ConfirmDialog
+          open={pendingRestoreFile !== null}
+          title={t.backupConfirmRestoreTitle}
+          message={t.backupConfirmRestoreMessage}
+          confirmLabel={t.backupRestoreButton}
+          cancelLabel={t.cancel}
+          onConfirm={() => {
+            const file = pendingRestoreFile;
+            setPendingRestoreFile(null);
+            if (!file) return;
+            // Re-wrap the parked File in a synthetic event for the hook's contract.
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            const input = backupFileInputRef.current ?? document.createElement('input');
+            Object.defineProperty(input, 'files', { value: dt.files, configurable: true });
+            const fakeEvent = { currentTarget: input } as unknown as ChangeEvent<HTMLInputElement>;
+            void handleBackupFileSelected(fakeEvent, true);
+          }}
+          onCancel={() => setPendingRestoreFile(null)}
+          currentTheme={currentTheme}
+          danger={{
+            mode: 'type',
+            text: RESTORE_CONFIRM_WORD,
+            hint: t.backupConfirmRestoreHint,
+          }}
+        />
     </>
     </MainViewsContext.Provider>
   );
