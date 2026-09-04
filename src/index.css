@@ -706,6 +706,10 @@ textarea:focus-visible {
 .theme-slate .bg-blue-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-slate .bg-emerald-900\/10 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-slate .bg-emerald-900\/20 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-500\/10 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-500\/20 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-500\/10 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-500\/20 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-slate .card-elevated :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-slate .card-stat :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-slate .card-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
@@ -715,7 +719,7 @@ textarea:focus-visible {
 
 .theme-slate .text-slate-400,
 .theme-slate .text-slate-500 {
-  color: #94A3B8 !important;
+  color: #A1AEC0 !important;
 }
 
 .theme-slate .bg-\[#F8FAFC\],
@@ -805,7 +809,7 @@ textarea:focus-visible {
   color: #FDA4AF !important;
 }
 .theme-slate .text-rose-600\/80 {
-  color: rgba(253, 164, 175, 0.85) !important;
+  color: #FDA4AF !important;
 }
 .theme-slate .text-amber-600,
 .theme-slate .text-amber-700 {
@@ -857,12 +861,37 @@ textarea:focus-visible {
 }
 
 .theme-slate .text-emerald-700 {
-  color: #94A3B8 !important;
+  color: #6EE7B7 !important;
+}
+
+.theme-slate .text-purple-400,
+.theme-slate .text-purple-600,
+.theme-slate .text-purple-700 {
+  color: #D8B4FE !important;
+}
+
+.theme-slate .text-cyan-400,
+.theme-slate .text-cyan-800 {
+  color: #67E8F9 !important;
+}
+
+.theme-slate .text-blue-400 {
+  color: #93C5FD !important;
 }
 
 .theme-slate .bg-emerald-900\/10,
 .theme-slate .bg-emerald-900\/20 {
   background-color: #334155 !important;
+}
+
+.theme-slate .bg-emerald-500\/10,
+.theme-slate .bg-emerald-500\/20 {
+  background-color: #0F3D2E !important;
+}
+
+.theme-slate .bg-blue-500\/10,
+.theme-slate .bg-blue-500\/20 {
+  background-color: #1E3A8A !important;
 }
 
 .theme-slate .border-emerald-900\/20,

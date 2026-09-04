@@ -854,10 +854,10 @@ export function MainViews(props: MainViewsProps) {
                                       onChange={(e) => handleUpdateRole(profile, e.target.value as AppRole)}
                                       className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                                         isAdmin
-                                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/20'
+                                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
                                           : isGM
-                                          ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-700 hover:bg-cyan-500/20'
-                                          : 'bg-blue-500/10 border-blue-500/30 text-blue-700 hover:bg-blue-500/20'
+                                          ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20'
+                                          : 'bg-blue-500/10 border-blue-500/30 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20'
                                       } ${updatingUserId === profile.id ? 'opacity-50 cursor-wait' : ''}`}
                                     >
                                       <option value="admin" className="bg-slate-800 text-white">

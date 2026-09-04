@@ -55,13 +55,17 @@ export interface LiteralOccurrence {
 
 /**
  * Surface semantics of a static chunk:
- *  - 'plain'        unconditional (needs a dark: counterpart for midnight)
- *  - 'dark'         fixed-dark surface (isDark true-branch or dark component)
- *  - 'light-branch' the light branch of an isDark ternary (the sibling dark
- *                   branch already handles midnight — exempt from the
- *                   dark:-counterpart requirement, still light-card tested)
+ *  - 'plain'         unconditional (needs a dark: counterpart for midnight)
+ *  - 'dark'          fixed-dark surface (isDark true-branch or dark component)
+ *  - 'light-branch'  the light branch of an isDark ternary (the sibling dark
+ *                    branch already handles midnight — exempt from the
+ *                    dark:-counterpart requirement, still light-card tested)
+ *  - 'slate-only'    `theme === 'slate'` true-branch — renders ONLY under
+ *                    slate; skipped by the light + midnight scans
+ *  - 'midnight-only' `theme === 'midnight'` true-branch — renders ONLY under
+ *                    midnight; skipped by the light + slate scans
  */
-export type SurfaceMode = 'plain' | 'dark' | 'light-branch';
+export type SurfaceMode = 'plain' | 'dark' | 'light-branch' | 'slate-only' | 'midnight-only';
 
 const collectStrings = (
   node: import('typescript').Node,
@@ -93,9 +97,24 @@ const collectStrings = (
     // its surface semantics so fixed-dark branch pairs are never tested
     // against the light-card model, and the light branch is exempt from
     // the midnight dark:-counterpart requirement. Theme-equality checks
-    // (`theme === 'slate'`, `=== 'midnight'`) are dark-theme selectors too.
-    const condIsDark = /isDark|dark|'slate'|"slate"|'midnight'|"midnight"/i.test(node.condition.getText());
-    if (condIsDark) {
+    // get precise tags: a LIGHT-theme condition selects its true branch
+    // only in light themes (skipped in the dark model), a `theme ===
+    // 'slate'` / `'midnight'` condition selects its true branch ONLY in
+    // that one dark theme (the else branch renders in the other dark
+    // theme AND in light themes — so it stays 'plain', tested everywhere).
+    const condText = node.condition.getText();
+    const isLightTheme =
+      /'cream'|"cream"|'navy'|"navy"|'emerald'|"emerald"|'bordeaux'|"bordeaux"/.test(condText);
+    if (isLightTheme) {
+      collectStrings(node.whenTrue, out, 'light-branch');
+      collectStrings(node.whenFalse, out, mode);
+    } else if (/'slate'|"slate"/.test(condText)) {
+      collectStrings(node.whenTrue, out, 'slate-only');
+      collectStrings(node.whenFalse, out, 'plain');
+    } else if (/'midnight'|"midnight"/.test(condText)) {
+      collectStrings(node.whenTrue, out, 'midnight-only');
+      collectStrings(node.whenFalse, out, 'plain');
+    } else if (/isDark|dark/i.test(condText)) {
       collectStrings(node.whenTrue, out, 'dark');
       collectStrings(node.whenFalse, out, 'light-branch');
     } else {
@@ -187,7 +206,9 @@ export const chunkTokens = (chunk: string): TokenHit[] => {
     hits.push({ kind: m[1] as 'text' | 'bg', token: m[2], dark: false });
   }
   // dark: variants tracked separately (used by the midnight surface scan).
-  for (const m of chunk.matchAll(/dark:(?:hover:)?(text|bg)-([a-z]+-\d{2,3}(?:\/\d+)?)\b/g)) {
+  // BARE dark: only — dark:hover: / dark:focus: are hover/focus states whose
+  // bg only exists on interaction and must not pair with resting text.
+  for (const m of chunk.matchAll(/dark:(text|bg)-([a-z]+-\d{2,3}(?:\/\d+)?)\b/g)) {
     hits.push({ kind: m[1] as 'text' | 'bg', token: m[2], dark: true });
   }
   return hits;
@@ -209,8 +230,10 @@ export const extractColorPairs = (): ColorPair[] => {
     for (const lit of extractLiterals(code)) {
       lit.chunks.forEach((chunk, i) => {
         // Fixed-dark chunks are exempt from the light-card model; the light
-        // branch of an isDark ternary is still light-card tested.
-        if (lit.darkFlags[i] === 'dark') return;
+        // branch of an isDark ternary is still light-card tested. Theme-
+        // specific dark branches (slate/midnight) never render in light
+        // themes at all.
+        if (lit.darkFlags[i] === 'dark' || lit.darkFlags[i] === 'slate-only' || lit.darkFlags[i] === 'midnight-only') return;
         const hits = chunkTokens(chunk);
         const texts = hits.filter((h) => h.kind === 'text' && !h.dark);
         const bgs = hits.filter((h) => h.kind === 'bg' && !h.dark);
@@ -252,7 +275,6 @@ export const extractMissingDarkBg = (): DarkGap[] => {
   }
   return gaps;
 };
-
 /* ─── Theme remap layer (from index.css) ─────────────────────────────────── */
 
 export const LIGHT_THEMES = ['navy', 'emerald', 'cream', 'bordeaux'] as const;
@@ -287,14 +309,14 @@ export const PALETTE: Record<string, string> = {
   'slate-600': '#475569', 'slate-700': '#334155', 'slate-800': '#1e293b',
   'slate-900': '#0f172a', 'slate-950': '#020617',
   'rose-50': '#fff1f2', 'rose-100': '#ffe4e6', 'rose-200': '#fecdd3',
-  'rose-400': '#fb7185',
+  'rose-300': '#fda4af', 'rose-400': '#fb7185',
   'rose-500': '#f43f5e', 'rose-600': '#e11d48', 'rose-700': '#be123c',
   'rose-800': '#9f1239', 'rose-900': '#881337', 'rose-950': '#4c0519',
   'amber-50': '#fffbeb', 'amber-100': '#fef3c7', 'amber-200': '#fde68a',
-  'amber-500': '#f59e0b', 'amber-600': '#d97706', 'amber-700': '#b45309',
+  'amber-300': '#fcd34d', 'amber-500': '#f59e0b', 'amber-600': '#d97706', 'amber-700': '#b45309',
   'amber-800': '#92400e', 'amber-900': '#78350f', 'amber-950': '#451a03',
   'blue-50': '#eff6ff', 'blue-100': '#dbeafe', 'blue-200': '#bfdbfe',
-  'blue-400': '#60a5fa',
+  'blue-300': '#93c5fd', 'blue-400': '#60a5fa',
   'blue-500': '#3b82f6', 'blue-600': '#2563eb', 'blue-700': '#1d4ed8',
   'blue-800': '#1e40af', 'blue-900': '#1e3a8a', 'blue-950': '#172554',
   'emerald-50': '#ecfdf5', 'emerald-100': '#d1fae5', 'emerald-200': '#a7f3d0',
@@ -304,12 +326,12 @@ export const PALETTE: Record<string, string> = {
   'teal-50': '#f0fdfa', 'teal-100': '#ccfbf1', 'teal-500': '#14b8a6',
   'teal-600': '#0d9488', 'teal-700': '#0f766e', 'teal-800': '#115e59',
   'teal-900': '#134e4a', 'teal-950': '#042f2e',
-  'purple-50': '#faf5ff', 'purple-100': '#f3e8ff', 'purple-400': '#c084fc',
-  'purple-500': '#a855f7',
+  'purple-50': '#faf5ff', 'purple-100': '#f3e8ff', 'purple-300': '#d8b4fe',
+  'purple-400': '#c084fc', 'purple-500': '#a855f7',
   'purple-600': '#9333ea', 'purple-700': '#7e22ce', 'purple-800': '#6b21a8',
   'purple-900': '#581c87', 'purple-950': '#3b0764',
-  'cyan-50': '#ecfeff', 'cyan-100': '#cffafe', 'cyan-400': '#22d3ee',
-  'cyan-500': '#06b6d4',
+  'cyan-50': '#ecfeff', 'cyan-100': '#cffafe', 'cyan-300': '#67e8f9',
+  'cyan-400': '#22d3ee', 'cyan-500': '#06b6d4',
   'cyan-600': '#0891b2', 'cyan-700': '#0e7490', 'cyan-800': '#155e75',
   'cyan-900': '#164e63', 'cyan-950': '#083344',
   'indigo-500': '#6366f1', 'indigo-600': '#4f46e5', 'indigo-700': '#4338ca',
@@ -325,8 +347,8 @@ export const PALETTE: Record<string, string> = {
   'yellow-950': '#422006',
   'orange-50': '#fff7ed', 'orange-100': '#ffedd5', 'orange-500': '#f97316',
   'orange-600': '#ea580c', 'orange-700': '#c2410c', 'orange-800': '#9a3412',
-  'sky-50': '#f0f9ff', 'sky-100': '#e0f2fe', 'sky-400': '#38bdf8',
-  'sky-500': '#0ea5e9',
+  'sky-50': '#f0f9ff', 'sky-100': '#e0f2fe', 'sky-300': '#7dd3fc',
+  'sky-400': '#38bdf8', 'sky-500': '#0ea5e9',
   'sky-600': '#0284c7', 'sky-700': '#0369a1', 'sky-800': '#075985',
   'fuchsia-500': '#d946ef', 'fuchsia-600': '#c026d3', 'fuchsia-700': '#a21caf',
   'lime-500': '#84cc16', 'lime-600': '#65a30d', 'lime-700': '#4d7c0f',
@@ -379,3 +401,181 @@ export const resolve = (theme: LightTheme, kind: 'text' | 'bg', token: string): 
   if (overridden) return overridden;
   return PALETTE[token];
 };
+
+/* ─── Dark-theme model (slate + midnight) ────────────────────────────────── */
+
+/**
+ * DARK themes resolve differently from the light four:
+ *  - `slate`    — a CSS remap layer in index.css (!important) repaints the
+ *    pastel/neutral utility classes: bg-white→card, bg-slate-50→inset,
+ *    pastel -50/-100 surfaces→dark equivalents, text-slate-950..600→
+ *    #F8FAFC inside those dark surfaces (the :is() whiten rule),
+ *    text-rose-600..→#FDA4AF etc. The `.dark` ancestor is ALSO set under
+ *    slate, so unremapped tokens fall back to their dark: variant.
+ *  - `midnight` — no CSS layer: it relies on the dark: variants alone.
+ */
+export const DARK_THEMES = ['slate', 'midnight'] as const;
+export type DarkTheme = (typeof DARK_THEMES)[number];
+
+/** Worst-case surface a pair sits on per dark theme (the theme's card). */
+export const DARK_CARD: Record<DarkTheme, string> = {
+  slate: '#334155', // --surface-card (bg-white remap target)
+  midnight: '#111827', // currentTheme.card (bg-[#111827])
+};
+
+/** tokens repainted by the slate !important layer (key = CSS-unescaped). */
+export const slateTextRemap = new Map<string, string>(); // token -> '#hex' | 'rgba(...)'
+export const slateBgRemap = new Map<string, string>();
+
+// Strip comments first — a comment glued to the next selector (same block
+// chunk) would otherwise corrupt the segment match (.bg-rose-50 was missed).
+const UNESCAPE = /\\\//g;
+for (const block of CSS_TEXT.replace(/\/\*[\s\S]*?\*\//g, ' ').matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+  for (const seg of block[1].split(',')) {
+    const m = seg.trim().match(/^\.theme-slate\s+\.(text|bg)-([a-zA-Z0-9/\\-]+)$/);
+    if (!m) continue;
+    const [, kind, rawToken] = m;
+    const token = rawToken.replace(UNESCAPE, '/');
+    const decl = (block[2].match(/(?:^|[;}])\s*(?:color|background-color)\s*:\s*(#[0-9a-fA-F]{6}|rgba\([^)]+\))/));
+    if (!decl) continue;
+    (kind === 'text' ? slateTextRemap : slateBgRemap).set(token, decl[1].trim());
+  }
+}
+
+/** text-slate-950..600 whitened inside dark surfaces (the :is() rule). */
+export const WHITEN_TEXT = new Set(['slate-950', 'slate-900', 'slate-800', 'slate-700', 'slate-600']);
+
+/**
+ * The surfaces the REAL :is() whiten rule covers (exact tokens, incl. the
+ * /alpha variants like rose-50/40). resolveDark whitens ONLY on these — a
+ * remapped surface absent from this list keeps dark slate text in reality
+ * (e.g. the emerald/blue washes), so the model must not whiten it either.
+ */
+export const whitenSurfaces = new Set(
+  [...CSS_TEXT.matchAll(/\.theme-slate \.bg-([a-zA-Z0-9/\\-]+) :is\(/g)]
+    .map((m) => m[1].replace(/\\\//g, '/')),
+);
+
+/**
+ * Every bg token the slate layer paints dark — derived from the remap keys
+ * (the :is() rule's surface list is a documented subset, cross-checked in
+ * the test).
+ */
+export const slateDarkSurfaces = new Set(slateBgRemap.keys());
+
+export const rgbaToSolid = (v: string, surface: string): string => {
+  const m = v.match(/rgba\((\d+), ?(\d+), ?(\d+), ?([\d.]+)\)/);
+  if (!m) return v;
+  const hex = '#' + [m[1], m[2], m[3]].map((x) => (+x).toString(16).padStart(2, '0')).join('');
+  return composite(hex, parseFloat(m[4]), surface);
+};
+
+/**
+ * Resolve one token as rendered under a dark theme.
+ * `bgBase` (the sibling bg token's base) enables the slate whiten rule.
+ */
+export const resolveDark = (
+  theme: DarkTheme,
+  kind: 'text' | 'bg',
+  token: string,
+  surface: string,
+): string | undefined => {
+  const [base, alphaStr] = token.split('/');
+  const alpha = alphaStr ? parseInt(alphaStr) / 100 : 1;
+  const pal = PALETTE[base];
+  if (theme === 'slate') {
+    const map = kind === 'text' ? slateTextRemap : slateBgRemap;
+    // An EXACT token remap (e.g. bg-emerald-500/10, text-rose-600/80) already
+    // encodes its wash/alpha — apply it as-is, never double-composite.
+    const exact = map.get(token);
+    if (exact) {
+      return exact.startsWith('rgba') ? rgbaToSolid(exact, surface) : exact;
+    }
+    const baseOnly = map.get(base);
+    if (baseOnly) {
+      const solid = baseOnly.startsWith('rgba') ? rgbaToSolid(baseOnly, surface) : baseOnly;
+      return alpha === 1 ? solid : composite(solid, alpha, surface);
+    }
+    // whiten rule: dark slate text inside a surface the REAL :is() rule
+    // covers. Full token (incl. /alpha) — washed surfaces without an :is()
+    // entry keep their dark text in real CSS, so they must here too.
+    if (kind === 'text' && WHITEN_TEXT.has(base) && whitenSurfaces.has(token)) {
+      return '#F8FAFC';
+    }
+  }
+  if (!pal) return undefined;
+  return alpha === 1 ? pal : composite(pal, alpha, surface);
+};
+
+/**
+ * Dark pair scan: every text/bg co-occurrence AS RENDERED in each dark
+ * theme. Token selection per chunk:
+ *  - slate:    the base token wins when the remap layer repaints it;
+ *              otherwise the dark: variant (`.dark` is set under slate);
+ *              otherwise the base token itself.
+ *  - midnight: the dark: variant wins when present, else the base token
+ *              (which is exactly the white-chip defect the lock catches).
+ */
+export const extractDarkColorPairs = (): DarkColorPair[] => {
+  const pairs: DarkColorPair[] = [];
+  for (const f of walkTsx()) {
+    const code = readFileSync(f, 'utf8');
+    const rel = relSrc(f);
+    for (const lit of extractLiterals(code)) {
+      lit.chunks.forEach((chunk, i) => {
+        // The light branch of an isDark ternary renders ONLY in light themes;
+        // slate-only branches never render under midnight and vice versa.
+        const mode = lit.darkFlags[i];
+        if (mode === 'light-branch') return;
+        const hits = chunkTokens(chunk);
+        const texts = hits.filter((h) => h.kind === 'text');
+        const bgs = hits.filter((h) => h.kind === 'bg');
+        for (const theme of DARK_THEMES) {
+          if (mode === 'slate-only' && theme !== 'slate') continue;
+          if (mode === 'midnight-only' && theme !== 'midnight') continue;
+          const surface = DARK_CARD[theme];
+          const pick = (hits: TokenHit[]): string[] => {
+            const darkV = hits.filter((h) => h.dark).map((h) => h.token);
+            const base = hits.filter((h) => !h.dark).map((h) => h.token);
+            if (theme === 'midnight') return darkV.length > 0 ? darkV : base;
+            // slate: the !important remap layer beats dark: variants for the
+            // tokens it repaints, so a remapped base token is THE rendered
+            // color; dark: variants only carry the tokens the layer leaves
+            // alone. (Emitting both would flag the dark: variant against the
+            // remapped wash — a false failure.)
+            const remapped = base.filter((t) => {
+              const [b] = t.split('/');
+              return slateTextRemap.has(t) || slateTextRemap.has(b) || slateBgRemap.has(t) || slateBgRemap.has(b);
+            });
+            const rest = base.filter((t) => !remapped.includes(t));
+            return [...remapped, ...(rest.length > 0 ? darkV : [])];
+          };
+          const ts = pick(texts);
+          const bs = pick(bgs);
+          for (const t of ts) {
+            for (const b of bs) {
+              // Resolve here so the test only asserts ratios; unknown tokens
+              // surface as a coverage warning instead of a silent skip.
+              const fg = resolveDark(theme, 'text', t, surface);
+              // resolveDark already composites /alpha tokens over the surface.
+              const bgHex = resolveDark(theme, 'bg', b, surface);
+              if (fg === undefined || bgHex === undefined) continue;
+              pairs.push({ theme, file: rel, line: lit.line, text: t, bg: b, fg, bgHex });
+            }
+          }
+        }
+      });
+    }
+  }
+  return pairs;
+};
+
+export interface DarkColorPair {
+  theme: DarkTheme;
+  file: string;
+  line: number;
+  text: string;
+  bg: string;
+  fg: string;
+  bgHex: string;
+}

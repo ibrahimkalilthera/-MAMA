@@ -90,7 +90,7 @@ export function DashboardView() {
                       {formatCurrency(stats.collectedMonth)}
                     </h3>
                   </div>
-                  <div className={`p-2.5 rounded-xl ${theme === 'cream' ? 'bg-[#1E5E3A]/10 text-[#1E5E3A]' : (theme === 'slate' ? 'bg-sky-500/10 text-sky-400' : 'bg-blue-500/10 text-blue-600')}`}>
+                  <div className={`p-2.5 rounded-xl ${theme === 'cream' ? 'bg-[#1E5E3A]/10 text-[#1E5E3A]' : (theme === 'slate' ? 'bg-sky-500/10 text-sky-300' : 'bg-blue-500/10 text-blue-600 dark:text-blue-300')}`}>
                     <TrendingUp size={18} />
                   </div>
                 </div>
@@ -115,7 +115,7 @@ export function DashboardView() {
                       {formatCurrency(stats.expensesThisMonth)}
                     </h3>
                   </div>
-                  <div className={`p-2.5 rounded-xl ${theme === 'cream' ? 'bg-rose-500/10 text-rose-700' : (theme === 'slate' ? 'bg-rose-500/10 text-rose-400' : 'bg-rose-500/10 text-rose-600')}`}>
+                  <div className={`p-2.5 rounded-xl ${theme === 'cream' ? 'bg-rose-500/10 text-rose-700' : (theme === 'slate' ? 'bg-rose-500/10 text-rose-300' : 'bg-rose-500/10 text-rose-600 dark:text-rose-300')}`}>
                     <TrendingDown size={18} />
                   </div>
                 </div>
@@ -141,7 +141,7 @@ export function DashboardView() {
                       {stats.enrolledStudentsCount}
                     </h3>
                   </div>
-                  <div className={`p-2.5 rounded-xl ${theme === 'cream' ? 'bg-[#1E5E3A]/10 text-[#1E5E3A]' : (theme === 'slate' ? 'bg-sky-500/10 text-sky-400' : 'bg-purple-500/10 text-purple-600')}`}>
+                  <div className={`p-2.5 rounded-xl ${theme === 'cream' ? 'bg-[#1E5E3A]/10 text-[#1E5E3A]' : (theme === 'slate' ? 'bg-sky-500/10 text-sky-300' : 'bg-purple-500/10 text-purple-600 dark:text-purple-300')}`}>
                     <GraduationCap size={18} />
                   </div>
                 </div>
@@ -164,7 +164,7 @@ export function DashboardView() {
                     <p className={`text-[10px] font-semibold ${currentTheme.muted} uppercase tracking-[0.1em] mb-1.5`}>{t.totalOutstanding}</p>
                     <h3 className={`text-2xl font-bold tracking-tight ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`} style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(stats.totalOutstanding)}</h3>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600">
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-300">
                     <TrendingUp size={18} className="rotate-180" />
                   </div>
                 </div>
@@ -210,7 +210,7 @@ export function DashboardView() {
                       {stats.lateParentsCount}
                     </h3>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-800">
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-800 dark:text-amber-300">
                     <Clock size={18} />
                   </div>
                 </div>
@@ -235,7 +235,7 @@ export function DashboardView() {
                       {formatCurrency(stats.totalArrears)}
                     </h3>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600">
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-300">
                     <AlertCircle size={18} />
                   </div>
                 </div>
@@ -298,7 +298,7 @@ export function DashboardView() {
             <div className={`card-elevated overflow-hidden ${currentTheme.isDark ? '!bg-slate-800/60 !border-white/[0.06]' : ''}`}>
               <div className={`px-6 py-5 border-b ${currentTheme.isDark ? 'border-white/[0.06]' : currentTheme.border} flex justify-between items-center`}>
                 <h3 className={`text-sm font-semibold ${currentTheme.isDark ? 'text-white' : 'text-slate-800'} tracking-tight`}>{t.lateParents}</h3>
-                <span className="bg-rose-500/10 text-rose-600 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.08em]">
+                <span className="bg-rose-500/10 text-rose-600 dark:text-rose-300 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.08em]">
                   Urgent
                 </span>
               </div>

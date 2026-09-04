@@ -2652,7 +2652,7 @@ export function AppModals(props: AppModalsProps) {
             {/* Modal Header */}
             <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-500/20">
+                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
                   <Bell size={24} />
                 </div>
                 <div>

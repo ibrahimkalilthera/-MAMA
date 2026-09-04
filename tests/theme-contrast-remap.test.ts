@@ -21,12 +21,13 @@
  *      here immediately, without anyone updating a manifest;
  *   3. every light fill (bg-*-50/100/200) carries a dark:bg-* counterpart
  *      in the same segment (the midnight white-chip defect class), modulo
- *      the documented fixed-light exemptions below.
- *
- * Scope: light themes only — "surfaces claires". The dark themes (slate /
- * midnight) remap both text AND surface to dark and are covered by the
- * browser audit (>= 3:1); their semantics (light-on-dark) would need a
- * different surface model than the light cards used here.
+ *      the documented fixed-light exemptions below;
+ *   4. the DARK themes (slate: CSS !important remap layer; midnight:
+ *      dark: variants alone) clear the same 4.5:1 bar: every remapped
+ *      text family on the slate card, every accent-solid background
+ *      against readable text, the :is() whiten-surface list staying in
+ *      sync with the remap layer, and every derived text/bg pair as
+ *      RESOLVED under each dark theme.
  *
  * Pure suite: no DOM, no React — plain node:test + fs + the shared scanner
  * (see tests/harness.ts "When NOT to use it").
@@ -42,12 +43,20 @@ import {
   bgOverrides,
   extractColorPairs,
   extractMissingDarkBg,
+  extractDarkColorPairs,
   resolve,
+  resolveDark,
   contrast,
   composite,
   lum,
   hexRgb,
+  rgbaToSolid,
   CARD,
+  DARK_CARD,
+  slateTextRemap,
+  slateBgRemap,
+  slateDarkSurfaces,
+  whitenSurfaces,
   ROOT,
   type LightTheme,
 } from './tailwind-pairs.ts';
@@ -182,6 +191,76 @@ describe('derived manifest: every co-occurring text/bg pair >= 4.5:1 in all ligh
  *  - ArchivesView close-out banner: 20%-alpha wash OVER the themed card
  *    (the card's own dark surface still shows through)
  */
+describe('dark themes (slate + midnight): remap layers clear WCAG AA 4.5:1', () => {
+  it('slate remapped text families are >= 4.5:1 on the slate card', () => {
+    for (const [token, v] of slateTextRemap) {
+      const hex = v.startsWith('rgba') ? rgbaToSolid(v, DARK_CARD.slate) : v;
+      const ratio = contrast(hex, DARK_CARD.slate);
+      assert.ok(ratio >= 4.5,
+        `slate remaps text-${token} to ${v}: ${ratio.toFixed(2)}:1 on the slate card (< 4.5)`);
+    }
+  });
+
+  it('slate accent-solid surfaces carry readable text (white or near-black, whichever fits)', () => {
+    for (const [token, v] of slateBgRemap) {
+      if (!ACCENT_SOLID.test(token)) continue;
+      const hex = v.startsWith('rgba') ? rgbaToSolid(v, DARK_CARD.slate) : v;
+      const white = contrast('#F8FAFC', hex);
+      const dark = contrast('#0F172A', hex);
+      assert.ok(Math.max(white, dark) >= 4.5,
+        `slate remaps bg-${token} to ${v}: best text ratio is only ${Math.max(white, dark).toFixed(2)}:1 (< 4.5)`);
+    }
+  });
+
+  it('the :is() whiten surfaces stay in sync with the bg remap layer', () => {
+    assert.ok(whitenSurfaces.size >= 10, `parsed ${whitenSurfaces.size} :is() surfaces`);
+    for (const s of whitenSurfaces) {
+      assert.ok(slateDarkSurfaces.has(s), `:is() surface bg-${s} has no .theme-slate .bg-${s} remap`);
+    }
+  });
+});
+
+describe('derived dark manifest: every co-occurring text/bg pair >= 4.5:1 in slate + midnight', () => {
+  const pairs = extractDarkColorPairs();
+  const unique = new Map<string, { theme: string; text: string; bg: string; at: string[] }>();
+  for (const p of pairs) {
+    const key = `${p.theme} ${p.text}|${p.bg}`;
+    if (!unique.has(key)) unique.set(key, { theme: p.theme, text: p.text, bg: p.bg, at: [] });
+    unique.get(key)!.at.push(`${p.file}:${p.line}`);
+  }
+
+  it('derives a sane dark manifest size (guard against scanner drift)', () => {
+    assert.ok(unique.size >= 20, `expected >= 20 unique dark pairs, derived ${unique.size}`);
+  });
+
+  /**
+   * Documented exemptions, mirroring the light suite's FIXED_DARK_PAIRS:
+   *  - DashboardView card-hero gradient (lines 66/71): fixed dark in EVERY
+   *    theme — its emerald accents are light-on-dark by design;
+   *  - Login (line 95): the login screen is a fixed-light marketing
+   *    surface rendered before theming applies.
+   */
+  const DARK_EXEMPT = new Set([
+    'slate emerald-400|emerald-500',
+    'slate emerald-400/80|emerald-500',
+    'midnight emerald-400|emerald-500',
+    'midnight emerald-400/80|emerald-500',
+    'midnight rose-600|rose-50',
+  ]);
+
+  for (const [key, info] of [...unique.entries()].sort()) {
+    const [, rest] = key.split(' '); // first token is the theme
+    const [text, bg] = rest.split('|');
+    it(`${key} (${info.at.length}×, e.g. ${info.at[0]})`, () => {
+      if (DARK_EXEMPT.has(key)) return;
+      const p = pairs.find((q) => q.theme === info.theme && q.text === text && q.bg === bg)!;
+      const ratio = contrast(p.fg, p.bgHex);
+      assert.ok(ratio >= 4.5,
+        `${info.at[0]} (${info.theme}): text-${text} on bg-${bg} = ${ratio.toFixed(2)}:1 (< 4.5)`);
+    });
+  }
+});
+
 describe('midnight lock: light fills carry a dark: counterpart', () => {
   const EXEMPT_FILES = [
     'components/PayrollView.tsx', // print header
