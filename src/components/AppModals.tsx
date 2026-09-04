@@ -381,16 +381,16 @@ export function AppModals(props: AppModalsProps) {
                     </div>
 
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                      <span className="inline-block px-3 py-1 bg-blue-50 text-blue-600 rounded-xl text-xs font-black uppercase tracking-wider">
+                      <span className="inline-block px-3 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 rounded-xl text-xs font-black uppercase tracking-wider">
                         {getGradeDisplay(selectedStudent.grade, lang)}
                       </span>
 
                       {/* Status badge: Green for Active, Blue for Graduated, Grey for Left */}
                       {(() => {
                         const statusVal = selectedStudent.status || 'Active';
-                        let badgeColors = 'text-emerald-700 bg-emerald-50 border-emerald-100';
-                        if (statusVal === 'Graduated') badgeColors = 'text-blue-700 bg-blue-50 border-blue-100';
-                        if (statusVal === 'Left') badgeColors = 'text-slate-500 bg-slate-100 border-slate-200';
+                        let badgeColors = 'text-emerald-700 bg-emerald-50 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60';
+                        if (statusVal === 'Graduated') badgeColors = 'text-blue-700 bg-blue-50 border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/60';
+                        if (statusVal === 'Left') badgeColors = 'text-slate-500 bg-slate-100 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
                         return (
                           <span className={`inline-block px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider border ${badgeColors}`}>
                             {statusVal}
@@ -467,7 +467,7 @@ export function AppModals(props: AppModalsProps) {
                             {formatCurrency(selectedStudent.amountPaid)}
                           </p>
                         </div>
-                        <div className={`p-4 bg-rose-50 rounded-2xl text-center`}>
+                        <div className={`p-4 bg-rose-50 dark:bg-rose-950/30 rounded-2xl text-center`}>
                           <span className="text-[9px] font-black uppercase tracking-widest text-rose-500">{t.balance}</span>
                           <p className="text-xs font-black text-rose-600 mt-1">
                             {formatCurrency(selectedStudent.totalDue * (1 - (selectedStudent.scholarshipDiscount || 0) / 100) - selectedStudent.amountPaid)}
@@ -585,7 +585,7 @@ export function AppModals(props: AppModalsProps) {
                       {/* Medical Notes */}
                       <div className={`p-5 ${currentTheme.isDark ? 'bg-[#1e293b]/50' : 'bg-slate-50'} rounded-2xl`}>
                         <span className="text-[10px] font-black uppercase tracking-widest text-rose-500">{t.medicalNotesTitle}</span>
-                        <p className={`text-xs font-semibold ${currentTheme.isDark ? 'text-emerald-400/80' : 'text-slate-700'} mt-1 bg-white p-3 rounded-xl border border-slate-100`}>
+                        <p className={`text-xs font-semibold ${currentTheme.isDark ? 'text-emerald-400/80' : 'text-slate-700'} mt-1 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700`}>
                           {selectedStudent.medicalNotes || 'None'}
                         </p>
                       </div>
@@ -621,7 +621,7 @@ export function AppModals(props: AppModalsProps) {
                           type="date"
                           value={noteDateInput}
                           onChange={(e) => setNoteDateInput(e.target.value)}
-                          className="ml-1 px-2 py-1 rounded-lg border border-yellow-300 bg-white/80 text-[10px] font-bold text-yellow-900 focus:outline-none focus:ring-2 focus:ring-yellow-500/30"
+                          className="ml-1 px-2 py-1 rounded-lg border border-yellow-300 dark:border-yellow-900/60 bg-white/80 dark:bg-slate-800 text-[10px] font-bold text-yellow-900 dark:text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-500/30"
                         />
                       </label>
                       <span className="text-[9px] font-black text-yellow-800/70 uppercase tracking-widest">
@@ -1334,9 +1334,9 @@ export function AppModals(props: AppModalsProps) {
                   return (
                     <div className="space-y-6">
                       {dayNotes.length > 0 && (
-                        <div className="p-6 rounded-2xl border border-yellow-200 bg-yellow-50/60">
+                        <div className="p-6 rounded-2xl border border-yellow-200 dark:border-yellow-900/40 bg-yellow-50/60 dark:bg-yellow-950/30">
                           <div className="flex items-center gap-4 mb-4">
-                            <div className="p-3 rounded-xl bg-yellow-100 text-yellow-600">
+                            <div className="p-3 rounded-xl bg-yellow-100 dark:bg-yellow-950/60 text-yellow-600 dark:text-yellow-300">
                               <StickyNote size={20} />
                             </div>
                             <div>
@@ -1362,19 +1362,19 @@ export function AppModals(props: AppModalsProps) {
                       )}
                       {dayEvents.map((event, idx) => (
                         <div key={idx} className={`p-6 rounded-2xl border ${currentTheme.border} ${
-                          event.type === 'due' ? 'bg-rose-50/30' :
-                          event.type === 'salary' ? 'bg-emerald-50/30' :
-                          event.type === 'note' ? 'bg-yellow-50/60' :
-                          event.type === 'todo' ? 'bg-violet-50/60' :
-                          'bg-blue-50/30'
+                          event.type === 'due' ? 'bg-rose-50/30 dark:bg-rose-950/30' :
+                          event.type === 'salary' ? 'bg-emerald-50/30 dark:bg-emerald-950/30' :
+                          event.type === 'note' ? 'bg-yellow-50/60 dark:bg-yellow-950/30' :
+                          event.type === 'todo' ? 'bg-violet-50/60 dark:bg-violet-950/30' :
+                          'bg-blue-50/30 dark:bg-blue-950/30'
                         }`}>
                           <div className="flex items-center gap-4 mb-4">
                             <div className={`p-3 rounded-xl ${
-                              event.type === 'due' ? 'bg-rose-100 text-rose-600' :
-                              event.type === 'salary' ? 'bg-emerald-100 text-emerald-600' :
-                              event.type === 'note' ? 'bg-yellow-100 text-yellow-600' :
-                              event.type === 'todo' ? 'bg-violet-100 text-violet-600' :
-                              'bg-blue-100 text-blue-600'
+                              event.type === 'due' ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300' :
+                              event.type === 'salary' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300' :
+                              event.type === 'note' ? 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-600 dark:text-yellow-300' :
+                              event.type === 'todo' ? 'bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-300' :
+                              'bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300'
                             }`}>
                               {event.type === 'due' ? <Users size={20} /> : event.type === 'salary' ? <Briefcase size={20} /> : event.type === 'note' ? <StickyNote size={20} /> : event.type === 'todo' ? <CheckSquare size={20} /> : <Receipt size={20} />}
                             </div>
@@ -1426,7 +1426,7 @@ export function AppModals(props: AppModalsProps) {
                         onChange={(e) => setNoteText(e.target.value)}
                         placeholder={t.notesPlaceholder}
                         rows={2}
-                        className="w-full bg-white/70 border border-yellow-200 rounded-xl px-3 py-2 text-xs font-semibold text-yellow-900 placeholder-yellow-700/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/30 resize-none custom-scrollbar"
+                        className="w-full bg-white/70 dark:bg-slate-800 border border-yellow-200 dark:border-yellow-900/40 rounded-xl px-3 py-2 text-xs font-semibold text-yellow-900 dark:text-yellow-300 placeholder-yellow-700/40 dark:placeholder-yellow-500/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/30 resize-none custom-scrollbar"
                       />
                       <div className="flex justify-end">
                         <button
@@ -1627,7 +1627,7 @@ export function AppModals(props: AppModalsProps) {
               {/* Modal header */}
               <div className="flex justify-between items-start mb-8 pb-6 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 rounded-2xl">
                     <TrendingUp size={24} />
                   </div>
                   <div>
@@ -1662,7 +1662,7 @@ export function AppModals(props: AppModalsProps) {
                     <p className="text-[10px] text-slate-400">Ségou, Mali</p>
                   </div>
                   <div className="text-right">
-                    <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full uppercase tracking-wider">
+                    <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-black rounded-full uppercase tracking-wider">
                       {t.archivedCertified}
                     </span>
                     <p className="text-xs text-slate-500 mt-2 font-bold">{t.date2} {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR')}</p>

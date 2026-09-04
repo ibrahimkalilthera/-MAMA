@@ -195,7 +195,7 @@ export function ParentsView() {
                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.totalOutstandingBalance}</span>
                             {totalOutstanding > 0 ? (
                               <div className="flex items-center gap-2 mt-1">
-                                <span className="px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-600 border border-rose-200 font-black text-sm flex items-center gap-1 animate-pulse">
+                                <span className="px-3 py-1.5 rounded-xl bg-rose-500/10 dark:bg-rose-950/30 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 font-black text-sm flex items-center gap-1 animate-pulse">
                                   <AlertCircle size={14} className="flex-shrink-0" />
                                   {formatCurrency(totalOutstanding)}
                                 </span>
@@ -212,7 +212,7 @@ export function ParentsView() {
                                 </button>
                               </div>
                             ) : (
-                              <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-200 font-bold text-xs flex items-center gap-1 mt-1">
+                              <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60 font-bold text-xs flex items-center gap-1 mt-1">
                                 <CheckCircle2 size={14} />
                                 0 {t.currency} ({t.settle})
                               </span>

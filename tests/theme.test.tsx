@@ -62,14 +62,20 @@ describe('useTheme', () => {
     unmount();
   });
 
-  it('applies the legacy midnight→slate and modern→cream migrations on load', () => {
+  it('applies the legacy modern→cream migration but keeps midnight as itself', () => {
+    // `midnight` (Cyber Minuit) is a real picker theme with its own palette —
+    // a saved midnight must restore as midnight, NOT be silently flipped to
+    // slate (the old midnight→slate migration predates midnight being its own
+    // theme and broke Cyber Minuit persistence on every reload).
     win.localStorage.setItem(KEY_THEME, 'midnight');
     let api: ApiRef = { current: null };
     render(api);
-    assert.equal(api.current?.theme, 'slate');
+    assert.equal(api.current?.theme, 'midnight');
     assert.equal(api.current?.currentTheme.isDark, true);
+    assert.equal(api.current?.currentTheme.bg, 'bg-[#090D16]');
     unmount();
 
+    // Only the true legacy id (`modern`, no such theme exists) is migrated.
     win.localStorage.setItem(KEY_THEME, 'modern');
     api = { current: null };
     render(api);

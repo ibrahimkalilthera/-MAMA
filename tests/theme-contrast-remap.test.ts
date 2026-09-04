@@ -261,3 +261,37 @@ describe('fixed status badges resolve to >= 4.5:1 in every light theme (db70bc3 
     });
   }
 });
+
+/**
+ * Dark-theme (midnight) badge lock — the pastel badges above keep a LIGHT
+ * surface under the light themes, but the midnight theme has NO CSS remap
+ * layer (unlike slate): fixed-light `bg-*-50/100` badges must each carry a
+ * `dark:` counterpart or they render as bright white chips on the midnight
+ * body (the "1ÈRE ANNÉE B" white pill in the Élèves view, the status pills,
+ * the calendar event chips, …). Presence canary: dropping the dark:
+ * variant from any of these known badges trips the suite. Dark text on the
+ * dark surfaces is then covered by the browser audit (>= 3:1).
+ */
+describe('midnight badge surfaces carry a dark: counterpart (fixed-light pills)', () => {
+  const DARK_PAIRS: { label: string; file: string; needle: string }[] = [
+    { label: 'grade pill Élèves', file: 'src/components/StudentsView.tsx', needle: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300' },
+    { label: 'Échéance pill', file: 'src/App.tsx', needle: 'bg-amber-50 border-amber-100 dark:bg-amber-950/40 dark:text-amber-300' },
+    { label: 'Solde pill', file: 'src/App.tsx', needle: 'bg-emerald-50 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300' },
+    { label: 'Impulsion retard pill', file: 'src/App.tsx', needle: 'bg-rose-50 border-rose-100 dark:bg-rose-950/40 dark:text-rose-300' },
+    { label: 'Fiche élève grade pill', file: 'src/components/AppModals.tsx', needle: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300' },
+    { label: 'Paiement fournisseur partiel', file: 'src/components/ExpensesView.tsx', needle: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40' },
+    { label: 'Calendrier chips MainViews', file: 'src/components/MainViews.tsx', needle: 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300' },
+    { label: 'Locked tag Archives', file: 'src/components/ArchivesView.tsx', needle: 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300' },
+    { label: 'Active tag Archives', file: 'src/components/ArchivesView.tsx', needle: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' },
+    { label: 'Solde chip fiche (rose)', file: 'src/components/AppModals.tsx', needle: 'bg-rose-50 dark:bg-rose-950/30 rounded-2xl' },
+    { label: 'Fenêtre paie ouverte Dashboard', file: 'src/components/DashboardView.tsx', needle: 'bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50' },
+    { label: 'Classe code AddClass', file: 'src/components/AddClassModal.tsx', needle: 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300' },
+  ];
+  for (const p of DARK_PAIRS) {
+    it(`${p.label} — dark: counterpart present (${p.file})`, () => {
+      const src = readFileSync(join(ROOT, p.file), 'utf8');
+      assert.ok(src.includes(p.needle),
+        `${p.file} no longer contains "${p.needle}" — the midnight white-badge fix was reverted`);
+    });
+  }
+});

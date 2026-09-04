@@ -118,11 +118,11 @@ export function MainViews(props: MainViewsProps) {
                           <div 
                             key={idx}
                             className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${
-                              event.type === 'due' ? 'bg-rose-100 text-rose-600' :
-                              event.type === 'salary' ? 'bg-emerald-100 text-emerald-600' :
-                              event.type === 'note' ? 'bg-yellow-100 text-yellow-700' :
-                              event.type === 'todo' ? 'bg-violet-100 text-violet-600' :
-                              'bg-blue-100 text-blue-600'
+                              event.type === 'due' ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300' :
+                              event.type === 'salary' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300' :
+                              event.type === 'note' ? 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300' :
+                              event.type === 'todo' ? 'bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-300' :
+                              'bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300'
                             }`}
                           >
                             <div className={`w-1.5 h-1.5 rounded-full ${

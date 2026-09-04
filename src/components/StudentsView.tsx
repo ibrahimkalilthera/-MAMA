@@ -136,7 +136,7 @@ export function StudentsView() {
                                 <div className="flex items-center gap-2 mt-0.5">
                                   <span className={`text-[10px] ${currentTheme.muted} font-bold tracking-widest uppercase`}>{student.id}</span>
                                   {student.grade && (
-                                    <span className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[9px] font-extrabold uppercase tracking-wider">
+                                    <span className="inline-block px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 rounded-md text-[9px] font-extrabold uppercase tracking-wider">
                                       {getGradeDisplay(student.grade, lang)}
                                     </span>
                                   )}

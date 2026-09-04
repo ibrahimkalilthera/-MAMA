@@ -13,8 +13,8 @@ export function DashboardView() {
               return (
                 <div className="space-y-3 no-print">
                   {payrollWindowStatus.isOverdue && (
-                    <div className="p-5 bg-rose-50 border border-rose-200 rounded-3xl flex items-center gap-4 text-rose-700 shadow-lg shadow-rose-500/5 animate-subtle-pulse">
-                      <div className="p-2 bg-rose-100 rounded-xl text-rose-600 flex-shrink-0">
+                    <div className="p-5 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-3xl flex items-center gap-4 text-rose-700 dark:text-rose-300 shadow-lg shadow-rose-500/5 animate-subtle-pulse">
+                      <div className="p-2 bg-rose-100 dark:bg-rose-950/60 rounded-xl text-rose-600 dark:text-rose-300 flex-shrink-0">
                         <AlertCircle size={20} />
                       </div>
                       <div>
@@ -29,8 +29,8 @@ export function DashboardView() {
                   )}
 
                   {payrollWindowStatus.isOpen && (
-                    <div className="p-5 bg-blue-50 border border-blue-200 rounded-3xl flex items-center gap-4 text-blue-700 shadow-lg shadow-blue-500/5">
-                      <div className="p-2 bg-blue-100 rounded-xl text-blue-600 flex-shrink-0">
+                    <div className="p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-3xl flex items-center gap-4 text-blue-700 dark:text-blue-300 shadow-lg shadow-blue-500/5">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-950/60 rounded-xl text-blue-600 dark:text-blue-300 flex-shrink-0">
                         <Calendar size={20} />
                       </div>
                       <div>
@@ -335,7 +335,7 @@ export function DashboardView() {
                 </div>
               ) : (
                 <div className="p-20 flex flex-col items-center justify-center text-center">
-                  <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 mb-6">
+                  <div className="w-20 h-20 rounded-full bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-500 dark:text-emerald-300 mb-6">
                     <CheckCircle2 size={40} />
                   </div>
                   <h4 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} mb-2`}>{t.allUpToDate}</h4>
@@ -352,7 +352,7 @@ export function DashboardView() {
                 className={`${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50`}
               >
                 <div className="flex items-center gap-4 mb-8">
-                  <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl">
+                  <div className="p-3 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 rounded-2xl">
                     <PieChart size={24} />
                   </div>
                   <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.cashFlowSummary}</h3>
@@ -382,7 +382,7 @@ export function DashboardView() {
                 transition={{ delay: 0.1 }}
                 className={`${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 flex flex-col justify-center items-center text-center`}
               >
-                <div className={`w-20 h-20 rounded-full ${stats.totalFees - stats.totalExpenses >= 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'} flex items-center justify-center mb-6`}>
+                <div className={`w-20 h-20 rounded-full ${stats.totalFees - stats.totalExpenses >= 0 ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300'} flex items-center justify-center mb-6`}>
                   <Wallet size={40} />
                 </div>
                 <h4 className={`text-lg font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} mb-2`}>

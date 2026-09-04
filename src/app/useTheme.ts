@@ -24,8 +24,11 @@ export function useTheme() {
     const savedLogo = localStorage.getItem('school-finance-logo');
     const savedLogoColor = localStorage.getItem('school-finance-logo-color');
     if (savedTheme) {
-      if (savedTheme === 'midnight') setTheme('slate');
-      else if (savedTheme === 'modern') setTheme('cream');
+      // `modern` → `cream` is a genuine legacy rename (no `modern` theme id
+      // exists). `midnight` must NOT be migrated — it is a real picker theme
+      // (Cyber Minuit) distinct from slate; converting it silently flipped
+      // Cyber Minuit back to Ardoise Sombre on every reload.
+      if (savedTheme === 'modern') setTheme('cream');
       else setTheme(savedTheme as ThemeId);
     }
     if (savedLogo) setSchoolLogo(savedLogo);

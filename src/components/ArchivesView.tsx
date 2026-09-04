@@ -116,12 +116,12 @@ export function ArchivesView(props: ArchivesViewProps) {
                             </td>
                             <td className="px-6 py-4 text-center">
                               {isLocked ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-700 text-xs font-black rounded-full uppercase tracking-wider border border-rose-200">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-black rounded-full uppercase tracking-wider border border-rose-200 dark:border-rose-900/60">
                                   <Lock size={12} />
                                   {t.lockedTag}
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-black rounded-full uppercase tracking-wider border border-emerald-200">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-black rounded-full uppercase tracking-wider border border-emerald-200 dark:border-emerald-900/60">
                                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                                   {t.active}
                                 </span>
@@ -158,7 +158,7 @@ export function ArchivesView(props: ArchivesViewProps) {
               <div className={`${currentTheme.card} p-10 rounded-[2.5rem] border-2 border-rose-100 dark:border-rose-950/50 bg-rose-50/20 shadow-xl shadow-rose-100/10 no-print`}>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                   <div className="space-y-3 max-w-2xl">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-rose-50 text-rose-700 text-xs font-black rounded-full uppercase tracking-wider border border-rose-200">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-black rounded-full uppercase tracking-wider border border-rose-200 dark:border-rose-900/60">
                       <Lock size={12} />
                       {t.adminController}
                     </div>
@@ -184,7 +184,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                   <div className="flex-shrink-0">
                     {lockedYears.includes(selectedYear) ? (
                       <div className="flex flex-col items-center gap-3">
-                        <span className="px-6 py-4 bg-rose-100 text-rose-800 font-extrabold rounded-3xl text-sm flex items-center gap-2 border border-rose-200">
+                        <span className="px-6 py-4 bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-extrabold rounded-3xl text-sm flex items-center gap-2 border border-rose-200 dark:border-rose-900/60">
                           <CheckCircle2 size={18} />
                           {t.yearIsClosedArchived}
                         </span>

@@ -119,7 +119,7 @@ export function ExpensesView() {
 
                     {/* Overdue Alert Banner if active overdue items exist */}
                     {overdueVendorCount > 0 && (
-                      <div className="bg-rose-50 border border-rose-200 text-rose-800 p-6 rounded-3xl flex items-center gap-4 animate-pulse">
+                      <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 p-6 rounded-3xl flex items-center gap-4 animate-pulse">
                         <AlertCircle size={24} className="text-rose-600 flex-shrink-0" />
                         <div>
                           <h4 className="font-bold text-base">
@@ -293,17 +293,17 @@ export function ExpensesView() {
                                     </td>
                                     <td className="px-8 py-6">
                                       {v.paymentStatus === 'paid' && (
-                                        <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                        <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/60 rounded-full text-[10px] font-black uppercase tracking-widest">
                                           {t.fullyPaid}
                                         </span>
                                       )}
                                       {v.paymentStatus === 'partial' && (
-                                        <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                        <span className="px-3 py-1 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-100 dark:border-amber-900/60 rounded-full text-[10px] font-black uppercase tracking-widest">
                                           {t.partialPaid}
                                         </span>
                                       )}
                                       {v.paymentStatus === 'unpaid' && (
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${isOverdue ? 'bg-rose-600 text-white border-rose-700 animate-pulse' : 'bg-rose-50 text-rose-700 border-rose-100'}`}>
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${isOverdue ? 'bg-rose-600 text-white border-rose-700 animate-pulse' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-100 dark:border-rose-900/60'}`}>
                                           {t.unpaid}
                                         </span>
                                       )}

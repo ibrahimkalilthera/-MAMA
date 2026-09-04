@@ -187,7 +187,7 @@ export function EditClassModal(props: EditClassModalProps) {
               {t.generatedClassCode}
             </p>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-black">
+              <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-900/60 rounded-lg text-xs font-black">
                 {editClassForm.cycle === 'other' ? (editClassForm.customName || 'CUSTOM') : `${editClassForm.year}${editClassForm.section || 'A'}`}
               </span>
               <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold">

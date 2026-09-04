@@ -659,7 +659,7 @@ const {
     if (standing.key === 'settled') {
       return { 
         label: t.settle, 
-        color: 'text-emerald-600 bg-emerald-50 border-emerald-100', 
+        color: 'text-emerald-600 bg-emerald-50 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60', 
         icon: <CheckCircle2 size={14} />,
         standing: t.goodStanding
       };
@@ -668,7 +668,7 @@ const {
     if (standing.key === 'overdue') {
       return { 
         label: `${standing.daysOverdue} ${t.daysOverdue}`, 
-        color: 'text-rose-600 bg-rose-50 border-rose-100 animate-badge-pulse', 
+        color: 'text-rose-600 bg-rose-50 border-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/60 animate-badge-pulse', 
         icon: <Clock size={14} />,
         standing: t.overdue
       };
@@ -677,7 +677,7 @@ const {
     if (standing.key === 'dueSoon') {
       return { 
         label: t.dueSoon, 
-        color: 'text-amber-700 bg-amber-50 border-amber-100', 
+        color: 'text-amber-700 bg-amber-50 border-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60', 
         icon: <AlertCircle size={14} />,
         standing: t.partial
       };
@@ -685,7 +685,7 @@ const {
 
     return { 
       label: t.partial, 
-      color: 'text-blue-600 bg-blue-50 border-blue-100', 
+      color: 'text-blue-600 bg-blue-50 border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/60', 
       icon: <Calendar size={14} />,
       standing: t.partial
     };
