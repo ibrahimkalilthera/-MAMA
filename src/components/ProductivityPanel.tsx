@@ -367,7 +367,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                     >
                       {section.label}
                     </span>
-                    <span className={`min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${themeIsDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-500'}`}>
+                    <span className={`min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${themeIsDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                       {section.count}
                     </span>
                   </div>
