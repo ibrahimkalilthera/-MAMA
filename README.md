@@ -72,7 +72,7 @@ node --import tsx --experimental-test-module-mocks --test tests/payments.test.ts
 ```
 
 - Framework : `node:test` natif + `tsx`, rendu DOM via `happy-dom`
-- Garde-fous testés : file offline (replay FIFO), PDF (tampon, i18n), contraste calculé ≥ 4,5:1, focus traps, ARIA, contrats de props (186 props `MainViewsProps`)
+- Garde-fous testés : file offline (replay FIFO), PDF (tampon, i18n), contraste calculé ≥ 4,5:1, focus traps, ARIA, contrats de props (`MainViewsProps` composé en slices par domaine, ~206 props)
 
 ## Chaîne qualité (pre-commit + CI)
 

@@ -18,16 +18,31 @@ const COMPONENTS = [
 
 const read = (p) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n'); // CRLF-tolerant
 
-// Top-level props of <name>Props (exported or not). Returns { required, all }.
-const extractProps = (file, name) => {
+// Top-level props of <name>Props (exported or not), resolving `extends`
+// clauses: MainViewsProps is now composed from per-domain slices declared in
+// the same module (AppShellProps + one slice per view), so each base interface
+// is parsed in turn and its props merged. Returns { required, all }.
+const extractProps = (file, name, seen = new Set()) => {
+  if (seen.has(name)) return { required: [], all: [] }; // extends cycle guard
+  seen.add(name);
   const src = read(file);
-  const m = src.match(new RegExp(`(?:export )?interface ${name}Props \\{([\\s\\S]*?)\\n\\}`));
-  if (!m) throw new Error(`interface ${name}Props introuvable dans ${file}`);
-  const entries = [...m[1].matchAll(/^\s{2}([A-Za-z0-9_]+)(\?)?:/gm)];
-  return {
-    required: entries.filter((x) => !x[2]).map((x) => x[1]),
-    all: entries.map((x) => x[1]),
-  };
+  const full = /Props$/.test(name) ? name : `${name}Props`;
+  // Two shapes: the composed contract is a one-line `interface X extends A, B {}`
+  // with an empty body; the regular interfaces are multi-line `{ … }` blocks.
+  const empty = src.match(new RegExp(`(?:export )?interface ${full}( extends [^{]*?)? \\{\\}`, 'm'));
+  const m = empty ?? src.match(new RegExp(`(?:export )?interface ${full}( extends [^{]*?)? \\{([\\s\\S]*?)\\n\\}`, 'm'));
+  if (!m) throw new Error(`interface ${full} introuvable dans ${file}`);
+  const entries = [...(m[2] ?? '').matchAll(/^\s{2}([A-Za-z0-9_]+)(\?)?:/gm)];
+  const required = entries.filter((x) => !x[2]).map((x) => x[1]);
+  const all = entries.map((x) => x[1]);
+  if (m[1]) {
+    for (const base of m[1].matchAll(/([A-Za-z0-9_]+Props)/g)) {
+      const part = extractProps(file, base[1], seen);
+      required.push(...part.required);
+      all.push(...part.all);
+    }
+  }
+  return { required, all };
 };
 
 // Resolve an object-literal spread used at the render site: <Name {...viewsProps} />

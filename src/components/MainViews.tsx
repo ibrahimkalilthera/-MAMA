@@ -21,8 +21,9 @@ const PayrollView = lazy(() => import('./PayrollView').then(m => ({ default: m.P
 const ExpensesView = lazy(() => import('./ExpensesView').then(m => ({ default: m.ExpensesView })));
 
 // Views are rendered inside <MainViews> and read everything they need from the
-// MainViewsContext (imported above) instead of receiving the full 186-prop
-// object through {…props}.
+// MainViewsContext (imported above) instead of receiving the full composed
+// props object (MainViewsProps = AppShellProps + one slice per view) through
+// {…props}.
 export function MainViews(props: MainViewsProps) {
   // Task whose date chip is being edited inline (Notes view).
   const [editingDateId, setEditingDateId] = useState<string | null>(null);

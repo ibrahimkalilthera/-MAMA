@@ -329,7 +329,7 @@ graph TD
 | **Staff Payslip PDF** | `src/lib/pdfPayroll.ts` | Printable A5 Bulletin de Paie PDF generator |
 | **Financial Report PDF** | `src/lib/pdfFinancialReport.ts` | Executive P&L Financial Report PDF generator |
 | **Notifications & Toasts** | `src/components/ToastNotification.tsx` | Toast notification provider & offline status banner |
-| **Views Props Contract** | `src/app/mainViewsProps.ts` | Single source of truth for the 186-prop `MainViewsProps` contract + helper types — imported by `App.tsx` and `MainViews.tsx`, consumed by the views through the typed context; guarded by `scripts/check-component-props.mjs` (parses this module) and `tests/mainviews-props.test.ts` (single definition, all props required, no `any`, wiring pointed here, types-only) |
+| **Views Props Contract** | `src/app/mainViewsProps.ts` | Single source of truth for the `MainViewsProps` contract (206 props) + helper types — composed from per-domain slices (`AppShellProps` + one slice per view), imported by `App.tsx` and `MainViews.tsx`, consumed by the views through the typed context; guarded by `scripts/check-component-props.mjs` (parses this module, resolves the extends composition) and `tests/mainviews-props.test.ts` (single definition, pure composition, all props required, no `any`, wiring pointed here, types-only) |
 | **Database Migrations** | `supabase/migrations/` | SQL schema files for profiles, audit logs, and RLS policies |
 
 ---
