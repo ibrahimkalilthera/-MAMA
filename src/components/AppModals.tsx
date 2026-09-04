@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { Dispatch, SetStateAction, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Heart, Layers, MessageSquare, Phone, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X } from 'lucide-react';
+import { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Layers, MessageSquare, Phone, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense } from '../lib/useSupabaseData';
 import type { CalendarEvent, CurrentTheme, ManagedClass, ParentForm, SalaryForm, StaffForm, VendorExpenseForm } from '../app/mainViewsProps';
@@ -13,6 +13,7 @@ import { ProductivityPanel } from './ProductivityPanel';
 import { StudentDetailsModal } from './StudentDetailsModal';
 import { StudentFormModal } from './StudentFormModal';
 import type { StudentForm } from './StudentFormModal';
+import { VendorExpenseModal } from './VendorExpenseModal';
 import { AddClassModal } from './AddClassModal';
 import type { ClassForm } from './AddClassModal';
 import { EditClassModal } from './EditClassModal';
@@ -198,7 +199,7 @@ export interface AppModalsProps {
 
 export function AppModals(props: AppModalsProps) {
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
-  const { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Heart, Layers, MessageSquare, Phone, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, isGeneralManager, lang, newClassForm, noteText, savingNoteOnDate, saveNoteOnDate, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, vendorExpenseForm, welcomeMessage } = props;
+  const { Bell, Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Layers, MessageSquare, Phone, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, TrendingUp, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, isGeneralManager, lang, newClassForm, noteText, savingNoteOnDate, saveNoteOnDate, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, vendorExpenseForm, welcomeMessage } = props;
 
   // Escape closes the topmost open overlay (keyboard consistency). The list
   // below follows the JSX order: the LAST open entry is the visually topmost,
@@ -535,227 +536,23 @@ export function AppModals(props: AppModalsProps) {
       {/* --- Vendor Expense Modal --- */}
       <AnimatePresence>
         {showVendorExpenseModal && (
-          <div ref={(el) => { overlayRoots.current[3] = el; }} role="dialog" aria-modal="true" aria-label={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense} aria-labelledby="modal-title-vendor-expense-form" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => {
-                setShowVendorExpenseModal(false);
-                setEditingVendorExpense(null);
-              }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 40 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
-            >
-              <div className={`p-8 border-b ${currentTheme.border} flex justify-between items-center ${currentTheme.isDark ? 'bg-emerald-800' : 'bg-blue-600'} text-white`}>
-                <h2 id="modal-title-vendor-expense-form" className="text-xl font-bold flex items-center gap-3">
-                  <Receipt size={24} />
-                  {editingVendorExpense ? t.editVendorExpense : t.addVendorExpense}
-                </h2>
-                <button 
-                  onClick={() => {
-                    setShowVendorExpenseModal(false);
-                    setEditingVendorExpense(null);
-                  }} 
-                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleVendorExpenseSubmit} className="p-10 space-y-6">
-                {/* Vendor Name */}
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
-                    <span>{t.vendorName}</span>
-                    {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
-                  </label>
-                  <input 
-                    required
-                    type="text" 
-                    value={vendorExpenseForm.vendorName}
-                    disabled={!isPromoter}
-                    onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, vendorName: e.target.value })}
-                    className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? 'bg-slate-100 cursor-not-allowed opacity-70' : currentTheme.input}`}
-                    placeholder={t.eGSenelec}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  {/* Category */}
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.category}</label>
-                    <select 
-                      value={vendorExpenseForm.category}
-                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, category: e.target.value })}
-                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
-                    >
-                      {expenseCategoryList.map(item => (
-                        <option key={item.key} value={item.key}>{item.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Payment Status */}
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.paymentStatus}</label>
-                    <select 
-                      value={vendorExpenseForm.paymentStatus}
-                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, paymentStatus: e.target.value })}
-                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
-                    >
-                      <option value="unpaid">{t.unpaid}</option>
-                      <option value="partial">{t.partialPaid}</option>
-                      <option value="paid">{t.fullyPaid}</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Conditional Welfare Aid / Social Cases sub-fields */}
-                {vendorExpenseForm.category === 'social_cases' && (
-                  <div className={`p-6 ${currentTheme.isDark ? 'bg-rose-950/10' : 'bg-rose-50/40'} border ${currentTheme.isDark ? 'border-rose-950/30' : 'border-rose-100'} rounded-3xl space-y-4`}>
-                    <p className="text-xs font-black uppercase tracking-widest text-rose-500 flex items-center gap-2">
-                      <Heart size={14} className="text-rose-500 fill-rose-500/10" />
-                      {t.studentWelfareSocialAidDetails}
-                    </p>
-                    
-                    {/* Aid Type Dropdown */}
-                    <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                        {t.typeOfAid}
-                      </label>
-                      <select 
-                        required={vendorExpenseForm.category === 'social_cases'}
-                        value={vendorExpenseForm.aidType}
-                        onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, aidType: e.target.value })}
-                        className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
-                      >
-                        <option value="">{t.selectTypeOfAid}</option>
-                        <option value="prise_en_charge">{t.tuitionWaiverPriseEnChargeScolarit}</option>
-                        <option value="kits_fournitures">{t.suppliesSupportKitsScolairesFournitures}</option>
-                        <option value="aide_urgence">{t.emergencyAidAideDUrgence}</option>
-                      </select>
-                    </div>
-
-                    {/* Student Link Fields */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                          {t.beneficiaryStudentNameOptional}
-                        </label>
-                        <input 
-                          type="text" 
-                          value={vendorExpenseForm.beneficiaryStudentName}
-                          onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, beneficiaryStudentName: e.target.value })}
-                          className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
-                          placeholder={t.eGIbrahimThera}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
-                          {t.studentGradeOptional}
-                        </label>
-                        <select 
-                          value={vendorExpenseForm.beneficiaryStudentGrade}
-                          onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, beneficiaryStudentGrade: e.target.value })}
-                          className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
-                        >
-                          <option value="">{t.selectGrade}</option>
-                          <optgroup label={t.firstCyclePremierCycle}>
-                            {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
-                              <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label={t.secondCycleShort}>
-                            {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
-                              <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
-                            ))}
-                          </optgroup>
-                          {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
-                            <optgroup label={t.otherClasses}>
-                              {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
-                                <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
-                              ))}
-                            </optgroup>
-                          )}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-6">
-                  {/* Total Amount */}
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
-                      <span>{t.amount} (XOF)</span>
-                      {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
-                    </label>
-                    <input 
-                      required
-                      type="number" 
-                      value={vendorExpenseForm.amount}
-                      disabled={!isPromoter}
-                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, amount: e.target.value })}
-                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? 'bg-slate-100 cursor-not-allowed opacity-70' : currentTheme.input}`}
-                      placeholder="50000"
-                    />
-                  </div>
-
-                  {/* Due Date */}
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.dueDate2}</label>
-                    <input 
-                      required
-                      type="date" 
-                      value={vendorExpenseForm.dueDate}
-                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, dueDate: e.target.value })}
-                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
-                    />
-                  </div>
-                </div>
-
-                {/* Amount Paid - Only visible if Partially Paid */}
-                {vendorExpenseForm.paymentStatus === 'partial' && (
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amountPaid} (XOF)</label>
-                    <input 
-                      required
-                      type="number" 
-                      value={vendorExpenseForm.amountPaid}
-                      onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, amountPaid: e.target.value })}
-                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
-                      placeholder="20000"
-                    />
-                  </div>
-                )}
-
-                {/* Description */}
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.description}</label>
-                  <input 
-                    type="text" 
-                    value={vendorExpenseForm.description}
-                    onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, description: e.target.value })}
-                    className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${currentTheme.input}`}
-                    placeholder={t.optionalNotes}
-                  />
-                </div>
-
-                <button 
-                  type="submit" 
-                  className={`w-full ${currentTheme.isDark ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl`}
-                >
-                  {t.submit}
-                </button>
-              </form>
-            </motion.div>
-          </div>
+          <VendorExpenseModal
+            t={t}
+            lang={lang}
+            currentTheme={currentTheme}
+            editingVendorExpense={editingVendorExpense}
+            vendorExpenseForm={vendorExpenseForm}
+            setVendorExpenseForm={setVendorExpenseForm}
+            handleVendorExpenseSubmit={handleVendorExpenseSubmit}
+            isPromoter={isPromoter}
+            expenseCategoryList={expenseCategoryList}
+            availableClasses={availableClasses}
+            overlayRef={(el) => { overlayRoots.current[3] = el; }}
+            onClose={() => {
+              setShowVendorExpenseModal(false);
+              setEditingVendorExpense(null);
+            }}
+          />
         )}
       </AnimatePresence>
 

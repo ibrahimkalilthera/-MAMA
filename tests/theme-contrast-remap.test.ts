@@ -270,7 +270,15 @@ describe('midnight lock: light fills carry a dark: counterpart', () => {
     // print-student-file container internals (fixed print surface)
     // (line numbers updated after the StudentDetailsModal extraction, -410,
     // then the ParentFormModal extraction, -1)
-    'components/AppModals.tsx': [584, 705, 1414, 1570, 1630, 1642, 1663, 1666, 1689, 1693, 1697],
+    // AppModals line numbers shift when a modal block is extracted — these are
+    // the hidden print surfaces + promoter-locked fills (see the extraction
+    // comments on past diffs). Last shifted by the VendorExpenseModal
+    // extraction (−203 lines above the removed block; its two promoter-locked
+    // fills moved into the extracted file, listed below).
+    'components/AppModals.tsx': [1211, 1367, 1427, 1439, 1460, 1463, 1486, 1490, 1494],
+    // Promoter-locked read-only fields in the vendor form (bg-slate-100
+    // disabled input, shown to non-promoters) — carried over from AppModals.
+    'components/VendorExpenseModal.tsx': [99, 220],
     'components/Login.tsx': [95, 110, 126],
     'components/FloatingChat.tsx': [115],
     'components/SharedUi.tsx': [18],
