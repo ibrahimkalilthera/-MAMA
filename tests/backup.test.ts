@@ -12,6 +12,7 @@
  */
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { act } from 'react';
 
 import type { BackupDb } from '../src/lib/backup';
 import {
@@ -298,12 +299,16 @@ describe('useBackup — role gate', () => {
     auditCalls.length = 0;
     const { api, unmount, capture } = render(staffProfile, false);
 
-    await api.current!.handleExportBackup();
+    await act(async () => {
+      await api.current!.handleExportBackup();
+    });
     assert.equal(capture.toasts.length, 1);
     assert.equal(capture.toasts[0].kind, 'error');
     assert.equal(auditCalls.length, 0, 'no audit entry for a blocked export');
 
-    api.current!.openRestorePicker();
+    act(() => {
+      api.current!.openRestorePicker();
+    });
     assert.equal(auditCalls.length, 0);
     unmount();
   });
@@ -312,7 +317,9 @@ describe('useBackup — role gate', () => {
     auditCalls.length = 0;
     const { api, unmount, capture } = render(admin, true);
 
-    await api.current!.handleExportBackup();
+    await act(async () => {
+      await api.current!.handleExportBackup();
+    });
     assert.ok(capture.toasts.some((x) => x.kind === 'success'));
     assert.equal(auditCalls.length, 1);
     assert.equal(auditCalls[0].action, 'EXPORT_BACKUP');
@@ -341,7 +348,9 @@ describe('useBackup — role gate', () => {
       ReturnType<typeof useBackup>['handleRestoreFileSelected']
     >[0];
 
-    await api.current!.handleRestoreFileSelected(fakeEvent, true);
+    await act(async () => {
+      await api.current!.handleRestoreFileSelected(fakeEvent, true);
+    });
     assert.ok(capture.toasts.some((x) => x.kind === 'success' && x.msg.includes('1')), 'toast names the record count');
     assert.equal(auditCalls.length, 1);
     assert.equal(auditCalls[0].action, 'RESTORE_BACKUP');
@@ -361,7 +370,9 @@ describe('useBackup — role gate', () => {
       ReturnType<typeof useBackup>['handleRestoreFileSelected']
     >[0];
 
-    await api.current!.handleRestoreFileSelected(fakeEvent, false);
+    await act(async () => {
+      await api.current!.handleRestoreFileSelected(fakeEvent, false);
+    });
     assert.equal(auditCalls.length, 0, 'nothing ran without the confirmation flag');
     unmount();
   });
@@ -383,7 +394,9 @@ describe('useBackup — role gate', () => {
       ReturnType<typeof useBackup>['handleRestoreFileSelected']
     >[0];
 
-    await api.current!.handleRestoreFileSelected(fakeEvent, true);
+    await act(async () => {
+      await api.current!.handleRestoreFileSelected(fakeEvent, true);
+    });
     assert.ok(capture.toasts.some((x) => x.kind === 'error'), 'validation errors surfaced as a toast');
     assert.equal(auditCalls.length, 0, 'a rejected restore is not audited as a restore');
     unmount();
@@ -407,7 +420,9 @@ describe('useBackup — role gate', () => {
       ReturnType<typeof useBackup>['handleRestoreFileSelected']
     >[0];
 
-    await api.current!.handleRestoreFileSelected(fakeEvent, true);
+    await act(async () => {
+      await api.current!.handleRestoreFileSelected(fakeEvent, true);
+    });
     assert.ok(capture.toasts.some((x) => x.kind === 'error' && x.msg.includes('RLS')), 'server error surfaced');
     assert.equal(auditCalls.length, 0, 'a failed restore is not logged as RESTORE_BACKUP');
     restoreShouldFail = false;

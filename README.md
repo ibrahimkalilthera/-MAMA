@@ -46,7 +46,7 @@ Variables (voir `.env.example`) :
 | `npm run dev` | Vite dev server (port 3000, mode development) |
 | `npm run dev:staging` | dev server en mode staging |
 | `npm run build[:staging\|:production]` | build de production |
-| `npm test` | 493 tests (node:test + tsx, module-mocks expérimental) |
+| `npm test` | 510 tests (node:test + tsx, module-mocks expérimental) |
 | `npm run lint` | ESLint 0-warning + tsc strict + 6 guards custom (props, `any`, stylelint, CSS, i18n, emoji) |
 | `npm run quality` | lint + tests + audit de contraste WCAG 6 thèmes (identique au pre-commit/CI) |
 | `npm run check:contrast` | audit de contraste seul |
@@ -67,7 +67,7 @@ RLS activé sur toutes les tables, politiques par rôle (`admin` / `staff` / `de
 ## Tests
 
 ```bash
-npm test                    # toute la suite (~15 s)
+npm test                    # toute la suite (~30 s)
 node --import tsx --experimental-test-module-mocks --test tests/payments.test.tsx   # une seule suite
 ```
 
