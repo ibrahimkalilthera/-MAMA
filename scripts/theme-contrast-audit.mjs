@@ -312,15 +312,38 @@ async function main() {
     };
     const visibleText = (needle) => `(() => { const r = document.body.innerText || ''; return r.includes(${JSON.stringify(needle)}); })()`;
     const scanAndRecord = async (theme, step, rootSel, dialogGuard) => {
-      let failuresStep;
       try {
         if (dialogGuard) await waitFor(dialogGuard, 10000, `${step} (overlay non ouvert)`);
-        const res = await page.evaluate(`(${SCANNER})(${MIN_RATIO})(${JSON.stringify(rootSel || null)})`);
-        failuresStep = res.failures;
-        for (const f of res.failures) failures.push({ theme, step, ...f });
+        // Overlays open with a motion entrance (opacity 0 → 1). The presence
+        // guard fires the instant the overlay mounts, so scanning right away
+        // measures a half-faded surface — or, while ancestors are still below
+        // the scanner's visibility threshold, ZERO texts, which used to pass
+        // the gate as "0 textes scannés" even though the surface was never
+        // verified (the chat panel's intermittent vacuous green). Poll until
+        // the visible-text count is stable and > 0 (entrance animation over)
+        // before recording; an overlay that still yields 0 texts after the
+        // settle window is an UNCOVERED step → KO, never a pass.
+        let res = null;
+        let prev = -1;
+        const settleStart = Date.now();
+        for (;;) {
+          res = await page.evaluate(`(${SCANNER})(${MIN_RATIO})(${JSON.stringify(rootSel || null)})`);
+          if (res.checked > 0 && res.checked === prev) break; // settled at a real content count
+          if (Date.now() - settleStart > 8000) break; // hard cap: never settled
+          prev = res.checked;
+          await sleep(300);
+        }
+        const failuresStep = res.failures;
+        for (const f of failuresStep) failures.push({ theme, step, ...f });
         for (const ig of res.ignored) ignoredSeen.push({ theme, step, text: ig.text });
-        recordCheck(theme, step, failuresStep.length === 0, failuresStep.length ? `${failuresStep.length} paire(s) < ${MIN_RATIO}:1` : `${res.checked} textes scannés`);
-        return res.failures.length;
+        const verified = res.checked > 0;
+        const note = !verified
+          ? '0 texte scanné — couverture non vérifiée'
+          : failuresStep.length
+            ? `${failuresStep.length} paire(s) < ${MIN_RATIO}:1`
+            : `${res.checked} textes scannés`;
+        recordCheck(theme, step, verified && failuresStep.length === 0, note);
+        return failuresStep.length;
       } catch (e) {
         recordCheck(theme, step, false, e.message.slice(0, 120));
         return 0;
