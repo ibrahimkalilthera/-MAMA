@@ -268,8 +268,9 @@ describe('midnight lock: light fills carry a dark: counterpart', () => {
   ];
   const EXEMPT_LINES: Record<string, number[]> = {
     // print-student-file container internals (fixed print surface)
-    // (line numbers updated after the StudentDetailsModal extraction, -410)
-    'components/AppModals.tsx': [585, 706, 1415, 1571, 1631, 1643, 1664, 1667, 1690, 1694, 1698],
+    // (line numbers updated after the StudentDetailsModal extraction, -410,
+    // then the ParentFormModal extraction, -1)
+    'components/AppModals.tsx': [584, 705, 1414, 1570, 1630, 1642, 1663, 1666, 1689, 1693, 1697],
     'components/Login.tsx': [95, 110, 126],
     'components/FloatingChat.tsx': [115],
     'components/SharedUi.tsx': [18],
