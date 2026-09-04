@@ -145,7 +145,7 @@ export function ExpensesView() {
                       </div>
                       <div className={`${overdueVendorCount > 0 ? 'bg-rose-100 border-rose-200' : 'bg-slate-50 border-slate-100'} p-6 rounded-[2rem] border shadow-sm transition-all`}>
                         <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${overdueVendorCount > 0 ? 'text-rose-600' : 'text-slate-500'}`}>{t.overdueUnpaid}</p>
-                        <h4 className={`text-2xl font-black ${overdueVendorCount > 0 ? 'text-rose-700' : 'text-slate-700'}`}>{overdueVendorCount} {t.billsCountLabel}</h4>
+                        <h4 className={`text-2xl font-black ${overdueVendorCount > 0 ? 'text-rose-700' : (currentTheme.isDark ? 'text-white' : 'text-slate-700')}`}>{overdueVendorCount} {t.billsCountLabel}</h4>
                       </div>
                     </div>
 

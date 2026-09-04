@@ -136,30 +136,46 @@ for (const g of CSS_GUARDS) {
 }
 
 // ---------------------------------------------------------------------------
-// Slate heading scoping — the blanket `.theme-slate h1..h4` whitening must
-// never come back, and the scoped heading rule must mirror every background
-// the slate theme actually paints dark.
+// Slate heading + text scoping — the blanket `.theme-slate h1..h4` and
+// `.theme-slate .text-slate-900/800/700/600/950` whitening must never come
+// back, and the scoped rule must mirror every background the slate theme
+// actually paints dark.
 // ---------------------------------------------------------------------------
-// The old catch-all whitened headings on EVERY surface — including surfaces
-// that stay light (pastel badges, ticket/print zones), i.e. white-on-pale.
-// Headings are now flipped to light only when an ancestor belongs to the
-// slate dark system (the scoped `:is(h1, h2, h3, h4)` rule). Two invariants:
+// The old catch-alls whitened headings AND every slate-neutral text utility
+// on EVERY surface — including surfaces that stay light (pastel badges,
+// ticket/print zones), i.e. white-on-pale. They are now flipped to light
+// only when an ancestor belongs to the slate dark system (the scoped
+// `:is(h1, h2, h3, h4, .text-slate-950, …, .text-slate-600)` rule). Three
+// invariants:
 //
 //   1. No bare `.theme-slate h1`..`h4` element selector may exist anywhere
 //      (comment-stripped): that is the blanket rule by definition.
-//   2. Every *dark* surface the slate theme remaps (bg-*/card-* with a dark
-//      value) must also appear in the heading scope. Bright accent surfaces
+//   2. No bare `.theme-slate .text-slate-950|900|800|700|600` utility
+//      selector may exist as a standalone line: that would whiten slate
+//      text on light surfaces again (the invisible parent-name family).
+//   3. Every *dark* surface the slate theme remaps (bg-*/card-* with a dark
+//      value) must also appear in the scoped rule with BOTH the heading
+//      group and the text-slate family. Bright accent surfaces
 //      (bg-emerald-500/600, bg-blue-600, …) are excluded by luminance — no
 //      heading ever sits on a CTA button, and whitening one there would
 //      break it.
 
 const INDEX_CSS = stripComments(fs.readFileSync('src/index.css', 'utf8'));
 
-// 1. Blanket rule absent.
+// 1. Blanket heading rule absent.
 if (/\n\.theme-slate\s+h[1-4](?=[,{])/.test('\n' + INDEX_CSS)) {
   guardViolations.push(
     'src/index.css  —  the blanket `.theme-slate h1..h4 { color:#F8FAFC !important }` ' +
     'whitening is back; headings must only be whitened by the scoped dark-surface rule'
+  );
+}
+
+// 2. Blanket slate-text utility rule absent (standalone selector lines).
+const bareTextWhiten = /^\s*\.theme-slate \.text-slate-(950|900|800|700|600)\s*(,|\{)\s*$/m;
+if (bareTextWhiten.test(INDEX_CSS)) {
+  guardViolations.push(
+    'src/index.css  —  a bare `.theme-slate .text-slate-950|900|800|700|600 { … }` ' +
+    'whitening is back; slate text must only be whitened by the scoped dark-surface rule'
   );
 }
 
@@ -206,15 +222,18 @@ for (let i = 0; i < indexLines.length; i++) {
 
 const missingFromScope = [];
 for (const token of darkSurfaceTokens) {
-  if (!INDEX_CSS.includes(`.theme-slate .${token} :is(h1, h2, h3, h4)`)) {
+  // One entry per surface must whiten BOTH the heading group and the
+  // slate-neutral text family (they share the same `:is(…)` list).
+  if (!INDEX_CSS.includes(`.theme-slate .${token} :is(h1, h2, h3, h4, .text-slate-950`)) {
     missingFromScope.push(token);
   }
 }
 if (missingFromScope.length > 0) {
   guardViolations.push(
-    'src/index.css  —  slate surfaces painted dark without a matching heading scope entry: ' +
+    'src/index.css  —  slate surfaces painted dark without a matching heading+text scope entry: ' +
     missingFromScope.join(', ') +
-    ' (add `.theme-slate .' + missingFromScope[0] + ' :is(h1, h2, h3, h4)` to the scoped rule)'
+    ' (add `.theme-slate .' + missingFromScope[0] +
+    ' :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600)` to the scoped rule)'
   );
 }
 
