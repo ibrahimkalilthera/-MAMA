@@ -72,7 +72,24 @@ jobs:
       - name: Tests
         run: npm test
 
+      # npm audit only needs the network when the lockfile actually changed:
+      # scripts/check-audit.mjs caches its result (keyed on the lockfile sha,
+      # valid 24 h) under AUDIT_CACHE=1. Persist that cache across runs so a
+      # push that did not touch dependencies never re-queries the npm audit
+      # endpoint — which also keeps the gate green during npm registry
+      # incidents (the endpoint has timed out for hours while the registry
+      # itself stayed up, cancelling every deploy at this step).
+      - name: Restore audit gate cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/audit-gate.json
+          key: audit-gate-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            audit-gate-
+
       - name: Audit gate (production clean + total within baseline 0)
+        env:
+          AUDIT_CACHE: '1'
         run: node scripts/check-audit.mjs
 
   lighthouse:
