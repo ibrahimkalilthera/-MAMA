@@ -8,10 +8,8 @@ import { useSupabaseData } from './lib/useSupabaseData';
 import type { UserProfile } from './lib/useAuth';
 import type { MainViewsProps } from './app/mainViewsProps';
 import type { AppModalsProps } from './components/AppModals';
-import { ToastContainer, OfflineBanner, EnvBadge } from './components/ToastNotification';
 import { useToast } from './lib/useToast';
 import { useFloatingChat } from './app/useFloatingChat';
-import { FloatingChat } from './components/FloatingChat';
 import { useAuthWelcome } from './app/useAuthWelcome';
 import { useTodoSidebar } from './app/useTodoSidebar';
 import { useParents } from './app/useParents';
@@ -28,7 +26,6 @@ import { useUsers } from './app/useUsers';
 import { useInactivityLogout } from './app/useInactivityLogout';
 import { fetchInactivityMinutes, saveInactivityMinutes } from './lib/teamSettings';
 import { logAuditEvent } from './lib/auditLogger';
-import { InactivityWarning } from './components/InactivityWarning';
 import { useYear } from './app/yearContext';
 import { useNotificationWatch } from './app/useNotificationWatch';
 import { useYearOps } from './app/useYearOps';
@@ -40,13 +37,7 @@ import { generateFinancialReportPdf } from './lib/pdfFinancialReport';
 import { generateMultiYearReportPdf } from './lib/pdfMultiYearReport';
 import { generateExpensesReportPdf } from './lib/pdfExpensesReport';
 import { generateMonthlyPayrollDraftPdf } from './lib/pdfPayrollDraft';
-import { AnimatePresence } from 'motion/react';
-import { ConfirmDialog } from './components/ConfirmDialog';
-import { AppLoadingScreen } from './components/AppLoadingScreen';
-import { Sidebar } from './components/Sidebar';
-import { AppHeader } from './components/AppHeader';
-import { WelcomeBanner } from './components/WelcomeBanner';
-import { LockedYearBanner } from './components/LockedYearBanner';
+
 
 const PromotionWizardModal = lazy(() => import('./components/PromotionWizardModal').then(m => ({ default: m.PromotionWizardModal })));
 const DashboardCharts = lazy(() => import('./components/DashboardCharts').then(m => ({ default: m.DashboardCharts })));
@@ -57,9 +48,7 @@ const MainViews = lazy(() => import('./components/MainViews').then(m => ({ defau
 import { HighlightText, ChartsFallback } from './components/SharedUi';
 import { formatCurrency as formatCurrencyImpl, formatDateLang, getGradeDisplay as getGradeDisplayImpl } from './lib/formatters';
 import { getStudentStanding } from './lib/classes';
-import { Login } from './components/Login';
-import { AddUserModal } from './components/AddUserModal';
-import { ExcelImportHost, MonthlyDraftHost } from './components/ModalHosts';
+import { AppShell } from './components/AppShell';
 
 import { 
   LayoutDashboard, 
@@ -109,7 +98,6 @@ import {
   Droplet,
   Wifi,
   Sparkles,
-  AlertTriangle,
   BookOpen,
   Heart,
   UserPlus,
@@ -1003,293 +991,59 @@ const {
   welcomeMessage,
   };
   return (
-    <>
-      {authLoading ? (
-<AppLoadingScreen title={t.restoringSession} subtitle={t.checkingAuthentication} />
-      ) : !currentUser ? (
-        <Login onLogin={auth.signIn} lang={lang} setLang={toggleLanguage} t={t} />
-      ) : supabaseLoading ? (
-<AppLoadingScreen title={t.loadingFinanceSuite} subtitle={t.connectingToDatabase} />
-      ) : (
-        <div className={`min-h-screen ${currentTheme.bg} flex font-sans ${currentTheme.text} transition-colors duration-300 theme-${theme} ${currentTheme.isDark ? 'dark ' : ''}${ticketStudent ? 'no-print-ticket' : ''}`}>
-          {/* Environment Badge (dev/staging only) */}
-          <EnvBadge env={appEnv} />
-          {/* Offline Banner */}
-          <OfflineBanner lang={lang} t={t} />
-          {/* Toast Notifications */}
-          <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
-          {supabaseError && (
-            <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white text-center py-2 text-xs font-semibold flex items-center justify-center gap-3">
-              <span className="flex items-center gap-1.5"><AlertTriangle size={14} className="flex-shrink-0" /> {t.databaseConnectionIssue}: {supabaseError}</span>
-              <button
-                onClick={() => fetchAll()}
-                className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors"
-              >
-                {t.retry}
-              </button>
-            </div>
-          )}
-          
-          {/* Print Header */}
-      <div className="hidden print:block print-header">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
-            <p className="text-sm text-slate-500">{t.subtitle}</p>
-          </div>
-          <div className="text-right">
-            <h2 className="text-xl font-bold text-slate-900">{t.monthlyReport}</h2>
-            <p className="text-sm text-slate-500">{formatDate(new Date().toISOString())}</p>
-          </div>
-        </div>
-      </div>
-      
-      <Sidebar
-        t={t}
-        schoolLogo={schoolLogo}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        payrollWindowStatus={payrollWindowStatus}
-        currentUser={currentUser}
-        fetchAuditLogs={fetchAuditLogs}
-        showTodoSidebar={showTodoSidebar}
-        setShowTodoSidebar={setShowTodoSidebar}
-        onSignOut={() => auth.signOut()}
-        onToggleLanguage={() => toggleLanguage(lang === 'en' ? 'fr' : 'en')}
-        onAddStudent={openAddStudentModal}
-        onRecordPayment={() => setShowPaymentForm(true)}
-      />
-
-      {/* --- Main Content --- */}
-      <main className={`flex-1 lg:ml-64 p-8 lg:p-12 transition-all duration-300 ${showTodoSidebar ? 'lg:mr-80' : ''}`}>
-        
-        <AppHeader
-          t={t}
-          lang={lang}
-          currentTheme={currentTheme}
-          activeTab={activeTab}
-          currentUser={currentUser}
-          selectedYear={selectedYear}
-          setSelectedYear={setSelectedYear}
-          academicYears={academicYears}
-          availableClasses={availableClasses}
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          studentGradeFilter={studentGradeFilter}
-          setStudentGradeFilter={setStudentGradeFilter}
-          onPromoteClass={() => setIsPromotionWizardOpen(true)}
-          onImportExcel={() => setShowExcelImport(true)}
-          onOpenMonthlyDraft={() => {
-            setSelectedDraftMonth(new Date().getMonth());
-            setSelectedDraftYear(new Date().getFullYear());
-            setShowMonthlyDraftModal(true);
-          }}
-          onAddStudent={openAddStudentModal}
-          onPrintReport={() => {
-            if (activeTab === 'archives') {
-              generateMultiYearReportPdf({
-                academicYears,
-                lockedYears,
-                students,
-                expenses,
-                vendorExpenses,
-                salaryPayments,
-                lang,
-              });
-            } else if (activeTab === 'expenses') {
-              generateExpensesReportPdf({
-                expenses,
-                vendorExpenses,
-                selectedYear,
-                subTab: vendorExpensesTab,
-                lang,
-              });
-            } else {
-              handlePrint();
-            }
-          }}
-          onExportLate={handleExport}
-          onFinancialReportPdf={() => generateFinancialReportPdf({
-            students,
-            expenses,
-            vendorExpenses,
-            salaryPayments,
-            selectedYear,
-            lang
-          })}
-          notifications={notifications}
-          onOpenStudent={(studentId) => {
-            const student = students.find(s => s.id === studentId);
-            if (student) setSelectedStudent(student);
-          }}
-          readNotificationIds={readNotificationIds}
-          onMarkNotificationRead={markNotificationRead}
-          onMarkAllNotificationsRead={markAllNotificationsRead}
-          onMarkNotificationUnread={markNotificationUnread}
-  onOpenCalendarDate={openCalendarOnDate}
-onOpenPayroll={() => setActiveTab('payroll')}
-/>
-
-        <WelcomeBanner t={t} currentUser={currentUser} />
-
-        <LockedYearBanner t={t} show={lockedYears.includes(selectedYear)} />
-
-        {/* --- Views (dashboard, students, parents, payroll, expenses, calendar, notes, audit, settings) --- */}
-        <Suspense fallback={<div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}><div className="h-6 w-64 bg-slate-300 dark:bg-slate-700 rounded-lg mb-8" /><div className="h-[400px] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" /></div>}>
-          <MainViews {...viewsProps} />
-        </Suspense>
-
-        {/* --- Yearly Comparison & Archives View --- */}
-        {activeTab === 'archives' && (
-          <Suspense fallback={<div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}><div className="h-6 w-72 bg-slate-300 dark:bg-slate-700 rounded-lg mb-8" /><div className="h-[320px] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" /></div>}>
-            <ArchivesView
-              lang={lang}
-              t={t}
-              currentTheme={currentTheme}
-              academicYears={academicYears}
-              lockedYears={lockedYears}
-              students={students}
-              expenses={expenses}
-              vendorExpenses={vendorExpenses}
-              salaryPayments={salaryPayments}
-              selectedYear={selectedYear}
-              currentUser={currentUser}
-              getYearStats={getYearStats}
-              formatCurrency={formatCurrency}
-              generateMultiYearReportPdf={generateMultiYearReportPdf}
-              handlePrint={handlePrint}
-              handleCloseCurrentYear={handleCloseCurrentYear}
-              setAuditYear={setAuditYear}
-              setShowAuditModal={setShowAuditModal}
-            />
-          </Suspense>
-        )}
-      </main>
-
-      <Suspense fallback={null}>
-        <AppModals {...viewsProps} />
-      </Suspense>
-
-      {/* Floating AI chat widget — panel + FAB (src/components/FloatingChat.tsx). */}
-      <FloatingChat
-        t={t}
-        isFloatingChatOpen={isFloatingChatOpen}
-        setIsFloatingChatOpen={setIsFloatingChatOpen}
-        floatingChatMessages={floatingChatMessages}
-        floatingChatInput={floatingChatInput}
-        setFloatingChatInput={setFloatingChatInput}
-        handleFloatingAiQuery={handleFloatingAiQuery}
-        themeCard={currentTheme.card}
-        themeBorder={currentTheme.border}
-        themeHeader={currentTheme.header}
-        themeIsDark={currentTheme.isDark}
-      />
-        </div>
-      )}
-
-      {/* Academic Year Promotion Wizard Modal */}
-      <Suspense fallback={null}>
-        <PromotionWizardModal
-          isOpen={isPromotionWizardOpen}
-          onClose={() => setIsPromotionWizardOpen(false)}
-          students={students}
-          availableAcademicYears={academicYears}
-          currentAcademicYear={selectedYear || '2025-2026'}
-          onPromote={batchPromoteStudents}
-          language={lang}
-          t={t}
-        />
-      </Suspense>
-
-      {/* Add Staff / User Account Modal */}
-      <AnimatePresence>
-        {showAddUserModal && (
-          <AddUserModal
-            onClose={() => setShowAddUserModal(false)}
-            onCreated={(profiles) => setUserProfiles(profiles)}
-            createStaffUser={auth.createStaffUser}
-            fetchAllProfiles={auth.fetchAllProfiles}
-            t={t}
-            currentTheme={currentTheme}
-            toastError={(msg) => toast.error(msg)}
-            toastSuccess={(msg) => toast.success(msg)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Smart Excel Import Modal */}
-      <ExcelImportHost
-        isOpen={showExcelImport}
-        onClose={() => setShowExcelImport(false)}
-        lang={lang}
-        t={t}
-        academicYears={academicYears}
-        selectedYear={selectedYear}
-        batchImportData={batchImportData}
-        themeCard={currentTheme.card}
-        themeBorder={currentTheme.border}
-        themeMuted={currentTheme.muted}
-        themeIsDark={currentTheme.isDark}
-      />
-
-      {/* Monthly Payroll Draft Modal */}
-      <MonthlyDraftHost
-        isOpen={showMonthlyDraftModal}
-        onClose={() => setShowMonthlyDraftModal(false)}
-        monthIndex={selectedDraftMonth}
-        year={selectedDraftYear}
-        onMonthChange={setSelectedDraftMonth}
-        onYearChange={setSelectedDraftYear}
-        lang={lang}
-        t={t}
-        staff={staff}
-        salaryPayments={salaryPayments}
-        selectedYear={selectedYear}
-        onExportExcel={handleExportMonthlyPayrollExcel}
-        onRecordPayment={(staffId, balance) => {
-          setSalaryForm({ staffId, amount: balance.toString(), date: new Date().toISOString().split('T')[0] });
-          setShowSalaryModal(true);
-        }}
-        formatCurrency={formatCurrency}
-        currentTheme={currentTheme}
-      />
-
-      {/* Global Toast Notifications & Offline Resilience Banner */}
-      <OfflineBanner
-        lang={lang}
-        pendingCount={pendingQueueCount}
-        isSyncing={isSyncing}
-        onSync={syncOfflineQueue}
-        t={t}
-      />
-      <EnvBadge env={appEnv} />
-      <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
-
-      {/* --- Global Confirmation Dialog --- */}
-      <ConfirmDialog
-        open={!!confirmAction}
-        title={confirmAction?.title || ''}
-        message={confirmAction?.message || ''}
-        confirmLabel={confirmAction?.confirmLabel || ''}
-        cancelLabel={t.cancel}
-        onConfirm={() => {
-          const action = confirmAction;
-          setConfirmAction(null);
-          action?.onConfirm();
-        }}
-        onCancel={() => setConfirmAction(null)}
-        currentTheme={currentTheme}
-      />
-
-      {/* Inactivity auto-logout warning (see useInactivityLogout) */}
-      <InactivityWarning
-        open={inactivity.warningOpen}
-        remainingSeconds={inactivity.remainingSeconds}
-        onStay={inactivity.reset}
-        t={t}
-        currentTheme={currentTheme}
-      />
-    </>
+    <AppShell
+      {...viewsProps}
+      viewsProps={viewsProps}
+      currentUser={currentUser}
+      formatCurrency={formatCurrency}
+      authLoading={authLoading}
+      supabaseLoading={supabaseLoading}
+      supabaseError={supabaseError}
+      appEnv={appEnv}
+      toast={toast}
+      fetchAll={fetchAll}
+      setActiveTab={setActiveTab}
+      openAddStudentModal={openAddStudentModal}
+      setSelectedYear={setSelectedYear}
+      setSearchTerm={setSearchTerm}
+      studentGradeFilter={studentGradeFilter}
+      setStudentGradeFilter={setStudentGradeFilter}
+      setIsPromotionWizardOpen={setIsPromotionWizardOpen}
+      setShowExcelImport={setShowExcelImport}
+      generateMultiYearReportPdf={generateMultiYearReportPdf}
+      lockedYears={lockedYears}
+      vendorExpensesTab={vendorExpensesTab}
+      handleExport={handleExport}
+      generateFinancialReportPdf={generateFinancialReportPdf}
+      notifications={notifications}
+      readNotificationIds={readNotificationIds}
+      markNotificationRead={markNotificationRead}
+      markNotificationUnread={markNotificationUnread}
+      markAllNotificationsRead={markAllNotificationsRead}
+      openCalendarOnDate={openCalendarOnDate}
+      handleCloseCurrentYear={handleCloseCurrentYear}
+      setAuditYear={setAuditYear}
+      isFloatingChatOpen={isFloatingChatOpen}
+      setIsFloatingChatOpen={setIsFloatingChatOpen}
+      floatingChatMessages={floatingChatMessages}
+      floatingChatInput={floatingChatInput}
+      setFloatingChatInput={setFloatingChatInput}
+      handleFloatingAiQuery={handleFloatingAiQuery}
+      isPromotionWizardOpen={isPromotionWizardOpen}
+      batchPromoteStudents={batchPromoteStudents}
+      showAddUserModal={showAddUserModal}
+      showExcelImport={showExcelImport}
+      batchImportData={batchImportData}
+      showMonthlyDraftModal={showMonthlyDraftModal}
+      selectedDraftMonth={selectedDraftMonth}
+      selectedDraftYear={selectedDraftYear}
+      handleExportMonthlyPayrollExcel={handleExportMonthlyPayrollExcel}
+      pendingQueueCount={pendingQueueCount}
+      isSyncing={isSyncing}
+      syncOfflineQueue={syncOfflineQueue}
+      confirmAction={confirmAction}
+      setConfirmAction={setConfirmAction}
+      inactivity={inactivity}
+    />
   );
 }
-

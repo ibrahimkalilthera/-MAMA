@@ -28,10 +28,7 @@ const EXT = /\.(ts|tsx|css)$/;
 // Grandfathered mid-split files. The reason names the split that retires the
 // entry; delete the entry in that same split's commit (the gate fails on a
 // stale entry, so forgetting is impossible).
-const ALLOWLIST = {
-  'src/App.tsx':
-    'app-shell split in progress (state cluster, per-view JSX blocks and the viewsProps wiring remain)',
-};
+const ALLOWLIST = {};
 
 /** wc-equivalent line count: drop the empty fragment a trailing \n leaves. */
 function countLines(src) {

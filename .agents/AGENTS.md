@@ -70,6 +70,13 @@
 - Avoid drive‑by refactors that are unrelated to the current task.
 - When updating existing flows, preserve current behaviour by default and gate new behaviour behind configuration or clear conditions when risk is high.
 - File size discipline: Avoid expanding "god files" where possible, split logically when appropriate.
+- **App.tsx is now a wiring hub under budget**: the root shell JSX lives in
+  `src/components/AppShell.tsx`. Its props = `MainViewsProps & AppModalsProps`
+  (spread of the `viewsProps` literal, still owned by App.tsx) + `AppShellExtras`
+  for shell-only values. New shell-level JSX goes into AppShell, new state/hooks
+  stay in App.tsx, and the wiring guard
+  (`scripts/check-component-props.mjs`) resolves the `viewsProps` spread from
+  the `literal` file each component entry names.
 - **Domain types live once in `src/lib/domainTypes.ts`** (Language, User, Parent,
   Student, Staff, …, SchoolClass, DEFAULT_SCHOOL_CLASSES). `src/app/types.ts` and
   `src/lib/useSupabaseData.ts` only re-export from it — never re-declare an interface.

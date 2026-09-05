@@ -1,3 +1,26 @@
+## [2026-09-05] AppShell extrait — src/App.tsx sous le budget 1 100, plus aucun grandfathered
+
+- **`src/components/AppShell.tsx`** (nouveau, 433 lignes) reçoit la JSX du shell
+  (gate auth/loading, Sidebar + AppHeader + bannières, montages lazy
+  `<MainViews {...viewsProps} />` / `<AppModals {...viewsProps} />`, chat
+  flottant, modales App-level, chrome global) — extraite verbatim.
+- Contrat : `MainViewsProps & AppModalsProps & AppShellExtras` — le spread
+  `{...viewsProps}` fournit les ~38 valeurs des contrats Views, `AppShellExtras`
+  (49 champs) les valeurs propres au shell (gate, toast, confirm, chat…), typées
+  via `ReturnType<typeof useX>` quand elles viennent d'un hook. Deux overrides
+  honnêtes : `currentUser: User | null` (AppModalsProps le type de façon lâche)
+  et `formatCurrency: (amount: unknown) => string` (ce que MonthlyDraftHost
+  attend) — passés explicitement APRÈS le spread dans App.tsx.
+- App.tsx : 1 295 → 1 049 lignes, entrée ALLOWLIST retirée → **120 fichiers sous
+  budget, 0 grandfathered**. 14 imports morts supprimés (Suspense et les icônes
+  câblées dans viewsProps restent).
+- **`check-component-props.mjs`** adapté : les 4 composants rendus dans
+  AppShell.tsx nomment leur fichier `literal` (App.tsx, où vit l'objet
+  `viewsProps`) pour la résolution des spreads.
+- Validation : tsc 0, chaîne lint 0 (props-wiring 6/6, budget 120/120), **550/550**
+  tests. La JSX déplacée est byte-identique — seul le câblage de ses valeurs
+  change de scope.
+
 ## [2026-09-05] Remédiation dette structurelle — types unifiés, useSupabaseData scindé, alert() → toasts, pin xlsx gardé
 
 - **Types unifiés** : `src/lib/domainTypes.ts` devient la source unique des types
