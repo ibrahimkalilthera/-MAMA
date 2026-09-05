@@ -49,7 +49,9 @@ export interface BackupSnapshot extends BackupHeader {
  * The tables a snapshot covers — the app's data domain, in dependency order
  * (parents before students before payments). Deliberately EXCLUDED:
  *  - `user_profiles`: roles are identity data; restoring them could lock the
- *    team out (documented decision — re-add only with a dedicated policy);
+ *    team out (documented decision). The dedicated counterpart lives OUTSIDE
+ *    the app: `supabase/restore-profiles.mjs` (npm run db:profiles:restore)
+ *    restores roles server-side via the service key after a fresh-DB migration;
  *  - anything under `auth.` (never readable through the anon client anyway).
  * `audit_logs` IS included: fidelity over log integrity — the restore event
  * itself is appended on top of the restored history.

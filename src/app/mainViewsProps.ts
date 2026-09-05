@@ -83,6 +83,13 @@ export interface SalaryForm {
   date: string;
 }
 
+export interface ExpenseForm {
+  category: string;
+  description: string;
+  amount: string;
+  date: string;
+}
+
 export interface ParentForm {
   fullName: string;
   primaryPhone: string;

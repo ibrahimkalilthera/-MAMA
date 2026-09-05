@@ -18,6 +18,11 @@
 // Le nom de remplacement suit exactement la logique de la migration
 // handle_new_user_guard : metadata full_name si valide, sinon dérivé du
 // local-part de l'email (jamais « New User »).
+//
+// Les comptes propriétaires sont documentés par la carte OWNER_ROLES ci-dessous
+// (le script supabase/create_user.mjs ne contient plus de comptes en dur : il
+// lit ADMIN_EMAIL/ADMIN_PASSWORD/ADMIN_ROLE depuis l'environnement et ne touche
+// jamais au schéma).
 
 import pg from 'pg';
 import { readFileSync } from 'node:fs';

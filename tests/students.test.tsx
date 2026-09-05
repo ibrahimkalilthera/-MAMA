@@ -24,7 +24,7 @@ import assert from 'node:assert/strict';
 import { act } from 'react';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
-import type { Student } from '../src/app/types';
+import type { Student, User } from '../src/app/types';
 import { useStudents } from '../src/app/useStudents';
 import { installDomGlobals, stubAlert, renderHook } from './harness';
 
@@ -50,6 +50,11 @@ const ali = (): Student => student({ id: 'ST1', name: 'Ali Diallo', totalDue: 15
 const binta = (): Student => student({ id: 'ST2', name: 'Binta Fall', parentName: 'Ousmane Fall', totalDue: 80000, amountPaid: 80000, academicYear: '2026-2027', grade: '5e', dueDate: '2026-06-01' });
 const omar = (): Student => student({ id: 'ST3', name: 'Omar Sy', parentName: 'Fatou Sy', totalDue: 60000, amountPaid: 0, academicYear: '2026-2027', grade: '9C', studentId: 'MT-2026-003' });
 
+// ── acting users (scholarship gates are derived from the role) ──────────────
+const promoterUser: User = { username: 'ibrahim', name: 'Ibrahim Thera', role: 'admin' };
+const gmUser: User = { username: 'mamadou', name: 'Mamadou Lamine Thera', role: 'general_manager' };
+const staffUser: User = { username: 'sekou', name: 'Sékou Traoré', role: 'staff' };
+
 interface Spies {
   alerts: string[];
   addStudentCalls: Array<Record<string, unknown>>;
@@ -63,8 +68,7 @@ interface DepsOverrides {
   students?: Student[];
   selectedYear?: string;
   lockedYears?: string[];
-  isPromoter?: boolean;
-  isGeneralManager?: boolean;
+  currentUser?: User | null;
   addStudentResults?: Array<Student | null>;
   updateResults?: boolean[];
 }
@@ -89,8 +93,7 @@ function baseDeps(overrides: DepsOverrides = {}): {
     today: '2026-09-02',
     selectedYear: overrides.selectedYear ?? '2026-2027',
     lockedYears: overrides.lockedYears ?? [],
-    isPromoter: overrides.isPromoter ?? true,
-    isGeneralManager: overrides.isGeneralManager ?? false,
+    currentUser: overrides.currentUser !== undefined ? overrides.currentUser : promoterUser,
     students: overrides.students ?? [ali(), binta(), omar()],
     addStudent: async (s: Record<string, unknown>) => {
       spies.addStudentCalls.push(s);
@@ -341,7 +344,7 @@ describe('useStudents.handleStudentSubmit', () => {
   it('a non-finance editor cannot sneak a scholarshipDiscount; the promoter can', async () => {
     // non-finance: the form value is ignored, the existing discount is kept
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false, students: [ali()] });
+      const { args, spies } = baseDeps({ currentUser: staffUser, students: [ali()] });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => {
@@ -360,7 +363,7 @@ describe('useStudents.handleStudentSubmit', () => {
     }
     // general manager may edit the discount
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: true, students: [ali()] });
+      const { args, spies } = baseDeps({ currentUser: gmUser, students: [ali()] });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => {

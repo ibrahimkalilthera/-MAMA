@@ -16,9 +16,10 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import type { Student } from './types';
+import type { Student, User } from './types';
 import type { StudentForm } from '../components/StudentFormModal';
 import type { TranslationDict } from '../i18n/translations';
+import { canEditScholarship } from '../lib/permissions';
 import { isNinthGradeClass, visibleStudentIdentifier } from '../lib/studentIdentifiers';
 
 export type StudentSortKey = 'name' | 'parentName' | 'balance' | 'dueDate';
@@ -29,9 +30,8 @@ export interface UseStudentsDeps {
   today: string;
   selectedYear: string;
   lockedYears: string[];
-  isPromoter: boolean;
-  /** Gestionnaire Principal — may edit scholarship discounts like the promoter. */
-  isGeneralManager: boolean;
+  /** Who is acting — scholarship edits are derived from the role. */
+  currentUser: User | null;
   students: Student[];
   addStudent: (s: Omit<Student, 'id' | 'payments'>) => Promise<Student | null>;
   updateStudent: (id: string, updates: Partial<Student>) => Promise<boolean>;
@@ -61,10 +61,7 @@ const emptyStudentForm = (): StudentForm => ({
 });
 
 export function useStudents(deps: UseStudentsDeps) {
-  const { t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager, students, addStudent, updateStudent, showToast } = deps;
-  // Scholarship discounts are a finance-admin power: promoter/admin AND the
-  // Gestionnaire Principal.
-  const canEditScholarship = isPromoter || isGeneralManager;
+  const { t, lang, today, selectedYear, lockedYears, currentUser, students, addStudent, updateStudent, showToast } = deps;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -188,7 +185,7 @@ export function useStudents(deps: UseStudentsDeps) {
       studentId: isNinthGradeClass(studentForm.grade)
         ? studentForm.studentId.trim() || undefined
         : undefined,
-      scholarshipDiscount: canEditScholarship
+      scholarshipDiscount: canEditScholarship(currentUser?.role ?? null)
         ? (parseFloat(studentForm.scholarshipDiscount) || 0)
         : (editingStudent?.scholarshipDiscount || 0),
       notes: editingStudent?.notes || '',

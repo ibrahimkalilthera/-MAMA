@@ -266,19 +266,14 @@ describe('midnight lock: light fills carry a dark: counterpart', () => {
     'components/PayrollView.tsx', // print header
     'components/StudentsView.tsx', // print header + divider
   ];
+  // The MODAL scaffold no longer needs exemptions: every modal surface fill
+  // lives in src/lib/modalTokens.ts with its `dark:` counterpart in the same
+  // string (policed by tests/modal-tokens.test.ts), so the modal entries that
+  // used to sit here (AppModals print surfaces, the ticket slip preview, the
+  // vendor disabled fields) are structurally paired at the source instead.
+  // Remaining: non-modal fixed-light surfaces + the 20%-alpha wash over the
+  // themed card (the card's dark surface still shows through).
   const EXEMPT_LINES: Record<string, number[]> = {
-    // print-student-file container internals (fixed print surface)
-    // (line numbers updated after the StudentDetailsModal extraction, -410,
-    // then the ParentFormModal extraction, -1)
-    // AppModals line numbers shift when a modal block is extracted — these are
-    // the hidden print surfaces + promoter-locked fills (see the extraction
-    // comments on past diffs). Last shifted by the NotifyParentModal extraction:
-    // the removed block (lines 1494+) sits BELOW these, but the added import
-    // line shifted them +1.
-    'components/AppModals.tsx': [1053, 1209, 1269, 1281, 1302, 1305, 1328, 1332, 1336],
-    // Promoter-locked read-only fields in the vendor form (bg-slate-100
-    // disabled input, shown to non-promoters) — carried over from AppModals.
-    'components/VendorExpenseModal.tsx': [99, 220],
     'components/Login.tsx': [95, 110, 126],
     'components/FloatingChat.tsx': [115],
     'components/SharedUi.tsx': [18],

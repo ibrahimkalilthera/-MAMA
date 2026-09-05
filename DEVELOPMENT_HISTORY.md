@@ -1,3 +1,219 @@
+## [2026-09-05] Tokens sémantiques de modale : le scaffold partagé ne durcit plus les fills (ModalShell)
+
+- **Nouveau `src/lib/modalTokens.ts`** : les fills du chrome de modale (fond
+  `backdrop`, surface du panneau, barre d'en-tête, bouton ✕, champ désactivé,
+  surfaces papier) deviennent des **tokens sémantiques** consommés par
+  ModalShell et les modales par identifiant — plus aucun composant ne
+  durcit les classes de surface.
+- **Le couplage `dark:` devient structurel** : chaque fill clair du module
+  porte son contrepart `dark:` dans la même chaîne. Les surfaces papier
+  (`paperFillLight/Mid/Alert`) répètent volontairement le même fill en
+  `dark:` — papier blanc même en minuit, documenté dans le token. Le champ
+  désactivé (verrouillé hors promoteur) passe de chip blanche à inset sombre
+  (`dark:bg-[#1E293B]` + `dark:text-slate-300`) en slate/minuit. À noter : la
+  première passe avait livré le fond sombre SANS texte sombre — les `<input>`
+  n'héritent pas la couleur (fieldtext noir, aucun `color-scheme: dark`, pas de
+  règle `.theme-midnight input`) : texte illisible sur fond sombre en minuit,
+  masqué par les 540 tests (le couple vit dans un fichier .ts que les
+  scanners .tsx ne voient pas). Corrigé et verrouillé ci-dessous.
+- **La liste d'exemptions midnight se réduit** : les entrées AppModals (8),
+  LatePaymentTicketModal (1) et VendorExpenseModal (2) disparaissent de
+  `tests/theme-contrast-remap.test.ts` — le scan `.tsx` ne voit plus les
+  fills (références identifiants), et la nouvelle contrainte vit À LA SOURCE
+  dans `tests/modal-tokens.test.ts` (4 tests : tout fill clair pairé,
+  clés stables, panel fidèle au thème). Restent exemptés uniquement les
+  surfaces hors-modale (Login, FloatingChat, SharedUi, ExpensesView).
+- **Verrouillage contrasté des tokens** : le test de couplage vérifie
+  désormais que tout `dark:bg` qui REPEINT la surface (non same-value) porte
+  son `dark:text` dans la même chaîne et que le couple résout ≥ 4,5:1 en
+  slate ET minuit (réutilise la palette + maths WCAG de tailwind-pairs).
+  Prouvé par mutation : retirer `dark:text-slate-300` fait échouer la suite
+  avec le message exact. Suite 540/540, lint 0 warning, tsc 0 erreur.
+
+---
+
+## [2026-09-05] Rôles restaurés sur base vide : supabase/restore-profiles.mjs (service key)
+
+- **Le gap « admin restauré sans rôles » est clos côté serveur** : le backup
+  intégré exclut `user_profiles` (décision RLS documentée), donc après une
+  réinstallation sur base vide les comptes recréés par signup retombaient en
+  `staff`. Nouveau script `supabase/restore-profiles.mjs` qui parle à la REST
+  API avec la **service key** (bypass RLS) et exporte/restaure les rôles :
+  `npm run db:profiles:export` / `db:profiles:restore -- --file F.json`
+  (export avant migration, restauration après).
+- **Sécurités** : `--file` obligatoire + confirmation interactive (sauf
+  `--yes`) ; upsert par ligne sur `id` avec `merge-duplicates` — un profil
+  dont le compte `auth.users` n'existe pas encore échoue seul (message
+  explicite : recréez le compte d'abord, la restauration le met ensuite à
+  niveau) ; seules les colonnes connues sont écrites ; rôles validés contre
+  le schéma courant (admin, staff, dev, general_manager, econome).
+- **Helpers purs testés** (`tests/restore-profiles.test.ts`, 9 tests, sans
+  DOM) : extraction depuis les trois formats acceptés (tableau nu, format du
+  script, snapshot `tables.user_profiles`), normalisation/lignes sautées,
+  et garde que `ALLOWED_ROLES` colle aux migrations. L'environnement est
+  validé LAZYMENT (jamais au chargement du module) pour que les imports de
+  test restent sans effet de bord. tsc 0 erreur, lint 0 warning, suite
+  complète **536/536**.
+
+---
+
+## [2026-09-05] Prédicats de rôle centralisés (src/lib/permissions.ts)
+
+- **Nouveau module `src/lib/permissions.ts`** : les décisions d'autorisation ne
+  comparent plus de chaînes de rôle éparpillées — elles interrogent trois
+  prédicats purs et testés : `canManageUsers` (admin/dev), `canWriteFinance`
+  et `canEditScholarship` (admin/dev/general_manager — le set « finance-admin »
+  partagé, gardé en deux prédicats pour pouvoir diverger). Matrice rôle ×
+  permission pinnée dans `tests/permissions.test.ts` (pur, sans DOM).
+- **Les hooks dérivent leurs booléens du rôle de `currentUser`** au lieu de
+  recevoir des flags par domaine : `useStudents` et `useExpenses` perdent
+  `isPromoter`/`isGeneralManager` de leurs deps et calculent
+  `canEditScholarship(role)` / `canWriteFinance(role)` / `isPromoter =
+  canManageUsers(role)` (le monopole des champs vendor name/montant = la paire
+  admin/dev, commenté dans le module). App.tsx ne passe plus que `currentUser`
+  aux deux appels ; `useAuth.isAdmin` devient `canManageUsers(role)` — une
+  seule définition du set admin/dev pour tout le codebase.
+- **Ceintures de sécurité** : fixtures des suites useStudents/useExpenses
+  converties des flags vers les users par rôle (staff/GM/admin) ; tsc 0
+  erreur, eslint 0 warning, suite complète **527/527**.
+
+---
+
+## [2026-09-05] RecordSalaryModal : solde restant fenêtré année+mois (helper unique)
+
+- **Bug corrigé** : la dérivation du solde restant filtrait les paiements de
+  salaire sur le MOIS seul — un paiement daté du même mois d'une ANNÉE
+  antérieure réduisait à tort le solde du mois courant. L'ensemble du
+  codebase (useDashboard) filtre déjà année+mois ; le modal était l'exception.
+- **Un seul helper `remainingFor(staffId)`** dans RecordSalaryModal (année
+  courante + mois courant) alimente les trois surfaces — libellés des
+  `<option>`, montant pré-rempli à la sélection, résumé — qui ne peuvent plus
+  diverger (avant : 3 filtres inline dupliqués). `generateInstallmentMemo`
+  (App.tsx, déclenché depuis le modal) applique la même fenêtre année+mois
+  pour que le mémo ne contredise jamais le solde affiché.
+- **Suite de régression** `tests/recordsalary-balance.test.tsx` (happy-dom) :
+  un paiement du même mois l'année précédente est exclu, tous les paiements
+  du mois courant sont cumulés, le personnel sans paiement reste au salaire
+  plein — dates dérivées de `new Date()` pour ne jamais périmer. Suite
+  complète **520/520**.
+
+---
+
+## [2026-09-05] ModalShell partagé + registre d'overlays à configuration unique dans AppModals
+
+- **Nouveau `src/components/ModalShell.tsx`** : le chrome de dialogue que chaque
+  modale réécrivait à la main (racine fixed + backdrop motion + panneau motion
+  centré + barre d'en-tête accent avec icône/titre/✕) est factorisé en un
+  composant présentational unique. Variantes par boutons, pas par copie :
+  `headerClassName`/`headerStyle` pour les barres non-thème (rose plein de
+  l'expense, émeraude/bleu du vendor…), `maxWidth`, `titleClassName` (titre
+  sur deux lignes du Calendar Day), `rootClassName` (`no-print`), `header`
+  entier pour les cas vraiment hors-norme. Adopté par les 7 modales extraites
+  (Staff, Expense, RecordSalary, Payment, CalendarDay, LatePaymentTicket,
+  VendorExpense) — ~12 lignes de scaffold économisées par modale.
+- **Coordination AppModals : un SEUL tableau ordonné.** Les 15 blocs overlay
+  (12 coordonnés par AppModals + 3 enfants auto-gérés : StudentForm,
+  AddClass, EditClass) sortent du JSX et vivent dans un registre `overlays`
+  unique : ordre = ordre JSX = ordre de superposition, `open`/`close` par
+  entrée, et l'index de piège focus (slot) est ASSIGNÉ depuis la position —
+  plus aucun littéral `overlayRoots.current[N]` à ré-aligner à la main
+  (vérifié : 0 occurrence restante). Le JSX rend le registre via un map
+  (chaque entrée `presence` garde son `<AnimatePresence>`) ; Escape et les
+  pièges Tab lisent les entrées coordonnées filtrées du même tableau. Les
+  régions non-overlay (toasts, panneau Todo, surfaces d'impression, toggle
+  mobile, ConfirmDialog) restent verbatim, re-soudées sous le map.
+- **Ceintures de sécurité vertes** : tsc strict 0 erreur, eslint 0 warning,
+  chaîne lint complète, garde contrast/remap recalée (remplissages AppModals
+  679/739/751/772/775/798/802/806, ticket 42, vendor 83/204), suite complète
+  **517/517**.
+
+---
+
+## [2026-09-05] AppModals éclaté — passe 2 : Calendar Day, Ticket + jumeau imprimable, Link Student, toasts
+
+- **`src/components/AppModals.tsx` : 1 205 → 857 lignes (−348)** — cinq
+  nouveaux composants par domaine, extraits VERBATIM par un helper one-shot
+  (mêmes règles que la passe 1) : `CalendarDayModal` (le plus gros restant),
+  `LatePaymentTicketModal` (dialogue à l'écran + son jumeau imprimable
+  `print:block`, avec la dérivation solde `discount/discountedTotal/balance`
+  — dupliquée dans deux IIFE — calculée une seule fois dans le composant),
+  `LinkStudentModal` (reste hors AnimatePresence, fidèle à l'original),
+  `SuccessToast` et `WelcomeToast` (purs présentationnels — les minuteries
+  d'auto-fermeture restent dans App.tsx). Chaque nouveau fichier suit le
+  patron établi : props étroites, `onClose()`, `overlayRef` ré-enregistré au
+  MÊME index de la pile focus/Échap (5/8/10 conservés).
+- **`ExpenseForm` rejoint ses types frères** : l'interface (jusqu'ici définie
+  dans ExpenseFormModal puis ré-exportée par AppModals, et dupliquée dans
+  useExpenses) vit maintenant dans `src/app/mainViewsProps.ts` à côté de
+  SalaryForm/VendorExpenseForm — useExpenses et ExpenseFormModal
+  l'importent ; le ré-export d'AppModals disparaît (aucun importeur externe).
+- **Garde budget lignes** : AppModals (857) repasse SOUS le budget de 1 100 —
+  son entrée ALLOWLIST est retirée dans cette même passe (la garde échoue sur
+  une entrée obsolète, donc l'oubli est impossible). Il reste 2 fichiers
+  grandfathered (App.tsx 1 290, useSupabaseData.ts 1 497).
+- **Garde contrast/remap** : exemptions recalées — les 8 remplissages des
+  surfaces d'impression restées inline passent de [714, 870, 930, 942, 963,
+  966, 989, 993, 997] à [574, 634, 646, 667, 670, 693, 697, 701], et le
+  remplissage du ticket (slip à l'écran) suit dans
+  LatePaymentTicketModal.tsx:58. Aucune exemption nouvelle.
+- **Ceintures de sécurité vertes** : tsc strict 0 erreur, eslint 0 warning,
+  chaîne lint complète (y compris le guard de câblage), suite complète
+  **517/517**.
+
+---
+
+## [2026-09-05] AppModals éclaté : 4 modales par domaine (StaffFormModal, ExpenseFormModal, RecordSalaryModal, PaymentEntryModal)
+
+- **Décomposition de `src/components/AppModals.tsx`** (1 543 → 1 205 lignes,
+  −338) : les quatre gros formulaires encore inline partent dans des
+  composants par domaine, selon le même patron que les extractions
+  précédentes (ParentFormModal, VendorExpenseModal, StudentFormModal…) : JSX
+  déplacé VERBATIM, props étroites (t/theme/état du formulaire + handlers),
+  `onClose()` pour la fermeture, et la racine du dialogue reçoit `overlayRef`
+  — AppModals conserve le `AnimatePresence` + la condition d'ouverture et
+  ré-enregistre le ref dans sa pile focus/Échap au MÊME index (ordre de
+  superposition inchangé). Le type `ExpenseForm` déménage dans
+  ExpenseFormModal et est ré-exporté par AppModals (les importeurs existants
+  continuent de marcher).
+- **Ceintures de sécurité vertes** : tsc strict 0 erreur, eslint 0 warning,
+  chaîne lint complète (guard AppModals **163/163** props — câblage intact),
+  suite complète **517/517**.
+- **Garde contrast/remap** : la liste d'exemptions ligne-par-ligne de
+  `tests/theme-contrast-remap.test.ts` pour AppModals est recalée (−338
+  lignes au-dessus des surfaces d'impression concernées — le piège prévu par
+  le commentaire du fichier). Aucune exemption nouvelle : les 9 remplissages
+  sont les mêmes, aux nouvelles lignes.
+- **Restent inline dans AppModals** (prochaine passe, même patron) : Calendar
+  Day Modal (le plus gros restant), Late-Payment Ticket + surfaces
+  d'impression, Link Student, toasts succès/bienvenue, barre mobile.
+
+---
+
+## [2026-09-05] Snapshot SQL généré + docs resynchronisées + dev server borné
+
+- **`supabase/FULL_SETUP_MIGRATION.sql` n'est plus maintenu à la main** : nouveau
+  script `supabase/regenerate-full-setup.mjs` qui concatène les migrations
+  ordonnées de `supabase/migrations/` (18 fichiers, ordre chronologique du
+  préfixe `YYYYMMDDHHMMSS`) en un snapshot **déterministe** (sortie indépendante
+  du fuseau horaire, normalisation CRLF/LF à la lecture) — il ne peut donc plus
+  dériver des migrations. Le fichier est (re)généré via `npm run db:snapshot` ;
+  le mode `--check` (`npm run db:snapshot:check`, pensé pour la CI) sort en
+  erreur et signale la première ligne divergente quand le snapshot est périmé
+  (vérifié : une ligne parasite → détectée). L'en-tête du fichier généré liste
+  les 18 migrations et les commandes de régénération/vérification.
+- **Doc resynchronisée** : le README (qui annonçait 510 tests / 17 migrations /
+  45 suites, valeurs figées) passe aux valeurs réelles — **517 tests / 78
+  suites (~60 s), 18 migrations** — et documente `db:snapshot` /
+  `db:snapshot:check`. Les comptes datés des entrées plus anciennes de ce
+  fichier restent historiques (chaque entrée reflète l'état à sa date).
+- **Dev server borné** (`vite.config.ts`) : `allowedHosts` passe de `true`
+  (n'importe quel en-tête Host accepté) à une liste bornée de suffixes de
+  tunnels (`.loca.lt`, `.ngrok-free.app`, `.ngrok.io`, `.trycloudflare.com`) —
+  Vite autorise toujours localhost et les IP littérales — extensible via
+  `TUNNEL_HOSTS="a.com,b.com"` dans l'environnement pour un autre fournisseur.
+
+---
+
 ## [2026-09-04] Runner qualité async + watchdog (anti-blocage Node/msys)
 
 Nouveau script `scripts/quality-chain.mjs` (script npm `quality` : lint →

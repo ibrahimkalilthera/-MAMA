@@ -31,8 +31,6 @@ const EXT = /\.(ts|tsx|css)$/;
 const ALLOWLIST = {
   'src/App.tsx':
     'app-shell split in progress (useNotificationWatch extracted; state cluster, helpers and JSX blocks remain)',
-  'src/components/AppModals.tsx':
-    'modal extraction campaign in progress (ParentForm, VendorExpense, YearlyAuditSheet, NotifyParent, StudentDetails done; staff/expense/salary/calendar blocks remain)',
   'src/lib/useSupabaseData.ts':
     'per-table domain split pending (mirror of the translations split — value-identity verification planned)',
 };

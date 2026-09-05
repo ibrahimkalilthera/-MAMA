@@ -26,8 +26,14 @@ export default defineConfig(({mode}) => {
       },
     },
     server: {
-      // Allow remote tunnel domains like localtunnel and ngrok
-      allowedHosts: true,
+      // Dev server binds 0.0.0.0 for remote demos over tunnels. Instead of
+      // `allowedHosts: true` (any Host header accepted — DNS-rebinding lax),
+      // accept only known tunnel suffixes plus the usual dev hosts (Vite
+      // always allows localhost and IP literals regardless of this list).
+      // Add another tunnel provider via TUNNEL_HOSTS="a.com,b.com" in the env.
+      allowedHosts: env.TUNNEL_HOSTS
+        ? env.TUNNEL_HOSTS.split(',').map((h) => h.trim()).filter(Boolean)
+        : ['.loca.lt', '.ngrok-free.app', '.ngrok.io', '.trycloudflare.com'],
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',

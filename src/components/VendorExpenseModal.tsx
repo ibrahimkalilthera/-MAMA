@@ -13,11 +13,12 @@
  * caller wires to also clear editingVendorExpense.
  */
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
-import { motion } from 'motion/react';
-import { Heart, Receipt, X } from 'lucide-react';
+import { Heart, Receipt } from 'lucide-react';
 import type { VendorExpense } from '../lib/useSupabaseData';
 import type { CurrentTheme, ManagedClass, VendorExpenseForm } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
+import { modalTokens } from '../lib/modalTokens';
+import { ModalShell } from './ModalShell';
 
 export interface VendorExpenseModalProps {
   t: TranslationDict;
@@ -54,34 +55,19 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
     overlayRef,
     onClose,
   } = props;
+  const tokens = modalTokens(currentTheme);
 
   return (
-          <div ref={overlayRef} role="dialog" aria-modal="true" aria-label={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense} aria-labelledby="modal-title-vendor-expense-form" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={onClose}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 40 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
-            >
-              <div className={`p-8 border-b ${currentTheme.border} flex justify-between items-center ${currentTheme.isDark ? 'bg-emerald-800' : 'bg-blue-600'} text-white`}>
-                <h2 id="modal-title-vendor-expense-form" className="text-xl font-bold flex items-center gap-3">
-                  <Receipt size={24} />
-                  {editingVendorExpense ? t.editVendorExpense : t.addVendorExpense}
-                </h2>
-                <button 
-                  onClick={onClose} 
-                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
-                >
-                  <X size={20} />
-                </button>
-              </div>
+          <ModalShell
+            overlayRef={overlayRef}
+            onClose={onClose}
+            currentTheme={currentTheme}
+            titleId="modal-title-vendor-expense-form"
+            ariaLabel={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense}
+            headerClassName={`p-8 border-b ${currentTheme.border} flex justify-between items-center ${currentTheme.isDark ? 'bg-emerald-800' : 'bg-blue-600'} text-white`}
+            icon={<Receipt size={24} />}
+            title={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense}
+          >
 
               <form onSubmit={handleVendorExpenseSubmit} className="p-10 space-y-6">
                 {/* Vendor Name */}
@@ -96,7 +82,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                     value={vendorExpenseForm.vendorName}
                     disabled={!isPromoter}
                     onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, vendorName: e.target.value })}
-                    className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? 'bg-slate-100 cursor-not-allowed opacity-70' : currentTheme.input}`}
+                    className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? tokens.fieldDisabled : currentTheme.input}`}
                     placeholder={t.eGSenelec}
                   />
                 </div>
@@ -217,7 +203,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                       value={vendorExpenseForm.amount}
                       disabled={!isPromoter}
                       onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, amount: e.target.value })}
-                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? 'bg-slate-100 cursor-not-allowed opacity-70' : currentTheme.input}`}
+                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? tokens.fieldDisabled : currentTheme.input}`}
                       placeholder="50000"
                     />
                   </div>
@@ -269,7 +255,6 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                   {t.submit}
                 </button>
               </form>
-            </motion.div>
-          </div>
+          </ModalShell>
   );
 }

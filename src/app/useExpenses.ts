@@ -19,26 +19,18 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { User, Student, VendorExpense, Expense } from './types';
-import type { VendorExpenseForm } from './mainViewsProps';
+import type { VendorExpenseForm, ExpenseForm } from './mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
+import { canManageUsers, canWriteFinance } from '../lib/permissions';
 import { getCalendarDays } from '../lib/classes';
 import { getMonthName as getMonthNameImpl, getDayName as getDayNameImpl } from '../lib/formatters';
-
-export interface ExpenseForm {
-  category: string;
-  description: string;
-  amount: string;
-  date: string;
-}
 
 export interface UseExpensesDeps {
   t: TranslationDict;
   lang: 'en' | 'fr';
   selectedYear: string;
   lockedYears: string[];
-  isPromoter: boolean;
-  /** Gestionnaire Principal — finance admin without user/settings/audit access. */
-  isGeneralManager: boolean;
+  /** Who is acting — finance powers are derived from the role. */
   currentUser: User | null;
   addExpense: (exp: Omit<Expense, 'id'>) => Promise<Expense | null>;
   addVendorExpense: (ve: Omit<VendorExpense, 'id'>) => Promise<VendorExpense | null>;
@@ -67,12 +59,13 @@ const emptyVendorExpenseForm = (): VendorExpenseForm => ({
   beneficiaryStudentGrade: '',
 });
 
-export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser, addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast
+export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, currentUser, addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast
   } = deps;
-  // Finance admins (promoter/admin, dev, general manager) share the vendor
-  // create/delete powers; only the promoter keeps the amount/vendorName edit
-  // monopoly on existing records.
-  const isFinanceAdmin = isPromoter || isGeneralManager;
+  // Finance-admin writes (vendor create/delete) belong to the finance-manager
+  // roles; only the account-owner pair (admin/dev — the "promoter" fields)
+  // may overwrite vendor name/amount on existing records.
+  const role = currentUser?.role ?? null;
+  const isPromoter = canManageUsers(role);
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showVendorExpenseModal, setShowVendorExpenseModal] = useState(false);
@@ -136,7 +129,7 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
 
   const handleVendorExpenseSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!editingVendorExpense && !isFinanceAdmin) {
+    if (!editingVendorExpense && !canWriteFinance(role)) {
       alert(t.onlyThePromoterCanCreateAVendorExpense);
       return;
     }
@@ -199,7 +192,7 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
       alert(t.thisAcademicYearIsLocked);
       return;
     }
-    if (!isFinanceAdmin) {
+    if (!canWriteFinance(role)) {
       alert(t.onlyThePromoterCanDeleteExpenses);
       return;
     }

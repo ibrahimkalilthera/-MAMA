@@ -10,6 +10,13 @@
 - Install dependencies with `npm install`.
 - Run the app locally with `npm run dev`.
 - Prefer fast search tools (e.g. `rg`) when scanning the codebase.
+- **msys/Git-Bash fork failure (this machine)** — `bash: fork: retry: Resource temporarily
+  unavailable` / `dofork … died unexpectedly, exit code 0xC0000142` means Windows system-wide
+  Mandatory ASLR is breaking Git-for-Windows fork/exec, NOT orphan node processes or Defender.
+  Fix: disable `ForceRelocateImages` per-program for every exe under `C:\Program Files\Git`
+  (`Set-ProcessMitigation -Name <exe> -Disable @('ForceRelocateImages')`); reapply to any new
+  exe a Git update adds. Error text misleads: msys-linked binaries dying with silent 127 mean
+  only `bash.exe` is covered so far.
 
 ## Git safety & consent (required)
 
@@ -33,7 +40,10 @@
 ## Supabase / database work
 
 - Treat Supabase as the source of truth for persistent data and schema.
-- For schema changes or ad‑hoc SQL, use the Supabase CLI (`npx supabase db push`) or Supabase REST API endpoints rather than editing SQL files without applying them.
+- **Schema evolution actually happens via ordered files in `supabase/migrations/`**
+  (`YYYYMMDDHHMMSS_*.sql`), not `supabase db push`.
+  `supabase/FULL_SETUP_MIGRATION.sql` is GENERATED: never hand-edit it — add a migration, then
+  run `npm run db:snapshot`; `npm run db:snapshot:check` is the drift gate (safe in CI).
 - Never hardcode secrets (tokens, PATs, keys) into code or into this file; rely on runtime environment configuration (`.env`).
 - Local `.env` should hold, at minimum, the repo’s Supabase access keys:
   - `VITE_SUPABASE_URL`
@@ -47,3 +57,14 @@
 - Avoid drive‑by refactors that are unrelated to the current task.
 - When updating existing flows, preserve current behaviour by default and gate new behaviour behind configuration or clear conditions when risk is high.
 - File size discipline: Avoid expanding "god files" where possible, split logically when appropriate.
+- **AppModals overlays are config-driven**: ONE ordered `overlays` registry (in
+  `src/components/AppModals.tsx`) — list order = JSX order = focus-trap slot = Escape priority;
+  no numbered `overlayRoots.current[N]` literals anymore. Adding/removing an overlay only edits
+  the list. Keep extracted modals presentational: AppModals owns `<AnimatePresence>` + the open
+  condition; the modal root receives `overlayRef` + `onClose`.
+- **Modal surface fills live in `src/lib/modalTokens.ts`** — never hardcode a light fill
+  (`bg-*-50/100/200`) in a modal's JSX: reference a token instead. Every token carries its
+  `dark:` counterpart in the same string (structural pairing, policed by
+  `tests/modal-tokens.test.ts`); paper surfaces repeat the same fill as `dark:` ON PURPOSE
+  (white paper in every theme). That is why the midnight-lock exemption list
+  (`tests/theme-contrast-remap.test.ts`) no longer contains modal entries — keep it that way.

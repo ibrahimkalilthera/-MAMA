@@ -353,7 +353,7 @@ export default function App() {
     getMonthName,
     getDayName,
   } = useExpenses({
-    t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser,
+    t, lang, selectedYear, lockedYears, currentUser,
     addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense,
     showToast,
   });
@@ -380,7 +380,7 @@ export default function App() {
     handleSaveNote,
     toggleFlag,
   } = useStudents({
-    t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager,
+    t, lang, today, selectedYear, lockedYears, currentUser,
     students, addStudent, updateStudent,
     showToast,
   });
@@ -406,8 +406,14 @@ export default function App() {
   const generateInstallmentMemo = (staffId: string, amount: number) => {
     const s = staff.find(st => st.id === staffId);
     if (!s) return;
-    
-    const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth);
+
+    // Same year+month window as RecordSalaryModal's remaining balance — the
+    // memo must never disagree with what the form just showed.
+    const currentYear = new Date().getFullYear();
+    const paymentsThisMonth = salaryPayments.filter(p => {
+      const d = new Date(p.date);
+      return p.staffId === s.id && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    });
     const paidThisMonth = paymentsThisMonth.reduce((sum, p) => sum + p.amount, 0) + amount;
     const balance = s.salary - paidThisMonth;
     

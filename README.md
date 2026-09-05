@@ -46,28 +46,50 @@ Variables (voir `.env.example`) :
 | `npm run dev` | Vite dev server (port 3000, mode development) |
 | `npm run dev:staging` | dev server en mode staging |
 | `npm run build[:staging\|:production]` | build de production |
-| `npm test` | 510 tests (node:test + tsx, module-mocks expérimental) |
+| `npm test` | 540 tests (node:test + tsx, module-mocks expérimental) |
 | `npm run lint` | ESLint 0-warning + tsc strict + 6 guards custom (props, `any`, stylelint, CSS, i18n, emoji) |
 | `npm run quality` | lint + tests + audit de contraste WCAG 6 thèmes (identique au pre-commit/CI) |
 | `npm run check:contrast` | audit de contraste seul |
 | `npm run seed` | seed Supabase (dev) ; variantes `:staging`, `:production` |
+| `npm run db:snapshot` | régénère `supabase/FULL_SETUP_MIGRATION.sql` depuis les migrations |
+| `npm run db:snapshot:check` | CI : échoue si le snapshot SQL a dérivé des migrations |
+| `npm run db:profiles:export` | exporte `user_profiles` (rôles) via la service key → JSON |
+| `npm run db:profiles:restore -- --file F.json` | restaure les rôles après migration sur base vide (confirmation interactive) |
 | `npm run optimize:stamp` | optimise le tampon scolaire (PNG → 38 Ko) |
 
 ## Base de données (Supabase)
 
-Les migrations sont dans `supabase/migrations/` (17 migrations ordonnées) :
+Les migrations sont dans `supabase/migrations/` (18 migrations ordonnées).
+`supabase/FULL_SETUP_MIGRATION.sql` est un **snapshot généré** (concaténation des migrations)
+— après toute nouvelle migration : `npm run db:snapshot` ; `npm run db:snapshot:check`
+en CI garantit qu'il ne dérive jamais des migrations.
 
 ```bash
 npx supabase migrations up   # ou via le dashboard Supabase
 npm run seed                 # données de démo (env .env)
 ```
 
+Le backup intégré exclut volontairement `user_profiles` (identité/rôles, RLS).
+Après une réinstallation sur base vide, les comptes sont recréés par signup
+(profil `staff` auto) — pour restaurer les rôles sauvegardés, exporter avant
+migration puis restaurer via la service key :
+
+```bash
+npm run db:profiles:export                 # avant la migration
+npm run db:profiles:restore -- --file mama-thera-profiles-2026-09-05.json
+```
+
+Le script valide les rôles contre le schéma courant (admin, staff, dev,
+general_manager, econome) et échoue par ligne si le compte `auth.users`
+n'existe pas encore — recréez ces comptes d'abord (signup), la restauration
+les met ensuite à niveau vers le rôle sauvegardé.
+
 RLS activé sur toutes les tables, politiques par rôle (`admin` / `staff` / `dev` / `general_manager` / `econome`).
 
 ## Tests
 
 ```bash
-npm test                    # toute la suite (~30 s)
+npm test                    # toute la suite (~60 s)
 node --import tsx --experimental-test-module-mocks --test tests/payments.test.tsx   # une seule suite
 ```
 
@@ -89,7 +111,7 @@ src/
   lib/            # supabase client, PDF, offline queue, guards utilitaires
   i18n/           # translations.ts (fr/en)
 supabase/
-  migrations/     # 17 migrations SQL (schéma + RLS)
+  migrations/     # 18 migrations SQL (schéma + RLS) ; FULL_SETUP_MIGRATION.sql généré
 scripts/          # guards qualité (props, contraste, i18n, any, …)
-tests/            # 45 suites node:test
+tests/            # 78 suites node:test
 ```

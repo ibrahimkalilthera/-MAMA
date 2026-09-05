@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
-import type { Dispatch, SetStateAction, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
+import { Fragment, useRef, useState } from 'react';
+import type { Dispatch, ReactNode, SetStateAction, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Layers, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense } from '../lib/useSupabaseData';
-import type { CalendarEvent, CurrentTheme, ManagedClass, ParentForm, SalaryForm, StaffForm, VendorExpenseForm } from '../app/mainViewsProps';
+import type { CalendarEvent, CurrentTheme, ExpenseForm, ManagedClass, ParentForm, SalaryForm, StaffForm, VendorExpenseForm } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -19,17 +19,19 @@ import { NotifyParentModal } from './NotifyParentModal';
 import { AddClassModal } from './AddClassModal';
 import type { ClassForm } from './AddClassModal';
 import { EditClassModal } from './EditClassModal';
+import { StaffFormModal } from './StaffFormModal';
+import { ExpenseFormModal } from './ExpenseFormModal';
+import { RecordSalaryModal } from './RecordSalaryModal';
+import { PaymentEntryModal } from './PaymentEntryModal';
+import { CalendarDayModal } from './CalendarDayModal';
+import { SuccessToast } from './SuccessToast';
+import { WelcomeToast } from './WelcomeToast';
+import { LinkStudentModal } from './LinkStudentModal';
+import { LatePaymentTicketModal } from './LatePaymentTicketModal';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useOverlayTraps } from '../lib/focusStack';
+import { modalTokens } from '../lib/modalTokens';
 import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
-
-/** General expense add/edit form state (matches App.tsx). */
-export interface ExpenseForm {
-  category: string;
-  description: string;
-  amount: string;
-  date: string;
-}
 
 export interface AppModalsProps {
   Bell: LucideIcon;
@@ -199,968 +201,438 @@ export interface AppModalsProps {
   welcomeMessage: string | null;
 }
 
+type RegisterRef = (el: HTMLElement | null) => void;
+const noopRegister: RegisterRef = () => {};
+
+interface OverlayEntry {
+  key: string;
+  /** AppModals-managed: gets a trap slot + Escape entry. Self-managed children
+   *  (StudentFormModal / AddClassModal / EditClassModal) push their own stack
+   *  entries via `open` and are listed only to keep the DOM order identical. */
+  coordinated: boolean;
+  /** Wrap in <AnimatePresence> for exit animations. */
+  presence: boolean;
+  open: boolean;
+  close: () => void;
+  /** Position among coordinated entries — assigned by AppModals before render. */
+  slot?: number;
+  render: (register: RegisterRef, onClose: () => void) => ReactNode;
+}
+
 export function AppModals(props: AppModalsProps) {
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
-  const { Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Layers, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, isGeneralManager, lang, newClassForm, noteText, savingNoteOnDate, saveNoteOnDate, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, vendorExpenseForm, welcomeMessage } = props;
+  const { Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Globe, Layers, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentTheme, currentUser, deleteStudent, deleteTodo, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, isGeneralManager, lang, newClassForm, noteText, savingNoteOnDate, saveNoteOnDate, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoDate, setTodoDate, todoInput, todos, toggleLanguage, toggleTodo, handleUpdateTodoDate, vendorExpenseForm, welcomeMessage  } = props;
+  const tokens = modalTokens(currentTheme);
 
-  // Escape closes the topmost open overlay (keyboard consistency). The list
-  // below follows the JSX order: the LAST open entry is the visually topmost,
-  // and a single press closes exactly that one (stacked dialogs first).
-  const openOverlays: [boolean, () => void][] = [
-    [Boolean(selectedStudent), () => setSelectedStudent(null)],
-    [showStaffModal, () => setShowStaffModal(false)],
-    [showExpenseModal, () => setShowExpenseModal(false)],
-    [showVendorExpenseModal, () => setShowVendorExpenseModal(false)],
-    [showSalaryModal, () => setShowSalaryModal(false)],
-    [showCalendarModal, () => setShowCalendarModal(false)],
-    [showPaymentForm, () => setShowPaymentForm(false)],
-    [showAuditModal, () => setShowAuditModal(false)],
-    [Boolean(ticketStudent), () => setTicketStudent(null)],
-    [showParentModal, () => setShowParentModal(false)],
-    [showLinkStudentModal, () => setShowLinkStudentModal(false)],
-    [showNotifyModal, () => setShowNotifyModal(false)],
+  // ── One ordered overlay registry ─────────────────────────────────────────
+  // Every overlay hosted here appears EXACTLY once, in JSX/stack order: the
+  // last entry whose `open` is true is the visual topmost — Escape closes it
+  // and its focus-trap slot derives from its position, so adding or removing
+  // an overlay only edits this list, never a numbered ref.
+  const overlays: OverlayEntry[] = [
+    {
+      key: 'student-details',
+      coordinated: true,
+      presence: true,
+      open: Boolean(selectedStudent),
+      close: () => setSelectedStudent(null),
+      render: (register, onClose) => selectedStudent ? (
+        <StudentDetailsModal
+          t={t}
+          lang={lang}
+          student={selectedStudent}
+          currentTheme={currentTheme}
+          formatDate={formatDate}
+          formatCurrency={formatCurrency}
+          getGradeDisplay={getGradeDisplay}
+          generatePaymentReceiptPdf={generatePaymentReceiptPdf}
+          currentUser={currentUser}
+          copyToClipboard={copyToClipboard}
+          handleSaveNote={handleSaveNote}
+          studentDetailTab={studentDetailTab}
+          setStudentDetailTab={setStudentDetailTab}
+          overlayRef={register}
+          onClose={onClose}
+          onEdit={() => openEditModal(selectedStudent)}
+          onPrint={() => setPrintStudentFile(selectedStudent)}
+          onDeleteRequest={() => setConfirmDeleteStudent(selectedStudent)}
+        />
+      ) : null,
+    },
+    {
+      key: 'student-form',
+      coordinated: false,
+      presence: true,
+      open: showStudentModal,
+      close: () => setShowStudentModal(false),
+      render: (register, onClose) => (
+        <StudentFormModal
+          t={t}
+          lang={lang}
+          open={showStudentModal}
+          editingStudent={editingStudent}
+          studentForm={studentForm}
+          setStudentForm={setStudentForm}
+          handleStudentSubmit={handleStudentSubmit}
+          onClose={onClose}
+          onOpenAddClass={() => setShowAddClassModal(true)}
+          onDeleteRequest={(student) => setConfirmDeleteStudent(student)}
+          availableClasses={availableClasses}
+          academicYears={academicYears}
+          isPromoter={isPromoter}
+          isGeneralManager={isGeneralManager}
+          themeCard={currentTheme.card}
+          themeBorder={currentTheme.border}
+          themeHeader={currentTheme.header}
+          themeMuted={currentTheme.muted}
+          themeIsDark={currentTheme.isDark}
+        />
+      ),
+    },
+    {
+      key: 'add-class',
+      coordinated: false,
+      presence: true,
+      open: showAddClassModal,
+      close: () => setShowAddClassModal(false),
+      render: (register, onClose) => (
+        <AddClassModal
+          t={t}
+          open={showAddClassModal}
+          newClassForm={newClassForm}
+          setNewClassForm={setNewClassForm}
+          handleCreateClassSubmit={handleCreateClassSubmit}
+          onClose={onClose}
+          themeCard={currentTheme.card}
+          themeBorder={currentTheme.border}
+          themeHeader={currentTheme.header}
+          themeMuted={currentTheme.muted}
+          themeIsDark={currentTheme.isDark}
+        />
+      ),
+    },
+    {
+      key: 'edit-class',
+      coordinated: false,
+      presence: true,
+      open: showEditClassModal,
+      close: () => setShowEditClassModal(false),
+      render: (register, onClose) => (
+        <EditClassModal
+          t={t}
+          open={showEditClassModal}
+          editClassForm={editClassForm}
+          setEditClassForm={setEditClassForm}
+          handleEditClassSubmit={handleEditClassSubmit}
+          onClose={onClose}
+          themeCard={currentTheme.card}
+          themeBorder={currentTheme.border}
+          themeHeader={currentTheme.header}
+          themeMuted={currentTheme.muted}
+          themeIsDark={currentTheme.isDark}
+        />
+      ),
+    },
+    {
+      key: 'staff',
+      coordinated: true,
+      presence: true,
+      open: showStaffModal,
+      close: () => setShowStaffModal(false),
+      render: (register, onClose) => (
+        <StaffFormModal
+          t={t}
+          currentTheme={currentTheme}
+          editingStaff={editingStaff}
+          staffForm={staffForm}
+          setStaffForm={setStaffForm}
+          handleStaffSubmit={handleStaffSubmit}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ),
+    },
+    {
+      key: 'expense',
+      coordinated: true,
+      presence: true,
+      open: showExpenseModal,
+      close: () => setShowExpenseModal(false),
+      render: (register, onClose) => (
+        <ExpenseFormModal
+          t={t}
+          currentTheme={currentTheme}
+          expenseForm={expenseForm}
+          setExpenseForm={setExpenseForm}
+          handleExpenseSubmit={handleExpenseSubmit}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ),
+    },
+    {
+      key: 'vendor',
+      coordinated: true,
+      presence: true,
+      open: showVendorExpenseModal,
+      close: () => {
+        setShowVendorExpenseModal(false);
+        setEditingVendorExpense(null);
+      },
+      render: (register, onClose) => (
+        <VendorExpenseModal
+          t={t}
+          lang={lang}
+          currentTheme={currentTheme}
+          editingVendorExpense={editingVendorExpense}
+          vendorExpenseForm={vendorExpenseForm}
+          setVendorExpenseForm={setVendorExpenseForm}
+          handleVendorExpenseSubmit={handleVendorExpenseSubmit}
+          isPromoter={isPromoter}
+          expenseCategoryList={expenseCategoryList}
+          availableClasses={availableClasses}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ),
+    },
+    {
+      key: 'salary',
+      coordinated: true,
+      presence: true,
+      open: showSalaryModal,
+      close: () => setShowSalaryModal(false),
+      render: (register, onClose) => (
+        <RecordSalaryModal
+          t={t}
+          currentTheme={currentTheme}
+          staff={staff}
+          salaryPayments={salaryPayments}
+          currentMonth={currentMonth}
+          salaryForm={salaryForm}
+          setSalaryForm={setSalaryForm}
+          formatCurrency={formatCurrency}
+          generateInstallmentMemo={generateInstallmentMemo}
+          handleSalarySubmit={handleSalarySubmit}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ),
+    },
+    {
+      key: 'calendar',
+      coordinated: true,
+      presence: true,
+      open: Boolean(showCalendarModal && selectedCalendarDay),
+      close: () => setShowCalendarModal(false),
+      render: (register, onClose) => showCalendarModal && selectedCalendarDay ? (
+        <CalendarDayModal
+          t={t}
+          lang={lang}
+          currentTheme={currentTheme}
+          selectedCalendarDay={selectedCalendarDay}
+          getDayName={getDayName}
+          getEventsForDay={getEventsForDay}
+          getNotesForDay={getNotesForDay}
+          noteText={noteText}
+          setNoteText={setNoteText}
+          savingNoteOnDate={savingNoteOnDate}
+          saveNoteOnDate={saveNoteOnDate}
+          formatCurrency={formatCurrency}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ) : null,
+    },
+    {
+      key: 'payment',
+      coordinated: true,
+      presence: true,
+      open: showPaymentForm,
+      close: () => setShowPaymentForm(false),
+      render: (register, onClose) => (
+        <PaymentEntryModal
+          t={t}
+          currentTheme={currentTheme}
+          students={students}
+          paymentStudentId={paymentStudentId}
+          setPaymentStudentId={setPaymentStudentId}
+          paymentAmount={paymentAmount}
+          setPaymentAmount={setPaymentAmount}
+          paymentDate={paymentDate}
+          setPaymentDate={setPaymentDate}
+          formatCurrency={formatCurrency}
+          handlePaymentSubmit={handlePaymentSubmit}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ),
+    },
+    {
+      key: 'audit',
+      coordinated: true,
+      presence: true,
+      open: Boolean(showAuditModal && auditYear),
+      close: () => setShowAuditModal(false),
+      render: (register, onClose) => showAuditModal && auditYear ? (
+        <YearlyAuditSheetModal
+          t={t}
+          lang={lang}
+          currentTheme={currentTheme}
+          auditYear={auditYear}
+          schoolLogo={schoolLogo}
+          students={students}
+          getYearStats={getYearStats}
+          formatCurrency={formatCurrency}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ) : null,
+    },
+    {
+      key: 'ticket',
+      coordinated: true,
+      presence: true,
+      open: Boolean(ticketStudent),
+      close: () => setTicketStudent(null),
+      render: (register, onClose) => ticketStudent ? (
+        <LatePaymentTicketModal
+          t={t}
+          currentTheme={currentTheme}
+          student={ticketStudent}
+          getGradeDisplay={getGradeDisplay}
+          formatDate={formatDate}
+          formatCurrency={formatCurrency}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ) : null,
+    },
+    {
+      key: 'parent',
+      coordinated: true,
+      presence: false,
+      open: showParentModal,
+      close: () => setShowParentModal(false),
+      render: (register, onClose) => (
+        <ParentFormModal
+          t={t}
+          lang={lang}
+          currentTheme={currentTheme}
+          editingParent={editingParent}
+          students={students}
+          availableClasses={availableClasses}
+          parentForm={parentForm}
+          setParentForm={setParentForm}
+          handleParentSubmit={handleParentSubmit}
+          formatCurrency={formatCurrency}
+          overlayRef={register}
+          onClose={onClose}
+          onOpenStudentForm={() => setShowStudentModal(true)}
+          onRecordPayment={(studentId) => {
+            setPaymentStudentId(studentId);
+            setPaymentAmount('');
+            setShowPaymentForm(true);
+          }}
+          onViewStudent={(s) => setSelectedStudent(s)}
+        />
+      ),
+    },
+    {
+      key: 'link-student',
+      coordinated: true,
+      presence: false,
+      open: Boolean(showLinkStudentModal && activeLinkingParent),
+      close: () => setShowLinkStudentModal(false),
+      render: (register, onClose) => showLinkStudentModal && activeLinkingParent ? (
+        <LinkStudentModal
+          t={t}
+          currentTheme={currentTheme}
+          activeLinkingParent={activeLinkingParent}
+          students={students}
+          studentToLinkId={studentToLinkId}
+          setStudentToLinkId={setStudentToLinkId}
+          handleLinkStudentSubmit={handleLinkStudentSubmit}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ) : null,
+    },
+    {
+      key: 'notify',
+      coordinated: true,
+      presence: false,
+      open: Boolean(showNotifyModal && notifyParent),
+      close: () => setShowNotifyModal(false),
+      render: (register, onClose) => showNotifyModal && notifyParent ? (
+        <NotifyParentModal
+          t={t}
+          currentTheme={currentTheme}
+          notifyParent={notifyParent}
+          notifySelectedPhone={notifySelectedPhone}
+          setNotifySelectedPhone={setNotifySelectedPhone}
+          notifyCustomText={notifyCustomText}
+          setNotifyCustomText={setNotifyCustomText}
+          notifyTemplateType={notifyTemplateType}
+          handleNotifyTemplateChange={handleNotifyTemplateChange}
+          handleCopyNotifyMessage={handleCopyNotifyMessage}
+          handleSendSMS={handleSendSMS}
+          handleSendWhatsApp={handleSendWhatsApp}
+          copiedToast={copiedToast}
+          formatCurrency={formatCurrency}
+          getParentOutstandingBalance={getParentOutstandingBalance}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ) : null,
+    },
   ];
+  let slot = 0;
+  for (const o of overlays) {
+    if (o.coordinated) o.slot = slot++;
+  }
+  const coordinatedOverlays = overlays.filter((o) => o.coordinated);
+
   useEscapeToClose(
-    openOverlays.some(([open]) => open),
+    coordinatedOverlays.some((o) => o.open),
     () => {
-      for (let i = openOverlays.length - 1; i >= 0; i--) {
-        if (openOverlays[i][0]) {
-          openOverlays[i][1]();
+      for (let i = coordinatedOverlays.length - 1; i >= 0; i--) {
+        if (coordinatedOverlays[i].open) {
+          coordinatedOverlays[i].close();
           return;
         }
       }
     },
   );
-  // Focus trap: confine Tab to the currently-open overlay (same JSX order —
-  // the last open entry is the visually topmost) and restore focus on close.
+  // Focus trap: confine Tab to the currently-open overlay (same registry order
+  // — the last open entry is the visually topmost) and restore focus on close.
   const overlayRoots = useRef<(HTMLElement | null)[]>([]);
   useOverlayTraps(
-    openOverlays.map(([open]) => open),
+    coordinatedOverlays.map((o) => o.open),
     (i) => overlayRoots.current[i] ?? null,
   );
   return (
     <>
-      {/* --- Student Details Fiche Modal --- */}
-      <AnimatePresence>
-        {selectedStudent && (
-          <StudentDetailsModal
-            t={t}
-            lang={lang}
-            student={selectedStudent}
-            currentTheme={currentTheme}
-            formatDate={formatDate}
-            formatCurrency={formatCurrency}
-            getGradeDisplay={getGradeDisplay}
-            generatePaymentReceiptPdf={generatePaymentReceiptPdf}
-            currentUser={currentUser}
-            copyToClipboard={copyToClipboard}
-            handleSaveNote={handleSaveNote}
-            studentDetailTab={studentDetailTab}
-            setStudentDetailTab={setStudentDetailTab}
-            overlayRef={(el) => { overlayRoots.current[0] = el; }}
-            onClose={() => setSelectedStudent(null)}
-            onEdit={() => openEditModal(selectedStudent)}
-            onPrint={() => setPrintStudentFile(selectedStudent)}
-            onDeleteRequest={() => setConfirmDeleteStudent(selectedStudent)}
-          />
-        )}      </AnimatePresence>
+      {/* Overlays — rendered from the single ordered registry above. */}
+      {overlays.map((o) => {
+        const register: RegisterRef = o.coordinated
+          ? (el) => { overlayRoots.current[o.slot!] = el; }
+          : noopRegister;
+        const rendered = o.open ? o.render(register, o.close) : null;
+        return (
+          <Fragment key={o.key}>
+            {o.presence ? <AnimatePresence>{rendered}</AnimatePresence> : rendered}
+          </Fragment>
+        );
+      })}
 
-      {/* --- Student Add/Edit Modal --- */}
-      <AnimatePresence>
-        {showStudentModal && (
-          <StudentFormModal
-            t={t}
-            lang={lang}
-            open={showStudentModal}
-            editingStudent={editingStudent}
-            studentForm={studentForm}
-            setStudentForm={setStudentForm}
-            handleStudentSubmit={handleStudentSubmit}
-            onClose={() => setShowStudentModal(false)}
-            onOpenAddClass={() => setShowAddClassModal(true)}
-            onDeleteRequest={(student) => setConfirmDeleteStudent(student)}
-            availableClasses={availableClasses}
-    academicYears={academicYears}
-    isPromoter={isPromoter}
-    isGeneralManager={isGeneralManager}
-            themeCard={currentTheme.card}
-            themeBorder={currentTheme.border}
-            themeHeader={currentTheme.header}
-            themeMuted={currentTheme.muted}
-            themeIsDark={currentTheme.isDark}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* --- Add New Class / Section Modal --- */}
-      <AnimatePresence>
-        {showAddClassModal && (
-          <AddClassModal
-            t={t}
-            open={showAddClassModal}
-            newClassForm={newClassForm}
-            setNewClassForm={setNewClassForm}
-            handleCreateClassSubmit={handleCreateClassSubmit}
-            onClose={() => setShowAddClassModal(false)}
-            themeCard={currentTheme.card}
-            themeBorder={currentTheme.border}
-            themeHeader={currentTheme.header}
-            themeMuted={currentTheme.muted}
-            themeIsDark={currentTheme.isDark}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* --- Edit Custom Class Modal --- */}
-      <AnimatePresence>
-        {showEditClassModal && (
-          <EditClassModal
-            t={t}
-            open={showEditClassModal}
-            editClassForm={editClassForm}
-            setEditClassForm={setEditClassForm}
-            handleEditClassSubmit={handleEditClassSubmit}
-            onClose={() => setShowEditClassModal(false)}
-            themeCard={currentTheme.card}
-            themeBorder={currentTheme.border}
-            themeHeader={currentTheme.header}
-            themeMuted={currentTheme.muted}
-            themeIsDark={currentTheme.isDark}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* --- Staff Add/Edit Modal --- */}
-      <AnimatePresence>
-        {showStaffModal && (
-          <div ref={(el) => { overlayRoots.current[1] = el; }} role="dialog" aria-modal="true" aria-label={editingStaff ? t.editStaff : t.addStaff} aria-labelledby="modal-title-staff-form" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowStaffModal(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 40 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
-            >
-              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h2 id="modal-title-staff-form" className="text-xl font-bold flex items-center gap-3">
-                  <Briefcase size={24} className="text-blue-400" />
-                  {editingStaff ? t.editStaff : t.addStaff}
-                </h2>
-                <button onClick={() => setShowStaffModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleStaffSubmit} className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffName}</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={staffForm.name}
-                      onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                      placeholder="Jane Doe"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.position}</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={staffForm.position}
-                      onChange={(e) => setStaffForm({ ...staffForm, position: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                      placeholder="Teacher"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.phone}</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={staffForm.phone}
-                      onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                      placeholder="+223 70 00 00 00"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.email}</label>
-                    <input 
-                      required
-                      type="email" 
-                      value={staffForm.email}
-                      onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                      placeholder="jane.doe@school.com"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.monthlySalary} ({t.currency})</label>
-                  <input 
-                    required
-                    type="number" 
-                    value={staffForm.salary}
-                    onChange={(e) => setStaffForm({ ...staffForm, salary: e.target.value })}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                    placeholder="150 000"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.bankDetails}</label>
-                  <input
-                    type="text"
-                    value={staffForm.bankDetails}
-                    onChange={(e) => setStaffForm({ ...staffForm, bankDetails: e.target.value })}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                    placeholder="RIB: ML01 00001 ..."
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.emergencyContact}</label>
-                  <input
-                    type="text"
-                    value={staffForm.emergencyContact}
-                    onChange={(e) => setStaffForm({ ...staffForm, emergencyContact: e.target.value })}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                    placeholder="Spouse: +223 60 00 00 00"
-                  />
-                </div>
-
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-blue-500/20">
-                  {editingStaff ? t.saveChanges : t.submit}
-                </button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* --- Expense Modal --- */}
-      <AnimatePresence>
-        {showExpenseModal && (
-          <div ref={(el) => { overlayRoots.current[2] = el; }} role="dialog" aria-modal="true" aria-label={t.addExpense} aria-labelledby="modal-title-add-expense" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowExpenseModal(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 40 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
-            >
-              <div className="p-8 border-b border-rose-100 flex justify-between items-center bg-rose-600 text-white">
-                <h2 id="modal-title-add-expense" className="text-xl font-bold flex items-center gap-3">
-                  <Receipt size={24} />
-                  {t.addExpense}
-                </h2>
-                <button onClick={() => setShowExpenseModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleExpenseSubmit} className="p-10 space-y-6">
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.category}</label>
-                  <select 
-                    value={expenseForm.category}
-                    onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/5 focus:border-rose-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                  >
-                    <option value="Supplies">{t.supplies}</option>
-                    <option value="Utilities">{t.utilities}</option>
-                    <option value="Maintenance">{t.maintenance}</option>
-                    <option value="Other">{t.other}</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.description}</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={expenseForm.description}
-                    onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/5 focus:border-rose-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                    placeholder={t.electricityBill}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amount} ({t.currency})</label>
-                    <input 
-                      required
-                      type="number" 
-                      value={expenseForm.amount}
-                      onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/5 focus:border-rose-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                      placeholder="25 000"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.date}</label>
-                    <input 
-                      required
-                      type="date" 
-                      value={expenseForm.date}
-                      onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-rose-500/5 focus:border-rose-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                    />
-                  </div>
-                </div>
-                <button type="submit" className="w-full bg-rose-500 hover:bg-rose-600 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20">
-                  {t.submit}
-                </button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* --- Vendor Expense Modal --- */}
-      <AnimatePresence>
-        {showVendorExpenseModal && (
-          <VendorExpenseModal
-            t={t}
-            lang={lang}
-            currentTheme={currentTheme}
-            editingVendorExpense={editingVendorExpense}
-            vendorExpenseForm={vendorExpenseForm}
-            setVendorExpenseForm={setVendorExpenseForm}
-            handleVendorExpenseSubmit={handleVendorExpenseSubmit}
-            isPromoter={isPromoter}
-            expenseCategoryList={expenseCategoryList}
-            availableClasses={availableClasses}
-            overlayRef={(el) => { overlayRoots.current[3] = el; }}
-            onClose={() => {
-              setShowVendorExpenseModal(false);
-              setEditingVendorExpense(null);
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* --- Salary Payment Modal --- */}
-      <AnimatePresence>
-        {showSalaryModal && (
-          <div ref={(el) => { overlayRoots.current[4] = el; }} role="dialog" aria-modal="true" aria-label={t.recordSalary} aria-labelledby="modal-title-record-salary" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowSalaryModal(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 40 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
-            >
-              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h2 id="modal-title-record-salary" className="text-xl font-bold flex items-center gap-3">
-                  <DollarSign size={24} className="text-emerald-400" />
-                  {t.recordSalaryPayment}
-                </h2>
-                <button onClick={() => setShowSalaryModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSalarySubmit} className="p-10 space-y-6">
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffName}</label>
-                  <select 
-                    required
-                    value={salaryForm.staffId}
-                    onChange={(e) => {
-                      const sId = e.target.value;
-                      const s = staff.find(st => st.id === sId);
-                      if (s) {
-                        const paid = salaryPayments
-                          .filter(p => p.staffId === sId && new Date(p.date).getMonth() === currentMonth)
-                          .reduce((sum, p) => sum + p.amount, 0);
-                        setSalaryForm({ ...salaryForm, staffId: sId, amount: (s.salary - paid).toString() });
-                      } else {
-                        setSalaryForm({ ...salaryForm, staffId: sId });
-                      }
-                    }}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                  >
-                    <option value="">{t.selectStaff}</option>
-                    {staff.map(s => {
-                      const paid = salaryPayments
-                        .filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth)
-                        .reduce((sum, p) => sum + p.amount, 0);
-                      const bal = s.salary - paid;
-                      return (
-                        <option key={s.id} value={s.id}>{s.name} ({formatCurrency(bal)} {t.remainingBalance})</option>
-                      );
-                    })}
-                  </select>
-                </div>
-                {salaryForm.staffId && (
-                  <div className={`p-4 rounded-2xl ${currentTheme.isDark ? 'bg-emerald-900/20' : 'bg-slate-50'} border ${currentTheme.border}`}>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className={currentTheme.muted}>{t.remainingBalance}</span>
-                      <span className="font-black text-rose-600">
-                        {(() => {
-                          const s = staff.find(st => st.id === salaryForm.staffId);
-                          if (!s) return formatCurrency(0);
-                          const paid = salaryPayments
-                            .filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth)
-                            .reduce((sum, p) => sum + p.amount, 0);
-                          return formatCurrency(s.salary - paid);
-                        })()}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amount} ({t.currency})</label>
-                    <input 
-                      required
-                      type="number" 
-                      value={salaryForm.amount}
-                      onChange={(e) => setSalaryForm({ ...salaryForm, amount: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.date}</label>
-                    <input 
-                      required
-                      type="date" 
-                      value={salaryForm.date}
-                      onChange={(e) => setSalaryForm({ ...salaryForm, date: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                    />
-                  </div>
-                </div>
-
-                {salaryForm.staffId && salaryForm.amount && (
-                  <button 
-                    type="button"
-                    onClick={() => generateInstallmentMemo(salaryForm.staffId, parseFloat(salaryForm.amount))}
-                    className={`w-full py-4 rounded-2xl border ${currentTheme.isDark ? 'border-emerald-900/30 text-emerald-500 hover:bg-emerald-900/10' : 'border-slate-100 text-slate-600 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center justify-center gap-2`}
-                  >
-                    <Copy size={16} />
-                    {t.generateMemo}
-                  </button>
-                )}
-
-                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-emerald-500/20">
-                  {t.submit}
-                </button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* --- Calendar Day Modal --- */}
-      <AnimatePresence>
-        {showCalendarModal && selectedCalendarDay && (
-          <div ref={(el) => { overlayRoots.current[5] = el; }} role="dialog" aria-modal="true" aria-label={t.paymentHistory} aria-labelledby="modal-title-payment-history" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowCalendarModal(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 40 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
-            >
-              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h2 id="modal-title-payment-history" className="text-xl font-bold flex flex-col">
-                  <span className="text-sm opacity-70 uppercase tracking-widest font-black">{getDayName(selectedCalendarDay.getDay())}</span>
-                  <span>{selectedCalendarDay.toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                </h2>
-                <button onClick={() => setShowCalendarModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="p-10 space-y-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                {(() => {
-                  const dayEvents = getEventsForDay(selectedCalendarDay);
-                  const dayNotes = getNotesForDay(selectedCalendarDay);
-                  if (dayEvents.length === 0 && dayNotes.length === 0) {
-                    return (
-                      <div className="py-10 text-center">
-                        <div className={`w-16 h-16 rounded-full ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} flex items-center justify-center mx-auto mb-4`}>
-                          <Calendar size={32} />
-                        </div>
-                        <p className={currentTheme.muted}>{t.noTasks}</p>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="space-y-6">
-                      {dayNotes.length > 0 && (
-                        <div className="p-6 rounded-2xl border border-yellow-200 dark:border-yellow-900/40 bg-yellow-50/60 dark:bg-yellow-950/30">
-                          <div className="flex items-center gap-4 mb-4">
-                            <div className="p-3 rounded-xl bg-yellow-100 dark:bg-yellow-950/60 text-yellow-800 dark:text-yellow-300">
-                              <StickyNote size={20} />
-                            </div>
-                            <div>
-                              <h4 className="font-black uppercase tracking-widest text-[10px] text-yellow-700">
-                                {t.notes}
-                              </h4>
-                              <p className={`text-lg font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
-                                {dayNotes.length}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            {dayNotes.map((n) => (
-                              <div key={n.id} className="flex justify-between items-start gap-3 text-sm py-2 border-t border-yellow-200">
-                                {n.studentName && (
-                                  <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} flex-shrink-0`}>{n.studentName}</span>
-                                )}
-                                <span className={`${currentTheme.muted} text-right`}>{n.text}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {dayEvents.map((event, idx) => (
-                        <div key={idx} className={`p-6 rounded-2xl border ${currentTheme.border} ${
-                          event.type === 'due' ? 'bg-rose-50/30 dark:bg-rose-950/30' :
-                          event.type === 'salary' ? 'bg-emerald-50/30 dark:bg-emerald-950/30' :
-                          event.type === 'note' ? 'bg-yellow-50/60 dark:bg-yellow-950/30' :
-                          event.type === 'todo' ? 'bg-violet-50/60 dark:bg-violet-950/30' :
-                          'bg-blue-50/30 dark:bg-blue-950/30'
-                        }`}>
-                          <div className="flex items-center gap-4 mb-4">
-                            <div className={`p-3 rounded-xl ${
-                              event.type === 'due' ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300' :
-                              event.type === 'salary' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300' :
-                              event.type === 'note' ? 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300' :
-                              event.type === 'todo' ? 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300' :
-                              'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
-                            }`}>
-                              {event.type === 'due' ? <Users size={20} /> : event.type === 'salary' ? <Briefcase size={20} /> : event.type === 'note' ? <StickyNote size={20} /> : event.type === 'todo' ? <CheckSquare size={20} /> : <Receipt size={20} />}
-                            </div>
-                            <div>
-                              <h4 className={`font-black uppercase tracking-widest text-[10px] ${
-                                event.type === 'due' ? 'text-rose-600' :
-                                event.type === 'salary' ? 'text-emerald-600' :
-                                event.type === 'note' ? 'text-yellow-700' :
-                                event.type === 'todo' ? 'text-violet-600' :
-                                'text-blue-600'
-                              }`}>
-                                {event.type === 'due' ? (t.studentFeesDue) : 
-                                 event.type === 'salary' ? (t.staffSalaries) : 
-                                 event.type === 'note' ? (t.notes) : 
-                                 event.type === 'todo' ? (t.tasks) : 
-                                 (t.expenses)}
-                              </h4>
-                              <p className={`text-lg font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
-                                {event.count}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            {event.details?.map((detail, dIdx) => (
-                              <div key={dIdx} className={`flex justify-between items-center text-sm py-2 border-t ${currentTheme.border}`}>
-                                <span className={`${currentTheme.muted} ${detail.completed ? 'line-through opacity-60' : ''}`}>{detail.name}</span>
-                                {detail.amount !== undefined && (
-                                  <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{formatCurrency(detail.amount)}</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-
-                {/* Add a note on this date (Notes ⇄ Calendar bridge) */}
-                <div className="pt-2 border-t border-slate-100">
-                  <div className="bg-[#FEF9C3] p-5 rounded-2xl border border-yellow-200/70">                      <h4 className="text-[9px] font-black text-yellow-900 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                      <StickyNote size={12} />
-                      {t.addNoteForThisDay}
-                    </h4>
-                    <div className="space-y-2.5">
-                      <textarea
-                        value={noteText}
-                        onChange={(e) => setNoteText(e.target.value)}
-                        placeholder={t.notesPlaceholder}
-                        rows={2}
-                        className="w-full bg-white/70 dark:bg-slate-800 border border-yellow-200 dark:border-yellow-900/40 rounded-xl px-3 py-2 text-xs font-semibold text-yellow-900 dark:text-yellow-300 placeholder-yellow-700/40 dark:placeholder-yellow-500/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/30 resize-none custom-scrollbar"
-                      />
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          disabled={savingNoteOnDate || !noteText.trim()}
-                          onClick={() => { void saveNoteOnDate(selectedCalendarDay); }}
-                          className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all active:scale-95"
-                        >
-                          {savingNoteOnDate ? t.saving : t.save}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* --- Success Toast --- */}
+      {/* --- SuccessToast --- */}
       <AnimatePresence>
         {showSuccessToast && (
-          <motion.div 
-            initial={{ opacity: 0, y: 100 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 100 }}
-            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] bg-emerald-600 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold"
-          >
-            <CheckCircle2 size={20} />
-            {t.successMessage}
-          </motion.div>
+          <SuccessToast t={t} />
         )}
       </AnimatePresence>
 
-      {/* --- Welcome Toast --- */}
-      <AnimatePresence>
-        {welcomeMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: -100, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -100, scale: 0.9 }}
-            className="fixed top-10 left-1/2 -translate-x-1/2 z-[110] bg-slate-900 text-white dark:bg-emerald-600 px-8 py-5 rounded-3xl shadow-2xl flex items-center gap-4 font-black text-sm border-2 border-emerald-500/20"
-          >
-            <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center text-white">
-              <ShieldCheck size={18} />
-            </div>
-            <div className="text-left">
-              <p className="leading-tight">{welcomeMessage}</p>
-              <p className="text-[10px] text-white/90 font-medium">
-                {currentUser?.role === 'dev'
-                  ? (t.systemDeveloperPortal)
-                  : currentUser?.role === 'admin' 
-                  ? (t.promoterOwnerPortal) 
-                  : currentUser?.role === 'general_manager'
-                  ? (t.generalManagerPortal)
-                  : (t.accountantAccess)}
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* --- To-Do Sidebar (Productivité panel) --- */}
-      <AnimatePresence>
-        {showTodoSidebar && (
-          <ProductivityPanel
-            t={t}
-            open={showTodoSidebar}
-            onClose={() => setShowTodoSidebar(false)}
-            productivitySidebarTab={productivitySidebarTab}
-            setProductivitySidebarTab={setProductivitySidebarTab}
-            aiMessages={aiMessages}
-            aiInput={aiInput}
-            setAiInput={setAiInput}
-            handleAiQuery={handleAiQuery}
-            todoInput={todoInput}
-            setTodoInput={setTodoInput}
-            todoDate={todoDate}
-            setTodoDate={setTodoDate}
-            handleAddTodo={handleAddTodo}
-            todos={todos}
-            toggleTodo={toggleTodo}
-            deleteTodo={deleteTodo}
-            handleUpdateTodoDate={handleUpdateTodoDate}
-            themeCard={currentTheme.card}
-            themeBorder={currentTheme.border}
-            themeMuted={currentTheme.muted}
-            themeIsDark={currentTheme.isDark}
-            themeHeader={currentTheme.header}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* --- Payment Entry Modal --- */}
-      <AnimatePresence>
-        {showPaymentForm && (
-          <div ref={(el) => { overlayRoots.current[6] = el; }} role="dialog" aria-modal="true" aria-label={t.paymentEntry} aria-labelledby="modal-title-payment-entry" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowPaymentForm(false)}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 40 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className={`relative ${currentTheme.card} w-full max-w-md rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
-            >
-              <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                <h2 id="modal-title-payment-entry" className="text-xl font-bold flex items-center gap-3">
-                  <CreditCard size={24} className="text-blue-400" />
-                  {t.paymentEntry}
-                </h2>
-                <button 
-                  onClick={() => setShowPaymentForm(false)}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handlePaymentSubmit} className="p-10 space-y-8">
-                <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.selectStudent}</label>
-                  <select 
-                    required
-                    value={paymentStudentId}
-                    onChange={(e) => setPaymentStudentId(e.target.value)}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                  >
-                    <option value="" className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{t.selectStudent}...</option>
-                    {students.map(s => (
-                      <option key={s.id} value={s.id} className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{s.name} ({formatCurrency(s.totalDue * (1 - (s.scholarshipDiscount || 0) / 100) - s.amountPaid)} {t.balance})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amount} ({t.currency})</label>
-                    <div className="relative">
-                      <input 
-                        required
-                        type="number" 
-                        min="0"
-                        step="1"
-                        value={paymentAmount}
-                        onChange={(e) => setPaymentAmount(e.target.value)}
-                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                        placeholder="10 000"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.paymentDate}</label>
-                    <input 
-                      required
-                      type="date" 
-                      value={paymentDate}
-                      onChange={(e) => setPaymentDate(e.target.value)}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
-                    />
-                  </div>
-                </div>
-
-                <button 
-                  type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-blue-500/20 active:scale-[0.98]"
-                >
-                  {t.submit}
-                </button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* --- Yearly Final Audit Sheet Modal --- */}
-      <AnimatePresence>
-        {showAuditModal && auditYear && (
-          <YearlyAuditSheetModal
-            t={t}
-            lang={lang}
-            currentTheme={currentTheme}
-            auditYear={auditYear}
-            schoolLogo={schoolLogo}
-            students={students}
-            getYearStats={getYearStats}
-            formatCurrency={formatCurrency}
-            overlayRef={(el) => { overlayRoots.current[7] = el; }}
-            onClose={() => setShowAuditModal(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* --- Personalized Late Payment Ticket Modal --- */}
-      <AnimatePresence>
-        {ticketStudent && (() => {
-          const discount = ticketStudent.scholarshipDiscount || 0;
-          const discountedTotal = ticketStudent.totalDue * (1 - discount / 100);
-          const balance = discountedTotal - ticketStudent.amountPaid;
-          
-          return (
-            <div ref={(el) => { overlayRoots.current[8] = el; }} role="dialog" aria-modal="true" aria-label={t.latePaymentTicket} aria-labelledby="modal-title-late-payment-ticket" className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setTicketStudent(null)}
-                className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-              />
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9, y: 40 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: 40 }}
-                className={`relative ${currentTheme.card} w-full max-w-lg rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
-              >
-                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
-                  <h2 id="modal-title-late-payment-ticket" className="text-xl font-bold flex items-center gap-3">
-                    <Printer size={24} className="text-rose-400" />
-                    {t.latePaymentTicket}
-                  </h2>
-                  <button 
-                    onClick={() => setTicketStudent(null)}
-                    className="p-2 hover:bg-white/10 rounded-xl transition-all"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div className="p-10 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                  {/* Visual Slip Preview on Screen */}
-                  <div className="border border-slate-200 rounded-2xl p-6 bg-slate-50 font-mono text-xs text-slate-800 space-y-4 shadow-inner">
-                    <div className="text-center border-b border-dashed border-slate-300 pb-4">
-                      <h3 className="font-bold text-base uppercase tracking-wider">{t.title}</h3>
-                      <p className="text-[10px] text-slate-500">{t.subtitle}</p>
-                      <h4 className="font-black text-rose-600 mt-2 text-sm uppercase tracking-widest">
-                        {t.latePaymentTicket2}
-                      </h4>
-                    </div>
-
-                    <div className="space-y-2 py-2">
-                      <div className="flex justify-between">
-                        <span className="font-bold">{t.student}:</span>
-                        <span>{ticketStudent.name}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-bold">{t.grade}:</span>
-                        <span>Classe : {getGradeDisplay(ticketStudent.grade, 'fr')} / Grade: {getGradeDisplay(ticketStudent.grade, 'en')}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-bold">{t.parentLabel}:</span>
-                        <span>{ticketStudent.parentName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-bold">{t.dueDate}:</span>
-                        <span>{formatDate(ticketStudent.dueDate)}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-dashed border-slate-300 pt-2 text-rose-600 font-bold">
-                        <span>{t.totalOwed}:</span>
-                        <span>{formatCurrency(balance)}</span>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-dashed border-slate-300 pt-4 text-center text-[10px] text-slate-600 leading-relaxed italic">
-                      {t.overdueNotice}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <button 
-                      onClick={() => {
-                        setTimeout(() => window.print(), 100);
-                      }}
-                      className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-4 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20 flex items-center justify-center gap-2"
-                    >
-                      <Printer size={18} />
-                      {t.printTicket}
-                    </button>
-                    <button 
-                      onClick={() => setTicketStudent(null)}
-                      className={`px-8 py-4 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 hover:bg-slate-50 rounded-2xl font-bold text-sm transition-all`}
-                    >
-                      {t.close}
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          );
-        })()}
-      </AnimatePresence>
-
-      {/* --- Actual Printable Ticket Hidden on Screen --- */}
-      {ticketStudent && (() => {
-        const discount = ticketStudent.scholarshipDiscount || 0;
-        const discountedTotal = ticketStudent.totalDue * (1 - discount / 100);
-        const balance = discountedTotal - ticketStudent.amountPaid;
-        
-        return (
-          <div className="hidden print:block ticket-print-container font-mono text-sm text-black space-y-6">
-            <div className="text-center border-b border-black pb-4">
-              <h1 className="font-bold text-xl uppercase tracking-wider">{t.title}</h1>
-              <p className="text-xs text-black/70">{t.subtitle}</p>
-              <h2 className="font-bold text-lg mt-3 uppercase tracking-widest border border-black px-2 py-1 inline-block">
-                {t.latePaymentTicket2}
-              </h2>
-            </div>
-
-            <div className="space-y-3 py-2 text-base">
-              <div className="flex justify-between">
-                <span className="font-bold">{t.student}:</span>
-                <span>{ticketStudent.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-bold">{t.grade}:</span>
-                <span>Classe : {getGradeDisplay(ticketStudent.grade, 'fr')} / Grade: {getGradeDisplay(ticketStudent.grade, 'en')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-bold">{t.parentLabel}:</span>
-                <span>{ticketStudent.parentName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-bold">{t.dueDate}:</span>
-                <span>{formatDate(ticketStudent.dueDate)}</span>
-              </div>
-              <div className="flex justify-between border-t border-black pt-2 font-bold text-lg">
-                <span>{t.totalOwed}:</span>
-                <span>{formatCurrency(balance)}</span>
-              </div>
-            </div>
-
-            <div className="border-t border-black pt-4 text-center text-xs leading-relaxed font-bold italic">
-              {t.overdueNotice}
-            </div>
-
-            <div className="text-center text-[10px] pt-8 border-t border-black/10">
-              <p>{t.generatedOn} {formatDate(new Date().toISOString())}</p>
-              <p className="mt-2 text-[8px] tracking-widest uppercase">{t.officialFinancialReceipt}</p>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* --- Actual Printable Audit Report Hidden on Screen --- */}
       {auditYear && (() => {
@@ -1206,7 +678,7 @@ export function AppModals(props: AppModalsProps) {
               {studentsWithDebt.length > 0 ? (
                 <table className="w-full text-left text-xs border border-black">
                   <thead>
-                    <tr className="bg-slate-100 border-b border-black font-bold">
+                    <tr className={`${tokens.paperFillMid} border-b border-black font-bold`}>
                       <th className="px-3 py-2 border-r border-black">{t.studentName2}</th>
                       <th className="px-3 py-2 border-r border-black">{t.parentContact2}</th>
                       <th className="px-3 py-2 text-right">{t.debtCarriedOver}</th>
@@ -1266,7 +738,7 @@ export function AppModals(props: AppModalsProps) {
                 <p className="text-[10px] text-slate-400 mt-0.5">{t.phone2}: +223 70 00 00 00 | {t.email2} contact@mamathera.edu.ml</p>
               </div>
               {visibleStudentIdentifier(printStudentFile.grade, printStudentFile.studentId) && (
-                <div className="border border-slate-300 px-4 py-2 text-center rounded-xl bg-slate-50">
+                <div className={`border border-slate-300 px-4 py-2 text-center rounded-xl ${tokens.paperFillLight}`}>
                   <span className="text-[9px] font-black uppercase tracking-widest block text-slate-400">{t.studentId}</span>
                   <span className="font-mono font-bold text-sm text-slate-800">
                     {visibleStudentIdentifier(printStudentFile.grade, printStudentFile.studentId)}
@@ -1278,7 +750,7 @@ export function AppModals(props: AppModalsProps) {
             {/* Profile Grid: Photo and Details */}
             <div className="grid grid-cols-4 gap-8">
               {/* Photo placeholder on Left */}
-              <div className="col-span-1 border-2 border-slate-300 rounded-[2rem] h-40 overflow-hidden bg-slate-50 flex items-center justify-center relative shadow-inner">
+              <div className={`col-span-1 border-2 border-slate-300 rounded-[2rem] h-40 overflow-hidden ${tokens.paperFillLight} flex items-center justify-center relative shadow-inner`}>
                 {printStudentFile.photo ? (
                   <img 
                     src={printStudentFile.photo} 
@@ -1299,10 +771,10 @@ export function AppModals(props: AppModalsProps) {
                 <div>
                   <h2 className="text-3xl font-black text-slate-900 tracking-tight">{printStudentFile.name}</h2>
                   <div className="flex gap-4 mt-2">
-                    <span className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold uppercase">
+                    <span className={`${tokens.paperFillMid} px-3 py-1 rounded-lg text-xs font-bold uppercase`}>
                       {t.class} {getGradeDisplay(printStudentFile.grade, 'fr')}
                     </span>
-                    <span className="bg-slate-100 px-3 py-1 rounded-lg text-xs font-bold uppercase">
+                    <span className={`${tokens.paperFillMid} px-3 py-1 rounded-lg text-xs font-bold uppercase`}>
                       {t.status2} {printStudentFile.status || 'Active'}
                     </span>
                   </div>
@@ -1325,15 +797,15 @@ export function AppModals(props: AppModalsProps) {
             <div className="border border-slate-300 rounded-[2rem] p-6 space-y-4">
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{t.financialStatusLedger}</h3>
               <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <div className={`${tokens.paperFillLight} p-4 rounded-xl border border-slate-100`}>
                   <span className="text-[10px] font-bold text-slate-400 block uppercase">{t.totalTuitionDue}</span>
                   <span className="text-lg font-black text-slate-800">{formatCurrency(printStudentFile.totalDue)}</span>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <div className={`${tokens.paperFillLight} p-4 rounded-xl border border-slate-100`}>
                   <span className="text-[10px] font-bold text-slate-400 block uppercase">{t.paidTuition}</span>
                   <span className="text-lg font-black text-emerald-600">+{formatCurrency(printStudentFile.amountPaid)}</span>
                 </div>
-                <div className="bg-rose-50 p-4 rounded-xl border border-rose-100">
+                <div className={`${tokens.paperFillAlert} p-4 rounded-xl border border-rose-100`}>
                   <span className="text-[10px] font-bold text-rose-500 block uppercase">{t.remainingBalance2}</span>
                   <span className="text-lg font-black text-rose-600">{formatCurrency(printStudentFile.totalDue * (1 - (printStudentFile.scholarshipDiscount || 0) / 100) - printStudentFile.amountPaid)}</span>
                 </div>
@@ -1403,117 +875,6 @@ export function AppModals(props: AppModalsProps) {
         </button>
       </div>
 
-      {/* --- Add / Edit Parent Modal --- */}
-      {showParentModal && (
-        <ParentFormModal
-          t={t}
-          lang={lang}
-          currentTheme={currentTheme}
-          editingParent={editingParent}
-          students={students}
-          availableClasses={availableClasses}
-          parentForm={parentForm}
-          setParentForm={setParentForm}
-          handleParentSubmit={handleParentSubmit}
-          formatCurrency={formatCurrency}
-          overlayRef={(el) => { overlayRoots.current[9] = el; }}
-          onClose={() => setShowParentModal(false)}
-          onOpenStudentForm={() => setShowStudentModal(true)}
-          onRecordPayment={(studentId) => {
-            setPaymentStudentId(studentId);
-            setPaymentAmount('');
-            setShowPaymentForm(true);
-          }}
-          onViewStudent={(s) => setSelectedStudent(s)}
-        />
-      )}
-
-      {/* --- Link Student Modal --- */}
-      {showLinkStudentModal && activeLinkingParent && (
-        <div ref={(el) => { overlayRoots.current[10] = el; }} role="dialog" aria-modal="true" aria-label={t.linkStudent} aria-labelledby="modal-title-link-student" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className={`w-full max-w-md ${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-2xl space-y-6`}
-          >
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div>
-                <h3 id="modal-title-link-student" className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {t.linkStudent}
-                </h3>
-                <p className="text-xs text-slate-400">
-                  {t.attachChildTo.replace('{name}', activeLinkingParent.fullName)}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowLinkStudentModal(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleLinkStudentSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectStudent}</label>
-                <select
-                  required
-                  value={studentToLinkId}
-                  onChange={(e) => setStudentToLinkId(e.target.value)}
-                  className={`w-full p-3 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}
-                >
-                  <option value="">-- {t.selectStudentToLink} --</option>
-                  {students.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}{visibleStudentIdentifier(s.grade, s.studentId) ? ` — ${t.studentId}: ${visibleStudentIdentifier(s.grade, s.studentId)}` : ''} · {t.grade}: {s.grade || '—'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="pt-4 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowLinkStudentModal(false)}
-                  className="h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap"
-                >
-                  {t.close}
-                </button>
-                <button
-                  type="submit"
-                  disabled={!studentToLinkId}
-                  className="h-11 px-4 rounded-2xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-600/20 whitespace-nowrap"
-                >
-                  {t.linkStudent}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
-
-      {/* --- Late Payment Notification Modal (WhatsApp / SMS Generator) --- */}
-      {showNotifyModal && notifyParent && (
-        <NotifyParentModal
-          t={t}
-          currentTheme={currentTheme}
-          notifyParent={notifyParent}
-          notifySelectedPhone={notifySelectedPhone}
-          setNotifySelectedPhone={setNotifySelectedPhone}
-          notifyCustomText={notifyCustomText}
-          setNotifyCustomText={setNotifyCustomText}
-          notifyTemplateType={notifyTemplateType}
-          handleNotifyTemplateChange={handleNotifyTemplateChange}
-          handleCopyNotifyMessage={handleCopyNotifyMessage}
-          handleSendSMS={handleSendSMS}
-          handleSendWhatsApp={handleSendWhatsApp}
-          copiedToast={copiedToast}
-          formatCurrency={formatCurrency}
-          getParentOutstandingBalance={getParentOutstandingBalance}
-          overlayRef={(el) => { overlayRoots.current[11] = el; }}
-          onClose={() => setShowNotifyModal(false)}
-        />
-      )}
 
       {/* --- Student Delete Confirmation --- */}
       <ConfirmDialog
@@ -1541,3 +902,4 @@ export function AppModals(props: AppModalsProps) {
     </>
   );
 }
+
