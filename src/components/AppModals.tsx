@@ -281,11 +281,7 @@ export function AppModals(props: AppModalsProps) {
           academicYears={academicYears}
           isPromoter={isPromoter}
           isGeneralManager={isGeneralManager}
-          themeCard={currentTheme.card}
-          themeBorder={currentTheme.border}
-          themeHeader={currentTheme.header}
-          themeMuted={currentTheme.muted}
-          themeIsDark={currentTheme.isDark}
+          currentTheme={currentTheme}
         />
       ),
     },
@@ -303,11 +299,7 @@ export function AppModals(props: AppModalsProps) {
           setNewClassForm={setNewClassForm}
           handleCreateClassSubmit={handleCreateClassSubmit}
           onClose={onClose}
-          themeCard={currentTheme.card}
-          themeBorder={currentTheme.border}
-          themeHeader={currentTheme.header}
-          themeMuted={currentTheme.muted}
-          themeIsDark={currentTheme.isDark}
+          currentTheme={currentTheme}
         />
       ),
     },
@@ -325,11 +317,7 @@ export function AppModals(props: AppModalsProps) {
           setEditClassForm={setEditClassForm}
           handleEditClassSubmit={handleEditClassSubmit}
           onClose={onClose}
-          themeCard={currentTheme.card}
-          themeBorder={currentTheme.border}
-          themeHeader={currentTheme.header}
-          themeMuted={currentTheme.muted}
-          themeIsDark={currentTheme.isDark}
+          currentTheme={currentTheme}
         />
       ),
     },

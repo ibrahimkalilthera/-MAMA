@@ -2,13 +2,14 @@ import { Suspense, useState } from 'react';
 import { FileText, Printer, Lock, CheckCircle2 } from 'lucide-react';
 import type { Student, Expense, VendorExpense, SalaryPayment } from '../lib/useSupabaseData';
 import type { MultiYearReportOptions } from '../lib/pdfMultiYearReport';
+import type { CurrentTheme } from '../app/mainViewsProps';
 import { MultiYearChart } from './MultiYearChart';
 import { ConfirmDialog } from './ConfirmDialog';
 
 export interface ArchivesViewProps {
   lang: 'en' | 'fr';
   t: Record<string, string> & { revenueVsExpenses: string };
-  currentTheme: { card: string; border: string; isDark: boolean; muted: string; text: string };
+  currentTheme: CurrentTheme;
   academicYears: string[];
   lockedYears: string[];
   students: Student[];

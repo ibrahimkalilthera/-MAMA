@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
-import { motion } from 'motion/react';
 import { DollarSign, ExternalLink, Plus, Search, Users, X } from 'lucide-react';
 import type { Student } from '../lib/useSupabaseData';
 import type { CurrentTheme, ManagedClass, ParentForm } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { ModalShell } from './ModalShell';
 
 /**
  * Add/Edit parent modal — extracted verbatim from AppModals.
@@ -56,13 +56,17 @@ export function ParentFormModal(props: ParentFormModalProps) {
   const [parentClassFilter, setParentClassFilter] = useState('all');
 
   return (
-    <div ref={overlayRef} role="dialog" aria-modal="true" aria-label={editingParent ? t.editParent : t.addParent} aria-labelledby="modal-title-parent-form" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className={`w-full max-w-xl ${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto`}
-      >
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+    <ModalShell
+      overlayRef={overlayRef}
+      onClose={onClose}
+      currentTheme={currentTheme}
+      titleId="modal-title-parent-form"
+      ariaLabel={editingParent ? t.editParent : t.addParent}
+      maxWidth="max-w-xl"
+      panelRadius="rounded-[2rem]"
+      rootClassName="no-print"
+      header={
+        <div className="flex items-center justify-between px-8 pt-8 pb-4 border-b border-slate-100 dark:border-slate-800">
           <h3 id="modal-title-parent-form" className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
             {editingParent ? t.editParent : t.addParent}
           </h3>
@@ -73,7 +77,9 @@ export function ParentFormModal(props: ParentFormModalProps) {
             <X size={20} />
           </button>
         </div>
-
+      }
+    >
+      <div className="p-8 space-y-6 max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleParentSubmit} className="space-y-4">
           {editingParent && (() => {
             const linkedStudents = students.filter(s => s.parentId === editingParent.id);
@@ -444,7 +450,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
             </button>
           </div>
         </form>
-      </motion.div>
-    </div>
+      </div>
+    </ModalShell>
   );
 }

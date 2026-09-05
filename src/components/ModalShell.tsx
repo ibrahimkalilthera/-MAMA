@@ -36,8 +36,10 @@ export interface ModalShellProps {
   /** Extra classes appended to the fixed root (e.g. `no-print`). */
   rootClassName?: string;
   /** Panel width token (default `max-w-lg`). */
-  maxWidth?: 'max-w-md' | 'max-w-lg' | 'max-w-xl' | 'max-w-4xl';
-  /** Extra classes appended to the panel (radius/scroll overrides). */
+  maxWidth?: 'max-w-sm' | 'max-w-md' | 'max-w-lg' | 'max-w-xl' | 'max-w-4xl';
+  /** Panel corner radius (default `rounded-[3rem]`). */
+  panelRadius?: 'rounded-3xl' | 'rounded-[2rem]' | 'rounded-[2.5rem]' | 'rounded-[3rem]';
+  /** Extra classes appended to the panel (scroll/padding overrides). */
   panelClassName?: string;
   /** Fully custom header node — replaces the standard accent bar. */
   header?: ReactNode;
@@ -62,6 +64,7 @@ export function ModalShell({
   ariaLabel,
   rootClassName = '',
   maxWidth = 'max-w-lg',
+  panelRadius = 'rounded-[3rem]',
   panelClassName = '',
   header,
   icon,
@@ -92,7 +95,7 @@ export function ModalShell({
         initial={{ opacity: 0, scale: 0.9, y: 40 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 40 }}
-        className={`relative ${tokens.panelSurface} w-full ${maxWidth} rounded-[3rem] shadow-2xl overflow-hidden ${panelClassName}`}
+        className={`relative ${tokens.panelSurface} w-full ${maxWidth} ${panelRadius} shadow-2xl overflow-hidden ${panelClassName}`}
       >
         {header ?? (
           <div

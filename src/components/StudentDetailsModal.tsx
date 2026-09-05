@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { motion } from 'motion/react';
 import { Calendar, Copy, FileText, Printer, Receipt, StickyNote, Trash2, Users, X } from 'lucide-react';
 import type { Student } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { ModalShell } from './ModalShell';
 
 /**
  * Student details fiche — extracted verbatim from AppModals.
@@ -51,21 +51,14 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
   // Notes ⇄ Calendar bridge: optional date picked next to the sticky note.
   const [noteDateInput, setNoteDateInput] = useState('');
   return (
-    <div ref={overlayRef} role="dialog" aria-modal="true" aria-label={t.studentDetails} aria-labelledby="modal-title-student-details" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 40 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 40 }}
-        className={`relative ${currentTheme.card} w-full max-w-xl rounded-[3rem] shadow-2xl border ${currentTheme.border} overflow-hidden`}
-      >
-        {/* Header Banner */}
+    <ModalShell
+      overlayRef={overlayRef}
+      onClose={onClose}
+      currentTheme={currentTheme}
+      titleId="modal-title-student-details"
+      ariaLabel={t.studentDetails}
+      maxWidth="max-w-xl"
+      header={
         <div className="h-24 relative" style={{ backgroundColor: currentTheme.header }}>
           <button
             onClick={onClose}
@@ -74,6 +67,8 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
             <X size={20} />
           </button>
         </div>
+      }
+    >
 
         {/* Body Content */}
         <div className="px-10 pb-10 pt-4 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
@@ -394,7 +389,6 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
             </button>
           </div>
         </div>
-      </motion.div>
-    </div>
+    </ModalShell>
   );
 }

@@ -11,7 +11,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { act, createElement } from 'react';
+import { act, createElement, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { translations } from '../src/i18n/translations';
@@ -91,7 +91,16 @@ interface Fixture {
 }
 
 function Harness(props: Fixture): React.ReactNode {
-  const { salaryPayments, salaryForm = {} } = props;
+  const { salaryPayments, salaryForm: initialForm = {} } = props;
+  // Real state so the select's onChange (staff → amount auto-fill) is live,
+  // not a no-op: the auto-fill path is what the select-interaction test
+  // exercises.
+  const [form, setForm] = useState<SalaryForm>({
+    staffId: '',
+    amount: '',
+    date: iso(currentYear, currentMonth),
+    ...initialForm,
+  });
   return (
     <RecordSalaryModal
       t={t}
@@ -99,8 +108,8 @@ function Harness(props: Fixture): React.ReactNode {
       staff={[fatou(), moussa()]}
       salaryPayments={salaryPayments}
       currentMonth={currentMonth}
-      salaryForm={{ staffId: '', amount: '', date: iso(currentYear, currentMonth), ...salaryForm }}
-      setSalaryForm={() => {}}
+      salaryForm={form}
+      setSalaryForm={setForm}
       formatCurrency={formatCurrency}
       generateInstallmentMemo={() => {}}
       handleSalarySubmit={async () => {}}
@@ -174,6 +183,49 @@ describe('RecordSalaryModal — remaining balance windows year+month', () => {
       const opt = optionFor('st1');
       assert.ok(norm(opt!.textContent ?? '').includes('85 000 FCFA'), `option sums all this-month payments, got: ${opt!.textContent}`);
       assert.equal(summaryBalance(), '85 000 FCFA');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('auto-fills the amount from the year+month balance when a staff is picked', async () => {
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          salaryPayments: [
+            thisMonthPayment('sp-now', 'st1', 20000),
+            lastYearSameMonthPayment('sp-last-year', 'st1', 30000),
+          ],
+        }));
+      });
+
+      const select = win.document.querySelector('select') as unknown as HTMLSelectElement;
+      const amount = win.document.querySelector('input[type="number"]') as unknown as HTMLInputElement;
+      assert.ok(select, 'staff select rendered');
+      assert.ok(amount, 'amount input rendered');
+      assert.equal(select.value, '', 'no staff pre-selected');
+      assert.equal(amount.value, '', 'amount empty until a staff is chosen');
+
+      // Pick Fatou: 120000 − 20000 = 100000. The 30000 paid the same month
+      // LAST year must NOT be subtracted (the old month-only filter would
+      // have auto-filled 70000).
+      await act(async () => {
+        select.value = 'st1';
+        select.dispatchEvent(new win.Event('change', { bubbles: true }) as unknown as Event);
+      });
+      assert.equal(select.value, 'st1', 'select reflects the chosen staff');
+      assert.equal(amount.value, '100000', 'amount auto-fills with the year+month-aware balance');
+      assert.equal(summaryBalance(), '100 000 FCFA', 'summary agrees with the auto-filled amount');
+
+      // Switch to Moussa (no payments this year+month): full salary fills in.
+      await act(async () => {
+        select.value = 'st2';
+        select.dispatchEvent(new win.Event('change', { bubbles: true }) as unknown as Event);
+      });
+      assert.equal(amount.value, '90000', 'untouched staff auto-fills at full salary');
+      assert.equal(summaryBalance(), '90 000 FCFA');
     } finally {
       await act(async () => root.unmount());
       container.remove();

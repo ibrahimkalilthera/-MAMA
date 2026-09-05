@@ -6,6 +6,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
+  const currentYear = new Date().getFullYear();
   const { AlertCircle, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
   return (
     <>
@@ -21,7 +22,7 @@ export function PayrollView() {
               </div>
               <div className="divide-y divide-slate-100">
                 {staff.map(s => {
-                  const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth);
+                  const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth && new Date(p.date).getFullYear() === currentYear);
                   const paidThisMonth = paymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
                   const balance = s.salary - paidThisMonth;
                   return (
@@ -161,7 +162,7 @@ export function PayrollView() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredStaff.map(s => {
-                const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth);
+                const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth && new Date(p.date).getFullYear() === currentYear);
                 const paidThisMonth = paymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
                 const balance = s.salary - paidThisMonth;
                 const payDatePassed = new Date().getDate() > 25;

@@ -9,11 +9,11 @@
  * component stays presentational. The X button calls onClose.
  */
 import type { Dispatch, SetStateAction } from 'react';
-import { motion } from 'motion/react';
 import { Bell, CheckCircle2, Copy, MessageSquare, Phone, X } from 'lucide-react';
 import type { Parent } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
+import { ModalShell } from './ModalShell';
 
 export interface NotifyParentModalProps {
   t: TranslationDict;
@@ -43,34 +43,40 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
   const { t, currentTheme, notifyParent, notifySelectedPhone, setNotifySelectedPhone, notifyCustomText, setNotifyCustomText, notifyTemplateType, handleNotifyTemplateChange, handleCopyNotifyMessage, handleSendSMS, handleSendWhatsApp, copiedToast, formatCurrency, getParentOutstandingBalance, overlayRef, onClose } = props;
 
   return (
-        <div ref={overlayRef} role="dialog" aria-modal="true" aria-label={t.reminderModalTitle} aria-labelledby="modal-title-reminder" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className={`w-full max-w-xl ${currentTheme.card} p-6 sm:p-8 rounded-[2rem] border ${currentTheme.border} shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto`}
-          >
-            {/* Modal Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
-                  <Bell size={24} />
-                </div>
-                <div>
-                  <h3 id="modal-title-reminder" className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
-                    {t.reminderModalTitle}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-medium">
-                    {t.reminderModalSubtitle}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
-              >
-                <X size={20} />
-              </button>
+    <ModalShell
+      overlayRef={overlayRef}
+      onClose={onClose}
+      currentTheme={currentTheme}
+      titleId="modal-title-reminder"
+      ariaLabel={t.reminderModalTitle}
+      maxWidth="max-w-xl"
+      panelRadius="rounded-[2rem]"
+      rootClassName="animate-fade-in no-print"
+      header={
+        <div className="flex items-start justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
+              <Bell size={24} />
             </div>
+            <div>
+              <h3 id="modal-title-reminder" className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
+                {t.reminderModalTitle}
+              </h3>
+              <p className="text-xs text-slate-400 font-medium">
+                {t.reminderModalSubtitle}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      }
+    >
+      <div className="p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
 
             {/* Parent Summary Card */}
             <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -197,7 +203,7 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
                 </button>
               </div>
             </div>
-          </motion.div>
-        </div>
+      </div>
+    </ModalShell>
   );
 }

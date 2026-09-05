@@ -70,6 +70,7 @@ export function useFloatingChat(deps: FloatingChatDeps) {
 
     const isFrench = lang === 'fr';
     const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
 
     if (query.includes('balance') || query.includes('solde') || query.includes('caisse') || query.includes('cash') || query.includes('liquidity') || query.includes('liquidit')) {
       const balance = stats.totalFees - stats.totalExpenses;
@@ -101,7 +102,7 @@ export function useFloatingChat(deps: FloatingChatDeps) {
       const totalSalaries = staff.reduce((acc, s) => acc + s.salary, 0);
       const unpaidCount = staff.filter(s => {
         const paidThisMonth = salaryPayments
-          .filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth)
+          .filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth && new Date(p.date).getFullYear() === currentYear)
           .reduce((sum, p) => sum + p.amount, 0);
         return paidThisMonth < s.salary;
       }).length;
@@ -234,13 +235,16 @@ export function useFloatingChat(deps: FloatingChatDeps) {
       }
 
     } else if (isExpensesJuneQuery) {
+      // "June expenses" means the most recent June (the school-year June just
+      // passed before the new September intake), not every June on record.
+      const juneYear = new Date().getMonth() >= 5 ? new Date().getFullYear() : new Date().getFullYear() - 1;
       const juneExpensesList = expenses.filter(e => {
         const d = new Date(e.date);
-        return d.getMonth() === 5; // June is 5
+        return d.getMonth() === 5 && d.getFullYear() === juneYear; // June is 5
       });
       const juneVendorExpensesList = vendorExpenses.filter(v => {
         const d = new Date(v.dueDate);
-        return d.getMonth() === 5;
+        return d.getMonth() === 5 && d.getFullYear() === juneYear;
       });
 
       const totalGeneral = juneExpensesList.reduce((sum, e) => sum + e.amount, 0);
@@ -274,10 +278,11 @@ export function useFloatingChat(deps: FloatingChatDeps) {
 
     } else if (isTuitionQuery) {
       const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
       const collectedThisMonth = students.reduce((acc, s) => {
         const thisMonthPayments = s.payments.filter(p => {
           const payDate = new Date(p.date);
-          return payDate.getMonth() === currentMonth;
+          return payDate.getMonth() === currentMonth && payDate.getFullYear() === currentYear;
         });
         return acc + thisMonthPayments.reduce((sum, p) => sum + p.amount, 0);
       }, 0);

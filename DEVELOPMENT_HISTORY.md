@@ -1,3 +1,85 @@
+## [2026-09-05] Audit « traversée d'année » des dates restantes (échéances, reçus, bordereaux mensuels)
+
+- **Audit ciblé des trois zones nommées, verdict : propres — aucun bug réel de
+  fenêtre année restant.** Vérifié sur le schéma (`due_date`, `date`,
+  `payment.date`… sont des colonnes `DATE`, jamais de timestamp) et sur chaque
+  site de comparaison :
+  - *Échéances impayées* : `dueDate < today` et `v.dueDate < today` sont des
+    comparaisons de chaînes ISO `YYYY-MM-DD` (correctes chronologiquement à
+    travers les années) ; `daysUntilDue`/`notifications`/`StudentsView`
+    calculent des écarts de jours entre deux minuits UTC (strings date-only),
+    exacts quelle que soit l'année.
+  - *Reçus* : `pdfReceipt.ts` n'affiche que des dates ; la numérotation est
+    timestamp (`REC-…`), sans logique de fenêtre. Le `getDate() === 25` de
+    `usePayments` est un événement calendrier « paie le 25 » — règle
+    intra-mois volontaire, pas un filtre.
+  - *Bordereaux mensuels* : `pdfPayrollDraft.ts` et `MonthlyPayrollDraftModal`
+    filtrent par `getFullYear() === year && getMonth() === monthIndex` — déjà
+    année+mois.
+- **La classe mois-seul a été éliminée plus tôt dans la session**
+  (useFloatingChat ×3, PayrollView ×2) — cet audit confirme que la couverture
+  est complète : les seuls `getMonth()` sans année restants sont des
+  regroupements par index de mois (graphiques 12 mois, fenêtre de paie
+  jour-du-mois) ou des constructeurs de clés de date pleines.
+- **Verrou de régression ajouté** : `tests/utils.test.ts` (6 tests) épingle
+  `daysUntilDue`/`getStudentStanding` avec des dates fixes — même date l'an
+  dernier = −365 jours (pas « même mois ⇒ dû bientôt »), chevauchement du
+  31 déc / 1er jan, et une échéance du MÊME mois de l'an dernier classée
+  `overdue` (360 j) et non `dueSoon`. Suite : **550/550**.
+
+## [2026-09-05] ModalShell adopté par les 7 dernières modales — thème normalisé sur CurrentTheme
+
+- **Props aplaties → `CurrentTheme`** : `StudentFormModal`, `AddClassModal`,
+  `EditClassModal` perdaient `themeCard/themeBorder/themeHeader/themeMuted/themeIsDark`
+  au profit d'un seul `currentTheme` (AppModals ne transmet plus que
+  `currentTheme={currentTheme}`). `ConfirmDialog` élargit son type partiel
+  `{card, border, muted, isDark}` vers `CurrentTheme` complet — les 7 appels
+  (App, AppModals, ArchivesView, ExpensesView, MainViews, PayrollView,
+  StudentsView) passaient déjà le thème complet ; `ArchivesView` typait son
+  propre prop `currentTheme` comme sous-ensemble, désormais `CurrentTheme`.
+- **Adoption de ModalShell** sur les 7 modales restantes : les 3 auto-gérées
+  (`StudentForm/AddClass/EditClass`, coordonnées hors registre) gardent leur
+  focus trap + Escape et relaient leur `rootRef` via `overlayRef` ;
+  `ParentFormModal`/`NotifyParentModal`/`StudentDetailsModal`/`ConfirmDialog`
+  gardent leur chrome non-accent (en-tête clair, chip ambre, bannière photo,
+  rangée d'alerte) via le prop `header` au lieu de re-scaffolder. L'ancien
+  backdrop/double-motion disparaît partout (~90 lignes de chrome dupliqué).
+- **Deux knobs ajoutés à ModalShell** : `max-w-sm` dans l'union `maxWidth`
+  (ConfirmDialog) et `panelRadius` (`rounded-3xl` / `rounded-[2rem]` /
+  `rounded-[2.5rem]` / défaut `rounded-[3rem]`) — empilement de classes
+  Tailwind contradictoires via `panelClassName` évité.
+- **Vérification** : tsc 0, lint 0, 179 tests garde/ciblés puis suite complète
+  **544/544**. Les exemptions midnight n'ont pas bougé (aucun fill clair non
+  apparié ajouté — les classes déplacées dans les `header` étaient déjà
+  appariées).
+
+## [2026-09-05] Audit des fenêtres « ce mois-ci » : année + mois partout (plus de filtres mois-seul)
+
+- **Audit complet des filtres de date mois-seul** (`getMonth()` sans `getFullYear()`)
+  sur les regroupements salaire/paiement/dépense. Corrigés pour comparer année
+  ET mois, en miroir de `useDashboard` et `RecordSalaryModal` :
+  - `useFloatingChat.ts` : requête paie de l'IA (`paidThisMonth` par employé,
+    un paiement du même mois d'une année précédente ne soldait plus la paie
+    courante), requête « frais collectés ce mois-ci » (même fuite d'année), et
+    requête « dépenses de juin » qui cumulait TOUTES les années — désormais
+    bornée au juin le plus récent (l'année scolaire vient de se terminer avant
+    la rentrée de septembre).
+  - `PayrollView.tsx` : le résumé d'impression et les cartes employés
+    (`paidThisMonth` / solde) utilisaient `getMonth() === currentMonth` seul.
+- **Régression verrouillée** : `tests/floating-chat-year-window.test.tsx` (3 tests)
+  pilote le VRAI hook `useFloatingChat` via `renderHook` avec des dates dérivées
+  de `new Date()` (jamais périmées) : paiement même mois/année précédente exclu
+  de la paie, paiement de l'an dernier exclu du total de scolarité du mois,
+  dépenses de juin de l'an dernier exclues du listing. Vérifié par mutation :
+  retirer la fenêtre année fait échouer exactement le test ciblé.
+- **Interaction de sélection couverte** : le harnais de `recordsalary-balance`
+  devient piloté par de vrais `useState` (le `setSalaryForm` no-op ne pouvait pas
+  exercer l'auto-remplissage) et un vrai `change` est dispatché sur le `<select>`
+  employé : le champ montant se remplit avec le solde année+mois (100000 et pas
+  70000 si un paiement de l'an dernier traîne), puis bascule sur un employé sans
+  paiement à plein salaire. Mutation vérifiée : le filtre mois-seul fait échouer
+  ce test comme le test de solde.
+
 ## [2026-09-05] Tokens sémantiques de modale : le scaffold partagé ne durcit plus les fills (ModalShell)
 
 - **Nouveau `src/lib/modalTokens.ts`** : les fills du chrome de modale (fond

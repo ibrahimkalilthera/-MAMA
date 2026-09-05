@@ -37,6 +37,19 @@
 - Do not add new global build/test tooling; reuse the existing scripts in `package.json`.
 - Keep changes scoped and incremental so that build failures are easy to trace back to a small set of edits.
 
+## Deployment topology (user-stated, not in repo)
+
+- **Frontend: Vercel.** `vercel.json` (framework vite, output `dist`) + the
+  `Deploy (Vercel)` workflow (`.github/workflows/deploy.yml`) deploy only after the
+  quality gate passes; production env vars (`VITE_SUPABASE_URL`, keys) live in the
+  Vercel dashboard, not the repo.
+- **Backend: fly.io** (user statement). The repo itself contains NO server code and
+  NO `fly.toml` — everything talks to Supabase via `VITE_SUPABASE_URL` + anon key,
+  so "backend on fly.io" means the Supabase stack (DB/PostgREST/auth) is
+  self-hosted there rather than on `*.supabase.co`. Any future fly work
+  (deploys, CORS, migrations, service-role scripts) happens outside this repo's
+  files unless the user says otherwise.
+
 ## Supabase / database work
 
 - Treat Supabase as the source of truth for persistent data and schema.
@@ -62,6 +75,14 @@
   no numbered `overlayRoots.current[N]` literals anymore. Adding/removing an overlay only edits
   the list. Keep extracted modals presentational: AppModals owns `<AnimatePresence>` + the open
   condition; the modal root receives `overlayRef` + `onClose`.
+- **ModalShell is the shared dialog chrome** — every modal (coordinated AND
+  self-managed) renders through `src/components/ModalShell.tsx`: overlay root + backdrop +
+  panel + header. Self-managed modals (StudentForm/AddClass/EditClass/ConfirmDialog) keep
+  their own focus trap + escape and forward their `rootRef` through the shell's
+  `overlayRef` callback. Non-accent chrome (light headers, banners, alert rows) goes through
+  the `header` override prop, never by re-scaffolding. Widths via `maxWidth` (incl.
+  `max-w-sm`), radii via `panelRadius` — do not append conflicting Tailwind classes via
+  `panelClassName`. Modals take `currentTheme: CurrentTheme`, never flattened `theme*` props.
 - **Modal surface fills live in `src/lib/modalTokens.ts`** — never hardcode a light fill
   (`bg-*-50/100/200`) in a modal's JSX: reference a token instead. Every token carries its
   `dark:` counterpart in the same string (structural pairing, policed by
