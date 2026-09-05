@@ -30,9 +30,7 @@ const EXT = /\.(ts|tsx|css)$/;
 // stale entry, so forgetting is impossible).
 const ALLOWLIST = {
   'src/App.tsx':
-    'app-shell split in progress (useNotificationWatch extracted; state cluster, helpers and JSX blocks remain)',
-  'src/lib/useSupabaseData.ts':
-    'per-table domain split pending (mirror of the translations split — value-identity verification planned)',
+    'app-shell split in progress (state cluster, per-view JSX blocks and the viewsProps wiring remain)',
 };
 
 /** wc-equivalent line count: drop the empty fragment a trailing \n leaves. */

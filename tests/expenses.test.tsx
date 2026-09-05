@@ -104,6 +104,8 @@ function baseDeps(overrides: DepsOverrides = {}): {
       return spies.deleteResults[spies.deleteVendorCalls.length - 1] ?? true;
     },
     showToast: () => { spies.toasts += 1; },
+    // Validation/guard messages go through the toast system now (no native alert).
+    toastError: (msg: string) => { spies.alerts.push(msg); },
   };
   return { args: args as Parameters<typeof useExpenses>[0], spies };
 }

@@ -37,6 +37,8 @@ export interface UseExpensesDeps {
   updateVendorExpense: (id: string, updates: Partial<VendorExpense>) => Promise<boolean>;
   deleteVendorExpense: (id: string) => Promise<boolean>;
   showToast: () => void;
+  /** Toast an error/validation message (replaces the native alert()). */
+  toastError: (message: string) => void;
 }
 
 const emptyExpenseForm = (): ExpenseForm => ({
@@ -59,7 +61,7 @@ const emptyVendorExpenseForm = (): VendorExpenseForm => ({
   beneficiaryStudentGrade: '',
 });
 
-export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, currentUser, addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast
+export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, currentUser, addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast, toastError
   } = deps;
   // Finance-admin writes (vendor create/delete) belong to the finance-manager
   // roles; only the account-owner pair (admin/dev — the "promoter" fields)
@@ -114,7 +116,7 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
   const handleExpenseSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
+      toastError(t.thisAcademicYearIsLocked);
       return;
     }
     const amount = parseFloat(expenseForm.amount);
@@ -130,11 +132,11 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
   const handleVendorExpenseSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editingVendorExpense && !canWriteFinance(role)) {
-      alert(t.onlyThePromoterCanCreateAVendorExpense);
+      toastError(t.onlyThePromoterCanCreateAVendorExpense);
       return;
     }
     if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
+      toastError(t.thisAcademicYearIsLocked);
       return;
     }
     const parsedAmount = parseFloat(vendorExpenseForm.amount);
@@ -189,11 +191,11 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
 
   const handleDeleteVendorExpense = async (id: string) => {
     if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
+      toastError(t.thisAcademicYearIsLocked);
       return;
     }
     if (!canWriteFinance(role)) {
-      alert(t.onlyThePromoterCanDeleteExpenses);
+      toastError(t.onlyThePromoterCanDeleteExpenses);
       return;
     }
     if (await deleteVendorExpense(id)) showToast();

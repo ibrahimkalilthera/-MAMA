@@ -356,6 +356,7 @@ export default function App() {
     t, lang, selectedYear, lockedYears, currentUser,
     addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense,
     showToast,
+    toastError: (msg) => toast.error(msg),
   });
 
   const today = new Date().toISOString().split('T')[0];
@@ -383,6 +384,7 @@ export default function App() {
     t, lang, today, selectedYear, lockedYears, currentUser,
     students, addStudent, updateStudent,
     showToast,
+    toastError: (msg) => toast.error(msg),
   });
   const currentMonth = new Date().getMonth();
 
@@ -436,6 +438,7 @@ export default function App() {
     updateStudent, addStudent,
     selectedYear, lockedYears, setLockedYears, setAcademicYears, setAuditYear, setShowAuditModal,
     showToast,
+    toastError: (msg) => toast.error(msg),
   });
 
   // Chat IA (aba Productividade + widget flutuante) — dominio extraido para
@@ -554,6 +557,7 @@ const {
 } = usePayments({
   t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser,
   addPayment,
+  toastError: (msg) => toast.error(msg),
 });
 
 const {
@@ -575,6 +579,7 @@ const {
   handleExportMonthlyPayrollExcel,
 } = usePayroll({
   t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast,
+  toastError: (msg) => toast.error(msg),
   addStaff, updateStaff, addSalaryPayment,
 });
 
@@ -1205,10 +1210,7 @@ onOpenPayroll={() => setActiveTab('payroll')}
             createStaffUser={auth.createStaffUser}
             fetchAllProfiles={auth.fetchAllProfiles}
             t={t}
-            themeCard={currentTheme.card}
-            themeBorder={currentTheme.border}
-            themeMuted={currentTheme.muted}
-            themeIsDark={currentTheme.isDark}
+            currentTheme={currentTheme}
             toastError={(msg) => toast.error(msg)}
             toastSuccess={(msg) => toast.success(msg)}
           />
@@ -1249,10 +1251,7 @@ onOpenPayroll={() => setActiveTab('payroll')}
           setShowSalaryModal(true);
         }}
         formatCurrency={formatCurrency}
-        themeCard={currentTheme.card}
-        themeBorder={currentTheme.border}
-        themeMuted={currentTheme.muted}
-        themeIsDark={currentTheme.isDark}
+        currentTheme={currentTheme}
       />
 
       {/* Global Toast Notifications & Offline Resilience Banner */}

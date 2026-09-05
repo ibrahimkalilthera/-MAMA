@@ -108,6 +108,8 @@ function baseDeps(overrides: DepsOverrides = {}): {
       return spies.updateResults[spies.updateCalls.length - 1] ?? true;
     },
     showToast: () => { spies.toasts += 1; },
+    // Validation/guard messages go through the toast system now (no native alert).
+    toastError: (msg: string) => { spies.alerts.push(msg); },
   };
   return { args: args as Parameters<typeof useStudents>[0], spies };
 }

@@ -1,13 +1,13 @@
 /**
  * LinkStudentModal — Attach an existing student to a parent (Students ⇄ Parents). Not wrapped in AnimatePresence (verbatim — fade-in via CSS). Presentational: parent, candidates and form state arrive as narrow props.
  */
-import { motion } from 'motion/react';
 import { X } from 'lucide-react';
 import type { Dispatch, SetStateAction, FormEvent } from 'react';
 import type { Student, Parent } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { ModalShell } from './ModalShell';
 
 export interface LinkStudentModalProps {
   t: TranslationDict;
@@ -25,30 +25,36 @@ export interface LinkStudentModalProps {
 export function LinkStudentModal(props: LinkStudentModalProps) {
   const { t, currentTheme, activeLinkingParent, students, studentToLinkId, setStudentToLinkId, handleLinkStudentSubmit, overlayRef, onClose } = props;
   return (
-        <div ref={overlayRef} role="dialog" aria-modal="true" aria-label={t.linkStudent} aria-labelledby="modal-title-link-student" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className={`w-full max-w-md ${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-2xl space-y-6`}
+    <ModalShell
+      overlayRef={overlayRef}
+      onClose={onClose}
+      currentTheme={currentTheme}
+      titleId="modal-title-link-student"
+      ariaLabel={t.linkStudent}
+      maxWidth="max-w-md"
+      panelRadius="rounded-[2rem]"
+      rootClassName="animate-fade-in no-print"
+      header={
+        <div className="flex items-center justify-between px-8 pt-8 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <h3 id="modal-title-link-student" className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
+              {t.linkStudent}
+            </h3>
+            <p className="text-xs text-slate-400">
+              {t.attachChildTo.replace('{name}', activeLinkingParent.fullName)}
+            </p>
+          </div>
+          <button
+            onClick={() => onClose()}
+            className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
           >
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div>
-                <h3 id="modal-title-link-student" className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {t.linkStudent}
-                </h3>
-                <p className="text-xs text-slate-400">
-                  {t.attachChildTo.replace('{name}', activeLinkingParent.fullName)}
-                </p>
-              </div>
-              <button
-                onClick={() => onClose()}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleLinkStudentSubmit} className="space-y-4">
+            <X size={20} />
+          </button>
+        </div>
+      }
+    >
+      <div className="p-8 space-y-6">
+        <form onSubmit={handleLinkStudentSubmit} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectStudent}</label>
                 <select
@@ -82,8 +88,8 @@ export function LinkStudentModal(props: LinkStudentModalProps) {
                   {t.linkStudent}
                 </button>
               </div>
-            </form>
-          </motion.div>
-        </div>
+        </form>
+      </div>
+    </ModalShell>
   );
 }

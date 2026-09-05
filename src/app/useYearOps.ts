@@ -28,10 +28,12 @@ export interface UseYearOpsDeps {
   setAuditYear: Dispatch<SetStateAction<string | null>>;
   setShowAuditModal: Dispatch<SetStateAction<boolean>>;
   showToast: () => void;
+  /** Toast an error/validation message (replaces the native alert()). */
+  toastError: (message: string) => void;
 }
 
 export function useYearOps(deps: UseYearOpsDeps) {
-  const { t, currentUser, students, expenses, vendorExpenses, salaryPayments, updateStudent, addStudent, selectedYear, lockedYears, setLockedYears, setAcademicYears, setAuditYear, setShowAuditModal, showToast } = deps;
+  const { t, currentUser, students, expenses, vendorExpenses, salaryPayments, updateStudent, addStudent, selectedYear, lockedYears, setLockedYears, setAcademicYears, setAuditYear, setShowAuditModal, showToast, toastError } = deps;
 
   const getYearStats = (year: string) => {
     const filteredStudents = students.filter(s => s.academicYear === year || (!s.academicYear && year === '2024-2025'));
@@ -65,11 +67,11 @@ export function useYearOps(deps: UseYearOpsDeps) {
 
   const handleCloseCurrentYear = async () => {
     if (currentUser?.role !== 'admin' && currentUser?.role !== 'dev') {
-      alert(t.onlyPromoterOwnerCanCloseAcademicYears);
+      toastError(t.onlyPromoterOwnerCanCloseAcademicYears);
       return;
     }
     if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsAlreadyLocked);
+      toastError(t.thisAcademicYearIsAlreadyLocked);
       return;
     }
 
@@ -135,7 +137,7 @@ export function useYearOps(deps: UseYearOpsDeps) {
 
     const results = await Promise.all(ops);
     if (results.some(ok => !ok)) {
-      alert(t.someCarryOverBalancesCouldNotBeSaved);
+      toastError(t.someCarryOverBalancesCouldNotBeSaved);
       return;
     }
 

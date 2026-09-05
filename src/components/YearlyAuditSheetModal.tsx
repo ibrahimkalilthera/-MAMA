@@ -13,11 +13,11 @@
  * component stays presentational. Backdrop, ✕ and the close-preview button all
  * call onClose.
  */
-import { motion } from 'motion/react';
 import { Printer, TrendingUp, X } from 'lucide-react';
 import type { Student } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
+import { ModalShell } from './ModalShell';
 
 export interface YearlyAuditSheetModalProps {
   t: TranslationDict;
@@ -51,42 +51,40 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
   } = props;
 
   return (
-          <div ref={overlayRef} role="dialog" aria-modal="true" aria-label={t.auditSheet} aria-labelledby="modal-title-audit-sheet" className="fixed inset-0 z-50 flex items-center justify-center p-4 no-print">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={onClose}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className={`relative ${currentTheme.card} w-full max-w-4xl max-h-[85vh] overflow-y-auto rounded-[2.5rem] shadow-2xl border ${currentTheme.border} p-8 md:p-12 custom-scrollbar`}
-            >
-              {/* Modal header */}
-              <div className="flex justify-between items-start mb-8 pb-6 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 rounded-2xl">
-                    <TrendingUp size={24} />
-                  </div>
-                  <div>
-                    <h3 id="modal-title-audit-sheet" className={`text-2xl font-black ${currentTheme.text}`}>
-                      {t.finalAcademicAuditSheet}
-                    </h3>
-                    <p className={`text-sm ${currentTheme.muted} mt-0.5`}>
-                      {t.certifiedFinancialReview.replace('{year}', auditYear)}
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  onClick={onClose}
-                  className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all ${currentTheme.muted}`}
-                >
-                  <X size={20} />
-                </button>
-              </div>
+    <ModalShell
+      overlayRef={overlayRef}
+      onClose={onClose}
+      currentTheme={currentTheme}
+      titleId="modal-title-audit-sheet"
+      ariaLabel={t.auditSheet}
+      maxWidth="max-w-4xl"
+      panelRadius="rounded-[2.5rem]"
+      panelClassName="max-h-[85vh] overflow-y-auto p-8 md:p-12 custom-scrollbar"
+      rootClassName="no-print"
+      header={
+        <div className="flex justify-between items-start mb-8 pb-6 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 rounded-2xl">
+              <TrendingUp size={24} />
+            </div>
+            <div>
+              <h3 id="modal-title-audit-sheet" className={`text-2xl font-black ${currentTheme.text}`}>
+                {t.finalAcademicAuditSheet}
+              </h3>
+              <p className={`text-sm ${currentTheme.muted} mt-0.5`}>
+                {t.certifiedFinancialReview.replace('{year}', auditYear)}
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose}
+            className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all ${currentTheme.muted}`}
+          >
+            <X size={20} />
+          </button>
+        </div>
+      }
+    >
 
               {/* Certified Document Content Preview */}
               <div className="p-8 border-2 border-slate-100 dark:border-slate-800 rounded-3xl bg-slate-50/50 dark:bg-slate-800/10 space-y-8 font-sans">
@@ -221,7 +219,6 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
                   {t.printAudit}
                 </button>
               </div>
-            </motion.div>
-          </div>
+    </ModalShell>
   );
 }

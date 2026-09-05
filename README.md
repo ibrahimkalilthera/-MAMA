@@ -46,7 +46,7 @@ Variables (voir `.env.example`) :
 | `npm run dev` | Vite dev server (port 3000, mode development) |
 | `npm run dev:staging` | dev server en mode staging |
 | `npm run build[:staging\|:production]` | build de production |
-| `npm test` | 540 tests (node:test + tsx, module-mocks expérimental) |
+| `npm test` | 550 tests (node:test + tsx, module-mocks expérimental) |
 | `npm run lint` | ESLint 0-warning + tsc strict + 6 guards custom (props, `any`, stylelint, CSS, i18n, emoji) |
 | `npm run quality` | lint + tests + audit de contraste WCAG 6 thèmes (identique au pre-commit/CI) |
 | `npm run check:contrast` | audit de contraste seul |

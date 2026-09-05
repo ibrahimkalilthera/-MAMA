@@ -1,3 +1,57 @@
+## [2026-09-05] Remédiation dette structurelle — types unifiés, useSupabaseData scindé, alert() → toasts, pin xlsx gardé
+
+- **Types unifiés** : `src/lib/domainTypes.ts` devient la source unique des types
+  partagés (Language, User, Parent, Student, Staff, … SchoolClass,
+  DEFAULT_SCHOOL_CLASSES). `src/app/types.ts` et `src/lib/useSupabaseData.ts` ne
+  font plus que ré-exporter — fin de la duplication volontaire (vérifié : les 9
+  interfaces étaient identiques avant fusion).
+- **`useSupabaseData.ts` scindé** (1 497 → 962 lignes, entrée ALLOWLIST retirée) :
+  types → `domainTypes.ts`, mappers row→type + `createTempId` → `rowMappers.ts`,
+  logique d'import Excel (`importBatchData(category, records, options, deps)`) →
+  `batchImport.ts`. Le hook garde état + fetch + CRUD par table ; l'API publique
+  (types ré-exportés, `useSupabaseData`, `batchImportData` retourné) est inchangée.
+  Corps extraits verbatim + décalage d'indentation, suites offline/excel vertes.
+- **`alert()` natifs → toasts** : les 5 hooks métier (useYearOps, useStudents,
+  usePayments, usePayroll, useExpenses) reçoivent un dep `toastError(msg)` (App
+  câble `toast.error`) ; les 14 `alert(t.*)` de garde/validation disparaissent.
+  Tests adaptés : `toastError` route vers `spies.alerts`, les assertions existantes
+  tiennent sans réécriture.
+- **Pin xlsx auditable** : `scripts/check-sheetjs-pin.mjs` (nouveau, câblé dans
+  lint) vérifie package.json + package-lock.json pointent sur le tarball CDN
+  0.20.3 pinné — la version npm-registry (0.18.5, CVE-2023-30533) ne peut plus
+  revenir silencieusement.
+- **Node `>=22 <25`** : confirmé documenté (README explique `namedExports` de
+  `mock.module()`, CI pinnée 22 partout) — décision conservée, rien à changer.
+- **README** resynchronisé (540 → 550 tests).
+- Validation : tsc 0, chaîne lint complète 0 (119 fichiers sous budget, 1 seul
+  grandfathered : App.tsx), **550/550** tests.
+- **Reste assumé** : `src/App.tsx` (1 295) reste grandfathered — la JSX du shell
+  (~290 lignes) + imports associés partiraient dans un composant `AppShell`
+  (~85 props de câblage) ; voir la note de suivi.
+
+## [2026-09-05] ModalShell adopté par les 4 dernières modales — campagne terminée (sauf ExcelImport)
+
+- **`AddUserModal`** (App.tsx) : props `theme*` aplaties → `currentTheme:
+  CurrentTheme` ; header sombre avec chip émeraude + sous-titre conservé via le
+  prop `header` (le z-[120] historique tombe au z-50 du shell — l'ordre DOM
+  couvre l'empilement, aucune co-ouverture possible avec les overlays
+  AppModals).
+- **`LinkStudentModal`** : header clair (titre + sous-titre + ✕) en override,
+  `max-w-md` + `rounded-[2rem]`, corps dans un wrapper scrollable — même
+  structure que ParentFormModal.
+- **`YearlyAuditSheetModal`** : padding `p-8 md:p-12` + scroll `max-h-[85vh]`
+  portés par `panelClassName`, header clair (chip TrendingUp) en override,
+  `max-w-4xl` + `rounded-[2.5rem]`.
+- **`MonthlyPayrollDraftModal`** : props `theme*` aplaties → `currentTheme`
+  (et `MonthlyDraftHost` dans ModalHosts suit) ; header sombre contenant les
+  selects mois/année conservé via le prop `header` ; panneau `flex flex-col
+  max-h-[90vh]` (header + footer fixes, corps scrollable) ; `max-w-5xl`
+  ajouté à l'union `maxWidth` du shell. Fichier normalisé CRLF → LF au
+  passage (invisible pour git, autocrlf=true).
+- **Bilan** : plus aucune modale avec props `theme*` aplaties ; il ne reste
+  que `ExcelImportModal` (lazy, props `theme*` optionnelles avec défauts) —
+  seul point hors campagne. Vérif : tsc 0, lint 0, suite **550/550**.
+
 ## [2026-09-05] Audit « traversée d'année » des dates restantes (échéances, reçus, bordereaux mensuels)
 
 - **Audit ciblé des trois zones nommées, verdict : propres — aucun bug réel de

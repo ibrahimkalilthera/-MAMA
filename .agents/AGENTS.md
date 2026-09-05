@@ -70,6 +70,18 @@
 - Avoid drive‑by refactors that are unrelated to the current task.
 - When updating existing flows, preserve current behaviour by default and gate new behaviour behind configuration or clear conditions when risk is high.
 - File size discipline: Avoid expanding "god files" where possible, split logically when appropriate.
+- **Domain types live once in `src/lib/domainTypes.ts`** (Language, User, Parent,
+  Student, Staff, …, SchoolClass, DEFAULT_SCHOOL_CLASSES). `src/app/types.ts` and
+  `src/lib/useSupabaseData.ts` only re-export from it — never re-declare an interface.
+- **Data layer = `useSupabaseData.ts` (the hook only) + helpers**: row→type mappers +
+  `createTempId` in `src/lib/rowMappers.ts`; the Excel Smart Ingestion logic is the pure
+  `importBatchData(category, records, options, deps)` in `src/lib/batchImport.ts`.
+- **Hooks surface user errors via a `toastError(msg)` dep** (App wires `toast.error`);
+  native `alert()` is gone from business hooks. Business hooks also receive `showToast()`
+  for success feedback.
+- **`xlsx` is a pinned CDN tarball** (npm-registry 0.18.5 is CVE-ridden). The pin is
+  enforced by `scripts/check-sheetjs-pin.mjs` (package.json + lockfile) wired into lint —
+  bump the tarball + constant + lockfile together.
 - **AppModals overlays are config-driven**: ONE ordered `overlays` registry (in
   `src/components/AppModals.tsx`) — list order = JSX order = focus-trap slot = Escape priority;
   no numbered `overlayRoots.current[N]` literals anymore. Adding/removing an overlay only edits
@@ -77,12 +89,14 @@
   condition; the modal root receives `overlayRef` + `onClose`.
 - **ModalShell is the shared dialog chrome** — every modal (coordinated AND
   self-managed) renders through `src/components/ModalShell.tsx`: overlay root + backdrop +
-  panel + header. Self-managed modals (StudentForm/AddClass/EditClass/ConfirmDialog) keep
-  their own focus trap + escape and forward their `rootRef` through the shell's
-  `overlayRef` callback. Non-accent chrome (light headers, banners, alert rows) goes through
-  the `header` override prop, never by re-scaffolding. Widths via `maxWidth` (incl.
-  `max-w-sm`), radii via `panelRadius` — do not append conflicting Tailwind classes via
-  `panelClassName`. Modals take `currentTheme: CurrentTheme`, never flattened `theme*` props.
+  panel + header. Self-managed modals (StudentForm/AddClass/EditClass/ConfirmDialog,
+  AddUser, MonthlyPayrollDraft) keep their own focus trap + escape and forward their
+  `rootRef` through the shell's `overlayRef` callback. Non-accent chrome (light headers,
+  banners, alert rows, dark bars with controls) goes through the `header` override prop,
+  never by re-scaffolding. Widths via `maxWidth` (incl. `max-w-sm`/`max-w-5xl`), radii via
+  `panelRadius` — do not append conflicting Tailwind classes via `panelClassName`. Modals
+  take `currentTheme: CurrentTheme`, never flattened `theme*` props. Sole remaining
+  exception: `ExcelImportModal` (lazy, keeps optional `theme*` props with defaults).
 - **Modal surface fills live in `src/lib/modalTokens.ts`** — never hardcode a light fill
   (`bg-*-50/100/200`) in a modal's JSX: reference a token instead. Every token carries its
   `dark:` counterpart in the same string (structural pairing, policed by
