@@ -57,7 +57,13 @@
   (`YYYYMMDDHHMMSS_*.sql`), not `supabase db push`.
   `supabase/FULL_SETUP_MIGRATION.sql` is GENERATED: never hand-edit it — add a migration, then
   run `npm run db:snapshot`; `npm run db:snapshot:check` is the drift gate (safe in CI).
+- **`useSupabaseData` fetches only under a session**: the initial load awaits
+  `supabase.auth.getSession()` and refires on `SIGNED_IN`; `SIGNED_OUT` clears the domain
+  state. Never reintroduce an unconditional mount `fetchAll()` (anon reads on the login
+  screen) — regression-locked by `tests/data-auth-gate.test.tsx`.
 - Never hardcode secrets (tokens, PATs, keys) into code or into this file; rely on runtime environment configuration (`.env`).
+  The legacy `supabase/run-*.mjs` + debug helpers that embedded production credentials were
+  removed — schema is applied via the Supabase CLI/dashboard only.
 - Local `.env` should hold, at minimum, the repo’s Supabase access keys:
   - `VITE_SUPABASE_URL`
   - `VITE_SUPABASE_ANON_KEY`
@@ -97,13 +103,12 @@
 - **ModalShell is the shared dialog chrome** — every modal (coordinated AND
   self-managed) renders through `src/components/ModalShell.tsx`: overlay root + backdrop +
   panel + header. Self-managed modals (StudentForm/AddClass/EditClass/ConfirmDialog,
-  AddUser, MonthlyPayrollDraft) keep their own focus trap + escape and forward their
-  `rootRef` through the shell's `overlayRef` callback. Non-accent chrome (light headers,
+  AddUser, MonthlyPayrollDraft, ExcelImport) keep their own focus trap + escape and forward
+  their `rootRef` through the shell's `overlayRef` callback. Non-accent chrome (light headers,
   banners, alert rows, dark bars with controls) goes through the `header` override prop,
-  never by re-scaffolding. Widths via `maxWidth` (incl. `max-w-sm`/`max-w-5xl`), radii via
-  `panelRadius` — do not append conflicting Tailwind classes via `panelClassName`. Modals
-  take `currentTheme: CurrentTheme`, never flattened `theme*` props. Sole remaining
-  exception: `ExcelImportModal` (lazy, keeps optional `theme*` props with defaults).
+  never by re-scaffolding. Widths via `maxWidth` (incl. `max-w-sm`/`max-w-3xl`/`max-w-5xl`),
+  radii via `panelRadius` — do not append conflicting Tailwind classes via `panelClassName`.
+  Modals take `currentTheme: CurrentTheme`, never flattened `theme*` props — no exceptions.
 - **Modal surface fills live in `src/lib/modalTokens.ts`** — never hardcode a light fill
   (`bg-*-50/100/200`) in a modal's JSX: reference a token instead. Every token carries its
   `dark:` counterpart in the same string (structural pairing, policed by

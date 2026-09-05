@@ -614,6 +614,33 @@ export function AppModals(props: AppModalsProps) {
         );
       })}
 
+      {/* --- To-Do Sidebar (Productivité panel) --- */}
+      <AnimatePresence>
+        {showTodoSidebar && (
+          <ProductivityPanel
+            t={t}
+            open={showTodoSidebar}
+            onClose={() => setShowTodoSidebar(false)}
+            productivitySidebarTab={productivitySidebarTab}
+            setProductivitySidebarTab={setProductivitySidebarTab}
+            aiMessages={aiMessages}
+            aiInput={aiInput}
+            setAiInput={setAiInput}
+            handleAiQuery={handleAiQuery}
+            todoInput={todoInput}
+            setTodoInput={setTodoInput}
+            todoDate={todoDate}
+            setTodoDate={setTodoDate}
+            handleAddTodo={handleAddTodo}
+            todos={todos}
+            toggleTodo={toggleTodo}
+            deleteTodo={deleteTodo}
+            handleUpdateTodoDate={handleUpdateTodoDate}
+            currentTheme={currentTheme}
+          />
+        )}
+      </AnimatePresence>
+
       {/* --- SuccessToast --- */}
       <AnimatePresence>
         {showSuccessToast && (

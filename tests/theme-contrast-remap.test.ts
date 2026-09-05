@@ -132,9 +132,10 @@ describe('derived manifest: every co-occurring text/bg pair >= 4.5:1 in all ligh
    *  - WelcomeBanner role badges: the banner is a fixed-dark gradient
    *    (white heading via inline style) — *-400 on *-500/20 is the
    *    intended light-on-dark pairing;
-   *  - ExcelImportModal step indicator: the modal chrome is a fixed-dark
-   *    slate-950 surface (bg-[#0F172A]/80) — emerald-400 "done" step chip
-   *    is light-on-dark by design.
+   *  (The ModalShell header — title bar + step strips — is a fixed-dark
+   *  #0F172A surface in every theme, so accent chips over it are
+   *  light-on-dark by design; the modal entries left this list as the
+   *  scaffold migrated to modalTokens.)
    */
   const FIXED_DARK_PAIRS = new Set([
     'emerald-300|emerald-600/20',
@@ -275,7 +276,7 @@ describe('midnight lock: light fills carry a dark: counterpart', () => {
   // themed card (the card's dark surface still shows through).
   const EXEMPT_LINES: Record<string, number[]> = {
     'components/Login.tsx': [95, 110, 126],
-    'components/FloatingChat.tsx': [115],
+    'components/FloatingChat.tsx': [110],
     'components/SharedUi.tsx': [18],
     // 20%-alpha rose wash OVER the themed card (dark surface shows through)
     'components/ExpensesView.tsx': [252],

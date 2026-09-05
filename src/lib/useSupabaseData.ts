@@ -264,8 +264,35 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     }
   }, []);
 
+  // Initial load is AUTH-GATED: no anon reads fire on the login screen. The
+  // sessionStorage session is picked up by getSession() on mount; a fresh
+  // sign-in (SIGNED_IN) triggers the fetch; SIGNED_OUT clears the domain
+  // state so a shared computer never shows the previous account's rows (the
+  // next sign-in refetches from scratch).
   useEffect(() => {
-    fetchAll();
+    let cancelled = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (cancelled) return;
+      if (event === 'SIGNED_IN') void fetchAll();
+      if (event === 'SIGNED_OUT') {
+        setParents([]);
+        setStudents([]);
+        setStaff([]);
+        setSalaryPayments([]);
+        setExpenses([]);
+        setVendorExpenses([]);
+        setTodos([]);
+        setCustomClasses([]);
+        setError(null);
+      }
+    });
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!cancelled && session?.user) void fetchAll();
+    });
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, [fetchAll]);
 
   const addCustomClass = async (cls: {

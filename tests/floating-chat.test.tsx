@@ -114,10 +114,12 @@ function Harness(): ReactNode {
       floatingChatInput={chat.floatingChatInput}
       setFloatingChatInput={chat.setFloatingChatInput}
       handleFloatingAiQuery={chat.handleFloatingAiQuery}
-      themeCard="bg-white"
-      themeBorder="border-slate-200"
-      themeHeader="#0F172A"
-      themeIsDark={false}
+      currentTheme={{
+        bg: 'bg-slate-50', card: 'bg-white', text: 'text-slate-900', muted: 'text-slate-500',
+        border: 'border-slate-200', header: '#0F172A', sidebar: 'bg-slate-900', accent: 'bg-blue-600',
+        accentBg: 'bg-blue-600/10', accentHover: 'hover:bg-blue-700', accentShadow: 'shadow-blue-600/20',
+        tableHeader: 'bg-slate-100', rowHover: 'hover:bg-slate-50', input: 'bg-white', isDark: false,
+      }}
     />
   );
 }

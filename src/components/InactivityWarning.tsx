@@ -22,11 +22,14 @@ export function InactivityWarning(props: InactivityWarningProps) {
   return (
     <AnimatePresence>
       {open && (
+        // Full-screen interruption surface — deliberate z-[80] (above app
+        // chrome, below toasts), same dim as ModalShell's backdrop token so
+        // every overlay reads identically.
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[80] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 40 }}

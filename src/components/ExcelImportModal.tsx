@@ -23,6 +23,8 @@ import {
   ShieldCheck,
   ArrowRight,
 } from 'lucide-react';
+import type { CurrentTheme } from '../app/mainViewsProps';
+import { ModalShell } from './ModalShell';
 import {
   parseFile,
   detectCategory,
@@ -47,10 +49,8 @@ export interface ExcelImportModalProps {
   academicYears: string[];
   selectedYear: string;
   onImportComplete: (category: ImportCategory, records: Record<string, unknown>[], options: ImportOptions) => Promise<{ inserted: number; updated: number; errors: number }>;
-  themeCard?: string;
-  themeBorder?: string;
-  themeMuted?: string;
-  themeIsDark?: boolean;
+  /** Theme tokens from the app theme engine. */
+  currentTheme: CurrentTheme;
 }
 
 export interface ImportOptions {
@@ -68,10 +68,7 @@ export function ExcelImportModal({
   academicYears,
   selectedYear,
   onImportComplete,
-  themeCard = 'bg-white',
-  themeBorder = 'border-slate-200',
-  themeMuted = 'text-slate-400',
-  themeIsDark = false,
+  currentTheme,
 }: ExcelImportModalProps) {
   // Escape behaves like the cancel button (mounted only while open).
   useEscapeToClose(isOpen, onClose);
@@ -257,28 +254,24 @@ export function ExcelImportModal({
 
   const stepLabels = [t.step1, t.step2, t.step3, t.step4];
 
-  const bgCard = themeIsDark ? 'bg-slate-900' : 'bg-white';
-  const bgMuted = themeIsDark ? 'bg-white/5' : 'bg-slate-50';
-  const textPrimary = themeIsDark ? 'text-white' : 'text-slate-900';
-  const textSecondary = themeIsDark ? 'text-white/60' : 'text-slate-500';
+  const bgMuted = currentTheme.isDark ? 'bg-white/5' : 'bg-slate-50';
+  const textPrimary = currentTheme.isDark ? 'text-white' : 'text-slate-900';
+  const textSecondary = currentTheme.isDark ? 'text-white/60' : 'text-slate-500';
 
   return (
-    <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.title} aria-labelledby="modal-title-excel-import" className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-slate-950/70 backdrop-blur-md"
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className={`relative w-full max-w-3xl ${bgCard} rounded-3xl border ${themeBorder} shadow-2xl overflow-hidden max-h-[90vh] flex flex-col`}
-      >
-        {/* Header */}
-        <div className="p-6 bg-[#0F172A] text-white flex items-center justify-between flex-shrink-0">
+    <ModalShell
+      overlayRef={(el) => { rootRef.current = el as HTMLDivElement | null; }}
+      onClose={onClose}
+      currentTheme={currentTheme}
+      titleId="modal-title-excel-import"
+      ariaLabel={t.title}
+      maxWidth="max-w-3xl"
+      panelRadius="rounded-3xl"
+      panelClassName="max-h-[90vh] flex flex-col"
+      header={
+        <div className="flex flex-col flex-shrink-0">
+          {/* Title bar */}
+          <div className="p-6 bg-[#0F172A] text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30">
               <FileSpreadsheet size={20} className="text-white" />
@@ -313,10 +306,13 @@ export function ExcelImportModal({
               {i < 3 && <ArrowRight size={12} className="text-white/20 mx-0.5" />}
             </React.Fragment>
           ))}
+          </div>
         </div>
+      }
+    >
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
           <AnimatePresence mode="wait">
             {/* ─── STEP 1: Upload & Detect ─── */}
             {step === 1 && (
@@ -331,10 +327,10 @@ export function ExcelImportModal({
                     className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all ${
                       dragOver
                         ? 'border-blue-500 bg-blue-500/10'
-                        : `${themeBorder} hover:border-blue-400 ${bgMuted}`
+                        : `${currentTheme.border} hover:border-blue-400 ${bgMuted}`
                     }`}
                   >
-                    <Upload size={40} className={`mx-auto mb-4 ${dragOver ? 'text-blue-500' : themeMuted}`} />
+                    <Upload size={40} className={`mx-auto mb-4 ${dragOver ? 'text-blue-500' : currentTheme.muted}`} />
                     <p className={`text-sm font-bold ${textPrimary} mb-2`}>{t.dragDrop}</p>
                     <p className={`text-xs ${textSecondary} mb-4`}>
                       {t.supportsXlsxXlsCsv}
@@ -354,7 +350,7 @@ export function ExcelImportModal({
 
                 {/* Parsing indicator */}
                 {isParsing && (
-                  <div className={`${bgMuted} rounded-2xl p-8 text-center border ${themeBorder}`}>
+                  <div className={`${bgMuted} rounded-2xl p-8 text-center border ${currentTheme.border}`}>
                     <div className="w-8 h-8 border-3 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
                     <p className={`text-sm font-bold ${textPrimary}`}>
                       {t.analyzingFileStructure}
@@ -366,7 +362,7 @@ export function ExcelImportModal({
                 {file && !isParsing && detection && (
                   <div className="space-y-4">
                     {/* File info */}
-                    <div className={`flex items-center gap-3 p-4 ${bgMuted} rounded-2xl border ${themeBorder}`}>
+                    <div className={`flex items-center gap-3 p-4 ${bgMuted} rounded-2xl border ${currentTheme.border}`}>
                       <FileSpreadsheet size={24} className="text-blue-600 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm font-bold ${textPrimary} truncate`}>{file.name}</p>
@@ -385,7 +381,7 @@ export function ExcelImportModal({
                     {/* Sheet selector (if multiple) */}
                     {sheets.length > 1 && (
                       <div className="space-y-2">
-                        <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+                        <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                           {t.selectSheet}
                         </label>
                         <div className="flex flex-wrap gap-2">
@@ -396,7 +392,7 @@ export function ExcelImportModal({
                               className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
                                 selectedSheetIdx === i
                                   ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-300'
-                                  : `${themeBorder} ${textSecondary} hover:bg-white/5`
+                                  : `${currentTheme.border} ${textSecondary} hover:bg-white/5`
                               }`}
                             >
                               {s.name} ({s.rows.length} {t.rows})
@@ -442,7 +438,7 @@ export function ExcelImportModal({
 
                     {/* Category override */}
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                         {t.overrideCategory}
                       </label>
                       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -453,7 +449,7 @@ export function ExcelImportModal({
                             className={`p-2.5 rounded-xl text-center border transition-all ${
                               category === cat
                                 ? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/30'
-                                : `${themeBorder} hover:bg-white/5`
+                                : `${currentTheme.border} hover:bg-white/5`
                             }`}
                           >
                             <span className="text-lg block">{CATEGORY_LABELS[cat].icon}</span>
@@ -472,7 +468,7 @@ export function ExcelImportModal({
             {/* ─── STEP 2: Column Mapping ─── */}
             {step === 2 && (
               <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-                <div className={`p-4 ${bgMuted} rounded-2xl border ${themeBorder}`}>
+                <div className={`p-4 ${bgMuted} rounded-2xl border ${currentTheme.border}`}>
                   <p className={`text-xs font-bold ${textPrimary} mb-1`}>
                     {CATEGORY_LABELS[category].icon} {t.mappingColumnsFor} {CATEGORY_LABELS[category][lang]}
                   </p>
@@ -484,17 +480,17 @@ export function ExcelImportModal({
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className={`border-b ${themeBorder}`}>
-                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${themeMuted} text-[10px]`}>{t.excelCol}</th>
-                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${themeMuted} text-[10px]`}>{t.targetField}</th>
-                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${themeMuted} text-[10px]`}>{t.sample}</th>
+                      <tr className={`border-b ${currentTheme.border}`}>
+                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${currentTheme.muted} text-[10px]`}>{t.excelCol}</th>
+                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${currentTheme.muted} text-[10px]`}>{t.targetField}</th>
+                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${currentTheme.muted} text-[10px]`}>{t.sample}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {mappings.map((m, i) => {
                         const fields = TARGET_FIELDS[category];
                         return (
-                          <tr key={i} className={`border-b ${themeBorder} hover:${bgMuted}`}>
+                          <tr key={i} className={`border-b ${currentTheme.border} hover:${bgMuted}`}>
                             <td className={`py-2.5 px-3 font-bold ${textPrimary}`}>
                               <div className="flex items-center gap-2">
                                 <FileSpreadsheet size={14} className="text-blue-500 flex-shrink-0" />
@@ -505,7 +501,7 @@ export function ExcelImportModal({
                               <select
                                 value={m.targetField}
                                 onChange={(e) => updateMappingTarget(m.excelColumn, e.target.value)}
-                                className={`w-full px-3 py-1.5 rounded-lg border ${themeBorder} text-xs font-bold ${
+                                className={`w-full px-3 py-1.5 rounded-lg border ${currentTheme.border} text-xs font-bold ${
                                   m.targetField === '__skip__'
                                     ? 'text-slate-400 bg-white/5'
                                     : 'text-emerald-500 bg-emerald-500/5'
@@ -538,9 +534,9 @@ export function ExcelImportModal({
               <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                 {/* Validation Summary */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className={`p-4 rounded-2xl border ${themeBorder} ${bgMuted}`}>
+                  <div className={`p-4 rounded-2xl border ${currentTheme.border} ${bgMuted}`}>
                     <div className="flex items-center justify-between">
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${themeMuted}`}>{t.validRows}</span>
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${currentTheme.muted}`}>{t.validRows}</span>
                       <span className="text-xl font-black text-emerald-500">{validation.validRows.length}</span>
                     </div>
                     <div className="w-full h-1.5 bg-white/10 rounded-full mt-2">
@@ -550,9 +546,9 @@ export function ExcelImportModal({
                       />
                     </div>
                   </div>
-                  <div className={`p-4 rounded-2xl border ${themeBorder} ${bgMuted}`}>
+                  <div className={`p-4 rounded-2xl border ${currentTheme.border} ${bgMuted}`}>
                     <div className="flex items-center justify-between">
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${themeMuted}`}>{t.invalidRows}</span>
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${currentTheme.muted}`}>{t.invalidRows}</span>
                       <span className={`text-xl font-black ${validation.invalidRows.length > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                         {validation.invalidRows.length}
                       </span>
@@ -599,11 +595,11 @@ export function ExcelImportModal({
                 {/* Settings */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.academicYear}</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.academicYear}</label>
                     <select
                       value={importOptions.academicYear}
                       onChange={(e) => setImportOptions((p) => ({ ...p, academicYear: e.target.value }))}
-                      className={`w-full px-4 py-2.5 rounded-xl border ${themeBorder} ${bgMuted} text-xs font-bold ${textPrimary} focus:outline-none focus:ring-2 focus:ring-blue-500/30`}
+                      className={`w-full px-4 py-2.5 rounded-xl border ${currentTheme.border} ${bgMuted} text-xs font-bold ${textPrimary} focus:outline-none focus:ring-2 focus:ring-blue-500/30`}
                     >
                       {academicYears.map((y) => (
                         <option key={y} value={y}>{y}</option>
@@ -611,11 +607,11 @@ export function ExcelImportModal({
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.duplicates}</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.duplicates}</label>
                     <select
                       value={importOptions.duplicateStrategy}
                       onChange={(e) => setImportOptions((p) => ({ ...p, duplicateStrategy: e.target.value as 'skip' | 'update' }))}
-                      className={`w-full px-4 py-2.5 rounded-xl border ${themeBorder} ${bgMuted} text-xs font-bold ${textPrimary} focus:outline-none focus:ring-2 focus:ring-blue-500/30`}
+                      className={`w-full px-4 py-2.5 rounded-xl border ${currentTheme.border} ${bgMuted} text-xs font-bold ${textPrimary} focus:outline-none focus:ring-2 focus:ring-blue-500/30`}
                     >
                       <option value="skip">{t.skipDuplicates}</option>
                       <option value="update">{t.updateExisting}</option>
@@ -639,7 +635,7 @@ export function ExcelImportModal({
             {step === 4 && (
               <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
                 {isProcessing ? (
-                  <div className={`${bgMuted} rounded-2xl p-10 text-center border ${themeBorder}`}>
+                  <div className={`${bgMuted} rounded-2xl p-10 text-center border ${currentTheme.border}`}>
                     <div className="w-12 h-12 border-4 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-5" />
                     <p className={`text-base font-black ${textPrimary} mb-2`}>{t.importing}</p>
                     <p className={`text-xs ${textSecondary}`}>
@@ -662,17 +658,17 @@ export function ExcelImportModal({
                     </div>
 
                     <div className="grid grid-cols-3 gap-3">
-                      <div className={`p-4 ${bgMuted} rounded-2xl border ${themeBorder} text-center`}>
+                      <div className={`p-4 ${bgMuted} rounded-2xl border ${currentTheme.border} text-center`}>
                         <p className="text-2xl font-black text-emerald-500">{importResult.inserted}</p>
-                        <p className={`text-[10px] font-bold ${themeMuted} uppercase tracking-wider mt-1`}>{t.inserted}</p>
+                        <p className={`text-[10px] font-bold ${currentTheme.muted} uppercase tracking-wider mt-1`}>{t.inserted}</p>
                       </div>
-                      <div className={`p-4 ${bgMuted} rounded-2xl border ${themeBorder} text-center`}>
+                      <div className={`p-4 ${bgMuted} rounded-2xl border ${currentTheme.border} text-center`}>
                         <p className="text-2xl font-black text-blue-500">{importResult.updated}</p>
-                        <p className={`text-[10px] font-bold ${themeMuted} uppercase tracking-wider mt-1`}>{t.updated}</p>
+                        <p className={`text-[10px] font-bold ${currentTheme.muted} uppercase tracking-wider mt-1`}>{t.updated}</p>
                       </div>
-                      <div className={`p-4 ${bgMuted} rounded-2xl border ${themeBorder} text-center`}>
+                      <div className={`p-4 ${bgMuted} rounded-2xl border ${currentTheme.border} text-center`}>
                         <p className={`text-2xl font-black ${importResult.errors > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>{importResult.errors}</p>
-                        <p className={`text-[10px] font-bold ${themeMuted} uppercase tracking-wider mt-1`}>{t.errors}</p>
+                        <p className={`text-[10px] font-bold ${currentTheme.muted} uppercase tracking-wider mt-1`}>{t.errors}</p>
                       </div>
                     </div>
                   </div>
@@ -683,7 +679,7 @@ export function ExcelImportModal({
         </div>
 
         {/* Footer */}
-        <div className={`px-6 py-4 border-t ${themeBorder} flex items-center justify-between flex-shrink-0 ${bgMuted}`}>
+        <div className={`px-6 py-4 border-t ${currentTheme.border} flex items-center justify-between flex-shrink-0 ${bgMuted}`}>
           <div>
             {step > 1 && step < 4 && (
               <button
@@ -756,7 +752,6 @@ export function ExcelImportModal({
             )}
           </div>
         </div>
-      </motion.div>
-    </div>
+    </ModalShell>
   );
 }

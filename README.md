@@ -46,7 +46,7 @@ Variables (voir `.env.example`) :
 | `npm run dev` | Vite dev server (port 3000, mode development) |
 | `npm run dev:staging` | dev server en mode staging |
 | `npm run build[:staging\|:production]` | build de production |
-| `npm test` | 550 tests (node:test + tsx, module-mocks expérimental) |
+| `npm test` | 554 tests (node:test + tsx, module-mocks expérimental) |
 | `npm run lint` | ESLint 0-warning + tsc strict + 6 guards custom (props, `any`, stylelint, CSS, i18n, emoji) |
 | `npm run quality` | lint + tests + audit de contraste WCAG 6 thèmes (identique au pre-commit/CI) |
 | `npm run check:contrast` | audit de contraste seul |
@@ -68,6 +68,15 @@ en CI garantit qu'il ne dérive jamais des migrations.
 npx supabase migrations up   # ou via le dashboard Supabase
 npm run seed                 # données de démo (env .env)
 ```
+
+> **Anciens runners supprimés** : `supabase/run-migrations.mjs` /
+> `run_migration.mjs` (et les helpers `_update_role.cjs`, `debug-auth.cjs`) ont été
+> retirés — ils embarquaient des identifiants de production en clair (clé
+> `service_role`, mot de passe de la base) et ne couvraient que 8 des 18
+> migrations. L'application du schéma se fait exclusivement via le CLI/Dashboard
+> Supabase sur `supabase/migrations/` ; n'ajoutez jamais de secret en dur dans un
+> fichier du dépôt (règle AGENTS) — si un identifiant a transité par le repo,
+> révoquez-le depuis le dashboard.
 
 Le backup intégré exclut volontairement `user_profiles` (identité/rôles, RLS).
 Après une réinstallation sur base vide, les comptes sont recréés par signup
@@ -113,5 +122,5 @@ src/
 supabase/
   migrations/     # 18 migrations SQL (schéma + RLS) ; FULL_SETUP_MIGRATION.sql généré
 scripts/          # guards qualité (props, contraste, i18n, any, …)
-tests/            # 78 suites node:test
+tests/            # 91 suites node:test (554 tests)
 ```

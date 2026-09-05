@@ -78,8 +78,11 @@ export function usePayments(deps: UsePaymentsDeps) {
 
   const [dayNotes, setDayNotes] = useState<DayNote[]>(readDayNotes);
 
-  // Pull the team's notes once on mount (refreshed after each write).
+  // Pull the team's notes once when a session is live (refreshed after each
+  // write). Auth-gated like the data hook: no anon read on the login screen,
+  // and a fresh sign-in (currentUser flips null → user) triggers the fetch.
   useEffect(() => {
+    if (!currentUser) return;
     let cancelled = false;
     void fetchCalendarDayNotes().then(notes => {
       if (cancelled || !notes) return;
@@ -87,7 +90,7 @@ export function usePayments(deps: UsePaymentsDeps) {
       writeDayNotesCache(notes);
     });
     return () => { cancelled = true; };
-  }, [writeDayNotesCache]);
+  }, [currentUser, writeDayNotesCache]);
 
   const [noteText, setNoteText] = useState('');
   const [savingNoteOnDate, setSavingNoteOnDate] = useState(false);

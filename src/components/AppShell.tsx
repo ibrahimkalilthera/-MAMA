@@ -318,10 +318,7 @@ onOpenPayroll={() => setActiveTab('payroll')}
         floatingChatInput={floatingChatInput}
         setFloatingChatInput={setFloatingChatInput}
         handleFloatingAiQuery={handleFloatingAiQuery}
-        themeCard={currentTheme.card}
-        themeBorder={currentTheme.border}
-        themeHeader={currentTheme.header}
-        themeIsDark={currentTheme.isDark}
+        currentTheme={currentTheme}
       />
         </div>
       )}
@@ -365,10 +362,7 @@ onOpenPayroll={() => setActiveTab('payroll')}
         academicYears={academicYears}
         selectedYear={selectedYear}
         batchImportData={batchImportData}
-        themeCard={currentTheme.card}
-        themeBorder={currentTheme.border}
-        themeMuted={currentTheme.muted}
-        themeIsDark={currentTheme.isDark}
+        currentTheme={currentTheme}
       />
 
       {/* Monthly Payroll Draft Modal */}

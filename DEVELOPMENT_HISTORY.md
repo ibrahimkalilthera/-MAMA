@@ -1,3 +1,45 @@
+## [2026-09-05] Remédiation audit : fetch authentifié, runners supprimés, zero theme* aplati
+
+- **Fetch initial authentifié** (`useSupabaseData`) : le useEffect de montage ne
+  lance plus `fetchAll()` inconditionnellement — il attend `auth.getSession()`
+  (sessionStorage) et refetche sur `SIGNED_IN` ; `SIGNED_OUT` vide les 8
+  tableaux + l'erreur (compteur partagé). Plus aucun GET anon sur l'écran de
+  login ; corrige au passage le trou « données vides jusqu'au poll 60 s après un
+  login frais ». Tests `tests/data-auth-gate.test.tsx` (4 cas : pas de lecture
+  sans session, fetch sur SIGNED_IN, fetch si session au montage, vidage au
+  SIGNED_OUT).
+- **Runners SQL supprimés** : `supabase/run-migrations.mjs`, `run_migration.mjs`
+  (doublon pg), `_update_role.cjs`, `debug-auth.cjs` — ils embarquaient la clé
+  service_role et le **mot de passe de la base en clair** et ne couvraient que 8
+  des 18 migrations. Schéma appliqué exclusivement via CLI/dashboard ; README
+  documente le retrait + l'invite à révoquer les identifiants exposés. Aucun
+  changement sur le projet Supabase lui-même.
+- **Zero props theme\* aplaties** : `FloatingChat` et `ProductivityPanel`
+  prennent `currentTheme: CurrentTheme` (objet) ; seuls appels mis à jour
+  (AppShell, test floating-chat). Au passage, **réparation d'une régression
+  silencieuse** : `d9f44df` avait perdu le rendu de `<ProductivityPanel>` dans
+  AppModals (import fantôme depuis) — restauré avec `currentTheme`. `InactivityWarning`
+  aligne son voile sur le token backdrop de ModalShell.
+- README : « 78 suites » → « 90 suites (550 tests) ».
+
+## [2026-09-05] ExcelImportModal adopte ModalShell + currentTheme — exception theming à zéro
+
+- **`ExcelImportModal`** (dernière modale hors shell) rend désormais via
+  `ModalShell` : overlay/backdrop/panel du shell, header override composé de la
+  barre de titre fixe `#0F172A` + la bande d'étapes (inchangées), corps scrollable
+  `flex-1` + footer ; `panelRadius="rounded-3xl"`, `maxWidth="max-w-3xl"`
+  (union du shell étendue), `rootRef` relayé par `overlayRef` (trap + Escape
+  conservés).
+- Props aplaties supprimées : `themeCard?/themeBorder?/themeMuted?/themeIsDark?`
+  (avec défauts clairs dangereux) → **`currentTheme: CurrentTheme` requis** ; la
+  palette du corps (bgMuted/textPrimary/textSecondary) et bordures/labels se
+  dérivent de `currentTheme.isDark/.border/.muted`. `ExcelImportHost`
+  (`ModalHosts.tsx`) et son appel dans `AppShell.tsx` ne passent plus qu'un objet
+  `currentTheme`. `bgCard` mort supprimé. Fichier normalisé CRLF → LF.
+- Règle AGENTS « modals take currentTheme, never flattened theme* » sans
+  exception ; commentaire des surfaces fixed-dark dans
+  `tests/theme-contrast-remap.test.ts` ne cite plus la modale.
+
 ## [2026-09-05] AppShell extrait — src/App.tsx sous le budget 1 100, plus aucun grandfathered
 
 - **`src/components/AppShell.tsx`** (nouveau, 433 lignes) reçoit la JSX du shell

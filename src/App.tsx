@@ -39,12 +39,7 @@ import { generateExpensesReportPdf } from './lib/pdfExpensesReport';
 import { generateMonthlyPayrollDraftPdf } from './lib/pdfPayrollDraft';
 
 
-const PromotionWizardModal = lazy(() => import('./components/PromotionWizardModal').then(m => ({ default: m.PromotionWizardModal })));
 const DashboardCharts = lazy(() => import('./components/DashboardCharts').then(m => ({ default: m.DashboardCharts })));
-const MultiYearChart = lazy(() => import('./components/MultiYearChart').then(m => ({ default: m.MultiYearChart })));
-const ArchivesView = lazy(() => import('./components/ArchivesView').then(m => ({ default: m.ArchivesView })));
-const AppModals = lazy(() => import('./components/AppModals').then(m => ({ default: m.AppModals })));
-const MainViews = lazy(() => import('./components/MainViews').then(m => ({ default: m.MainViews })));
 import { HighlightText, ChartsFallback } from './components/SharedUi';
 import { formatCurrency as formatCurrencyImpl, formatDateLang, getGradeDisplay as getGradeDisplayImpl } from './lib/formatters';
 import { getStudentStanding } from './lib/classes';

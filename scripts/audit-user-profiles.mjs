@@ -29,8 +29,8 @@ import { readFileSync } from 'node:fs';
 
 // ── Connexion ────────────────────────────────────────────────────────────────
 // Lire .env directement : le --env-file de Node tronque la valeur au premier
-// « # » non quoté (MamaFinance2024!Secure#DB → coupé à « Secure »), alors que
-// le vrai mot de passe contient un « # ». (migrate-auth-users.mjs fait pareil.)
+// « # » non quoté (un mot de passe contenant « # » est coupé avant la fin), alors
+// que le vrai mot de passe contient un « # ». (migrate-auth-users.mjs fait pareil.)
 import { readFileSync as _rf } from 'node:fs';
 function _parseEnv(p) {
   const o = {};
@@ -57,7 +57,7 @@ const CONNS = HOSTS.map((h) =>
 const FIX = process.argv.includes('--fix');
 
 // ── Politique rôles : comptes propriétaires documentés dans le repo ─────────
-// (supabase/create_user.mjs, supabase/run-migrations.mjs, supabase/_update_role.cjs)
+// (supabase/create_user.mjs, supabase/restore-profiles.mjs)
 // Rôles système : admin, staff, dev, general_manager (Gestionnaire Principal),
 // econome — staff et econome partagent le même palier d'autorité.
 const OWNER_ROLES = {

@@ -15,6 +15,7 @@ import { Bot, X } from 'lucide-react';
 import { useFocusTrap } from '../lib/focusStack';
 import type { TranslationDict } from '../i18n/translations';
 import type { ChatMessage } from '../app/useFloatingChat';
+import type { CurrentTheme } from '../app/mainViewsProps';
 
 /** Props of the floating chat widget — App.tsx forwards the hook API. */
 export interface FloatingChatProps {
@@ -29,10 +30,7 @@ export interface FloatingChatProps {
   /** Send a query from the floating surface (input or quick prompt). */
   handleFloatingAiQuery: (query: string) => void;
   /** Theme tokens from the app theme engine. */
-  themeCard: string;
-  themeBorder: string;
-  themeHeader: string;
-  themeIsDark: boolean;
+  currentTheme: CurrentTheme;
 }
 
 export function FloatingChat(props: FloatingChatProps) {
@@ -44,10 +42,7 @@ export function FloatingChat(props: FloatingChatProps) {
     floatingChatInput,
     setFloatingChatInput,
     handleFloatingAiQuery,
-    themeCard,
-    themeBorder,
-    themeHeader,
-    themeIsDark,
+    currentTheme,
   } = props;
 
   // Tab is confined to the panel while open; focus returns to the FAB on close.
@@ -84,12 +79,12 @@ export function FloatingChat(props: FloatingChatProps) {
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className={`relative z-20 w-[360px] sm:w-96 h-[500px] max-w-[calc(100vw_-_3rem)] max-h-[calc(100dvh_-_3rem)] rounded-[2.5rem] shadow-2xl border ${themeBorder} ${themeCard} flex flex-col overflow-hidden`}
+            className={`relative z-20 w-[360px] sm:w-96 h-[500px] max-w-[calc(100vw_-_3rem)] max-h-[calc(100dvh_-_3rem)] rounded-[2.5rem] shadow-2xl border ${currentTheme.border} ${currentTheme.card} flex flex-col overflow-hidden`}
           >
             {/* Header */}
             <div
               className="px-6 py-4 text-white flex justify-between items-center"
-              style={{ backgroundColor: themeHeader }}
+              style={{ backgroundColor: currentTheme.header }}
             >
               <div className="flex items-center gap-2">
                 <Bot size={20} className="flex-shrink-0" />
@@ -121,8 +116,8 @@ export function FloatingChat(props: FloatingChatProps) {
                   <div
                     className={`max-w-[85%] px-4 py-2.5 text-xs font-semibold leading-relaxed shadow-sm ${
                       msg.sender === 'user'
-                        ? `${themeIsDark ? 'bg-emerald-700 text-white' : 'bg-blue-600 text-white'} rounded-t-2xl rounded-bl-2xl`
-                        : `${themeIsDark ? 'bg-[#334155] border-[#475569] text-white' : 'bg-white border-slate-100 text-slate-800'} border rounded-t-2xl rounded-br-2xl`
+                        ? `${currentTheme.isDark ? 'bg-emerald-700 text-white' : 'bg-blue-600 text-white'} rounded-t-2xl rounded-bl-2xl`
+                        : `${currentTheme.isDark ? 'bg-[#334155] border-[#475569] text-white' : 'bg-white border-slate-100 text-slate-800'} border rounded-t-2xl rounded-br-2xl`
                     }`}
                     style={{ whiteSpace: 'pre-line' }}
                   >
@@ -175,7 +170,7 @@ export function FloatingChat(props: FloatingChatProps) {
                 disabled={!floatingChatInput.trim()}
                 className={`px-4 py-2 rounded-xl text-white font-extrabold text-xs transition-all ${
                   floatingChatInput.trim()
-                    ? `${themeIsDark ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-blue-600 hover:bg-blue-700'} shadow-lg`
+                    ? `${currentTheme.isDark ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-blue-600 hover:bg-blue-700'} shadow-lg`
                     : 'bg-slate-500 cursor-not-allowed'
                 }`}
               >
@@ -191,7 +186,7 @@ export function FloatingChat(props: FloatingChatProps) {
             onClick={() => setIsFloatingChatOpen(true)}
             aria-label={t.mamaTheraAiAssistant}
             className={`px-6 py-4 rounded-full text-white font-extrabold text-sm transition-all flex items-center gap-2 shadow-2xl active:scale-[0.98] ${
-              themeIsDark
+              currentTheme.isDark
                 ? 'bg-emerald-700 hover:bg-emerald-800 shadow-emerald-500/30'
                 : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'
             }`}

@@ -33,10 +33,8 @@ export interface ExcelImportHostProps {
     records: Record<string, unknown>[],
     options: ImportOptions,
   ) => Promise<{ inserted: number; updated: number; errors: number }>;
-  themeCard: string;
-  themeBorder: string;
-  themeMuted: string;
-  themeIsDark: boolean;
+  /** Theme tokens from the app theme engine. */
+  currentTheme: CurrentTheme;
 }
 
 export const ExcelImportHost = ({
@@ -47,10 +45,7 @@ export const ExcelImportHost = ({
   academicYears,
   selectedYear,
   batchImportData,
-  themeCard,
-  themeBorder,
-  themeMuted,
-  themeIsDark,
+  currentTheme,
 }: ExcelImportHostProps) => {
   if (!isOpen) return null;
 
@@ -66,10 +61,7 @@ export const ExcelImportHost = ({
         onImportComplete={async (category: ImportCategory, records: Record<string, unknown>[], options: ImportOptions) => {
           return await batchImportData(category, records, options);
         }}
-        themeCard={themeCard}
-        themeBorder={themeBorder}
-        themeMuted={themeMuted}
-        themeIsDark={themeIsDark}
+        currentTheme={currentTheme}
       />
     </Suspense>
   );
