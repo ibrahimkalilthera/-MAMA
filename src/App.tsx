@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, useRef, FormEvent, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, FormEvent, lazy, Suspense } from 'react';
 import { useSupabaseData } from './lib/useSupabaseData';
 import type { UserProfile } from './lib/useAuth';
 import type { MainViewsProps } from './app/mainViewsProps';
@@ -30,9 +30,7 @@ import { fetchInactivityMinutes, saveInactivityMinutes } from './lib/teamSetting
 import { logAuditEvent } from './lib/auditLogger';
 import { InactivityWarning } from './components/InactivityWarning';
 import { useYear } from './app/yearContext';
-import { getReadNotificationIds, saveReadNotificationIds } from './lib/notificationReads';
-import { playNotificationChime } from './lib/notificationSound';
-import { findNewNotifications } from './lib/notificationWatch';
+import { useNotificationWatch } from './app/useNotificationWatch';
 import { useYearOps } from './app/useYearOps';
 import type { ImportCategory } from './lib/excelImporter';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
@@ -403,76 +401,6 @@ export default function App() {
     students, staff, expenses, vendorExpenses, salaryPayments,
   });
 
-  // --- Notification read-state (persisted per user in localStorage) ---
-
-  const notifUserId = auth.profile?.id ?? 'guest';
-  const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    setReadNotificationIds(getReadNotificationIds(notifUserId));
-  }, [notifUserId]);
-
-  useEffect(() => {
-    // Prune dismissed ids that no longer correspond to a live reminder, so a
-    // reminder that comes back later (new due period) notifies again.
-    const liveIds = new Set(notifications.map(n => n.id));
-    saveReadNotificationIds(notifUserId, readNotificationIds.filter(id => liveIds.has(id)));
-  }, [readNotificationIds, notifUserId, notifications]);
-
-  const markNotificationRead = (id: string): void => {
-    setReadNotificationIds(prev => (prev.includes(id) ? prev : [...prev, id]));
-  };
-
-  const markNotificationUnread = (id: string): void => {
-    setReadNotificationIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : prev));
-  };
-
-  const openCalendarOnDate = (date: string): void => {
-    // Parse as a LOCAL calendar day (never UTC midnight — month display
-    // must not shift in negative-UTC timezones).
-    const [y, m, d] = date.split('-').map(Number);
-    const day = new Date(y, m - 1, d);
-    setCalendarDate(day);
-    setSelectedCalendarDay(day);
-    setShowCalendarModal(true);
-    setActiveTab('calendar');
-  };
-
-  const markAllNotificationsRead = (): void => {
-    setReadNotificationIds(notifications.map(n => n.id));
-  };
-
-  // --- In-session notification alerts (chime + toast) ---
-
-  const prevNotifIdsRef = useRef<ReadonlySet<string> | null>(null);
-
-  useEffect(() => {
-    const prev = prevNotifIdsRef.current;
-    const fresh = findNewNotifications(prev, notifications);
-    prevNotifIdsRef.current = new Set(notifications.map(n => n.id));
-    // First observation (session start) never alerts.
-    if (!prev || fresh.length === 0) return;
-    playNotificationChime();
-    if (fresh.length === 1) {
-      toast.warning(fresh[0].message);
-    } else {
-      toast.warning(t.newNotifications.replace('{n}', String(fresh.length)));
-    }
-  }, [notifications, t, toast]);
-
-  // Light background refresh so reminders can actually appear mid-session
-  // (another staff member's changes). Silent: no loading flash, no error
-  // banner; skipped when the tab is hidden or the device is offline.
-  useEffect(() => {
-    if (!auth.user) return;
-    const poll = setInterval(() => {
-      if (document.visibilityState === 'visible' && navigator.onLine) {
-        void fetchAll({ silent: true });
-      }
-    }, 60000);
-    return () => clearInterval(poll);
-  }, [auth.user, fetchAll]);
-
   // --- Handlers ---
 
   const generateInstallmentMemo = (staffId: string, amount: number) => {
@@ -643,6 +571,29 @@ const {
   t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast,
   addStaff, updateStaff, addSalaryPayment,
 });
+
+  // Notification read-state + in-session alerts (persistence, chime/toast,
+  // light refresh) — extracted to src/app/useNotificationWatch.ts.
+  const {
+    readNotificationIds,
+    markNotificationRead,
+    markNotificationUnread,
+    markAllNotificationsRead,
+    openCalendarOnDate,
+  } = useNotificationWatch({
+    notifications,
+    userId: auth.profile?.id ?? 'guest',
+    enabled: Boolean(auth.user),
+    fetchAll,
+    toast,
+    t,
+    openCalendarDay: (day: Date) => {
+      setCalendarDate(day);
+      setSelectedCalendarDay(day);
+      setShowCalendarModal(true);
+      setActiveTab('calendar');
+    },
+  });
 
   const {
     availableClasses,
