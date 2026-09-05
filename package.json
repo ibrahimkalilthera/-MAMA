@@ -26,6 +26,8 @@
     "db:profiles:export": "node --env-file=.env supabase/restore-profiles.mjs export",
     "db:profiles:restore": "node --env-file=.env supabase/restore-profiles.mjs restore",
     "clean": "rm -rf dist",
+    "kill:orphans": "node scripts/kill-orphan-node.mjs",
+    "kill:orphans:dry": "node scripts/kill-orphan-node.mjs --dry-run",
     "lint": "eslint . --max-warnings 0 && tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs && node scripts/check-test-harness.mjs && stylelint \"src/**/*.css\" && node scripts/check-css-selectors.mjs && node scripts/check-no-emoji-icons.mjs && node scripts/check-jsx-i18n.mjs && node scripts/check-line-budget.mjs && node scripts/check-sheetjs-pin.mjs",
     "test": "node --import tsx --experimental-test-module-mocks --test \"tests/*.test.ts\" \"tests/*.test.tsx\"",
     "prepare": "husky"
