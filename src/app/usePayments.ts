@@ -33,10 +33,12 @@ interface UsePaymentsDeps {
   currentUser: User | null;
   addPayment: (studentId: string, payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string }) => Promise<boolean>;
   /** Calendar ⇄ Notes bridge: persist a dated note on the student record. */
+  /** Toast an error/validation message (replaces the native alert()). */
+  toastError: (message: string) => void;
 }
 
 export function usePayments(deps: UsePaymentsDeps) {
-  const { t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser, addPayment } = deps;
+  const { t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser, addPayment, toastError } = deps;
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<Date | null>(null);
@@ -130,7 +132,7 @@ export function usePayments(deps: UsePaymentsDeps) {
   const handlePaymentSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
+      toastError(t.thisAcademicYearIsLocked);
       return;
     }
     if (!paymentStudentId || !paymentAmount) return;

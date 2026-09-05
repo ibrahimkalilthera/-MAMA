@@ -1,339 +1,63 @@
 /**
- * Supabase Data Hooks
- * 
- * Custom hooks for fetching and mutating data from Supabase.
- * These replace the hardcoded mock data in App.tsx with real database operations.
- * 
- * Features:
- * - Retry with exponential backoff for network resilience (Bamako connectivity)
- * - Notification callbacks for toast-based user feedback
+ * Supabase Data Hook
+ *
+ * Fetching and mutating data from Supabase — replaces the hardcoded mock data
+ * of early App.tsx. Retry with exponential backoff (Bamako connectivity) and
+ * notification callbacks for toast feedback.
+ *
+ * Structure (per-table domain split, see DEVELOPMENT_HISTORY.md):
+ *   - ./domainTypes  — canonical shared types (both UI + data layers re-export)
+ *   - ./rowMappers   — Supabase row → domain-type mappers + createTempId
+ *   - ./batchImport  — Smart Excel Ingestion insert/update logic
+ * This file keeps the hook itself (state, fetch, per-table CRUD).
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import type { DbInsert, DbRow, DbUpdate } from './database.types';
 import { retryWithBackoff } from './networkUtils';
-import { 
-  enqueueOfflineAction, 
-  getOfflineQueue, 
-  removeOfflineAction, 
-  getOfflineQueueCount, 
-  OfflineActionType, 
-  OfflinePayload 
+import {
+  enqueueOfflineAction,
+  getOfflineQueue,
+  removeOfflineAction,
+  getOfflineQueueCount,
+  OfflineActionType,
+  OfflinePayload
 } from './offlineQueue';
 import { logAuditEvent, AuditLogEntry } from './auditLogger';
 import { parentToRow, studentToRow, staffToRow, studentUpdatesToRow } from './offlineReplay';
 import { drainOfflineQueue } from './offlineSync';
 import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
+import type {
+  ClassCycle,
+  CustomClass,
+  Expense,
+  Parent,
+  Payment,
+  SalaryPayment,
+  Staff,
+  Student,
+  Todo,
+  VendorExpense,
+} from './domainTypes';
+import { createTempId, mapExpenseRow, mapParentRow, mapSalaryPaymentRow, mapStaffRow, mapStudentRow, mapTodoRow, mapVendorExpenseRow } from './rowMappers';
+import { importBatchData } from './batchImport';
 
-// ─── Type Definitions (matching App.tsx types) ───────────────────────────────
-
-export interface Parent {
-  id: string;
-  fullName: string;
-  phones: string[];
-  email?: string;
-  address: string;
-  occupation: string;
-  relationship: string;
-  notes?: string;
-}
-
-export interface StudentNoteEntry {
-  date: string;
-  text: string;
-}
-
-export interface Payment {
-  date: string;
-  amount: number;
-  academicYear?: string;
-  receiptNumber?: string;
-}
-
-export interface Student {
-  id: string;
-  parentId?: string;
-  name: string;
-  parentName: string;
-  parentEmail: string;
-  parentPhone: string;
-  totalDue: number;
-  amountPaid: number;
-  scholarshipDiscount?: number;
-  dueDate: string;
-  lastPaymentDate?: string;
-  payments: Payment[];
-  notes: string;
-  lastNoteDate?: string;
-  noteEntries?: StudentNoteEntry[];
-  flagged?: boolean;
-  academicYear?: string;
-  grade?: string;
-  studentId?: string;
-  photo?: string;
-  emergencyContactName?: string;
-  emergencyContactRelation?: string;
-  emergencyContactPhone?: string;
-  medicalNotes?: string;
-  enrollmentDate?: string;
-  previousSchool?: string;
-  status?: 'Active' | 'Graduated' | 'Left';
-}
-
-export interface Staff {
-  id: string;
-  name: string;
-  position: string;
-  salary: number;
-  email: string;
-  phone: string;
-  bankDetails: string;
-  emergencyContact: string;
-  academicYear?: string;
-}
-
-export interface SalaryPayment {
-  id: string;
-  staffId: string;
-  amount: number;
-  date: string;
-  academicYear?: string;
-}
-
-export interface Expense {
-  id: string;
-  category: string;
-  description: string;
-  amount: number;
-  date: string;
-  academicYear?: string;
-}
-
-export interface VendorExpense {
-  id: string;
-  vendorName: string;
-  category: 'stationery' | 'solar_energy' | 'electricity' | 'water' | 'taxes' | 'insurance' | 'security_maintenance' | 'security_guarding' | 'facility_maintenance' | 'works_renovation' | 'machine_management' | 'reforestation' | 'catering' | 'training' | 'social_events' | 'exam_def' | 'exam_bac' | 'internet' | 'cleaning' | 'furniture' | 'social_cases' | string;
-  amount: number;
-  dueDate: string;
-  paymentStatus: 'paid' | 'unpaid' | 'partial';
-  amountPaid: number;
-  description?: string;
-  academicYear?: string;
-  aidType?: 'prise_en_charge' | 'kits_fournitures' | 'aide_urgence';
-  beneficiaryStudentName?: string;
-  beneficiaryStudentGrade?: string;
-}
-
-export interface Todo {
-  id: string;
-  text: string;
-  completed: boolean;
-  studentId?: string;
-  /** Optional calendar date (YYYY-MM-DD) — tasks appear on the calendar. */
-  date?: string;
-}
-
-export type ClassCycle = 'cycle1' | 'cycle2' | 'lycee' | 'maternelle' | 'other';
-
-export interface CustomClass {
-  id: string; // display code, e.g. '1D' or a custom name
-  rowId: string; // Supabase uuid primary key
-  cycle: ClassCycle;
-  year: string;
-  section: string;
-  nameFr: string;
-  nameEn: string;
-  isCustom?: boolean;
-}
-
-// ─── Unique temp IDs for offline-created records ──────────────────────────────
-// `Date.now()` alone can collide when several records are created in the same
-// millisecond (double-clicks, batch flows). Add a monotonic counter + random
-// suffix so temp IDs are unique across entities and calls.
-let tempIdCounter = 0;
-const createTempId = (prefix: string): string =>
-  `off_${prefix}_${Date.now().toString(36)}_${(++tempIdCounter).toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-
-// ─── Supabase row → App type mappers ─────────────────────────────────────────
-
-function mapParentRow(row: DbRow<'parents'>): Parent {
-  return {
-    id: row.id,
-    fullName: row.full_name,
-    phones: row.phones,
-    email: row.email ?? undefined,
-    address: row.address,
-    occupation: row.occupation,
-    relationship: row.relationship,
-    notes: row.notes ?? undefined,
-  };
-}
-
-function mapStudentRow(row: DbRow<'students'>, payments: Payment[]): Student {
-  return {
-    id: row.id,
-    parentId: row.parent_id ?? undefined,
-    name: row.name,
-    parentName: row.parent_name ?? '',
-    parentEmail: row.parent_email ?? '',
-    parentPhone: row.parent_phone ?? '',
-    totalDue: Number(row.total_due) || 0,
-    amountPaid: Number(row.amount_paid) || 0,
-    scholarshipDiscount: Number(row.scholarship_discount) || 0,
-    dueDate: row.due_date ?? '',
-    lastPaymentDate: row.last_payment_date ?? undefined,
-    payments: payments,
-    notes: row.notes ?? '',
-    lastNoteDate: row.last_note_date ?? undefined,
-    noteEntries: Array.isArray(row.note_entries) ? row.note_entries as unknown as StudentNoteEntry[] : undefined,
-    flagged: Boolean(row.flagged),
-    academicYear: row.academic_year ?? undefined,
-    grade: row.grade ?? undefined,
-    studentId: visibleStudentIdentifier(row.grade ?? undefined, row.student_id ?? undefined),
-    photo: row.photo ?? undefined,
-    emergencyContactName: row.emergency_contact_name ?? undefined,
-    emergencyContactRelation: row.emergency_contact_relation ?? undefined,
-    emergencyContactPhone: row.emergency_contact_phone ?? undefined,
-    medicalNotes: row.medical_notes ?? undefined,
-    enrollmentDate: row.enrollment_date ?? undefined,
-    previousSchool: row.previous_school ?? undefined,
-    status: (row.status as Student['status']) || 'Active',
-  };
-}
-
-function mapStaffRow(row: DbRow<'staff'>): Staff {
-  return {
-    id: row.id,
-    name: row.name,
-    position: row.position,
-    salary: Number(row.salary) || 0,
-    email: row.email ?? '',
-    phone: row.phone ?? '',
-    bankDetails: row.bank_details ?? '',
-    emergencyContact: row.emergency_contact ?? '',
-    academicYear: row.academic_year ?? undefined,
-  };
-}
-
-function mapSalaryPaymentRow(row: DbRow<'salary_payments'>): SalaryPayment {
-  return {
-    id: row.id,
-    staffId: row.staff_id ?? '',
-    amount: Number(row.amount) || 0,
-    date: row.date,
-    academicYear: row.academic_year ?? undefined,
-  };
-}
-
-function mapExpenseRow(row: DbRow<'expenses'>): Expense {
-  return {
-    id: row.id,
-    category: row.category,
-    description: row.description,
-    amount: Number(row.amount) || 0,
-    date: row.date,
-    academicYear: row.academic_year ?? undefined,
-  };
-}
-
-function mapVendorExpenseRow(row: DbRow<'vendor_expenses'>): VendorExpense {
-  return {
-    id: row.id,
-    vendorName: row.vendor_name,
-    category: row.category,
-    amount: Number(row.amount) || 0,
-    dueDate: row.due_date,
-    paymentStatus: row.payment_status as VendorExpense['paymentStatus'],
-    amountPaid: Number(row.amount_paid) || 0,
-    description: row.description ?? undefined,
-    academicYear: row.academic_year ?? undefined,
-    aidType: (row.aid_type as VendorExpense['aidType']) || undefined,
-    beneficiaryStudentName: row.beneficiary_student_name ?? undefined,
-    beneficiaryStudentGrade: row.beneficiary_student_grade ?? undefined,
-  };
-}
-
-function mapTodoRow(row: DbRow<'todos'>): Todo {
-  return {
-    id: row.id,
-    text: row.text,
-    completed: Boolean(row.completed),
-    studentId: row.student_id ?? undefined,
-    date: row.due_date ?? undefined,
-  };
-}
-
-// ─── Excel Import typed reads ────────────────────────────────────────────────
-// Excel data arrives as `Record<string, unknown>` (untrusted). These interfaces
-// form a typed boundary so the coercion (String()/Number()/??) is explicit.
-
-interface StudentRec {
-  studentId?: string | null;
-  name?: string | null;
-  grade?: string | null;
-  parentName?: string | null;
-  parentPhone?: string | null;
-  parentEmail?: string | null;
-  totalDue?: number | null;
-  amountPaid?: number | null;
-  scholarshipDiscount?: number | null;
-  dueDate?: string | null;
-  notes?: string | null;
-}
-
-interface PaymentRec {
-  studentName?: string | null;
-  amount?: number | null;
-  date?: string | null;
-  receiptNumber?: string | null;
-}
-
-interface ParentRec {
-  fullName?: string | null;
-  phone1?: string | null;
-  phone2?: string | null;
-  email?: string | null;
-  address?: string | null;
-  occupation?: string | null;
-  relationship?: string | null;
-  notes?: string | null;
-}
-
-interface StaffRec {
-  name?: string | null;
-  position?: string | null;
-  salary?: number | null;
-  email?: string | null;
-  phone?: string | null;
-  bankDetails?: string | null;
-  emergencyContact?: string | null;
-}
-
-interface ExpenseRec {
-  description?: string | null;
-  amount?: number | null;
-  date?: string | null;
-  category?: string | null;
-}
-
-type ImportTable = 'students' | 'parents' | 'staff' | 'expenses';
-
-type ImportableRow =
-  | DbInsert<'students'>
-  | DbInsert<'parents'>
-  | DbInsert<'staff'>
-  | DbInsert<'expenses'>;
-
-/** Loose query-builder shape names the dynamic `from(table).insert(rows)` path. */
-interface InsertableBuilder {
-  insert: (rows: ImportableRow[]) => {
-    select: () => Promise<{
-      data: Array<Record<string, unknown>> | null;
-      error: { message: string } | null;
-    }>;
-  };
-}
+// Former public type exports, preserved for importers of this module
+// (mainViewsProps, AppModals, PayrollView, …). Single source: ./domainTypes.
+export type {
+  ClassCycle,
+  CustomClass,
+  Expense,
+  Parent,
+  Payment,
+  SalaryPayment,
+  Staff,
+  Student,
+  StudentNoteEntry,
+  Todo,
+  VendorExpense,
+} from './domainTypes';
 
 // ─── Main Data Hook ──────────────────────────────────────────────────────────
 
@@ -1184,277 +908,18 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
       return false;
     }
   };
-
   // ── Batch Import (Smart Excel Ingestion) ─────────────────────────────────
 
-  const batchImportData = async (
+  const batchImportData = (
     category: 'students' | 'payments' | 'parents' | 'staff' | 'expenses',
     records: Record<string, unknown>[],
     options: { academicYear: string; duplicateStrategy: 'skip' | 'update' }
-  ): Promise<{ inserted: number; updated: number; errors: number }> => {
-    let inserted = 0;
-    let updated = 0;
-    let errors = 0;
-    const BATCH_SIZE = 50;
-    const strategy = options.duplicateStrategy === 'update' ? 'update' : 'skip';
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    const processBatch = async (
-      table: ImportTable,
-      rows: ImportableRow[]
-    ): Promise<{ ok: number; err: number }> => {
-      let ok = 0;
-      let err = 0;
-
-      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        const chunk = rows.slice(i, i + BATCH_SIZE);
-        const { data, error } = await (supabase.from(table) as unknown as InsertableBuilder).insert(chunk).select();
-        if (error) {
-          console.error(`[MAMA THERA] batchImport ${table} error:`, error.message);
-          err += chunk.length;
-        } else {
-          ok += data?.length ?? chunk.length;
-        }
-      }
-
-      return { ok, err };
-    };
-
-    try {
-      if (category === 'students') {
-        // Index existing students by student_id, then by name+grade, so the
-        // duplicateStrategy ('skip' | 'update') can be honoured.
-        const byStudentId = new Map<string, Student>();
-        const byNameGrade = new Map<string, Student>();
-        students.forEach(s => {
-          if (s.studentId) byStudentId.set(String(s.studentId).toLowerCase().trim(), s);
-          byNameGrade.set(`${s.name.toLowerCase().trim()}|${(s.grade || '').toLowerCase().trim()}`, s);
-        });
-
-        const rows: DbInsert<'students'>[] = [];
-        for (const r of records as StudentRec[]) {
-          const importedStudentId = visibleStudentIdentifier(r.grade, r.studentId);
-          const existing = (importedStudentId ? byStudentId.get(importedStudentId.toLowerCase()) : undefined)
-            || byNameGrade.get(`${String(r.name || '').toLowerCase().trim()}|${String(r.grade || '').toLowerCase().trim()}`);
-
-          if (existing) {
-            if (strategy === 'update') {
-              const { error } = await supabase.from('students').update({
-                grade: r.grade ?? existing.grade ?? null,
-                student_id: isNinthGradeClass(r.grade ?? existing.grade ?? undefined)
-                  ? (visibleStudentIdentifier(r.grade ?? existing.grade ?? undefined, r.studentId ?? existing.studentId) ?? null)
-                  : null,
-                parent_name: r.parentName ?? existing.parentName ?? '',
-                parent_phone: r.parentPhone ?? existing.parentPhone ?? '',
-                parent_email: r.parentEmail ?? existing.parentEmail ?? null,
-                total_due: r.totalDue ?? existing.totalDue,
-                // never decrease the amount already paid
-                amount_paid: Math.max(existing.amountPaid, Number(r.amountPaid) || 0),
-                scholarship_discount: r.scholarshipDiscount ?? existing.scholarshipDiscount ?? 0,
-                due_date: r.dueDate ?? existing.dueDate ?? null,
-                academic_year: options.academicYear || existing.academicYear || null,
-                notes: r.notes ?? existing.notes ?? null,
-              }).eq('id', existing.id);
-              if (error) { errors++; console.error('[MAMA THERA] student import update error:', error.message); }
-              else updated++;
-            } else {
-              updated++; // duplicate present → skipped (already in DB)
-            }
-          } else {
-            rows.push({
-              name: r.name || '',
-              grade: r.grade || null,
-              student_id: visibleStudentIdentifier(r.grade ?? undefined, r.studentId ?? undefined) ?? null,
-              parent_name: r.parentName || '',
-              parent_phone: r.parentPhone || '',
-              parent_email: r.parentEmail || '',
-              total_due: r.totalDue || 0,
-              amount_paid: r.amountPaid || 0,
-              scholarship_discount: r.scholarshipDiscount || 0,
-              due_date: r.dueDate || null,
-              academic_year: options.academicYear || null,
-              notes: r.notes || null,
-              status: 'Active',
-            });
-          }
-        }
-        const result = await processBatch('students', rows);
-        inserted += result.ok;
-        errors += result.err;
-
-      } else if (category === 'payments') {
-        // For payments, we need to match student names to IDs
-        for (const r of records as PaymentRec[]) {
-          const studentName = String(r.studentName || '');
-          const matchedStudent = students.find(
-            (s) => s.name.toLowerCase().trim() === studentName.toLowerCase().trim()
-          );
-          if (!matchedStudent) {
-            errors++;
-            continue;
-          }
-          const amount = Number(r.amount) || 0;
-          const date = r.date || todayStr;
-          // Exact duplicate (same student, date and amount) → never double-count
-          const alreadyExists = matchedStudent.payments.some(
-            (p) => p.date === date && Number(p.amount) === amount
-          );
-          if (alreadyExists) {
-            updated++;
-            continue;
-          }
-          const { error } = await supabase.from('payments').insert({
-            student_id: matchedStudent.id,
-            amount,
-            date,
-            academic_year: options.academicYear || null,
-            receipt_number: r.receiptNumber || null,
-          });
-          if (error) {
-            console.error('[MAMA THERA] payment import error:', error.message);
-            errors++;
-          } else {
-            inserted++;
-            // Also update student's amount_paid
-            await supabase.from('students').update({
-              amount_paid: matchedStudent.amountPaid + amount,
-              last_payment_date: date,
-            }).eq('id', matchedStudent.id);
-          }
-        }
-
-      } else if (category === 'parents') {
-        const byKey = new Map<string, Parent>();
-        parents.forEach(p => byKey.set(p.fullName.toLowerCase().trim(), p));
-        const rows: DbInsert<'parents'>[] = [];
-        for (const r of records as ParentRec[]) {
-          const key = String(r.fullName || '').toLowerCase().trim();
-          const existing = key ? byKey.get(key) : undefined;
-          if (existing) {
-            if (strategy === 'update') {
-              const { error } = await supabase.from('parents').update({
-                phones: [r.phone1, r.phone2, ...(existing.phones || [])].filter((p): p is string => Boolean(p)).slice(0, 2),
-                email: r.email ?? existing.email ?? null,
-                address: r.address ?? existing.address ?? '',
-                occupation: r.occupation ?? existing.occupation ?? '',
-                relationship: r.relationship ?? existing.relationship ?? '',
-                notes: r.notes ?? existing.notes ?? null,
-              }).eq('id', existing.id);
-              if (error) { errors++; console.error('[MAMA THERA] parent import update error:', error.message); }
-              else updated++;
-            } else {
-              updated++;
-            }
-          } else {
-            rows.push({
-              full_name: r.fullName || '',
-              phones: [r.phone1, r.phone2].filter((p): p is string => Boolean(p)),
-              email: r.email || null,
-              address: r.address || '',
-              occupation: r.occupation || '',
-              relationship: r.relationship || '',
-            });
-          }
-        }
-        const result = await processBatch('parents', rows);
-        inserted += result.ok;
-        errors += result.err;
-
-      } else if (category === 'staff') {
-        const byKey = new Map<string, Staff>();
-        staff.forEach(s => byKey.set(s.name.toLowerCase().trim(), s));
-        const rows: DbInsert<'staff'>[] = [];
-        for (const r of records as StaffRec[]) {
-          const key = String(r.name || '').toLowerCase().trim();
-          const existing = key ? byKey.get(key) : undefined;
-          if (existing) {
-            if (strategy === 'update') {
-              const { error } = await supabase.from('staff').update({
-                position: r.position ?? existing.position ?? '',
-                salary: r.salary ?? existing.salary,
-                email: r.email ?? existing.email ?? null,
-                phone: r.phone ?? existing.phone ?? '',
-                bank_details: r.bankDetails ?? existing.bankDetails ?? null,
-                emergency_contact: r.emergencyContact ?? existing.emergencyContact ?? null,
-                academic_year: options.academicYear || existing.academicYear || null,
-              }).eq('id', existing.id);
-              if (error) { errors++; console.error('[MAMA THERA] staff import update error:', error.message); }
-              else updated++;
-            } else {
-              updated++;
-            }
-          } else {
-            rows.push({
-              name: r.name || '',
-              position: r.position || '',
-              salary: r.salary || 0,
-              email: r.email || null,
-              phone: r.phone || '',
-              bank_details: r.bankDetails || null,
-              emergency_contact: r.emergencyContact || null,
-              academic_year: options.academicYear || null,
-            });
-          }
-        }
-        const result = await processBatch('staff', rows);
-        inserted += result.ok;
-        errors += result.err;
-
-      } else if (category === 'expenses') {
-        const byKey = new Map<string, Expense>();
-        expenses.forEach(e => byKey.set(`${e.description.toLowerCase().trim()}|${e.date}|${e.amount}`, e));
-        const rows: DbInsert<'expenses'>[] = [];
-        for (const r of records as ExpenseRec[]) {
-          const description = String(r.description || '').toLowerCase().trim();
-          const amount = Number(r.amount) || 0;
-          const date = r.date || todayStr;
-          const existing = byKey.get(`${description}|${date}|${amount}`);
-          if (existing) {
-            if (strategy === 'update') {
-              const { error } = await supabase.from('expenses').update({
-                category: r.category ?? existing.category,
-                description: r.description ?? existing.description,
-                amount: r.amount ?? existing.amount,
-                academic_year: options.academicYear || existing.academicYear || null,
-              }).eq('id', existing.id);
-              if (error) { errors++; console.error('[MAMA THERA] expense import update error:', error.message); }
-              else updated++;
-            } else {
-              updated++;
-            }
-          } else {
-            rows.push({
-              category: r.category || 'stationery',
-              description: r.description || '',
-              amount,
-              date,
-              academic_year: options.academicYear || null,
-            });
-          }
-        }
-        const result = await processBatch('expenses', rows);
-        inserted += result.ok;
-        errors += result.err;
-      }
-
-      logAuditEvent({
-        action: 'BATCH_IMPORT',
-        targetType: category,
-        details: `Imported ${inserted} ${category} record(s) via Excel (${updated} updated, ${errors} errors)`,
-      });
-
-      // Refresh data to reflect newly imported records
-      await fetchAll();
-
-      notifySuccess(`batchImport_${category}`);
-      return { inserted, updated, errors };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Import failed';
-      console.error('[MAMA THERA] batchImportData error:', err);
-      notifyError('batchImportData', msg);
-      return { inserted, updated, errors: errors || records.length };
-    }
-  };
+  ) => importBatchData(category, records, options, {
+    students, parents, staff, expenses,
+    fetchAll,
+    notifySuccess,
+    notifyError,
+  });
 
   // ── Return ──────────────────────────────────────────────────────────────
 

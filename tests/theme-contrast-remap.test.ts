@@ -266,9 +266,14 @@ describe('midnight lock: light fills carry a dark: counterpart', () => {
     'components/PayrollView.tsx', // print header
     'components/StudentsView.tsx', // print header + divider
   ];
+  // The MODAL scaffold no longer needs exemptions: every modal surface fill
+  // lives in src/lib/modalTokens.ts with its `dark:` counterpart in the same
+  // string (policed by tests/modal-tokens.test.ts), so the modal entries that
+  // used to sit here (AppModals print surfaces, the ticket slip preview, the
+  // vendor disabled fields) are structurally paired at the source instead.
+  // Remaining: non-modal fixed-light surfaces + the 20%-alpha wash over the
+  // themed card (the card's dark surface still shows through).
   const EXEMPT_LINES: Record<string, number[]> = {
-    // print-student-file container internals (fixed print surface)
-    'components/AppModals.tsx': [995, 1116, 1825, 1981, 2041, 2053, 2074, 2077, 2100, 2104, 2108],
     'components/Login.tsx': [95, 110, 126],
     'components/FloatingChat.tsx': [115],
     'components/SharedUi.tsx': [18],

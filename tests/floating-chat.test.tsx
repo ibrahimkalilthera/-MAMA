@@ -159,8 +159,9 @@ describe('FloatingChat — happy-dom render', () => {
       assert.ok(q(`[aria-label="${t.mamaTheraAiAssistant}"]`), 'the FAB button is rendered');
       assert.equal(q('[role="dialog"]'), null, 'no panel before opening');
 
-      click(q(`[aria-label="${t.mamaTheraAiAssistant}"]`) as Element);
-      await act(async () => {});
+      await act(async () => {
+        click(q(`[aria-label="${t.mamaTheraAiAssistant}"]`) as Element);
+      });
 
       const panel = q('[role="dialog"]');
       assert.ok(panel, 'the panel opens as a dialog');
@@ -178,14 +179,16 @@ describe('FloatingChat — happy-dom render', () => {
   it('a quick prompt sends the query and adds the user message immediately', async () => {
     const { root, container } = await renderAndMount();
     try {
-      click(q(`[aria-label="${t.mamaTheraAiAssistant}"]`) as Element);
-      await act(async () => {});
+      await act(async () => {
+        click(q(`[aria-label="${t.mamaTheraAiAssistant}"]`) as Element);
+      });
       assert.equal(bubbles().length, 1);
 
       const prompt = qa('button').find((b) => b.textContent === prompt1Label);
       assert.ok(prompt, `quick prompt button "${prompt1Label}" is rendered`);
-      click(prompt as Element);
-      await act(async () => {});
+      await act(async () => {
+        click(prompt as Element);
+      });
 
       const list = bubbles();
       assert.equal(list.length, 2, 'the user message is appended on click');
@@ -201,15 +204,19 @@ describe('FloatingChat — happy-dom render', () => {
   it('appends the assistant reply after the response delay', async () => {
     const { root, container } = await renderAndMount();
     try {
-      click(q(`[aria-label="${t.mamaTheraAiAssistant}"]`) as Element);
-      await act(async () => {});
-      click(qa('button').find((b) => b.textContent === prompt1Label) as Element);
-      await act(async () => {});
+      await act(async () => {
+        click(q(`[aria-label="${t.mamaTheraAiAssistant}"]`) as Element);
+      });
+      await act(async () => {
+        click(qa('button').find((b) => b.textContent === prompt1Label) as Element);
+      });
       assert.equal(bubbles().length, 2);
 
-      // The hook answers "tuition collected this month" (aiPrompt1) after 450 ms.
-      await delay(600);
-      await act(async () => {});
+      // The hook answers "tuition collected this month" (aiPrompt1) after 450 ms —
+      // wait through the delay INSIDE act so the reply's state update is wrapped.
+      await act(async () => {
+        await delay(600);
+      });
 
       const list = bubbles();
       assert.equal(list.length, 3, 'the assistant reply is appended after the delay');

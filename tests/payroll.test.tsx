@@ -154,6 +154,8 @@ function baseDeps(overrides: DepsOverrides = {}): {
     staff: overrides.staff ?? [fatou(), moussa()],
     salaryPayments: overrides.salaryPayments ?? [],
     showToast: () => { spies.toastCount += 1; },
+    // Validation/guard messages go through the toast system now (no native alert).
+    toastError: (msg: string) => { spies.alerts.push(msg); },
     addStaff: async (s: Omit<Staff, 'id'>) => {
       spies.addStaffCalls.push(s);
       return { ...s, id: `new-${spies.addStaffCalls.length}` };

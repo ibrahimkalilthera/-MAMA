@@ -1,16 +1,22 @@
 /**
  * Single source of truth for the MainViews props contract.
  *
- * Every prop the app shell hands to the views is declared here, exactly once:
+ * Every prop the app shell hands to the views is declared here, exactly once,
+ * COMPOSED from per-domain slices — `MainViewsProps` is a one-line interface
+ * extending `AppShellProps` (icons/component factories, theme + language
+ * globals, shared data/formatting, chrome/settings/audit/users/modals state)
+ * plus one slice per view (`DashboardViewProps`, `StudentsViewProps`, …):
  *   • src/App.tsx imports the helper types (ManagedClass, CalendarEvent,
  *     ThemeId, …) and passes the full props object to <MainViews>;
  *   • src/components/MainViews.tsx types its context (MainViewsContext) and
  *     hook (useMainViews) with MainViewsProps — the views read their slice of
  *     the contract through that context;
- *   • scripts/check-component-props.mjs parses THIS file to prove every
- *     required prop is actually passed at the render site (186/186);
+ *   • scripts/check-component-props.mjs parses THIS file and resolves the
+ *     extends composition to prove every required prop is actually passed at
+ *     the render site (guard reports the resolved count);
  *   • tests/mainviews-props.test.ts asserts the contract's invariants (a
- *     single definition, all props required, no `any`, wiring pointed here).
+ *     single definition, pure composition, all props required, no `any`,
+ *     wiring pointed here).
  *
  * Types only — no runtime code, so importing it costs nothing at runtime.
  */
@@ -73,6 +79,13 @@ export interface StaffForm {
 
 export interface SalaryForm {
   staffId: string;
+  amount: string;
+  date: string;
+}
+
+export interface ExpenseForm {
+  category: string;
+  description: string;
   amount: string;
   date: string;
 }
@@ -147,7 +160,14 @@ export interface RoleTab {
   label: string;
 }
 
-export interface MainViewsProps {
+/**
+ * Props owned by the app shell: icons/component factories, theme + language globals, shared data (stats, formatting helpers), and every chrome/settings/audit/users/modals state — the complement of the per-view domain slices.
+ *
+ * Keeps the historical property order; part of the MainViewsProps
+ * intersection below (scripts/check-component-props.mjs and
+ * tests/mainviews-props.test.ts resolve the composition).
+ */
+export interface AppShellProps {
   AlertCircle: LucideIcon;
   ArrowDown: LucideIcon;
   ArrowUp: LucideIcon;
@@ -220,124 +240,58 @@ export interface MainViewsProps {
   availableClasses: ManagedClass[];
   calendarDate: Date;
   changeMonth: (offset: number) => void;
-  chartData: { name: string; income: number; expenses: number }[];
-  currentMonth: number;
   currentTheme: CurrentTheme;
-  deleteStaff: (id: string) => Promise<boolean>;
-  deleteStudent: (id: string) => Promise<boolean>;
   deleteTodo: (id: string) => Promise<boolean>;
-  expandedParentId: string | null;
-  expenseCategoryList: { key: string; label: string }[];
-  expenses: Expense[];
   fetchAuditLogs: () => Promise<void>;
-  filteredStaff: Staff[];
-  filteredStudents: Student[];
   formatCurrency: (amount: number) => string;
-  formatDate: (dateStr: string) => string;
-  generateExpensesReportPdf: (opts: ExpensesReportOptions) => Promise<void>;
-  generateStaffPayslipPdf: (opts: PayslipDataOptions) => Promise<void>;
-  getChildrenForParent: (parent: Parent) => Student[];
   getDayName: (dayIndex: number) => string;
   getDaysInMonth: (date: Date) => CalendarDay[];
   getEventsForDay: (date: Date) => CalendarEvent[];
   getGradeDisplay: (grade: string | undefined, currentLang?: 'en' | 'fr') => string;
-  getMonthName: (monthIndex: number) => string;
-  getParentOutstandingBalance: (parent: Parent) => number;
-  getParentPaymentHistory: (parent: Parent) => ParentLedgerEntry[];
-  getStatus: (student: Student) => StudentStatus;
   handleAddTodo: (e: FormEvent) => Promise<void>;
   handleDeleteClass: (c: ManagedClass) => Promise<void>;
-  handleDeleteParent: (parentId: string) => Promise<void>;
-  handleDeleteVendorExpense: (id: string) => Promise<void>;
   handleExportAllData: () => Promise<void>;
-  handleExportParentLedgerPdf: (parent: Parent) => Promise<void>;
-  handleExportStaffReceiptPdf: (staffMember: Staff) => Promise<void>;
+  /** One-click JSON snapshot download (Settings, admin/dev only). */
+  handleExportBackup: () => Promise<void>;
+  /** Opens the hidden restore file picker (admin/dev only). */
+  openBackupRestorePicker: () => void;
+  /** Restore file-input onChange — call with the typed-confirmation result. */
+  handleBackupFileSelected: (e: ChangeEvent<HTMLInputElement>, confirmed: boolean) => Promise<void>;
+  /** Ref for the hidden restore file input. */
+  backupFileInputRef: RefObject<HTMLInputElement | null>;
+  /** True while an export/restore round-trip is in flight. */
+  backupBusy: boolean;
   handleLogoUpload: (e: ChangeEvent<HTMLInputElement>) => void;
-  handlePrint: () => void;
   handleSendPasswordReset: (email: string) => Promise<void>;
-  handleSort: (key: SortKey) => void;
-  handleUnlinkStudent: (studentId: string) => Promise<void>;
   handleUpdateRole: (targetProfile: UserProfile, newRole: AppRole) => Promise<void>;
-  isPromoter: boolean;
-  /** Gestionnaire Principal — finance admin without user/settings/audit access. */
-  isGeneralManager: boolean;
   lang: 'en' | 'fr';
-  lateStudents: Student[];
   logoColor: string | null;
   logoInputRef: RefObject<HTMLInputElement | null>;
   /** Missed payroll months of the current school year (Sep start, year-aware). */
   missedMonths: { year: number; month: number }[];
   openEditClass: (c: ManagedClass) => void;
-  openEditModal: (student: Student) => void;
-  openEditParentModal: (parent: Parent) => void;
-  openEditStaffModal: (s: Staff) => void;
-  openNotifyModal: (parent: Parent) => void;
-  parentChildrenSortBy: ParentSort;
-  parentSearchTerm: string;
-  parents: Parent[];
-  payrollWindowStatus: PayrollWindowStatus;
-  pieData: { name: string; value: number }[];
-  salaryForm: SalaryForm;
-  salaryPayments: SalaryPayment[];
   schoolLogo: string | null;
-  searchTerm: string;
   selectedYear: string;
-  setActiveLinkingParent: Dispatch<SetStateAction<Parent | null>>;
   setCalendarDate: Dispatch<SetStateAction<Date>>;
-  setEditingParent: Dispatch<SetStateAction<Parent | null>>;
-  setEditingStaff: Dispatch<SetStateAction<Staff | null>>;
-  setEditingVendorExpense: Dispatch<SetStateAction<VendorExpense | null>>;
-  setExpandedParentId: Dispatch<SetStateAction<string | null>>;
   setLogoColor: Dispatch<SetStateAction<string | null>>;
-  setParentChildrenSortBy: Dispatch<SetStateAction<ParentSort>>;
-  setParentForm: Dispatch<SetStateAction<ParentForm>>;
-  setParentSearchTerm: Dispatch<SetStateAction<string>>;
-  /** Payment quick-actions (parent card): prefill the entry form + open it. */
-  setPaymentAmount: Dispatch<SetStateAction<string>>;
-  setPaymentStudentId: Dispatch<SetStateAction<string>>;
-  setShowPaymentForm: Dispatch<SetStateAction<boolean>>;
-  setSalaryForm: Dispatch<SetStateAction<SalaryForm>>;
   setSchoolLogo: Dispatch<SetStateAction<string | null>>;
   setSelectedCalendarDay: Dispatch<SetStateAction<Date | null>>;
-  setSelectedDraftMonth: Dispatch<SetStateAction<number>>;
-  setSelectedDraftYear: Dispatch<SetStateAction<number>>;
   setSelectedStudent: Dispatch<SetStateAction<Student | null>>;
   setShowAddClassModal: Dispatch<SetStateAction<boolean>>;
   setShowAddUserModal: Dispatch<SetStateAction<boolean>>;
   setShowCalendarModal: Dispatch<SetStateAction<boolean>>;
-  setShowLinkStudentModal: Dispatch<SetStateAction<boolean>>;
-  setShowMonthlyDraftModal: Dispatch<SetStateAction<boolean>>;
-  setShowParentModal: Dispatch<SetStateAction<boolean>>;
-  setShowSalaryModal: Dispatch<SetStateAction<boolean>>;
-  setShowStaffModal: Dispatch<SetStateAction<boolean>>;
-  setShowVendorExpenseModal: Dispatch<SetStateAction<boolean>>;
-  setStaffForm: Dispatch<SetStateAction<StaffForm>>;
-  setStaffSearchTerm: Dispatch<SetStateAction<string>>;
-  setStudentToLinkId: Dispatch<SetStateAction<string>>;
   setTheme: Dispatch<SetStateAction<ThemeId>>;
-  setTicketStudent: Dispatch<SetStateAction<Student | null>>;
   setTodoInput: Dispatch<SetStateAction<string>>;
   setUserProfiles: Dispatch<SetStateAction<UserProfile[]>>;
   setUserRoleFilter: Dispatch<SetStateAction<RoleFilter>>;
   setUserSearchTerm: Dispatch<SetStateAction<string>>;
-  setVendorCategoryFilter: Dispatch<SetStateAction<string>>;
-  setVendorExpenseForm: Dispatch<SetStateAction<VendorExpenseForm>>;
-  setVendorSearch: Dispatch<SetStateAction<string>>;
-  setVendorStatusFilter: Dispatch<SetStateAction<string>>;
-  setVisibleBankDetails: Dispatch<SetStateAction<Record<string, boolean>>>;
-  staff: Staff[];
-  staffSearchTerm: string;
   stats: DashboardStats;
-  studentSortKey: SortKey | null;
-  studentSortOrder: 'asc' | 'desc';
   t: TranslationDict;
-  theme: ThemeId;
   today: string;
   todoInput: string;
   todoDate: string;
   setTodoDate: Dispatch<SetStateAction<string>>;
   todos: Todo[];
-  toggleFlag: (id: string) => Promise<void>;
   toggleLanguage: (lang: 'en' | 'fr') => void;
   toggleTodo: (id: string) => Promise<void>;
   handleUpdateTodoDate: (id: string, date: string) => Promise<boolean>;
@@ -352,9 +306,143 @@ export interface MainViewsProps {
   inactivityMinutes: number;
   setInactivityMinutes: (minutes: number) => void;
   userSearchTerm: string;
+}
+
+/**
+ * Domain props read only by DashboardView (KPI data + chart payloads).
+ *
+ * Keeps the historical property order; part of the MainViewsProps
+ * intersection below (scripts/check-component-props.mjs and
+ * tests/mainviews-props.test.ts resolve the composition).
+ */
+export interface DashboardViewProps {
+  chartData: { name: string; income: number; expenses: number }[];
+  lateStudents: Student[];
+  payrollWindowStatus: PayrollWindowStatus;
+  pieData: { name: string; value: number }[];
+  theme: ThemeId;
+}
+
+/**
+ * Domain props read only by StudentsView (list, sort, flag, delete, edit).
+ *
+ * Keeps the historical property order; part of the MainViewsProps
+ * intersection below (scripts/check-component-props.mjs and
+ * tests/mainviews-props.test.ts resolve the composition).
+ */
+export interface StudentsViewProps {
+  deleteStudent: (id: string) => Promise<boolean>;
+  filteredStudents: Student[];
+  formatDate: (dateStr: string) => string;
+  getStatus: (student: Student) => StudentStatus;
+  handleSort: (key: SortKey) => void;
+  openEditModal: (student: Student) => void;
+  searchTerm: string;
+  setTicketStudent: Dispatch<SetStateAction<Student | null>>;
+  studentSortKey: SortKey | null;
+  studentSortOrder: 'asc' | 'desc';
+  toggleFlag: (id: string) => Promise<void>;
+}
+
+/**
+ * Domain props read only by ParentsView (directory, ledger, links, notify).
+ *
+ * Keeps the historical property order; part of the MainViewsProps
+ * intersection below (scripts/check-component-props.mjs and
+ * tests/mainviews-props.test.ts resolve the composition).
+ */
+export interface ParentsViewProps {
+  expandedParentId: string | null;
+  getChildrenForParent: (parent: Parent) => Student[];
+  getParentOutstandingBalance: (parent: Parent) => number;
+  getParentPaymentHistory: (parent: Parent) => ParentLedgerEntry[];
+  handleDeleteParent: (parentId: string) => Promise<void>;
+  handleExportParentLedgerPdf: (parent: Parent) => Promise<void>;
+  handleUnlinkStudent: (studentId: string) => Promise<void>;
+  openEditParentModal: (parent: Parent) => void;
+  openNotifyModal: (parent: Parent) => void;
+  parentChildrenSortBy: ParentSort;
+  parentSearchTerm: string;
+  parents: Parent[];
+  setActiveLinkingParent: Dispatch<SetStateAction<Parent | null>>;
+  setEditingParent: Dispatch<SetStateAction<Parent | null>>;
+  setExpandedParentId: Dispatch<SetStateAction<string | null>>;
+  setParentChildrenSortBy: Dispatch<SetStateAction<ParentSort>>;
+  setParentForm: Dispatch<SetStateAction<ParentForm>>;
+  setParentSearchTerm: Dispatch<SetStateAction<string>>;
+  /** Payment quick-actions (parent card): prefill the entry form + open it. */
+  setPaymentAmount: Dispatch<SetStateAction<string>>;
+  setPaymentStudentId: Dispatch<SetStateAction<string>>;
+  setShowPaymentForm: Dispatch<SetStateAction<boolean>>;
+  setShowLinkStudentModal: Dispatch<SetStateAction<boolean>>;
+  setShowParentModal: Dispatch<SetStateAction<boolean>>;
+  setStudentToLinkId: Dispatch<SetStateAction<string>>;
+}
+
+/**
+ * Domain props read only by PayrollView (staff, salaries, payslips, drafts).
+ *
+ * Keeps the historical property order; part of the MainViewsProps
+ * intersection below (scripts/check-component-props.mjs and
+ * tests/mainviews-props.test.ts resolve the composition).
+ */
+export interface PayrollViewProps {
+  currentMonth: number;
+  deleteStaff: (id: string) => Promise<boolean>;
+  filteredStaff: Staff[];
+  generateStaffPayslipPdf: (opts: PayslipDataOptions) => Promise<void>;
+  getMonthName: (monthIndex: number) => string;
+  handleExportStaffReceiptPdf: (staffMember: Staff) => Promise<void>;
+  openEditStaffModal: (s: Staff) => void;
+  salaryForm: SalaryForm;
+  salaryPayments: SalaryPayment[];
+  setEditingStaff: Dispatch<SetStateAction<Staff | null>>;
+  setSalaryForm: Dispatch<SetStateAction<SalaryForm>>;
+  setSelectedDraftMonth: Dispatch<SetStateAction<number>>;
+  setSelectedDraftYear: Dispatch<SetStateAction<number>>;
+  setShowMonthlyDraftModal: Dispatch<SetStateAction<boolean>>;
+  setShowSalaryModal: Dispatch<SetStateAction<boolean>>;
+  setShowStaffModal: Dispatch<SetStateAction<boolean>>;
+  setStaffForm: Dispatch<SetStateAction<StaffForm>>;
+  setStaffSearchTerm: Dispatch<SetStateAction<string>>;
+  setVisibleBankDetails: Dispatch<SetStateAction<Record<string, boolean>>>;
+  staff: Staff[];
+  staffSearchTerm: string;
+  visibleBankDetails: Record<string, boolean>;
+}
+
+/**
+ * Domain props read only by ExpensesView (vendor + general expense domain).
+ *
+ * Keeps the historical property order; part of the MainViewsProps
+ * intersection below (scripts/check-component-props.mjs and
+ * tests/mainviews-props.test.ts resolve the composition).
+ */
+export interface ExpensesViewProps {
+  expenseCategoryList: { key: string; label: string }[];
+  expenses: Expense[];
+  generateExpensesReportPdf: (opts: ExpensesReportOptions) => Promise<void>;
+  handleDeleteVendorExpense: (id: string) => Promise<void>;
+  handlePrint: () => void;
+  isPromoter: boolean;
+  /** Gestionnaire Principal — finance admin without user/settings/audit access. */
+  isGeneralManager: boolean;
+  setEditingVendorExpense: Dispatch<SetStateAction<VendorExpense | null>>;
+  setShowVendorExpenseModal: Dispatch<SetStateAction<boolean>>;
+  setVendorCategoryFilter: Dispatch<SetStateAction<string>>;
+  setVendorExpenseForm: Dispatch<SetStateAction<VendorExpenseForm>>;
+  setVendorSearch: Dispatch<SetStateAction<string>>;
+  setVendorStatusFilter: Dispatch<SetStateAction<string>>;
   vendorCategoryFilter: string;
   vendorExpenses: VendorExpense[];
   vendorSearch: string;
   vendorStatusFilter: string;
-  visibleBankDetails: Record<string, boolean>;
 }
+
+/**
+ * MainViewsProps — the full props contract, composed from the per-domain
+ * slices above. Declared as a single interface (no own members) so the
+ * contract keeps one definition, resolvable by the wiring guard and the
+ * contract test.
+ */
+export interface MainViewsProps extends AppShellProps, DashboardViewProps, StudentsViewProps, ParentsViewProps, PayrollViewProps, ExpensesViewProps {}

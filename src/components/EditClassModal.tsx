@@ -11,12 +11,13 @@
  */
 import { useRef } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
-import { motion } from 'motion/react';
-import { CheckCircle2, Layers, X } from 'lucide-react';
+import { CheckCircle2, Layers } from 'lucide-react';
 import { useFocusTrap } from '../lib/focusStack';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import type { TranslationDict } from '../i18n/translations';
+import type { CurrentTheme } from '../app/mainViewsProps';
 import type { ClassForm } from './AddClassModal';
+import { ModalShell } from './ModalShell';
 
 export interface EditClassModalProps {
   t: TranslationDict;
@@ -27,11 +28,7 @@ export interface EditClassModalProps {
   handleEditClassSubmit: (e: FormEvent) => Promise<void>;
   onClose: () => void;
   /** Theme tokens from the app theme engine. */
-  themeCard: string;
-  themeBorder: string;
-  themeHeader: string;
-  themeMuted: string;
-  themeIsDark: boolean;
+  currentTheme: CurrentTheme;
 }
 
 export function EditClassModal(props: EditClassModalProps) {
@@ -42,11 +39,7 @@ export function EditClassModal(props: EditClassModalProps) {
     setEditClassForm,
     handleEditClassSubmit,
     onClose,
-    themeCard,
-    themeBorder,
-    themeHeader,
-    themeMuted,
-    themeIsDark,
+    currentTheme,
   } = props;
 
   // Tab is confined to the modal while open; focus returns to the trigger on
@@ -56,36 +49,24 @@ export function EditClassModal(props: EditClassModalProps) {
   useEscapeToClose(open, onClose);
 
   return (
-    <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.editClassSection} aria-labelledby="modal-title-edit-class" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 40 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 40 }}
-        className={`relative ${themeCard} w-full max-w-md rounded-[2.5rem] shadow-2xl border ${themeBorder} overflow-hidden`}
-      >
-        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: themeHeader }}>
-          <h3 id="modal-title-edit-class" className="text-lg font-bold flex items-center gap-2.5">
-            <Layers size={20} className="text-blue-400" />
-            <span>{t.editClassSection}</span>
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-xl transition-all"
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <ModalShell
+      overlayRef={(el) => { rootRef.current = el as HTMLDivElement | null; }}
+      onClose={onClose}
+      currentTheme={currentTheme}
+      titleId="modal-title-edit-class"
+      ariaLabel={t.editClassSection}
+      headerClassName="p-6 border-b border-white/10 flex justify-between items-center text-white"
+      headerStyle={{ backgroundColor: currentTheme.header }}
+      titleClassName="text-lg font-bold flex items-center gap-2.5"
+      icon={<Layers size={20} className="text-blue-400" />}
+      title={<span>{t.editClassSection}</span>}
+      maxWidth="max-w-md"
+      panelRadius="rounded-[2.5rem]"
+    >
 
         <form onSubmit={handleEditClassSubmit} className="p-6 space-y-5">
           <div className="space-y-1.5">
-            <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+            <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
               {t.schoolCycle}
             </label>
             <select
@@ -95,7 +76,7 @@ export function EditClassModal(props: EditClassModalProps) {
                 const defYear = c === 'cycle2' ? '7' : c === 'lycee' ? '10' : c === 'maternelle' ? 'PS' : '1';
                 setEditClassForm({ ...editClassForm, cycle: c, year: defYear });
               }}
-              className={`w-full p-3.5 text-xs font-bold rounded-xl border ${themeBorder} ${themeIsDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+              className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
             >
               <option value="cycle1">{t.firstCycle1stTo6thYear}</option>
               <option value="cycle2">{t.secondCycle7thTo9thYear}</option>
@@ -108,13 +89,13 @@ export function EditClassModal(props: EditClassModalProps) {
           {editClassForm.cycle !== 'other' ? (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+                <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                   {t.gradeLevel2}
                 </label>
                 <select
                   value={editClassForm.year}
                   onChange={(e) => setEditClassForm({ ...editClassForm, year: e.target.value })}
-                  className={`w-full p-3.5 text-xs font-bold rounded-xl border ${themeBorder} ${themeIsDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
                 >
                   {editClassForm.cycle === 'cycle1' && (
                     <>
@@ -151,7 +132,7 @@ export function EditClassModal(props: EditClassModalProps) {
               </div>
 
               <div className="space-y-1.5">
-                <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+                <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                   {t.sectionEGDE}
                 </label>
                 <input
@@ -161,13 +142,13 @@ export function EditClassModal(props: EditClassModalProps) {
                   placeholder="D, E, F..."
                   value={editClassForm.section}
                   onChange={(e) => setEditClassForm({ ...editClassForm, section: e.target.value.toUpperCase() })}
-                  className={`w-full p-3.5 text-xs font-bold uppercase rounded-xl border ${themeBorder} ${themeIsDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                  className={`w-full p-3.5 text-xs font-bold uppercase rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
                 />
               </div>
             </div>
           ) : (
             <div className="space-y-1.5">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                 {t.customClassName}
               </label>
               <input
@@ -176,13 +157,13 @@ export function EditClassModal(props: EditClassModalProps) {
                 placeholder={t.eG1ReDOrGarderie}
                 value={editClassForm.customName}
                 onChange={(e) => setEditClassForm({ ...editClassForm, customName: e.target.value })}
-                className={`w-full p-3.5 text-xs font-bold rounded-xl border ${themeBorder} ${themeIsDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
+                className={`w-full p-3.5 text-xs font-bold rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-800'}`}
               />
             </div>
           )}
 
           {/* Preview Badge */}
-          <div className={`p-4 rounded-xl border ${themeBorder} ${themeIsDark ? 'bg-slate-900/40' : 'bg-slate-50'}`}>
+          <div className={`p-4 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900/40' : 'bg-slate-50'}`}>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
               {t.generatedClassCode}
             </p>
@@ -215,7 +196,6 @@ export function EditClassModal(props: EditClassModalProps) {
             </button>
           </div>
         </form>
-      </motion.div>
-    </div>
+    </ModalShell>
   );
 }

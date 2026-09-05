@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useFocusTrap } from '../lib/focusStack';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import {
   X,
   FileText,
@@ -16,7 +16,9 @@ import {
   Users
 } from 'lucide-react';
 import type { Staff, SalaryPayment } from '../lib/useSupabaseData';
+import type { CurrentTheme } from '../app/mainViewsProps';
 import { generateMonthlyPayrollDraftPdf } from '../lib/pdfPayrollDraft';
+import { ModalShell } from './ModalShell';
 
 interface MonthlyPayrollDraftModalProps {
   isOpen: boolean;
@@ -32,10 +34,8 @@ interface MonthlyPayrollDraftModalProps {
   onExportExcel: (monthIndex: number, year: number) => void;
   onRecordPayment: (staffId: string, balance: number) => void;
   formatCurrency: (amount: number) => string;
-  themeCard: string;
-  themeBorder: string;
-  themeMuted: string;
-  themeIsDark: boolean;
+  /** Theme tokens from the app theme engine. */
+  currentTheme: CurrentTheme;
   t: Record<string, string>;
 }
 
@@ -63,10 +63,7 @@ export function MonthlyPayrollDraftModal({
   onExportExcel,
   onRecordPayment,
   formatCurrency,
-  themeCard,
-  themeBorder,
-  themeMuted,
-  themeIsDark,
+  currentTheme,
   t,
 }: MonthlyPayrollDraftModalProps) {
   // Escape behaves like the cancel button (mounted only while open).
@@ -134,15 +131,18 @@ export function MonthlyPayrollDraftModal({
 
   return (
     <AnimatePresence>
-      <div ref={rootRef} role="dialog" aria-modal="true" aria-label={t.monthlyPayrollDisbursementDraft} aria-labelledby="modal-title-payroll-draft" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in no-print">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className={`w-full max-w-5xl ${themeCard} rounded-[2.5rem] border ${themeBorder} shadow-2xl overflow-hidden flex flex-col max-h-[90vh]`}
-        >
-          {/* Modal Header */}
-          <div className={`p-6 sm:p-8 border-b ${themeBorder} flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 text-white`}>
+      <ModalShell
+        overlayRef={(el) => { rootRef.current = el as HTMLDivElement | null; }}
+        onClose={onClose}
+        currentTheme={currentTheme}
+        titleId="modal-title-payroll-draft"
+        ariaLabel={t.monthlyPayrollDisbursementDraft}
+        maxWidth="max-w-5xl"
+        panelRadius="rounded-[2.5rem]"
+        panelClassName="flex flex-col max-h-[90vh]"
+        rootClassName="animate-fade-in no-print"
+        header={
+          <div className={`p-6 sm:p-8 border-b ${currentTheme.border} flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 text-white`}>
             <div className="flex items-center gap-3.5">
               <div className="p-3 bg-emerald-600/90 rounded-2xl text-white shadow-lg shadow-emerald-500/20">
                 <FileText size={24} />
@@ -187,16 +187,18 @@ export function MonthlyPayrollDraftModal({
               </button>
             </div>
           </div>
+        }
+      >
 
           {/* Modal Body */}
           <div className="p-6 sm:p-8 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
             {/* KPI Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className={`p-5 rounded-2xl border ${themeBorder} ${themeIsDark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
-                <p className={`text-[10px] font-bold uppercase tracking-widest ${themeMuted} mb-1`}>
+              <div className={`p-5 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-widest ${currentTheme.muted} mb-1`}>
                   {t.totalBudget}
                 </p>
-                <h4 className={`text-xl font-black ${themeIsDark ? 'text-white' : 'text-slate-900'}`}>
+                <h4 className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
                   {formatCurrency(grandTotalExpected)}
                 </h4>
               </div>
@@ -219,22 +221,22 @@ export function MonthlyPayrollDraftModal({
                 </h4>
               </div>
 
-              <div className={`p-5 rounded-2xl border ${themeBorder} ${themeIsDark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
-                <p className={`text-[10px] font-bold uppercase tracking-widest ${themeMuted} mb-1`}>
+              <div className={`p-5 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-widest ${currentTheme.muted} mb-1`}>
                   {t.employeesSettled}
                 </p>
-                <h4 className={`text-xl font-black ${themeIsDark ? 'text-white' : 'text-slate-900'}`}>
+                <h4 className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
                   {paidCount} / {staff.length}
                 </h4>
               </div>
             </div>
 
             {/* Staff Breakdown Table */}
-            <div className={`rounded-2xl border ${themeBorder} overflow-hidden`}>
+            <div className={`rounded-2xl border ${currentTheme.border} overflow-hidden`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className={`text-[10px] font-black uppercase tracking-wider ${themeIsDark ? 'bg-slate-800/80 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                    <tr className={`text-[10px] font-black uppercase tracking-wider ${currentTheme.isDark ? 'bg-slate-800/80 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                       <th className="px-6 py-4">{t.employeeRole}</th>
                       <th className="px-6 py-4 text-right">{t.baseSalary}</th>
                       <th className="px-6 py-4 text-right">{t.paidThisMonth2}</th>
@@ -244,13 +246,13 @@ export function MonthlyPayrollDraftModal({
                       <th className="px-6 py-4 text-right">{t.actions}</th>
                     </tr>
                   </thead>
-                  <tbody className={`divide-y ${themeBorder} text-xs`}>
+                  <tbody className={`divide-y ${currentTheme.border} text-xs`}>
                     {staffPayrollList.length > 0 ? (
                       staffPayrollList.map(st => (
-                        <tr key={st.id} className={`${themeIsDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'} transition-all`}>
+                        <tr key={st.id} className={`${currentTheme.isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'} transition-all`}>
                           <td className="px-6 py-4">
                             <p className="font-bold">{st.name}</p>
-                            <p className={`text-[10px] ${themeMuted} uppercase font-semibold`}>{st.position}</p>
+                            <p className={`text-[10px] ${currentTheme.muted} uppercase font-semibold`}>{st.position}</p>
                           </td>
                           <td className="px-6 py-4 text-right font-semibold">
                             {formatCurrency(st.salary)}
@@ -309,8 +311,8 @@ export function MonthlyPayrollDraftModal({
           </div>
 
           {/* Modal Footer / Action Toolbar */}
-          <div className={`p-6 border-t ${themeBorder} flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/40`}>
-            <p className={`text-xs ${themeMuted}`}>
+          <div className={`p-6 border-t ${currentTheme.border} flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/40`}>
+            <p className={`text-xs ${currentTheme.muted}`}>
               {t.officialDraftFor.replace('{month}', currentMonthName).replace('{year}', String(year))}
             </p>
 
@@ -333,14 +335,13 @@ export function MonthlyPayrollDraftModal({
 
               <button
                 onClick={onClose}
-                className={`px-5 py-2.5 rounded-xl border ${themeBorder} text-xs font-bold ${themeIsDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'} transition-all`}
+                className={`px-5 py-2.5 rounded-xl border ${currentTheme.border} text-xs font-bold ${currentTheme.isDark ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900'} transition-all`}
               >
                 {t.close}
               </button>
             </div>
           </div>
-        </motion.div>
-      </div>
+    </ModalShell>
     </AnimatePresence>
   );
 }

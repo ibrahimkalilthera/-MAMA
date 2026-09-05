@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabaseClient';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { canManageUsers } from './permissions';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -289,7 +290,9 @@ export function useAuth(): AuthState {
     profile,
     loading,
     error,
-    isAdmin: profile?.role === 'admin' || profile?.role === 'dev',
+    // Account ownership lives in the shared role predicates — auth never
+    // re-derives the admin set by hand.
+    isAdmin: canManageUsers(profile?.role ?? null),
     signIn,
     signOut,
     fetchAllProfiles,

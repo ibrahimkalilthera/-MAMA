@@ -138,7 +138,32 @@ export const extractLiterals = (code: string): LiteralOccurrence[] => {
   const ts = typescript;
   const sf = ts.createSourceFile('x.tsx', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const out: LiteralOccurrence[] = [];
+  const pushStrings = (strings: { text: string; pos: number; dark: SurfaceMode }[], start: number) => {
+    const chunks: string[] = [];
+    const darkFlags: SurfaceMode[] = [];
+    for (const s of strings) {
+      // Template quasis: split each literal's text on ${...} boundaries.
+      const parts = s.text.split(/\$\{[^]*?\}/g);
+      for (const part of parts) {
+        chunks.push(part);
+        darkFlags.push(s.dark);
+      }
+    }
+    if (chunks.length) {
+      out.push({ file: '', line: code.slice(0, start).split('\n').length, chunks, darkFlags });
+    }
+  };
   const visit = (node: import('typescript').Node): void => {
+    // Class strings flowing through variables (const/let x = '…') are
+    // invisible to the className-attribute scan — collect them too so the
+    // badge/status maps (e.g. AppModals badgeColors) stay locked.
+    if (ts.isVariableDeclaration(node) && node.initializer) {
+      const strings: { text: string; pos: number; dark: SurfaceMode }[] = [];
+      collectStrings(node.initializer, strings);
+      if (strings.length > 0 && strings.some((s) => /\b(?:text|bg)-[a-z]+-\d|(?:text|bg)-\[#/.test(s.text))) {
+        pushStrings(strings, node.getStart());
+      }
+    }
     const isJsxProp =
       ts.isJsxAttribute(node) && /^(className|class)$/.test(node.name.getText());
     if (isJsxProp) {
@@ -146,19 +171,7 @@ export const extractLiterals = (code: string): LiteralOccurrence[] => {
       if (init) {
         const strings: { text: string; pos: number; dark: SurfaceMode }[] = [];
         collectStrings(init, strings);
-        const chunks: string[] = [];
-        const darkFlags: SurfaceMode[] = [];
-        for (const s of strings) {
-          // Template quasis: split each literal's text on ${...} boundaries.
-          const parts = s.text.split(/\$\{[^]*?\}/g);
-          for (const part of parts) {
-            chunks.push(part);
-            darkFlags.push(s.dark);
-          }
-        }
-        if (chunks.length) {
-          out.push({ file: '', line: code.slice(0, init.getStart()).split('\n').length, chunks, darkFlags });
-        }
+        pushStrings(strings, init.getStart());
       }
     } else if (
       ts.isCallExpression(node) &&
@@ -167,17 +180,7 @@ export const extractLiterals = (code: string): LiteralOccurrence[] => {
     ) {
       const strings: { text: string; pos: number; dark: SurfaceMode }[] = [];
       for (const a of node.arguments) collectStrings(a, strings);
-      const chunks: string[] = [];
-      const darkFlags: SurfaceMode[] = [];
-      for (const s of strings) {
-        for (const part of s.text.split(/\$\{[^]*?\}/g)) {
-          chunks.push(part);
-          darkFlags.push(s.dark);
-        }
-      }
-      if (chunks.length) {
-        out.push({ file: '', line: code.slice(0, node.getStart()).split('\n').length, chunks, darkFlags });
-      }
+      pushStrings(strings, node.getStart());
     }
     ts.forEachChild(node, visit);
   };
@@ -187,8 +190,16 @@ export const extractLiterals = (code: string): LiteralOccurrence[] => {
 
 /* ─── Token extraction ───────────────────────────────────────────────────── */
 
-const TOKEN_RE = /\b(text|bg)-([a-z]+-\d{2,3}(?:\/\d+)?)\b/;
+// Palette tokens (text-emerald-700, bg-slate-50/30) AND arbitrary-value
+// tokens (text-[#1E5E3A], bg-[#0F172A]/50). Arbitrary tokens are normalized
+// to "#hex/alpha" so the resolvers' existing '#' path handles them.
+const TOKEN_RE = /\b(text|bg)-([a-z]+-\d{2,3}(?:\/\d+)?)\b|\b(text|bg)-\[(#[0-9a-fA-F]{3,8})\](?:\/(\d+))?/g;
 const VARIANT_RE = /\b(?:hover|focus|active|group-hover|peer-[a-z]+|dark|print|md|lg|sm|xl):\s*$/;
+
+const toToken = (kind: string, palOrHex: string, alpha?: string): string => {
+  const base = palOrHex.startsWith('#') ? palOrHex.toLowerCase() : palOrHex;
+  return alpha ? `${base}/${alpha}` : base;
+};
 
 export interface TokenHit {
   kind: 'text' | 'bg';
@@ -199,17 +210,20 @@ export interface TokenHit {
 /** Tokens co-occurring in one static chunk (variants stripped out). */
 export const chunkTokens = (chunk: string): TokenHit[] => {
   const hits: TokenHit[] = [];
-  for (const m of chunk.matchAll(new RegExp(TOKEN_RE.source, 'g'))) {
+  for (const m of chunk.matchAll(TOKEN_RE)) {
     const before = chunk.slice(0, m.index ?? 0).trimEnd();
     const lastWord = before.split(/\s+/).pop() ?? '';
     if (VARIANT_RE.test(lastWord)) continue;
-    hits.push({ kind: m[1] as 'text' | 'bg', token: m[2], dark: false });
+    // Group 1/2 = palette form, group 4/5 = arbitrary [#hex] form.
+    const kind = (m[1] || m[3]) as 'text' | 'bg';
+    hits.push({ kind, token: toToken(kind, m[2] ?? m[4], m[5]), dark: false });
   }
   // dark: variants tracked separately (used by the midnight surface scan).
   // BARE dark: only — dark:hover: / dark:focus: are hover/focus states whose
   // bg only exists on interaction and must not pair with resting text.
-  for (const m of chunk.matchAll(/dark:(text|bg)-([a-z]+-\d{2,3}(?:\/\d+)?)\b/g)) {
-    hits.push({ kind: m[1] as 'text' | 'bg', token: m[2], dark: true });
+  for (const m of chunk.matchAll(/dark:(text|bg)-([a-z]+-\d{2,3}(?:\/\d+)?)\b|dark:(text|bg)-\[(#[0-9a-fA-F]{3,8})\](?:\/(\d+))?/g)) {
+    const kind = (m[1] || m[3]) as 'text' | 'bg';
+    hits.push({ kind, token: toToken(kind, m[2] ?? m[4], m[5]), dark: true });
   }
   return hits;
 };
@@ -394,12 +408,13 @@ export const CARD: Record<LightTheme, string> = {
   bordeaux: '#ffffff',
 };
 
-/** Resolve a token (or '#hex') to its final color under a light theme. */
+/** Resolve a token (or '#hex[/alpha]') to its final color under a light theme. */
 export const resolve = (theme: LightTheme, kind: 'text' | 'bg', token: string): string => {
-  if (token.startsWith('#')) return token.toLowerCase();
-  const overridden = (kind === 'text' ? textOverrides : bgOverrides).get(`${theme} ${token}`);
+  const [base] = token.split('/');
+  if (base.startsWith('#')) return base.toLowerCase();
+  const overridden = (kind === 'text' ? textOverrides : bgOverrides).get(`${theme} ${base}`);
   if (overridden) return overridden;
-  return PALETTE[token];
+  return PALETTE[base];
 };
 
 /* ─── Dark-theme model (slate + midnight) ────────────────────────────────── */
@@ -482,7 +497,8 @@ export const resolveDark = (
 ): string | undefined => {
   const [base, alphaStr] = token.split('/');
   const alpha = alphaStr ? parseInt(alphaStr) / 100 : 1;
-  const pal = PALETTE[base];
+  // Arbitrary-value tokens (bg-[#hex]) resolve straight from the hex.
+  const pal = base.startsWith('#') ? base.toLowerCase() : PALETTE[base];
   if (theme === 'slate') {
     const map = kind === 'text' ? slateTextRemap : slateBgRemap;
     // An EXACT token remap (e.g. bg-emerald-500/10, text-rose-600/80) already

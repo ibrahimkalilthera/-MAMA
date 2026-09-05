@@ -120,6 +120,8 @@ function baseDeps(overrides: {
     setAuditYear: (year) => { spies.auditYears.push(year as string | null); },
     setShowAuditModal: (open) => { spies.auditModalOpen.push(open as boolean); },
     showToast: () => { spies.toasts += 1; },
+    // Validation/guard messages go through the toast system now (no native alert).
+    toastError: (msg: string) => { spies.alerts.push(msg); },
   };
   return { args, spies };
 }

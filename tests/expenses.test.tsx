@@ -64,8 +64,6 @@ interface Spies {
 interface DepsOverrides {
   selectedYear?: string;
   lockedYears?: string[];
-  isPromoter?: boolean;
-  isGeneralManager?: boolean;
   currentUser?: User | null;
   deleteResults?: boolean[];
 }
@@ -88,8 +86,6 @@ function baseDeps(overrides: DepsOverrides = {}): {
     lang: 'fr' as const,
     selectedYear: overrides.selectedYear ?? '2026-2027',
     lockedYears: overrides.lockedYears ?? [],
-    isPromoter: overrides.isPromoter ?? true,
-    isGeneralManager: overrides.isGeneralManager ?? false,
     currentUser: overrides.currentUser !== undefined ? overrides.currentUser : promoter,
     addExpense: async (exp: Omit<Expense, 'id'>) => {
       spies.addExpenseCalls.push(exp);
@@ -108,6 +104,8 @@ function baseDeps(overrides: DepsOverrides = {}): {
       return spies.deleteResults[spies.deleteVendorCalls.length - 1] ?? true;
     },
     showToast: () => { spies.toasts += 1; },
+    // Validation/guard messages go through the toast system now (no native alert).
+    toastError: (msg: string) => { spies.alerts.push(msg); },
   };
   return { args: args as Parameters<typeof useExpenses>[0], spies };
 }
@@ -187,7 +185,7 @@ describe('useExpenses.handleVendorExpenseSubmit', () => {
   it('gates creation to finance admins: staff is alerted, GM passes', async () => {
     // staff blocked
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false, currentUser: staffUser });
+      const { args, spies } = baseDeps({ currentUser: staffUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => {
@@ -203,7 +201,7 @@ describe('useExpenses.handleVendorExpenseSubmit', () => {
     }
     // general manager passes
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: true, currentUser: gmUser });
+      const { args, spies } = baseDeps({ currentUser: gmUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => {
@@ -227,7 +225,7 @@ describe('useExpenses.handleVendorExpenseSubmit', () => {
   });
 
   it('lets the promoter set amount and vendorName on create', async () => {
-    const { args, spies } = baseDeps({ isPromoter: true, isGeneralManager: false });
+    const { args, spies } = baseDeps({});
     const { ref, root, restoreAlert } = await setup(args, spies.alerts);
     try {
       await act(async () => {
@@ -301,7 +299,7 @@ describe('useExpenses.handleVendorExpenseSubmit', () => {
   });
 
   it('keeps the existing amount and vendorName when a non-promoter finance admin edits a record', async () => {
-    const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: true, currentUser: gmUser });
+    const { args, spies } = baseDeps({ currentUser: gmUser });
     const { ref, root, restoreAlert } = await setup(args, spies.alerts);
     try {
       await act(async () => { ref.current!.handleEditVendorExpense(vendor); });
@@ -346,7 +344,7 @@ describe('useExpenses.handleDeleteVendorExpense', () => {
     }
     // non-finance role
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false });
+      const { args, spies } = baseDeps({ currentUser: staffUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => { await ref.current!.handleDeleteVendorExpense('v1'); });
@@ -359,7 +357,7 @@ describe('useExpenses.handleDeleteVendorExpense', () => {
     }
     // GM deletes and toasts
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: true });
+      const { args, spies } = baseDeps({ currentUser: gmUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => { await ref.current!.handleDeleteVendorExpense('v1'); });

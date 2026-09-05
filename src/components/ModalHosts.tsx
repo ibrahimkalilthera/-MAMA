@@ -9,6 +9,7 @@
 
 import { Suspense, lazy } from 'react';
 import type { Language, Staff, SalaryPayment } from '../app/types';
+import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ImportCategory } from '../lib/excelImporter';
 import type { ImportOptions } from './ExcelImportModal';
@@ -89,10 +90,8 @@ export interface MonthlyDraftHostProps {
   onExportExcel: (monthIndex: number, year: number) => void;
   onRecordPayment: (staffId: string, balance: number) => void;
   formatCurrency: (amount: unknown) => string;
-  themeCard: string;
-  themeBorder: string;
-  themeMuted: string;
-  themeIsDark: boolean;
+  /** Theme tokens from the app theme engine. */
+  currentTheme: CurrentTheme;
 }
 
 export const MonthlyDraftHost = ({
@@ -110,10 +109,7 @@ export const MonthlyDraftHost = ({
   onExportExcel,
   onRecordPayment,
   formatCurrency,
-  themeCard,
-  themeBorder,
-  themeMuted,
-  themeIsDark,
+  currentTheme,
 }: MonthlyDraftHostProps) => {
   if (!isOpen) return null;
 
@@ -134,10 +130,7 @@ export const MonthlyDraftHost = ({
         onRecordPayment={onRecordPayment}
         formatCurrency={formatCurrency}
         t={t}
-        themeCard={themeCard}
-        themeBorder={themeBorder}
-        themeMuted={themeMuted}
-        themeIsDark={themeIsDark}
+        currentTheme={currentTheme}
       />
     </Suspense>
   );

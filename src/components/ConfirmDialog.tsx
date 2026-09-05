@@ -1,8 +1,10 @@
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { AlertTriangle, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useFocusTrap } from '../lib/focusStack';
+import type { CurrentTheme } from '../app/mainViewsProps';
+import { ModalShell } from './ModalShell';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -12,7 +14,7 @@ export interface ConfirmDialogProps {
   cancelLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
-  currentTheme: { card: string; border: string; muted: string; isDark: boolean };
+  currentTheme: CurrentTheme;
   /**
    * Mode danger pour les actions irréversibles :
    *  - 'type' : l'utilisateur doit taper `danger.text` pour activer le bouton
@@ -82,20 +84,16 @@ export function ConfirmDialog({
   return (
     <AnimatePresence>
       {open && (
-        <div ref={rootRef} role="dialog" aria-modal="true" aria-label={title} aria-labelledby="modal-title-confirm" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleCancel}
-            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className={`relative w-full max-w-sm ${currentTheme.card} p-6 rounded-3xl border ${currentTheme.border} shadow-2xl space-y-5`}
-          >
+        <ModalShell
+          overlayRef={(el) => { rootRef.current = el as HTMLDivElement | null; }}
+          onClose={handleCancel}
+          currentTheme={currentTheme}
+          titleId="modal-title-confirm"
+          ariaLabel={title}
+          maxWidth="max-w-sm"
+          panelRadius="rounded-3xl"
+          panelClassName="p-6 space-y-5"
+          header={
             <div className="flex items-start gap-4">
               <div className="w-11 h-11 flex-shrink-0 rounded-2xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
                 <AlertTriangle size={20} />
@@ -111,8 +109,9 @@ export function ConfirmDialog({
                 <X size={16} />
               </button>
             </div>
-
-            {isTypeMode && (
+          }
+        >
+          {isTypeMode && (
               <div className="space-y-1.5">
                 <input
                   type="text"
@@ -148,8 +147,7 @@ export function ConfirmDialog({
                 {isArmed ? armedLabel : confirmLabel}
               </button>
             </div>
-          </motion.div>
-        </div>
+        </ModalShell>
       )}
     </AnimatePresence>
   );
