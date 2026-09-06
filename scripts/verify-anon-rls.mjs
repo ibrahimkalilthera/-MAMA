@@ -20,6 +20,11 @@
 //      uniquement à authenticated) ; le reset par email (recover GoTrue)
 //      reste joignable pour anon — le garde-fou ne « réussit » pas en
 //      verrouillant tout l'auth.
+//   8. Session authentifiée (staff) : sign-in GoTrue réel (grant_type
+//      password) → l'utilisateur ne voit que SON profil (jamais celui d'un
+//      autre, table entière limitée à sa ligne), et ne peut pas exécuter la
+//      RPC de mot de passe — preuve par re-sign-in de la cible : l'ancien
+//      mot de passe marche toujours, le « hacké » est refusé.
 //
 // Mode remote (`node scripts/verify-anon-rls.mjs --remote`, base DISTANTE) :
 //   7. probes STRICTEMENT anon — aucun service_role (le script refuse de
@@ -254,9 +259,96 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   });
   check(recover.status < 400, `recover (reset par email) joignable pour anon (${recover.status})`);
 
-  // 14. Nettoyage : suppression de l'utilisateur auth (cascade → user_profiles).
-  const adminDelete = await authApi(`admin/users/${createdUser.id}`, serviceKey, { method: 'DELETE' });
-  check(adminDelete.ok, `nettoyage utilisateur auth (${adminDelete.status})`);
+  // ─── Session authentifiée (staff) : isolation des profils + RPC mot de passe ─
+
+  // 14. Deuxième utilisateur : prouver qu'un utilisateur authentifié ne voit
+  // que SON profil exige au moins 2 lignes en base.
+  const secondEmail = `ci-probe-b-${Date.now()}@example.test`;
+  const adminCreateB = await authApi('admin/users', serviceKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: secondEmail, password: 'probe-pass-123', email_confirm: true }),
+  });
+  const userB = adminCreateB.ok ? await readBody(adminCreateB) : null;
+  check(adminCreateB.ok && userB?.id != null, `création deuxième utilisateur auth (${adminCreateB.status})`);
+  if (!userB?.id) return { ok: false, failures };
+
+  // 15. Session authentifiée RÉELLE : sign-in de A via GoTrue (grant_type
+  // password, clé anon — le même canal que l'app). Le JWT obtenu porte le
+  // rôle authenticated ; le profil de A a le rôle 'staff' (défaut du trigger
+  // handle_new_user).
+  const signInA = await authApi('token?grant_type=password', anonKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: probeEmail, password: 'probe-pass-123' }),
+  });
+  const sessionA = signInA.ok ? await readBody(signInA) : null;
+  check(signInA.ok && !!sessionA?.access_token, `session authentifiée staff obtenue (${signInA.status})`);
+  if (!sessionA?.access_token) return { ok: false, failures };
+
+  const staffApi = (path, init = {}) =>
+    fetchImpl(`${base}/rest/v1/${path}`, {
+      ...init,
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${sessionA.access_token}`,
+        ...(init.headers ?? {}),
+      },
+    });
+
+  // 16. A voit SON profil (1 ligne, la sienne), PAS celui de B (0 ligne) —
+  // policy « Users can view own profile » — et la lecture de la table entière
+  // ne renvoie QUE sa ligne.
+  const ownProfile = await staffApi(`user_profiles?id=eq.${createdUser.id}`);
+  const ownRows = ownProfile.ok ? await readBody(ownProfile) : [];
+  check(ownRows.length === 1 && ownRows[0]?.id === createdUser.id, 'utilisateur authentifié lit son propre profil');
+
+  const otherProfile = await staffApi(`user_profiles?id=eq.${userB.id}`);
+  const otherRows = otherProfile.ok ? await readBody(otherProfile) : [];
+  check(
+    otherRows.length === 0,
+    `profil d'autrui invisible pour un utilisateur staff (${otherProfile.status}, ${Array.isArray(otherRows) ? otherRows.length : 'non-tableau'} ligne(s))`,
+  );
+
+  const allProfiles = await staffApi('user_profiles');
+  const allRows = allProfiles.ok ? await readBody(allProfiles) : [];
+  check(
+    Array.isArray(allRows) && allRows.length === 1 && allRows[0]?.id === createdUser.id,
+    'lecture user_profiles entière limitée à son propre profil',
+  );
+
+  // 17. A (staff) ne peut pas réinitialiser le mot de passe de B : le GRANT
+  // authenticated laisse EXÉCUTER la fonction, c'est le contrôle de rôle DANS
+  // la fonction qui refuse (400). La preuve ne s'arrête pas au statut : on
+  // re-logue B avec l'ancien mot de passe (succès attendu) puis avec le mot
+  // de passe « hacké » (refus attendu) — un appel qui réussirait aurait
+  // VRAIMENT changé le mot de passe de B.
+  const staffRpc = await staffApi('rpc/admin_set_user_password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_user_id: userB.id, new_password: 'hacked-pass-1' }),
+  });
+  check(!staffRpc.ok, `RPC mot de passe refusée pour un staff (${staffRpc.status})`);
+
+  const signInBOriginal = await authApi('token?grant_type=password', anonKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: secondEmail, password: 'probe-pass-123' }),
+  });
+  check(signInBOriginal.ok, 'mot de passe de B inchangé après tentative staff (sign-in original OK)');
+
+  const signInBHacked = await authApi('token?grant_type=password', anonKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: secondEmail, password: 'hacked-pass-1' }),
+  });
+  check(!signInBHacked.ok, 'mot de passe « hacké » refusé pour B');
+
+  // 18. Nettoyage : suppression des deux utilisateurs (cascade → user_profiles).
+  const adminDeleteA = await authApi(`admin/users/${createdUser.id}`, serviceKey, { method: 'DELETE' });
+  check(adminDeleteA.ok, `nettoyage utilisateur A (${adminDeleteA.status})`);
+  const adminDeleteB = await authApi(`admin/users/${userB.id}`, serviceKey, { method: 'DELETE' });
+  check(adminDeleteB.ok, `nettoyage utilisateur B (${adminDeleteB.status})`);
 
   return { ok: failures.length === 0, failures };
 }

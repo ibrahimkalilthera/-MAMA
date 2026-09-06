@@ -34,14 +34,27 @@ interface StubOptions {
   allowAnonRpc?: boolean;
   /** GoTrue recover refuses anon — the app's reset flow would break (breach world). */
   lockRecover?: boolean;
+  /** an authenticated staff user can read every profile (breach world). */
+  seeAllProfiles?: boolean;
+  /** an authenticated staff user's password-RPC call succeeds and really changes the target's password (breach world). */
+  allowStaffRpc?: boolean;
 }
 
 /** Minimal PostgREST + GoTrue twin: students + user_profiles, RLS semantics per world. */
-function stubSupabase({ allowAnonInsert = false, leakAnonReads = false, allowAnonRpc = false, lockRecover = false }: StubOptions = {}) {
+function stubSupabase({
+  allowAnonInsert = false,
+  leakAnonReads = false,
+  allowAnonRpc = false,
+  lockRecover = false,
+  seeAllProfiles = false,
+  allowStaffRpc = false,
+}: StubOptions = {}) {
   const rows: StubRow[] = [{ id: 'stu-seed', name: PROBE_NAME }];
   const profiles: StubProfile[] = [];
-  const users: Array<{ id: string; email: string }> = [];
+  const users: Array<{ id: string; email: string; password: string }> = [];
+  const tokenByUserId: Record<string, string> = {}; // token-1 → premier utilisateur (A)
   let seq = 1;
+  let authSeq = 0;
 
   return async (input: Parameters<typeof fetch>[0], init: RequestInit = {}) => {
     const url = String(input);
@@ -51,6 +64,10 @@ function stubSupabase({ allowAnonInsert = false, leakAnonReads = false, allowAno
     const headers = init.headers as Record<string, string>;
     const isService = headers?.Authorization?.includes('service') ?? false;
     const anon = !isService;
+    const tokenMatch = /Bearer (token-\d+)/.exec(headers?.Authorization ?? '');
+    const authedUserId = tokenMatch
+      ? Object.entries(tokenByUserId).find(([, t]) => t === tokenMatch[1])?.[0]
+      : undefined;
     const body = init.body ? JSON.parse(init.body as string) : {};
 
     const json = (data: unknown, status: number, extra: Record<string, string> = {}) =>
@@ -62,6 +79,13 @@ function stubSupabase({ allowAnonInsert = false, leakAnonReads = false, allowAno
 
     // ─── GoTrue (auth/v1) ────────────────────────────────────────────────────
     if (authPath) {
+      if (authPath === 'token?grant_type=password' && method === 'POST') {
+        const u = users.find((x) => x.email === body.email);
+        if (u && u.password === body.password) {
+          return json({ access_token: tokenByUserId[u.id], user: u }, 200);
+        }
+        return json({ error: 'Invalid login credentials', code: 400 }, 400);
+      }
       if (authPath === 'admin/users' && method === 'GET') {
         // Routes admin : jamais pour anon.
         if (anon) return json({ message: 'not allowed' }, 401);
@@ -69,10 +93,11 @@ function stubSupabase({ allowAnonInsert = false, leakAnonReads = false, allowAno
       }
       if (authPath === 'admin/users' && method === 'POST') {
         if (anon) return json({ message: 'not allowed' }, 401);
-        const user = { id: `auth-${users.length + 1}`, email: body.email };
+        const user = { id: `auth-${users.length + 1}`, email: body.email, password: body.password ?? 'probe-pass-123' };
         users.push(user);
         // handle_new_user trigger : la création auth crée la ligne user_profiles.
         profiles.push({ id: user.id, full_name: 'New User' });
+        tokenByUserId[user.id] = `token-${++authSeq}`;
         return json(user, 201);
       }
       const adminDelete = authPath.match(/^admin\/users\/([\w-]+)$/);
@@ -94,6 +119,13 @@ function stubSupabase({ allowAnonInsert = false, leakAnonReads = false, allowAno
     // ─── user_profiles (REST) ────────────────────────────────────────────────
     const profileIdMatch = restPath!.match(/^user_profiles\?id=eq\.([\w-]+)$/);
     if (method === 'GET' && (profileIdMatch || restPath === 'user_profiles')) {
+      if (authedUserId) {
+        // Policy « view own profile » : l'authentifié ne voit que sa ligne.
+        if (seeAllProfiles) return json(profiles, 200); // fuite (brèche)
+        const row = profileIdMatch ? profiles.find((p) => p.id === profileIdMatch[1]) : undefined;
+        if (profileIdMatch) return json(row && row.id === authedUserId ? [row] : [], 200);
+        return json(profiles.filter((p) => p.id === authedUserId), 200);
+      }
       if (anon && leakAnonReads) return json(profiles, 200);
       if (anon) return json([], 200); // RLS filters everything
       const row = profileIdMatch ? profiles.find((p) => p.id === profileIdMatch[1]) : undefined;
@@ -123,6 +155,17 @@ function stubSupabase({ allowAnonInsert = false, leakAnonReads = false, allowAno
 
     // ─── RPC mot de passe ────────────────────────────────────────────────────
     if (method === 'POST' && restPath === 'rpc/admin_set_user_password') {
+      if (authedUserId) {
+        if (allowStaffRpc) {
+          // Fuite (brèche) : le staff réussit VRAIMENT à changer le mot de passe.
+          const target = users.find((u) => u.id === body.target_user_id);
+          if (target) target.password = body.new_password;
+          return json(true, 200);
+        }
+        // GRANT authenticated : la fonction s'exécute puis lève l'exception
+        // métier (rôle staff) → 400. C'est le comportement sain.
+        return json({ message: 'only admin or dev can set passwords' }, 400);
+      }
       if (anon && allowAnonRpc) {
         // GRANT anon ajouté : la fonction s'exécute puis lève l'exception
         // métier (auth.uid() null) → 400. C'est le signal réaliste d'une fuite.
@@ -223,6 +266,26 @@ describe('verifyAnonRls (garde-fou CI RLS anon)', () => {
     const { ok, failures } = await run({ lockRecover: true });
     assert.equal(ok, false, 'le garde-fou doit échouer si le flux de reset légitime casse');
     assert.ok(failures.some((f) => f.includes('recover (reset par email) joignable pour anon')), failures.join(' | '));
+  });
+
+  it('refuse le monde sain quand un staff peut lire le profil des autres', async () => {
+    const { ok, failures } = await run({ seeAllProfiles: true });
+    assert.equal(ok, false, 'le garde-fou doit échouer si un staff lit les profils des autres');
+    assert.ok(
+      failures.some((f) => f.includes("profil d'autrui invisible") || f.includes('lecture user_profiles entière')),
+      failures.join(' | '),
+    );
+  });
+
+  it('refuse le monde sain quand un staff peut réinitialiser un mot de passe', async () => {
+    const { ok, failures } = await run({ allowStaffRpc: true });
+    assert.equal(ok, false, 'le garde-fou doit échouer si un staff change un mot de passe');
+    assert.ok(
+      failures.some(
+        (f) => f.includes('RPC mot de passe refusée pour un staff') || f.includes('mot de passe « hacké » refusé'),
+      ),
+      failures.join(' | '),
+    );
   });
 });
 
