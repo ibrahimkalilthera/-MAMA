@@ -52,7 +52,7 @@ jobs:
     # l'application des migrations se terminer même sur un runner partagé lent.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Pinné sur la version éprouvée localement (mêmes migrations en local
       # et en CI) ; version bump volontaire et explicite.
