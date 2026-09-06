@@ -23,6 +23,7 @@ interface StubRow {
 interface StubProfile {
   id: string;
   full_name: string;
+  role: string;
 }
 
 interface StubOptions {
@@ -38,6 +39,10 @@ interface StubOptions {
   seeAllProfiles?: boolean;
   /** an authenticated staff user's password-RPC call succeeds and really changes the target's password (breach world). */
   allowStaffRpc?: boolean;
+  /** admins can no longer read other profiles — the app's settings screen would break (breach world). */
+  lockAdminReads?: boolean;
+  /** admins can no longer reset passwords — the app's reset flow would break (breach world). */
+  lockAdminRpc?: boolean;
 }
 
 /** Minimal PostgREST + GoTrue twin: students + user_profiles, RLS semantics per world. */
@@ -48,6 +53,8 @@ function stubSupabase({
   lockRecover = false,
   seeAllProfiles = false,
   allowStaffRpc = false,
+  lockAdminReads = false,
+  lockAdminRpc = false,
 }: StubOptions = {}) {
   const rows: StubRow[] = [{ id: 'stu-seed', name: PROBE_NAME }];
   const profiles: StubProfile[] = [];
@@ -96,7 +103,7 @@ function stubSupabase({
         const user = { id: `auth-${users.length + 1}`, email: body.email, password: body.password ?? 'probe-pass-123' };
         users.push(user);
         // handle_new_user trigger : la création auth crée la ligne user_profiles.
-        profiles.push({ id: user.id, full_name: 'New User' });
+        profiles.push({ id: user.id, full_name: 'New User', role: 'staff' });
         tokenByUserId[user.id] = `token-${++authSeq}`;
         return json(user, 201);
       }
@@ -120,6 +127,13 @@ function stubSupabase({
     const profileIdMatch = restPath!.match(/^user_profiles\?id=eq\.([\w-]+)$/);
     if (method === 'GET' && (profileIdMatch || restPath === 'user_profiles')) {
       if (authedUserId) {
+        const caller = profiles.find((p) => p.id === authedUserId);
+        const isAdmin = caller?.role === 'admin' || caller?.role === 'dev';
+        if (isAdmin && lockAdminReads) return json([], 200); // sur-verrouillage (brèche)
+        if (isAdmin) {
+          const row = profileIdMatch ? profiles.find((p) => p.id === profileIdMatch[1]) : undefined;
+          return json(profileIdMatch ? (row ? [row] : []) : profiles, 200);
+        }
         // Policy « view own profile » : l'authentifié ne voit que sa ligne.
         if (seeAllProfiles) return json(profiles, 200); // fuite (brèche)
         const row = profileIdMatch ? profiles.find((p) => p.id === profileIdMatch[1]) : undefined;
@@ -133,17 +147,20 @@ function stubSupabase({
     }
     if (method === 'POST' && restPath === 'user_profiles') {
       if (anon && allowAnonInsert) {
-        profiles.push({ id: `prof-${seq++}`, full_name: body.full_name ?? 'New User' });
+        profiles.push({ id: `prof-${seq++}`, full_name: body.full_name ?? 'New User', role: 'staff' });
         return json(profiles.slice(-1), 201);
       }
       if (anon) return json({ message: 'new row violates row-level security policy' }, 403);
-      profiles.push({ id: `prof-${seq++}`, full_name: body.full_name ?? 'New User' });
+      profiles.push({ id: `prof-${seq++}`, full_name: body.full_name ?? 'New User', role: 'staff' });
       return json(profiles.slice(-1), 201);
     }
     if (method === 'PATCH' && profileIdMatch) {
       if (anon) return json([], 204); // RLS matches 0 rows: empty success
       const row = profiles.find((p) => p.id === profileIdMatch[1]);
-      if (row) row.full_name = body.full_name ?? row.full_name;
+      if (row) {
+        row.full_name = body.full_name ?? row.full_name;
+        if (body.role) row.role = body.role; // promotion via service_role
+      }
       return json(row ? [row] : [], 200);
     }
     if (method === 'DELETE' && profileIdMatch) {
@@ -156,6 +173,18 @@ function stubSupabase({
     // ─── RPC mot de passe ────────────────────────────────────────────────────
     if (method === 'POST' && restPath === 'rpc/admin_set_user_password') {
       if (authedUserId) {
+        const caller = profiles.find((p) => p.id === authedUserId);
+        const isAdmin = caller?.role === 'admin' || caller?.role === 'dev';
+        if (isAdmin && lockAdminRpc) {
+          // Sur-verrouillage (brèche) : la RPC refuse aussi les admins.
+          return json({ message: 'only admin or dev can set passwords' }, 400);
+        }
+        if (isAdmin) {
+          // Contrôle positif : l'admin change VRAIMENT le mot de passe.
+          const target = users.find((u) => u.id === body.target_user_id);
+          if (target) target.password = body.new_password;
+          return json(true, 200);
+        }
         if (allowStaffRpc) {
           // Fuite (brèche) : le staff réussit VRAIMENT à changer le mot de passe.
           const target = users.find((u) => u.id === body.target_user_id);
@@ -283,6 +312,26 @@ describe('verifyAnonRls (garde-fou CI RLS anon)', () => {
     assert.ok(
       failures.some(
         (f) => f.includes('RPC mot de passe refusée pour un staff') || f.includes('mot de passe « hacké » refusé'),
+      ),
+      failures.join(' | '),
+    );
+  });
+
+  it('refuse le monde sain quand l\'admin ne peut plus lire les profils (fonctionnalité Paramètres cassée)', async () => {
+    const { ok, failures } = await run({ lockAdminReads: true });
+    assert.equal(ok, false, 'le garde-fou doit échouer si l\'admin ne lit plus les profils');
+    assert.ok(
+      failures.some((f) => f.includes('admin lit tous les profils') || f.includes("admin lit le profil d'un autre")),
+      failures.join(' | '),
+    );
+  });
+
+  it('refuse le monde sain quand l\'admin ne peut plus réinitialiser un mot de passe (reset cassé)', async () => {
+    const { ok, failures } = await run({ lockAdminRpc: true });
+    assert.equal(ok, false, 'le garde-fou doit échouer si l\'admin ne peut plus changer un mot de passe');
+    assert.ok(
+      failures.some(
+        (f) => f.includes('RPC mot de passe réussie pour un admin') || f.includes('réellement changé par l\'admin'),
       ),
       failures.join(' | '),
     );

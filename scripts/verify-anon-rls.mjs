@@ -25,6 +25,11 @@
 //      autre, table entière limitée à sa ligne), et ne peut pas exécuter la
 //      RPC de mot de passe — preuve par re-sign-in de la cible : l'ancien
 //      mot de passe marche toujours, le « hacké » est refusé.
+//   9. Contrôle positif (admin) : un troisième utilisateur promu 'admin' en
+//      base DOIT lire tous les profils (policy is_admin()) et DOIT réussir à
+//      réinitialiser un mot de passe (RPC → 200, re-sign-in de la cible avec
+//      le nouveau mot de passe). Sans lui, un probe cassé « réussirait » sur
+//      des refus vides.
 //
 // Mode remote (`node scripts/verify-anon-rls.mjs --remote`, base DISTANTE) :
 //   7. probes STRICTEMENT anon — aucun service_role (le script refuse de
@@ -344,11 +349,94 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   });
   check(!signInBHacked.ok, 'mot de passe « hacké » refusé pour B');
 
-  // 18. Nettoyage : suppression des deux utilisateurs (cascade → user_profiles).
+  // ─── Contrôle positif : un admin PEUT lire et réinitialiser ────────────────
+  // Sans ce contrôle, un probe cassé (sign-in, JWT, canal de test) « réussirait »
+  // sur des refus vides : tout le monde serait refusé, y compris les droits
+  // légitimes. L'admin doit POUVOIR lire les profils (policy is_admin()) et
+  // réinitialiser un mot de passe (RPC) — c'est la fonctionnalité Paramètres.
+
+  // 18. Créer un utilisateur C puis promouvoir son profil en 'admin' (via
+  // service_role — la RLS est contournée, mais le rôle est posé en base).
+  const adminEmail = `ci-probe-admin-${Date.now()}@example.test`;
+  const adminCreateC = await authApi('admin/users', serviceKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: adminEmail, password: 'probe-pass-123', email_confirm: true }),
+  });
+  const userC = adminCreateC.ok ? await readBody(adminCreateC) : null;
+  check(adminCreateC.ok && userC?.id != null, `création utilisateur admin (${adminCreateC.status})`);
+  if (!userC?.id) return { ok: false, failures };
+
+  const promote = await api(`user_profiles?id=eq.${userC.id}`, serviceKey, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Prefer: REP },
+    body: JSON.stringify({ role: 'admin' }),
+  });
+  check(promote.ok, `promotion du profil de C en admin (${promote.status})`);
+
+  const signInC = await authApi('token?grant_type=password', anonKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: adminEmail, password: 'probe-pass-123' }),
+  });
+  const sessionC = signInC.ok ? await readBody(signInC) : null;
+  check(signInC.ok && !!sessionC?.access_token, `session authentifiée admin obtenue (${signInC.status})`);
+  if (!sessionC?.access_token) return { ok: false, failures };
+
+  const adminApi = (path, init = {}) =>
+    fetchImpl(`${base}/rest/v1/${path}`, {
+      ...init,
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${sessionC.access_token}`,
+        ...(init.headers ?? {}),
+      },
+    });
+
+  // 19. L'admin lit TOUS les profils (policy « … OR is_admin() ») : les 3
+  // lignes (A, B, C) et celle de B en particulier — sans cette capacité,
+  // l'écran Paramètres de l'app serait cassé.
+  const allAdmin = await adminApi('user_profiles');
+  const allAdminRows = allAdmin.ok ? await readBody(allAdmin) : [];
+  check(
+    Array.isArray(allAdminRows) &&
+      allAdminRows.length >= 3 &&
+      allAdminRows.some((r) => r.id === createdUser.id) &&
+      allAdminRows.some((r) => r.id === userB.id),
+    `admin lit tous les profils (${Array.isArray(allAdminRows) ? allAdminRows.length : 'non-tableau'} ligne(s))`,
+  );
+
+  const otherAdmin = await adminApi(`user_profiles?id=eq.${userB.id}`);
+  const otherAdminRows = otherAdmin.ok ? await readBody(otherAdmin) : [];
+  check(
+    otherAdminRows.length === 1 && otherAdminRows[0]?.id === userB.id,
+    `admin lit le profil d'un autre utilisateur (${otherAdmin.status}, ${Array.isArray(otherAdminRows) ? otherAdminRows.length : 'non-tableau'} ligne(s))`,
+  );
+
+  // 20. L'admin PEUT réinitialiser le mot de passe de B : RPC → 200, puis
+  // re-sign-in de B avec le nouveau mot de passe → succès. La preuve est
+  // réelle : le mot de passe de B a VRAIMENT changé.
+  const adminRpc = await adminApi('rpc/admin_set_user_password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_user_id: userB.id, new_password: 'admin-reset-123' }),
+  });
+  check(adminRpc.ok, `RPC mot de passe réussie pour un admin (${adminRpc.status})`);
+
+  const signInBReset = await authApi('token?grant_type=password', anonKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: secondEmail, password: 'admin-reset-123' }),
+  });
+  check(signInBReset.ok, 'mot de passe de B réellement changé par l\'admin (sign-in nouveau mot de passe OK)');
+
+  // 21. Nettoyage : suppression des trois utilisateurs (cascade → user_profiles).
   const adminDeleteA = await authApi(`admin/users/${createdUser.id}`, serviceKey, { method: 'DELETE' });
   check(adminDeleteA.ok, `nettoyage utilisateur A (${adminDeleteA.status})`);
   const adminDeleteB = await authApi(`admin/users/${userB.id}`, serviceKey, { method: 'DELETE' });
   check(adminDeleteB.ok, `nettoyage utilisateur B (${adminDeleteB.status})`);
+  const adminDeleteC = await authApi(`admin/users/${userC.id}`, serviceKey, { method: 'DELETE' });
+  check(adminDeleteC.ok, `nettoyage utilisateur C (${adminDeleteC.status})`);
 
   return { ok: failures.length === 0, failures };
 }
