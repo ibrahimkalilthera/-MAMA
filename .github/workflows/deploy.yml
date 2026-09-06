@@ -137,7 +137,7 @@ jobs:
             }
             console.log(`Migrations workflow green (run #${run.id} on ${run.head_sha}) — deploying.`);
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
