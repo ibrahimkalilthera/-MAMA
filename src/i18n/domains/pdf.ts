@@ -193,6 +193,15 @@ export const en = {
     pdfFicheNetPaid: "Net salary paid",
     pdfFicheCachet: "SCHOOL STAMP:",
     pdfFichePaymentDate: "PAYMENT DATE:",
+    pdfFicheHistoryTitle: "SALARY PAYMENT HISTORY",
+    pdfFicheSchoolYear: "School year",
+    pdfFicheHistoryPaidCount: "Months paid",
+    pdfFicheHistoryRemaining: "Remaining",
+    pdfFicheHistoryPaid: "Paid",
+    pdfFicheHistoryPartial: "Partial",
+    pdfFicheHistoryCurrent: "Current month",
+    pdfFicheHistoryUnpaid: "Unpaid",
+    pdfFicheHistoryFuture: "Upcoming",
 };
 
 export const fr = {
@@ -384,4 +393,13 @@ export const fr = {
     pdfFicheNetPaid: "Salaire net payé",
     pdfFicheCachet: "CACHET DE LA DIRECTION :",
     pdfFichePaymentDate: "DATE DE PAIEMENT :",
+    pdfFicheHistoryTitle: "HISTORIQUE DES PAIEMENTS DE SALAIRE",
+    pdfFicheSchoolYear: "Année scolaire",
+    pdfFicheHistoryPaidCount: "Mois payés",
+    pdfFicheHistoryRemaining: "Restants",
+    pdfFicheHistoryPaid: "Payé",
+    pdfFicheHistoryPartial: "Partiel",
+    pdfFicheHistoryCurrent: "Mois en cours",
+    pdfFicheHistoryUnpaid: "Impayé",
+    pdfFicheHistoryFuture: "À venir",
 };

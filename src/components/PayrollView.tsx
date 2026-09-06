@@ -5,12 +5,14 @@ import type { StaffPositionFilter } from '../app/mainViewsProps';
 import type { Staff } from '../lib/useSupabaseData';
 import { sameYearMonth } from '../lib/dateWindows';
 import { isPayrollWindowOverdue } from '../lib/payrollWindow';
+import { payrollGridCellStatus } from '../lib/payrollGrid';
 import { ConfirmDialog } from './ConfirmDialog';
 import { isAdminPosition } from '../lib/adminPositions';
 
 /** School-year month sequence: September → August (12 cells). */
 const SCHOOL_YEAR_MONTH_KEYS = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'];
 const SCHOOL_YEAR_MONTH_INDEXES = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7];
+
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
@@ -87,6 +89,7 @@ export function PayrollView() {
                     const monthIndex = SCHOOL_YEAR_MONTH_INDEXES[index]!;
                     const cellYear = index < 4 ? startYear : startYear + 1;
                     const isFuture = cellYear > nowYear || (cellYear === nowYear && monthIndex > nowMonth);
+                    const isCurrentCell = cellYear === nowYear && monthIndex === nowMonth;
                     const monthName = (t as Record<string, string>)[monthKey];
 
                     // Payroll status for this school-year cell
@@ -97,16 +100,19 @@ export function PayrollView() {
                     const totalPaid = monthPayments.reduce((sum, p) => sum + p.amount, 0);
                     const totalExpected = staff.reduce((sum, s) => sum + s.salary, 0);
 
+                  const cellStatus = payrollGridCellStatus({ isFuture, isCurrentCell, totalPaid, totalExpected, now });
+
                   let boxClass = "";
                   let statusText = "";
-                  
-                  if (isFuture) {
+                  if (cellStatus === 'scheduled' || cellStatus === 'open') {
+                    // Future month, or current month while the window is still
+                    // open (1st–10th): neutral — not late yet.
                     boxClass = `${currentTheme.isDark ? 'bg-emerald-950/10 border-emerald-950/20 text-emerald-500/80' : 'bg-slate-50 border-slate-100 text-slate-500'}`;
-                    statusText = t.scheduled;
-                  } else if (totalPaid === 0) {
+                    statusText = cellStatus === 'open' ? t.open : t.scheduled;
+                  } else if (cellStatus === 'unpaid') {
                     boxClass = "bg-rose-500 text-white border-rose-600 animate-pulse shadow-lg shadow-rose-500/20";
                     statusText = t.unpaid;
-                  } else if (totalPaid >= totalExpected) {
+                  } else if (cellStatus === 'settle') {
                     boxClass = "bg-emerald-600 text-white border-emerald-700 shadow-lg shadow-emerald-600/20";
                     statusText = t.settle;
                   } else {

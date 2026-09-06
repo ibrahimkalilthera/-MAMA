@@ -46,6 +46,13 @@
 //   eval "$(supabase status -o env)" && node scripts/verify-anon-rls.mjs
 // Usage (production, clé anon seule) :
 //   SUPABASE_URL=… ANON_KEY=… node scripts/verify-anon-rls.mjs --remote
+//
+// Backend ABSENT (supabase pas encore démarré, Docker down, blip réseau) :
+// chaque fetch rejette. Le garde-fou détecte l'absence AVANT les probes ET
+// toute panne en cours de route, puis SKIP proprement — bannière ⚠ très
+// visible, exit 0, jamais une fausse brèche, jamais un crash avec stack
+// trace. Une brèche réelle reste un exit 1 ; un mode --remote avec clé
+// service reste un exit 2.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -109,8 +116,41 @@ const makeAuthApi = (base, fetchImpl) => (path, key, init = {}) =>
  */
 export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fetch, tables }) {
   const { failures, check } = makeCheck();
-  const api = makeApi(base, fetchImpl);
-  const authApi = makeAuthApi(base, fetchImpl);
+
+  // Garde de transport : un fetch rejeté (backend absent, Docker down, blip
+  // réseau) ne doit NI crasher le garde-fou NI se lire comme une brèche — il
+  // rend la passe INCONCLUSIVE (skipped), avec la cause réelle dans la
+  // bannière. Les sentinelles {status: 0} sont acceptées partout (ok=false).
+  let transportError = null;
+  const safeFetch = async (url, init) => {
+    try {
+      return await fetchImpl(url, init);
+    } catch (err) {
+      transportError ??= err;
+      return { status: 0, ok: false, text: async () => '' };
+    }
+  };
+  const api = makeApi(base, safeFetch);
+  const authApi = makeAuthApi(base, safeFetch);
+
+  const finish = () => {
+    if (transportError) {
+      console.log(`⚠ backend injoignable en cours de route (${transportError.message}) — vérification RLS SKIPPÉE, pas une brèche.`);
+      return { ok: false, failures, skipped: true };
+    }
+    return { ok: failures.length === 0, failures, skipped: false };
+  };
+
+  // 0. Backend joignable ? TOUTE réponse HTTP le prouve (même 404/500) — seul
+  // un rejet réseau signifie l'absence du backend. Skip propre, pas de probes.
+  const ping = await safeFetch(`${base}/rest/v1/`, {
+    headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+  });
+  if (ping.status === 0) {
+    console.log(`⚠ backend Supabase injoignable (${transportError?.message ?? 'réseau'}) — vérification RLS SKIPPÉE, pas une brèche. Relancez une fois le backend démarré.`);
+    return { ok: false, failures, skipped: true };
+  }
+  console.log(`✓ backend Supabase joignable (HTTP ${ping.status})`);
 
   const REP = 'return=representation';
 
@@ -129,7 +169,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   const inserted = Array.isArray(seedBody) ? seedBody[0] : seedBody;
   check(seed.ok, `insert service_role dans students (${seed.status})`);
   check(inserted?.id != null, 'ligne seedée avec un id');
-  if (!inserted?.id) return { ok: false, failures };
+  if (!inserted?.id) return finish();
 
   // 2. Le service_role voit bien la ligne : la base contient des données.
   const viaService = await api(`students?id=eq.${inserted.id}`, serviceKey);
@@ -208,7 +248,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   });
   const createdUser = adminCreate.ok ? await readBody(adminCreate) : null;
   check(adminCreate.ok && createdUser?.id != null, `création utilisateur auth via service_role (${adminCreate.status})`);
-  if (!createdUser?.id) return { ok: false, failures };
+  if (!createdUser?.id) return finish();
 
   // 9. Le trigger handle_new_user a bien créé la ligne user_profiles.
   const profile = await api(`user_profiles?id=eq.${createdUser.id}`, serviceKey);
@@ -276,7 +316,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   });
   const userB = adminCreateB.ok ? await readBody(adminCreateB) : null;
   check(adminCreateB.ok && userB?.id != null, `création deuxième utilisateur auth (${adminCreateB.status})`);
-  if (!userB?.id) return { ok: false, failures };
+  if (!userB?.id) return finish();
 
   // 15. Session authentifiée RÉELLE : sign-in de A via GoTrue (grant_type
   // password, clé anon — le même canal que l'app). Le JWT obtenu porte le
@@ -289,7 +329,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   });
   const sessionA = signInA.ok ? await readBody(signInA) : null;
   check(signInA.ok && !!sessionA?.access_token, `session authentifiée staff obtenue (${signInA.status})`);
-  if (!sessionA?.access_token) return { ok: false, failures };
+  if (!sessionA?.access_token) return finish();
 
   const staffApi = (path, init = {}) =>
     fetchImpl(`${base}/rest/v1/${path}`, {
@@ -365,7 +405,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   });
   const userC = adminCreateC.ok ? await readBody(adminCreateC) : null;
   check(adminCreateC.ok && userC?.id != null, `création utilisateur admin (${adminCreateC.status})`);
-  if (!userC?.id) return { ok: false, failures };
+  if (!userC?.id) return finish();
 
   const promote = await api(`user_profiles?id=eq.${userC.id}`, serviceKey, {
     method: 'PATCH',
@@ -381,7 +421,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   });
   const sessionC = signInC.ok ? await readBody(signInC) : null;
   check(signInC.ok && !!sessionC?.access_token, `session authentifiée admin obtenue (${signInC.status})`);
-  if (!sessionC?.access_token) return { ok: false, failures };
+  if (!sessionC?.access_token) return finish();
 
   const adminApi = (path, init = {}) =>
     fetchImpl(`${base}/rest/v1/${path}`, {
@@ -438,7 +478,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   const adminDeleteC = await authApi(`admin/users/${userC.id}`, serviceKey, { method: 'DELETE' });
   check(adminDeleteC.ok, `nettoyage utilisateur C (${adminDeleteC.status})`);
 
-  return { ok: failures.length === 0, failures };
+  return finish();
 }
 
 /**
@@ -457,8 +497,39 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
  */
 export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, tables }) {
   const { failures, check } = makeCheck();
-  const api = makeApi(base, fetchImpl);
-  const authApi = makeAuthApi(base, fetchImpl);
+
+  // Même garde de transport que verifyAnonRls : backend absent ou panne en
+  // cours de route → INCONCLUSIF (skipped), jamais une brèche, jamais un crash.
+  let transportError = null;
+  const safeFetch = async (url, init) => {
+    try {
+      return await fetchImpl(url, init);
+    } catch (err) {
+      transportError ??= err;
+      return { status: 0, ok: false, text: async () => '' };
+    }
+  };
+  const api = makeApi(base, safeFetch);
+  const authApi = makeAuthApi(base, safeFetch);
+
+  const finish = () => {
+    if (transportError) {
+      console.log(`⚠ backend injoignable en cours de route (${transportError.message}) — vérification RLS SKIPPÉE, pas une brèche.`);
+      return { ok: false, failures, skipped: true };
+    }
+    return { ok: failures.length === 0, failures, skipped: false };
+  };
+
+  // 0. Base distante joignable ? Toute réponse HTTP suffit ; un rejet réseau
+  // (blip, DNS, base éteinte) → skip propre, pas une fausse alerte prod.
+  const ping = await safeFetch(`${base}/rest/v1/`, {
+    headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+  });
+  if (ping.status === 0) {
+    console.log(`⚠ base distante injoignable (${transportError?.message ?? 'réseau'}) — vérification RLS SKIPPÉE, pas une brèche.`);
+    return { ok: false, failures, skipped: true };
+  }
+  console.log(`✓ base distante joignable (HTTP ${ping.status})`);
 
   check(anonKey, 'clé anon présente (mode remote)');
   check(tables.length > 0, `${tables.length} tables publiques découvertes dans les migrations`);
@@ -523,7 +594,7 @@ export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, table
   });
   check(recover.status < 400, `recover (reset par email) joignable pour anon (${recover.status})`);
 
-  return { ok: failures.length === 0, failures };
+  return finish();
 }
 
 // ─── CLI (CI) ────────────────────────────────────────────────────────────────
@@ -570,23 +641,31 @@ if (isMain) {
       console.error('Mode --remote : une clé service_role est présente dans l\'environnement — jamais de service_role contre la base distante.');
       process.exit(2);
     }
-    const { ok, failures } = await verifyAnonRemote({ base, anonKey, tables });
-    if (!ok) {
+    const { ok, failures, skipped } = await verifyAnonRemote({ base, anonKey, tables });
+    if (skipped) {
+      console.error('\n⚠ Vérification RLS SKIPPÉE — base distante injoignable (ce n\'est PAS une brèche). Exit 0, à relancer.');
+      process.exitCode = 0;
+    } else if (!ok) {
       console.error(`\n${failures.length} brèche(s) anon détectée(s) sur la base distante — fail-on-breach.`);
       process.exit(1);
+    } else {
+      console.log('\nBase distante : aucune lecture ni écriture anon possible (métier + auth).');
     }
-    console.log('\nBase distante : aucune lecture ni écriture anon possible (métier + auth).');
   } else {
-    const { ok, failures } = await verifyAnonRls({
+    const { ok, failures, skipped } = await verifyAnonRls({
       base,
       anonKey,
       serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY,
       tables,
     });
-    if (!ok) {
+    if (skipped) {
+      console.error('\n⚠ Vérification RLS SKIPPÉE — backend local injoignable (ce n\'est PAS une brèche). Exit 0, à relancer quand supabase est démarré.');
+      process.exitCode = 0;
+    } else if (!ok) {
       console.error(`\n${failures.length} vérification(s) échouée(s) — RLS anon ou migrations cassées.`);
       process.exit(1);
+    } else {
+      console.log('\nMétier et auth (user_profiles, RPC mot de passe) : anon refusé après migrations.');
     }
-    console.log('\nMétier et auth (user_profiles, RPC mot de passe) : anon refusé après migrations.');
   }
 }

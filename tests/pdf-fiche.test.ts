@@ -20,7 +20,7 @@
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { translations } from '../src/i18n/translations';
-import type { Staff } from '../src/lib/useSupabaseData';
+import type { Staff, SalaryPayment } from '../src/lib/useSupabaseData';
 
 // ── module mocks (registered BEFORE importing the module under test) ────────
 
@@ -45,6 +45,8 @@ class FakeJsPDF {
   polygon() {}
   saveGraphicsState() {}
   restoreGraphicsState() {}
+  clip() {}
+  discardPath() {}
   translate() {}
   rotate() {}
   addImage(...args: unknown[]) {
@@ -89,6 +91,19 @@ function reset(): void {
   pdfSaves.length = 0;
   pdfImages.length = 0;
   stampCalls.length = 0;
+}
+
+/** Full-salary payment dated `monthsBack` months before `now` (day 5). */
+function payment(now: Date, monthsBack: number, amount = employee.salary): SalaryPayment {
+  const d = new Date(now.getFullYear(), now.getMonth() - monthsBack, 5);
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-05`;
+  return { id: `p${monthsBack}`, staffId: employee.id, amount, date };
+}
+
+/** Elapsed school-year months (Sep → 1 … Aug → 12), same rule as the fiche. */
+function elapsedSchoolYearMonths(now: Date): number {
+  const m = now.getMonth();
+  return (m >= 8 ? m - 8 : m + 4) + 1;
 }
 
 /** Flattens every drawn text (single strings and multi-line arrays) + normalizes
@@ -161,7 +176,7 @@ describe('generateEmployeeFichePdf — fiche individuelle de paiement de salaire
     assert.ok(stamp.cy + stamp.diameterMm / 2 <= 289, 'the stamp stays inside the A4 page');
   });
 
-  it('embeds the school logo in the emblem AND the watermark seal box', async () => {
+  it('embeds the school logo in the emblem AND the watermark seal box — both at a contained size', async () => {
     reset();
     const logo = 'data:image/png;base64,AAAA';
     await generateEmployeeFichePdf({ staffMember: employee, lang: 'fr', schoolLogo: logo });
@@ -170,6 +185,12 @@ describe('generateEmployeeFichePdf — fiche individuelle de paiement de salaire
     for (const args of pdfImages) {
       assert.equal(args[0], logo, 'the uploaded logo data URL is embedded');
     }
+    // Watermark (second draw): 30 mm square centered inside the 86×34 seal box
+    // at (112, 254) — it must never cross the dashed border.
+    const watermark = pdfImages[1] as unknown[];
+    const [wx, wy, ww, wh] = [watermark[2], watermark[3], watermark[4], watermark[5]] as number[];
+    assert.deepEqual([wx, wy, ww, wh], [140, 256, 30, 30], 'watermark square centered in the seal box');
+    assert.ok(wx >= 112 && wx + ww <= 198 && wy >= 254 && wy + wh <= 288, 'watermark stays inside the seal box');
   });
 
   it('falls back to M.T. text when no logo is uploaded', async () => {
@@ -197,5 +218,118 @@ describe('generateEmployeeFichePdf — fiche individuelle de paiement de salaire
     assert.ok(drawn.includes('150 000 FCFA'), 'net paid = base + allowances');
     assert.ok(!drawn.some((s) => s.includes('INPS')), 'still no INPS on the employee fiche');
     assert.ok(!drawn.some((s) => s.includes('AMO')), 'still no AMO on the employee fiche');
+  });
+
+  it('renders the full English version — title, column headers and footer labels, no French leakage', async () => {
+    reset();
+    await generateEmployeeFichePdf({ staffMember: employee, lang: 'en' });
+
+    const drawn = drawnTexts();
+    // Header block: school identity, title pill, PERIOD label
+    assert.ok(drawn.includes('INDIVIDUAL SALARY PAYMENT RECORD'), 'the English title is drawn');
+    assert.ok(drawn.includes('MAMA THERA DE SAFO'), 'the school name is drawn');
+    assert.ok(drawn.includes('PERIOD:'), 'the English PERIOD label is drawn');
+    // All six column headers (two lines where the template stacks them)
+    for (const label of ['First & Last Name', 'Role / Position', 'Base Salary', 'Bonuses / Allowances', 'Deductions', 'Net Salary Paid', 'Payment Method', 'Employee Signature']) {
+      assert.ok(drawn.includes(label), `column header drawn: "${label}"`);
+    }
+    // Row labels + footer labels
+    assert.ok(drawn.some((s) => s.includes('Base salary')), 'row label Base salary drawn');
+    assert.ok(drawn.some((s) => s.includes('Net salary paid')), 'row label Net salary paid drawn');
+    assert.ok(drawn.includes('SCHOOL STAMP:'), 'the SCHOOL STAMP footer label is drawn');
+    assert.ok(drawn.some((s) => s.includes('PAYMENT DATE:')), 'the PAYMENT DATE footer label is drawn');
+    // The employee data is present regardless of language
+    assert.ok(drawn.includes('Fatou Traoré'), 'the employee name is drawn');
+    assert.ok(drawn.includes('120 000 FCFA'), 'the base salary amount is drawn');
+    // No French labels leak into the English document
+    for (const fr of ['FICHE INDIVIDUELLE', 'PÉRIODE', 'Prénom et Nom', 'Primes / Indemnités', 'Salaire Net Payé', 'Mode de Paiement', 'Signature Employé', 'CACHET DE LA DIRECTION', 'DATE DE PAIEMENT']) {
+      assert.ok(!drawn.some((s) => s.includes(fr)), `no French label "${fr}" in the English fiche`);
+    }
+  });
+
+  it('draws the payment history — every elapsed month but the current one paid, summary counts locked', async () => {
+    reset();
+    const now = new Date();
+    const elapsed = elapsedSchoolYearMonths(now);
+    const history: SalaryPayment[] = [];
+    for (let back = 1; back < elapsed; back++) {
+      history.push(payment(now, back)); // all elapsed months except the current one
+    }
+    await generateEmployeeFichePdf({ staffMember: employee, lang: 'fr', paymentHistory: history });
+
+    const drawn = drawnTexts();
+    assert.ok(drawn.includes('HISTORIQUE DES PAIEMENTS DE SALAIRE'), 'the history title is drawn');
+    assert.ok(
+      drawn.some((s) => s.includes(`Mois payés : ${elapsed - 1} · Restants : 1`)),
+      'the summary counts every paid month and leaves the current month as remaining',
+    );
+    const m = now.getMonth();
+    const startYear = m >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+    assert.ok(
+      drawn.some((s) => s.includes(`Année scolaire ${startYear}-${startYear + 1}`)),
+      'the school-year caption is drawn',
+    );
+    for (const key of ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const) {
+      assert.ok(drawn.includes(String(translations.fr[key])), `month ${key} is drawn in the grid`);
+    }
+    for (const label of ['Payé', 'Partiel', 'Mois en cours', 'Impayé', 'À venir']) {
+      assert.ok(drawn.includes(label), `legend label "${label}" is drawn`);
+    }
+  });
+
+  it('handles partial and full payments of the current month in the summary', async () => {
+    reset();
+    const now = new Date();
+    const elapsed = elapsedSchoolYearMonths(now);
+
+    // Partial payment of the current month → not counted as paid
+    await generateEmployeeFichePdf({
+      staffMember: employee,
+      lang: 'fr',
+      paymentHistory: [payment(now, 0, 60000)],
+    });
+    let drawn = drawnTexts();
+    assert.ok(
+      drawn.some((s) => s.includes(`Mois payés : 0 · Restants : ${elapsed}`)),
+      'a partial current month counts as remaining, never as paid',
+    );
+    assert.ok(drawn.includes('Partiel'), 'the Partiel legend is drawn');
+
+    // Full payment of the current month → counted as paid
+    reset();
+    await generateEmployeeFichePdf({
+      staffMember: employee,
+      lang: 'fr',
+      paymentHistory: [payment(now, 0)],
+    });
+    drawn = drawnTexts();
+    assert.ok(
+      drawn.some((s) => s.includes(`Mois payés : 1 · Restants : ${elapsed - 1}`)),
+      'a fully paid current month counts as paid',
+    );
+  });
+
+  it('renders the payment history in English — labels and summary, no French leakage', async () => {
+    reset();
+    const now = new Date();
+    const elapsed = elapsedSchoolYearMonths(now);
+    const history: SalaryPayment[] = [];
+    for (let back = 1; back < elapsed; back++) {
+      history.push(payment(now, back));
+    }
+    await generateEmployeeFichePdf({ staffMember: employee, lang: 'en', paymentHistory: history });
+
+    const drawn = drawnTexts();
+    assert.ok(drawn.includes('SALARY PAYMENT HISTORY'), 'the English history title is drawn');
+    assert.ok(
+      drawn.some((s) => s.includes(`Months paid : ${elapsed - 1} · Remaining : 1`)),
+      'the English summary is drawn',
+    );
+    for (const label of ['Paid', 'Partial', 'Current month', 'Unpaid', 'Upcoming']) {
+      assert.ok(drawn.includes(label), `English legend label "${label}" is drawn`);
+    }
+    for (const fr of ['HISTORIQUE DES PAIEMENTS', 'Mois payés', 'Restants', 'Impayé', 'Mois en cours', 'Année scolaire']) {
+      assert.ok(!drawn.some((s) => s.includes(fr)), `no French label "${fr}" in the English history`);
+    }
   });
 });

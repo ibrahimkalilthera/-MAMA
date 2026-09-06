@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { generatePaymentReceiptPdf } from '../lib/pdfReceipt';
+import { PAYROLL_WINDOW_LAST_DAY } from '../lib/payrollWindow';
 import { fetchCalendarDayNotes, saveCalendarDayNote, deleteCalendarDayNote } from '../lib/calendarNotes';
 import type { Student, Staff, Expense, Payment, User, Todo } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
@@ -190,9 +191,11 @@ export function usePayments(deps: UsePaymentsDeps) {
       });
     }
 
-    // Salary Dates (Assuming 25th of each month if not specified, or use a fixed date for demo)
-    // For this app, let's say staff are paid on the 25th
-    if (date.getDate() === 25) {
+    // Salary deadline — derived from the payroll window (open 1st–10th, late
+    // from the 11th, see src/lib/payrollWindow.ts): the calendar marks the
+    // window's last day instead of a hardcoded payday that could contradict
+    // the late rule.
+    if (date.getDate() === PAYROLL_WINDOW_LAST_DAY) {
       dayEvents.push({
         type: 'salary',
         count: staff.length,

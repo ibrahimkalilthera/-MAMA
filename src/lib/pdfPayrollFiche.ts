@@ -4,8 +4,10 @@
  * logo emblem with the blue/gold header swoosh, the school name, the title
  * pill, the PÉRIODE box, the 6-column payroll table (name / role + base
  * salary / allowances / deductions + net paid / payment method / employee
- * signature) and the footer with CACHET DE LA DIRECTION, DATE DE PAIEMENT
- * and the watermarked seal box.
+ * signature), the salary payment history (school-year grid of paid / partial /
+ * current / unpaid / upcoming months with a paid-vs-remaining summary) and the
+ * footer with CACHET DE LA DIRECTION, DATE DE PAIEMENT and the watermarked
+ * seal box.
  *
  * Unlike the administration bulletin (which carries the INPS 3,60 % and AMO
  * 3,06 % social contributions), this fiche shows NO contributions — the
@@ -14,9 +16,10 @@
  */
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
-import type { Staff } from './useSupabaseData';
+import type { Staff, SalaryPayment } from './useSupabaseData';
 import { splitName } from './pdfPayrollBulletin';
 import { drawSchoolStamp } from './pdfStamp';
+import { payrollMonthStatus } from './payrollGrid';
 
 // ─── Fiche geometry (A4 portrait, mm) ────────────────────────────────────────
 
@@ -37,11 +40,31 @@ const ROW_H = 16;
 const ROWS = 3; // the paper template leaves three lines
 const TABLE_BOTTOM = TABLE_TOP + HEADER_H + ROWS * ROW_H; // 124
 
+// ── Salary payment history section (school year, September → August) ──────────
+// The band between the payroll table (bottom 124) and the footer (254) carries
+// a 12-cell grid of the school-year months — paid (blue) / partial (gold) /
+// current (gold outline) / unpaid (rose outline) / upcoming (light gray) —
+// with a paid-vs-remaining summary on the title line.
+const HISTORY_TITLE_Y = 133.5;
+const HISTORY_SUBTITLE_Y = 138.8;
+const HISTORY_GRID_TOP = 145;
+const HISTORY_CELL_H = 9;
+const HISTORY_CELL_GAP = 2;
+const HISTORY_CELL_W = (190 - 5 * HISTORY_CELL_GAP) / 6; // 30 mm — 6 columns × 2 rows
+const HISTORY_LEGEND_Y = 174;
+const SCHOOL_YEAR_MONTH_KEYS = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'] as const;
+const SCHOOL_YEAR_MONTH_INDEXES = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7];
+
 export interface EmployeeFicheOptions {
   staffMember: Staff;
   lang?: 'en' | 'fr';
   /** Uploaded school logo (data URL) — drawn in the emblem and the watermark box. */
   schoolLogo?: string | null;
+  /**
+   * The employee's salary payment records — drive the payment-history section
+   * (paid / remaining months of the current school year).
+   */
+  paymentHistory?: SalaryPayment[];
 }
 
 /** jsPDF's translate() lives on an API mixin not merged into the class typings. */
@@ -139,6 +162,7 @@ export async function generateEmployeeFichePdf({
   staffMember,
   lang = 'fr',
   schoolLogo = null,
+  paymentHistory = [],
 }: EmployeeFicheOptions): Promise<void> {
   const { jsPDF } = await import('jspdf');
   const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
@@ -154,6 +178,7 @@ export async function generateEmployeeFichePdf({
   const BORDER = { r: 191, g: 219, b: 254 }; // #BFDBFE
   const WATERMARK = { r: 147, g: 197, b: 253 }; // #93C5FD
   const WHITE = { r: 255, g: 255, b: 255 };
+  const ROSE = { r: 225, g: 29, b: 72 }; // #E11D48 — unpaid months
 
   const fmt = (v: number) => `${v.toLocaleString('fr-FR')} FCFA`;
 
@@ -189,12 +214,28 @@ export async function generateEmployeeFichePdf({
   doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
   doc.roundedRect(-3, -12, 70, 22, 11, 11, 'F');
 
-  // Emblem: white disc, uploaded logo inside when available
+  // Emblem: white disc, uploaded logo inside when available. The logo is
+  // clipped to the disc so a square upload never pokes past the white ring
+  // (a 16 mm square in the 20 mm disc reaches r≈11.3 vs the disc's r=10).
   doc.setFillColor(WHITE.r, WHITE.g, WHITE.b);
   doc.circle(17, 16, 10, 'F');
   if (schoolLogo) {
     try {
-      doc.addImage(schoolLogo, schoolLogo.startsWith('data:image/png') ? 'PNG' : 'JPEG', 9, 8, 16, 16);
+      const clipable = doc as unknown as { clip?: () => void; discardPath?: () => void };
+      if (
+        typeof doc.saveGraphicsState === 'function' &&
+        typeof clipable.clip === 'function' &&
+        typeof doc.restoreGraphicsState === 'function'
+      ) {
+        doc.saveGraphicsState();
+        doc.circle(17, 16, 10, 'S'); // path + clip; the thin stroke is fully
+        clipable.clip(); // covered by the logo and the white ring drawn after
+        if (typeof clipable.discardPath === 'function') clipable.discardPath();
+        doc.addImage(schoolLogo, schoolLogo.startsWith('data:image/png') ? 'PNG' : 'JPEG', 9, 8, 16, 16);
+        doc.restoreGraphicsState();
+      } else {
+        doc.addImage(schoolLogo, schoolLogo.startsWith('data:image/png') ? 'PNG' : 'JPEG', 9, 8, 16, 16);
+      }
     } catch {
       // a broken logo must never break the fiche
     }
@@ -329,6 +370,112 @@ export async function generateEmployeeFichePdf({
   const payLines = wrapText(doc as never, staffMember.bankDetails || dash, COLUMNS[4]!.w - 6);
   doc.text(payLines, colLeft(4), rowMid - (payLines.length - 1) * 2);
 
+  // 3b. Salary payment history — school-year (September → August) grid of the
+  // paid / partial / current / unpaid / upcoming months, with a paid-vs-
+  // remaining summary. The PÉRIODE box above documents the current month;
+  // this section adds the rest of the school year. A month is 'paid' when the
+  // employee's recorded payments cover the whole monthly salary.
+  const historyStartYear = monthIdx >= 8 ? periodYear : periodYear - 1;
+  const elapsedMonths = (monthIdx >= 8 ? monthIdx - 8 : monthIdx + 4) + 1; // Sep→1 … Aug→12
+  let paidCount = 0;
+  const historyCells = SCHOOL_YEAR_MONTH_KEYS.map((monthKey, index) => {
+    const monthIndex = SCHOOL_YEAR_MONTH_INDEXES[index]!;
+    const cellYear = index < 4 ? historyStartYear : historyStartYear + 1;
+    const isFuture = cellYear > periodYear || (cellYear === periodYear && monthIndex > monthIdx);
+    const isCurrent = cellYear === periodYear && monthIndex === monthIdx;
+    const monthPayments = paymentHistory.filter(p => {
+      const payDate = new Date(p.date);
+      return payDate.getFullYear() === cellYear && payDate.getMonth() === monthIndex;
+    });
+    const totalPaid = monthPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const status = payrollMonthStatus({ totalPaid, expected: base, isFuture, isCurrent });
+    if (index < elapsedMonths && status === 'paid') paidCount += 1;
+    return { monthKey, status };
+  });
+  const remainingCount = elapsedMonths - paidCount;
+
+  // Title line: section title left, paid/remaining summary right
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(BLUE.r, BLUE.g, BLUE.b);
+  doc.text(t.pdfFicheHistoryTitle, MARGIN, HISTORY_TITLE_Y);
+  doc.setFontSize(8);
+  doc.setTextColor(INK.r, INK.g, INK.b);
+  doc.text(
+    `${t.pdfFicheHistoryPaidCount} : ${paidCount} · ${t.pdfFicheHistoryRemaining} : ${remainingCount}`,
+    200,
+    HISTORY_TITLE_Y,
+    { align: 'right' },
+  );
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
+  doc.text(`${t.pdfFicheSchoolYear} ${historyStartYear}-${historyStartYear + 1}`, MARGIN, HISTORY_SUBTITLE_Y);
+
+  // 12-cell grid: 6 columns × 2 rows (Sep..Jan, Feb..Aug of the school year)
+  historyCells.forEach((cell, index) => {
+    const col = index % 6;
+    const row = Math.floor(index / 6);
+    const x = MARGIN + col * (HISTORY_CELL_W + HISTORY_CELL_GAP);
+    const y = HISTORY_GRID_TOP + row * (HISTORY_CELL_H + HISTORY_CELL_GAP);
+    const monthName = String((t as Record<string, string>)[cell.monthKey]);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    if (cell.status === 'paid') {
+      doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
+      doc.setDrawColor(BLUE.r, BLUE.g, BLUE.b);
+      doc.roundedRect(x, y, HISTORY_CELL_W, HISTORY_CELL_H, 1.6, 1.6, 'FD');
+      doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
+    } else if (cell.status === 'partial') {
+      doc.setFillColor(GOLD.r, GOLD.g, GOLD.b);
+      doc.setDrawColor(GOLD.r, GOLD.g, GOLD.b);
+      doc.roundedRect(x, y, HISTORY_CELL_W, HISTORY_CELL_H, 1.6, 1.6, 'FD');
+      doc.setTextColor(INK.r, INK.g, INK.b);
+    } else if (cell.status === 'current') {
+      doc.setDrawColor(GOLD.r, GOLD.g, GOLD.b);
+      if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.7);
+      doc.roundedRect(x, y, HISTORY_CELL_W, HISTORY_CELL_H, 1.6, 1.6, 'D');
+      if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.2);
+      doc.setTextColor(GOLD.r, GOLD.g, GOLD.b);
+    } else if (cell.status === 'unpaid') {
+      doc.setDrawColor(ROSE.r, ROSE.g, ROSE.b);
+      if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.7);
+      doc.roundedRect(x, y, HISTORY_CELL_W, HISTORY_CELL_H, 1.6, 1.6, 'D');
+      if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.2);
+      doc.setTextColor(ROSE.r, ROSE.g, ROSE.b);
+    } else {
+      doc.setFillColor(BLUE_LIGHT.r, BLUE_LIGHT.g, BLUE_LIGHT.b);
+      doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b);
+      doc.roundedRect(x, y, HISTORY_CELL_W, HISTORY_CELL_H, 1.6, 1.6, 'FD');
+      doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
+      doc.setFont('helvetica', 'normal');
+    }
+    doc.text(monthName, x + HISTORY_CELL_W / 2, y + HISTORY_CELL_H / 2 + 0.4, { align: 'center' });
+  });
+
+  // Legend — five statuses, fixed 38 mm slots across the 190 mm content width
+  const legendItems = [
+    { label: t.pdfFicheHistoryPaid, fill: true, color: BLUE },
+    { label: t.pdfFicheHistoryPartial, fill: true, color: GOLD },
+    { label: t.pdfFicheHistoryCurrent, fill: false, color: GOLD },
+    { label: t.pdfFicheHistoryUnpaid, fill: false, color: ROSE },
+    { label: t.pdfFicheHistoryFuture, fill: true, color: GRAY },
+  ];
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.2);
+  legendItems.forEach((item, i) => {
+    const lx = MARGIN + i * 38;
+    if (item.fill) {
+      doc.setFillColor(item.color.r, item.color.g, item.color.b);
+      doc.rect(lx, HISTORY_LEGEND_Y - 1.7, 2.6, 2.6, 'F');
+    } else {
+      doc.setDrawColor(item.color.r, item.color.g, item.color.b);
+      doc.rect(lx, HISTORY_LEGEND_Y - 1.7, 2.6, 2.6, 'D');
+    }
+    doc.setTextColor(INK.r, INK.g, INK.b);
+    doc.text(item.label, lx + 4, HISTORY_LEGEND_Y);
+  });
+
   // 4. Footer: cachet de la direction (with the school cachet), date de paiement, seal box
   // Cachet de la direction — pencil icon + label + line, the school stamp on the line
   doc.setFillColor(BLUE_LIGHT.r, BLUE_LIGHT.g, BLUE_LIGHT.b);
@@ -364,7 +511,10 @@ export async function generateEmployeeFichePdf({
   doc.text(`${t.pdfFichePaymentDate} ${dmy(now)}`, 24, 278.5);
   doc.line(24, 282.5, 104, 282.5);
 
-  // Watermarked seal box (right): faint school logo on a dashed blue box
+  // Watermarked seal box (right): faint school logo on a dashed blue box.
+  // The 86×34 box is landscape, so a square logo is sized to the box HEIGHT
+  // with an even inset (30 mm → 2 mm above/below the dashed border) — the
+  // old 36 mm square crossed the border by 1 mm on each side.
   doc.setDrawColor(BLUE.r, BLUE.g, BLUE.b);
   doc.setLineDashPattern([1.5, 1.5], 0);
   doc.roundedRect(112, 254, 86, 34, 3, 3, 'D');
@@ -376,10 +526,10 @@ export async function generateEmployeeFichePdf({
       const setGState = (doc as unknown as { setGState?: (s: unknown) => void }).setGState;
       if (typeof gState === 'function' && typeof setGState === 'function') {
         setGState(new gState({ opacity: 0.12 }));
-        doc.addImage(schoolLogo, format, 137, 253, 36, 36);
+        doc.addImage(schoolLogo, format, 140, 256, 30, 30);
         setGState(new gState({ opacity: 1 }));
       } else {
-        doc.addImage(schoolLogo, format, 137, 253, 36, 36);
+        doc.addImage(schoolLogo, format, 140, 256, 30, 30);
       }
     } catch {
       /* never break the fiche because of the watermark */

@@ -32,6 +32,9 @@ export interface VendorExpenseModalProps {
   handleVendorExpenseSubmit: (e: FormEvent) => Promise<void>;
   /** Promoter-only fields: vendor name + amount stay locked for everyone else. */
   isPromoter: boolean;
+  /** Gestionnaire Principal — may fill vendor/amount when CREATING, but like
+   *  staff keeps existing records' vendor/amount read-only (promoter monopoly). */
+  isGeneralManager?: boolean;
   expenseCategoryList: { key: string; label: string }[];
   availableClasses: ManagedClass[];
   /** The dialog root — registered in AppModals' overlay refs (slot 3). */
@@ -50,12 +53,17 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
     setVendorExpenseForm,
     handleVendorExpenseSubmit,
     isPromoter,
+    isGeneralManager,
     expenseCategoryList,
     availableClasses,
     overlayRef,
     onClose,
   } = props;
   const tokens = modalTokens(currentTheme);
+  // Financial fields (vendor name + amount): the promoter monopoly applies to
+  // EXISTING records; a general_manager may still type them when creating a
+  // new vendor expense (the app's create gate + RLS INSERT both allow it).
+  const financialFieldsLocked = editingVendorExpense ? !isPromoter : !(isPromoter || isGeneralManager);
 
   return (
           <ModalShell
@@ -74,15 +82,15 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                 <div className="space-y-2">
                   <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
                     <span>{t.vendorName}</span>
-                    {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
+                    {financialFieldsLocked && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
                   </label>
                   <input 
                     required
                     type="text" 
                     value={vendorExpenseForm.vendorName}
-                    disabled={!isPromoter}
+                    disabled={financialFieldsLocked}
                     onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, vendorName: e.target.value })}
-                    className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? tokens.fieldDisabled : currentTheme.input}`}
+                    className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${financialFieldsLocked ? tokens.fieldDisabled : currentTheme.input}`}
                     placeholder={t.eGSenelec}
                   />
                 </div>
@@ -195,15 +203,15 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                   <div className="space-y-2">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
                       <span>{t.amount} ({t.currency})</span>
-                      {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
+                      {financialFieldsLocked && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
                     </label>
                     <input 
                       required
                       type="number" 
                       value={vendorExpenseForm.amount}
-                      disabled={!isPromoter}
+                      disabled={financialFieldsLocked}
                       onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, amount: e.target.value })}
-                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${!isPromoter ? tokens.fieldDisabled : currentTheme.input}`}
+                      className={`w-full px-6 py-4 border rounded-2xl focus:outline-none transition-all text-sm font-semibold ${financialFieldsLocked ? tokens.fieldDisabled : currentTheme.input}`}
                       placeholder="50000"
                     />
                   </div>

@@ -389,3 +389,52 @@ describe('verifyAnonRemote (garde-fou prod, anon seul, fail-on-breach)', () => {
     assert.ok(!failures.some((f) => f.includes('ghost_table') && f.includes('anon refusé')), failures.join(' | '));
   });
 });
+
+describe('détection d\'absence de backend — skip propre, jamais une brèche', () => {
+  const unreachable: typeof fetch = async () => {
+    throw new TypeError('fetch failed');
+  };
+
+  it('verifyAnonRls SKIP quand le backend local est injoignable (aucune fausse brèche)', async () => {
+    const { ok, failures, skipped } = await verifyAnonRls({
+      base: 'http://down',
+      anonKey: 'anon-key',
+      serviceKey: 'service-key',
+      fetchImpl: unreachable,
+      tables: TABLES,
+    });
+    assert.equal(skipped, true, 'backend absent → skipped, pas un échec rouge');
+    assert.equal(ok, false);
+    assert.deepEqual(failures, [], 'aucune vérification inventée sur un backend mort');
+  });
+
+  it('verifyAnonRls SKIP quand le backend meurt en cours de route (blip réseau)', async () => {
+    let calls = 0;
+    const flaky: typeof fetch = async () => {
+      calls += 1;
+      if (calls > 1) throw new TypeError('fetch failed');
+      return new Response('{}', { status: 404 }); // ping OK, la suite tombe
+    };
+    const { ok, skipped } = await verifyAnonRls({
+      base: 'http://flaky',
+      anonKey: 'anon-key',
+      serviceKey: 'service-key',
+      fetchImpl: flaky,
+      tables: TABLES,
+    });
+    assert.equal(skipped, true, 'panne en cours de run → skip, pas une brèche');
+    assert.equal(ok, false);
+  });
+
+  it('verifyAnonRemote SKIP quand la base distante est injoignable', async () => {
+    const { ok, failures, skipped } = await verifyAnonRemote({
+      base: 'http://down',
+      anonKey: 'anon-key',
+      fetchImpl: unreachable,
+      tables: TABLES,
+    });
+    assert.equal(skipped, true, 'base distante absente → skip propre');
+    assert.equal(ok, false);
+    assert.deepEqual(failures, [], 'aucune fausse brèche sur la base distante morte');
+  });
+});

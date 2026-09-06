@@ -11,10 +11,10 @@ export type T = TranslationDict;
 
 export const formatCurrency = (amount: unknown) => {
   const val = Number(amount);
-  if (isNaN(val)) return '0 XOF';
+  if (isNaN(val)) return '0 FCFA';
   // fr-FR may emit a narrow no-break space (U+202F) or a no-break space (U+00A0)
   // depending on the runtime's ICU; normalize both to a plain space.
-  return val.toLocaleString('fr-FR').replace(/[\u00a0\u202f]/g, ' ') + ' XOF';
+  return val.toLocaleString('fr-FR').replace(/[\u00a0\u202f]/g, ' ') + ' FCFA';
 };
 
 export const formatDate = (dateStr: string) => {

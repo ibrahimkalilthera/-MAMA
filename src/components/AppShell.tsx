@@ -188,6 +188,9 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         payrollWindowStatus={payrollWindowStatus}
+        onToggleLanguage={() => toggleLanguage(lang === 'en' ? 'fr' : 'en')}
+        currentUser={currentUser}
+        fetchAuditLogs={fetchAuditLogs}
       />
 
       {/* --- Main Content --- */}

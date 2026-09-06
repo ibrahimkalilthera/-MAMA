@@ -291,7 +291,7 @@ describe('usePayments.handlePaymentSubmit', () => {
 });
 
 describe('usePayments.getEventsForDay', () => {
-  it('groups due students, salaries on the 25th and the day expenses', async () => {
+  it('groups due students, salaries on the payroll window deadline (10th) and the day expenses', async () => {
     const { args } = baseDeps({
       students: [
         student({ id: 's1', name: 'Ali Diallo', totalDue: 150000, amountPaid: 50000, dueDate: '2026-05-12' }),
@@ -316,7 +316,7 @@ describe('usePayments.getEventsForDay', () => {
     const { ref, root } = await setup(args, { studentId: '', amount: '' });
     try {
       // Midday UTC: same calendar day in any timezone (due dates use toISOString, salaries use getDate).
-      const day = new Date('2026-05-12T12:00:00Z');
+      const day = new Date('2026-05-12T12:00:00Z'); // 12th = inside the window but NOT the 10th
       const events = ref.current!.getEventsForDay(day);
       const byType = Object.fromEntries(events.map((e) => [e.type, e]));
 
@@ -332,8 +332,8 @@ describe('usePayments.getEventsForDay', () => {
       const bintaDetail = byType.due.details.find((d) => d.name === 'Binta Fall')!;
       assert.equal(bintaDetail.amount, 0);
 
-      // salary: NOT on the 12th
-      assert.equal(byType.salary, undefined, 'no salary event outside the 25th');
+      // salary: NOT on the 12th (only the window's last day, the 10th, marks it)
+      assert.equal(byType.salary, undefined, 'no salary event outside the payroll window deadline');
 
       // expenses: description wins over category, other-day expense excluded
       assert.ok(byType.expense, 'an expense event exists');
@@ -357,11 +357,12 @@ describe('usePayments.getEventsForDay', () => {
       const open = byType.todo.details.find((d) => d.name === 'Réunion parents')!;
       assert.equal(open.completed, false);
 
-      // salaries on the 25th
-      const payday = new Date('2026-05-25T12:00:00Z');
+      // salaries on the payroll window deadline (window open 1st–10th, late
+      // from the 11th — derived from payrollWindow.ts, not a hardcoded day)
+      const payday = new Date('2026-05-10T12:00:00Z');
       const payEvents = ref.current!.getEventsForDay(payday);
       const salaryEvent = payEvents.find((e) => e.type === 'salary')!;
-      assert.ok(salaryEvent, 'a salary event exists on the 25th');
+      assert.ok(salaryEvent, 'a salary event exists on the payroll window deadline (the 10th)');
       assert.equal(salaryEvent.count, 2, 'one entry per staff member');
       assert.deepEqual(
         salaryEvent.details.map((d) => d.name).sort(),

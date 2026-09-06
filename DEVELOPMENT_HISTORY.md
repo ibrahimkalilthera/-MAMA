@@ -1,3 +1,64 @@
+## [2026-09-06] Correctifs P1–P3 de l'audit : RLS fournisseurs GM, nav mobile complète, devise FCFA unifiée
+
+Trois familles de correctifs issus de l'audit général (aucun changement de
+comportement hors périmètre, tous les garde-fous verts) :
+
+- **P1 — Dépenses fournisseurs : alignement app ↔ DB pour le Gestionnaire
+  Principal.** La migration `20260906000002_vendor_expense_gm_policies.sql`
+  élargit les policies RLS INSERT et DELETE de `vendor_expenses` à
+  `public.is_finance_admin()` (admin, dev, general_manager) — l'UI montrait
+  déjà les boutons créer/supprimer au GM mais Postgres rejetait chaque
+  écriture (« new row violates row-level security »). Le monopole promoteur
+  sur les enregistrements EXISTANTS est inchangé : le trigger
+  `protect_vendor_expense_financial_edit` garde vendor_name/amount immuables
+  hors admin/dev. Côté UI, `VendorExpenseModal` déverrouille les champs
+  fournisseur/montant à la CRÉATION pour le GM (`financialFieldsLocked`
+  distingue création vs édition) et les garde verrouillés à l'édition pour
+  tous les non-promoteurs. FULL_SETUP_MIGRATION.sql régénéré.
+- **P1 — Navigation mobile complète.** `MobileNav` (dock bas < lg) couvre
+  désormais TOUS les onglets : dashboard, élèves, parents, paie, dépenses,
+  calendrier, notes, archives, + Audit/Réglages réservés admin/dev (comme la
+  sidebar) ; ouvrir Audit rafraîchit d'abord le journal (`fetchAuditLogs`),
+  la pilule de langue est conservée dans le dock. AppShell câble
+  `onToggleLanguage`/`currentUser`/`fetchAuditLogs`.
+- **P2 — Commentaire périmé corrigé** dans `usePayroll` : la fiche employé
+  (« Ajouter un Employé ») n'a PAS de cotisations INPS/AMO (celles-ci restent
+  exclusives au bulletin de l'administration) — le commentaire l'affirmait
+  désormais explicitement.
+- **P3 — Devise unifiée « FCFA ».** `formatCurrency` suffixe FCFA partout
+  (au lieu de XOF) ; les gabarits de réponses IA
+  (`aiResponse*` en/fr) ne dupliquent plus le suffixe (le libellé venait
+  s'ajouter au « … FCFA » déjà produit par le formateur) ; les en-têtes de
+  gabarit Excel passent de « (XOF) » à « (FCFA) » en anglais.
+
+Vérifié : 589/589 tests (dont les suites réécrites `mobile-nav` — 8 onglets,
+  onglets admin masqués/visibles, clic Audit → refresh, badge de retard — et
+  les assertions de `utils.test.ts` en FCFA), tsc strict propre, lint complet
+  vert (ESLint 0 warning, guards, stylelint, synchro des 21 migrations
+  vérifiée par le gate).
+
+---
+
+## [2026-09-06] Fiche de paiement : historique des paiements (mois payés / restants)
+
+La fiche individuelle de paiement de salaire (`src/lib/pdfPayrollFiche.ts`)
+affiche désormais, sous le tableau du mois courant, l'**historique des
+paiements** de l'employé pour l'année scolaire en cours (sept. → août) :
+grille 12 mois avec les états Payé (bleu) / Partiel (or) / Mois en cours
+(contour or) / Impayé (contour rouge) / À venir (gris), légende, et résumé
+« Mois payés : X · Restants : Y » sur les mois écoulés. Un mois est « payé »
+quand les paiements enregistrés couvrent le salaire mensuel — règle extraite
+dans `payrollMonthStatus` (`src/lib/payrollGrid.ts`, à côté de la grille 12
+mois de PayrollView). Le site d'appel (`usePayroll.handleExportStaffReceiptPdf`)
+passe les paiements de l'employé (`paymentHistory`). Nouveaux libellés i18n
+fr/en (`pdfFicheHistory*` dans `src/i18n/domains/pdf.ts`).
+
+Vérifié : 585/585 tests (dont 3 nouveaux sur la fiche — comptage fr, partiel/
+mois courant, anglais sans fuite fr — et 5 unitaires `payrollMonthStatus`),
+tsc propre, lint complet vert.
+
+---
+
 ## [2026-09-04] Runner qualité async + watchdog (anti-blocage Node/msys)
 
 Nouveau script `scripts/quality-chain.mjs` (script npm `quality` : lint →

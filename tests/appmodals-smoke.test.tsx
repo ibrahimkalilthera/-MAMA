@@ -113,7 +113,23 @@ describe('AppModals porté', () => {
     assert.ok(html.includes('productivity'), 'le panneau Productivité doit être rendu');
   });
 
-  it('rend sans crash avec toutes les modales fermées', () => {
+  it('rend ExpenseFormModal quand showExpenseModal est ouvert (saisie de dépense simple)', () => {
+    const props = baseProps({
+      showExpenseModal: true,
+      showTodoSidebar: false,
+      showStudentModal: false, showParentModal: false, showStaffModal: false,
+      showVendorExpenseModal: false, showSalaryModal: false,
+      showPaymentForm: false, showCalendarModal: false, showAddClassModal: false,
+      showEditClassModal: false, showLinkStudentModal: false, showNotifyModal: false,
+      showAuditModal: false, showSuccessToast: false,
+    });
+    const html = renderToString(createElement(AppModals, props as never));
+    assert.ok(html.includes(t.addExpense), 'titre de la modale de dépense simple');
+    assert.ok(html.includes(t.supplies) && html.includes(t.utilities), 'catégories du formulaire');
+    assert.ok(html.includes(t.submit), 'bouton d’enregistrement');
+  });
+
+  it('rend sans crash quand toutes les modales sont fermées — plus aucun flottant (le FAB de langue vit dans MobileNav)', () => {
     const props = baseProps({
       showTodoSidebar: false,
       showStudentModal: false, showParentModal: false, showStaffModal: false,
@@ -122,7 +138,10 @@ describe('AppModals porté', () => {
       showEditClassModal: false, showLinkStudentModal: false, showNotifyModal: false,
       showAuditModal: false, showSuccessToast: false,
     });
-    const html = renderToString(createElement(AppModals, props as never));
-    assert.ok(html.length > 0, 'le shell doit rendre quelque chose');
+    let html = '';
+    assert.doesNotThrow(() => {
+      html = renderToString(createElement(AppModals, props as never));
+    }, 'le shell doit rendre sans crash');
+    assert.equal(html, '', 'AppModals ne possède plus d\'élément permanent : le bouton de langue a été intégré à MobileNav');
   });
 });
