@@ -13,7 +13,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
-import { ADMIN_POSITIONS } from '../src/lib/adminPositions';
+import { ADMIN_POSITIONS, isAdminPosition } from '../src/lib/adminPositions';
 import type { CurrentTheme, StaffForm } from '../src/app/mainViewsProps';
 import { StaffFormModal } from '../src/components/StaffFormModal';
 import { installDomGlobals } from './harness';
@@ -166,5 +166,62 @@ describe('StaffFormModal', () => {
     assert.equal(title?.textContent, t.editStaff);
     root.unmount();
     document.body.removeChild(container);
+  });
+
+  it('édition d\'un membre admin : petit bouclier violet à côté du titre et du libellé POSTE', () => {
+    const { root, container } = mount({
+      editingStaff: {
+        id: 's2',
+        name: 'Awa',
+        position: 'Proviseur',
+        salary: 250000,
+        email: '',
+        phone: '',
+        bankDetails: '',
+        emergencyContact: '',
+      },
+    });
+    const title = container.querySelector('#modal-title-staff-form');
+    assert.equal(title?.textContent, t.editStaff, 'titre d\'édition conservé');
+    const shields = container.querySelectorAll('svg.lucide-shield-check');
+    // shield dans le titre + shield à côté du libellé POSTE
+    assert.ok(shields.length >= 2, `attendu ≥ 2 boucliers violet, trouvé ${shields.length}`);
+    root.unmount();
+    document.body.removeChild(container);
+  });
+
+  it('édition d\'un poste non listé : aucun bouclier violet', () => {
+    const { root, container } = mount({
+      editingStaff: {
+        id: 's3',
+        name: 'Fatou',
+        position: 'Enseignante',
+        salary: 80000,
+        email: '',
+        phone: '',
+        bankDetails: '',
+        emergencyContact: '',
+      },
+    });
+    const shields = container.querySelectorAll('svg.lucide-shield-check');
+    assert.equal(shields.length, 0, 'aucun bouclier pour un poste non admin');
+    root.unmount();
+    document.body.removeChild(container);
+  });
+});
+
+describe('isAdminPosition', () => {
+  it('reconnaît les postes des deux langues, insensible à la casse', () => {
+    assert.equal(isAdminPosition('Proviseur'), true);
+    assert.equal(isAdminPosition('proviseur'), true);
+    assert.equal(isAdminPosition('Directeur des Études'), true);
+    assert.equal(isAdminPosition('Principal'), true);
+    assert.equal(isAdminPosition('Bursar'), true);
+  });  it('rejette les postes non listés et les valeurs vides', () => {
+    assert.equal(isAdminPosition('Enseignante'), false);
+    assert.equal(isAdminPosition('Professeur'), false);
+    assert.equal(isAdminPosition(''), false);
+    assert.equal(isAdminPosition(null), false);
+    assert.equal(isAdminPosition(undefined), false);
   });
 });

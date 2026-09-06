@@ -8,6 +8,7 @@ import type { Dispatch, SetStateAction, FormEvent } from 'react';
 import type { Staff } from '../lib/useSupabaseData';
 import type { StaffForm, CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
+import { isAdminPosition } from '../lib/adminPositions';
 import { ModalShell } from './ModalShell';
 
 export interface StaffFormModalProps {
@@ -29,6 +30,9 @@ export interface StaffFormModalProps {
 export function StaffFormModal(props: StaffFormModalProps) {
   const { t, currentTheme, editingStaff, staffForm, setStaffForm, handleStaffSubmit, overlayRef, onClose, adminMode = false, positionOptions } = props;
   const title = editingStaff ? t.editStaff : adminMode ? t.addAdminMember : t.addStaff;
+  /** Editing a member whose stored position is a curated admin role — the
+   *  header and the POSTE label get a small violet shield to flag it. */
+  const isEditingAdmin = Boolean(editingStaff && isAdminPosition(editingStaff.position));
   return (
     <ModalShell
       overlayRef={overlayRef}
@@ -37,7 +41,12 @@ export function StaffFormModal(props: StaffFormModalProps) {
       titleId="modal-title-staff-form"
       ariaLabel={title}
       icon={adminMode ? <ShieldCheck size={24} className="text-violet-400" /> : <Briefcase size={24} className="text-blue-400" />}
-      title={title}
+      title={isEditingAdmin ? (
+        <span className="inline-flex items-center gap-2">
+          {title}
+          <ShieldCheck size={16} className="text-violet-400" />
+        </span>
+      ) : title}
     >
 
               <form onSubmit={handleStaffSubmit} className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
@@ -54,7 +63,10 @@ export function StaffFormModal(props: StaffFormModalProps) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.position}</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest inline-flex items-center gap-1.5`}>
+                      {t.position}
+                      {isEditingAdmin && <ShieldCheck size={12} className="text-violet-500" />}
+                    </label>
                     {positionOptions ? (
                       <div className="relative">
                         <select

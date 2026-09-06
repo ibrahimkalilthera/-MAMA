@@ -235,6 +235,8 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     searchTerm: '',
     selectedYear: '2026-2027',
     staff: [],
+    adminStaffCount: 0,
+    staffPositionFilter: 'all' as const,
     staffSearchTerm: '',
     stats,
     studentSortKey: null as SortKey | null,
@@ -336,6 +338,7 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     setShowVendorExpenseModal: noopSetter,
     staffModalMode: 'employee' as const,
     setStaffModalMode: noopSetter,
+    setStaffPositionFilter: noopSetter,
     setStaffForm: noopSetter,
     setStaffSearchTerm: noopSetter,
     setStudentToLinkId: noopSetter,
@@ -388,6 +391,41 @@ describe('views render inside MainViewsContext', () => {
       );
     });
   }
+
+  it('PayrollView affiche le compteur de membres de l\'administration à côté de la recherche', () => {
+    const staff = [
+      { id: 's1', name: 'Mariam Coulibaly', position: 'Proviseur', salary: 250000, email: '', phone: '', bankDetails: '', emergencyContact: '' },
+      { id: 's2', name: 'Awa Traoré', position: 'Enseignante', salary: 75000, email: '', phone: '', bankDetails: '', emergencyContact: '' },
+    ];
+    const html = renderWithContext(createElement(PayrollView), { staff, filteredStaff: staff, adminStaffCount: 1 });
+    const singular = translations.en.adminMembersSingular.replace('{count}', '1');
+    assert.ok(html.includes(singular), `chip singulier attendu : "${singular}"`);
+    assert.ok(!html.includes(translations.en.adminMembersPlural.replace('{count}', '1')), 'pas de forme plurielle pour 1');
+
+    const htmlZero = renderWithContext(createElement(PayrollView));
+    const pluralZero = translations.en.adminMembersPlural.replace('{count}', '0');
+    assert.ok(htmlZero.includes(pluralZero), `chip zéro attendu : "${pluralZero}"`);
+  });
+
+  it('PayrollView affiche le filtre de poste avec les trois options', () => {
+    const html = renderWithContext(createElement(PayrollView));
+    assert.ok(html.includes(translations.en.staffFilterAll), 'option tout le personnel');
+    assert.ok(html.includes(translations.en.staffFilterAdmin), 'option administration');
+    assert.ok(html.includes(translations.en.staffFilterEmployees), 'option employés');
+    assert.ok(html.includes(translations.en.staffPositionFilterLabel), 'aria-label du filtre');
+  });
+
+  it('PayrollView affiche le badge admin uniquement pour les postes ADMIN_POSITIONS', () => {
+    const staff = [
+      { id: 's1', name: 'Mariam Coulibaly', position: 'Proviseur', salary: 250000, email: '', phone: '', bankDetails: '', emergencyContact: '' },
+      { id: 's2', name: 'Awa Traoré', position: 'Enseignante', salary: 75000, email: '', phone: '', bankDetails: '', emergencyContact: '' },
+    ];
+    const html = renderWithContext(createElement(PayrollView), { staff, filteredStaff: staff });
+    assert.ok(html.includes('Mariam Coulibaly') && html.includes('Awa Traoré'), 'both members rendered');
+    const badgeLabel = translations.en.admin; // "Admin"
+    const badgeCount = html.split(`>${badgeLabel}</span>`).length - 1;
+    assert.equal(badgeCount, 1, 'un seul badge admin — Proviseur, pas Enseignante');
+  });
 
   it('each view still renders with a minimal/empty dataset (no data crash)', () => {
     // Same as above but explicitly with empty arrays — guards against

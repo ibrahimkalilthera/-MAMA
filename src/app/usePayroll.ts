@@ -18,7 +18,8 @@ import type { FormEvent } from 'react';
 import type { Staff, SalaryPayment } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import { drawSchoolStamp } from '../lib/pdfStamp';
-import type { StaffModalMode } from './mainViewsProps';
+import { isAdminPosition } from '../lib/adminPositions';
+import type { StaffModalMode, StaffPositionFilter } from './mainViewsProps';
 
 interface UsePayrollDeps {
   t: TranslationDict;
@@ -47,17 +48,25 @@ export function usePayroll(deps: UsePayrollDeps) {
 
   const [staffForm, setStaffForm] = useState({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '' });
   const [staffSearchTerm, setStaffSearchTerm] = useState('');
+  const [staffPositionFilter, setStaffPositionFilter] = useState<StaffPositionFilter>('all');
   const [visibleBankDetails, setVisibleBankDetails] = useState<Record<string, boolean>>({});
   const [salaryForm, setSalaryForm] = useState({ staffId: '', amount: '', date: new Date().toISOString().split('T')[0] });
 
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
+  const adminStaffCount = useMemo(() => staff.filter(s => isAdminPosition(s.position)).length, [staff]);
+
   const filteredStaff = useMemo(() => {
-    return staff.filter(s =>
-      s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
-      s.phone.toLowerCase().includes(staffSearchTerm.toLowerCase())
-    );
-  }, [staff, staffSearchTerm]);
+    return staff.filter(s => {
+      const matchesSearch =
+        s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
+        s.phone.toLowerCase().includes(staffSearchTerm.toLowerCase());
+      if (!matchesSearch) return false;
+      if (staffPositionFilter === 'admin') return isAdminPosition(s.position);
+      if (staffPositionFilter === 'employee') return !isAdminPosition(s.position);
+      return true;
+    });
+  }, [staff, staffSearchTerm, staffPositionFilter]);
 
   const handleStaffSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -339,10 +348,12 @@ export function usePayroll(deps: UsePayrollDeps) {
     selectedDraftYear, setSelectedDraftYear,
     staffForm, setStaffForm,
     staffSearchTerm, setStaffSearchTerm,
+    staffPositionFilter, setStaffPositionFilter,
     visibleBankDetails, setVisibleBankDetails,
     salaryForm, setSalaryForm,
     editingStaff, setEditingStaff,
     filteredStaff,
+    adminStaffCount,
     handleStaffSubmit,
     handleSalarySubmit,
     openEditStaffModal,

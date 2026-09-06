@@ -28,3 +28,15 @@ export const ADMIN_POSITIONS: Record<'en' | 'fr', readonly string[]> = {
     'Head of Works',
   ],
 };
+
+/** True when the stored staff.position is one of the curated admin roles.
+ *  Positions are stored in the creation language, so both lists are checked
+ *  (case-insensitive). */
+export function isAdminPosition(position: string | null | undefined): boolean {
+  if (!position) return false;
+  const norm = position.trim().toLocaleLowerCase();
+  return (
+    ADMIN_POSITIONS.fr.some((p) => p.toLocaleLowerCase() === norm) ||
+    ADMIN_POSITIONS.en.some((p) => p.toLocaleLowerCase() === norm)
+  );
+}

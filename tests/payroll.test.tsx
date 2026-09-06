@@ -460,3 +460,58 @@ describe('usePayroll.handleExportMonthlyPayrollExcel (bordereau XLSX)', () => {
     }
   });
 });
+
+describe('usePayroll.filteredStaff', () => {
+  const adminProviseur = staff({ id: 'a1', name: 'Awa Diop', position: 'Proviseur', salary: 200000 });
+  const adminSecretaire = staff({ id: 'a2', name: 'Moussa Camara', position: 'Secrétaire', salary: 150000 });
+  const employee = staff({ id: 'e1', name: 'Fatou Traoré', position: 'Enseignante', salary: 80000 });
+
+  it("filtre 'admin' : uniquement les postes ADMIN_POSITIONS, les deux langues comprises", async () => {
+    const enAdmin = staff({ id: 'a3', name: 'Binta Keïta', position: 'Principal', salary: 220000 });
+    const { args } = baseDeps({ staff: [adminProviseur, adminSecretaire, employee, enAdmin] });
+    const { ref, root } = await mount(args);
+    try {
+      await act(async () => { ref.current!.setStaffPositionFilter('admin'); });
+      assert.deepEqual(ref.current!.filteredStaff.map(s => s.id), ['a1', 'a2', 'a3'], 'admin + en-admin only');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it("filtre 'employee' : exclut tous les postes admin", async () => {
+    const { args } = baseDeps({ staff: [adminProviseur, adminSecretaire, employee] });
+    const { ref, root } = await mount(args);
+    try {
+      await act(async () => { ref.current!.setStaffPositionFilter('employee'); });
+      assert.deepEqual(ref.current!.filteredStaff.map(s => s.id), ['e1'], 'only the non-admin member');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('expose le nombre de membres de l\'administration (postes ADMIN_POSITIONS)', async () => {
+    const { args } = baseDeps({ staff: [adminProviseur, adminSecretaire, employee] });
+    const { ref, root } = await mount(args);
+    try {
+      assert.equal(ref.current!.adminStaffCount, 2, '2 admin + 1 employé');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it("filtre 'all' par défaut et se combine à la recherche par nom/téléphone", async () => {
+    const { args } = baseDeps({ staff: [adminProviseur, adminSecretaire, employee] });
+    const { ref, root } = await mount(args);
+    try {
+      assert.equal(ref.current!.filteredStaff.length, 3, 'default shows everyone');
+      await act(async () => { ref.current!.setStaffSearchTerm('awa'); });
+      assert.deepEqual(ref.current!.filteredStaff.map(s => s.id), ['a1'], 'search narrows within the bucket');
+      await act(async () => { ref.current!.setStaffPositionFilter('employee'); });
+      assert.equal(ref.current!.filteredStaff.length, 0, 'no employee matches the admin search');
+      await act(async () => { ref.current!.setStaffSearchTerm(''); });
+      assert.deepEqual(ref.current!.filteredStaff.map(s => s.id), ['e1'], 'employee bucket after clearing search');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+});

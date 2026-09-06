@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useMainViews } from '../app/mainViewsContext';
+import type { StaffPositionFilter } from '../app/mainViewsProps';
 import type { Staff } from '../lib/useSupabaseData';
 import { sameYearMonth } from '../lib/dateWindows';
 import { ConfirmDialog } from './ConfirmDialog';
+import { isAdminPosition } from '../lib/adminPositions';
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
+  const { AlertCircle, ChevronDown, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails } = useMainViews();
   const currentYear = new Date().getFullYear();
   return (
     <>
@@ -125,6 +127,19 @@ export function PayrollView() {
                 <p className={`text-sm ${currentTheme.muted}`}>{t.manageEmployeeProfilesAndPayroll}</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                <div className="relative">
+                  <select
+                    value={staffPositionFilter}
+                    onChange={(e) => setStaffPositionFilter(e.target.value as StaffPositionFilter)}
+                    aria-label={t.staffPositionFilterLabel}
+                    className={`appearance-none cursor-pointer pl-4 pr-10 py-3 ${currentTheme.card} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                  >
+                    <option value="all">{t.staffFilterAll}</option>
+                    <option value="admin">{t.staffFilterAdmin}</option>
+                    <option value="employee">{t.staffFilterEmployees}</option>
+                  </select>
+                  <ChevronDown size={16} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${currentTheme.muted}`} />
+                </div>
                 <div className="relative flex-1 sm:w-80">
                   <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={18} />
                   <input 
@@ -134,6 +149,14 @@ export function PayrollView() {
                     onChange={(e) => setStaffSearchTerm(e.target.value)}
                     className={`w-full pl-12 pr-6 py-3 ${currentTheme.card} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                   />
+                </div>
+                <div className={`inline-flex items-center gap-2 px-3.5 py-3 rounded-2xl bg-violet-100 dark:bg-violet-950/60`}>
+                  <ShieldCheck size={14} className="text-violet-600 dark:text-violet-300" />
+                  <span className={`text-xs font-black ${currentTheme.isDark ? 'text-violet-300' : 'text-violet-700'}`}>
+                    {adminStaffCount === 1
+                      ? t.adminMembersSingular.replace('{count}', String(adminStaffCount))
+                      : t.adminMembersPlural.replace('{count}', String(adminStaffCount))}
+                  </span>
                 </div>
                 <button 
                   onClick={() => {
@@ -218,7 +241,15 @@ export function PayrollView() {
                           <h4 className={`font-bold ${paidThisMonth > 0 || payDatePassed ? 'text-white' : (currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800')}`}>
                             <HighlightText text={s.name} highlight={staffSearchTerm} />
                           </h4>
-                          <p className={`text-xs ${paidThisMonth > 0 || payDatePassed ? 'text-white/70' : currentTheme.muted} font-bold uppercase tracking-widest`}>{s.position}</p>
+                          <p className={`text-xs ${paidThisMonth > 0 || payDatePassed ? 'text-white/70' : currentTheme.muted} font-bold uppercase tracking-widest flex items-center gap-2`}>
+                            {s.position}
+                            {isAdminPosition(s.position) && (
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300'}`}>
+                                <ShieldCheck size={9} />
+                                {t.admin}
+                              </span>
+                            )}
+                          </p>
                         </div>
                       </div>
                       <div className="flex gap-2">
