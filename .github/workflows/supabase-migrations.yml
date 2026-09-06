@@ -56,8 +56,8 @@ jobs:
 
       - name: Verify anon reads are refused (service-role seed, anon must see nothing)
         run: |
-          # tee rend le bloc env visible dans les logs (diagnostic si échec) ;
-          # source > eval : mêmes sémantiques, débogable.
+          # La CLI 2.116.0 exporte ANON_KEY / SERVICE_ROLE_KEY (pas les noms
+          # SUPABASE_*) — le script accepte les deux conventions.
           supabase status -o env | tee /tmp/supabase.env
           set -a
           . /tmp/supabase.env

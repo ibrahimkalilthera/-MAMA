@@ -59,7 +59,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
 
   const REP = 'return=representation';
 
-  check(anonKey && serviceKey, 'clés SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY présentes (supabase status -o env)');
+  check(anonKey && serviceKey, 'clés anon / service_role présentes (SUPABASE_ANON_KEY|ANON_KEY, SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY)');
   check(tables.length > 0, `${tables.length} tables publiques découvertes dans les migrations`);
 
   // 1. Seed d'une ligne métier via service_role.
@@ -159,10 +159,13 @@ if (isMain) {
     ),
   ];
 
+  // La CLI supabase ≥ 2.116.0 exporte ANON_KEY/SERVICE_ROLE_KEY ; les versions
+  // antérieures et l'API officielle utilisent SUPABASE_ANON_KEY/
+  // SUPABASE_SERVICE_ROLE_KEY — accepter les deux conventions.
   const { ok, failures } = await verifyAnonRls({
-    base: process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321',
-    anonKey: process.env.SUPABASE_ANON_KEY,
-    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    base: process.env.SUPABASE_URL ?? process.env.API_URL ?? 'http://127.0.0.1:54321',
+    anonKey: process.env.SUPABASE_ANON_KEY ?? process.env.ANON_KEY,
+    serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY,
     tables,
   });
   if (!ok) {
