@@ -1,0 +1,50 @@
+name: Prod — garde-fou anon (RLS & auth)
+
+# Garde-fou de la BASE DISTANTE (production) : avec UNIQUEMENT la clé anon
+# (publique par conception — elle est embarquée dans le bundle client Vercel,
+# quiconque la lit ; la protection réelle est RLS, exactement ce que ce job
+# vérifie), ce job prouve que le rôle anon :
+#   • ne LIT aucune ligne des tables métier (moindre ligne visible = brèche),
+#   • ne peut INSÉRER nulle part (refus strict 401/403 — un 400 signifie une
+#     policy franchie, une brèche masquée par un simple « non-2xx »),
+#   • ne peut pas exécuter la RPC de mot de passe admin_set_user_password,
+#   • n'a pas accès aux routes admin GoTrue,
+# tout en vérifiant que le reset par email (recover) reste joignable — un
+# garde-fou qui « réussirait » en verrouillant tout l'auth casserait l'app.
+#
+# FAIL-ON-BREACH : toute réponse montrant une donnée ou un accès anon rend
+# le job ROUGE (les notifications d'échec d'Actions alertent alors).
+#
+# Aucun service_role ici : le script refuse de tourner (exit 2) si une clé
+# service est présente dans l'environnement de ce job (mode --remote).
+# Les vérifications « preuve par re-lecture » (UPDATE/DELETE sur ligne seedée,
+# création d'utilisateur GoTrue) nécessitent service_role et ne s'exécutent
+# QUE sur la pile locale (supabase-migrations.yml).
+
+on:
+  schedule:
+    # Quotidien 06:00 UTC — la base distante peut dériver sans que supabase/
+    # ne change dans le repo (policy modifiée depuis le dashboard, etc.).
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Anon refusé sur la base distante (lectures, écritures, RPC)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fail-on-breach — probes anon contre la base distante
+        run: node scripts/verify-anon-rls.mjs --remote
+        env:
+          # Credentials anon PUBLIQUES par conception : bundlés dans le
+          # client Vercel, lisibles par quiconque — jamais de service_role ici.
+          SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
+          ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ

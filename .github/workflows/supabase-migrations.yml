@@ -9,10 +9,15 @@ name: Supabase migrations & RLS anon
 #
 # Le script scripts/verify-anon-rls.mjs seede d'abord une ligne via
 # service_role puis exige que le rôle anon ne la voie pas — le seul moyen de
-# distinguer « RLS qui refuse » de « tables vides ».
+# distinguer « RLS qui refuse » de « tables vides ». Il couvre aussi la
+# surface auth : user_profiles (création d'un vrai utilisateur GoTrue via
+# service_role, puis lecture/UPDATE/DELETE anon refusés) et la RPC de mot de
+# passe admin_set_user_password (refusée pour anon, tandis que le reset par
+# email recover reste joignable).
 #
-# Se déclenche uniquement quand supabase/ change (migrations, config) :
-# le schéma ne bouge pas → le job n'a pas besoin de tourner.
+# Se déclenche quand supabase/ change (migrations, config) OU quand le
+# garde-fou lui-même change (script + tests) : une évolution du garde-fou
+# doit être prouvée par un vrai run, pas seulement par les tests stub.
 #
 # PORTE VERS LA PRODUCTION (gate n°2) : deploy.yml interroge le verdict de ce
 # workflow avant tout déploiement Vercel — un run rouge sur main bloque le
@@ -23,10 +28,14 @@ on:
   pull_request:
     paths:
       - 'supabase/**'
+      - 'scripts/verify-anon-rls.mjs'
+      - 'tests/anon-rls.test.ts'
   push:
     branches: [main]
     paths:
       - 'supabase/**'
+      - 'scripts/verify-anon-rls.mjs'
+      - 'tests/anon-rls.test.ts'
 
 concurrency:
   group: supabase-migrations-${{ github.ref }}
@@ -37,7 +46,7 @@ permissions:
 
 jobs:
   migrations:
-    name: Migrations + lecture anon refusée
+    name: Migrations + RLS anon refusé (métier + auth)
     runs-on: ubuntu-latest
     # supabase start tire ~15 conteneurs ; 20 min laissent l'init Docker +
     # l'application des migrations se terminer même sur un runner partagé lent.
@@ -54,7 +63,7 @@ jobs:
       - name: Start local Supabase (applies the 18 ordered migrations)
         run: supabase start
 
-      - name: Verify anon reads are refused (service-role seed, anon must see nothing)
+      - name: Verify anon reads/writes refused — business tables + auth (user_profiles, RPC password)
         run: |
           # La CLI 2.116.0 exporte ANON_KEY / SERVICE_ROLE_KEY (pas les noms
           # SUPABASE_*) — le script accepte les deux conventions.

@@ -1,19 +1,28 @@
 // Tests for scripts/verify-anon-rls.mjs — the CI guard that proves the anon
-// role can neither read nor write any business table after migrations.
-// A stub PostgREST simulates the two possible worlds:
+// role can neither read nor write any business table after migrations, and
+// that the auth surface is correct: user_profiles locked for anon, the
+// admin_set_user_password RPC refused for anon, while the legitimate email
+// reset (GoTrue recover) stays reachable.
+// A stub PostgREST + GoTrue twin simulates the worlds:
 //   • healthy   — service_role full access, anon reads empty, anon writes refused
-//   • breached  — an anon INSERT policy exists (a 201 sneaks through)
-// The guard must pass in the first world and fail loudly in the second.
+//   • breached  — an anon INSERT policy exists / reads leak / the password RPC
+//     is callable by anon / the recover endpoint is over-locked
+// The guard must pass in the first world and fail loudly in every breached one.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { verifyAnonRls, PROBE_NAME } from '../scripts/verify-anon-rls.mjs';
+import { verifyAnonRls, verifyAnonRemote, PROBE_NAME } from '../scripts/verify-anon-rls.mjs';
 
-const TABLES = ['students', 'payments', 'expenses', 'todos'];
+const TABLES = ['students', 'payments', 'expenses', 'todos', 'user_profiles'];
 
 interface StubRow {
   id: string;
   name: string;
+}
+
+interface StubProfile {
+  id: string;
+  full_name: string;
 }
 
 interface StubOptions {
@@ -21,16 +30,23 @@ interface StubOptions {
   allowAnonInsert?: boolean;
   /** anon GET returns the real rows (read breach world). */
   leakAnonReads?: boolean;
+  /** anon can execute admin_set_user_password (breach world). */
+  allowAnonRpc?: boolean;
+  /** GoTrue recover refuses anon — the app's reset flow would break (breach world). */
+  lockRecover?: boolean;
 }
 
-/** Minimal PostgREST twin: students table only, RLS semantics per world. */
-function stubSupabase({ allowAnonInsert = false, leakAnonReads = false }: StubOptions = {}) {
+/** Minimal PostgREST + GoTrue twin: students + user_profiles, RLS semantics per world. */
+function stubSupabase({ allowAnonInsert = false, leakAnonReads = false, allowAnonRpc = false, lockRecover = false }: StubOptions = {}) {
   const rows: StubRow[] = [{ id: 'stu-seed', name: PROBE_NAME }];
+  const profiles: StubProfile[] = [];
+  const users: Array<{ id: string; email: string }> = [];
   let seq = 1;
 
   return async (input: Parameters<typeof fetch>[0], init: RequestInit = {}) => {
     const url = String(input);
-    const path = url.slice(url.indexOf('/rest/v1/') + 9);
+    const restPath = url.includes('/rest/v1/') ? url.slice(url.indexOf('/rest/v1/') + 9) : null;
+    const authPath = url.includes('/auth/v1/') ? url.slice(url.indexOf('/auth/v1/') + 9) : null;
     const method = init.method ?? 'GET';
     const headers = init.headers as Record<string, string>;
     const isService = headers?.Authorization?.includes('service') ?? false;
@@ -44,9 +60,81 @@ function stubSupabase({ allowAnonInsert = false, leakAnonReads = false }: StubOp
         ? new Response(null, { status, headers: extra })
         : new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...extra } });
 
-    // GET students (sweep anon, sans filtre) et students?id=eq.<id>
-    const idMatch = path.match(/^students\?id=eq\.([\w-]+)$/);
-    if (method === 'GET' && (idMatch || path === 'students')) {
+    // ─── GoTrue (auth/v1) ────────────────────────────────────────────────────
+    if (authPath) {
+      if (authPath === 'admin/users' && method === 'GET') {
+        // Routes admin : jamais pour anon.
+        if (anon) return json({ message: 'not allowed' }, 401);
+        return json(users, 200);
+      }
+      if (authPath === 'admin/users' && method === 'POST') {
+        if (anon) return json({ message: 'not allowed' }, 401);
+        const user = { id: `auth-${users.length + 1}`, email: body.email };
+        users.push(user);
+        // handle_new_user trigger : la création auth crée la ligne user_profiles.
+        profiles.push({ id: user.id, full_name: 'New User' });
+        return json(user, 201);
+      }
+      const adminDelete = authPath.match(/^admin\/users\/([\w-]+)$/);
+      if (adminDelete && method === 'DELETE') {
+        if (anon) return json({ message: 'not allowed' }, 401);
+        const idx = users.findIndex((u) => u.id === adminDelete[1]);
+        if (idx >= 0) users.splice(idx, 1);
+        const pIdx = profiles.findIndex((p) => p.id === adminDelete[1]);
+        if (pIdx >= 0) profiles.splice(pIdx, 1); // ON DELETE CASCADE
+        return json({}, 200);
+      }
+      if (authPath === 'recover' && method === 'POST') {
+        if (lockRecover) return json({ message: 'recover disabled' }, 401);
+        return json({}, 200); // GoTrue répond 200 même pour un email inconnu
+      }
+      return json({ message: 'not stubbed' }, 404);
+    }
+
+    // ─── user_profiles (REST) ────────────────────────────────────────────────
+    const profileIdMatch = restPath!.match(/^user_profiles\?id=eq\.([\w-]+)$/);
+    if (method === 'GET' && (profileIdMatch || restPath === 'user_profiles')) {
+      if (anon && leakAnonReads) return json(profiles, 200);
+      if (anon) return json([], 200); // RLS filters everything
+      const row = profileIdMatch ? profiles.find((p) => p.id === profileIdMatch[1]) : undefined;
+      return json(profileIdMatch ? (row ? [row] : []) : profiles, 200);
+    }
+    if (method === 'POST' && restPath === 'user_profiles') {
+      if (anon && allowAnonInsert) {
+        profiles.push({ id: `prof-${seq++}`, full_name: body.full_name ?? 'New User' });
+        return json(profiles.slice(-1), 201);
+      }
+      if (anon) return json({ message: 'new row violates row-level security policy' }, 403);
+      profiles.push({ id: `prof-${seq++}`, full_name: body.full_name ?? 'New User' });
+      return json(profiles.slice(-1), 201);
+    }
+    if (method === 'PATCH' && profileIdMatch) {
+      if (anon) return json([], 204); // RLS matches 0 rows: empty success
+      const row = profiles.find((p) => p.id === profileIdMatch[1]);
+      if (row) row.full_name = body.full_name ?? row.full_name;
+      return json(row ? [row] : [], 200);
+    }
+    if (method === 'DELETE' && profileIdMatch) {
+      if (anon) return json([], 204);
+      const idx = profiles.findIndex((p) => p.id === profileIdMatch[1]);
+      if (idx >= 0) profiles.splice(idx, 1);
+      return json([], 204);
+    }
+
+    // ─── RPC mot de passe ────────────────────────────────────────────────────
+    if (method === 'POST' && restPath === 'rpc/admin_set_user_password') {
+      if (anon && allowAnonRpc) {
+        // GRANT anon ajouté : la fonction s'exécute puis lève l'exception
+        // métier (auth.uid() null) → 400. C'est le signal réaliste d'une fuite.
+        return json({ message: 'only admin or dev can set passwords' }, 400);
+      }
+      if (anon) return json({ message: 'permission denied for function admin_set_user_password' }, 401);
+      return json(true, 200);
+    }
+
+    // ─── students (REST) ─────────────────────────────────────────────────────
+    const idMatch = restPath!.match(/^students\?id=eq\.([\w-]+)$/);
+    if (method === 'GET' && (idMatch || restPath === 'students')) {
       const row = idMatch ? rows.find((r) => r.id === idMatch[1]) : undefined;
       if (anon && leakAnonReads) return json(rows, 200);
       if (anon) return json([], 200); // RLS filters everything
@@ -54,7 +142,7 @@ function stubSupabase({ allowAnonInsert = false, leakAnonReads = false }: StubOp
     }
 
     // POST students (seed / probes)
-    if (method === 'POST' && path === 'students') {
+    if (method === 'POST' && restPath === 'students') {
       if (anon && allowAnonInsert) {
         const row: StubRow = { id: `stu-${seq++}`, name: body.name };
         rows.push(row);
@@ -66,10 +154,16 @@ function stubSupabase({ allowAnonInsert = false, leakAnonReads = false }: StubOp
       return json([row], 201);
     }
 
-    // POST {} sweep on other tables
-    if (method === 'POST') {
+    // POST {} sweep on other tables (inconnues → 404, comme PostgREST)
+    if (method === 'POST' && ['students', 'user_profiles', 'payments', 'expenses', 'todos'].includes(restPath!)) {
       if (anon) return json({ message: 'new row violates row-level security policy' }, 403);
       return json([{ id: `row-${seq++}` }], 201);
+    }
+
+    // GET sweep sur les tables connues restantes (RLS : vide pour anon)
+    if (method === 'GET' && ['payments', 'expenses', 'todos'].includes(restPath!)) {
+      if (anon && leakAnonReads) return json(rows, 200);
+      return json([], 200);
     }
 
     // PATCH students?id=eq.<id>
@@ -102,7 +196,7 @@ const run = (opts: StubOptions = {}) =>
   });
 
 describe('verifyAnonRls (garde-fou CI RLS anon)', () => {
-  it('passe dans le monde sain : lecture ET écritures anon refusées', async () => {
+  it('passe dans le monde sain : lecture ET écritures anon refusées (métier + auth)', async () => {
     const { ok, failures } = await run();
     assert.equal(ok, true, failures.join(' | '));
   });
@@ -117,5 +211,69 @@ describe('verifyAnonRls (garde-fou CI RLS anon)', () => {
     const { ok, failures } = await run({ leakAnonReads: true });
     assert.equal(ok, false, 'le garde-fou doit échouer si une lecture anon remonte des lignes');
     assert.ok(failures.some((f) => f.includes('lecture anon refusée sur students')), failures.join(' | '));
+  });
+
+  it('refuse le monde sain quand anon peut exécuter la RPC admin_set_user_password', async () => {
+    const { ok, failures } = await run({ allowAnonRpc: true });
+    assert.equal(ok, false, 'le garde-fou doit échouer si la RPC de mot de passe est appelable par anon');
+    assert.ok(failures.some((f) => f.includes('rpc admin_set_user_password refusé pour anon')), failures.join(' | '));
+  });
+
+  it('refuse le monde sain quand le reset par email est verrouillé (recover refusé pour anon)', async () => {
+    const { ok, failures } = await run({ lockRecover: true });
+    assert.equal(ok, false, 'le garde-fou doit échouer si le flux de reset légitime casse');
+    assert.ok(failures.some((f) => f.includes('recover (reset par email) joignable pour anon')), failures.join(' | '));
+  });
+});
+
+describe('verifyAnonRemote (garde-fou prod, anon seul, fail-on-breach)', () => {
+  const runRemote = (opts: StubOptions = {}) =>
+    verifyAnonRemote({
+      base: 'http://stub',
+      anonKey: 'anon-key',
+      fetchImpl: stubSupabase(opts),
+      tables: TABLES,
+    });
+
+  it('passe sur la base distante saine : aucune donnée ni accès pour anon', async () => {
+    const { ok, failures } = await runRemote();
+    assert.equal(ok, true, failures.join(' | '));
+  });
+
+  it('échoue quand une lecture anon remonte des lignes en prod', async () => {
+    const { ok, failures } = await runRemote({ leakAnonReads: true });
+    assert.equal(ok, false, 'le garde-fou doit échouer si la base distante fuit des lignes à anon');
+    assert.ok(failures.some((f) => f.includes('lecture anon refusée sur students')), failures.join(' | '));
+  });
+
+  it('échoue quand un insert anon est accepté en prod', async () => {
+    const { ok, failures } = await runRemote({ allowAnonInsert: true });
+    assert.equal(ok, false, 'le garde-fou doit échouer si un insert anon passe en prod');
+    assert.ok(failures.some((f) => f.includes('insert anon refusé sur students')), failures.join(' | '));
+  });
+
+  it('échoue quand la RPC de mot de passe est exécutable par anon (signal 400)', async () => {
+    const { ok, failures } = await runRemote({ allowAnonRpc: true });
+    assert.equal(ok, false, 'le garde-fou doit échouer si la RPC de mot de passe fuit en prod');
+    assert.ok(failures.some((f) => f.includes('rpc admin_set_user_password refusé pour anon')), failures.join(' | '));
+  });
+
+  it('échoue quand le reset par email est verrouillé en prod', async () => {
+    const { ok, failures } = await runRemote({ lockRecover: true });
+    assert.equal(ok, false, 'le garde-fou doit échouer si le flux de reset légitime casse en prod');
+    assert.ok(failures.some((f) => f.includes('recover (reset par email) joignable pour anon')), failures.join(' | '));
+  });
+
+  it('signale distinctement une table des migrations absente de la base distante (404, dérive de schéma)', async () => {
+    const { ok, failures } = await verifyAnonRemote({
+      base: 'http://stub',
+      anonKey: 'anon-key',
+      fetchImpl: stubSupabase(),
+      tables: [...TABLES, 'ghost_table'],
+    });
+    assert.equal(ok, false, 'une table absente de la base distante doit rendre le job rouge (dérive)');
+    assert.ok(failures.some((f) => f.includes('table ghost_table absente de la base distante')), failures.join(' | '));
+    // Pas de fausse brèche : aucune plainte « insert/lecture anon » sur la table absente.
+    assert.ok(!failures.some((f) => f.includes('ghost_table') && f.includes('anon refusé')), failures.join(' | '));
   });
 });
