@@ -1,0 +1,5 @@
+# Configuration minimale pour `supabase start` (CI + local).
+# Les sections absentes utilisent les défauts du CLI ; les ports par défaut
+# (API 54321, DB 54322) sont volontairement laissés tels quels — les jobs CI
+# lisent l'état via `supabase status -o env`, jamais par ports en dur.
+project_id = "mama-freebuff"
