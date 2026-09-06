@@ -65,10 +65,11 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   // 1. Seed d'une ligne métier via service_role.
   const seed = await api('students', serviceKey, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Prefer: REP },
     body: JSON.stringify({ name: PROBE_NAME }),
   });
-  // PostgREST renvoie un tableau (Prefer: return=representation) — normaliser.
+  // Sans Prefer: return=representation, PostgREST répond 201 avec un corps
+  // VIDE (return=minimal) — le header est requis pour récupérer l'id seedé.
   const seedBody = seed.ok ? await readBody(seed) : null;
   const inserted = Array.isArray(seedBody) ? seedBody[0] : seedBody;
   check(seed.ok, `insert service_role dans students (${seed.status})`);
