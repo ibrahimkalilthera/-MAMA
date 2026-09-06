@@ -140,12 +140,6 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
 <AppLoadingScreen title={t.loadingFinanceSuite} subtitle={t.connectingToDatabase} />
       ) : (
         <div className={`min-h-screen ${currentTheme.bg} flex font-sans ${currentTheme.text} transition-colors duration-300 theme-${theme} ${currentTheme.isDark ? 'dark ' : ''}${ticketStudent ? 'no-print-ticket' : ''}`}>
-          {/* Environment Badge (dev/staging only) */}
-          <EnvBadge env={appEnv} />
-          {/* Offline Banner */}
-          <OfflineBanner lang={lang} t={t} />
-          {/* Toast Notifications */}
-          <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
           {supabaseError && (
             <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white text-center py-2 text-xs font-semibold flex items-center justify-center gap-3">
               <span className="flex items-center gap-1.5"><AlertTriangle size={14} className="flex-shrink-0" /> {t.databaseConnectionIssue}: {supabaseError}</span>
