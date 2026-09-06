@@ -251,6 +251,7 @@ function shellProps(): Record<string, unknown> {
       setShowStudentModal: noop,
       setShowParentModal: noop,
       setShowStaffModal: noop,
+      setStaffModalMode: noop,
       setShowExpenseModal: noop,
       setShowVendorExpenseModal: noop,
       setShowSalaryModal: noop,

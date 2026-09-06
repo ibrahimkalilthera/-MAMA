@@ -71,6 +71,9 @@ export interface StaffForm {
   emergencyContact: string;
 }
 
+/** Which staff form the modal opens with: employee (free position) or admin member (position dropdown). */
+export type StaffModalMode = 'employee' | 'admin';
+
 export interface SalaryForm {
   staffId: string;
   amount: string;
@@ -319,6 +322,7 @@ export interface MainViewsProps {
   setShowStaffModal: Dispatch<SetStateAction<boolean>>;
   setShowVendorExpenseModal: Dispatch<SetStateAction<boolean>>;
   setStaffForm: Dispatch<SetStateAction<StaffForm>>;
+  setStaffModalMode: Dispatch<SetStateAction<StaffModalMode>>;
   setStaffSearchTerm: Dispatch<SetStateAction<string>>;
   setStudentToLinkId: Dispatch<SetStateAction<string>>;
   setTheme: Dispatch<SetStateAction<ThemeId>>;
@@ -333,6 +337,7 @@ export interface MainViewsProps {
   setVendorStatusFilter: Dispatch<SetStateAction<string>>;
   setVisibleBankDetails: Dispatch<SetStateAction<Record<string, boolean>>>;
   staff: Staff[];
+  staffModalMode: StaffModalMode;
   staffSearchTerm: string;
   stats: DashboardStats;
   studentSortKey: SortKey | null;

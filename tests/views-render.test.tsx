@@ -334,6 +334,8 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     setShowSalaryModal: noopSetter,
     setShowStaffModal: noopSetter,
     setShowVendorExpenseModal: noopSetter,
+    staffModalMode: 'employee' as const,
+    setStaffModalMode: noopSetter,
     setStaffForm: noopSetter,
     setStaffSearchTerm: noopSetter,
     setStudentToLinkId: noopSetter,

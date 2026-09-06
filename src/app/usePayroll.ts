@@ -18,6 +18,7 @@ import type { FormEvent } from 'react';
 import type { Staff, SalaryPayment } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import { drawSchoolStamp } from '../lib/pdfStamp';
+import type { StaffModalMode } from './mainViewsProps';
 
 interface UsePayrollDeps {
   t: TranslationDict;
@@ -38,6 +39,7 @@ export function usePayroll(deps: UsePayrollDeps) {
   const { t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast, toastError, addStaff, updateStaff, addSalaryPayment } = deps;
 
   const [showStaffModal, setShowStaffModal] = useState(false);
+  const [staffModalMode, setStaffModalMode] = useState<StaffModalMode>('employee');
   const [showMonthlyDraftModal, setShowMonthlyDraftModal] = useState(false);
   const [selectedDraftMonth, setSelectedDraftMonth] = useState<number>(new Date().getMonth());
   const [selectedDraftYear, setSelectedDraftYear] = useState<number>(new Date().getFullYear());
@@ -106,6 +108,7 @@ export function usePayroll(deps: UsePayrollDeps) {
   };
 
   const openEditStaffModal = (s: Staff) => {
+    setStaffModalMode('employee'); // editing always uses the free-text position
     setEditingStaff(s);
     setStaffForm({
       name: s.name,
@@ -329,6 +332,7 @@ export function usePayroll(deps: UsePayrollDeps) {
 
   return {
     showStaffModal, setShowStaffModal,
+    staffModalMode, setStaffModalMode,
     showSalaryModal, setShowSalaryModal,
     showMonthlyDraftModal, setShowMonthlyDraftModal,
     selectedDraftMonth, setSelectedDraftMonth,

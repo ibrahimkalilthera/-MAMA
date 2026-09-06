@@ -599,6 +599,7 @@ const {
 
 const {
   showStaffModal, setShowStaffModal,
+  staffModalMode, setStaffModalMode,
   showSalaryModal, setShowSalaryModal,
   showMonthlyDraftModal, setShowMonthlyDraftModal,
   selectedDraftMonth, setSelectedDraftMonth,
@@ -870,6 +871,7 @@ const {
   setShowStaffModal,
   setShowVendorExpenseModal,
   setStaffForm,
+  setStaffModalMode,
   setStaffSearchTerm,
   setStudentToLinkId,
   setTheme,
@@ -884,6 +886,7 @@ const {
   setVendorStatusFilter,
   setVisibleBankDetails,
   staff,
+  staffModalMode,
   staffSearchTerm,
   stats,
   studentSortKey,

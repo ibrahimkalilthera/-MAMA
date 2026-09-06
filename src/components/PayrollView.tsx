@@ -7,7 +7,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
+  const { AlertCircle, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
   const currentYear = new Date().getFullYear();
   return (
     <>
@@ -150,6 +150,7 @@ export function PayrollView() {
                 <button 
                   onClick={() => {
                     setEditingStaff(null);
+                    setStaffModalMode('employee');
                     setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '' });
                     setShowStaffModal(true);
                   }}
@@ -157,6 +158,18 @@ export function PayrollView() {
                 >
                   <Plus size={18} />
                   {t.addStaff}
+                </button>
+                <button 
+                  onClick={() => {
+                    setEditingStaff(null);
+                    setStaffModalMode('admin');
+                    setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '' });
+                    setShowStaffModal(true);
+                  }}
+                  className="bg-violet-600 hover:bg-violet-700 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-violet-500/20"
+                >
+                  <ShieldCheck size={18} />
+                  {t.addAdminMember}
                 </button>
               </div>
             </div>
