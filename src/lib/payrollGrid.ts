@@ -11,32 +11,6 @@ import { isPayrollWindowOverdue } from './payrollWindow';
 export type PayrollGridCellStatus = 'scheduled' | 'open' | 'unpaid' | 'settle' | 'partial';
 
 /**
- * Per-employee status of one calendar month of the school year — used by the
- * payment-history grid of the individual payment fiche (pdfPayrollFiche.ts).
- *
- * A month is 'paid' when the employee's payments that month cover the whole
- * expected salary; a positive but insufficient total is 'partial'; the
- * current month with no payment yet is 'current' (it is the period being
- * paid, never "late"); elapsed months with nothing paid are 'unpaid'.
- */
-export type PayrollMonthStatus = 'paid' | 'partial' | 'current' | 'unpaid' | 'future';
-
-export const payrollMonthStatus = (opts: {
-  totalPaid: number;
-  expected: number;
-  isFuture: boolean;
-  isCurrent: boolean;
-}): PayrollMonthStatus => {
-  const { totalPaid, expected, isFuture, isCurrent } = opts;
-  if (isFuture) return 'future';
-  const isPaid = expected > 0 ? totalPaid >= expected : totalPaid > 0;
-  if (isPaid) return 'paid';
-  if (totalPaid > 0) return 'partial';
-  if (isCurrent) return 'current';
-  return 'unpaid';
-};
-
-/**
  * Status of one cell of the school-year payroll grid.
  *
  * The CURRENT month gets a grace period (status 'open') while the window is
