@@ -56,5 +56,10 @@ jobs:
 
       - name: Verify anon reads are refused (service-role seed, anon must see nothing)
         run: |
-          eval "$(supabase status -o env)"
+          # tee rend le bloc env visible dans les logs (diagnostic si échec) ;
+          # source > eval : mêmes sémantiques, débogable.
+          supabase status -o env | tee /tmp/supabase.env
+          set -a
+          . /tmp/supabase.env
+          set +a
           node scripts/verify-anon-rls.mjs
