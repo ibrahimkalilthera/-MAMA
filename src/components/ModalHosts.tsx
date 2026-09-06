@@ -81,7 +81,7 @@ export interface MonthlyDraftHostProps {
   selectedYear: string;
   onExportExcel: (monthIndex: number, year: number) => void;
   onRecordPayment: (staffId: string, balance: number) => void;
-  formatCurrency: (amount: unknown) => string;
+  formatCurrency: (amount: number) => string;
   /** Theme tokens from the app theme engine. */
   currentTheme: CurrentTheme;
 }

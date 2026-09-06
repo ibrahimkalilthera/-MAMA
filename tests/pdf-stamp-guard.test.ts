@@ -11,8 +11,8 @@
  *   1. every generator imports drawSchoolStamp from pdfStamp;
  *   2. every generator calls `await drawSchoolStamp(...)` EXACTLY once
  *      (one stamp per document — a second call would double-stamp);
- *   3. the stamp call sits in its planned zone (a real 20–24 mm diameter
- *      circle, i.e. a sane stamp size — not a 1 px "whatever");
+ *   3. the stamp call sits in its planned zone (a real stamp-sized circle —
+ *      16–24 mm diameter, never a 1 px "whatever");
  *   4. no generator draws a "Cachet" / "CACHET" / "OFFICIAL STAMP" text
  *      placeholder anywhere (the image replaced those in the past);
  *   5. no generator ever used the old `y - 14` overlap pattern that made
@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The 8 document generators that must each draw the school stamp. */
+/** The document generators that must each draw the school stamp. */
 const GENERATORS: Array<{ file: string; minDiameter: number; maxDiameter: number }> = [
   // Payment receipt (A5): stamp inside the dedicated 55×22 mm cachet box.
   { file: 'src/lib/pdfReceipt.ts', minDiameter: 20, maxDiameter: 20 },
@@ -43,9 +43,11 @@ const GENERATORS: Array<{ file: string; minDiameter: number; maxDiameter: number
   { file: 'src/lib/pdfFinancialReport.ts', minDiameter: 22, maxDiameter: 22 },
   // Multi-year comparison report (A4).
   { file: 'src/lib/pdfMultiYearReport.ts', minDiameter: 24, maxDiameter: 24 },
-  // Consolidated salary receipt (A4) — the original overlap bug lived here.
-  { file: 'src/app/usePayroll.ts', minDiameter: 22, maxDiameter: 22 },
-  // Consolidated parent ledger receipt (A4) — same pattern as the salary one.
+  // Monthly bulletin de paie (admin members) — employer signature block.
+  { file: 'src/lib/pdfPayrollBulletin.ts', minDiameter: 20, maxDiameter: 20 },
+  // Fiche individuelle de paiement de salaire (employees) — CACHET line.
+  { file: 'src/lib/pdfPayrollFiche.ts', minDiameter: 16, maxDiameter: 16 },
+  // Consolidated parent ledger receipt (A4).
   { file: 'src/app/useParents.ts', minDiameter: 22, maxDiameter: 22 },
 ];
 

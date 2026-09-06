@@ -34,6 +34,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PDF_SOURCES = [
   'src/lib/pdfReceipt.ts',
   'src/lib/pdfPayroll.ts',
+  'src/lib/pdfPayrollBulletin.ts',
+  'src/lib/pdfPayrollFiche.ts',
   'src/lib/pdfPayrollDraft.ts',
   'src/lib/pdfExpensesReport.ts',
   'src/lib/pdfFinancialReport.ts',

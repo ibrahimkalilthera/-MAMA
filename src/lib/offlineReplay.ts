@@ -69,6 +69,13 @@ export function staffToRow(s: Omit<Staff, 'id'>) {
     bank_details: s.bankDetails || null,
     emergency_contact: s.emergencyContact || null,
     academic_year: s.academicYear || null,
+    inps_number: s.inpsNumber || null,
+    hire_date: s.hireDate || null,
+    family_status: s.familyStatus || null,
+    children_count: s.childrenCount ?? 0,
+    travel_allowance: s.travelAllowance ?? 0,
+    communication_allowance: s.communicationAllowance ?? 0,
+    housing_allowance: s.housingAllowance ?? 0,
   };
 }
 

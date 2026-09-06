@@ -49,6 +49,18 @@ const MONTHS_EN = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
+/**
+ * Year options for the draft selector — aligned with the managed academic
+ * years instead of a hard-coded [2024..2028] window: the start year of the
+ * selected academic year, its neighbors, and the current calendar year.
+ */
+function academicYearsFor(selectedAcademicYear: string): number[] {
+  const startYear = parseInt(selectedAcademicYear.split('-')[0] || '', 10);
+  const base = Number.isFinite(startYear) ? startYear : new Date().getFullYear();
+  const years = new Set([base - 1, base, base + 1, new Date().getFullYear()]);
+  return Array.from(years).sort((a, b) => a - b);
+}
+
 export function MonthlyPayrollDraftModal({
   isOpen,
   onClose,
@@ -174,7 +186,7 @@ export function MonthlyPayrollDraftModal({
                 onChange={(e) => onYearChange(parseInt(e.target.value, 10))}
                 className="bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl border border-white/10 focus:outline-none cursor-pointer"
               >
-                {[2024, 2025, 2026, 2027, 2028].map(y => (
+                {academicYearsFor(selectedAcademicYear).map(y => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>

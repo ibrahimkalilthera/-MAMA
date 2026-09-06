@@ -641,6 +641,13 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     if (updates.phone !== undefined) row.phone = updates.phone;
     if (updates.bankDetails !== undefined) row.bank_details = updates.bankDetails;
     if (updates.emergencyContact !== undefined) row.emergency_contact = updates.emergencyContact;
+    if ('inpsNumber' in updates) row.inps_number = updates.inpsNumber || null;
+    if ('hireDate' in updates) row.hire_date = updates.hireDate || null;
+    if ('familyStatus' in updates) row.family_status = updates.familyStatus || null;
+    if (updates.childrenCount !== undefined) row.children_count = updates.childrenCount;
+    if (updates.travelAllowance !== undefined) row.travel_allowance = updates.travelAllowance;
+    if (updates.communicationAllowance !== undefined) row.communication_allowance = updates.communicationAllowance;
+    if (updates.housingAllowance !== undefined) row.housing_allowance = updates.housingAllowance;
 
     const { error } = await supabase.from('staff').update(row).eq('id', id);
     if (error) { console.error('updateStaff error:', error.message); notifyError('updateStaff', error.message); return false; }

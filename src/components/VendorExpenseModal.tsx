@@ -194,7 +194,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                   {/* Total Amount */}
                   <div className="space-y-2">
                     <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
-                      <span>{t.amount} (XOF)</span>
+                      <span>{t.amount} ({t.currency})</span>
                       {!isPromoter && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
                     </label>
                     <input 
@@ -224,7 +224,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                 {/* Amount Paid - Only visible if Partially Paid */}
                 {vendorExpenseForm.paymentStatus === 'partial' && (
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amountPaid} (XOF)</label>
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amountPaid} ({t.currency})</label>
                     <input 
                       required
                       type="number" 

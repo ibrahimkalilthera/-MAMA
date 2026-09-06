@@ -50,7 +50,7 @@ export function FloatingChat(props: FloatingChatProps) {
   useFocusTrap(isFloatingChatOpen, () => rootRef.current);
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 no-print font-sans">
+    <div className="fixed bottom-24 lg:bottom-6 right-6 z-50 no-print font-sans">
       <AnimatePresence>
         {/* Below the lg breakpoint the w-[360px] chat card covers ~86% of a
             360px-wide viewport with no visual cue — the same silent-takeover

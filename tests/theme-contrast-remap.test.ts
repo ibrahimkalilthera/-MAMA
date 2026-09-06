@@ -279,7 +279,7 @@ describe('midnight lock: light fills carry a dark: counterpart', () => {
     'components/FloatingChat.tsx': [110],
     'components/SharedUi.tsx': [18],
     // 20%-alpha rose wash OVER the themed card (dark surface shows through)
-    'components/ExpensesView.tsx': [252],
+    'components/ExpensesView.tsx': [252, 416], // 416: overdue-row rose wash over the themed card
   };
 
   const gaps = extractMissingDarkBg().filter(

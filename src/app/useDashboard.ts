@@ -17,6 +17,7 @@ import type { Student, Staff, Expense, VendorExpense, SalaryPayment } from './ty
 import type { DashboardStats, PayrollWindowStatus } from './mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import { inAcademicYear } from '../lib/dateWindows';
+import { isPayrollWindowOpen, isPayrollWindowOverdue } from '../lib/payrollWindow';
 
 export interface DashboardNotification {
   id: string;
@@ -307,8 +308,10 @@ export function useDashboard(deps: UseDashboardDeps) {
     });
     const totalPaidCurrentMonth = currentMonthPayments.reduce((sum, p) => sum + p.amount, 0);
 
-    const isOverdue = currentDay >= 11 && totalPaidCurrentMonth === 0;
-    const isOpen = currentDay >= 1 && currentDay <= 10;
+    // Single late rule for the whole app (see src/lib/payrollWindow.ts): the
+    // window is open 1st–10th; from the 11th an unpaid month is late.
+    const isOverdue = isPayrollWindowOverdue(currentDay) && totalPaidCurrentMonth === 0;
+    const isOpen = isPayrollWindowOpen(currentDay);
 
     return {
       currentDay,

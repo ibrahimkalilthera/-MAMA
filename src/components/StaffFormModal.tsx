@@ -154,6 +154,104 @@ export function StaffFormModal(props: StaffFormModalProps) {
                   />
                 </div>
 
+                {/* Bulletin de paie details — fed straight into the monthly
+                    bulletin / fiche de paiement PDFs (INPS, hire date, family
+                    status, children, allowances). */}
+                <div className="pt-4 border-t border-dashed space-y-6">
+                  <div className="text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-1.5">
+                    <span className={`px-3 py-1.5 rounded-full ${currentTheme.accentBg}`}>{t.staffPayrollDetails}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffInpsNumber}</label>
+                      <input
+                        type="text"
+                        value={staffForm.inpsNumber}
+                        onChange={(e) => setStaffForm({ ...staffForm, inpsNumber: e.target.value })}
+                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        placeholder="12 345 678 901"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffHireDate}</label>
+                      <input
+                        type="date"
+                        value={staffForm.hireDate}
+                        onChange={(e) => setStaffForm({ ...staffForm, hireDate: e.target.value })}
+                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffFamilyStatus}</label>
+                      <div className="relative">
+                        <select
+                          value={staffForm.familyStatus}
+                          onChange={(e) => setStaffForm({ ...staffForm, familyStatus: e.target.value })}
+                          className={`w-full px-6 py-4 pr-12 appearance-none cursor-pointer ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        >
+                          <option value="">{t.staffFamilyStatus}</option>
+                          <option value="single">{t.familySingle}</option>
+                          <option value="married">{t.familyMarried}</option>
+                          <option value="divorced">{t.familyDivorced}</option>
+                          <option value="widowed">{t.familyWidowed}</option>
+                        </select>
+                        <ChevronDown size={16} className={`absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none ${currentTheme.muted}`} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffChildrenCount}</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={staffForm.childrenCount}
+                        onChange={(e) => setStaffForm({ ...staffForm, childrenCount: e.target.value })}
+                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffTravelAllowance} ({t.currency})</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={staffForm.travelAllowance}
+                        onChange={(e) => setStaffForm({ ...staffForm, travelAllowance: e.target.value })}
+                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffCommunicationAllowance} ({t.currency})</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={staffForm.communicationAllowance}
+                        onChange={(e) => setStaffForm({ ...staffForm, communicationAllowance: e.target.value })}
+                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffHousingAllowance} ({t.currency})</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={staffForm.housingAllowance}
+                        onChange={(e) => setStaffForm({ ...staffForm, housingAllowance: e.target.value })}
+                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-blue-500/20">
                   {editingStaff ? t.saveChanges : t.submit}
                 </button>

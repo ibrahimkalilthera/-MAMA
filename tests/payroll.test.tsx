@@ -54,7 +54,7 @@ mock.module('xlsx', {
   },
 });
 
-// ── module mock: jspdf (for the per-employee salary receipt PDF) ─────────────
+// ── module mock: jspdf (for the per-employee fiche / admin bulletin PDFs) ────
 // The receipt handler dynamically imports jsPDF; the fake records every
 // `save()` call (filename) and every `text()` payload so the PDF content can
 // be asserted without a real PDF library.
@@ -69,12 +69,15 @@ class FakeJsPDF {
   setTextColor() {}
   setFont() {}
   setFontSize() {}
+  setLineDashPattern() {}
   rect(...args: unknown[]) {
     pdfRectCalls.push(args);
   }
   roundedRect(...args: unknown[]) {
     pdfRectCalls.push(args);
   }
+  circle() {}
+  addImage() {}
   line() {}
   addPage() {}
   text(payload: string) {
@@ -139,6 +142,7 @@ interface DepsOverrides {
   salaryPayments?: SalaryPayment[];
   selectedYear?: string;
   lockedYears?: string[];
+  schoolLogo?: string | null;
 }
 
 function baseDeps(overrides: DepsOverrides = {}): {
@@ -167,6 +171,7 @@ function baseDeps(overrides: DepsOverrides = {}): {
       spies.addSalaryCalls.push(sp);
       return { ...sp, id: `sp-${spies.addSalaryCalls.length}` };
     },
+    schoolLogo: overrides.schoolLogo ?? null,
   };
   return { args: args as Parameters<typeof usePayroll>[0], spies };
 }
@@ -190,7 +195,7 @@ describe('usePayroll.handleStaffSubmit', () => {
     try {
       await act(async () => {
         ref.current!.setShowStaffModal(true);
-        ref.current!.setStaffForm({ name: 'New Guy', position: 'Gardien', salary: '50000', email: '', phone: '', bankDetails: '', emergencyContact: '' });
+        ref.current!.setStaffForm({ name: 'New Guy', position: 'Gardien', salary: '50000', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
       });
       await act(async () => { await ref.current!.handleStaffSubmit(submitEvent); });
 
@@ -211,7 +216,7 @@ describe('usePayroll.handleStaffSubmit', () => {
       const { ref, root } = await mount(args);
       try {
         await act(async () => {
-          ref.current!.setStaffForm({ name: 'X', position: 'Y', salary: bad, email: '', phone: '', bankDetails: '', emergencyContact: '' });
+          ref.current!.setStaffForm({ name: 'X', position: 'Y', salary: bad, email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
         });
         await act(async () => { await ref.current!.handleStaffSubmit(submitEvent); });
         assert.equal(spies.addStaffCalls.length, 0, `no write for salary=${bad}`);
@@ -227,7 +232,7 @@ describe('usePayroll.handleStaffSubmit', () => {
     const { ref, root } = await mount(args);
     try {
       await act(async () => {
-        ref.current!.setStaffForm({ name: '  Awa Diop  ', position: 'Comptable', salary: '135000', email: ' awa@mamathera.org ', phone: ' 70 11 22 33 ', bankDetails: ' BOA ', emergencyContact: ' 76 55 44 33 ' });
+        ref.current!.setStaffForm({ name: '  Awa Diop  ', position: 'Comptable', salary: '135000', email: ' awa@mamathera.org ', phone: ' 70 11 22 33 ', bankDetails: ' BOA ', emergencyContact: ' 76 55 44 33 ', inpsNumber: '  1234567890 ', hireDate: '2023-10-02', familyStatus: 'married', childrenCount: '3', travelAllowance: '25000', communicationAllowance: '10000', housingAllowance: '15000' });
       });
       await act(async () => { await ref.current!.handleStaffSubmit(submitEvent); });
 
@@ -239,6 +244,13 @@ describe('usePayroll.handleStaffSubmit', () => {
       assert.equal(created.phone, '70 11 22 33', 'phone trimmed');
       assert.equal(created.bankDetails, 'BOA', 'bank details trimmed');
       assert.equal(created.emergencyContact, '76 55 44 33', 'emergency contact trimmed');
+      assert.equal(created.inpsNumber, '1234567890', 'INPS number trimmed');
+      assert.equal(created.hireDate, '2023-10-02', 'hire date kept as YYYY-MM-DD');
+      assert.equal(created.familyStatus, 'married', 'family status code kept');
+      assert.equal(created.childrenCount, 3, 'children count parsed to a number');
+      assert.equal(created.travelAllowance, 25000, 'travel allowance parsed to a number');
+      assert.equal(created.communicationAllowance, 10000, 'communication allowance parsed');
+      assert.equal(created.housingAllowance, 15000, 'housing allowance parsed');
       assert.equal(ref.current!.showStaffModal, false, 'modal closed');
       assert.equal(ref.current!.staffForm.name, '', 'form reset');
       assert.equal(spies.toastCount, 1);
@@ -262,6 +274,10 @@ describe('usePayroll.handleStaffSubmit', () => {
       assert.equal(spies.updateStaffCalls.length, 1);
       assert.equal(spies.updateStaffCalls[0].id, 'st1');
       assert.equal(spies.updateStaffCalls[0].updates.salary, 140000);
+      // Optional payroll fields default safely when left empty on an existing record.
+      assert.equal(spies.updateStaffCalls[0].updates.childrenCount, 0, 'empty children count defaults to 0');
+      assert.equal(spies.updateStaffCalls[0].updates.travelAllowance, 0, 'empty travel allowance defaults to 0');
+      assert.equal(spies.updateStaffCalls[0].updates.familyStatus, undefined, 'empty family status stays undefined');
       assert.equal(spies.addStaffCalls.length, 0, 'no new record created');
       assert.equal(ref.current!.editingStaff, null, 'editing state cleared');
     } finally {
@@ -372,64 +388,70 @@ describe('usePayroll.handleExportMonthlyPayrollExcel (bordereau XLSX)', () => {
     }
   });
 
-  it('exports a per-employee salary receipt PDF with the payment history', async () => {
-    const salaryPayments: SalaryPayment[] = [
-      { id: 'p1', staffId: 'st1', amount: 60000, date: '2026-09-05', academicYear: YEAR },
-      { id: 'p2', staffId: 'st1', amount: 60000, date: '2026-09-20', academicYear: YEAR },
-      { id: 'p3', staffId: 'st2', amount: 30000, date: '2026-09-11' }, // other employee → excluded
-    ];
-    const { args } = baseDeps({ salaryPayments });
+  it('downloads the fiche de paiement de salaire PDF for regular employees (non-admin)', async () => {
+    const employe = staff({ id: 'st1', name: 'Fatou Traoré', salary: 120000, bankDetails: 'BOA 12345678901' });
+    const { args } = baseDeps({});
     const { ref, root } = await mount(args);
     try {
       pdfSaveCalls.length = 0;
       pdfTextCalls.length = 0;
-      await act(async () => { await ref.current!.handleExportStaffReceiptPdf(fatou()); });
+      await act(async () => { await ref.current!.handleExportStaffReceiptPdf(employe); });
 
       assert.equal(pdfSaveCalls.length, 1, 'one PDF saved');
-      assert.match(pdfSaveCalls[0], /^Recu_Salaire_Fatou_Traor/, 'filename carries the employee name');
-      assert.match(pdfSaveCalls[0], /\.pdf$/, 'filename ends with .pdf');
-      assert.ok(pdfTextCalls.includes(t.consolidatedSalaryReceipt), 'the receipt title is drawn');
-      assert.ok(pdfTextCalls.some(c => c.includes('Fatou Traoré')), 'the employee name is drawn');
-      const frFormatted = (120000).toLocaleString('fr-FR') + ' FCFA';
-      assert.ok(pdfTextCalls.some(c => c.includes(frFormatted)), 'the monthly salary is drawn');
-      assert.ok(pdfTextCalls.some(c => c.includes(frFormatted)), 'the cumulative total is drawn');
-      assert.ok(pdfTextCalls.includes('SAL-P1'), 'history row 1 drawn (receipt ref)');
-      assert.ok(pdfTextCalls.includes('SAL-P2'), 'history row 2 drawn (receipt ref)');
-      assert.ok(pdfTextCalls.includes('2026-09-05'), 'history row 1 date drawn');
-      assert.ok(!pdfTextCalls.includes(t.noPaymentRecordsFound), 'history is not empty');
+      // "Traoré" is sanitized to "Traor" (é dropped) — the regex tolerates it.
+      assert.match(pdfSaveCalls[0], /^Fiche_Paie_Fatou_Traor.*_\d{4}-\d{2}\.pdf$/, 'fiche filename with the employee name and period');
+      assert.ok(pdfTextCalls.includes(t.pdfFicheTitle), 'the fiche title is drawn');
+      // The name is drawn through wrapText (array payload) — flatten before matching.
+      const drawn = pdfTextCalls.flat().map(c => c.replace(/\s+/g, ' '));
+      assert.ok(drawn.some(c => c.includes('Fatou Traoré')), 'the employee name is drawn');
+      // The employee fiche carries NO social contributions — net paid = base salary.
+      assert.ok(drawn.some(c => c.includes('120 000 FCFA')), 'net paid = base salary (120000, no allowances)');
+      assert.ok(!drawn.some(c => c.includes('INPS')), 'no INPS on the employee fiche');
+      assert.ok(!drawn.some(c => c.includes('AMO')), 'no AMO on the employee fiche');
+      assert.ok(drawn.some(c => c.includes('BOA 12345678901')), 'the payment method / account is drawn');
+      assert.ok(!pdfTextCalls.includes(t.consolidatedSalaryReceipt), 'the legacy consolidated receipt is not used for employees');
     } finally {
       act(() => root.unmount());
     }
   });
 
-  it('draws the school stamp fully BELOW the payment history (it must never cover the dates)', async () => {
-    const salaryPayments: SalaryPayment[] = [
-      { id: 'p1', staffId: 'st1', amount: 60000, date: '2026-09-05', academicYear: YEAR },
-      { id: 'p2', staffId: 'st1', amount: 60000, date: '2026-09-20', academicYear: YEAR },
-    ];
-    const { args } = baseDeps({ salaryPayments });
+  it('downloads the official bulletin de paie PDF for administration members (postes ADMIN_POSITIONS)', async () => {
+    const adminProviseur = staff({ id: 'a1', name: 'Ibrahim Thera', position: 'Proviseur', salary: 200000, bankDetails: 'BOA 12345678901' });
+    const { args } = baseDeps({ staff: [adminProviseur] });
     const { ref, root } = await mount(args);
     try {
-      pdfRectCalls.length = 0;
+      pdfSaveCalls.length = 0;
+      pdfTextCalls.length = 0;
+      await act(async () => { await ref.current!.handleExportStaffReceiptPdf(adminProviseur); });
+
+      assert.equal(pdfSaveCalls.length, 1, 'one PDF saved');
+      assert.match(pdfSaveCalls[0], /^Bulletin_Paie_Ibrahim_Thera_\d{4}-\d{2}\.pdf$/, 'bulletin filename with the member name and period');
+      assert.ok(pdfTextCalls.includes('BULLETIN DE PAIE'), 'the bulletin title is drawn');
+      const drawn = pdfTextCalls.map(t => t.replace(/\s+/g, ' '));
+      assert.ok(drawn.includes('3,60'), 'the INPS rate 3,60 is drawn');
+      assert.ok(drawn.includes('3,06'), 'the AMO rate 3,06 is drawn');
+      assert.ok(drawn.includes('7 200 FCFA'), 'INPS = 3,60 % of 200000');
+      assert.ok(drawn.includes('6 120 FCFA'), 'AMO = 3,06 % of 200000');
+      assert.ok(drawn.includes('186 680 FCFA'), 'net = base − INPS − AMO');
+      assert.ok(pdfTextCalls.includes('BOA 12345678901'), 'the bank account is drawn');
+      assert.ok(!pdfTextCalls.includes(t.consolidatedSalaryReceipt), 'the legacy receipt is not used for admin members');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('draws the school stamp exactly once, on the CACHET DE LA DIRECTION line of the fiche', async () => {
+    const { args } = baseDeps({});
+    const { ref, root } = await mount(args);
+    try {
       stampGeometry.length = 0;
       await act(async () => { await ref.current!.handleExportStaffReceiptPdf(fatou()); });
 
       assert.equal(stampGeometry.length, 1, 'the stamp is drawn exactly once');
-      const stamp = stampGeometry[0];
-
-      // The totals band is the last filled rect before the stamp zone
-      // (182 mm wide totals row). Its bottom edge is the content floor.
-      const totals = pdfRectCalls.filter(r => r[2] === 182);
-      assert.ok(totals.length > 0, 'the totals band is drawn');
-      const totalsBottom = Math.max(...totals.map(r => (r[1] as number) + (r[3] as number)));
-
-      // Invariant: the stamp circle sits strictly BELOW every content band,
-      // so it can never hide a date, an amount or the footer text.
-      assert.ok(
-        stamp.cy - stamp.diameterMm / 2 >= totalsBottom,
-        `stamp top edge (${stamp.cy - stamp.diameterMm / 2} mm) starts at or below the content bottom (${totalsBottom} mm)`,
-      );
-      // And the stamp fits on the page (or the generator moved it to a new one).
+      const stamp = stampGeometry[0]!;
+      // The cachet zone lives in the fiche footer, below the payroll table
+      // (which ends at y = 124) — the stamp can never cover table content.
+      assert.ok(stamp.cy >= 250, `stamp center (${stamp.cy} mm) sits in the footer cachet zone`);
       assert.ok(stamp.cy + stamp.diameterMm / 2 <= 289, 'stamp bottom stays inside the A4 page');
     } finally {
       act(() => root.unmount());

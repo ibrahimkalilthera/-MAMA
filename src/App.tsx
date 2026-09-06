@@ -619,7 +619,7 @@ const {
   handleExportMonthlyPayrollExcel,
 } = usePayroll({
   t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast,
-  addStaff, updateStaff, addSalaryPayment,
+  addStaff, updateStaff, addSalaryPayment, schoolLogo,
   toastError: (msg) => toast.error(msg),
 });
 
@@ -872,6 +872,9 @@ const {
   setShowSalaryModal,
   setShowStaffModal,
   setShowVendorExpenseModal,
+  setGeneralExpenseCategoryFilter,
+  setGeneralExpenseSearch,
+  setVendorExpensesTab,
   setStaffForm,
   setStaffModalMode,
   setStaffPositionFilter,
@@ -917,8 +920,11 @@ const {
   userProfiles,
   userRoleFilter,
   userSearchTerm,
+  generalExpenseCategoryFilter,
+  generalExpenseSearch,
   vendorCategoryFilter,
   vendorExpenses,
+  vendorExpensesTab,
   vendorSearch,
   vendorStatusFilter,
   visibleBankDetails,

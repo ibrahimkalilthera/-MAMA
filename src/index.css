@@ -1,5 +1,6 @@
 @import './assets/fonts/geist.css';
 @import "tailwindcss";
+@import './themes/midnight.css';
 
 /* The app theme is class-based (theme-slate / theme-midnight = dark, the rest
    light) but Tailwind v4 defaults `dark:` to the OS `prefers-color-scheme`.
@@ -974,26 +975,6 @@ textarea:focus-visible {
 
 .theme-slate .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.20);
-}
-
-/* Cream card system */
-.theme-cream .card-elevated,
-.theme-cream .card-stat {
-  background: #FFFDF9;
-  border-color: rgba(139, 125, 96, 0.12);
-}
-
-.theme-cream .card-inset {
-  background: #FDFBF7;
-  border-color: rgba(139, 125, 96, 0.08);
-}
-
-.theme-cream .card-hero {
-  background: linear-gradient(135deg, #1A3A2A 0%, #1E5E3A 100%);
-}
-
-.theme-cream .table-row-hover:hover {
-  background-color: rgba(139, 125, 96, 0.04);
 }
 
 /* stylelint-enable declaration-no-important -- zone 1 ends */

@@ -74,7 +74,7 @@ export const en = {
     date: "Date",
     submit: "Submit",
     paymentEntry: "Payment Entry",
-    currency: "XOF",
+    currency: "FCFA",
     langToggle: "Français",
 };
 
@@ -148,6 +148,6 @@ export const fr = {
     date: "Date",
     submit: "Soumettre",
     paymentEntry: "Saisie de Paiement",
-    currency: "XOF",
+    currency: "FCFA",
     langToggle: "English",
 };

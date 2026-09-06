@@ -10,7 +10,7 @@
 -- Régénération :  node supabase/regenerate-full-setup.mjs
 -- Vérification :  node supabase/regenerate-full-setup.mjs --check
 --
--- Ce script est la concaténation des 19 migrations suivantes, dans
+-- Ce script est la concaténation des 20 migrations suivantes, dans
 -- l'ordre chronologique de leur nom de fichier :
 --
 --   20260801000000_init.sql
@@ -32,6 +32,7 @@
 --   20260902000006_ninth_grade_student_identifiers.sql
 --   20260903000001_calendar_notes.sql
 --   20260906000000_anon_cannot_execute_admin_set_user_password.sql
+--   20260906000001_staff_payroll_details.sql
 --
 -- Exécuté dans le Supabase SQL Editor, il recrée le schéma complet
 -- (tables, index, fonctions, triggers, politiques RLS, données de
@@ -1126,3 +1127,25 @@ CREATE POLICY "Authenticated delete calendar_notes"
 REVOKE EXECUTE ON FUNCTION public.admin_set_user_password(uuid, text) FROM anon;
 REVOKE EXECUTE ON FUNCTION public.admin_set_user_password(uuid, text) FROM public;
 GRANT EXECUTE ON FUNCTION public.admin_set_user_password(uuid, text) TO authenticated;
+
+-- ============================================================================
+-- MIGRATION : 20260906000001_staff_payroll_details.sql
+-- ============================================================================
+
+-- Migration: staff payroll & social details (bulletin de paie data).
+--
+-- Adds the fields printed on the monthly bulletin de paie / fiche de
+-- paiement: INPS number, hire date, family status, number of children and
+-- the three allowance lines (travel, communication, housing). Every column
+-- is nullable or defaulted so existing staff rows keep working and the PDF
+-- generators fall back to dashes / zeros when a field is empty.
+
+ALTER TABLE public.staff
+    ADD COLUMN IF NOT EXISTS inps_number TEXT,
+    ADD COLUMN IF NOT EXISTS hire_date DATE,
+    ADD COLUMN IF NOT EXISTS family_status TEXT
+        CHECK (family_status IN ('single', 'married', 'divorced', 'widowed')),
+    ADD COLUMN IF NOT EXISTS children_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS travel_allowance NUMERIC NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS communication_allowance NUMERIC NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS housing_allowance NUMERIC NOT NULL DEFAULT 0;

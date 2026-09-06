@@ -69,6 +69,13 @@ const emptyForm: StaffForm = {
   phone: '',
   bankDetails: '',
   emergencyContact: '',
+  inpsNumber: '',
+  hireDate: '',
+  familyStatus: '',
+  childrenCount: '',
+  travelAllowance: '',
+  communicationAllowance: '',
+  housingAllowance: '',
 };
 
 interface Harness {
@@ -111,7 +118,16 @@ describe('StaffFormModal', () => {
     assert.equal(title?.textContent, t.addStaff);
     const input = container.querySelector<HTMLInputElement>('input[type="text"]');
     assert.ok(input, 'free-text position input rendered');
-    assert.ok(!container.querySelector('select'), 'no select in employee mode');
+    // The payroll-details section adds its own selects (family status) in
+    // BOTH modes — only the position field switches between input/select.
+    const positionInput = Array.from(container.querySelectorAll('input')).find(
+      (el) => (el.placeholder ?? '') === 'Teacher',
+    );
+    assert.ok(positionInput, 'position stays a free-text input in employee mode');
+    const familySelect = Array.from(container.querySelectorAll('select')).find(
+      (el) => (el.querySelector('option[value="married"]')) !== null,
+    );
+    assert.ok(familySelect, 'family status select rendered in employee mode');
     root.unmount();
     document.body.removeChild(container);
   });

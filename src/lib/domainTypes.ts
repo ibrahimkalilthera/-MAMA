@@ -58,6 +58,8 @@ export interface Student {
   status?: 'Active' | 'Graduated' | 'Left';
 }
 
+export type FamilyStatus = 'single' | 'married' | 'divorced' | 'widowed';
+
 export interface Staff {
   id: string;
   name: string;
@@ -68,6 +70,14 @@ export interface Staff {
   bankDetails: string;
   emergencyContact: string;
   academicYear?: string;
+  /** Bulletin de paie details (migration 20260906000001). */
+  inpsNumber?: string;
+  hireDate?: string; // YYYY-MM-DD
+  familyStatus?: FamilyStatus;
+  childrenCount?: number;
+  travelAllowance?: number;
+  communicationAllowance?: number;
+  housingAllowance?: number;
 }
 
 export interface SalaryPayment {

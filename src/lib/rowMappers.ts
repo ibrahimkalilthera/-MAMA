@@ -71,6 +71,13 @@ export function mapStaffRow(row: DbRow<'staff'>): Staff {
     bankDetails: row.bank_details ?? '',
     emergencyContact: row.emergency_contact ?? '',
     academicYear: row.academic_year ?? undefined,
+    inpsNumber: row.inps_number ?? undefined,
+    hireDate: row.hire_date ?? undefined,
+    familyStatus: (row.family_status as Staff['familyStatus']) || undefined,
+    childrenCount: Number(row.children_count) || 0,
+    travelAllowance: Number(row.travel_allowance) || 0,
+    communicationAllowance: Number(row.communication_allowance) || 0,
+    housingAllowance: Number(row.housing_allowance) || 0,
   };
 }
 

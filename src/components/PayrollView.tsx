@@ -4,12 +4,17 @@ import { useMainViews } from '../app/mainViewsContext';
 import type { StaffPositionFilter } from '../app/mainViewsProps';
 import type { Staff } from '../lib/useSupabaseData';
 import { sameYearMonth } from '../lib/dateWindows';
+import { isPayrollWindowOverdue } from '../lib/payrollWindow';
 import { ConfirmDialog } from './ConfirmDialog';
 import { isAdminPosition } from '../lib/adminPositions';
 
+/** School-year month sequence: September → August (12 cells). */
+const SCHOOL_YEAR_MONTH_KEYS = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'];
+const SCHOOL_YEAR_MONTH_INDEXES = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7];
+
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, ChevronDown, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails } = useMainViews();
+  const { AlertCircle, ChevronDown, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails } = useMainViews();
   const currentYear = new Date().getFullYear();
   return (
     <>
@@ -40,7 +45,7 @@ export function PayrollView() {
               </div>
             </div>
 
-            {/* 12-Month Payroll Summary Grid */}
+            {/* 12-Month Payroll Summary Grid — school year (September → August) */}
             <div className={`${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 no-print`}>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
@@ -48,7 +53,7 @@ export function PayrollView() {
                     {t.automaticPayrollAudit}
                   </h4>
                   <p className={`text-xs ${currentTheme.muted} mt-1`}>
-                    {t.n12MonthPayrollTrackingForTheCurrentCalendarYear}
+                    {t.n12MonthPayrollTrackingForTheCurrentSchoolYear.replace('{year}', selectedYear)}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-4 text-[10px] font-black uppercase tracking-widest">
@@ -68,19 +73,29 @@ export function PayrollView() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-4">
-                {['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].map((monthKey, index) => {
-                  const currentCalendarYear = new Date().getFullYear();
-                  const currentCalendarMonth = new Date().getMonth();
-                  const isFuture = index > currentCalendarMonth;
-                  const monthName = (t as Record<string, string>)[monthKey];
+                {(() => {
+                  // The school year starts in September: cells are Sep..Dec of
+                  // the start year then Jan..Aug of the following year — the
+                  // same horizon as the missed-payroll alerts.
+                  const schoolYearStart = parseInt(selectedYear.split('-')[0] || '', 10);
+                  const startYear = Number.isFinite(schoolYearStart) ? schoolYearStart : new Date().getFullYear();
+                  const now = new Date();
+                  const nowYear = now.getFullYear();
+                  const nowMonth = now.getMonth();
 
-                  // calculate payroll status for this month
-                  const monthPayments = salaryPayments.filter(p => {
-                    const payDate = new Date(p.date);
-                    return payDate.getFullYear() === currentCalendarYear && payDate.getMonth() === index;
-                  });
-                  const totalPaid = monthPayments.reduce((sum, p) => sum + p.amount, 0);
-                  const totalExpected = staff.reduce((sum, s) => sum + s.salary, 0);
+                  return SCHOOL_YEAR_MONTH_KEYS.map((monthKey, index) => {
+                    const monthIndex = SCHOOL_YEAR_MONTH_INDEXES[index]!;
+                    const cellYear = index < 4 ? startYear : startYear + 1;
+                    const isFuture = cellYear > nowYear || (cellYear === nowYear && monthIndex > nowMonth);
+                    const monthName = (t as Record<string, string>)[monthKey];
+
+                    // Payroll status for this school-year cell
+                    const monthPayments = salaryPayments.filter(p => {
+                      const payDate = new Date(p.date);
+                      return payDate.getFullYear() === cellYear && payDate.getMonth() === monthIndex;
+                    });
+                    const totalPaid = monthPayments.reduce((sum, p) => sum + p.amount, 0);
+                    const totalExpected = staff.reduce((sum, s) => sum + s.salary, 0);
 
                   let boxClass = "";
                   let statusText = "";
@@ -101,10 +116,10 @@ export function PayrollView() {
 
                   return (
                     <div 
-                      key={index} 
+                      key={`${cellYear}-${monthIndex}`} 
                       onClick={() => {
-                        setSelectedDraftMonth(index);
-                        setSelectedDraftYear(currentCalendarYear);
+                        setSelectedDraftMonth(monthIndex);
+                        setSelectedDraftYear(cellYear);
                         setShowMonthlyDraftModal(true);
                       }}
                       className={`${boxClass} p-4 rounded-2xl border flex flex-col items-center justify-center text-center transition-all hover:scale-[1.05] cursor-pointer shadow-sm`}
@@ -117,7 +132,8 @@ export function PayrollView() {
                       )}
                     </div>
                   );
-                })}
+                  });
+                })()}
               </div>
             </div>
 
@@ -174,7 +190,7 @@ export function PayrollView() {
                   onClick={() => {
                     setEditingStaff(null);
                     setStaffModalMode('employee');
-                    setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '' });
+                    setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
                     setShowStaffModal(true);
                   }}
                   className={`${currentTheme.accentBg} text-white px-6 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
@@ -186,7 +202,7 @@ export function PayrollView() {
                   onClick={() => {
                     setEditingStaff(null);
                     setStaffModalMode('admin');
-                    setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '' });
+                    setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
                     setShowStaffModal(true);
                   }}
                   className="bg-violet-600 hover:bg-violet-700 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-violet-500/20"
@@ -202,7 +218,9 @@ export function PayrollView() {
                 const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && sameYearMonth(p.date, currentYear, currentMonth));
                 const paidThisMonth = paymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
                 const balance = s.salary - paidThisMonth;
-                const payDatePassed = new Date().getDate() > 25;
+                // Same late rule as the sidebar/banner window (1st–10th open;
+                // from the 11th an unpaid month is late) — see payrollWindow.ts.
+                const payDatePassed = isPayrollWindowOverdue(new Date().getDate());
                 
                 let statusColor = "";
                 let statusLabel = "";

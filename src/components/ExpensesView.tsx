@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useMainViews } from '../app/mainViewsContext';
 import type { VendorExpense } from '../lib/useSupabaseData';
+import { sameYearMonth } from '../lib/dateWindows';
 import { ConfirmDialog } from './ConfirmDialog';
+
+/** Categories of the simple-expense flow (values stored in the expenses table). */
+const GENERAL_EXPENSE_CATEGORIES = ['Supplies', 'Utilities', 'Maintenance', 'Other'];
 
 export function ExpensesView() {
   const [confirmDeleteVendor, setConfirmDeleteVendor] = useState<VendorExpense | null>(null);
-  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, getGradeDisplay, handleDeleteVendorExpense, handlePrint, isPromoter, isGeneralManager, lang, selectedYear, setEditingVendorExpense, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorSearch, vendorStatusFilter } = useMainViews();
+  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, currentMonth, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, generalExpenseCategoryFilter, generalExpenseSearch, getGradeDisplay, handleDeleteVendorExpense, handlePrint, isPromoter, isGeneralManager, lang, selectedYear, setEditingVendorExpense, setExpenseForm, setGeneralExpenseCategoryFilter, setGeneralExpenseSearch, setShowExpenseModal, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorExpensesTab, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorExpensesTab, vendorSearch, vendorStatusFilter } = useMainViews();
   // Vendor create/delete are finance-admin powers (promoter/admin + Gestionnaire
   // Principal) — mirrors the isFinanceAdmin gate in useExpenses.
   const canManageVendors = isPromoter || isGeneralManager;
@@ -33,7 +37,167 @@ export function ExpensesView() {
               </div>
             </div>
 
+            {/* Expenses flow switcher — general expenses (simple) vs vendors & services */}
+            <div className={`inline-flex items-center rounded-2xl border ${currentTheme.border} bg-${currentTheme.isDark ? 'slate-800/60' : 'white'} p-1.5 gap-1 no-print`}>
+              <button
+                onClick={() => setVendorExpensesTab('general')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${vendorExpensesTab === 'general' ? 'bg-blue-600 text-white shadow-md' : `${currentTheme.muted} hover:bg-slate-100 dark:hover:bg-slate-800`}`}
+              >
+                {t.generalExpensesTabLabel}
+              </button>
+              <button
+                onClick={() => setVendorExpensesTab('vendors')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${vendorExpensesTab === 'vendors' ? 'bg-blue-600 text-white shadow-md' : `${currentTheme.muted} hover:bg-slate-100 dark:hover:bg-slate-800`}`}
+              >
+                {t.vendorExpensesTabLabel}
+              </button>
+            </div>
+
             <div className="space-y-8">
+              {vendorExpensesTab === 'general' && (
+                <>
+                  {/* General expenses — simple expense flow (formerly unreachable) */}
+                  {(() => {
+                    const yearGeneralExpenses = expenses.filter(e => !selectedYear || !e.academicYear || e.academicYear === selectedYear);
+                    const totalGeneral = yearGeneralExpenses.reduce((sum, e) => sum + e.amount, 0);
+                    const thisMonthGeneral = yearGeneralExpenses
+                      .filter(e => sameYearMonth(e.date, new Date().getFullYear(), currentMonth))
+                      .reduce((sum, e) => sum + e.amount, 0);
+                    const filteredGeneral = yearGeneralExpenses
+                      .filter(e => {
+                        const matchesSearch = (e.description || '').toLowerCase().includes(generalExpenseSearch.toLowerCase());
+                        if (!matchesSearch) return false;
+                        if (generalExpenseCategoryFilter !== 'all' && e.category !== generalExpenseCategoryFilter) return false;
+                        return true;
+                      })
+                      .sort((a, b) => (a.date < b.date ? 1 : -1));
+
+                    return (
+                      <>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <h3 className={`text-2xl font-bold tracking-tight ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.generalExpenses}</h3>
+                          <div className="flex items-center gap-3 no-print">
+                            <button
+                              onClick={() => generateExpensesReportPdf({
+                                expenses,
+                                vendorExpenses,
+                                selectedYear,
+                                subTab: 'general',
+                                selectedCategory: generalExpenseCategoryFilter,
+                                searchQuery: generalExpenseSearch,
+                                lang,
+                              })}
+                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
+                              title={t.downloadExpensesPdfReportFiltered}
+                            >
+                              <FileText size={16} />
+                              <span>{t.exportPdf}</span>
+                            </button>
+                            {canManageVendors && (
+                              <button
+                                onClick={() => {
+                                  setExpenseForm({ category: 'Other', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
+                                  setShowExpenseModal(true);
+                                }}
+                                className={`${currentTheme.isDark ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg`}
+                              >
+                                <Plus size={16} />
+                                {t.addExpense}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className={`${currentTheme.card} p-6 rounded-[2rem] border ${currentTheme.border} shadow-md`}>
+                            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${currentTheme.muted}`}>{t.totalExpenses}</p>
+                            <h4 className={`text-2xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{formatCurrency(totalGeneral)}</h4>
+                          </div>
+                          <div className="bg-emerald-50/50 dark:bg-emerald-500/10 p-6 rounded-[2rem] border border-emerald-100 dark:border-emerald-500/20 shadow-sm">
+                            <p className="text-[10px] font-bold uppercase tracking-widest mb-1 text-emerald-600 dark:text-emerald-300">{t.expensesThisMonth}</p>
+                            <h4 className="text-2xl font-black text-emerald-700 dark:text-emerald-200">{formatCurrency(thisMonthGeneral)}</h4>
+                          </div>
+                          <div className={`${currentTheme.card} p-6 rounded-[2rem] border ${currentTheme.border} shadow-md`}>
+                            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${currentTheme.muted}`}>{t.numberOfEntries}</p>
+                            <h4 className={`text-2xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{yearGeneralExpenses.length}</h4>
+                          </div>
+                        </div>
+
+                        <div className={`${currentTheme.card} p-6 rounded-3xl border ${currentTheme.border} shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between no-print`}>
+                          <div className="relative w-full md:w-80">
+                            <Search size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
+                            <input
+                              type="text"
+                              placeholder={t.searchExpenses}
+                              value={generalExpenseSearch}
+                              onChange={(e) => setGeneralExpenseSearch(e.target.value)}
+                              className={`w-full pl-11 pr-4 py-3 rounded-xl border text-sm focus:outline-none ${currentTheme.input}`}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs ${currentTheme.muted}`}>{t.category}:</span>
+                            <select
+                              value={generalExpenseCategoryFilter}
+                              onChange={(e) => setGeneralExpenseCategoryFilter(e.target.value)}
+                              className={`px-3 py-2 rounded-xl border text-xs focus:outline-none ${currentTheme.input}`}
+                            >
+                              <option value="all">{t.allCategories}</option>
+                              {GENERAL_EXPENSE_CATEGORIES.map(cat => (
+                                <option key={cat} value={cat}>
+                                  {(t as Record<string, string>)[cat.toLowerCase()] || cat}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className={`${currentTheme.card} rounded-[2rem] border ${currentTheme.border} shadow-xl overflow-hidden`}>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className={`${currentTheme.tableHeader} text-[10px] font-black uppercase tracking-[0.2em]`}>
+                                  <th className="px-8 py-6">{t.date}</th>
+                                  <th className="px-8 py-6">{t.category}</th>
+                                  <th className="px-8 py-6">{t.description}</th>
+                                  <th className="px-8 py-6 text-right">{t.amount}</th>
+                                </tr>
+                              </thead>
+                              <tbody className={`divide-y ${currentTheme.border}`}>
+                                {filteredGeneral.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={4} className="px-8 py-16 text-center text-slate-400 italic">
+                                      {t.noExpensesFoundMatchingTheSelectedFilter}
+                                    </td>
+                                  </tr>
+                                ) : filteredGeneral.map(e => (
+                                  <tr key={e.id} className={`${currentTheme.rowHover} transition-all`}>
+                                    <td className="px-8 py-6">
+                                      <span className={`text-sm font-bold ${currentTheme.isDark ? 'text-[#CBD5E1]' : 'text-slate-600'}`}>{e.date}</span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                      <span className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">
+                                        {(t as Record<string, string>)[e.category.toLowerCase()] || e.category}
+                                      </span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                      <span className={`text-sm font-bold ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>{e.description}</span>
+                                    </td>
+                                    <td className="px-8 py-6 text-right">
+                                      <span className="text-sm font-black text-emerald-600">{formatCurrency(e.amount)}</span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+              {vendorExpensesTab === 'vendors' && (
+                <div className="space-y-8">
               {/* Summary Cards */}
               {(() => {
                 const academicYearVendorExpenses = vendorExpenses.filter(v => !selectedYear || !v.academicYear || v.academicYear === selectedYear);
@@ -63,14 +227,14 @@ export function ExpensesView() {
                 return (
                   <>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <h3 className={`text-2xl font-bold tracking-tight ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.generalExpenses}</h3>
+                      <h3 className={`text-2xl font-bold tracking-tight ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.vendorExpensesTabLabel}</h3>
                       <div className="flex items-center gap-3 no-print">
                         <button
                           onClick={() => generateExpensesReportPdf({
                             expenses,
                             vendorExpenses,
                             selectedYear,
-                            subTab: 'vendors',
+                            subTab: vendorExpensesTab,
                             selectedCategory: vendorCategoryFilter,
                             selectedStatus: vendorStatusFilter,
                             searchQuery: vendorSearch,
@@ -353,6 +517,8 @@ export function ExpensesView() {
                   </>
                 );
               })()}
+                </div>
+              )}
             </div>
           </div>
 

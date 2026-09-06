@@ -357,7 +357,7 @@ export function MainViews(props: MainViewsProps) {
                       <p className={`text-xs ${currentTheme.muted}`}>{t.current} {t.currency}</p>
                     </div>
                   </div>
-                  <span className={`text-xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.autoDetected}</span>
+                  <span className={`text-xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.currency}</span>
                 </div>
 
                 {/* Theme Selection */}

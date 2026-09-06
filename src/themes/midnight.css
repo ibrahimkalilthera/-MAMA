@@ -1,0 +1,251 @@
+/* stylelint-disable declaration-no-important -- midnight remap layer: the
+   !important below is deliberate — the tokens must beat Tailwind utilities */
+/* --- Midnight Theme ---
+   Midnight (Cyber Minuit) previously shipped NO CSS remap layer: it relied
+   entirely on the JS token map + the `.dark` ancestor. Any light utility
+   written without a `dark:` variant (bg-white, bg-slate-50, text-slate-800,
+   border-slate-100, the pastel alert surfaces) stayed light inside midnight,
+   producing white cards / invisible text. This layer mirrors the slate
+   remap strategy with midnight's own palette (#090D16 body, #111827 card,
+   #1F2937 borders) so the same families are covered: light surfaces become
+   dark, dark text becomes light, pastel alerts become deep tints, and the
+   scoped heading rule only whitens text inside containers this theme paints
+   dark — same contract as the slate block above (kept in sync by
+   scripts/check-css-selectors.mjs for the slate family; midnight follows
+   the same discipline). */
+.theme-midnight {
+  --surface-sidebar: linear-gradient(180deg, #030712 0%, #090D16 100%);
+  --surface-card: #111827;
+  --surface-inset: #090D16;
+  --surface-body: #090D16;
+  --accent-primary: #FBBF24;
+  --accent-primary-hover: #F59E0B;
+  --accent-primary-muted: rgba(251, 191, 36, 0.12);
+  --accent-primary-shadow: rgba(251, 191, 36, 0.2);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.40), 0 4px 6px -4px rgba(0, 0, 0, 0.28);
+  background-color: #090D16 !important;
+}
+
+.theme-midnight,
+.theme-midnight select,
+.theme-midnight option,
+.theme-midnight input,
+.theme-midnight textarea {
+  color: #F9FAFB !important;
+}
+
+/* Headings + slate-neutral text inside containers midnight paints dark */
+.theme-midnight .bg-white :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-\[#F8FAFC\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-slate-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-slate-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-slate-50\/30 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-rose-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-rose-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-rose-50\/40 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-blue-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-amber-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-amber-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-yellow-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-teal-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-purple-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-500 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-blue-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-900\/10 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-900\/20 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-elevated :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-stat :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-hero :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600) {
+  color: #F9FAFB !important;
+}
+
+.theme-midnight .text-slate-400,
+.theme-midnight .text-slate-500 {
+  color: #9CA3AF !important;
+}
+.theme-midnight .text-slate-600,
+.theme-midnight .text-slate-700 {
+  color: #CBD5E1 !important;
+}
+
+.theme-midnight .bg-\[#F8FAFC\],
+.theme-midnight .bg-slate-50,
+.theme-midnight .bg-slate-50\/50,
+.theme-midnight .bg-slate-50\/30 {
+  background-color: #111827 !important;
+}
+
+.theme-midnight .bg-white {
+  background-color: #111827 !important;
+}
+
+.theme-midnight .border-slate-100,
+.theme-midnight .border-slate-200,
+.theme-midnight .border-slate-300 {
+  border-color: #1F2937 !important;
+}
+
+/* Pastel alert/badge surfaces → deep tints (same family as slate) */
+.theme-midnight .bg-rose-50 {
+  background-color: #4C1D2E !important;
+}
+.theme-midnight .bg-rose-100 {
+  background-color: #7F1D1D !important;
+}
+.theme-midnight .bg-rose-50\/40 {
+  background-color: rgba(190, 18, 60, 0.35) !important;
+}
+.theme-midnight .bg-blue-50 {
+  background-color: #1E3A8A !important;
+}
+.theme-midnight .bg-emerald-50 {
+  background-color: #064E3B !important;
+}
+.theme-midnight .bg-emerald-50\/50 {
+  background-color: rgba(6, 78, 59, 0.5) !important;
+}
+.theme-midnight .bg-amber-50 {
+  background-color: #78350F !important;
+}
+.theme-midnight .bg-amber-50\/50 {
+  background-color: rgba(120, 53, 15, 0.5) !important;
+}
+.theme-midnight .bg-yellow-50 {
+  background-color: #713F12 !important;
+}
+.theme-midnight .bg-teal-50 {
+  background-color: #134E4A !important;
+}
+.theme-midnight .bg-purple-50 {
+  background-color: #4C1D95 !important;
+}
+
+.theme-midnight .text-rose-600,
+.theme-midnight .text-rose-700,
+.theme-midnight .text-rose-800 {
+  color: #FDA4AF !important;
+}
+.theme-midnight .text-amber-600,
+.theme-midnight .text-amber-700 {
+  color: #FBBF24 !important;
+}
+.theme-midnight .text-blue-700 {
+  color: #93C5FD !important;
+}
+.theme-midnight .text-emerald-500,
+.theme-midnight .text-emerald-600 {
+  color: #34D399 !important;
+}
+.theme-midnight .text-emerald-700 {
+  color: #6EE7B7 !important;
+}
+.theme-midnight .text-purple-400,
+.theme-midnight .text-purple-600,
+.theme-midnight .text-purple-700 {
+  color: #D8B4FE !important;
+}
+.theme-midnight .text-cyan-400,
+.theme-midnight .text-cyan-800 {
+  color: #67E8F9 !important;
+}
+.theme-midnight .text-blue-400 {
+  color: #93C5FD !important;
+}
+.theme-midnight .text-amber-500,
+.theme-midnight .text-amber-400 {
+  color: #FBBF24 !important;
+}
+
+.theme-midnight .border-rose-100,
+.theme-midnight .border-rose-200 {
+  border-color: #7F1D1D !important;
+}
+.theme-midnight .border-blue-100,
+.theme-midnight .border-blue-200 {
+  border-color: #1E3A8A !important;
+}
+.theme-midnight .border-amber-100 {
+  border-color: #78350F !important;
+}
+.theme-midnight .border-emerald-100 {
+  border-color: #064E3B !important;
+}
+.theme-midnight .border-emerald-900\/20,
+.theme-midnight .border-emerald-900\/30,
+.theme-midnight .border-emerald-800\/50 {
+  border-color: #1F2937 !important;
+}
+
+.theme-midnight .bg-emerald-900\/10,
+.theme-midnight .bg-emerald-900\/20 {
+  background-color: #111827 !important;
+}
+
+.theme-midnight .hover\:bg-emerald-900\/5:hover {
+  background-color: #1F2937 !important;
+}
+
+/* Midnight accent mapping (amber) + card system */
+.theme-midnight .bg-amber-500,
+.theme-midnight .bg-amber-600 {
+  background-color: #F59E0B !important;
+}
+.theme-midnight .hover\:bg-amber-700:hover {
+  background-color: #B45309 !important;
+}
+
+.theme-midnight .card-elevated,
+.theme-midnight .card-stat {
+  background: #111827;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.theme-midnight .card-inset {
+  background: #090D16;
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+.theme-midnight .card-hero {
+  background: linear-gradient(135deg, #030712 0%, #111827 100%);
+  border-color: rgba(251, 191, 36, 0.1);
+}
+
+.theme-midnight .table-row-hover:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.theme-midnight .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.theme-midnight .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.20);
+}
+
+/* Cream card system */
+.theme-cream .card-elevated,
+.theme-cream .card-stat {
+  background: #FFFDF9;
+  border-color: rgba(139, 125, 96, 0.12);
+}
+
+.theme-cream .card-inset {
+  background: #FDFBF7;
+  border-color: rgba(139, 125, 96, 0.08);
+}
+
+.theme-cream .card-hero {
+  background: linear-gradient(135deg, #1A3A2A 0%, #1E5E3A 100%);
+}
+
+.theme-cream .table-row-hover:hover {
+  background-color: rgba(139, 125, 96, 0.04);
+}
+
+/* stylelint-enable declaration-no-important -- midnight remap layer ends */

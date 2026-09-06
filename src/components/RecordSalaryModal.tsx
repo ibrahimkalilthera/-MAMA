@@ -94,6 +94,8 @@ export function RecordSalaryModal(props: RecordSalaryModalProps) {
                     <input 
                       required
                       type="number" 
+                      min="0"
+                      max={(() => { const member = staff.find((s) => s.id === salaryForm.staffId); return member ? member.salary : undefined; })()}
                       value={salaryForm.amount}
                       onChange={(e) => setSalaryForm({ ...salaryForm, amount: e.target.value })}
                       className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}

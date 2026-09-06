@@ -884,8 +884,8 @@ export function AppModals(props: AppModalsProps) {
         );
       })()}
 
-      {/* --- Mobile Sidebar Toggle (Simplified) --- */}
-      <div className="lg:hidden fixed bottom-6 left-6 z-50">
+      {/* --- Mobile Language Toggle (sidebar is hidden below lg; the bottom nav handles page switching) --- */}
+      <div className="lg:hidden fixed bottom-24 left-6 z-50">
         <button 
           onClick={() => toggleLanguage(lang === 'en' ? 'fr' : 'en')}
           className="bg-blue-600 text-white p-4 rounded-full shadow-2xl shadow-blue-500/40"

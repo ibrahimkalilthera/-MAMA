@@ -30,6 +30,7 @@ import { InactivityWarning } from './InactivityWarning';
 import { ConfirmDialog } from './ConfirmDialog';
 import { AppLoadingScreen } from './AppLoadingScreen';
 import { Sidebar } from './Sidebar';
+import { MobileNav } from './MobileNav';
 import { AppHeader } from './AppHeader';
 import { WelcomeBanner } from './WelcomeBanner';
 import { LockedYearBanner } from './LockedYearBanner';
@@ -54,8 +55,7 @@ export interface AppShellExtras {
   viewsProps: MainViewsProps & AppModalsProps;
   /** Tighten the loose AppModalsProps.currentUser to the real user shape. */
   currentUser: User | null;
-  /** Overload-tightened: MonthlyDraftHost takes an `unknown` amount. */
-  formatCurrency: (amount: unknown) => string;
+  formatCurrency: (amount: number) => string;
   authLoading: boolean;
   supabaseLoading: boolean;
   supabaseError: string | null;
@@ -72,7 +72,7 @@ export interface AppShellExtras {
   setShowExcelImport: (v: boolean) => void;
   generateMultiYearReportPdf: typeof generateMultiYearReportPdf;
   lockedYears: string[];
-  vendorExpensesTab: 'general' | 'all' | 'vendors';
+  vendorExpensesTab: 'general' | 'vendors';
   handleExport: () => void;
   generateFinancialReportPdf: typeof generateFinancialReportPdf;
   notifications: ReturnType<typeof useDashboard>['notifications'];
@@ -182,8 +182,16 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
         onRecordPayment={() => setShowPaymentForm(true)}
       />
 
+      {/* --- Mobile Bottom Navigation (sidebar is hidden below lg) --- */}
+      <MobileNav
+        t={t}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        payrollWindowStatus={payrollWindowStatus}
+      />
+
       {/* --- Main Content --- */}
-      <main className={`flex-1 lg:ml-64 p-8 lg:p-12 transition-all duration-300 ${showTodoSidebar ? 'lg:mr-80' : ''}`}>
+      <main className={`flex-1 lg:ml-64 p-8 pb-24 lg:p-12 transition-all duration-300 ${showTodoSidebar ? 'lg:mr-80' : ''}`}>
         
         <AppHeader
           t={t}
