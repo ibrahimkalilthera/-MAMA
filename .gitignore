@@ -13,3 +13,6 @@ coverage/
 .freebuff/
 lh-vercel.json
 *.out.txt
+
+# État local de la CLI Supabase
+supabase/.temp/

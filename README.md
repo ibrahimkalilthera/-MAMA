@@ -46,8 +46,8 @@ Variables (voir `.env.example`) :
 | `npm run dev` | Vite dev server (port 3000, mode development) |
 | `npm run dev:staging` | dev server en mode staging |
 | `npm run build[:staging\|:production]` | build de production |
-| `npm test` | 496 tests (node:test + tsx, module-mocks expérimental) |
-| `npm run lint` | ESLint 0-warning + tsc strict + 6 guards custom (props, `any`, stylelint, CSS, i18n, emoji) |
+| `npm test` | 525 tests (node:test + tsx, module-mocks expérimental) |
+| `npm run lint` | ESLint 0-warning + tsc strict + 7 guards custom (props, `any`, stylelint, CSS, i18n, emoji, snapshot SQL) |
 | `npm run quality` | lint + tests + audit de contraste WCAG 6 thèmes (identique au pre-commit/CI) |
 | `npm run check:contrast` | audit de contraste seul |
 | `npm run seed` | seed Supabase (dev) ; variantes `:staging`, `:production` |
@@ -59,23 +59,23 @@ Variables (voir `.env.example`) :
 
 ## Base de données (Supabase)
 
-Les migrations sont dans `supabase/migrations/` (18 migrations ordonnées).
+Les migrations sont dans `supabase/migrations/` (19 migrations ordonnées).
 `supabase/FULL_SETUP_MIGRATION.sql` est un **snapshot généré** (concaténation des migrations)
 — après toute nouvelle migration : `npm run db:snapshot` ; `npm run db:snapshot:check`
-en CI garantit qu'il ne dérive jamais des migrations.
+(dans la chaîne lint, donc pré-commit + CI) garantit qu'il ne dérive jamais des migrations.
 
 ```bash
 npx supabase migrations up   # ou via le dashboard Supabase
 npm run seed                 # données de démo (env .env)
 ```
 
-> **Runners hérités** : `supabase/run-migrations.mjs` / `run_migration.mjs` (et
-> les helpers `_update_role.cjs`, `debug-auth.cjs`, `scripts/audit-user-profiles.mjs`)
-> sont des scripts ponctuels d'une époque où le schéma n'était pas versionné.
-> Ils ne couvrent qu'une partie des migrations et certains embarquent des
-> identifiants de production — ne les exécutez pas sur la base courante ;
-> l'application du schéma se fait exclusivement via le CLI/Dashboard Supabase
-> sur `supabase/migrations/`.
+> **Runners hérités supprimés** : `supabase/run-migrations.mjs` et `supabase/run_migration.mjs`
+> (qui appliquaient un schéma d'août périmé) ont été retirés en septembre 2026.
+> Les helpers `_update_role.cjs`, `debug-auth.cjs`, `scripts/audit-user-profiles.mjs`
+> restants sont des scripts ponctuels d'une époque où le schéma n'était pas
+> versionné — certains embarquent des identifiants de production, ne les
+> exécutez pas sur la base courante ; l'application du schéma se fait
+> exclusivement via le CLI/Dashboard Supabase sur `supabase/migrations/`.
 
 RLS activé sur toutes les tables, politiques par rôle (`admin` / `staff` / `dev` / `general_manager` / `econome`).
 
@@ -87,7 +87,7 @@ node --import tsx --experimental-test-module-mocks --test tests/payments.test.ts
 ```
 
 - Framework : `node:test` natif + `tsx`, rendu DOM via `happy-dom`
-- Garde-fous testés : file offline (replay FIFO), PDF (tampon, i18n), contraste calculé ≥ 4,5:1, focus traps, ARIA, contrats de props (`MainViewsProps`, 201 props)
+- Garde-fous testés : file offline (replay FIFO), PDF (tampon, i18n), contraste calculé ≥ 4,5:1, focus traps, ARIA, contrats de props (`MainViewsProps`), RLS anon (CI Supabase local)
 
 ## Chaîne qualité (pre-commit + CI)
 
@@ -104,7 +104,7 @@ src/
   lib/            # supabase client, PDF, offline queue, guards utilitaires
   i18n/           # translations.ts (fr/en)
 supabase/
-  migrations/     # 18 migrations SQL (schéma + RLS) ; FULL_SETUP_MIGRATION.sql généré
+  migrations/     # 19 migrations SQL (schéma + RLS) ; FULL_SETUP_MIGRATION.sql généré
 scripts/          # guards qualité (props, contraste, i18n, any, …)
-tests/            # 73 suites node:test (496 tests)
+tests/            # 82 suites node:test (525 tests)
 ```

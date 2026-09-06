@@ -1,7 +1,7 @@
 name: Supabase migrations & RLS anon
 
 # Garde-fou des migrations : démarre une instance Supabase locale (Docker),
-# applique les 18 migrations ordonnées depuis un schéma vierge et vérifie par
+# applique les 19 migrations ordonnées depuis un schéma vierge et vérifie par
 # l'API REST — le même canal que l'app en production — que le rôle anon ne
 # LIT aucune ligne métier (RLS active, zéro policy anon après la migration
 # 20260809000000). Une migration qui ne s'applique pas proprement, ou qui
@@ -60,7 +60,7 @@ jobs:
         with:
           version: 2.116.0
 
-      - name: Start local Supabase (applies the 18 ordered migrations)
+      - name: Start local Supabase (applies the 19 ordered migrations)
         run: supabase start
 
       - name: Verify anon reads/writes refused — business tables + auth (user_profiles, RPC password)

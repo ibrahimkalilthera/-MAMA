@@ -10,7 +10,7 @@
 -- Régénération :  node supabase/regenerate-full-setup.mjs
 -- Vérification :  node supabase/regenerate-full-setup.mjs --check
 --
--- Ce script est la concaténation des 18 migrations suivantes, dans
+-- Ce script est la concaténation des 19 migrations suivantes, dans
 -- l'ordre chronologique de leur nom de fichier :
 --
 --   20260801000000_init.sql
@@ -31,6 +31,7 @@
 --   20260902000005_team_inactivity_setting.sql
 --   20260902000006_ninth_grade_student_identifiers.sql
 --   20260903000001_calendar_notes.sql
+--   20260906000000_anon_cannot_execute_admin_set_user_password.sql
 --
 -- Exécuté dans le Supabase SQL Editor, il recrée le schéma complet
 -- (tables, index, fonctions, triggers, politiques RLS, données de
@@ -1106,3 +1107,22 @@ CREATE POLICY "Authenticated delete calendar_notes"
     ON public.calendar_notes
     FOR DELETE
     USING (auth.role() = 'authenticated');
+
+-- ============================================================================
+-- MIGRATION : 20260906000000_anon_cannot_execute_admin_set_user_password.sql
+-- ============================================================================
+
+-- Migration: anon must never execute admin_set_user_password.
+--
+-- The original hardening (20260902000004) revoked EXECUTE FROM public, but
+-- Supabase's default privileges (ALTER DEFAULT PRIVILEGES ... GRANT EXECUTE
+-- ON FUNCTIONS TO anon, authenticated, service_role) grant the anon role a
+-- DIRECT execute right when the function is created — a REVOKE FROM public
+-- does not remove it. The in-function role check was therefore the only
+-- barrier, and anon could actually execute the RPC (it raised the exception
+-- after running). This migration removes the direct anon grant; the RPC
+-- stays callable for authenticated (admin/dev) only.
+
+REVOKE EXECUTE ON FUNCTION public.admin_set_user_password(uuid, text) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.admin_set_user_password(uuid, text) FROM public;
+GRANT EXECUTE ON FUNCTION public.admin_set_user_password(uuid, text) TO authenticated;
