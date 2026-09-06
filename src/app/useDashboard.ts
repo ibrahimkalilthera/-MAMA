@@ -16,6 +16,7 @@ import { useMemo } from 'react';
 import type { Student, Staff, Expense, VendorExpense, SalaryPayment } from './types';
 import type { DashboardStats, PayrollWindowStatus } from './mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
+import { inAcademicYear } from '../lib/dateWindows';
 
 export interface DashboardNotification {
   id: string;
@@ -158,18 +159,18 @@ export function useDashboard(deps: UseDashboardDeps) {
       const monthIncome = students.reduce((acc, s) => {
         const thisMonthPayments = s.payments.filter(p => {
           const d = new Date(p.date);
-          return d.getMonth() === index && (!selectedYear || s.academicYear === selectedYear || !s.academicYear);
+          return d.getMonth() === index && (!selectedYear || inAcademicYear(d, selectedYear) || !s.academicYear);
         });
         return acc + thisMonthPayments.reduce((sum, p) => sum + p.amount, 0);
       }, 0);
 
       const monthExpenses = expenses.filter(e => {
         const d = new Date(e.date);
-        return d.getMonth() === index && (!selectedYear || e.academicYear === selectedYear || !e.academicYear);
+        return d.getMonth() === index && (!selectedYear || inAcademicYear(d, selectedYear) || !e.academicYear);
       }).reduce((acc, e) => acc + e.amount, 0) + 
       salaryPayments.filter(p => {
         const d = new Date(p.date);
-        return d.getMonth() === index && (!selectedYear || p.academicYear === selectedYear || !p.academicYear);
+        return d.getMonth() === index && (!selectedYear || inAcademicYear(d, selectedYear) || !p.academicYear);
       }).reduce((acc, p) => acc + p.amount, 0);
 
       return {

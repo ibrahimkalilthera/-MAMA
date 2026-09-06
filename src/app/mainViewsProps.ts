@@ -89,6 +89,13 @@ export interface ParentForm {
   linkedStudentIds: string[];
 }
 
+export interface ExpenseForm {
+  category: string;
+  description: string;
+  amount: string;
+  date: string;
+}
+
 export interface VendorExpenseForm {
   vendorName: string;
   category: string;

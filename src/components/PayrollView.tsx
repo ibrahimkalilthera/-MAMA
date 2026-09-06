@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useMainViews } from '../app/mainViewsContext';
 import type { Staff } from '../lib/useSupabaseData';
+import { sameYearMonth } from '../lib/dateWindows';
 import { ConfirmDialog } from './ConfirmDialog';
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
   const { AlertCircle, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
+  const currentYear = new Date().getFullYear();
   return (
     <>
           <div className="space-y-8">
@@ -21,7 +23,7 @@ export function PayrollView() {
               </div>
               <div className="divide-y divide-slate-100">
                 {staff.map(s => {
-                  const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth);
+                  const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && sameYearMonth(p.date, currentYear, currentMonth));
                   const paidThisMonth = paymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
                   const balance = s.salary - paidThisMonth;
                   return (
@@ -161,7 +163,7 @@ export function PayrollView() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredStaff.map(s => {
-                const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth);
+                const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && sameYearMonth(p.date, currentYear, currentMonth));
                 const paidThisMonth = paymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
                 const balance = s.salary - paidThisMonth;
                 const payDatePassed = new Date().getDate() > 25;

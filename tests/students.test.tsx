@@ -105,6 +105,7 @@ function baseDeps(overrides: DepsOverrides = {}): {
       return spies.updateResults[spies.updateCalls.length - 1] ?? true;
     },
     showToast: () => { spies.toasts += 1; },
+    toastError: (msg: string) => { spies.alerts.push(msg); },
   };
   return { args: args as Parameters<typeof useStudents>[0], spies };
 }

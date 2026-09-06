@@ -1,0 +1,101 @@
+/**
+ * Domain: studentProfile — student file fiche fields and the conversational AI assistant.
+ *
+ * Exports the en/fr fragments; src/i18n/translations.ts merges them in
+ * historical order so both dictionaries keep the original key order.
+ */
+export const en = {
+    studentIdLabel: "Student ID",
+    photoPlaceholder: "Photo Placeholder (URL)",
+    parentInfo: "Parent Information",
+    activeStatus: "Active",
+    graduatedStatus: "Graduated",
+    leftStatus: "Left",
+    printReceipt: "Print Receipt",
+    generateTicket: "Generate Ticket",
+    editProfile: "Edit Profile",
+    printStudentFile: "Print File",
+    saveAsPdf: "Save as PDF",
+    guardianTitle: "Primary Guardian",
+    emergencyTitle: "Emergency Contact",
+    relationshipLabel: "Relation / Relationship",
+    emergencyPhoneLabel: "Emergency Phone Number",
+    previousSchoolHistory: "Previous School / Transfer History",
+    medicalNotesTitle: "Medical Notes & Conditions",
+    noPayments: "No payments registered.",
+    lastUpdated: "Last updated",
+    notesPlaceholder: "Add payment promises or issues...",
+  addNoteForThisDay: "Add a note for this day",
+  alsoShowOnCalendar: "Also show on:",
+  saving: "Saving…",
+  save: "Save",
+
+    // Conversational AI Assistant
+    aiTitle: "Conversational AI Assistant",
+    aiSubtitle: "Financial intelligence & live metrics",
+    aiAskPlaceholder: "Ask me about cash balance, late students...",
+    aiQuickQuestion1: "What is the school cash balance?",
+    aiQuickQuestion2: "Which students are overdue?",
+    aiQuickQuestion3: "What are the expenses this month?",
+    aiQuickQuestion4: "Tell me about the staff payroll.",
+    aiResponseBalance: "The current school cash balance is {balance} XOF, with total collected fees of {income} XOF and total expenses of {expenses} XOF this month.",
+    aiResponseOverdue: "There are currently {count} students with overdue balances, totaling {amount} XOF in outstanding debt.",
+    aiResponseExpenses: "Expenses this month total {expenses} XOF, with major items including {categories}.",
+    aiResponsePayroll: "The staff directory has {count} employees. Total monthly salary liability is {salary} XOF, with {unpaidCount} unpaid salaries.",
+    aiGreeting: "Hello! I am your Mama Thera Finance Assistant. How can I assist you with calculations or school statistics today?",
+    aiNoData: "I could not find matching statistics for your query. Try one of the quick questions below!",
+    navVendorExpenses: "Vendor & Utilities",
+    actions: "Actions",
+    noTasks: "No financial tasks for this day",
+    tasks: "Tasks",
+
+    // Parent/Guardian Management
+};
+
+export const fr = {
+    studentIdLabel: "ID de l'élève",
+    photoPlaceholder: "Lien de la photo d'identité",
+    parentInfo: "Informations Parentales",
+    activeStatus: "Actif",
+    graduatedStatus: "Diplômé",
+    leftStatus: "Parti",
+    printReceipt: "Imprimer le Reçu",
+    generateTicket: "Générer le Ticket",
+    editProfile: "Modifier le Profil",
+    printStudentFile: "Imprimer la fiche",
+    saveAsPdf: "Enregistrer en PDF",
+    guardianTitle: "Tuteur Principal",
+    emergencyTitle: "Contact d'Urgence",
+    relationshipLabel: "Relation / Parenté",
+    emergencyPhoneLabel: "Numéro de Téléphone d'Urgence",
+    previousSchoolHistory: "École Précédente / Historique de Transfert",
+    medicalNotesTitle: "Notes Médicales & Conditions",
+    noPayments: "Aucun paiement enregistré.",
+    lastUpdated: "Dernière mise à jour",
+    notesPlaceholder: "Ajouter des promesses de paiement ou des problèmes...",
+  addNoteForThisDay: "Ajouter une note pour ce jour",
+  alsoShowOnCalendar: "Afficher aussi le :",
+  saving: "Enregistrement…",
+  save: "Enregistrer",
+
+    // Conversational AI Assistant
+    aiTitle: "Assistant IA Conversationnel",
+    aiSubtitle: "Intelligence financière & indicateurs en direct",
+    aiAskPlaceholder: "Posez-moi des questions sur le solde, les retards...",
+    aiQuickQuestion1: "Quel est le solde de caisse de l'école ?",
+    aiQuickQuestion2: "Quels sont les élèves en retard ?",
+    aiQuickQuestion3: "Quelles sont les dépenses ce mois-ci ?",
+    aiQuickQuestion4: "Parlez-moi de la paie du personnel.",
+    aiResponseBalance: "Le solde de caisse actuel de l'école est de {balance} XOF, avec un total de frais collectés de {income} XOF et des dépenses totales de {expenses} XOF ce mois-ci.",
+    aiResponseOverdue: "Il y a actuellement {count} élèves avec des soldes en retard, pour un total de {amount} XOF de dette impayée.",
+    aiResponseExpenses: "Les dépenses de ce mois s'élèvent à {expenses} XOF, avec des postes majeurs comprenant {categories}.",
+    aiResponsePayroll: "L'annuaire du personnel compte {count} employés. La masse salariale mensuelle totale est de {salary} XOF, avec {unpaidCount} salaires impayés.",
+    aiGreeting: "Bonjour ! Je suis votre assistant financier Mama Thera. Comment puis-je vous aider avec des calculs ou statistiques scolaires aujourd'hui ?",
+    aiNoData: "Je n'ai pas trouvé de statistiques correspondantes pour votre requête. Essayez l'une des questions rapides ci-dessous !",
+    navVendorExpenses: "Dépenses Fournisseurs",
+    actions: "Actions",
+    noTasks: "Aucune tâche financière pour ce jour",
+    tasks: "Tâches",
+
+    // Parent/Guardian Management
+};
