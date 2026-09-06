@@ -27,6 +27,16 @@ name: Deploy (Vercel)
 #   • manual workflow_dispatch skips this gate (human override), exactly like
 #     the quality gate.
 #
+# Third gate — the live remote DB itself: scripts/verify-anon-rls.mjs --remote
+# probes production with the public anon key (reads on every table, INSERT
+# strict 401/403, password RPC admin_set_user_password, GoTrue admin routes,
+# recover reachability). A breached DB — any anon read, write or callable
+# password RPC — blocks the deploy with the same neutral semantics (exit 78).
+# Unlike gates 1-2 this also applies to manual dispatches: a breached database
+# is a fact about the live state, not about pipeline history. While the prod
+# DB lacks the 20260906000000 REVOKE, gate n°3 is red and deploys stay
+# blocked until it is applied.
+#
 # Known trade-off: if the quality workflow itself cannot run (Actions outage,
 # disabled workflow), deploys stop too — by design: no green gate, no deploy.
 #
@@ -145,6 +155,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      # Gate n°3 — base distante saine AVANT de déployer (fail-on-breach) :
+      # les probes anon (script pur Node, aucun dépôt requis) tournent contre
+      # la base de production avec la clé anon publique. Toute brèche bloque
+      # le déploiement — même sémantique que les portes 1 et 2 : exit 78 =
+      # neutre, pas rouge. Le script refuse de tourner si une clé
+      # service_role est présente dans l'environnement. S'applique aussi au
+      # workflow_dispatch : une base distante compromise doit bloquer TOUT
+      # déploiement.
+      - name: Gate — prod anon RLS green (fail-on-breach)
+        run: node scripts/verify-anon-rls.mjs --remote || exit 78
+        env:
+          # Credentials anon PUBLIQUES par conception (embarqués dans le
+          # bundle client Vercel) — jamais de service_role ici.
+          SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
+          ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
 
       - name: Install project dependencies (needed by vercel build → npm run build)
         run: npm ci
