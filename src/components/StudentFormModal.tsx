@@ -15,14 +15,14 @@
  */
 import { useRef } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
-import { motion } from 'motion/react';
-import { Plus, Trash2, Users, X } from 'lucide-react';
+import { Plus, Trash2, Users } from 'lucide-react';
 import { useFocusTrap } from '../lib/focusStack';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import type { TranslationDict } from '../i18n/translations';
 import type { Student } from '../lib/useSupabaseData';
-import type { ManagedClass } from '../app/mainViewsProps';
+import type { ManagedClass, CurrentTheme } from '../app/mainViewsProps';
 import { isNinthGradeClass } from '../lib/studentIdentifiers';
+import { ModalShell } from './ModalShell';
 
 /** Student add/edit form state (matches App.tsx). */
 export interface StudentForm {
@@ -66,11 +66,7 @@ export interface StudentFormModalProps {
   /** Gestionnaire Principal — may edit scholarship discounts like the promoter. */
   isGeneralManager: boolean;
   /** Theme tokens from the app theme engine. */
-  themeCard: string;
-  themeBorder: string;
-  themeHeader: string;
-  themeMuted: string;
-  themeIsDark: boolean;
+  currentTheme: CurrentTheme;
 }
 
 export function StudentFormModal(props: StudentFormModalProps) {
@@ -89,11 +85,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
     academicYears,
     isPromoter,
     isGeneralManager,
-    themeCard,
-    themeBorder,
-    themeHeader,
-    themeMuted,
-    themeIsDark,
+    currentTheme,
   } = props;
 
   // Scholarship editing is a finance-admin power (promoter/admin + Gestionnaire
@@ -107,55 +99,38 @@ export function StudentFormModal(props: StudentFormModalProps) {
   useEscapeToClose(open, onClose);
 
   return (
-    <div ref={rootRef} role="dialog" aria-modal="true" aria-label={editingStudent ? t.editStudent : t.addStudent} aria-labelledby="modal-title-student-form" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 40 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 40 }}
-        className={`relative ${themeCard} w-full max-w-lg rounded-[3rem] shadow-2xl border ${themeBorder} overflow-hidden`}
-      >
-        <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: themeHeader }}>
-          <h2 id="modal-title-student-form" className="text-xl font-bold flex items-center gap-3">
-            <Users size={24} className="text-blue-400" />
-            {editingStudent ? t.editStudent : t.addStudent}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-xl transition-all"
-          >
-            <X size={20} />
-          </button>
-        </div>
+    <ModalShell
+      overlayRef={(el) => { rootRef.current = el as HTMLDivElement | null; }}
+      onClose={onClose}
+      currentTheme={currentTheme}
+      titleId="modal-title-student-form"
+      ariaLabel={editingStudent ? t.editStudent : t.addStudent}
+      icon={<Users size={24} className="text-blue-400" />}
+      title={editingStudent ? t.editStudent : t.addStudent}
+    >
 
         <form onSubmit={handleStudentSubmit} className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           {/* --- Student Profiles & Enrollment Core Fields --- */}
           <div className={`${isNinthGradeClass(studentForm.grade) ? 'grid-cols-2' : 'grid-cols-1'} grid gap-6`}>
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.studentName}</label>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.studentName}</label>
               <input
                 required
                 type="text"
                 value={studentForm.name}
                 onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
-                className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                 placeholder="Ibrahim"
               />
             </div>
             {isNinthGradeClass(studentForm.grade) && (
               <div className="space-y-2">
-                <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.studentIdUnique}</label>
+                <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.studentIdUnique}</label>
                 <input
                   type="text"
                   value={studentForm.studentId}
                   onChange={(e) => setStudentForm({ ...studentForm, studentId: e.target.value })}
-                  className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                  className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                   placeholder="MT-2026-001 (Optional)"
                 />
               </div>
@@ -165,7 +140,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+                <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                   {t.gradeClass}
                 </label>
                 <button
@@ -192,7 +167,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
                     });
                   }
                 }}
-                className={`w-full px-6 py-4 ${themeIsDark ? 'bg-slate-800 text-emerald-500' : 'bg-slate-50 text-slate-800'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold`}
+                className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500' : 'bg-slate-50 text-slate-800'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold`}
               >
                 <option value="">{t.selectGradeClass}</option>
                 <optgroup label={t.firstCycle1stTo6thYear}>
@@ -216,16 +191,16 @@ export function StudentFormModal(props: StudentFormModalProps) {
                   {t.addAnotherClassSection}
                 </option>
               </select>
-              <p className={`text-[10px] ${themeMuted}`}>
+              <p className={`text-[10px] ${currentTheme.muted}`}>
                 {t.staffCanAddSectionsSuchAs1stYearBOrC}
               </p>
             </div>
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.enrollmentStatus}</label>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.enrollmentStatus}</label>
               <select
                 value={studentForm.status}
                 onChange={(e) => setStudentForm({ ...studentForm, status: e.target.value as StudentForm['status'] })}
-                className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
               >
                 <option value="Active">{t.activeStatus}</option>
                 <option value="Graduated">{t.graduatedStatus}</option>
@@ -237,82 +212,82 @@ export function StudentFormModal(props: StudentFormModalProps) {
           {/* --- Parents Contact & Details --- */}
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.parentName}</label>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.parentName}</label>
               <input
                 required
                 type="text"
                 value={studentForm.parentName}
                 onChange={(e) => setStudentForm({ ...studentForm, parentName: e.target.value })}
-                className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                 placeholder="Djeneba"
               />
             </div>
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                 {t.parentEmailOptional}
               </label>
               <input
                 type="email"
                 value={studentForm.parentEmail}
                 onChange={(e) => setStudentForm({ ...studentForm, parentEmail: e.target.value })}
-                className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                 placeholder={t.parentExampleComOptional}
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.phone}</label>
+            <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.phone}</label>
             <input
               required
               type="tel"
               value={studentForm.parentPhone}
               onChange={(e) => setStudentForm({ ...studentForm, parentPhone: e.target.value })}
-              className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+              className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
               placeholder="+223 70 00 00 00"
             />
           </div>
 
           {/* --- Emergency Contact Fields --- */}
-          <div className={`p-6 ${themeIsDark ? 'bg-slate-900/50' : 'bg-slate-50'} rounded-3xl border ${themeBorder} space-y-4`}>
-            <h4 className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+          <div className={`p-6 ${currentTheme.isDark ? 'bg-slate-900/50' : 'bg-slate-50'} rounded-3xl border ${currentTheme.border} space-y-4`}>
+            <h4 className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
               {t.emergencyContact2}
             </h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+                <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                   {t.contactName}
                 </label>
                 <input
                   type="text"
                   value={studentForm.emergencyContactName}
                   onChange={(e) => setStudentForm({ ...studentForm, emergencyContactName: e.target.value })}
-                  className={`w-full px-4 py-3 bg-white ${themeIsDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
+                  className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
                   placeholder={t.emergencyContactName}
                 />
               </div>
               <div className="space-y-2">
-                <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+                <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                   {t.relation}
                 </label>
                 <input
                   type="text"
                   value={studentForm.emergencyContactRelation}
                   onChange={(e) => setStudentForm({ ...studentForm, emergencyContactRelation: e.target.value })}
-                  className={`w-full px-4 py-3 bg-white ${themeIsDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
+                  className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
                   placeholder={t.uncleAuntParentEtc}
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                 {t.emergencyPhone}
               </label>
               <input
                 type="tel"
                 value={studentForm.emergencyContactPhone}
                 onChange={(e) => setStudentForm({ ...studentForm, emergencyContactPhone: e.target.value })}
-                className={`w-full px-4 py-3 bg-white ${themeIsDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
+                className={`w-full px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-850'} border rounded-xl text-xs font-semibold`}
                 placeholder={t.emergencyContactPhone}
               />
             </div>
@@ -321,38 +296,38 @@ export function StudentFormModal(props: StudentFormModalProps) {
           {/* --- History & Medical notes --- */}
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                 {t.enrollmentDate2}
               </label>
               <input
                 type="date"
                 value={studentForm.enrollmentDate}
                 onChange={(e) => setStudentForm({ ...studentForm, enrollmentDate: e.target.value })}
-                className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
               />
             </div>
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                 {t.previousSchool}
               </label>
               <input
                 type="text"
                 value={studentForm.previousSchool}
                 onChange={(e) => setStudentForm({ ...studentForm, previousSchool: e.target.value })}
-                className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                 placeholder={t.transferHistorySchoolName}
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>
+            <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
               {t.medicalNotesAllergiesConditions}
             </label>
             <textarea
               value={studentForm.medicalNotes}
               onChange={(e) => setStudentForm({ ...studentForm, medicalNotes: e.target.value })}
-              className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'} min-h-[100px]`}
+              className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} min-h-[100px]`}
               placeholder={t.allergiesConditionsOrNone}
             />
           </div>
@@ -360,7 +335,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
           {/* --- Financial Controls --- */}
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest flex items-center justify-between`}>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
                 <span>{t.totalDue} ({t.currency})</span>
                 <span className="text-[9px] text-emerald-600 font-bold">
                   ({t.staffAuthorized})
@@ -374,13 +349,13 @@ export function StudentFormModal(props: StudentFormModalProps) {
                   step="1"
                   value={studentForm.totalDue}
                   onChange={(e) => setStudentForm({ ...studentForm, totalDue: e.target.value })}
-                  className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                  className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                   placeholder="120000"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest flex items-center justify-between`}>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
                 <span>{t.scholarship}</span>
                 {!canEditScholarship && (
                   <span className="text-[9px] text-rose-500 font-bold">
@@ -396,7 +371,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
                 value={studentForm.scholarshipDiscount}
                 onChange={(e) => setStudentForm({ ...studentForm, scholarshipDiscount: e.target.value })}
                 disabled={!canEditScholarship}
-                className={`w-full px-6 py-4 ${!canEditScholarship ? 'bg-slate-150 cursor-not-allowed opacity-70' : (themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50')} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-6 py-4 ${!canEditScholarship ? 'bg-slate-150 cursor-not-allowed opacity-70' : (currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50')} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                 placeholder="0"
               />
             </div>
@@ -404,11 +379,11 @@ export function StudentFormModal(props: StudentFormModalProps) {
 
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.academicYear}</label>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.academicYear}</label>
               <select
                 value={studentForm.academicYear}
                 onChange={(e) => setStudentForm({ ...studentForm, academicYear: e.target.value })}
-                className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
               >
                 {academicYears.map(year => (
                   <option key={year} value={year}>{year}</option>
@@ -416,13 +391,13 @@ export function StudentFormModal(props: StudentFormModalProps) {
               </select>
             </div>
             <div className="space-y-2">
-              <label className={`text-[10px] font-black ${themeMuted} uppercase tracking-widest`}>{t.dueDate}</label>
+              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.dueDate}</label>
               <input
                 required
                 type="date"
                 value={studentForm.dueDate}
                 onChange={(e) => setStudentForm({ ...studentForm, dueDate: e.target.value })}
-                className={`w-full px-6 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
               />
             </div>
           </div>
@@ -445,7 +420,6 @@ export function StudentFormModal(props: StudentFormModalProps) {
             </button>
           )}
         </form>
-      </motion.div>
-    </div>
+    </ModalShell>
   );
 }

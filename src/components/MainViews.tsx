@@ -848,6 +848,13 @@ export function MainViews(props: MainViewsProps) {
                                     <label className={`text-[10px] font-bold ${currentTheme.muted} hidden sm:inline`}>
                                       {t.role}
                                     </label>
+                                    {/* Icône du rôle actif — hors <option> : le HTML interdit
+                                        tout enfant non-texte dans <option> (erreur console
+                                        « option cannot contain svg », icônes jamais rendues). */}
+                                    {isAdmin ? <Crown size={14} className="text-amber-500 flex-shrink-0" />
+                                      : isGM ? <Compass size={14} className="text-violet-500 flex-shrink-0" />
+                                      : profile.role === 'econome' ? <Receipt size={14} className="text-violet-500 flex-shrink-0" />
+                                      : <Briefcase size={14} className="text-sky-500 flex-shrink-0" />}
                                     <select
                                       value={profile.role}
                                       disabled={updatingUserId === profile.id}
@@ -860,18 +867,10 @@ export function MainViews(props: MainViewsProps) {
                                           : 'bg-blue-500/10 border-blue-500/30 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20'
                                       } ${updatingUserId === profile.id ? 'opacity-50 cursor-wait' : ''}`}
                                     >
-                                      <option value="admin" className="bg-slate-800 text-white">
-                                        <Crown size={14} className="text-amber-500 flex-shrink-0" /> {t.promoterAdminFull}
-                                      </option>
-                                      <option value="general_manager" className="bg-slate-800 text-white">
-                                        <Compass size={14} className="text-violet-500 flex-shrink-0" /> {t.generalManager}
-                                      </option>
-                                      <option value="staff" className="bg-slate-800 text-white">
-                                        <Briefcase size={14} className="text-sky-500 flex-shrink-0" /> {t.roleStaff}
-                                      </option>
-                                      <option value="econome" className="bg-slate-800 text-white">
-                                        <Receipt size={14} className="text-violet-500 flex-shrink-0" /> {t.roleEconome}
-                                      </option>
+                                      <option value="admin" className="bg-slate-800 text-white">{t.promoterAdminFull}</option>
+                                      <option value="general_manager" className="bg-slate-800 text-white">{t.generalManager}</option>
+                                      <option value="staff" className="bg-slate-800 text-white">{t.roleStaff}</option>
+                                      <option value="econome" className="bg-slate-800 text-white">{t.roleEconome}</option>
                                     </select>
                                   </div>
                                 )}

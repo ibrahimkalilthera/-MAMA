@@ -1,0 +1,129 @@
+/**
+ * StaffFormModal — Staff add/edit form — extracted verbatim from AppModals. Pure
+ * presentational form (name/position/phone/email/salary/bank/emergency
+ * contact) driven by narrow props; overlay root ref injected as overlayRef.
+ */
+import { Briefcase } from 'lucide-react';
+import type { Dispatch, SetStateAction, FormEvent } from 'react';
+import type { Staff } from '../lib/useSupabaseData';
+import type { StaffForm, CurrentTheme } from '../app/mainViewsProps';
+import type { TranslationDict } from '../i18n/translations';
+import { ModalShell } from './ModalShell';
+
+export interface StaffFormModalProps {
+  t: TranslationDict;
+  currentTheme: CurrentTheme;
+  editingStaff: Staff | null;
+  staffForm: StaffForm;
+  setStaffForm: Dispatch<SetStateAction<StaffForm>>;
+  handleStaffSubmit: (e: FormEvent) => Promise<void>;
+  /** The dialog root — registered in AppModals' overlay refs (focus trap). */
+  overlayRef: (el: HTMLElement | null) => void;
+  onClose: () => void;
+}
+
+export function StaffFormModal(props: StaffFormModalProps) {
+  const { t, currentTheme, editingStaff, staffForm, setStaffForm, handleStaffSubmit, overlayRef, onClose } = props;
+  return (
+    <ModalShell
+      overlayRef={overlayRef}
+      onClose={onClose}
+      currentTheme={currentTheme}
+      titleId="modal-title-staff-form"
+      ariaLabel={editingStaff ? t.editStaff : t.addStaff}
+      icon={<Briefcase size={24} className="text-blue-400" />}
+      title={editingStaff ? t.editStaff : t.addStaff}
+    >
+
+              <form onSubmit={handleStaffSubmit} className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffName}</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={staffForm.name}
+                      onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="Jane Doe"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.position}</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={staffForm.position}
+                      onChange={(e) => setStaffForm({ ...staffForm, position: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="Teacher"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.phone}</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={staffForm.phone}
+                      onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="+223 70 00 00 00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.email}</label>
+                    <input 
+                      required
+                      type="email" 
+                      value={staffForm.email}
+                      onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      placeholder="jane.doe@school.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.monthlySalary} ({t.currency})</label>
+                  <input 
+                    required
+                    type="number" 
+                    value={staffForm.salary}
+                    onChange={(e) => setStaffForm({ ...staffForm, salary: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    placeholder="150 000"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.bankDetails}</label>
+                  <input
+                    type="text"
+                    value={staffForm.bankDetails}
+                    onChange={(e) => setStaffForm({ ...staffForm, bankDetails: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    placeholder="RIB: ML01 00001 ..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.emergencyContact}</label>
+                  <input
+                    type="text"
+                    value={staffForm.emergencyContact}
+                    onChange={(e) => setStaffForm({ ...staffForm, emergencyContact: e.target.value })}
+                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    placeholder="Spouse: +223 60 00 00 00"
+                  />
+                </div>
+
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-blue-500/20">
+                  {editingStaff ? t.saveChanges : t.submit}
+                </button>
+              </form>
+    </ModalShell>
+  );
+}

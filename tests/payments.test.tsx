@@ -127,6 +127,7 @@ function baseDeps(overrides: DepsOverrides = {}): {
       spies.updateCalls.push({ id, updates });
       return spies.updateResults[spies.updateCalls.length - 1] ?? true;
     },
+    toastError: (msg: string) => { spies.alerts.push(msg); },
   };
   return { args: args as Parameters<typeof usePayments>[0], spies };
 }

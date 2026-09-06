@@ -1,4 +1,4 @@
-import type { Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, Payment } from '../app/types';
+import type { Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, Payment } from './domainTypes';
 
 /**
  * Offline Action Queue Manager

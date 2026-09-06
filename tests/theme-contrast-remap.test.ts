@@ -132,9 +132,10 @@ describe('derived manifest: every co-occurring text/bg pair >= 4.5:1 in all ligh
    *  - WelcomeBanner role badges: the banner is a fixed-dark gradient
    *    (white heading via inline style) — *-400 on *-500/20 is the
    *    intended light-on-dark pairing;
-   *  - ExcelImportModal step indicator: the modal chrome is a fixed-dark
-   *    slate-950 surface (bg-[#0F172A]/80) — emerald-400 "done" step chip
-   *    is light-on-dark by design.
+   *  (The ModalShell header — title bar + step strips — is a fixed-dark
+   *  #0F172A surface in every theme, so accent chips over it are
+   *  light-on-dark by design; the modal entries left this list as the
+   *  scaffold migrated to modalTokens.)
    */
   const FIXED_DARK_PAIRS = new Set([
     'emerald-300|emerald-600/20',
@@ -266,11 +267,16 @@ describe('midnight lock: light fills carry a dark: counterpart', () => {
     'components/PayrollView.tsx', // print header
     'components/StudentsView.tsx', // print header + divider
   ];
+  // The MODAL scaffold no longer needs exemptions: every modal surface fill
+  // lives in src/lib/modalTokens.ts with its `dark:` counterpart in the same
+  // string (policed by tests/modal-tokens.test.ts), so the modal entries that
+  // used to sit here (AppModals print surfaces, the ticket slip preview, the
+  // vendor disabled fields) are structurally paired at the source instead.
+  // Remaining: non-modal fixed-light surfaces + the 20%-alpha wash over the
+  // themed card (the card's dark surface still shows through).
   const EXEMPT_LINES: Record<string, number[]> = {
-    // print-student-file container internals (fixed print surface)
-    'components/AppModals.tsx': [995, 1116, 1825, 1981, 2041, 2053, 2074, 2077, 2100, 2104, 2108],
     'components/Login.tsx': [95, 110, 126],
-    'components/FloatingChat.tsx': [115],
+    'components/FloatingChat.tsx': [110],
     'components/SharedUi.tsx': [18],
     // 20%-alpha rose wash OVER the themed card (dark surface shows through)
     'components/ExpensesView.tsx': [252],

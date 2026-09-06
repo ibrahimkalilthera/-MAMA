@@ -9,7 +9,7 @@
  * only consumes the returned API; the Settings user-manager UI state stays
  * in App.tsx.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { TranslationDict } from '../i18n/translations';
 import { useAuth } from '../lib/useAuth';
 import type { UserProfile } from '../lib/useAuth';
@@ -39,14 +39,20 @@ export function useAuthWelcome(deps: AuthWelcomeDeps) {
   // ── Supabase Auth ──────────────────────────────────────────────────────
   const auth = useAuth();
 
-  // Derive currentUser from auth profile for backward compatibility
-  const currentUser: User | null = auth.profile
-    ? {
-        username: auth.profile.fullName,
-        role: auth.profile.role,
-        name: auth.profile.fullName,
-      }
-    : null;
+  // Derive currentUser from auth profile for backward compatibility.
+  // Memoized on the profile: a fresh object literal per render would break
+  // every effect keyed on currentUser (the calendar-notes fetch used to loop
+  // endlessly — one GET per render).
+  const currentUser: User | null = useMemo(
+    () => auth.profile
+      ? {
+          username: auth.profile.fullName,
+          role: auth.profile.role,
+          name: auth.profile.fullName,
+        }
+      : null,
+    [auth.profile],
+  );
   const isPromoter = auth.isAdmin;
   // Gestionnaire Principal: finance admin without user-management/settings/audit.
   const isGeneralManager = auth.profile?.role === 'general_manager';

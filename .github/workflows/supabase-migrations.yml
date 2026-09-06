@@ -1,0 +1,65 @@
+name: Supabase migrations & RLS anon
+
+# Garde-fou des migrations : démarre une instance Supabase locale (Docker),
+# applique les 18 migrations ordonnées depuis un schéma vierge et vérifie par
+# l'API REST — le même canal que l'app en production — que le rôle anon ne
+# LIT aucune ligne métier (RLS active, zéro policy anon après la migration
+# 20260809000000). Une migration qui ne s'applique pas proprement, ou qui
+# laisserait une lecture anon remonter des données, rend le job rouge.
+#
+# Le script scripts/verify-anon-rls.mjs seede d'abord une ligne via
+# service_role puis exige que le rôle anon ne la voie pas — le seul moyen de
+# distinguer « RLS qui refuse » de « tables vides ».
+#
+# Se déclenche uniquement quand supabase/ change (migrations, config) :
+# le schéma ne bouge pas → le job n'a pas besoin de tourner.
+#
+# PORTE VERS LA PRODUCTION (gate n°2) : deploy.yml interroge le verdict de ce
+# workflow avant tout déploiement Vercel — un run rouge sur main bloque le
+# déploiement, y compris pour un push ultérieur qui ne toucherait pas supabase/
+# (le verdict du dernier run terminé s'applique jusqu'à correction).
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/**'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+
+concurrency:
+  group: supabase-migrations-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    name: Migrations + lecture anon refusée
+    runs-on: ubuntu-latest
+    # supabase start tire ~15 conteneurs ; 20 min laissent l'init Docker +
+    # l'application des migrations se terminer même sur un runner partagé lent.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinné sur la version éprouvée localement (mêmes migrations en local
+      # et en CI) ; version bump volontaire et explicite.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+
+      - name: Start local Supabase (applies the 18 ordered migrations)
+        run: supabase start
+
+      - name: Verify anon reads are refused (service-role seed, anon must see nothing)
+        run: |
+          # La CLI 2.116.0 exporte ANON_KEY / SERVICE_ROLE_KEY (pas les noms
+          # SUPABASE_*) — le script accepte les deux conventions.
+          supabase status -o env | tee /tmp/supabase.env
+          set -a
+          . /tmp/supabase.env
+          set +a
+          node scripts/verify-anon-rls.mjs

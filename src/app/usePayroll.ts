@@ -27,13 +27,15 @@ interface UsePayrollDeps {
   staff: Staff[];
   salaryPayments: SalaryPayment[];
   showToast: () => void;
+  /** Toast an error/validation message (replaces the native alert()). */
+  toastError: (message: string) => void;
   addStaff: (s: Omit<Staff, 'id'>) => Promise<Staff | null>;
   updateStaff: (id: string, updates: Partial<Staff>) => Promise<boolean>;
   addSalaryPayment: (sp: Omit<SalaryPayment, 'id'>) => Promise<SalaryPayment | null>;
 }
 
 export function usePayroll(deps: UsePayrollDeps) {
-  const { t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast, addStaff, updateStaff, addSalaryPayment } = deps;
+  const { t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast, toastError, addStaff, updateStaff, addSalaryPayment } = deps;
 
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [showMonthlyDraftModal, setShowMonthlyDraftModal] = useState(false);
@@ -58,7 +60,7 @@ export function usePayroll(deps: UsePayrollDeps) {
   const handleStaffSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
+      toastError(t.thisAcademicYearIsLocked);
       return;
     }
     const salary = parseFloat(staffForm.salary);
@@ -85,7 +87,7 @@ export function usePayroll(deps: UsePayrollDeps) {
   const handleSalarySubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
+      toastError(t.thisAcademicYearIsLocked);
       return;
     }
     const amount = parseFloat(salaryForm.amount);
