@@ -1,3 +1,73 @@
+## [2026-09-06] Fiche employé : LE modèle papier officiel est utilisé tel quel (overlay de données)
+
+Suite à « Quest ce que tu ne comprends pas… je veux le meme pdf pas un autre »,
+la fiche individuelle de paiement de salaire n'est PLUS redessinée en code :
+`src/lib/pdfPayrollFiche.ts` charge désormais le PDF officiel fourni par la
+Direction (`public/templates/fiche-paiement-salaire.pdf`, copie exacte du
+fichier envoyé) avec **pdf-lib** et n'imprime que les données du mois dessus :
+
+- **Le document téléchargé EST le PDF de l'école** — le raster d'origine
+  (emblème, bandes décoratives, nom de l'école, titre FICHE INDIVIDUELLE DE
+  PAIEMENT DE SALAIRE, en-têtes de tableau, CACHET/DATE, filigrane) reste
+  intact ; seul du texte est superposé aux coordonnées calibrées par analyse
+  de pixels du formulaire imprimé (boîte PÉRIODE x 85.5–148.7 mm y 62.4–69.9 ;
+  tableau 6 colonnes x 6 lignes, colonnes à 4.3/41.8/75.5/106.6/136.6/165.4/204
+  mm ; ligne DATE DE PAIEMENT).
+- **Champ PÉRIODE** : mois + année en cours. **Ligne 1 du tableau** : prénom
+  et nom, fonction, salaire de base, total des indemnités, retenues « — »
+  (aucune cotisation INPS/AMO sur cette fiche — réservées au bulletin
+  d'administration) et salaire net payé = base + indemnités. Lignes 2–6
+  vides comme sur le formulaire. **DATE DE PAIEMENT** : date du jour après le
+  libellé imprimé. Colonnes « Mode de paiement » et « Signature employé »
+  laissées vierges (remplissage manuel à la signature).
+- L'option `schoolLogo` disparaît de la fiche employé (l'emblème est imprimé
+  sur le papier) ; le bulletin d'administration (jsPDF) n'est pas touché.
+- **Nettoyage** : export temporaire `drawSchoolEmblemFallback` et les ~300
+  lignes de dessin jsPDF de la fiche supprimés ; clés i18n `pdfFiche*`
+  (fr + en) devenues mortes retirées de `src/i18n/domains/pdf.ts` ; entrée
+  fiche retirée du garde-fou de tampon `tests/pdf-stamp-guard.test.ts` (le
+  cachet est pré-imprimé sur le modèle) ; `tests/pdf-fiche.test.ts` réécrit
+  (pipeline pdf-lib réel sur le vrai modèle) ; test d'aiguillage employé de
+  `tests/payroll.test.tsx` passé en spy du module fiche.
+
+Dépendance ajoutée : `pdf-lib` (import dynamique, hors bundle initial).
+
+Vérifié : tsc strict propre ; **573/573 tests** ; lint complet vert ; les 8
+chaînes superposées relues dans le flux de contenu décompressé et comparées
+visuellement — toutes dans leurs cellules (PÉRIODE centrée dans la boîte,
+figures alignées dans les colonnes 2–4 de la ligne 1, date sur le trait).
+
+---
+
+## [2026-09-06] Fiche de paie employé : reproduction exacte du modèle papier fourni
+
+Sur demande explicite (« je ne veux pas un autre PDF que tu as créé, utilise
+ça »), la fiche individuelle de paiement de salaire téléchargée pour les
+membres ajoutés via « Ajouter un Employé » reproduit désormais fidèlement le
+modèle officiel fourni (`src/lib/pdfPayrollFiche.ts`) :
+
+- **Section « Historique des paiements » supprimée** — la grille 12 mois
+  (payé/partiel/en cours/impayé/à venir) que nous avions ajoutée n'existe pas
+  sur le modèle papier. L'option `paymentHistory` disparaît de l'API, la règle
+  `payrollMonthStatus` (devenue morte) est retirée de `payrollGrid.ts`, ainsi
+  que les 9 clés i18n `pdfFicheHistory*`/`pdfFicheSchoolYear` (fr + en) et
+  leur transmission depuis `usePayroll`.
+- **Table à 4 lignes** comme le formulaire papier (la 1ʳᵉ porte les données
+  de l'employé, les 3 autres restent vides).
+- **Trait doré sous le nom de l'école** « MAMA THERA DE SAFO », fermé par
+  l'étoile au centre (flourish du modèle).
+- En-tête (emblème, titre), PÉRIODE, colonnes du tableau, pied de page
+  (CACHET DE LA DIRECTION / DATE DE PAIEMENT + cachet tamponné) et boîte à
+  filigrane inchangés, conformes au modèle. Aucune cotisation INPS/AMO sur
+  cette fiche (réservées au bulletin d'administration).
+
+Vérifié : tsc strict propre, 583/583 tests (les tests d'historique de la
+fiche sont remplacés par deux verrous « aucune section d'historique dessinée »
+fr/en ; les 5 unitaires `payrollMonthStatus` sont retirés), lint complet
+vert. Comparaison visuelle effectuée : la fiche générée reproduit le modèle.
+
+---
+
 ## [2026-09-06] Correctifs P1–P3 de l'audit : RLS fournisseurs GM, nav mobile complète, devise FCFA unifiée
 
 Trois familles de correctifs issus de l'audit général (aucun changement de

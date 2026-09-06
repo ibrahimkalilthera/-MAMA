@@ -13,7 +13,11 @@
  *      member with paid-this-month summed from the matching salaryPayments
  *      (same staff id + month + year), remaining balance floored at 0, the
  *      localized status (fully paid / partial / unpaid) and the academic
- *      year; the workbook is written under the expected file name.
+ *      year; the workbook is written under the expected file name;
+ *   6. handleExportStaffReceiptPdf — routes regular employees to the
+ *      template-based fiche generator (pdf-lib, school's own paper PDF,
+ *      no jsPDF, no logo override) and administration members to the
+ *      jsPDF-drawn bulletin de paie (INPS/AMO rates, school stamp).
  *
  * The `xlsx` module is mocked at the module level (node:test
  * --experimental-test-module-mocks) so no real file is written and the
@@ -54,10 +58,13 @@ mock.module('xlsx', {
   },
 });
 
-// ── module mock: jspdf (for the per-employee fiche / admin bulletin PDFs) ────
-// The receipt handler dynamically imports jsPDF; the fake records every
+// ── module mock: jspdf (for the admin bulletin de paie PDF) ──────────────────
+// The bulletin handler dynamically imports jsPDF; the fake records every
 // `save()` call (filename) and every `text()` payload so the PDF content can
-// be asserted without a real PDF library.
+// be asserted without a real PDF library. The EMPLOYEE fiche no longer uses
+// jsPDF: it loads the school's paper template with pdf-lib and only prints
+// the data on it — that module is mocked below with a recording spy, and its
+// real rendering pipeline is covered separately by tests/pdf-fiche.test.ts.
 const pdfSaveCalls: string[] = [];
 const pdfTextCalls: string[] = [];
 const pdfRectCalls: unknown[][] = [];
@@ -103,6 +110,19 @@ mock.module('../src/lib/pdfStamp', {
 
 mock.module('jspdf', {
   namedExports: { jsPDF: FakeJsPDF },
+});
+
+// Recording spy for the template-based employee fiche generator (pdf-lib):
+// captures the options so the routing (employee → fiche, no logo override)
+// can be asserted without running the real pdf-lib pipeline here.
+const ficheCalls: Array<{ staffMember: Staff; lang?: string; template?: unknown }> = [];
+mock.module('../src/lib/pdfPayrollFiche', {
+  namedExports: {
+    generateEmployeeFichePdf: async (options: { staffMember: Staff; lang?: string; template?: unknown }) => {
+      ficheCalls.push(options);
+      return { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), filename: 'Fiche_Paie_test_2026-09.pdf' };
+    },
+  },
 });
 
 const { usePayroll } = await import('../src/app/usePayroll');
@@ -388,28 +408,28 @@ describe('usePayroll.handleExportMonthlyPayrollExcel (bordereau XLSX)', () => {
     }
   });
 
-  it('downloads the fiche de paiement de salaire PDF for regular employees (non-admin)', async () => {
+  it('routes regular employees (non-admin) to the paper-template fiche generator — with no logo override and no jsPDF', async () => {
     const employe = staff({ id: 'st1', name: 'Fatou Traoré', salary: 120000, bankDetails: 'BOA 12345678901' });
     const { args } = baseDeps({});
     const { ref, root } = await mount(args);
     try {
       pdfSaveCalls.length = 0;
       pdfTextCalls.length = 0;
+      ficheCalls.length = 0;
       await act(async () => { await ref.current!.handleExportStaffReceiptPdf(employe); });
 
-      assert.equal(pdfSaveCalls.length, 1, 'one PDF saved');
-      // "Traoré" is sanitized to "Traor" (é dropped) — the regex tolerates it.
-      assert.match(pdfSaveCalls[0], /^Fiche_Paie_Fatou_Traor.*_\d{4}-\d{2}\.pdf$/, 'fiche filename with the employee name and period');
-      assert.ok(pdfTextCalls.includes(t.pdfFicheTitle), 'the fiche title is drawn');
-      // The name is drawn through wrapText (array payload) — flatten before matching.
-      const drawn = pdfTextCalls.flat().map(c => c.replace(/\s+/g, ' '));
-      assert.ok(drawn.some(c => c.includes('Fatou Traoré')), 'the employee name is drawn');
-      // The employee fiche carries NO social contributions — net paid = base salary.
-      assert.ok(drawn.some(c => c.includes('120 000 FCFA')), 'net paid = base salary (120000, no allowances)');
-      assert.ok(!drawn.some(c => c.includes('INPS')), 'no INPS on the employee fiche');
-      assert.ok(!drawn.some(c => c.includes('AMO')), 'no AMO on the employee fiche');
-      assert.ok(drawn.some(c => c.includes('BOA 12345678901')), 'the payment method / account is drawn');
-      assert.ok(!pdfTextCalls.includes(t.consolidatedSalaryReceipt), 'the legacy consolidated receipt is not used for employees');
+      assert.equal(ficheCalls.length, 1, 'the employee fiche generator is called exactly once');
+      assert.equal(ficheCalls[0]!.staffMember.id, 'st1', 'the clicked employee is passed');
+      assert.equal(ficheCalls[0]!.lang, 'fr', 'the active language is passed');
+      assert.ok(
+        !('schoolLogo' in ficheCalls[0]!) || ficheCalls[0]!.schoolLogo === undefined,
+        'the paper template carries its own emblem — no uploaded-logo override is sent',
+      );
+      // The fiche IS the school's own paper PDF (template + printed data), so
+      // nothing is re-drawn with jsPDF for regular employees.
+      assert.equal(pdfSaveCalls.length, 0, 'no jsPDF document for the employee fiche');
+      assert.equal(pdfTextCalls.length, 0, 'no jsPDF text drawn for the employee fiche');
+      assert.equal(stampGeometry.length, 0, 'no stamp drawn on the paper-template fiche');
     } finally {
       act(() => root.unmount());
     }
@@ -440,18 +460,26 @@ describe('usePayroll.handleExportMonthlyPayrollExcel (bordereau XLSX)', () => {
     }
   });
 
-  it('draws the school stamp exactly once, on the CACHET DE LA DIRECTION line of the fiche', async () => {
+  it('draws the school stamp exactly once, on the CACHET DE LA DIRECTION line of the admin BULLETIN (never on the employee paper fiche)', async () => {
     const { args } = baseDeps({});
     const { ref, root } = await mount(args);
     try {
       stampGeometry.length = 0;
+      ficheCalls.length = 0;
+      // A regular employee: the fiche is the paper template itself — the stamp
+      // box is pre-printed on it, so the generator must NOT draw one.
       await act(async () => { await ref.current!.handleExportStaffReceiptPdf(fatou()); });
+      assert.equal(stampGeometry.length, 0, 'no stamp is drawn for the employee paper fiche');
+      assert.equal(ficheCalls.length, 1, 'the employee fiche generator handled the request');
 
-      assert.equal(stampGeometry.length, 1, 'the stamp is drawn exactly once');
+      // A member of the administration downloads the drawn bulletin, whose
+      // cachet zone carries the school stamp exactly once, in the footer.
+      stampGeometry.length = 0;
+      const adminProviseur = staff({ id: 'a1', name: 'Ibrahim Thera', position: 'Proviseur', salary: 200000 });
+      await act(async () => { await ref.current!.handleExportStaffReceiptPdf(adminProviseur); });
+      assert.equal(stampGeometry.length, 1, 'the stamp is drawn exactly once on the bulletin');
       const stamp = stampGeometry[0]!;
-      // The cachet zone lives in the fiche footer, below the payroll table
-      // (which ends at y = 124) — the stamp can never cover table content.
-      assert.ok(stamp.cy >= 250, `stamp center (${stamp.cy} mm) sits in the footer cachet zone`);
+      assert.ok(stamp.cy >= 230 && stamp.cy <= 280, `stamp center (${stamp.cy} mm) sits in the bulletin footer cachet zone`);
       assert.ok(stamp.cy + stamp.diameterMm / 2 <= 289, 'stamp bottom stays inside the A4 page');
     } finally {
       act(() => root.unmount());

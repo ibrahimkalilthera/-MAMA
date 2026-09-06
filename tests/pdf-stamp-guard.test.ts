@@ -1,7 +1,13 @@
 /**
- * Static guard over the 8 PDF generators: the school stamp must ALWAYS be
- * drawn as the real image (public/tampon.png via pdfStamp.ts) in its planned
- * zone — never as a "CACHET" text placeholder.
+ * Static guard over the draw-based PDF generators: the school stamp must
+ * ALWAYS be drawn as the real image (public/tampon.png via pdfStamp.ts) in
+ * its planned zone — never as a "CACHET" text placeholder.
+ *
+ * pdfPayrollFiche.ts (fiche individuelle de paiement de salaire) is NOT in
+ * the list: that document IS the school's own paper template
+ * (public/templates/fiche-paiement-salaire.pdf) whose CACHET DE LA DIRECTION
+ * zone is pre-printed on the raster form — nothing is drawn, so no stamp
+ * guard applies (see src/lib/pdfPayrollFiche.ts).
  *
  * Why static: the stamp module's fetch/canvas path is environment-bound
  * (browser-only), so each generator's own unit tests mock pdfStamp and
@@ -45,8 +51,6 @@ const GENERATORS: Array<{ file: string; minDiameter: number; maxDiameter: number
   { file: 'src/lib/pdfMultiYearReport.ts', minDiameter: 24, maxDiameter: 24 },
   // Monthly bulletin de paie (admin members) — employer signature block.
   { file: 'src/lib/pdfPayrollBulletin.ts', minDiameter: 20, maxDiameter: 20 },
-  // Fiche individuelle de paiement de salaire (employees) — CACHET line.
-  { file: 'src/lib/pdfPayrollFiche.ts', minDiameter: 16, maxDiameter: 16 },
   // Consolidated parent ledger receipt (A4).
   { file: 'src/app/useParents.ts', minDiameter: 22, maxDiameter: 22 },
 ];

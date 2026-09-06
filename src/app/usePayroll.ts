@@ -171,24 +171,19 @@ export function usePayroll(deps: UsePayrollDeps) {
    * and AMO 3,06 % employee contributions, net salary, amount in words and
    * signature blocks. Other employees (added via "Ajouter un Employé")
    * download the fiche individuelle de paiement de salaire
-   * (src/lib/pdfPayrollFiche.ts) — school receipt template WITHOUT social
-   * contributions: its Retenues column stays empty and the net paid is the
-   * base salary plus the allowances. The INPS/AMO rates remain exclusive to
-   * the administration bulletin.
+   * (src/lib/pdfPayrollFiche.ts) — THE school's own paper fiche is loaded
+   * as the document (public/templates/fiche-paiement-salaire.pdf, provided
+   * by the Direction) and the month's data is printed on it. That fiche has
+   * NO social contributions: its Retenues cell stays empty and the net paid
+   * is the base salary plus the allowances — the INPS/AMO rates remain
+   * exclusive to the administration bulletin.
    */
   const handleExportStaffReceiptPdf = async (staffMember: Staff) => {
     if (isAdminPosition(staffMember.position)) {
       await generateAdminBulletinPdf({ staffMember, lang, schoolLogo });
       return;
     }
-    await generateEmployeeFichePdf({
-      staffMember,
-      lang,
-      schoolLogo,
-      // The fiche's payment-history section (paid / remaining months of the
-      // current school year) reads this employee's own salary payments.
-      paymentHistory: salaryPayments.filter(p => p.staffId === staffMember.id),
-    });
+    await generateEmployeeFichePdf({ staffMember, lang });
   };
 
   const handleExportMonthlyPayrollExcel = async (monthIdx: number, yr: number) => {

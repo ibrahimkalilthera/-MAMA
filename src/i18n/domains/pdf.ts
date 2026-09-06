@@ -174,35 +174,12 @@ export const en = {
     pdfBulletinAccountNumber: "Account No.",
     pdfBulletinEmployeeSig: "THE EMPLOYEE",
     pdfBulletinEmployerSig: "THE EMPLOYER",
-
-    // --- Fiche individuelle de paiement de salaire (employees) ---
-    pdfFicheSubtitle: "ECOLE FONDAMENTALE",
-    pdfFicheSchoolName: "MAMA THERA DE SAFO",
-    pdfFicheTitle: "INDIVIDUAL SALARY PAYMENT RECORD",
-    pdfFichePeriod: "PERIOD:",
-    pdfFicheColName: "First & Last Name",
-    pdfFicheColRole: "Role / Position",
-    pdfFicheColBaseSalary: "Base Salary",
-    pdfFicheColAllowances: "Bonuses / Allowances",
-    pdfFicheColDeductions: "Deductions",
-    pdfFicheColNetPaid: "Net Salary Paid",
-    pdfFicheColPayment: "Payment Method",
-    pdfFicheColSignature: "Employee Signature",
-    pdfFicheBaseSalary: "Base salary",
-    pdfFicheDeductions: "Deductions",
-    pdfFicheNetPaid: "Net salary paid",
-    pdfFicheCachet: "SCHOOL STAMP:",
-    pdfFichePaymentDate: "PAYMENT DATE:",
-    pdfFicheHistoryTitle: "SALARY PAYMENT HISTORY",
-    pdfFicheSchoolYear: "School year",
-    pdfFicheHistoryPaidCount: "Months paid",
-    pdfFicheHistoryRemaining: "Remaining",
-    pdfFicheHistoryPaid: "Paid",
-    pdfFicheHistoryPartial: "Partial",
-    pdfFicheHistoryCurrent: "Current month",
-    pdfFicheHistoryUnpaid: "Unpaid",
-    pdfFicheHistoryFuture: "Upcoming",
 };
+
+// NOTE: the employee fiche (fiche individuelle de paiement de salaire) has NO
+// drawn labels — the downloaded PDF IS the school's paper template
+// (public/templates/fiche-paiement-salaire.pdf, provided by the Direction)
+// with only the employee data printed over it. See src/lib/pdfPayrollFiche.ts.
 
 export const fr = {
     pdfReceiptTitle: "REÇU DE PAIEMENT",
@@ -374,32 +351,4 @@ export const fr = {
     pdfBulletinAccountNumber: "N° compte",
     pdfBulletinEmployeeSig: "L'EMPLOYÉ",
     pdfBulletinEmployerSig: "L'EMPLOYEUR",
-
-    // --- Fiche individuelle de paiement de salaire (employés) ---
-    pdfFicheSubtitle: "ECOLE FONDAMENTALE",
-    pdfFicheSchoolName: "MAMA THERA DE SAFO",
-    pdfFicheTitle: "FICHE INDIVIDUELLE DE PAIEMENT DE SALAIRE",
-    pdfFichePeriod: "PÉRIODE :",
-    pdfFicheColName: "Prénom et Nom",
-    pdfFicheColRole: "Fonction / Poste",
-    pdfFicheColBaseSalary: "Salaire de Base",
-    pdfFicheColAllowances: "Primes / Indemnités",
-    pdfFicheColDeductions: "Retenues",
-    pdfFicheColNetPaid: "Salaire Net Payé",
-    pdfFicheColPayment: "Mode de Paiement",
-    pdfFicheColSignature: "Signature Employé",
-    pdfFicheBaseSalary: "Salaire de base",
-    pdfFicheDeductions: "Retenues",
-    pdfFicheNetPaid: "Salaire net payé",
-    pdfFicheCachet: "CACHET DE LA DIRECTION :",
-    pdfFichePaymentDate: "DATE DE PAIEMENT :",
-    pdfFicheHistoryTitle: "HISTORIQUE DES PAIEMENTS DE SALAIRE",
-    pdfFicheSchoolYear: "Année scolaire",
-    pdfFicheHistoryPaidCount: "Mois payés",
-    pdfFicheHistoryRemaining: "Restants",
-    pdfFicheHistoryPaid: "Payé",
-    pdfFicheHistoryPartial: "Partiel",
-    pdfFicheHistoryCurrent: "Mois en cours",
-    pdfFicheHistoryUnpaid: "Impayé",
-    pdfFicheHistoryFuture: "À venir",
 };
