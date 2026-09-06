@@ -49,23 +49,23 @@ const TEMPLATE_URL = 'templates/fiche-paiement-salaire.pdf';
 // mm page). Cell borders were located by pixel scans of the printed grid.
 
 /** PÉRIODE input box on the paper form. */
-const PERIOD_BOX = { x: 85.5, y: 62.4, right: 148.7, bottom: 69.9 };
+const PERIOD_BOX = { x: 85.5, y: 62.3, right: 148.7, bottom: 69.2 };
 
 /** 6-column payroll table: header band then six ~9.5 mm tall data rows. */
 const TABLE = {
   top: 73.4, // top of the dark header band
-  headerBottom: 89.8, // bottom of the header / top of row 1
+  headerBottom: 90.7, // bottom of the header / top of row 1
   bottom: 146.4, // bottom border of the table (last grid line)
   columns: [4.3, 41.8, 75.5, 106.6, 136.6, 165.4, 204.0], // vertical separators
   rowCount: 6,
 };
-const FIRST_ROW = { top: TABLE.headerBottom, bottom: 99.3, center: 94.55 };
+const FIRST_ROW = { top: TABLE.headerBottom, bottom: 99.1, center: 94.9 };
 
-/** DATE DE PAIEMENT label ends at x≈51 mm; its underline runs 23.1–119.1 mm. */
-const DATE_LINE = { labelEnd: 51.5, baseline: 179.2 };
+/** DATE DE PAIEMENT label ends at x≈51 mm; its underline sits at y 181.4 mm. */
+const DATE_LINE = { labelEnd: 51.5, baseline: 180.8 };
 
-const ROW_TOP_LINE = FIRST_ROW.top + 3.3; // baseline of the upper line in row 1
-const ROW_BOTTOM_LINE = FIRST_ROW.bottom - 2.2; // baseline of the lower line in row 1
+const ROW_TOP_LINE = FIRST_ROW.top + 3.1; // baseline of the upper line in row 1
+const ROW_BOTTOM_LINE = FIRST_ROW.bottom - 1.1; // baseline of the lower line in row 1
 
 const PT_PER_MM = 72 / 25.4;
 
@@ -170,10 +170,13 @@ export async function generateEmployeeFichePdf({
   };
 
   // 1. PÉRIODE box — month + year, centered in the printed input box.
+  //    Baseline = box center + capHeight/2 (11 pt ≈ 2.8 mm cap → +1.4 mm)
+  //    so the INK center, not the baseline, lands on the box center.
   const periodFont = { font: helvBold, size: 11 };
   const periodCenterX = (PERIOD_BOX.x + PERIOD_BOX.right) / 2;
   const periodWidth = helvBold.widthOfTextAtSize(periodLabel, 11) / PT_PER_MM;
-  text(periodLabel, periodCenterX - periodWidth / 2, 67.0, { font: periodFont, color: INK });
+  const periodCenterY = (PERIOD_BOX.y + PERIOD_BOX.bottom) / 2;
+  text(periodLabel, periodCenterX - periodWidth / 2, periodCenterY + 1.4, { font: periodFont, color: INK });
 
   // 2. First payroll row — the current month's payment.
   const nameFont: PtFont = { font: helvBold, size: 10 };
@@ -184,7 +187,9 @@ export async function generateEmployeeFichePdf({
 
   // Column 1 — Prénom et Nom: one centered line, or two lines when needed.
   if (nameWidth <= nameMaxW) {
-    text(displayName, TABLE.columns[0]! + 4.5, FIRST_ROW.center + 1.7, { font: nameFont });
+    // Baseline = cell center + capHeight/2 (10 pt ≈ 2.5 mm cap → +1.25 mm)
+    // so the ink is optically centered in the printed cell.
+    text(displayName, TABLE.columns[0]! + 4.5, FIRST_ROW.center + 1.25, { font: nameFont });
   } else {
     const words = displayName.split(' ');
     let line1 = '';
@@ -195,10 +200,10 @@ export async function generateEmployeeFichePdf({
       else line2 = line2 ? `${line2} ${w}` : w;
     }
     if (!line2) {
-      text(displayName, TABLE.columns[0]! + 4.5, FIRST_ROW.center + 1.7, { font: { font: helvBold, size: 8 }, color: INK });
+      text(displayName, TABLE.columns[0]! + 4.5, FIRST_ROW.center + 1.0, { font: { font: helvBold, size: 8 }, color: INK });
     } else {
       text(line1, TABLE.columns[0]! + 4.5, ROW_TOP_LINE + 0.9, { font: { font: helvBold, size: 9 }, color: INK });
-      text(line2, TABLE.columns[0]! + 4.5, ROW_TOP_LINE + 4.6, { font: { font: helvBold, size: 9 }, color: INK });
+      text(line2, TABLE.columns[0]! + 4.5, ROW_BOTTOM_LINE - 0.9, { font: { font: helvBold, size: 9 }, color: INK });
     }
   }
 
@@ -215,9 +220,9 @@ export async function generateEmployeeFichePdf({
   const c3Right = TABLE.columns[3]! - 4.2;
   if (totalAllowances > 0) {
     const allowStr = fmtFcfa(totalAllowances);
-    text(allowStr, c3Right - helvBold.widthOfTextAtSize(allowStr, 8.5) / PT_PER_MM, FIRST_ROW.center + 1.5, { font: boldFont });
+    text(allowStr, c3Right - helvBold.widthOfTextAtSize(allowStr, 8.5) / PT_PER_MM, FIRST_ROW.center + 1.05, { font: boldFont });
   } else {
-    text(dash, c3Right - 2, FIRST_ROW.center + 1.5, { font: smallFont, color: MUTED });
+    text(dash, c3Right - 2, FIRST_ROW.center + 0.9, { font: smallFont, color: MUTED });
   }
 
   // Column 4 — Retenues (none on the employee fiche) / Salaire net payé.

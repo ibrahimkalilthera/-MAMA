@@ -245,7 +245,9 @@ export async function generateAdminBulletinPdf({
     doc.text(value, x + 26, y);
   };
 
-  const rowY = (i: number) => gridTop + 9 + i * 8.5;
+  // 4 rows of 8 mm inside the 34 mm box: baselines at 66.5/74.5/82.5/90.5 —
+  // the last row stays ~1.5 mm above the bottom border instead of crossing it.
+  const rowY = (i: number) => gridTop + 8.5 + i * 8;
   field(t.pdfBulletinLastName, lastName, 16, rowY(0));
   field(t.pdfBulletinFirstName, firstName, 16, rowY(1));
   field(t.pdfPosition, staffMember.position || dash, 16, rowY(2));
@@ -285,9 +287,12 @@ export async function generateAdminBulletinPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
-  doc.text(t.pdfBulletinLabelsHeader, 14, headerTop + 5.5);
-  doc.text(t.pdfBulletinRateHeader, 145, headerTop + 5.5, { align: 'center' });
-  doc.text(t.pdfBulletinAmountHeader, 196, headerTop + 5.5, { align: 'right' });
+  // Baseline for vertically centered 8 pt text in an 8 mm row (row center
+  // + fontSize/3 ≈ 2.7 mm optical correction).
+  const ROW_BASELINE = 5.4;
+  doc.text(t.pdfBulletinLabelsHeader, 14, headerTop + ROW_BASELINE);
+  doc.text(t.pdfBulletinRateHeader, 145, headerTop + ROW_BASELINE, { align: 'center' });
+  doc.text(t.pdfBulletinAmountHeader, 196, headerTop + ROW_BASELINE, { align: 'right' });
 
   // Data rows
   let y = headerTop + rowH;
@@ -298,9 +303,9 @@ export async function generateAdminBulletinPdf({
     doc.setFont('helvetica', row.bold ? 'bold' : 'normal');
     doc.setFontSize(8);
     doc.setTextColor(row.white ? WHITE.r : INK.r, row.white ? WHITE.g : INK.g, row.white ? WHITE.b : INK.b);
-    doc.text(row.label, 14, y + 5.5);
-    if (row.taux) doc.text(row.taux, 145, y + 5.5, { align: 'center' });
-    doc.text(row.montant, 196, y + 5.5, { align: 'right' });
+    doc.text(row.label, 14, y + ROW_BASELINE);
+    if (row.taux) doc.text(row.taux, 145, y + ROW_BASELINE, { align: 'center' });
+    doc.text(row.montant, 196, y + ROW_BASELINE, { align: 'right' });
     y += rowH;
   }
   // Column separators
