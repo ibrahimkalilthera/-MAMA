@@ -101,7 +101,7 @@ export function AppHeader(props: AppHeaderProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-4 w-full md:w-auto no-print">
+      <div className="flex flex-wrap items-center gap-4 w-full md:w-auto md:min-w-0 no-print">
         <div className="relative">
           <select 
             value={selectedYear}
@@ -161,14 +161,14 @@ export function AppHeader(props: AppHeaderProps) {
           </button>
         )}
         {(activeTab === 'students' || activeTab === 'parents') && (
-          <div className="relative flex-1 md:w-80">
+          <div className="relative flex-1 md:w-80 md:min-w-[220px] min-w-0">
             <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={18} />
             <input 
               type="text" 
               placeholder={t.searchPlaceholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full pl-12 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-${currentTheme.accent}/5 focus:border-${currentTheme.accent} transition-all text-sm ${currentTheme.text}`}
+              className={`w-full min-w-0 pl-12 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-${currentTheme.accent}/5 focus:border-${currentTheme.accent} transition-all text-sm ${currentTheme.text}`}
             />
           </div>
         )}
