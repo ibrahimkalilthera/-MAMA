@@ -18,9 +18,14 @@ export default defineConfig(({mode}) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom', 'motion', 'lucide-react'],
-            'vendor-supabase': ['@supabase/supabase-js'],
+          // Rolldown (Vite ≥ 8) only accepts manualChunks as a function.
+          manualChunks(id) {
+            if (id.includes('/node_modules/react') || id.includes('/node_modules/react-dom') || id.includes('/node_modules/motion') || id.includes('/node_modules/lucide-react')) {
+              return 'vendor-react';
+            }
+            if (id.includes('/node_modules/@supabase')) {
+              return 'vendor-supabase';
+            }
           },
         },
       },
