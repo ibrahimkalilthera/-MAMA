@@ -530,8 +530,9 @@ export async function generateExpensesReportPdf({
   doc.setTextColor(100, 116, 139);
   doc.text(t.pdfSignatureVisaShort, 25, y + 5);
 
-  // Official school stamp over the approval area
-  await drawSchoolStamp(doc, 165, y + 17, 24);
+  // Official school stamp over the approval area — centered on the printed
+  // signature line (y + 25), same discipline as the bulletin.
+  await drawSchoolStamp(doc, 165, y + 25, 24);
 
   doc.setDrawColor(203, 213, 225);
   doc.line(25, y + 25, 80, y + 25);
