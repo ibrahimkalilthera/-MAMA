@@ -124,6 +124,9 @@ export function useTheme() {
 
       accentBg: isMidnight ? 'bg-amber-600' : isSlate ? 'bg-sky-600' : isEmerald ? 'bg-emerald-600' : isBordeaux ? 'bg-rose-600' : isCream ? 'bg-[#1E5E3A]' : 'bg-blue-600',
 
+      /** Text color on accentBg — amber is too light for white ink (2.15:1 < 3:1), use dark brown. */
+      accentText: isMidnight ? 'text-amber-950' : 'text-white',
+
       accentHover: isMidnight ? 'hover:bg-amber-700' : isSlate ? 'hover:bg-sky-700' : isEmerald ? 'hover:bg-emerald-700' : isBordeaux ? 'hover:bg-rose-700' : isCream ? 'hover:bg-[#15462B]' : 'hover:bg-blue-700',
 
       accentShadow: isMidnight ? 'shadow-amber-500/20' : isSlate ? 'shadow-sky-500/20' : isEmerald ? 'shadow-emerald-600/20' : isBordeaux ? 'shadow-rose-600/20' : isCream ? 'shadow-emerald-700/20' : 'shadow-blue-500/20',
