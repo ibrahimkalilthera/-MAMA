@@ -151,3 +151,19 @@ describe('generateAdminBulletinPdf — bulletin de paie mensuelle', () => {
     assert.equal(reparsed.getPageCount(), 1, 'still a single page');
   });
 });
+
+describe('cachet zone — pixel-calibrated on the printed template', () => {
+  it('centers the seal ON the printed L\'EMPLOYEUR signature line (pixel-scan calibration)', () => {
+    // Pixel scan of the template raster (16 px/mm): the printed L'EMPLOYEUR
+    // underline is centered on (172.19, 198.41) mm and the template MediaBox
+    // origin is x = 4.607 mm (mmToPdfX is anchored to 0, so every x constant
+    // prints 4.607 mm left of its nominal value). The tampon ink sits 0.1 mm
+    // left of and 2.53 mm above its box center. STAMP_CX/CY solve to
+    // 176.9 / 200.94 — the ink straddles the line symmetrically (7.47 mm each
+    // side) and clears the page bottom (207.75 mm). See the constants'
+    // comment in src/lib/pdfPayrollBulletin.ts — do not nudge these by eye.
+    const src = readFileSync(new URL('../src/lib/pdfPayrollBulletin.ts', import.meta.url), 'utf8');
+    assert.match(src, /const STAMP_CX = 176\.9;/, 'STAMP_CX must stay pixel-calibrated on the printed line (172.19 + media.x 4.607 + ink offset 0.1)');
+    assert.match(src, /const STAMP_CY = 200\.94;/, 'STAMP_CY must stay pixel-calibrated on the printed line (198.41 + ink offset 2.53)');
+  });
+});

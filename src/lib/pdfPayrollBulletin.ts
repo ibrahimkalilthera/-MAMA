@@ -132,9 +132,30 @@ const LETTERS = { x: 52, baseline: 158.2, line2Baseline: 164 };
 /** Mode de Paiement / N°Compte box (single row, two columns). */
 const PAYMENT = { leftX: 46, rightX: 140, baseline: 168.2 };
 
-/** Signature blocks — the school cachet over L'EMPLOYEUR. */
-const STAMP_CX = 154;
-const STAMP_CY = 194.4;
+/**
+ * Signature block — the school cachet centered ON the printed L'EMPLOYEUR
+ * signature line, the same "centered on the printed line" discipline as the
+ * fiche's date. Pixel-calibrated against the template raster (16 px/mm):
+ *
+ *   • printed L'EMPLOYEUR line: y 198.19–198.63 mm (center 198.41),
+ *     x 152.19–192.19 mm (center 172.19); the label above it shares that
+ *     center — so the seal is centered on (172.19, 198.41);
+ *   • the template MediaBox origin is x = 13.06 pt = 4.607 mm while mmToPdfX
+ *     is anchored to 0, so every x constant here prints 4.607 mm left of its
+ *     nominal value (the data columns above are calibrated in this same
+ *     shifted space);
+ *   • tampon.png ink bbox inside the 20 mm box: x 13 %–86 %, y 0 %–74.7 %
+ *     (ink center 0.1 mm left of and 2.53 mm above the box center).
+ *
+ * Box center (cx, cy) ⇒ ink center (cx − 4.607 − 0.1, cy − 2.53). Targeting
+ * the line center gives cx = 172.19 + 4.707 = 176.9 and cy = 198.41 + 2.53 =
+ * 200.94: the ink straddles the line symmetrically (7.47 mm each side) and
+ * its bottom (205.88 mm) clears the page bottom (207.75 mm). The seal PNG has
+ * a transparent background, so the line shows through around the ink instead
+ * of being erased by the (former) opaque white box.
+ */
+const STAMP_CX = 176.9;
+const STAMP_CY = 200.94;
 const STAMP_DIAMETER = 20;
 
 const PT_PER_MM = 72 / 25.4;

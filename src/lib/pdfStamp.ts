@@ -3,14 +3,19 @@
  * (receipts, payslips, bordereaux, reports) in their "cachet" zone.
  *
  * The stamp PNG lives in `public/tampon.png` and is loaded at runtime via
- * fetch. The COMMITTED asset is already optimised: 300 px, palette-indexed,
- * flattened on pure white (~38 KB). The original stamp was a 1254 px
- * distressed-texture PNG of ~1.4 MB — embedding it at full size ballooned
- * every generated PDF to ≈5 MB; the optimised 300 px file keeps ~380 dpi in
- * the 20 mm stamp box (≈320 dpi in the widest 24 mm box) while the PDF
- * payload drops to ~90 KB. Regenerate it from any larger capture with
+ * fetch. The COMMITTED asset is already optimised: 300 px, transparent
+ * background (~34 KB) — the original white matte was un-composited to alpha
+ * (a = 255 − min(r,g,b), c' = (c − (255−a))·255/a) so the seal can sit ON
+ * printed lines (signature underlines, table rules): only the ink strokes
+ * cover the paper, the line shows through around them. The original stamp
+ * was a 1254 px distressed-texture PNG of ~1.4 MB — embedding it at full size
+ * ballooned every generated PDF to ≈5 MB; the optimised 300 px file keeps
+ * ~380 dpi in the 20 mm stamp box (≈320 dpi in the widest 24 mm box) while
+ * the PDF payload drops to ~90 KB. Regenerate it from any larger capture with
  * `node scripts/optimize-stamp.mjs` — a pure-Node PNG pipeline, no external
- * image dependency.
+ * image dependency — then re-apply the white→alpha un-matte above (that
+ * script composites on white; the transparent background is what lets a
+ * stamp overlap printed lines cleanly).
  *
  * A canvas guard (STAMP_MAX_EDGE) remains for robustness: if the file in
  * `public/` is ever replaced by a larger one, it is decoded and downscaled
