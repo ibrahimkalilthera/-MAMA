@@ -24,6 +24,7 @@ const theme: CurrentTheme = {
   sidebar: 'bg-slate-800',
   accent: 'text-emerald-600',
   accentBg: 'bg-emerald-50',
+  accentText: 'text-white',
   accentHover: 'hover:bg-emerald-100',
   accentShadow: 'shadow-emerald-200',
   tableHeader: 'bg-slate-100',

@@ -252,8 +252,9 @@ export async function generateMultiYearReportPdf({
   doc.setTextColor(100, 116, 139);
   doc.text(t.pdfSignature, 25, y + 5);
 
-  // Official school stamp over the official-signature area
-  await drawSchoolStamp(doc, 165, y + 17, 24);
+  // Official school stamp over the official-signature area — centered on
+  // the printed signature line (y + 25), same discipline as the bulletin.
+  await drawSchoolStamp(doc, 165, y + 25, 24);
 
   doc.setDrawColor(203, 213, 225);
   doc.line(25, y + 25, 80, y + 25);

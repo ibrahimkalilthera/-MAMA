@@ -5,15 +5,32 @@ name: Deploy (Vercel)
 # Trigger: the "Quality & performance guard" workflow (perf-guard.yml) COMPLETING
 # on main. Its `quality` job (lint + tsc strict + tests + npm-audit gate) is the
 # single door to production: a push whose quality job fails never reaches this
-# workflow, so a broken push can never deploy. This deploy checks out the exact
-# commit that quality run validated (`head_sha`) — not a newer one that could
-# have landed in between.
+# workflow, so a broken push can never deploy. The deploy job checks out the
+# exact commit that quality run validated (`head_sha`) — not a newer one that
+# could have landed in between.
 #
-# Manual deploys stay possible via workflow_dispatch (deploys the current head
-# of main — an explicit human action, re-validated locally by the author).
+# Gate structure:
+#   Job `gate`     : resolves the decision in code (actions/github-script), so
+#                    every conclusion is handled explicitly:
+#                      • success  → deploy exactly the validated head_sha.
+#                      • cancelled → a newer push superseded this run (quality
+#                        workflow concurrency). If that newer push's quality run
+#                        already completed green, deploy the commit it validated
+#                        NOW instead of waiting for its own workflow_run event.
+#                        Otherwise exit cleanly — the superseding run's own
+#                        completion fires a fresh deploy. Never a red run: a
+#                        superseded run is not a failure, it is replaced.
+#                      • failure  → the push is genuinely red; the gate job
+#                        fails (core.setFailed), so the skipped deploy sits next
+#                        to the red quality run — a visible, accurate signal.
+#                      • workflow_dispatch → manual: deploy the current head of
+#                        main (an explicit human action, re-validated locally by
+#                        the author).
+#   Job `deploy`   : runs only when the gate says proceed. Checks out the exact
+#                    commit the green run validated and pushes it to Vercel.
 #
-# The quality job already runs lint/tests/audit, so this workflow does not
-# repeat them; it only needs the project dependencies for `vercel build`
+# The quality job already runs lint/tests/audit, so the deploy workflow does
+# not repeat them; it only needs the project dependencies for `vercel build`
 # (`vercel.json` → buildCommand: npm run build).
 #
 # Second gate — the migrations workflow (supabase-migrations.yml, paths-filtered
@@ -69,42 +86,100 @@ concurrency:
 
 permissions:
   contents: read
-  actions: read # interroger les runs du workflow migrations (gate n°2)
+  actions: read # interroger les runs qualité / migrations (jobs gate et deploy)
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
+  # Decision job: runs for every quality completion (success, cancelled,
+  # failure) and for manual dispatches. Sets `proceed` + `deploy_sha` outputs;
+  # the deploy job below is skipped (gray) when there is nothing to deploy.
+  # Plain `run:` steps cannot signal "neutral" (exit 78 only applies to custom
+  # actions), so this decision lives in github-script with explicit branches —
+  # a superseded (cancelled) quality run must never turn this run red.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      proceed: ${{ steps.quality-gate.outputs.proceed }}
+      deploy_sha: ${{ steps.quality-gate.outputs.deploy_sha }}
+    steps:
+      - name: Gate — deploy only what quality validated
+        id: quality-gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.setOutput('proceed', 'false');
+            core.setOutput('deploy_sha', '');
+
+            if (context.eventName !== 'workflow_run') {
+              console.log('Manual dispatch — deploying the current head of main.');
+              core.setOutput('proceed', 'true');
+              return;
+            }
+
+            const run = context.payload.workflow_run;
+            const sha = run.head_sha;
+            console.log(`Quality workflow concluded '${run.conclusion}' on ${sha}.`);
+
+            if (run.conclusion === 'success') {
+              console.log(`Quality passed on ${sha} — deploying exactly that commit.`);
+              core.setOutput('proceed', 'true');
+              core.setOutput('deploy_sha', sha);
+              return;
+            }
+
+            if (run.conclusion !== 'cancelled') {
+              // Genuine failure: the push is red. Fail this job so the skipped
+              // deploy sits visibly next to the red quality run.
+              core.setFailed(`Quality workflow failed on ${sha} — nothing to deploy. The red quality run carries the verdict.`);
+              return;
+            }
+
+            // Cancelled: the quality concurrency superseded this run with a
+            // newer push. If that newer push's quality run already finished
+            // green, deploy the commit it validated right now instead of
+            // waiting for its own workflow_run event. Otherwise exit cleanly —
+            // that run's completion fires a fresh deploy.
+            console.log(`Run #${run.id} was cancelled (superseded by a newer push) — looking for a newer green quality run.`);
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              ...context.repo,
+              workflow_id: 'perf-guard.yml',
+              branch: 'main',
+              per_page: 10,
+            });
+            const greenNewer = data.workflow_runs.find(
+              (r) => r.head_sha !== sha && r.conclusion === 'success',
+            );
+            if (greenNewer) {
+              console.log(`Found newer green quality run #${greenNewer.id} on ${greenNewer.head_sha} — deploying exactly that commit instead.`);
+              core.setOutput('proceed', 'true');
+              core.setOutput('deploy_sha', greenNewer.head_sha);
+              return;
+            }
+
+            console.log('No newer green quality run yet — exiting cleanly. The superseding run will trigger the deploy when it completes.');
+
   deploy:
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     # 30 min : le gate migrations peut devoir attendre la fin d'un run
     # (~5-10 min de Docker) + build Vercel en aval.
     timeout-minutes: 30
     steps:
-      # First step, before even cloning: without a green quality run there is
-      # nothing to deploy. Exit 78 marks the job neutral (skipped, not failed).
-      - name: Gate — deploy only what quality validated
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
-              echo "Quality workflow concluded '${{ github.event.workflow_run.conclusion }}' on ${{ github.event.workflow_run.head_sha }} — not deploying."
-              exit 78
-            fi
-            echo "Quality passed on ${{ github.event.workflow_run.head_sha }} — deploying exactly that commit."
-          else
-            echo "Manual dispatch — deploying the current head of main."
-          fi
-
-      # Gate n°2 — migrations RLS vertes avant de déployer (parallèle à la
-      # porte qualité, même sémantique : exit 78 = neutre, pas rouge).
+      # Gate n°2 — migrations RLS vertes avant de déployer (même sémantique
+      # que la porte qualité : un verdict rouge bloque, un run manquant hérite
+      # du dernier verdict de main).
       - name: Gate — migrations workflow green for this commit
         if: github.event_name == 'workflow_run'
         uses: actions/github-script@v7
         with:
           script: |
             const repo = context.repo;
-            const sha = context.payload.workflow_run.head_sha;
+            const sha = '${{ needs.gate.outputs.deploy_sha }}';
             const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
             // Le run peut encore tourner (le gate qualité termine parfois
@@ -149,7 +224,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          ref: ${{ needs.gate.outputs.deploy_sha || github.ref }}
 
       - uses: actions/setup-node@v4
         with:

@@ -58,42 +58,20 @@ mock.module('xlsx', {
   },
 });
 
-// ── module mock: jspdf (for the admin bulletin de paie PDF) ──────────────────
-// The bulletin handler dynamically imports jsPDF; the fake records every
-// `save()` call (filename) and every `text()` payload so the PDF content can
-// be asserted without a real PDF library. The EMPLOYEE fiche no longer uses
-// jsPDF: it loads the school's paper template with pdf-lib and only prints
-// the data on it — that module is mocked below with a recording spy, and its
-// real rendering pipeline is covered separately by tests/pdf-fiche.test.ts.
+// ── module mocks for the two per-employee PDF generators ─────────────────────
+// BOTH the admin bulletin and the employee fiche now load the school's own
+// paper templates (pdf-lib overlay, no jsPDF drawing): the fiche uses
+// public/templates/fiche-paiement-salaire.pdf and the bulletin uses
+// public/templates/bulletin-paie-mensuelle.pdf. Each module is mocked here
+// with a recording spy so the ROUTING (employee → fiche, admin → bulletin,
+// active language) can be asserted without running the real pdf-lib pipeline
+// in this happy-dom suite — the real rendering of both templates is covered
+// separately by tests/pdf-fiche.test.ts and tests/pdf-bulletin.test.ts.
 const pdfSaveCalls: string[] = [];
 const pdfTextCalls: string[] = [];
 const pdfRectCalls: unknown[][] = [];
 // Stamp geometry recorded by the pdfStamp module mock below: (cx, cy, diameterMm).
 const stampGeometry: Array<{ cx: number; cy: number; diameterMm: number }> = [];
-class FakeJsPDF {
-  setFillColor() {}
-  setDrawColor() {}
-  setTextColor() {}
-  setFont() {}
-  setFontSize() {}
-  setLineDashPattern() {}
-  rect(...args: unknown[]) {
-    pdfRectCalls.push(args);
-  }
-  roundedRect(...args: unknown[]) {
-    pdfRectCalls.push(args);
-  }
-  circle() {}
-  addImage() {}
-  line() {}
-  addPage() {}
-  text(payload: string) {
-    pdfTextCalls.push(payload);
-  }
-  save(fileName: string) {
-    pdfSaveCalls.push(fileName);
-  }
-}
 
 mock.module('../src/lib/pdfStamp', {
   namedExports: {
@@ -108,10 +86,6 @@ mock.module('../src/lib/pdfStamp', {
   },
 });
 
-mock.module('jspdf', {
-  namedExports: { jsPDF: FakeJsPDF },
-});
-
 // Recording spy for the template-based employee fiche generator (pdf-lib):
 // captures the options so the routing (employee → fiche, no logo override)
 // can be asserted without running the real pdf-lib pipeline here.
@@ -121,6 +95,21 @@ mock.module('../src/lib/pdfPayrollFiche', {
     generateEmployeeFichePdf: async (options: { staffMember: Staff; lang?: string; template?: unknown }) => {
       ficheCalls.push(options);
       return { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), filename: 'Fiche_Paie_test_2026-09.pdf' };
+    },
+  },
+});
+
+// Recording spy for the template-based admin bulletin generator (pdf-lib):
+// captures the options and the produced filename — the real pdf-lib overlay
+// on the paper template is covered by tests/pdf-bulletin.test.ts.
+const bulletinCalls: Array<{ staffMember: Staff; lang?: string; schoolLogo?: string | null; template?: unknown }> = [];
+mock.module('../src/lib/pdfPayrollBulletin', {
+  namedExports: {
+    generateAdminBulletinPdf: async (options: { staffMember: Staff; lang?: string; schoolLogo?: string | null; template?: unknown }): Promise<{ bytes: Uint8Array; filename: string }> => {
+      bulletinCalls.push(options);
+      pdfSaveCalls.push(`Bulletin_Paie_${options.staffMember.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_2026-09.pdf`);
+      pdfTextCalls.push('BULLETIN DE PAIE', '3,60', '3,06', '7 200 FCFA', '6 120 FCFA', '186 680 FCFA', options.staffMember.bankDetails ?? '');
+      return { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), filename: 'Bulletin_Paie_test_2026-09.pdf' };
     },
   },
 });
@@ -442,45 +431,49 @@ describe('usePayroll.handleExportMonthlyPayrollExcel (bordereau XLSX)', () => {
     try {
       pdfSaveCalls.length = 0;
       pdfTextCalls.length = 0;
+      ficheCalls.length = 0;
+      bulletinCalls.length = 0;
       await act(async () => { await ref.current!.handleExportStaffReceiptPdf(adminProviseur); });
 
+      // Admin members are routed to the paper-template bulletin generator —
+      // never to the employee fiche, and never to a drawn jsPDF document.
+      assert.equal(bulletinCalls.length, 1, 'the bulletin generator is called exactly once');
+      assert.equal(bulletinCalls[0]!.staffMember.id, 'a1', 'the clicked admin member is passed');
+      assert.equal(bulletinCalls[0]!.lang, 'fr', 'the active language is passed');
+      assert.equal(ficheCalls.length, 0, 'the employee fiche generator is not used for admin members');
       assert.equal(pdfSaveCalls.length, 1, 'one PDF saved');
       assert.match(pdfSaveCalls[0], /^Bulletin_Paie_Ibrahim_Thera_\d{4}-\d{2}\.pdf$/, 'bulletin filename with the member name and period');
-      assert.ok(pdfTextCalls.includes('BULLETIN DE PAIE'), 'the bulletin title is drawn');
-      const drawn = pdfTextCalls.map(t => t.replace(/\s+/g, ' '));
-      assert.ok(drawn.includes('3,60'), 'the INPS rate 3,60 is drawn');
-      assert.ok(drawn.includes('3,06'), 'the AMO rate 3,06 is drawn');
-      assert.ok(drawn.includes('7 200 FCFA'), 'INPS = 3,60 % of 200000');
-      assert.ok(drawn.includes('6 120 FCFA'), 'AMO = 3,06 % of 200000');
-      assert.ok(drawn.includes('186 680 FCFA'), 'net = base − INPS − AMO');
-      assert.ok(pdfTextCalls.includes('BOA 12345678901'), 'the bank account is drawn');
+      // The rates ride inside the bulletin generator (frozen constants,
+      // covered by tests/pdf-bulletin.test.ts) — assert the spy saw the member.
       assert.ok(!pdfTextCalls.includes(t.consolidatedSalaryReceipt), 'the legacy receipt is not used for admin members');
     } finally {
       act(() => root.unmount());
     }
   });
 
-  it('draws the school stamp exactly once, on the CACHET DE LA DIRECTION line of the admin BULLETIN (never on the employee paper fiche)', async () => {
+  it('routes the employee fiche and the admin bulletin to their paper-template generators (stamp contract covered by the static guard + pdf-bulletin tests)', async () => {
     const { args } = baseDeps({});
     const { ref, root } = await mount(args);
     try {
       stampGeometry.length = 0;
       ficheCalls.length = 0;
+      bulletinCalls.length = 0;
       // A regular employee: the fiche is the paper template itself — the stamp
       // box is pre-printed on it, so the generator must NOT draw one.
       await act(async () => { await ref.current!.handleExportStaffReceiptPdf(fatou()); });
-      assert.equal(stampGeometry.length, 0, 'no stamp is drawn for the employee paper fiche');
       assert.equal(ficheCalls.length, 1, 'the employee fiche generator handled the request');
+      assert.equal(bulletinCalls.length, 0, 'the admin bulletin generator is not used for regular employees');
 
-      // A member of the administration downloads the drawn bulletin, whose
-      // cachet zone carries the school stamp exactly once, in the footer.
-      stampGeometry.length = 0;
+      // A member of the administration downloads the paper-template bulletin.
+      // (The L'EMPLOYEUR stamp contract — exactly one 20 mm cachet over the
+      // signature — is enforced by tests/pdf-stamp-guard.test.ts and the real
+      // pdf-lib pipeline in tests/pdf-bulletin.test.ts, so no stamp assertion
+      // can be made against the module spy here.)
       const adminProviseur = staff({ id: 'a1', name: 'Ibrahim Thera', position: 'Proviseur', salary: 200000 });
       await act(async () => { await ref.current!.handleExportStaffReceiptPdf(adminProviseur); });
-      assert.equal(stampGeometry.length, 1, 'the stamp is drawn exactly once on the bulletin');
-      const stamp = stampGeometry[0]!;
-      assert.ok(stamp.cy >= 230 && stamp.cy <= 280, `stamp center (${stamp.cy} mm) sits in the bulletin footer cachet zone`);
-      assert.ok(stamp.cy + stamp.diameterMm / 2 <= 289, 'stamp bottom stays inside the A4 page');
+      assert.equal(bulletinCalls.length, 1, 'the admin bulletin generator handled the request');
+      assert.equal(ficheCalls.length, 1, 'the employee fiche generator was still called once (for the employee)');
+      assert.ok(!pdfTextCalls.includes(t.consolidatedSalaryReceipt), 'the legacy receipt is not used for admin members');
     } finally {
       act(() => root.unmount());
     }
