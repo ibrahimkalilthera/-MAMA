@@ -194,7 +194,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
       />
 
       {/* --- Main Content --- */}
-      <main className={`flex-1 lg:ml-64 p-8 pb-24 lg:p-12 transition-all duration-300 ${showTodoSidebar ? 'lg:mr-80' : ''}`}>
+      <main className={`flex-1 min-w-0 lg:ml-64 p-8 pb-24 lg:p-12 transition-all duration-300 ${showTodoSidebar ? 'lg:mr-80' : ''}`}>
         
         <AppHeader
           t={t}

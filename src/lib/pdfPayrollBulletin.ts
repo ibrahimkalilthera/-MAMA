@@ -1,19 +1,39 @@
 /**
- * Official monthly payslip (Bulletin de paie mensuelle) PDF for school
- * administration members — mirrors the school's paper bulletin template:
- * dark-blue header with the school identity, the employee details grid,
- * the LIBELLES / TAUX / MONTANT earnings & deductions table (INPS + AMO
- * employee contributions), the net salary, the amount in words, the payment
- * method / account fields and the L'EMPLOYÉ / L'EMPLOYEUR signature blocks.
+ * Bulletin de paie mensuelle — official monthly payslip for school
+ * administration members (added via "Ajouter un membre de l'administration").
+ *
+ * Like the employee fiche, this document is THE SCHOOL'S OWN paper bulletin:
+ * `public/templates/bulletin-paie-mensuelle.pdf` (the exact PDF provided by
+ * the Direction). The generator loads that template — raster form with the
+ * school emblem, the blue banner "BULLETIN DE PAIE Mensuelle", the period
+ * box (MOIS DE / DU / AU), the identity grid (Nom, Prénom, Fonction, Date
+ * d'entrée | Catégorie, N°INPS, Situation Familiale, Nbre Enfants), the
+ * earnings & deductions table (LIBELLES / TAUX / MONTANT with the INPS and
+ * AMO rows), the "Montant en toutes lettres" line, the Mode de Paiement /
+ * N°Compte box and the L'EMPLOYÉ / L'EMPLOYEUR signature blocks — and only
+ * prints the member's monthly data on top of it:
+ *
+ *   • the period box gets the current month + year and the first/last day
+ *     of the month (Du / Au);
+ *   • the identity grid gets the member's name, position, hire date, INPS
+ *     number, family status and children count;
+ *   • the MONTANT column of the table gets the payroll figures: base
+ *     salary, the three indemnities, Total Brut, the INPS and AMO
+ *     contributions, Total Cotisation, Salaire Net and Net à Percevoir.
+ *     The TAUX column (3,60 % / 3,06 %) is printed on the paper template —
+ *     nothing is stamped there;
+ *   • the "Montant en toutes lettres" line gets the net amount in words;
+ *   • the Mode de Paiement / N°Compte box gets the payment data;
+ *   • the school cachet image is drawn over the L'EMPLOYEUR signature block.
  *
  * The INPS and AMO contribution rates are the legal Malian rates printed on
  * the school's official bulletin — they are frozen constants on purpose and
  * must NOT be edited (see INPS_RATE / AMO_RATE below).
  */
-import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
-import type { Staff } from './useSupabaseData';
+import { translations } from '../i18n/translations';
 import { drawSchoolStamp } from './pdfStamp';
+import type { Staff } from './useSupabaseData';
 
 /**
  * Employee social contributions (Mali) — fixed legal rates, each computed on
@@ -84,21 +104,94 @@ export function montantEnLettres(n: number): string {
   return parts.join(' ');
 }
 
-// ─── Bulletin geometry (A4 portrait, mm) ─────────────────────────────────────
+// ─── Template geometry (mm from the top-left of the scanned bulletin) ────────
+// Calibrated against the paper bulletin raster (201.5 × 207.7 mm page).
+// Cell borders and label positions were located by pixel scans of the
+// printed grid — the same discipline as the employee fiche.
 
-const PAGE_W = 210;
-const MARGIN = 10;
-const TABLE_W = 190;
-const COL_LABEL = 118; // 10 → 118
-const COL_RATE = 172; // 118 → 172
-const COL_AMOUNT = 200; // 172 → 200
+/** MOIS DE / DU / AU rows inside the period box (top-right of the template). */
+const PERIOD_ROWS = [
+  { baseline: 28.7 }, // MOIS DE :
+  { baseline: 34.7 }, // DU :
+  { baseline: 40.1 }, // AU :
+];
+const PERIOD_VALUE_X = 134;
+
+/** Identity grid: 4 rows × 2 columns (label ends measured on the raster). */
+const GRID_LEFT_X = [27.5, 32, 33.5, 40]; // Nom / Prénom / Fonction / Date d'entrée
+const GRID_RIGHT_X = [129.5, 126.5, 142.5, 134.5]; // Catégorie / N°INPS / Situation / Nbre Enfants
+const GRID_BASELINES = [59.4, 64.6, 70.6, 76.6];
+
+/** Earnings & deductions table: 10 rows, baselines on the printed grid lines. */
+const TABLE_MONTANT_X = 190.2; // right-aligned inside the MONTANT column
+const TABLE_BASELINES = [93.8, 99.7, 105.6, 111.4, 117.1, 123.7, 129.2, 135.0, 140.3, 146.3];
+
+/** "Montant en toutes lettres" — writing line below the label. */
+const LETTERS = { x: 52, baseline: 158.2, line2Baseline: 164 };
+
+/** Mode de Paiement / N°Compte box (single row, two columns). */
+const PAYMENT = { leftX: 46, rightX: 140, baseline: 168.2 };
+
+/**
+ * Signature block — the school cachet centered ON the printed L'EMPLOYEUR
+ * signature line, the same "centered on the printed line" discipline as the
+ * fiche's date. Pixel-calibrated against the template raster (16 px/mm):
+ *
+ *   • printed L'EMPLOYEUR line: y 198.19–198.63 mm (center 198.41),
+ *     x 152.19–192.19 mm (center 172.19); the label above it shares that
+ *     center — so the seal is centered on (172.19, 198.41);
+ *   • the template MediaBox origin is x = 13.06 pt = 4.607 mm while mmToPdfX
+ *     is anchored to 0, so every x constant here prints 4.607 mm left of its
+ *     nominal value (the data columns above are calibrated in this same
+ *     shifted space);
+ *   • tampon.png ink bbox inside the 20 mm box: x 13 %–86 %, y 0 %–74.7 %
+ *     (ink center 0.1 mm left of and 2.53 mm above the box center).
+ *
+ * Box center (cx, cy) ⇒ ink center (cx − 4.607 − 0.1, cy − 2.53). Targeting
+ * the line center gives cx = 172.19 + 4.707 = 176.9 and cy = 198.41 + 2.53 =
+ * 200.94: the ink straddles the line symmetrically (7.47 mm each side) and
+ * its bottom (205.88 mm) clears the page bottom (207.75 mm). The seal PNG has
+ * a transparent background, so the line shows through around the ink instead
+ * of being erased by the (former) opaque white box.
+ */
+const STAMP_CX = 176.9;
+const STAMP_CY = 200.94;
+const STAMP_DIAMETER = 20;
+
+const PT_PER_MM = 72 / 25.4;
+
+/** Inks that read like typed entries on the paper form. */
+const INK = { r: 0.09, g: 0.12, b: 0.2 }; // near-black slate
+const WHITE = { r: 1, g: 1, b: 1 };
+
+interface PtFont {
+  font: import('pdf-lib').PDFFont;
+  size: number;
+}
 
 export interface AdminBulletinOptions {
   staffMember: Staff;
   lang?: 'en' | 'fr';
-  /** Uploaded school logo (data URL) — drawn inside the header emblem. */
+  /**
+   * Uploaded school logo (data URL). The bulletin template already carries
+   * the school emblem printed in its header, so this is accepted for API
+   * compatibility but not stamped — the template design is kept untouched.
+   */
   schoolLogo?: string | null;
+  /**
+   * Override for the official paper template bytes (tests inject the file
+   * directly). Defaults to fetching `/templates/bulletin-paie-mensuelle.pdf`.
+   */
+  template?: Uint8Array | ArrayBuffer;
 }
+
+export interface GeneratedBulletin {
+  bytes: Uint8Array;
+  filename: string;
+}
+
+/** Template asset served from the app's public directory. */
+const TEMPLATE_URL = 'templates/bulletin-paie-mensuelle.pdf';
 
 /** Splits a full name into family name (last token) + given names. */
 export function splitName(fullName: string): { lastName: string; firstName: string } {
@@ -108,34 +201,50 @@ export function splitName(fullName: string): { lastName: string; firstName: stri
   return { lastName: parts[parts.length - 1]!, firstName: parts.slice(0, -1).join(' ') };
 }
 
+async function loadTemplateBytes(template?: Uint8Array | ArrayBuffer): Promise<Uint8Array> {
+  if (template) return template instanceof Uint8Array ? template : new Uint8Array(template);
+  const baseUrl =
+    typeof import.meta !== 'undefined' && (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL
+      ? (import.meta as { env: { BASE_URL: string } }).env.BASE_URL
+      : '/';
+  const res = await fetch(`${baseUrl}${TEMPLATE_URL}`);
+  if (!res.ok) throw new Error(`Le bulletin modèle est introuvable (HTTP ${res.status}).`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+function triggerBrowserDownload(bytes: Uint8Array, filename: string): void {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
+  const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+/** Formats an amount like the school writes it on the bulletin. */
+function fmtFcfa(value: number): string {
+  return `${value.toLocaleString('fr-FR').replace(/[\u202f\u00a0]/g, ' ')} FCFA`;
+}
+
 /**
- * Generates and triggers download of the official monthly bulletin de paie
- * for an administration member, modeled on the school's paper template.
+ * Generates the official monthly bulletin de paie: THE school's paper
+ * bulletin with the member's current-month data stamped on it. In the
+ * browser it triggers the download; the resulting bytes are always returned
+ * (tests use the return value and inject the template file).
  */
 export async function generateAdminBulletinPdf({
   staffMember,
   lang = 'fr',
-  schoolLogo = null,
-}: AdminBulletinOptions): Promise<void> {
-  const { jsPDF } = await import('jspdf');
+  schoolLogo = null, // accepted for API compatibility — the template carries its own emblem
+  template,
+}: AdminBulletinOptions): Promise<GeneratedBulletin> {
+  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+
   const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
-
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-  // Palette (matches the paper bulletin: deep-blue header, blue accent rows)
-  const BLUE = { r: 30, g: 58, b: 138 }; // #1E3A8A header / salaire net
-  const BLUE_BRIGHT = { r: 37, g: 99, b: 235 }; // #2563EB net à percevoir
-  const BLUE_LIGHT = { r: 219, g: 234, b: 254 }; // #DBEAFE total brut
-  const GOLD = { r: 251, g: 191, b: 36 }; // #FBBF24 "Mensuelle"
-  const INK = { r: 15, g: 23, b: 42 }; // #0F172A
-  const GRAY = { r: 100, g: 116, b: 139 }; // #64748B
-  const PAPER = { r: 248, g: 250, b: 252 }; // #F8FAFC
-  const BORDER = { r: 203, g: 213, b: 225 }; // #CBD5E1
-  const WHITE = { r: 255, g: 255, b: 255 };
-
-  const fmt = (v: number) => `${v.toLocaleString('fr-FR')} FCFA`;
-
-  // ── Period (current month) ──
   const now = new Date();
   const monthIdx = now.getMonth();
   const monthKey = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'][monthIdx] as keyof TranslationDict;
@@ -143,7 +252,7 @@ export async function generateAdminBulletinPdf({
   const periodYear = now.getFullYear();
   const periodFrom = new Date(periodYear, monthIdx, 1);
   const periodTo = new Date(periodYear, monthIdx + 1, 0);
-  const dmy = (d: Date) => d.toLocaleDateString('fr-FR');
+  const dmy = (d: Date) => d.toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB');
 
   // ── Payroll figures (rates are frozen constants — do not edit) ──
   const base = staffMember.salary;
@@ -159,8 +268,6 @@ export async function generateAdminBulletinPdf({
   const { lastName, firstName } = splitName(staffMember.name);
   const dash = '—';
 
-  // Family status code → translated label (form stores the code, PDF prints
-  // the school's language).
   const FAMILY_STATUS_KEY: Record<string, keyof TranslationDict> = {
     single: 'familySingle',
     married: 'familyMarried',
@@ -174,193 +281,91 @@ export async function generateAdminBulletinPdf({
     ? dmy(new Date(`${staffMember.hireDate}T00:00:00`))
     : dash;
 
-  // 1. Header band
-  doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
-  doc.rect(0, 0, PAGE_W, 26, 'F');
+  // Load the school's own paper bulletin — the document that is downloaded
+  // IS the provided PDF, with the data printed over it.
+  const templateBytes = await loadTemplateBytes(template);
+  const pdf = await PDFDocument.load(templateBytes);
+  const page = pdf.getPage(0);
+  const helv = await pdf.embedFont(StandardFonts.Helvetica);
+  const helvBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  // Emblem: white disc, uploaded logo inside when available
-  doc.setFillColor(WHITE.r, WHITE.g, WHITE.b);
-  doc.circle(17, 13, 8.5, 'F');
-  if (schoolLogo) {
-    try {
-      doc.addImage(schoolLogo, schoolLogo.startsWith('data:image/png') ? 'PNG' : 'JPEG', 9.5, 5.5, 15, 15);
-    } catch {
-      // a broken logo must never break the payslip
-    }
-  } else {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(BLUE.r, BLUE.g, BLUE.b);
-    doc.text('M.T.', 17, 14.5, { align: 'center' });
-  }
-  doc.setDrawColor(WHITE.r, WHITE.g, WHITE.b);
-  doc.circle(17, 13, 8.5, 'S');
+  // Visible page box: anchor coordinates to the TOP of the MediaBox.
+  const media = page.getMediaBox();
+  const topPt = media.y + media.height;
 
-  // School identity (left of the header)
-  doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text(t.title, 32, 10.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(226, 232, 240);
-  doc.text(t.pdfBulletinSchoolName2, 32, 16);
-  doc.text(t.pdfBulletinSchoolAddress, 32, 20.5);
-
-  // Title (right of the header)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
-  doc.text(t.pdfBulletinTitle, 200, 10.5, { align: 'right' });
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(12);
-  doc.setTextColor(GOLD.r, GOLD.g, GOLD.b);
-  doc.text(t.pdfBulletinMonthly, 200, 17.5, { align: 'right' });
-
-  // 2. Period box (MOIS DE / DU / AU)
-  doc.setFillColor(WHITE.r, WHITE.g, WHITE.b);
-  doc.setDrawColor(BLUE_BRIGHT.r, BLUE_BRIGHT.g, BLUE_BRIGHT.b);
-  doc.roundedRect(132, 30, 68, 20, 2, 2, 'FD');
-  doc.setTextColor(INK.r, INK.g, INK.b);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text(`${t.pdfBulletinMonth} : ${monthName} ${periodYear}`, 138, 37);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`${t.pdfBulletinFrom} : ${dmy(periodFrom)}    ${t.pdfBulletinTo} : ${dmy(periodTo)}`, 138, 44);
-
-  // 3. Employee details grid (Nom/Prénom/Fonction/Date d'entrée | Catégorie/N° INPS/Situation/Nbre enfants)
-  const gridTop = 58;
-  doc.setFillColor(PAPER.r, PAPER.g, PAPER.b);
-  doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b);
-  doc.roundedRect(MARGIN, gridTop, TABLE_W, 34, 2, 2, 'FD');
-
-  const field = (label: string, value: string, x: number, y: number): void => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
-    doc.text(label, x, y);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9.5);
-    doc.setTextColor(INK.r, INK.g, INK.b);
-    doc.text(value, x + 26, y);
+  const mmToPdfX = (mm: number) => mm * PT_PER_MM;
+  const mmToPdfY = (mm: number) => topPt - mm * PT_PER_MM;
+  const text = (
+    str: string,
+    xMm: number,
+    yMm: number,
+    { font, color = INK }: { font: PtFont; color?: { r: number; g: number; b: number } },
+  ): void => {
+    page.drawText(str, { x: mmToPdfX(xMm), y: mmToPdfY(yMm), size: font.size, font: font.font, color: rgb(color.r, color.g, color.b) });
   };
 
-  const rowY = (i: number) => gridTop + 9 + i * 8.5;
-  field(t.pdfBulletinLastName, lastName, 16, rowY(0));
-  field(t.pdfBulletinFirstName, firstName, 16, rowY(1));
-  field(t.pdfPosition, staffMember.position || dash, 16, rowY(2));
-  field(t.pdfBulletinEntryDate, hireLabel, 16, rowY(3));
+  const valueFont: PtFont = { font: helv, size: 8 };
+  const valueBold: PtFont = { font: helvBold, size: 8 };
+  const periodFont: PtFont = { font: helvBold, size: 8 };
 
-  field(t.pdfBulletinCategory, dash, 112, rowY(0));
-  field(t.pdfBulletinInpsNumber, staffMember.inpsNumber || dash, 112, rowY(1));
-  field(t.pdfBulletinFamilyStatus, familyLabel, 112, rowY(2));
-  field(t.pdfBulletinChildrenCount, staffMember.childrenCount !== undefined ? String(staffMember.childrenCount) : dash, 112, rowY(3));
+  // 1. Period box — MOIS DE / DU / AU.
+  text(`${monthName} ${periodYear}`, PERIOD_VALUE_X, PERIOD_ROWS[0]!.baseline, { font: periodFont });
+  text(dmy(periodFrom), PERIOD_VALUE_X, PERIOD_ROWS[1]!.baseline, { font: periodFont });
+  text(dmy(periodTo), PERIOD_VALUE_X, PERIOD_ROWS[2]!.baseline, { font: periodFont });
 
-  // 4. Earnings & deductions table
-  const headerTop = gridTop + 34 + 6;
-  const rowH = 8;
-  const rows: Array<{
-    label: string;
-    taux?: string;
-    montant: string;
-    fill?: { r: number; g: number; b: number };
-    bold?: boolean;
-    white?: boolean;
-  }> = [
-    { label: t.pdfBulletinBaseSalary, montant: fmt(base) },
-    { label: t.pdfBulletinTravelAllowance, montant: fmt(travel) },
-    { label: t.pdfBulletinCommunicationAllowance, montant: fmt(communication) },
-    { label: t.pdfBulletinHousingAllowance, montant: fmt(housing) },
-    { label: t.pdfBulletinGrossTotal, montant: fmt(gross), fill: BLUE_LIGHT, bold: true },
-    { label: t.pdfBulletinInpsContribution.replace('{rate}', formatRate(INPS_RATE)), taux: formatRate(INPS_RATE), montant: fmt(inps) },
-    { label: t.pdfBulletinAmoContribution.replace('{rate}', formatRate(AMO_RATE)), taux: formatRate(AMO_RATE), montant: fmt(amo) },
-    { label: t.pdfBulletinTotalContributions, montant: fmt(totalCotisations), bold: true },
-    { label: t.pdfBulletinNetSalary, montant: fmt(net), fill: BLUE, bold: true, white: true },
-    { label: t.pdfBulletinNetToReceive, montant: fmt(net), fill: BLUE_BRIGHT, bold: true, white: true },
-  ];
-
-  // Header row
-  doc.setFillColor(BLUE.r, BLUE.g, BLUE.b);
-  doc.rect(MARGIN, headerTop, TABLE_W, rowH, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(WHITE.r, WHITE.g, WHITE.b);
-  doc.text(t.pdfBulletinLabelsHeader, 14, headerTop + 5.5);
-  doc.text(t.pdfBulletinRateHeader, 145, headerTop + 5.5, { align: 'center' });
-  doc.text(t.pdfBulletinAmountHeader, 196, headerTop + 5.5, { align: 'right' });
-
-  // Data rows
-  let y = headerTop + rowH;
-  for (const row of rows) {
-    doc.setFillColor(row.fill ? row.fill.r : WHITE.r, row.fill ? row.fill.g : WHITE.g, row.fill ? row.fill.b : WHITE.b);
-    doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b);
-    doc.rect(MARGIN, y, TABLE_W, rowH, 'FD');
-    doc.setFont('helvetica', row.bold ? 'bold' : 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(row.white ? WHITE.r : INK.r, row.white ? WHITE.g : INK.g, row.white ? WHITE.b : INK.b);
-    doc.text(row.label, 14, y + 5.5);
-    if (row.taux) doc.text(row.taux, 145, y + 5.5, { align: 'center' });
-    doc.text(row.montant, 196, y + 5.5, { align: 'right' });
-    y += rowH;
+  // 2. Identity grid — 4 rows, 2 columns.
+  const gridLeft = [lastName, firstName, staffMember.position || dash, hireLabel];
+  const gridRight = [dash, staffMember.inpsNumber || dash, familyLabel, staffMember.childrenCount !== undefined ? String(staffMember.childrenCount) : dash];
+  for (let i = 0; i < 4; i++) {
+    text(gridLeft[i]!, GRID_LEFT_X[i]!, GRID_BASELINES[i]!, { font: valueFont });
+    text(gridRight[i]!, GRID_RIGHT_X[i]!, GRID_BASELINES[i]!, { font: valueFont });
   }
-  // Column separators
-  doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b);
-  doc.line(COL_LABEL, headerTop, COL_LABEL, y);
-  doc.line(COL_RATE, headerTop, COL_RATE, y);
 
-  // 5. Montant en toutes lettres (wrapped — a long line must never overflow)
-  const wordsText = `${t.pdfBulletinAmountInWords} : ${montantEnLettres(net)} francs CFA`;
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(9);
-  doc.setTextColor(INK.r, INK.g, INK.b);
-  let wy = y + 10;
-  const maxChars = 96;
-  let rest = wordsText;
-  do {
-    const chunk = rest.length > maxChars ? rest.slice(0, rest.lastIndexOf(' ', maxChars)) : rest;
-    doc.text(chunk, MARGIN, wy);
-    rest = rest.slice(chunk.length).trimStart();
-    wy += 6;
-  } while (rest.length > 0);
+  // 3. Earnings & deductions table — MONTANT column only (labels + TAUX are
+  //    printed on the template). Rows 9 (Salaire Net) and 10 (Net à
+  //    Percevoir) sit on filled bands: white text on the dark blue one.
+  const amounts = [base, travel, communication, housing, gross, inps, amo, totalCotisations, net, net];
+  const emph = [false, false, false, false, true, false, false, true, true, true]; // bold rows
+  const white = [false, false, false, false, false, false, false, false, true, false]; // white ink rows
+  for (let i = 0; i < amounts.length; i++) {
+    const str = fmtFcfa(amounts[i]!);
+    const w = (emph[i] ? helvBold : helv).widthOfTextAtSize(str, 8) / PT_PER_MM;
+    text(str, TABLE_MONTANT_X - w, TABLE_BASELINES[i]!, {
+      font: emph[i] ? valueBold : valueFont,
+      color: white[i] ? WHITE : INK,
+    });
+  }
 
-  // 6. Payment method & account
-  const payTop = wy + 6;
-  doc.setFillColor(PAPER.r, PAPER.g, PAPER.b);
-  doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b);
-  doc.roundedRect(MARGIN, payTop, 92, 13, 2, 2, 'FD');
-  doc.roundedRect(108, payTop, 92, 13, 2, 2, 'FD');
-  field(t.pdfBulletinPaymentMethod, dash, 16, payTop + 8.5);
-  field(t.pdfBulletinAccountNumber, staffMember.bankDetails || dash, 114, payTop + 8.5);
+  // 4. Montant en toutes lettres — on the printed writing line.
+  const words = `${montantEnLettres(net)} francs CFA`;
+  const wordsFont: PtFont = { font: helv, size: 8 };
+  const wordsW = helv.widthOfTextAtSize(words, 8) / PT_PER_MM;
+  if (LETTERS.x + wordsW <= 192) {
+    text(words, LETTERS.x, LETTERS.baseline, { font: wordsFont });
+  } else {
+    // Long line — wrap on the second writing line below.
+    const mid = Math.max(30, Math.floor(words.length * 0.6));
+    text(words.slice(0, words.lastIndexOf(' ', mid)), LETTERS.x, LETTERS.baseline, { font: wordsFont });
+    text(words.slice(words.lastIndexOf(' ', mid) + 1), LETTERS.x, LETTERS.line2Baseline, { font: wordsFont });
+  }
 
-  // 7. Signature blocks (employee left, employer right with the school cachet)
-  const sigTop = payTop + 13 + 8;
-  doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b);
-  doc.setLineDashPattern([1, 1], 0);
-  doc.roundedRect(MARGIN, sigTop, 92, 24, 1, 1, 'D');
-  doc.roundedRect(108, sigTop, 92, 24, 1, 1, 'D');
-  doc.setLineDashPattern([], 0);
+  // 5. Mode de Paiement / N°Compte box.
+  text(dash, PAYMENT.leftX, PAYMENT.baseline, { font: valueFont });
+  text(staffMember.bankDetails || dash, PAYMENT.rightX, PAYMENT.baseline, { font: valueFont });
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
-  doc.text(t.pdfBulletinEmployeeSig, 56, sigTop + 7, { align: 'center' });
-  doc.text(t.pdfBulletinEmployerSig, 154, sigTop + 7, { align: 'center' });
+  // 6. School cachet over the L'EMPLOYEUR signature block.
+  const stampDoc = {
+    embedPng: (png: string | Uint8Array | ArrayBuffer) => pdf.embedPng(png),
+    page,
+    mmToPdfX,
+    mmToPdfY,
+  };
+  await drawSchoolStamp(stampDoc, STAMP_CX, STAMP_CY, STAMP_DIAMETER);
 
-  doc.setDrawColor(BORDER.r, BORDER.g, BORDER.b);
-  doc.setLineDashPattern([1, 1], 0);
-  doc.line(20, sigTop + 17, 92, sigTop + 17);
-  doc.line(118, sigTop + 17, 190, sigTop + 17);
-  doc.setLineDashPattern([], 0);
-
-  await drawSchoolStamp(doc, 154, sigTop + 13, 20);
-
-  // 8. Footer
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(7);
-  doc.setTextColor(GRAY.r, GRAY.g, GRAY.b);
-  doc.text(t.pdfPayslipFooter, 105, 289, { align: 'center' });
-
+  const bytes = await pdf.save();
   const safeName = staffMember.name.replace(/[^a-zA-Z0-9_-]/g, '_');
   const periodStamp = `${periodYear}-${String(monthIdx + 1).padStart(2, '0')}`;
-  doc.save(`Bulletin_Paie_${safeName}_${periodStamp}.pdf`);
+  const filename = `Bulletin_Paie_${safeName}_${periodStamp}.pdf`;
+  triggerBrowserDownload(bytes, filename);
+  return { bytes, filename };
 }

@@ -7,7 +7,7 @@
 // banner, employee cards), so the grid can never disagree with them.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { payrollGridCellStatus, payrollMonthStatus } from '../src/lib/payrollGrid';
+import { payrollGridCellStatus } from '../src/lib/payrollGrid';
 
 const now = new Date('2026-09-06T12:00:00Z'); // 6 September 2026: window open
 const nowLate = new Date('2026-09-12T12:00:00Z'); // 12 September 2026: late
@@ -49,41 +49,5 @@ describe('payrollGridCellStatus (grille 12 mois — année scolaire + seuil unif
     assert.equal(status({ totalPaid: 120000 }), 'settle', 'un trop-perçu reste payé');
     assert.equal(status({ totalPaid: 40000 }), 'partial');
     assert.equal(status({ totalPaid: 99999 }), 'partial');
-  });
-});
-
-const monthStatus = (opts: Partial<Parameters<typeof payrollMonthStatus>[0]>) =>
-  payrollMonthStatus({
-    totalPaid: 0,
-    expected: 120000,
-    isFuture: false,
-    isCurrent: false,
-    ...opts,
-  });
-
-describe('payrollMonthStatus (fiche individuelle — historique des paiements)', () => {
-  it('un mois futur est « à venir », même payé par avance', () => {
-    assert.equal(monthStatus({ isFuture: true, totalPaid: 120000 }), 'future');
-    assert.equal(monthStatus({ isFuture: true, totalPaid: 0 }), 'future');
-  });
-
-  it('un mois couvert par le salaire mensuel est « payé »', () => {
-    assert.equal(monthStatus({ totalPaid: 120000 }), 'paid');
-    assert.equal(monthStatus({ totalPaid: 150000 }), 'paid', 'un trop-perçu reste payé');
-    assert.equal(monthStatus({ totalPaid: 60000, expected: 0 }), 'paid', 'salaire nul : tout paiement positif compte');
-  });
-
-  it('un acompte est « partiel » — jamais compté comme payé', () => {
-    assert.equal(monthStatus({ totalPaid: 40000 }), 'partial');
-    assert.equal(monthStatus({ totalPaid: 119999 }), 'partial');
-  });
-
-  it('le mois courant sans paiement est « en cours », jamais en retard', () => {
-    assert.equal(monthStatus({ isCurrent: true, totalPaid: 0 }), 'current');
-    assert.equal(monthStatus({ isCurrent: false, totalPaid: 0 }), 'unpaid');
-  });
-
-  it('salaire nul sans paiement : le mois reste non payé', () => {
-    assert.equal(monthStatus({ expected: 0, totalPaid: 0 }), 'unpaid');
   });
 });

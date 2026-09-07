@@ -54,6 +54,7 @@ const theme: CurrentTheme = {
   sidebar: 'bg-slate-900',
   accent: 'text-blue-600',
   accentBg: 'bg-blue-600',
+  accentText: 'text-white',
   accentHover: 'hover:bg-blue-700',
   accentShadow: 'shadow-blue-500/20',
   tableHeader: 'bg-slate-50',
@@ -142,7 +143,7 @@ describe('StaffFormModal', () => {
     const select = container.querySelector<HTMLSelectElement>('select');
     assert.ok(select, 'position select rendered in admin mode');
     const options = Array.from(select?.querySelectorAll('option') ?? []);
-    // 8 positions + 1 placeholder disabled
+    // ADMIN_POSITIONS.fr.length positions + 1 placeholder disabled
     assert.equal(options.length, ADMIN_POSITIONS.fr.length + 1);
     for (const position of ADMIN_POSITIONS.fr) {
       assert.ok(
