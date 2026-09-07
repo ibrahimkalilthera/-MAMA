@@ -8,6 +8,8 @@
  */
 export const ADMIN_POSITIONS: Record<'en' | 'fr', readonly string[]> = {
   fr: [
+    'Promotrice',
+    'Gestionnaire Principal',
     'Proviseur',
     'Censeur',
     'Surveillant Général',
@@ -18,6 +20,8 @@ export const ADMIN_POSITIONS: Record<'en' | 'fr', readonly string[]> = {
     'Chef des Travaux',
   ],
   en: [
+    'Founder',
+    'General Manager',
     'Principal',
     'Discipline Master',
     'Head Supervisor',
