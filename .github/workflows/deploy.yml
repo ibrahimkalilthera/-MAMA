@@ -108,7 +108,7 @@ jobs:
     steps:
       - name: Gate — deploy only what quality validated
         id: quality-gate
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             core.setOutput('proceed', 'false');
@@ -175,7 +175,7 @@ jobs:
       # du dernier verdict de main).
       - name: Gate — migrations workflow green for this commit
         if: github.event_name == 'workflow_run'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const repo = context.repo;
@@ -222,11 +222,11 @@ jobs:
             }
             console.log(`Migrations workflow green (run #${run.id} on ${run.head_sha}) — deploying.`);
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.gate.outputs.deploy_sha || github.ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm

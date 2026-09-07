@@ -26,8 +26,13 @@
  *      the msys panic is an ORPHANED node.exe left by a timed-out run — a
  *      full tree kill leaves nothing behind.
  *
- * Usage:  node scripts/quality-chain.mjs        (all steps)
- *         node scripts/quality-chain.mjs lint   (one step)
+ * Usage:  node scripts/quality-chain.mjs           (all steps)
+ *         node scripts/quality-chain.mjs lint test  (selected steps)
+ *
+ * The pre-commit hook runs `lint test audit` — the same async/watchdog
+ * machinery, so a git commit can never wedge the msys fork table the way
+ * the old `execSync('npm run lint && npm test && …', {shell:true})` line
+ * could (DEVELOPMENT_HISTORY.md, “msys fork panic”).
  */
 import { spawn, execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -156,6 +161,11 @@ const STEPS = {
       nodeOpts: '--max-old-space-size=4096',
     }),
   build: () => runNpm('build', 'build', { timeoutMs: 180000 }),
+  // Security gate (scripts/check-audit.mjs). Env-neutral here: the caller
+  // decides AUDIT_CACHE / AUDIT_SOFT_OFFLINE — the pre-commit hook sets
+  // both (cache + soft-offline), CI keeps it strict by calling the script
+  // directly without them.
+  audit: () => runStep('audit-gate', ['scripts/check-audit.mjs'], { timeoutMs: 600000 }),
 };
 
 const wanted = process.argv.slice(2);
