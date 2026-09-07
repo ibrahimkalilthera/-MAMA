@@ -13,30 +13,57 @@ import type { ChangeEvent } from 'react';
 import type { ThemeId, CurrentTheme } from './mainViewsProps';
 
 export function useTheme() {
-  const [theme, setTheme] = useState<ThemeId>('navy');
+  // The theme is read lazily in the state initializer, NOT in a read effect:
+  // with a read-effect + persist-effect pair, React StrictMode's double
+  // invoke made the persist effect run with the still-initial 'navy' BEFORE
+  // the read effect's setTheme committed — silently resetting the saved
+  // theme on every dev reload (and leaving html/body painted with the wrong
+  // background). Lazy init removes the race entirely.
+  const [theme, setTheme] = useState<ThemeId>(() => {
+    const savedTheme = localStorage.getItem('school-finance-theme');
+    // `modern` → `cream` is a genuine legacy rename (no `modern` theme id
+    // exists). `midnight` must NOT be migrated — it is a real picker theme
+    // (Cyber Minuit) distinct from slate; converting it silently flipped
+    // Cyber Minuit back to Ardoise Sombre on every reload.
+    if (savedTheme === 'modern') return 'cream';
+    return (savedTheme as ThemeId) || 'navy';
+  });
   const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
   const [logoColor, setLogoColor] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  // --- Theme Logic ---
+  // --- Theme Logic (logo reads stay in an effect; the theme is lazy-inited) ---
   useEffect(() => {
-    const savedTheme = localStorage.getItem('school-finance-theme');
     const savedLogo = localStorage.getItem('school-finance-logo');
     const savedLogoColor = localStorage.getItem('school-finance-logo-color');
-    if (savedTheme) {
-      // `modern` → `cream` is a genuine legacy rename (no `modern` theme id
-      // exists). `midnight` must NOT be migrated — it is a real picker theme
-      // (Cyber Minuit) distinct from slate; converting it silently flipped
-      // Cyber Minuit back to Ardoise Sombre on every reload.
-      if (savedTheme === 'modern') setTheme('cream');
-      else setTheme(savedTheme as ThemeId);
-    }
     if (savedLogo) setSchoolLogo(savedLogo);
     if (savedLogoColor) setLogoColor(savedLogoColor);
   }, []);
 
   useEffect(() => {
     localStorage.setItem('school-finance-theme', theme);
+  }, [theme]);
+
+  // ── html/body background follows the active theme ────────────────────────
+  // The app shell div carries the theme bg classes (currentTheme.bg), but
+  // html/body themselves are unstyled — so any horizontal overflow (e.g. the
+  // old 218 px gutter) or overscroll bounce revealed the raw white body behind
+  // the content. Paint html+body with the same hex as currentTheme.bg so a
+  // future overflow gutter can never flash white in dark themes.
+  useEffect(() => {
+    const hex =
+      theme === 'midnight' ? '#090D16'
+      : theme === 'slate' ? '#1E293B'
+      : theme === 'emerald' ? '#F0FDF4'
+      : theme === 'bordeaux' ? '#FFF1F2'
+      : theme === 'cream' ? '#FDFBF7'
+      : '#F8FAFC'; // navy (default)
+    document.documentElement.style.backgroundColor = hex;
+    document.body.style.backgroundColor = hex;
+    return () => {
+      document.documentElement.style.backgroundColor = '';
+      document.body.style.backgroundColor = '';
+    };
   }, [theme]);
 
   useEffect(() => {

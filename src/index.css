@@ -63,6 +63,9 @@
 /* ─── Global Defaults ─── */
 
 body, html {
+  /* Fallback so the page is never raw white before React paints (useTheme.ts
+     sets html/body to the active theme's bg hex once mounted — navy default). */
+  background-color: #F8FAFC;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
