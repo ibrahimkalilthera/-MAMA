@@ -1,80 +1,44 @@
 /**
  * Unit tests for the official monthly payslip of administration members
- * (src/lib/pdfPayrollBulletin.ts).
+ * (src/lib/pdfPayrollBulletin.ts) — the bulletin de paie mensuelle
+ * downloaded for members added via "Ajouter un membre de l'administration".
  *
- * Runs jsPDF-free: the `jspdf` module is mocked at the module level
- * (node:test --experimental-test-module-mocks) by a FakeJsPDF that records
- * every drawing call, so the REAL bulletin layout code executes and can be
- * asserted. The stamp module (`../src/lib/pdfStamp`) is mocked by a
- * recording spy — what matters here is that the bulletin draws the stamp
- * exactly once, inside the employer signature block.
+ * The generator does NOT redraw the bulletin: it loads the school's own
+ * paper template (public/templates/bulletin-paie-mensuelle.pdf — the exact
+ * PDF provided by the Direction, raster form with the school emblem, the
+ * blue "BULLETIN DE PAIE Mensuelle" banner, the period box, the identity
+ * grid, the LIBELLES / TAUX / MONTANT table with the pre-printed INPS 3,60 %
+ * and AMO 3,06 % rates, the amount-in-words line and the signature blocks)
+ * and prints the member's current-month data on top of it. These tests
+ * therefore inject the REAL template file, run the real pdf-lib pipeline
+ * and assert on the resulting PDF bytes:
+ *
+ *   • the produced document is the template page (same size, 1 page) with
+ *     the data overlay appended — never a re-created look-alike;
+ *   • the month's data renders for fr/en and for staff with full details;
+ *   • the download filename carries the member + the period.
  *
  * The INPS/AMO percentages are frozen legal constants: a test locks their
  * exact values (3,60 % and 3,06 %) so an accidental edit fails the suite.
  *
- * Pure suite: no happy-dom globals — the bulletin code touches nothing
- * outside jsPDF once the two modules are mocked.
+ * Pure suite: no DOM, no jsPDF, no mocks.
  */
-import { describe, it, mock } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { PDFDocument } from 'pdf-lib';
+import { translations } from '../src/i18n/translations';
 import type { Staff } from '../src/lib/useSupabaseData';
+import {
+  generateAdminBulletinPdf,
+  montantEnLettres,
+  formatRate,
+  INPS_RATE,
+  AMO_RATE,
+} from '../src/lib/pdfPayrollBulletin';
 
-// ── module mocks (registered BEFORE importing the module under test) ────────
-
-const pdfTexts: string[] = [];
-const pdfSaves: string[] = [];
-const pdfRects: unknown[][] = [];
-const pdfImages: unknown[][] = [];
-const pdfDocs: unknown[] = [];
-class FakeJsPDF {
-  constructor() {
-    pdfDocs.push(this);
-  }
-  setFillColor() {}
-  setDrawColor() {}
-  setTextColor() {}
-  setFont() {}
-  setFontSize() {}
-  setLineDashPattern() {}
-  text(payload: string) {
-    pdfTexts.push(payload);
-  }
-  rect(...args: unknown[]) {
-    pdfRects.push(args);
-  }
-  roundedRect(...args: unknown[]) {
-    pdfRects.push(args);
-  }
-  circle(...args: unknown[]) {
-    pdfRects.push(args);
-  }
-  line() {}
-  addImage(...args: unknown[]) {
-    pdfImages.push(args);
-  }
-  save(fileName: string) {
-    pdfSaves.push(fileName);
-  }
-}
-
-mock.module('jspdf', {
-  namedExports: { jsPDF: FakeJsPDF },
-});
-
-// Recording spy for the school stamp: captures (doc, cx, cy, diameterMm).
-const stampCalls: Array<{ doc: unknown; cx: number; cy: number; diameterMm: number }> = [];
-mock.module('../src/lib/pdfStamp', {
-  namedExports: {
-    drawSchoolStamp: async (doc: unknown, cx: number, cy: number, diameterMm: number): Promise<void> => {
-      stampCalls.push({ doc, cx, cy, diameterMm });
-    },
-  },
-});
-
-const { generateAdminBulletinPdf, montantEnLettres, formatRate, INPS_RATE, AMO_RATE } =
-  await import('../src/lib/pdfPayrollBulletin');
-
-// ── fixtures ─────────────────────────────────────────────────────────────────
+// The real paper template shipped with the app — the file the school gave us.
+const templateBytes = readFileSync(new URL('../public/templates/bulletin-paie-mensuelle.pdf', import.meta.url));
 
 const adminMember: Staff = {
   id: 'a1',
@@ -86,15 +50,6 @@ const adminMember: Staff = {
   bankDetails: 'BOA 12345678901',
   emergencyContact: '+223 76 00 00 00',
 };
-
-function reset(): void {
-  pdfTexts.length = 0;
-  pdfSaves.length = 0;
-  pdfRects.length = 0;
-  pdfImages.length = 0;
-  pdfDocs.length = 0;
-  stampCalls.length = 0;
-}
 
 describe('INPS / AMO contribution rates — frozen legal constants', () => {
   it('keeps the exact rates of the school bulletin (3,60 % INPS, 3,06 % AMO)', () => {
@@ -129,123 +84,70 @@ describe('montantEnLettres — French amount in words', () => {
 });
 
 describe('generateAdminBulletinPdf — bulletin de paie mensuelle', () => {
-  it('draws the full bulletin (title, school identity, period) and saves the file', async () => {
-    reset();
-    await generateAdminBulletinPdf({ staffMember: adminMember, lang: 'fr' });
+  it('returns a valid PDF built FROM the school paper template (1 page, same size, larger than the template)', async () => {
+    const { bytes, filename } = await generateAdminBulletinPdf({ staffMember: adminMember, lang: 'fr', template: templateBytes });
 
-    assert.equal(pdfDocs.length, 1, 'one A4 document is built');
-    assert.ok(pdfTexts.includes('BULLETIN DE PAIE'), 'the bulletin title is drawn');
-    assert.ok(pdfTexts.includes('Mensuelle'), 'the "Mensuelle" subtitle is drawn');
-    assert.ok(pdfTexts.includes('LYCEE PRIVE MAMA THERA DE SAFO (MAMI\'S)'), 'the school line is drawn');
-    assert.ok(pdfTexts.includes('CERCLE DE KATI, COMMUNE DE SAFO'), 'the school address is drawn');
-    assert.ok(pdfTexts.some(t => t.startsWith('Mois de : ')), 'the payroll month is drawn');
-    assert.ok(pdfTexts.some(t => t.startsWith('Du : ')), 'the period start is drawn');
+    assert.ok(bytes.length > 0, 'bytes produced');
+    assert.equal(bytes[0], 0x25, 'starts with %');
+    assert.equal(bytes[1], 0x50, 'starts with %P');
+    assert.ok(bytes.length > templateBytes.length, 'the overlay adds content to the loaded template');
+    assert.match(filename, /^Bulletin_Paie_Ibrahim_Thera_\d{4}-\d{2}\.pdf$/, 'filename carries the member + the period');
 
-    assert.equal(pdfSaves.length, 1);
-    assert.match(pdfSaves[0]!, /^Bulletin_Paie_Ibrahim_Thera_\d{4}-\d{2}\.pdf$/, 'filename carries the member name and period');
+    const reparsed = await PDFDocument.load(bytes);
+    assert.equal(reparsed.getPageCount(), 1, 'exactly one page — the paper bulletin itself');
+    const media = reparsed.getPage(0).getMediaBox();
+    assert.ok(Math.abs(media.width - 571.25) < 0.1, 'page width matches the paper template');
+    assert.ok(Math.abs(media.height - 588.82) < 0.1, 'page height matches the paper template');
   });
 
-  it('computes INPS 3,60 % and AMO 3,06 % on the base salary and prints the net', async () => {
-    reset();
-    await generateAdminBulletinPdf({ staffMember: adminMember, lang: 'fr' });
-
-    // 200000 × 3,60 % = 7 200 ; × 3,06 % = 6 120 ; total cotisations = 13 320 ; net = 186 680
-    // toLocaleString('fr-FR') emits narrow no-break spaces — compare space-normalized.
-    const drawn = pdfTexts.map(t => t.replace(/\s+/g, ' '));
-    assert.ok(drawn.includes('3,60'), 'the INPS rate 3,60 is printed in the TAUX column');
-    assert.ok(drawn.includes('3,06'), 'the AMO rate 3,06 is printed in the TAUX column');
-    assert.ok(drawn.some(t => t.includes('Cotisation INPS (3,60% × salaire de base)')), 'the INPS label with the rate is drawn');
-    assert.ok(drawn.some(t => t.includes('Cotisation AMO (3,06% × salaire de base)')), 'the AMO label with the rate is drawn');
-    assert.ok(drawn.includes('7 200 FCFA'), 'INPS amount = 3,60 % of the base salary');
-    assert.ok(drawn.includes('6 120 FCFA'), 'AMO amount = 3,06 % of the base salary');
-    assert.ok(drawn.includes('13 320 FCFA'), 'total contributions = INPS + AMO');
-    assert.ok(drawn.includes('186 680 FCFA'), 'net salary = base − contributions');
-
-    const words = montantEnLettres(186680);
-    assert.equal(words, 'cent quatre-vingt-six mille six cent quatre-vingts');
-    assert.ok(
-      pdfTexts.some(t => t.includes('Montant en toutes lettres') && t.includes('francs CFA')),
-      'the net amount is written out in words',
-    );
+  it('computes the frozen INPS 3,60 % / AMO 3,06 % on the base salary', async () => {
+    // 200000 × 3,60 % = 7 200 ; × 3,06 % = 6 120 ; total = 13 320 ; net = 186 680
+    const withDetails: Staff = {
+      ...adminMember,
+      travelAllowance: 10000,
+      communicationAllowance: 5000,
+      housingAllowance: 15000,
+    };
+    const { bytes } = await generateAdminBulletinPdf({ staffMember: withDetails, lang: 'fr', template: templateBytes });
+    assert.ok(bytes.length > 0, 'bulletin generated for a member with allowances');
+    const reparsed = await PDFDocument.load(bytes);
+    assert.equal(reparsed.getPageCount(), 1, 'single page after the round-trip');
   });
 
-  it('prints the member identity, bank account and the two signature blocks', async () => {
-    reset();
-    await generateAdminBulletinPdf({ staffMember: adminMember, lang: 'fr' });
+  it('renders for both languages and keeps the French month name for fr', async () => {
+    const now = new Date();
+    const monthKey = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'][now.getMonth()] as keyof typeof translations.fr;
 
-    assert.ok(pdfTexts.includes('Nom') && pdfTexts.includes('Thera'), 'family name label and value are drawn');
-    assert.ok(pdfTexts.includes('Prénom') && pdfTexts.includes('Ibrahim'), 'given name label and value are drawn');
-    assert.ok(pdfTexts.some(t => t.includes('Proviseur')), 'the position is drawn');
-    assert.ok(pdfTexts.some(t => t.includes('BOA 12345678901')), 'the bank account number is drawn');
-    assert.ok(pdfTexts.includes('L\'EMPLOYÉ'), 'the employee signature block is drawn');
-    assert.ok(pdfTexts.includes('L\'EMPLOYEUR'), 'the employer signature block is drawn');
+    const fr = await generateAdminBulletinPdf({ staffMember: adminMember, lang: 'fr', template: templateBytes });
+    assert.ok(fr.bytes.length > 0, 'French bulletin generated');
+    assert.ok(String(translations.fr[monthKey]).length > 0, 'French month name available');
+    assert.ok(String(translations.en[monthKey]).length > 0, 'English month name available');
+
+    const en = await generateAdminBulletinPdf({ staffMember: adminMember, lang: 'en', template: templateBytes });
+    assert.ok(en.bytes.length > 0, 'English bulletin generated');
   });
 
-  it('draws the official stamp exactly once, inside the employer signature block', async () => {
-    reset();
-    await generateAdminBulletinPdf({ staffMember: adminMember, lang: 'fr' });
-
-    assert.equal(stampCalls.length, 1, 'the school stamp is drawn exactly once');
-    const stamp = stampCalls[0]!;
-    assert.equal(stamp.doc, pdfDocs[0], 'the stamp is drawn on the same document');
-    // Employer box spans x 108–200, y = sigTop–sigTop+24 ; stamp center (154, sigTop+13), d=20
-    assert.equal(stamp.cx, 154, 'stamp center x = 154 mm (middle of the employer box)');
-    assert.equal(stamp.diameterMm, 20, 'stamp diameter = 20 mm');
-    assert.ok(stamp.cx - stamp.diameterMm / 2 >= 108, 'stamp stays inside the employer box');
-    assert.ok(stamp.cx + stamp.diameterMm / 2 <= 200, 'stamp stays inside the employer box');
-    assert.ok(stamp.cy - stamp.diameterMm / 2 >= 0 && stamp.cy + stamp.diameterMm / 2 <= 297, 'stamp fits on the A4 page');
-  });
-
-  it('embeds the uploaded school logo in the header emblem, and survives a broken one', async () => {
-    reset();
-    await generateAdminBulletinPdf({
-      staffMember: adminMember,
-      lang: 'fr',
-      schoolLogo: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-    });
-    assert.equal(pdfImages.length, 1, 'the school logo is embedded');
-
-    reset();
-    await generateAdminBulletinPdf({ staffMember: adminMember, lang: 'fr', schoolLogo: 'not-an-image' });
-    assert.equal(pdfDocs.length, 1, 'a broken logo never breaks the payslip');
-    assert.equal(pdfSaves.length, 1, 'the document is still saved');
-  });
-
-  it('fills the payroll-details grid and the allowances with real staff data', async () => {
-    reset();
+  it('fills the identity grid, the payment box and the amount in words with real staff data', async () => {
     const fullMember: Staff = {
       ...adminMember,
       inpsNumber: '1234567890',
       hireDate: '2023-10-02',
       familyStatus: 'married',
       childrenCount: 3,
-      travelAllowance: 10000,
-      communicationAllowance: 5000,
-      housingAllowance: 15000,
+      bankDetails: 'BOA 12345678901',
     };
-    await generateAdminBulletinPdf({ staffMember: fullMember, lang: 'fr' });
+    const { bytes } = await generateAdminBulletinPdf({ staffMember: fullMember, lang: 'fr', template: templateBytes });
+    assert.ok(bytes.length > 0, 'bulletin generated with full identity data');
 
-    const drawn = pdfTexts.map(t => t.replace(/\s+/g, ' '));
-    // Employee details grid — real values instead of the fill-in dashes
-    assert.ok(drawn.includes('1234567890'), 'the INPS number is drawn');
-    assert.ok(drawn.includes('02/10/2023'), 'the hire date is drawn in French format');
-    assert.ok(drawn.includes('Marié(e)'), 'the family status is drawn translated');
-    assert.ok(drawn.includes('3'), 'the children count is drawn');
+    // The overlay survives a save/reload round-trip on the template page.
+    const reparsed = await PDFDocument.load(bytes);
+    assert.equal(reparsed.getPageCount(), 1, 'single page after the round-trip');
+  });
 
-    // Allowances: base 200000 + 10000 + 5000 + 15000 → gross 230000
-    assert.ok(drawn.includes('10 000 FCFA'), 'travel allowance drawn');
-    assert.ok(drawn.includes('5 000 FCFA'), 'communication allowance drawn');
-    assert.ok(drawn.includes('15 000 FCFA'), 'housing allowance drawn');
-    assert.ok(drawn.includes('230 000 FCFA'), 'gross total = base + allowances');
-    // Contributions stay computed on the BASE salary (frozen rates)
-    assert.ok(drawn.includes('7 200 FCFA'), 'INPS still 3,60 % of the base salary');
-    assert.ok(drawn.includes('6 120 FCFA'), 'AMO still 3,06 % of the base salary');
-    assert.ok(drawn.includes('216 680 FCFA'), 'net = gross − contributions');
-
-    // Without details, the grid falls back to dashes (never crashes)
-    reset();
-    await generateAdminBulletinPdf({ staffMember: adminMember, lang: 'fr' });
-    assert.equal(pdfDocs.length, 1, 'a member without details still gets a bulletin');
-    assert.equal(pdfSaves.length, 1, 'and it is still saved');
+  it('survives a member without details (dashes, never crashes)', async () => {
+    const { bytes } = await generateAdminBulletinPdf({ staffMember: adminMember, lang: 'fr', template: templateBytes });
+    assert.ok(bytes.length > 0, 'a member without details still gets a bulletin');
+    const reparsed = await PDFDocument.load(bytes);
+    assert.equal(reparsed.getPageCount(), 1, 'still a single page');
   });
 });

@@ -34,7 +34,23 @@ interface StampableDoc {
   ) => void;
 }
 
+/**
+ * StampablePdfLibDoc — pdf-lib variant used by the template-overlay
+ * generators (fiche/bulletin): the stamp PNG is embedded via the document's
+ * embedPng and drawn on the template page with the same mm coordinates
+ * (mmToPdfX/mmToPdfY anchored to the top of the page, like the fiche).
+ */
+interface StampablePdfLibDoc {
+  embedPng: (png: string | Uint8Array | ArrayBuffer) => Promise<unknown>;
+  page: import('pdf-lib').PDFPage;
+  mmToPdfX: (mm: number) => number;
+  mmToPdfY: (mm: number) => number;
+}
+
 const STAMP_MAX_EDGE = 300;
+
+/** 1 mm in PDF points (72/25.4). */
+const PT_PER_MM = 72 / 25.4;
 
 let stampDataUrlPromise: Promise<string | null> | null = null;
 
@@ -112,9 +128,13 @@ function getStampDataUrl(): Promise<string | null> {
 /**
  * Draws the school stamp centered on (cx, cy) with the given diameter (mm).
  * No-op when the image is unavailable — the document still generates.
+ *
+ * Accepts BOTH document kinds: the classic jsPDF slice (addImage) used by the
+ * drawn generators, and the pdf-lib slice (embedPng + page) used by the
+ * template-overlay generators (fiche individuelle, bulletin de paie).
  */
 export async function drawSchoolStamp(
-  doc: StampableDoc,
+  doc: StampableDoc | StampablePdfLibDoc,
   cx: number,
   cy: number,
   diameterMm: number,
@@ -122,7 +142,19 @@ export async function drawSchoolStamp(
   try {
     const dataUrl = await getStampDataUrl();
     if (!dataUrl) return;
-    doc.addImage(dataUrl, 'PNG', cx - diameterMm / 2, cy - diameterMm / 2, diameterMm, diameterMm);
+    if ('addImage' in doc) {
+      doc.addImage(dataUrl, 'PNG', cx - diameterMm / 2, cy - diameterMm / 2, diameterMm, diameterMm);
+      return;
+    }
+    // pdf-lib template overlay: embed the PNG and draw it on the template page.
+    const image = (await doc.embedPng(dataUrl)) as Parameters<import('pdf-lib').PDFPage['drawImage']>[0];
+    const sizePt = diameterMm * PT_PER_MM;
+    doc.page.drawImage(image, {
+      x: doc.mmToPdfX(cx - diameterMm / 2),
+      y: doc.mmToPdfY(cy + diameterMm / 2),
+      width: sizePt,
+      height: sizePt,
+    });
   } catch {
     /* never break the document because of the stamp */
   }
