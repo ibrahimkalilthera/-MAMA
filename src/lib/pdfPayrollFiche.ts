@@ -217,12 +217,14 @@ export async function generateEmployeeFichePdf({
   text(baseStr, c2Right - helvBold.widthOfTextAtSize(baseStr, 8.5) / PT_PER_MM, ROW_BOTTOM_LINE, { font: boldFont });
 
   // Column 3 — Primes / Indemnités: total of the three tracked allowances.
+  // Drawn on ROW_BOTTOM_LINE, the same lower line as the salaire (col 2) and
+  // net (col 4) amounts, so the whole row reads as one symmetric line.
   const c3Right = TABLE.columns[3]! - 4.2;
   if (totalAllowances > 0) {
     const allowStr = fmtFcfa(totalAllowances);
-    text(allowStr, c3Right - helvBold.widthOfTextAtSize(allowStr, 8.5) / PT_PER_MM, FIRST_ROW.center + 1.05, { font: boldFont });
+    text(allowStr, c3Right - helvBold.widthOfTextAtSize(allowStr, 8.5) / PT_PER_MM, ROW_BOTTOM_LINE, { font: boldFont });
   } else {
-    text(dash, c3Right - 2, FIRST_ROW.center + 0.9, { font: smallFont, color: MUTED });
+    text(dash, c3Right - 2, ROW_TOP_LINE, { font: smallFont, color: MUTED });
   }
 
   // Column 4 — Retenues (none on the employee fiche) / Salaire net payé.
@@ -234,9 +236,13 @@ export async function generateEmployeeFichePdf({
   // Columns 5 (Mode de paiement) and 6 (Signature employé) stay blank — they
   // are completed by hand when the employee signs the receipt.
 
-  // 3. Footer — DATE DE PAIEMENT : today's date, right after the label.
+  // 3. Footer — DATE DE PAIEMENT : today's date, CENTERED on the printed
+  //    underline (template: x 55→118.7, y 181.5) so it sits symmetrically on
+  //    the line like a filled-in form field, baseline 0.5 mm above the ink line.
   const dateFont = { font: helvBold, size: 10 };
-  text(todayLabel, DATE_LINE.labelEnd + 4.5, DATE_LINE.baseline, { font: dateFont, color: INK });
+  const DATE_UNDERLINE = { x0: 55.0, x1: 118.7, y: 181.5 };
+  const dateW = helvBold.widthOfTextAtSize(todayLabel, 10) / PT_PER_MM;
+  text(todayLabel, (DATE_UNDERLINE.x0 + DATE_UNDERLINE.x1) / 2 - dateW / 2, DATE_UNDERLINE.y - 0.5, { font: dateFont, color: INK });
 
   const bytes = await pdf.save();
   const safeName = staffMember.name.replace(/[^a-zA-Z0-9_-]/g, '_');

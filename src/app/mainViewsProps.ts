@@ -133,6 +133,7 @@ export interface CurrentTheme {
   sidebar: string;
   accent: string;
   accentBg: string;
+  accentText: string;
   accentHover: string;
   accentShadow: string;
   tableHeader: string;

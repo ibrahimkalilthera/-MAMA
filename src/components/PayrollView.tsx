@@ -199,7 +199,7 @@ export function PayrollView() {
                     setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
                     setShowStaffModal(true);
                   }}
-                  className={`${currentTheme.accentBg} text-white px-6 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
+                  className={`${currentTheme.accentBg} ${currentTheme.accentText} px-6 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
                 >
                   <Plus size={18} />
                   {t.addStaff}
@@ -375,7 +375,7 @@ export function PayrollView() {
                               setSalaryForm({ ...salaryForm, staffId: s.id, amount: balance.toString() });
                               setShowSalaryModal(true);
                             }}
-                            className={`flex-1 py-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white text-slate-800 hover:bg-white/90' : `${currentTheme.accentBg} text-white ${currentTheme.accentHover}`} text-xs font-bold transition-all shadow-md`}
+                            className={`flex-1 py-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white text-slate-800 hover:bg-white/90' : `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover}`} text-xs font-bold transition-all shadow-md`}
                           >
                             {t.recordSalary}
                           </button>

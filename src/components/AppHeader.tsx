@@ -223,7 +223,7 @@ export function AppHeader(props: AppHeaderProps) {
         {activeTab === 'students' && (
           <button 
             onClick={onAddStudent}
-            className={`${currentTheme.accentBg} text-white px-5 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
+            className={`${currentTheme.accentBg} ${currentTheme.accentText} px-5 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
           >
             <Plus size={18} />
             <span className="hidden sm:inline">{t.addStudent}</span>

@@ -54,6 +54,7 @@ const theme: CurrentTheme = {
   sidebar: 'bg-slate-900',
   accent: 'text-blue-600',
   accentBg: 'bg-blue-600',
+  accentText: 'text-white',
   accentHover: 'hover:bg-blue-700',
   accentShadow: 'shadow-blue-500/20',
   tableHeader: 'bg-slate-50',

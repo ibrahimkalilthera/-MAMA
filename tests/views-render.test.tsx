@@ -58,6 +58,7 @@ const currentTheme: CurrentTheme = {
   sidebar: '#fff',
   accent: '#059669',
   accentBg: '#059669',
+  accentText: 'text-white',
   accentHover: '#047857',
   accentShadow: 'rgba(5,150,105,0.3)',
   tableHeader: '#f8fafc',
