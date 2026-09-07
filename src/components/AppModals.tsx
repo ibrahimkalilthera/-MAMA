@@ -33,6 +33,8 @@ import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useOverlayTraps } from '../lib/focusStack';
 import { modalTokens } from '../lib/modalTokens';
 import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { AuditReportPrint } from './AuditReportPrint';
+import { StudentFilePrint } from './StudentFilePrint';
 
 export interface AppModalsProps {
   Bell: LucideIcon;
@@ -652,237 +654,29 @@ export function AppModals(props: AppModalsProps) {
       </AnimatePresence>
 
 
-      {/* --- Actual Printable Audit Report Hidden on Screen --- */}
-      {auditYear && (() => {
-        const { revenue, expenses, balance } = getYearStats(auditYear);
-        const closedYearStudents = students.filter(s => s.academicYear === auditYear || (!s.academicYear && auditYear === '2024-2025'));
-        const studentsWithDebt = closedYearStudents.filter(s => {
-          const discount = s.scholarshipDiscount || 0;
-          const discountedTotal = s.totalDue * (1 - discount / 100);
-          return (discountedTotal - s.amountPaid) > 0;
-        });
+      {/* --- Printable Annual Audit Report (extracted component) --- */}
+      {auditYear && (
+        <AuditReportPrint
+          t={t}
+          auditYear={auditYear}
+          students={students}
+          getYearStats={getYearStats}
+          formatCurrency={formatCurrency}
+          tokens={tokens}
+        />
+      )}
 
-        return (
-          <div className="hidden print:block print-container bg-white text-black font-sans space-y-8">
-            <div className="text-center border-b-2 border-black pb-4">
-              <h1 className="font-bold text-2xl uppercase tracking-wider">{t.title}</h1>
-              <p className="text-xs text-black/70 uppercase tracking-widest">{t.subtitle}</p>
-              <h2 className="font-black text-lg mt-3 uppercase tracking-wider border-2 border-black px-4 py-2 inline-block">
-                {t.finalAcademicAuditReport}
-              </h2>
-              <p className="text-sm mt-2 font-semibold">{t.academicYear3} : {auditYear}</p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 text-center py-4 border-b border-black">
-              <div className="border border-black p-4 rounded-xl">
-                <span className="text-[10px] font-bold block uppercase tracking-wide">{t.totalRevenue}</span>
-                <span className="text-lg font-black">{formatCurrency(revenue)}</span>
-              </div>
-              <div className="border border-black p-4 rounded-xl">
-                <span className="text-[10px] font-bold block uppercase tracking-wide">{t.totalExpenses2}</span>
-                <span className="text-lg font-black">{formatCurrency(expenses)}</span>
-              </div>
-              <div className="border border-black p-4 rounded-xl">
-                <span className="text-[10px] font-bold block uppercase tracking-wide">{t.netClosingBalance}</span>
-                <span className="text-lg font-black">{formatCurrency(balance)}</span>
-              </div>
-            </div>
-
-            {/* Debts Carried Over */}
-            <div className="space-y-3">
-              <h3 className="font-bold text-sm uppercase tracking-wider">
-                {t.outstandingParentDebtsCarriedForwardReliquats}
-              </h3>
-              {studentsWithDebt.length > 0 ? (
-                <table className="w-full text-left text-xs border border-black">
-                  <thead>
-                    <tr className={`${tokens.paperFillMid} border-b border-black font-bold`}>
-                      <th className="px-3 py-2 border-r border-black">{t.studentName2}</th>
-                      <th className="px-3 py-2 border-r border-black">{t.parentContact2}</th>
-                      <th className="px-3 py-2 text-right">{t.debtCarriedOver}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-black">
-                    {studentsWithDebt.map(student => {
-                      const discount = student.scholarshipDiscount || 0;
-                      const discountedTotal = student.totalDue * (1 - discount / 100);
-                      const debt = discountedTotal - student.amountPaid;
-                      return (
-                        <tr key={student.id}>
-                          <td className="px-3 py-2 border-r border-black font-bold">{student.name}</td>
-                          <td className="px-3 py-2 border-r border-black">{student.parentName} ({student.parentPhone})</td>
-                          <td className="px-3 py-2 text-right font-bold">{formatCurrency(debt)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              ) : (
-                <p className="text-xs italic">{t.noOutstandingStudentDebtsRecorded}</p>
-              )}
-            </div>
-
-            {/* Certified signature block */}
-            <div className="flex justify-between items-center pt-12 border-t border-black text-xs">
-              <div>
-                <p className="font-bold">{t.certifiedSincerelyBy}</p>
-                <p className="font-black mt-1">Ibrahim Thera, Executive Admin</p>
-                <p className="text-black/60 text-[10px]">{t.schoolDirectorController}</p>
-              </div>
-              <div className="text-right">
-                <p className="font-bold">{t.authorizedSignature}</p>
-                <div className="h-12 w-48 border-b border-dashed border-black mt-2 ml-auto" />
-                <p className="text-[8px] text-black/60 mt-1">Ibrahim Thera / Official Board Seal</p>
-              </div>
-            </div>
-
-            <div className="text-center text-[10px] pt-8 border-t border-black/10">
-              <p>{t.systemCertifiedClosingDocument}</p>
-              <p className="mt-1 font-bold">Finance Exécutive Admin Portal</p>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* --- Actual Printable Student File Hidden on Screen --- */}
-      {printStudentFile && (() => {
-        return (
-          <div className="hidden print:block print-student-file-container bg-white text-black font-sans p-12 space-y-8">
-            {/* Header / Logo banner */}
-            <div className="flex justify-between items-start border-b-2 border-black pb-6">
-              <div>
-                <h1 className="font-black text-2xl tracking-tight text-slate-900">COMPLEXE SCOLAIRE MAMA THERA</h1>
-                <p className="text-xs uppercase tracking-widest text-slate-500 font-bold mt-1">{t.officialStudentProfileAcademicFile}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">{t.phone2}: +223 70 00 00 00 | {t.email2} contact@mamathera.edu.ml</p>
-              </div>
-              {visibleStudentIdentifier(printStudentFile.grade, printStudentFile.studentId) && (
-                <div className={`border border-slate-300 px-4 py-2 text-center rounded-xl ${tokens.paperFillLight}`}>
-                  <span className="text-[9px] font-black uppercase tracking-widest block text-slate-400">{t.studentId}</span>
-                  <span className="font-mono font-bold text-sm text-slate-800">
-                    {visibleStudentIdentifier(printStudentFile.grade, printStudentFile.studentId)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Profile Grid: Photo and Details */}
-            <div className="grid grid-cols-4 gap-8">
-              {/* Photo placeholder on Left */}
-              <div className={`col-span-1 border-2 border-slate-300 rounded-[2rem] h-40 overflow-hidden ${tokens.paperFillLight} flex items-center justify-center relative shadow-inner`}>
-                {printStudentFile.photo ? (
-                  <img 
-                    src={printStudentFile.photo} 
-                    alt={printStudentFile.name} 
-                    className="w-full h-full object-cover" 
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="text-center">
-                    <Users size={32} className="text-slate-400 mx-auto mb-1" />
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">PASSPORT</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Main Info */}
-              <div className="col-span-3 space-y-4">
-                <div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">{printStudentFile.name}</h2>
-                  <div className="flex gap-4 mt-2">
-                    <span className={`${tokens.paperFillMid} px-3 py-1 rounded-lg text-xs font-bold uppercase`}>
-                      {t.class} {getGradeDisplay(printStudentFile.grade, 'fr')}
-                    </span>
-                    <span className={`${tokens.paperFillMid} px-3 py-1 rounded-lg text-xs font-bold uppercase`}>
-                      {t.status2} {printStudentFile.status || 'Active'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="font-bold text-slate-400 block uppercase tracking-wide">{t.enrollmentDate2}</span>
-                    <span className="font-semibold text-slate-800">{printStudentFile.enrollmentDate || '2026-07-16'}</span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-400 block uppercase tracking-wide">{t.academicYear2}</span>
-                    <span className="font-semibold text-slate-800">{printStudentFile.academicYear || '2025-2026'}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* General Info & Financial Ledger Section */}
-            <div className="border border-slate-300 rounded-[2rem] p-6 space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{t.financialStatusLedger}</h3>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div className={`${tokens.paperFillLight} p-4 rounded-xl border border-slate-100`}>
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">{t.totalTuitionDue}</span>
-                  <span className="text-lg font-black text-slate-800">{formatCurrency(printStudentFile.totalDue)}</span>
-                </div>
-                <div className={`${tokens.paperFillLight} p-4 rounded-xl border border-slate-100`}>
-                  <span className="text-[10px] font-bold text-slate-400 block uppercase">{t.paidTuition}</span>
-                  <span className="text-lg font-black text-emerald-600">+{formatCurrency(printStudentFile.amountPaid)}</span>
-                </div>
-                <div className={`${tokens.paperFillAlert} p-4 rounded-xl border border-rose-100`}>
-                  <span className="text-[10px] font-bold text-rose-500 block uppercase">{t.remainingBalance2}</span>
-                  <span className="text-lg font-black text-rose-600">{formatCurrency(printStudentFile.totalDue * (1 - (printStudentFile.scholarshipDiscount || 0) / 100) - printStudentFile.amountPaid)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Parent & Emergency Info */}
-            <div className="grid grid-cols-2 gap-6">
-              <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{t.guardianTitle}</h3>
-                <div className="space-y-1.5 text-xs">
-                  <p><strong className="text-slate-400">{t.name}</strong> <span className="font-bold text-slate-800">{printStudentFile.parentName}</span></p>
-                  <p><strong className="text-slate-400">{t.phone3}</strong> <span className="font-semibold text-slate-800">{printStudentFile.parentPhone}</span></p>
-                  <p><strong className="text-slate-400">{t.email2}</strong> <span className="font-semibold text-blue-600">{printStudentFile.parentEmail}</span></p>
-                </div>
-              </div>
-
-              <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
-                <h3 className="text-xs font-black uppercase tracking-widest text-rose-500 border-b pb-2">{t.emergencyContact2}</h3>
-                <div className="space-y-1.5 text-xs">
-                  <p><strong className="text-slate-400">{t.contactPerson}</strong> <span className="font-bold text-slate-800">{printStudentFile.emergencyContactName || 'N/A'}</span></p>
-                  <p><strong className="text-slate-400">{t.relationship3}</strong> <span className="font-semibold text-slate-800">{printStudentFile.emergencyContactRelation || 'N/A'}</span></p>
-                  <p><strong className="text-slate-400">{t.phoneNumber}</strong> <span className="font-black text-rose-600">{printStudentFile.emergencyContactPhone || 'N/A'}</span></p>
-                </div>
-              </div>
-            </div>
-
-            {/* History & Medical Records */}
-            <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{t.medicalHistoryFile}</h3>
-              <div className="grid grid-cols-2 gap-6 text-xs">
-                <div>
-                  <span className="font-bold text-slate-400 block uppercase">{t.previousSchoolTransferHistory}</span>
-                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.previousSchool || (t.noneDirectAdmissionEntry)}</p>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-400 block uppercase">{t.allergiesMedicalNotesConditions}</span>
-                  <p className="font-semibold text-slate-800 mt-1">{printStudentFile.medicalNotes || (t.noneClearProfile)}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Signature Area */}
-            <div className="flex justify-between items-center pt-12 border-t border-slate-200 text-xs">
-              <div>
-                <p className="font-bold">{t.generatedAndVerifiedSincerelyBy}</p>
-                <p className="font-black mt-1 text-slate-900">{currentUser?.name || 'Direction Complexe Scolaire MAMA THERA'}</p>
-                <p className="text-slate-500 text-[10px]">{t.complexeScolaireMamaTheraAdministration}</p>
-              </div>
-              <div className="text-right">
-                <p className="font-bold">{t.officialSealSignature}</p>
-                <div className="h-12 w-48 border-b border-dashed border-slate-400 mt-2 ml-auto" />
-                <p className="text-[8px] text-slate-400 mt-1">{t.officialBoardRepresentative}</p>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
+      {/* --- Printable Student Academic File (extracted component) --- */}
+      {printStudentFile && (
+        <StudentFilePrint
+          t={t}
+          student={printStudentFile}
+          currentUser={currentUser}
+          getGradeDisplay={getGradeDisplay}
+          formatCurrency={formatCurrency}
+          tokens={tokens}
+        />
+      )}
 
 
       {/* --- Student Delete Confirmation --- */}
