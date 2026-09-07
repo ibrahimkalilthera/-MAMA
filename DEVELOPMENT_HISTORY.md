@@ -1,3 +1,134 @@
+## [2026-09-06] Fiche employé : LE modèle papier officiel est utilisé tel quel (overlay de données)
+
+Suite à « Quest ce que tu ne comprends pas… je veux le meme pdf pas un autre »,
+la fiche individuelle de paiement de salaire n'est PLUS redessinée en code :
+`src/lib/pdfPayrollFiche.ts` charge désormais le PDF officiel fourni par la
+Direction (`public/templates/fiche-paiement-salaire.pdf`, copie exacte du
+fichier envoyé) avec **pdf-lib** et n'imprime que les données du mois dessus :
+
+- **Le document téléchargé EST le PDF de l'école** — le raster d'origine
+  (emblème, bandes décoratives, nom de l'école, titre FICHE INDIVIDUELLE DE
+  PAIEMENT DE SALAIRE, en-têtes de tableau, CACHET/DATE, filigrane) reste
+  intact ; seul du texte est superposé aux coordonnées calibrées par analyse
+  de pixels du formulaire imprimé (boîte PÉRIODE x 85.5–148.7 mm y 62.4–69.9 ;
+  tableau 6 colonnes x 6 lignes, colonnes à 4.3/41.8/75.5/106.6/136.6/165.4/204
+  mm ; ligne DATE DE PAIEMENT).
+- **Champ PÉRIODE** : mois + année en cours. **Ligne 1 du tableau** : prénom
+  et nom, fonction, salaire de base, total des indemnités, retenues « — »
+  (aucune cotisation INPS/AMO sur cette fiche — réservées au bulletin
+  d'administration) et salaire net payé = base + indemnités. Lignes 2–6
+  vides comme sur le formulaire. **DATE DE PAIEMENT** : date du jour après le
+  libellé imprimé. Colonnes « Mode de paiement » et « Signature employé »
+  laissées vierges (remplissage manuel à la signature).
+- L'option `schoolLogo` disparaît de la fiche employé (l'emblème est imprimé
+  sur le papier) ; le bulletin d'administration (jsPDF) n'est pas touché.
+- **Nettoyage** : export temporaire `drawSchoolEmblemFallback` et les ~300
+  lignes de dessin jsPDF de la fiche supprimés ; clés i18n `pdfFiche*`
+  (fr + en) devenues mortes retirées de `src/i18n/domains/pdf.ts` ; entrée
+  fiche retirée du garde-fou de tampon `tests/pdf-stamp-guard.test.ts` (le
+  cachet est pré-imprimé sur le modèle) ; `tests/pdf-fiche.test.ts` réécrit
+  (pipeline pdf-lib réel sur le vrai modèle) ; test d'aiguillage employé de
+  `tests/payroll.test.tsx` passé en spy du module fiche.
+
+Dépendance ajoutée : `pdf-lib` (import dynamique, hors bundle initial).
+
+Vérifié : tsc strict propre ; **573/573 tests** ; lint complet vert ; les 8
+chaînes superposées relues dans le flux de contenu décompressé et comparées
+visuellement — toutes dans leurs cellules (PÉRIODE centrée dans la boîte,
+figures alignées dans les colonnes 2–4 de la ligne 1, date sur le trait).
+
+---
+
+## [2026-09-06] Fiche de paie employé : reproduction exacte du modèle papier fourni
+
+Sur demande explicite (« je ne veux pas un autre PDF que tu as créé, utilise
+ça »), la fiche individuelle de paiement de salaire téléchargée pour les
+membres ajoutés via « Ajouter un Employé » reproduit désormais fidèlement le
+modèle officiel fourni (`src/lib/pdfPayrollFiche.ts`) :
+
+- **Section « Historique des paiements » supprimée** — la grille 12 mois
+  (payé/partiel/en cours/impayé/à venir) que nous avions ajoutée n'existe pas
+  sur le modèle papier. L'option `paymentHistory` disparaît de l'API, la règle
+  `payrollMonthStatus` (devenue morte) est retirée de `payrollGrid.ts`, ainsi
+  que les 9 clés i18n `pdfFicheHistory*`/`pdfFicheSchoolYear` (fr + en) et
+  leur transmission depuis `usePayroll`.
+- **Table à 4 lignes** comme le formulaire papier (la 1ʳᵉ porte les données
+  de l'employé, les 3 autres restent vides).
+- **Trait doré sous le nom de l'école** « MAMA THERA DE SAFO », fermé par
+  l'étoile au centre (flourish du modèle).
+- En-tête (emblème, titre), PÉRIODE, colonnes du tableau, pied de page
+  (CACHET DE LA DIRECTION / DATE DE PAIEMENT + cachet tamponné) et boîte à
+  filigrane inchangés, conformes au modèle. Aucune cotisation INPS/AMO sur
+  cette fiche (réservées au bulletin d'administration).
+
+Vérifié : tsc strict propre, 583/583 tests (les tests d'historique de la
+fiche sont remplacés par deux verrous « aucune section d'historique dessinée »
+fr/en ; les 5 unitaires `payrollMonthStatus` sont retirés), lint complet
+vert. Comparaison visuelle effectuée : la fiche générée reproduit le modèle.
+
+---
+
+## [2026-09-06] Correctifs P1–P3 de l'audit : RLS fournisseurs GM, nav mobile complète, devise FCFA unifiée
+
+Trois familles de correctifs issus de l'audit général (aucun changement de
+comportement hors périmètre, tous les garde-fous verts) :
+
+- **P1 — Dépenses fournisseurs : alignement app ↔ DB pour le Gestionnaire
+  Principal.** La migration `20260906000002_vendor_expense_gm_policies.sql`
+  élargit les policies RLS INSERT et DELETE de `vendor_expenses` à
+  `public.is_finance_admin()` (admin, dev, general_manager) — l'UI montrait
+  déjà les boutons créer/supprimer au GM mais Postgres rejetait chaque
+  écriture (« new row violates row-level security »). Le monopole promoteur
+  sur les enregistrements EXISTANTS est inchangé : le trigger
+  `protect_vendor_expense_financial_edit` garde vendor_name/amount immuables
+  hors admin/dev. Côté UI, `VendorExpenseModal` déverrouille les champs
+  fournisseur/montant à la CRÉATION pour le GM (`financialFieldsLocked`
+  distingue création vs édition) et les garde verrouillés à l'édition pour
+  tous les non-promoteurs. FULL_SETUP_MIGRATION.sql régénéré.
+- **P1 — Navigation mobile complète.** `MobileNav` (dock bas < lg) couvre
+  désormais TOUS les onglets : dashboard, élèves, parents, paie, dépenses,
+  calendrier, notes, archives, + Audit/Réglages réservés admin/dev (comme la
+  sidebar) ; ouvrir Audit rafraîchit d'abord le journal (`fetchAuditLogs`),
+  la pilule de langue est conservée dans le dock. AppShell câble
+  `onToggleLanguage`/`currentUser`/`fetchAuditLogs`.
+- **P2 — Commentaire périmé corrigé** dans `usePayroll` : la fiche employé
+  (« Ajouter un Employé ») n'a PAS de cotisations INPS/AMO (celles-ci restent
+  exclusives au bulletin de l'administration) — le commentaire l'affirmait
+  désormais explicitement.
+- **P3 — Devise unifiée « FCFA ».** `formatCurrency` suffixe FCFA partout
+  (au lieu de XOF) ; les gabarits de réponses IA
+  (`aiResponse*` en/fr) ne dupliquent plus le suffixe (le libellé venait
+  s'ajouter au « … FCFA » déjà produit par le formateur) ; les en-têtes de
+  gabarit Excel passent de « (XOF) » à « (FCFA) » en anglais.
+
+Vérifié : 589/589 tests (dont les suites réécrites `mobile-nav` — 8 onglets,
+  onglets admin masqués/visibles, clic Audit → refresh, badge de retard — et
+  les assertions de `utils.test.ts` en FCFA), tsc strict propre, lint complet
+  vert (ESLint 0 warning, guards, stylelint, synchro des 21 migrations
+  vérifiée par le gate).
+
+---
+
+## [2026-09-06] Fiche de paiement : historique des paiements (mois payés / restants)
+
+La fiche individuelle de paiement de salaire (`src/lib/pdfPayrollFiche.ts`)
+affiche désormais, sous le tableau du mois courant, l'**historique des
+paiements** de l'employé pour l'année scolaire en cours (sept. → août) :
+grille 12 mois avec les états Payé (bleu) / Partiel (or) / Mois en cours
+(contour or) / Impayé (contour rouge) / À venir (gris), légende, et résumé
+« Mois payés : X · Restants : Y » sur les mois écoulés. Un mois est « payé »
+quand les paiements enregistrés couvrent le salaire mensuel — règle extraite
+dans `payrollMonthStatus` (`src/lib/payrollGrid.ts`, à côté de la grille 12
+mois de PayrollView). Le site d'appel (`usePayroll.handleExportStaffReceiptPdf`)
+passe les paiements de l'employé (`paymentHistory`). Nouveaux libellés i18n
+fr/en (`pdfFicheHistory*` dans `src/i18n/domains/pdf.ts`).
+
+Vérifié : 585/585 tests (dont 3 nouveaux sur la fiche — comptage fr, partiel/
+mois courant, anglais sans fuite fr — et 5 unitaires `payrollMonthStatus`),
+tsc propre, lint complet vert.
+
+---
+
 ## [2026-09-04] Runner qualité async + watchdog (anti-blocage Node/msys)
 
 Nouveau script `scripts/quality-chain.mjs` (script npm `quality` : lint →

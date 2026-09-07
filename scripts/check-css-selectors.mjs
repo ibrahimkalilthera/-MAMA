@@ -110,7 +110,8 @@ const CSS_GUARDS = [
     label: 'the slate rose-text remap must stay (dark rose on dark cards is unreadable)',
   },
   {
-    file: 'src/components/AppModals.tsx',
+    // The Relance parent-name span moved with the NotifyParentModal extraction.
+    file: 'src/components/NotifyParentModal.tsx',
     needle: 'text-sm font-black text-slate-900 dark:text-white',
     label: 'the Relance parent-name span must stay theme-safe (dark in light themes, white in dark themes)',
   },

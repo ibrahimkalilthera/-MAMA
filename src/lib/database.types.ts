@@ -252,6 +252,13 @@ export interface Database {
           bank_details: string | null;
           emergency_contact: string | null;
           academic_year: string | null;
+          inps_number: string | null;
+          hire_date: string | null;
+          family_status: string | null;
+          children_count: number;
+          travel_allowance: number;
+          communication_allowance: number;
+          housing_allowance: number;
           created_at: string;
         };
         Insert: {
@@ -264,6 +271,13 @@ export interface Database {
           bank_details?: string | null;
           emergency_contact?: string | null;
           academic_year?: string | null;
+          inps_number?: string | null;
+          hire_date?: string | null;
+          family_status?: string | null;
+          children_count?: number;
+          travel_allowance?: number;
+          communication_allowance?: number;
+          housing_allowance?: number;
           created_at?: string;
         };
         Update: {
@@ -276,6 +290,13 @@ export interface Database {
           bank_details?: string | null;
           emergency_contact?: string | null;
           academic_year?: string | null;
+          inps_number?: string | null;
+          hire_date?: string | null;
+          family_status?: string | null;
+          children_count?: number;
+          travel_allowance?: number;
+          communication_allowance?: number;
+          housing_allowance?: number;
           created_at?: string;
         };
         Relationships: [];

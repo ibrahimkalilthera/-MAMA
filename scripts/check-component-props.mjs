@@ -8,26 +8,44 @@ import { readFileSync } from 'node:fs';
 const COMPONENTS = [
   // MainViews' props contract lives in its dedicated types module — the single
   // source of truth (see src/app/mainViewsProps.ts + tests/mainviews-props.test.ts).
-  { name: 'MainViews', file: 'src/app/mainViewsProps.ts', render: 'src/App.tsx' },
-  { name: 'AppModals', file: 'src/components/AppModals.tsx', render: 'src/App.tsx' },
-  { name: 'ArchivesView', file: 'src/components/ArchivesView.tsx', render: 'src/App.tsx' },
-  { name: 'PromotionWizardModal', file: 'src/components/PromotionWizardModal.tsx', render: 'src/App.tsx' },
+  // The app-shell JSX (and thus the <MainViews {...viewsProps} /> renders) moved
+  // to src/components/AppShell.tsx; the `viewsProps` wiring literal itself stays
+  // in src/App.tsx, so each entry names its `literal` file explicitly.
+  { name: 'MainViews', file: 'src/app/mainViewsProps.ts', render: 'src/components/AppShell.tsx', literal: 'src/App.tsx' },
+  { name: 'AppModals', file: 'src/components/AppModals.tsx', render: 'src/components/AppShell.tsx', literal: 'src/App.tsx' },
+  { name: 'ArchivesView', file: 'src/components/ArchivesView.tsx', render: 'src/components/AppShell.tsx', literal: 'src/App.tsx' },
+  { name: 'PromotionWizardModal', file: 'src/components/PromotionWizardModal.tsx', render: 'src/components/AppShell.tsx', literal: 'src/App.tsx' },
   { name: 'DashboardCharts', file: 'src/components/DashboardCharts.tsx', render: 'src/components/DashboardView.tsx' },
   { name: 'MultiYearChart', file: 'src/components/MultiYearChart.tsx', render: 'src/components/ArchivesView.tsx' },
 ];
 
 const read = (p) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n'); // CRLF-tolerant
 
-// Top-level props of <name>Props (exported or not). Returns { required, all }.
-const extractProps = (file, name) => {
+// Top-level props of <name>Props (exported or not), resolving `extends`
+// clauses: MainViewsProps is now composed from per-domain slices declared in
+// the same module (AppShellProps + one slice per view), so each base interface
+// is parsed in turn and its props merged. Returns { required, all }.
+const extractProps = (file, name, seen = new Set()) => {
+  if (seen.has(name)) return { required: [], all: [] }; // extends cycle guard
+  seen.add(name);
   const src = read(file);
-  const m = src.match(new RegExp(`(?:export )?interface ${name}Props \\{([\\s\\S]*?)\\n\\}`));
-  if (!m) throw new Error(`interface ${name}Props introuvable dans ${file}`);
-  const entries = [...m[1].matchAll(/^\s{2}([A-Za-z0-9_]+)(\?)?:/gm)];
-  return {
-    required: entries.filter((x) => !x[2]).map((x) => x[1]),
-    all: entries.map((x) => x[1]),
-  };
+  const full = /Props$/.test(name) ? name : `${name}Props`;
+  // Two shapes: the composed contract is a one-line `interface X extends A, B {}`
+  // with an empty body; the regular interfaces are multi-line `{ … }` blocks.
+  const empty = src.match(new RegExp(`(?:export )?interface ${full}( extends [^{]*?)? \\{\\}`, 'm'));
+  const m = empty ?? src.match(new RegExp(`(?:export )?interface ${full}( extends [^{]*?)? \\{([\\s\\S]*?)\\n\\}`, 'm'));
+  if (!m) throw new Error(`interface ${full} introuvable dans ${file}`);
+  const entries = [...(m[2] ?? '').matchAll(/^\s{2}([A-Za-z0-9_]+)(\?)?:/gm)];
+  const required = entries.filter((x) => !x[2]).map((x) => x[1]);
+  const all = entries.map((x) => x[1]);
+  if (m[1]) {
+    for (const base of m[1].matchAll(/([A-Za-z0-9_]+Props)/g)) {
+      const part = extractProps(file, base[1], seen);
+      required.push(...part.required);
+      all.push(...part.all);
+    }
+  }
+  return { required, all };
 };
 
 // Resolve an object-literal spread used at the render site: <Name {...viewsProps} />
@@ -47,7 +65,7 @@ const resolveSpreadLiteral = (src, spreadName) => {
 // (whose keys tsc verifies against the intersection type), so the `extra` check
 // is intentionally skipped there: a shared object like viewsProps carries BOTH
 // shell contracts, and its superset keys are by design.
-const extractPassed = (render, name) => {
+const extractPassed = (render, name, literal) => {
   const src = read(render);
   const start = src.indexOf(`<${name}\n`);
   const inline = start < 0 ? src.indexOf(`<${name} `) : -1;
@@ -59,15 +77,17 @@ const extractPassed = (render, name) => {
   const passed = [...tag.matchAll(/([A-Za-z0-9_]+)=\{/g)].map((x) => x[1]);
   const spreads = [...tag.matchAll(/\{\.\.\.([A-Za-z0-9_]+)\}/g)];
   for (const spread of spreads) {
-    passed.push(...resolveSpreadLiteral(src, spread[1]));
+    // The wiring literal may live in a different file than the render site
+    // (AppShell.tsx renders, App.tsx owns the `viewsProps` object).
+    passed.push(...resolveSpreadLiteral(read(literal ?? render), spread[1]));
   }
   return { passed, hasSpread: spreads.length > 0 };
 };
 
 let ok = true;
-for (const { name, file, render } of COMPONENTS) {
+for (const { name, file, render, literal } of COMPONENTS) {
   const { required, all } = extractProps(file, name);
-  const { passed, hasSpread } = extractPassed(render, name);
+  const { passed, hasSpread } = extractPassed(render, name, literal);
   const missing = required.filter((p) => !passed.includes(p));
   const extra = hasSpread ? [] : passed.filter((p) => !all.includes(p));
   if (missing.length || extra.length) {

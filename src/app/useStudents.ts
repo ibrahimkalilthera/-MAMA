@@ -36,6 +36,8 @@ export interface UseStudentsDeps {
   addStudent: (s: Omit<Student, 'id' | 'payments'>) => Promise<Student | null>;
   updateStudent: (id: string, updates: Partial<Student>) => Promise<boolean>;
   showToast: () => void;
+  /** Toast an error/validation message (replaces the native alert()). */
+  toastError: (message: string) => void;
 }
 
 const emptyStudentForm = (): StudentForm => ({
@@ -61,7 +63,7 @@ const emptyStudentForm = (): StudentForm => ({
 });
 
 export function useStudents(deps: UseStudentsDeps) {
-  const { t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager, students, addStudent, updateStudent, showToast } = deps;
+  const { t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager, students, addStudent, updateStudent, showToast, toastError } = deps;
   // Scholarship discounts are a finance-admin power: promoter/admin AND the
   // Gestionnaire Principal.
   const canEditScholarship = isPromoter || isGeneralManager;
@@ -162,20 +164,20 @@ export function useStudents(deps: UseStudentsDeps) {
   const handleStudentSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
+      toastError(t.thisAcademicYearIsLocked);
       return;
     }
     
     // Validation: Email is optional, but if provided, must be valid
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (studentForm.parentEmail && studentForm.parentEmail.trim() && !emailRegex.test(studentForm.parentEmail.trim())) {
-      alert(t.invalidEmail);
+      toastError(t.invalidEmail);
       return;
     }
 
     const amount = parseFloat(studentForm.totalDue);
     if (isNaN(amount) || amount < 0) {
-      alert(t.invalidAmount);
+      toastError(t.invalidAmount);
       return;
     }
 

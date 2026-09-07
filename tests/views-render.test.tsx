@@ -1,8 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { createElement, createRef, Suspense } from 'react';
+import { act, createElement, createRef, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
+import { createRoot } from 'react-dom/client';
+import { installDomGlobals } from './harness';
 import type { LucideIcon } from 'lucide-react';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
@@ -31,6 +33,10 @@ import { StudentsView } from '../src/components/StudentsView';
 import { ParentsView } from '../src/components/ParentsView';
 import { PayrollView } from '../src/components/PayrollView';
 import { ExpensesView } from '../src/components/ExpensesView';
+import { CalendarView } from '../src/components/CalendarView';
+import { NotesView } from '../src/components/NotesView';
+import { AuditView } from '../src/components/AuditView';
+import { SettingsView } from '../src/components/SettingsView';
 
 // ─── Shared stubs ────────────────────────────────────────────────────────────
 
@@ -52,6 +58,7 @@ const currentTheme: CurrentTheme = {
   sidebar: '#fff',
   accent: '#059669',
   accentBg: '#059669',
+  accentText: 'text-white',
   accentHover: '#047857',
   accentShadow: 'rgba(5,150,105,0.3)',
   tableHeader: '#f8fafc',
@@ -106,6 +113,13 @@ const staffForm: StaffForm = {
   phone: '',
   bankDetails: '',
   emergencyContact: '',
+  inpsNumber: '',
+  hireDate: '',
+  familyStatus: '',
+  childrenCount: '',
+  travelAllowance: '',
+  communicationAllowance: '',
+  housingAllowance: '',
 };
 const parentForm: ParentForm = {
   fullName: '',
@@ -216,6 +230,8 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     expandedParentId: null,
     expenseCategoryList: [],
     expenses: [],
+    generalExpenseCategoryFilter: 'all',
+    generalExpenseSearch: '',
     filteredStaff: [],
     filteredStudents: [],
     lateStudents: [],
@@ -235,6 +251,8 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     searchTerm: '',
     selectedYear: '2026-2027',
     staff: [],
+    adminStaffCount: 0,
+    staffPositionFilter: 'all' as const,
     staffSearchTerm: '',
     stats,
     studentSortKey: null as SortKey | null,
@@ -253,6 +271,7 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     userSearchTerm: '',
     vendorCategoryFilter: 'all',
     vendorExpenses: [],
+    vendorExpensesTab: 'general' as const,
     vendorSearch: '',
     vendorStatusFilter: 'all',
     visibleBankDetails: {},
@@ -329,11 +348,19 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     setShowAddUserModal: noopSetter,
     setShowCalendarModal: noopSetter,
     setShowLinkStudentModal: noopSetter,
+    setShowExpenseModal: noopSetter,
     setShowMonthlyDraftModal: noopSetter,
+    setExpenseForm: noopSetter,
+    setGeneralExpenseCategoryFilter: noopSetter,
+    setGeneralExpenseSearch: noopSetter,
+    setVendorExpensesTab: noopSetter,
     setShowParentModal: noopSetter,
     setShowSalaryModal: noopSetter,
     setShowStaffModal: noopSetter,
     setShowVendorExpenseModal: noopSetter,
+    staffModalMode: 'employee' as const,
+    setStaffModalMode: noopSetter,
+    setStaffPositionFilter: noopSetter,
     setStaffForm: noopSetter,
     setStaffSearchTerm: noopSetter,
     setStudentToLinkId: noopSetter,
@@ -374,6 +401,10 @@ describe('views render inside MainViewsContext', () => {
     { name: 'ParentsView', node: createElement(ParentsView), expectedText: 'addParent' },
     { name: 'PayrollView', node: createElement(PayrollView), expectedText: 'staffName' },
     { name: 'ExpensesView', node: createElement(ExpensesView), expectedText: 'generalExpenses' },
+    { name: 'CalendarView', node: createElement(CalendarView), expectedText: 'today' },
+    { name: 'NotesView', node: createElement(NotesView), expectedText: 'notes' },
+    { name: 'AuditView', node: createElement(AuditView), expectedText: 'refreshLogs' },
+    { name: 'SettingsView', node: createElement(SettingsView), expectedText: 'systemLanguage' },
   ];
 
   for (const { name, node, expectedText } of views) {
@@ -386,6 +417,94 @@ describe('views render inside MainViewsContext', () => {
       );
     });
   }
+
+  it('PayrollView affiche le compteur de membres de l\'administration à côté de la recherche', () => {
+    const staff = [
+      { id: 's1', name: 'Mariam Coulibaly', position: 'Proviseur', salary: 250000, email: '', phone: '', bankDetails: '', emergencyContact: '' },
+      { id: 's2', name: 'Awa Traoré', position: 'Enseignante', salary: 75000, email: '', phone: '', bankDetails: '', emergencyContact: '' },
+    ];
+    const html = renderWithContext(createElement(PayrollView), { staff, filteredStaff: staff, adminStaffCount: 1 });
+    const singular = translations.en.adminMembersSingular.replace('{count}', '1');
+    assert.ok(html.includes(singular), `chip singulier attendu : "${singular}"`);
+    assert.ok(!html.includes(translations.en.adminMembersPlural.replace('{count}', '1')), 'pas de forme plurielle pour 1');
+
+    const htmlZero = renderWithContext(createElement(PayrollView));
+    const pluralZero = translations.en.adminMembersPlural.replace('{count}', '0');
+    assert.ok(htmlZero.includes(pluralZero), `chip zéro attendu : "${pluralZero}"`);
+  });
+
+  it('PayrollView affiche le filtre de poste avec les trois options', () => {
+    const html = renderWithContext(createElement(PayrollView));
+    assert.ok(html.includes(translations.en.staffFilterAll), 'option tout le personnel');
+    assert.ok(html.includes(translations.en.staffFilterAdmin), 'option administration');
+    assert.ok(html.includes(translations.en.staffFilterEmployees), 'option employés');
+    assert.ok(html.includes(translations.en.staffPositionFilterLabel), 'aria-label du filtre');
+  });
+
+  it('PayrollView affiche le badge admin uniquement pour les postes ADMIN_POSITIONS', () => {
+    const staff = [
+      { id: 's1', name: 'Mariam Coulibaly', position: 'Proviseur', salary: 250000, email: '', phone: '', bankDetails: '', emergencyContact: '' },
+      { id: 's2', name: 'Awa Traoré', position: 'Enseignante', salary: 75000, email: '', phone: '', bankDetails: '', emergencyContact: '' },
+    ];
+    const html = renderWithContext(createElement(PayrollView), { staff, filteredStaff: staff });
+    assert.ok(html.includes('Mariam Coulibaly') && html.includes('Awa Traoré'), 'both members rendered');
+    const badgeLabel = translations.en.admin; // "Admin"
+    const badgeCount = html.split(`>${badgeLabel}</span>`).length - 1;
+    assert.equal(badgeCount, 1, 'un seul badge admin — Proviseur, pas Enseignante');
+  });
+
+  it('ExpensesView affiche le bouton « Ajouter une dépense » pour un rôle finance et le masque pour les autres', () => {
+    const visible = renderWithContext(createElement(ExpensesView)); // makeProps: isPromoter=true
+    assert.ok(visible.includes(translations.en.addExpense), 'bouton visible pour le promoteur/admin');
+
+    const hidden = renderWithContext(createElement(ExpensesView), { isPromoter: false, isGeneralManager: false });
+    assert.ok(!hidden.includes(translations.en.addExpense), 'bouton masqué pour un rôle non finance');
+  });
+
+  it('ExpensesView : cliquer « Ajouter une dépense » ouvre ExpenseFormModal avec le formulaire pré-rempli', async () => {
+    const win = installDomGlobals();
+    const container = win.document.createElement('div');
+    win.document.body.appendChild(container);
+    const root = createRoot(container as unknown as Element);
+
+    const opened: boolean[] = [];
+    const prefilled: unknown[] = [];
+    try {
+      await act(async () => {
+        root.render(
+          createElement(
+            MainViewsContext.Provider,
+            {
+              value: makeProps({
+                setShowExpenseModal: (v: boolean | ((prev: boolean) => boolean)) => opened.push(v as boolean),
+                setExpenseForm: (f) => prefilled.push(f),
+              }),
+            },
+            createElement(ExpensesView)
+          )
+        );
+      });
+
+      const buttons = [...container.querySelectorAll('button')];
+      const addBtn = buttons.find((b) => b.textContent?.includes(translations.en.addExpense));
+      assert.ok(addBtn, 'le bouton « Ajouter une dépense » est rendu');
+
+      await act(async () => {
+        addBtn.click();
+      });
+
+      assert.deepEqual(opened, [true], 'setShowExpenseModal(true) appelé au clic');
+      assert.equal(prefilled.length, 1, 'setExpenseForm appelé pour pré-remplir');
+      const form = prefilled[0] as { category: string; description: string; amount: string; date: string };
+      assert.equal(form.category, 'Other');
+      assert.equal(form.description, '');
+      assert.equal(form.amount, '');
+      assert.equal(form.date, new Date().toISOString().split('T')[0], 'date du jour pré-remplie');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
 
   it('each view still renders with a minimal/empty dataset (no data crash)', () => {
     // Same as above but explicitly with empty arrays — guards against

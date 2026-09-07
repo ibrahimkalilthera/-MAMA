@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { generatePaymentReceiptPdf } from '../lib/pdfReceipt';
+import { PAYROLL_WINDOW_LAST_DAY } from '../lib/payrollWindow';
 import { fetchCalendarDayNotes, saveCalendarDayNote, deleteCalendarDayNote } from '../lib/calendarNotes';
 import type { Student, Staff, Expense, Payment, User, Todo } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
@@ -32,11 +33,13 @@ interface UsePaymentsDeps {
   todos: Todo[];
   currentUser: User | null;
   addPayment: (studentId: string, payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string }) => Promise<boolean>;
+  /** Toast an error/validation message (replaces the native alert()). */
+  toastError: (message: string) => void;
   /** Calendar ⇄ Notes bridge: persist a dated note on the student record. */
 }
 
 export function usePayments(deps: UsePaymentsDeps) {
-  const { t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser, addPayment } = deps;
+  const { t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser, addPayment, toastError } = deps;
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<Date | null>(null);
@@ -76,8 +79,11 @@ export function usePayments(deps: UsePaymentsDeps) {
 
   const [dayNotes, setDayNotes] = useState<DayNote[]>(readDayNotes);
 
-  // Pull the team's notes once on mount (refreshed after each write).
+  // Pull the team's notes once when a session is live (refreshed after each
+  // write). Auth-gated like the data hook: no anon read on the login screen,
+  // and a fresh sign-in (currentUser flips null → user) triggers the fetch.
   useEffect(() => {
+    if (!currentUser) return;
     let cancelled = false;
     void fetchCalendarDayNotes().then(notes => {
       if (cancelled || !notes) return;
@@ -85,7 +91,7 @@ export function usePayments(deps: UsePaymentsDeps) {
       writeDayNotesCache(notes);
     });
     return () => { cancelled = true; };
-  }, [writeDayNotesCache]);
+  }, [currentUser, writeDayNotesCache]);
 
   const [noteText, setNoteText] = useState('');
   const [savingNoteOnDate, setSavingNoteOnDate] = useState(false);
@@ -130,7 +136,7 @@ export function usePayments(deps: UsePaymentsDeps) {
   const handlePaymentSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
-      alert(t.thisAcademicYearIsLocked);
+      toastError(t.thisAcademicYearIsLocked);
       return;
     }
     if (!paymentStudentId || !paymentAmount) return;
@@ -185,9 +191,11 @@ export function usePayments(deps: UsePaymentsDeps) {
       });
     }
 
-    // Salary Dates (Assuming 25th of each month if not specified, or use a fixed date for demo)
-    // For this app, let's say staff are paid on the 25th
-    if (date.getDate() === 25) {
+    // Salary deadline — derived from the payroll window (open 1st–10th, late
+    // from the 11th, see src/lib/payrollWindow.ts): the calendar marks the
+    // window's last day instead of a hardcoded payday that could contradict
+    // the late rule.
+    if (date.getDate() === PAYROLL_WINDOW_LAST_DAY) {
       dayEvents.push({
         type: 'salary',
         count: staff.length,

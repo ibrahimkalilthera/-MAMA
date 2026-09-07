@@ -7,14 +7,14 @@ import { formatCurrency, formatDate, formatDateLang } from '../src/lib/formatter
 import { buildClassCode } from '../src/lib/classes';
 
 describe('formatCurrency', () => {
-  it('formats amounts with XOF suffix', () => {
-    assert.equal(formatCurrency(150000), '150 000 XOF');
-    assert.equal(formatCurrency(0), '0 XOF');
+  it('formats amounts with FCFA suffix', () => {
+    assert.equal(formatCurrency(150000), '150 000 FCFA');
+    assert.equal(formatCurrency(0), '0 FCFA');
   });
 
   it('never renders "undefined" or NaN', () => {
-    assert.equal(formatCurrency(undefined), '0 XOF');
-    assert.equal(formatCurrency(NaN), '0 XOF');
+    assert.equal(formatCurrency(undefined), '0 FCFA');
+    assert.equal(formatCurrency(NaN), '0 FCFA');
   });
 });
 

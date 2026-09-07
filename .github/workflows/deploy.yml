@@ -5,16 +5,54 @@ name: Deploy (Vercel)
 # Trigger: the "Quality & performance guard" workflow (perf-guard.yml) COMPLETING
 # on main. Its `quality` job (lint + tsc strict + tests + npm-audit gate) is the
 # single door to production: a push whose quality job fails never reaches this
-# workflow, so a broken push can never deploy. This deploy checks out the exact
-# commit that quality run validated (`head_sha`) — not a newer one that could
-# have landed in between.
+# workflow, so a broken push can never deploy. The deploy job checks out the
+# exact commit that quality run validated (`head_sha`) — not a newer one that
+# could have landed in between.
 #
-# Manual deploys stay possible via workflow_dispatch (deploys the current head
-# of main — an explicit human action, re-validated locally by the author).
+# Gate structure:
+#   Job `gate`     : resolves the decision in code (actions/github-script), so
+#                    every conclusion is handled explicitly:
+#                      • success  → deploy exactly the validated head_sha.
+#                      • cancelled → a newer push superseded this run (quality
+#                        workflow concurrency). If that newer push's quality run
+#                        already completed green, deploy the commit it validated
+#                        NOW instead of waiting for its own workflow_run event.
+#                        Otherwise exit cleanly — the superseding run's own
+#                        completion fires a fresh deploy. Never a red run: a
+#                        superseded run is not a failure, it is replaced.
+#                      • failure  → the push is genuinely red; the gate job
+#                        fails (core.setFailed), so the skipped deploy sits next
+#                        to the red quality run — a visible, accurate signal.
+#                      • workflow_dispatch → manual: deploy the current head of
+#                        main (an explicit human action, re-validated locally by
+#                        the author).
+#   Job `deploy`   : runs only when the gate says proceed. Checks out the exact
+#                    commit the green run validated and pushes it to Vercel.
 #
-# The quality job already runs lint/tests/audit, so this workflow does not
-# repeat them; it only needs the project dependencies for `vercel build`
+# The quality job already runs lint/tests/audit, so the deploy workflow does
+# not repeat them; it only needs the project dependencies for `vercel build`
 # (`vercel.json` → buildCommand: npm run build).
+#
+# Second gate — the migrations workflow (supabase-migrations.yml, paths-filtered
+# to supabase/**): this workflow cannot be added to the workflow_run trigger
+# above (a skipped/failed run would stall or double-fire the deploy), so the
+# deploy job polls its run for the exact commit being deployed, then falls back
+# to the latest completed run on main. Consequences, all by design:
+#   • a commit whose migrations run is red never deploys;
+#   • a later push that does NOT touch supabase/** (no new run) inherits the
+#     previous run's verdict — a broken migration stays blocking until fixed;
+#   • manual workflow_dispatch skips this gate (human override), exactly like
+#     the quality gate.
+#
+# Third gate — the live remote DB itself: scripts/verify-anon-rls.mjs --remote
+# probes production with the public anon key (reads on every table, INSERT
+# strict 401/403, password RPC admin_set_user_password, GoTrue admin routes,
+# recover reachability). A breached DB — any anon read, write or callable
+# password RPC — blocks the deploy with the same neutral semantics (exit 78).
+# Unlike gates 1-2 this also applies to manual dispatches: a breached database
+# is a fact about the live state, not about pipeline history. While the prod
+# DB lacks the 20260906000000 REVOKE, gate n°3 is red and deploys stay
+# blocked until it is applied.
 #
 # Known trade-off: if the quality workflow itself cannot run (Actions outage,
 # disabled workflow), deploys stop too — by design: no green gate, no deploy.
@@ -48,38 +86,166 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read # interroger les runs qualité / migrations (jobs gate et deploy)
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
-  deploy:
+  # Decision job: runs for every quality completion (success, cancelled,
+  # failure) and for manual dispatches. Sets `proceed` + `deploy_sha` outputs;
+  # the deploy job below is skipped (gray) when there is nothing to deploy.
+  # Plain `run:` steps cannot signal "neutral" (exit 78 only applies to custom
+  # actions), so this decision lives in github-script with explicit branches —
+  # a superseded (cancelled) quality run must never turn this run red.
+  gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
+    outputs:
+      proceed: ${{ steps.quality-gate.outputs.proceed }}
+      deploy_sha: ${{ steps.quality-gate.outputs.deploy_sha }}
     steps:
-      # First step, before even cloning: without a green quality run there is
-      # nothing to deploy. Exit 78 marks the job neutral (skipped, not failed).
       - name: Gate — deploy only what quality validated
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
-              echo "Quality workflow concluded '${{ github.event.workflow_run.conclusion }}' on ${{ github.event.workflow_run.head_sha }} — not deploying."
-              exit 78
-            fi
-            echo "Quality passed on ${{ github.event.workflow_run.head_sha }} — deploying exactly that commit."
-          else
-            echo "Manual dispatch — deploying the current head of main."
-          fi
-
-      - uses: actions/checkout@v4
+        id: quality-gate
+        uses: actions/github-script@v9
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          script: |
+            core.setOutput('proceed', 'false');
+            core.setOutput('deploy_sha', '');
 
-      - uses: actions/setup-node@v4
+            if (context.eventName !== 'workflow_run') {
+              console.log('Manual dispatch — deploying the current head of main.');
+              core.setOutput('proceed', 'true');
+              return;
+            }
+
+            const run = context.payload.workflow_run;
+            const sha = run.head_sha;
+            console.log(`Quality workflow concluded '${run.conclusion}' on ${sha}.`);
+
+            if (run.conclusion === 'success') {
+              console.log(`Quality passed on ${sha} — deploying exactly that commit.`);
+              core.setOutput('proceed', 'true');
+              core.setOutput('deploy_sha', sha);
+              return;
+            }
+
+            if (run.conclusion !== 'cancelled') {
+              // Genuine failure: the push is red. Fail this job so the skipped
+              // deploy sits visibly next to the red quality run.
+              core.setFailed(`Quality workflow failed on ${sha} — nothing to deploy. The red quality run carries the verdict.`);
+              return;
+            }
+
+            // Cancelled: the quality concurrency superseded this run with a
+            // newer push. If that newer push's quality run already finished
+            // green, deploy the commit it validated right now instead of
+            // waiting for its own workflow_run event. Otherwise exit cleanly —
+            // that run's completion fires a fresh deploy.
+            console.log(`Run #${run.id} was cancelled (superseded by a newer push) — looking for a newer green quality run.`);
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              ...context.repo,
+              workflow_id: 'perf-guard.yml',
+              branch: 'main',
+              per_page: 10,
+            });
+            const greenNewer = data.workflow_runs.find(
+              (r) => r.head_sha !== sha && r.conclusion === 'success',
+            );
+            if (greenNewer) {
+              console.log(`Found newer green quality run #${greenNewer.id} on ${greenNewer.head_sha} — deploying exactly that commit instead.`);
+              core.setOutput('proceed', 'true');
+              core.setOutput('deploy_sha', greenNewer.head_sha);
+              return;
+            }
+
+            console.log('No newer green quality run yet — exiting cleanly. The superseding run will trigger the deploy when it completes.');
+
+  deploy:
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    # 30 min : le gate migrations peut devoir attendre la fin d'un run
+    # (~5-10 min de Docker) + build Vercel en aval.
+    timeout-minutes: 30
+    steps:
+      # Gate n°2 — migrations RLS vertes avant de déployer (même sémantique
+      # que la porte qualité : un verdict rouge bloque, un run manquant hérite
+      # du dernier verdict de main).
+      - name: Gate — migrations workflow green for this commit
+        if: github.event_name == 'workflow_run'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const repo = context.repo;
+            const sha = '${{ needs.gate.outputs.deploy_sha }}';
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+            // Le run peut encore tourner (le gate qualité termine parfois
+            // avant le job Docker) : l'attendre jusqu'à la fenêtre de polling.
+            const findRun = async (headSha, status) => {
+              const params = {
+                ...repo,
+                workflow_id: 'supabase-migrations.yml',
+                branch: 'main',
+                per_page: 1,
+              };
+              if (headSha) params.head_sha = headSha;
+              if (status) params.status = status;
+              const { data } = await github.rest.actions.listWorkflowRuns(params);
+              return data.workflow_runs[0] ?? null;
+            };
+
+            const deadline = Date.now() + 15 * 60 * 1000;
+            let run = await findRun(sha);
+            while (run && ['in_progress', 'queued', 'pending'].includes(run.status) && Date.now() < deadline) {
+              console.log(`Migrations run #${run.id} still ${run.status} — waiting 15s…`);
+              await sleep(15000);
+              run = await findRun(sha);
+            }
+
+            if (!run) {
+              // Aucun run pour ce commit (supabase/** inchangé) : hériter du
+              // verdict du dernier run terminé sur main — une migration cassée
+              // reste bloquante jusqu'à correction.
+              run = await findRun(null, 'completed');
+            }
+
+            if (!run || (['in_progress', 'queued', 'pending'].includes(run.status))) {
+              console.log(`No migrations verdict for ${sha} within the polling window — refusing to deploy without a green proof.`);
+              process.exit(78);
+            }
+            if (run.conclusion !== 'success') {
+              console.log(`Migrations workflow concluded '${run.conclusion}' (run #${run.id} on ${run.head_sha}) — not deploying.`);
+              process.exit(78);
+            }
+            console.log(`Migrations workflow green (run #${run.id} on ${run.head_sha}) — deploying.`);
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.gate.outputs.deploy_sha || github.ref }}
+
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
+
+      # Gate n°3 — base distante saine AVANT de déployer (fail-on-breach) :
+      # les probes anon (script pur Node, aucun dépôt requis) tournent contre
+      # la base de production avec la clé anon publique. Toute brèche bloque
+      # le déploiement — même sémantique que les portes 1 et 2 : exit 78 =
+      # neutre, pas rouge. Le script refuse de tourner si une clé
+      # service_role est présente dans l'environnement. S'applique aussi au
+      # workflow_dispatch : une base distante compromise doit bloquer TOUT
+      # déploiement.
+      - name: Gate — prod anon RLS green (fail-on-breach)
+        run: node scripts/verify-anon-rls.mjs --remote || exit 78
+        env:
+          # Credentials anon PUBLIQUES par conception (embarqués dans le
+          # bundle client Vercel) — jamais de service_role ici.
+          SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
+          ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
 
       - name: Install project dependencies (needed by vercel build → npm run build)
         run: npm ci

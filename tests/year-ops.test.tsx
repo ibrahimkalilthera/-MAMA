@@ -120,6 +120,7 @@ function baseDeps(overrides: {
     setAuditYear: (year) => { spies.auditYears.push(year as string | null); },
     setShowAuditModal: (open) => { spies.auditModalOpen.push(open as boolean); },
     showToast: () => { spies.toasts += 1; },
+    toastError: (msg: string) => { spies.alerts.push(msg); },
   };
   return { args, spies };
 }

@@ -2,9 +2,11 @@
 import fs from 'fs';
 import path from 'path';
 
-const src = fs.readFileSync('src/i18n/translations.ts', 'utf8');
-const enBlock = src.match(/en: \{([\s\S]*?)\r?\n  \},\r?\n  fr: \{/)[1];
-const frBlock = src.match(/fr: \{([\s\S]*?)\r?\n  \},?\r?\n\};/)[1];
+// The dictionaries live in src/i18n/domains/*.ts (en/fr blocks merged by the
+// src/i18n/translations.ts barrel) — parse the domain files directly, since
+// the barrel only re-exports spreads and carries no key/value pairs itself.
+const DOMAINS_DIR = 'src/i18n/domains';
+
 // Plusieurs clés peuvent être groupées sur une même ligne (ex: mon: "Lun", tue: "Mar", ...),
 // donc on capture TOUTES les paires `clé: "valeur"` de chaque ligne indentée.
 const parseKeys = (block) => {
@@ -15,8 +17,16 @@ const parseKeys = (block) => {
   }
   return keys;
 };
-const enKeys = new Set(parseKeys(enBlock));
-const frKeys = new Set(parseKeys(frBlock));
+
+const enKeys = new Set();
+const frKeys = new Set();
+for (const file of fs.readdirSync(DOMAINS_DIR).filter((f) => f.endsWith('.ts'))) {
+  const src = fs.readFileSync(path.join(DOMAINS_DIR, file), 'utf8');
+  const enBlock = src.match(/export const en = \{([\s\S]*?)\r?\n\};/);
+  const frBlock = src.match(/export const fr = \{([\s\S]*?)\r?\n\};/);
+  if (enBlock) for (const k of parseKeys(enBlock[1])) enKeys.add(k);
+  if (frBlock) for (const k of parseKeys(frBlock[1])) frKeys.add(k);
+}
 
 // Usages non-i18n connus : `t` est une variable locale (pas la traduction) dans
 // des callbacks comme `arr.filter(t => t.id === ...)`, et ces clés ne sont jamais
@@ -31,6 +41,7 @@ const files = [
   ...fs.readdirSync('src/components').filter(f => f.endsWith('.tsx')).map(f => `src/components/${f}`),
   'src/lib/pdfReceipt.ts',
   'src/lib/pdfPayroll.ts',
+  'src/lib/pdfPayrollBulletin.ts',
   'src/lib/pdfPayrollDraft.ts',
   'src/lib/pdfExpensesReport.ts',
   'src/lib/pdfFinancialReport.ts',
@@ -58,7 +69,7 @@ for (const f of files) {
 }
 
 if (missing.size === 0) {
-  console.log('✅ Toutes les clés t.* référencées existent dans en + fr.');
+  console.log(`✅ Toutes les clés t.* référencées existent dans en + fr (${enKeys.size} clés).`);
 } else {
   console.log(`❌ ${missing.size} clés manquantes ou déséquilibrées :`);
   for (const [k, files] of [...missing.entries()].sort()) {

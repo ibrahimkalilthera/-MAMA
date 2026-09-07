@@ -69,7 +69,21 @@ export interface StaffForm {
   phone: string;
   bankDetails: string;
   emergencyContact: string;
+  /** Bulletin de paie details — string fields, parsed on submit. */
+  inpsNumber: string;
+  hireDate: string;
+  familyStatus: string; // FamilyStatus code or ''
+  childrenCount: string;
+  travelAllowance: string;
+  communicationAllowance: string;
+  housingAllowance: string;
 }
+
+/** Which staff form the modal opens with: employee (free position) or admin member (position dropdown). */
+export type StaffModalMode = 'employee' | 'admin';
+
+/** Staff-directory position bucket: everyone, curated admin roles, or non-admin employees. */
+export type StaffPositionFilter = 'all' | 'admin' | 'employee';
 
 export interface SalaryForm {
   staffId: string;
@@ -87,6 +101,13 @@ export interface ParentForm {
   relationship: string;
   notes: string;
   linkedStudentIds: string[];
+}
+
+export interface ExpenseForm {
+  category: string;
+  description: string;
+  amount: string;
+  date: string;
 }
 
 export interface VendorExpenseForm {
@@ -112,6 +133,7 @@ export interface CurrentTheme {
   sidebar: string;
   accent: string;
   accentBg: string;
+  accentText: string;
   accentHover: string;
   accentShadow: string;
   tableHeader: string;
@@ -229,6 +251,8 @@ export interface MainViewsProps {
   expandedParentId: string | null;
   expenseCategoryList: { key: string; label: string }[];
   expenses: Expense[];
+  generalExpenseCategoryFilter: string;
+  generalExpenseSearch: string;
   fetchAuditLogs: () => Promise<void>;
   filteredStaff: Staff[];
   filteredStudents: Student[];
@@ -288,6 +312,9 @@ export interface MainViewsProps {
   setEditingStaff: Dispatch<SetStateAction<Staff | null>>;
   setEditingVendorExpense: Dispatch<SetStateAction<VendorExpense | null>>;
   setExpandedParentId: Dispatch<SetStateAction<string | null>>;
+  setExpenseForm: Dispatch<SetStateAction<ExpenseForm>>;
+  setGeneralExpenseCategoryFilter: Dispatch<SetStateAction<string>>;
+  setGeneralExpenseSearch: Dispatch<SetStateAction<string>>;
   setLogoColor: Dispatch<SetStateAction<string | null>>;
   setParentChildrenSortBy: Dispatch<SetStateAction<ParentSort>>;
   setParentForm: Dispatch<SetStateAction<ParentForm>>;
@@ -306,12 +333,15 @@ export interface MainViewsProps {
   setShowAddUserModal: Dispatch<SetStateAction<boolean>>;
   setShowCalendarModal: Dispatch<SetStateAction<boolean>>;
   setShowLinkStudentModal: Dispatch<SetStateAction<boolean>>;
+  setShowExpenseModal: Dispatch<SetStateAction<boolean>>;
   setShowMonthlyDraftModal: Dispatch<SetStateAction<boolean>>;
   setShowParentModal: Dispatch<SetStateAction<boolean>>;
   setShowSalaryModal: Dispatch<SetStateAction<boolean>>;
   setShowStaffModal: Dispatch<SetStateAction<boolean>>;
   setShowVendorExpenseModal: Dispatch<SetStateAction<boolean>>;
   setStaffForm: Dispatch<SetStateAction<StaffForm>>;
+  setStaffModalMode: Dispatch<SetStateAction<StaffModalMode>>;
+  setStaffPositionFilter: Dispatch<SetStateAction<StaffPositionFilter>>;
   setStaffSearchTerm: Dispatch<SetStateAction<string>>;
   setStudentToLinkId: Dispatch<SetStateAction<string>>;
   setTheme: Dispatch<SetStateAction<ThemeId>>;
@@ -325,7 +355,11 @@ export interface MainViewsProps {
   setVendorSearch: Dispatch<SetStateAction<string>>;
   setVendorStatusFilter: Dispatch<SetStateAction<string>>;
   setVisibleBankDetails: Dispatch<SetStateAction<Record<string, boolean>>>;
+  setVendorExpensesTab: Dispatch<SetStateAction<'general' | 'vendors'>>;
   staff: Staff[];
+  adminStaffCount: number;
+  staffModalMode: StaffModalMode;
+  staffPositionFilter: StaffPositionFilter;
   staffSearchTerm: string;
   stats: DashboardStats;
   studentSortKey: SortKey | null;
@@ -354,6 +388,7 @@ export interface MainViewsProps {
   userSearchTerm: string;
   vendorCategoryFilter: string;
   vendorExpenses: VendorExpense[];
+  vendorExpensesTab: 'general' | 'vendors';
   vendorSearch: string;
   vendorStatusFilter: string;
   visibleBankDetails: Record<string, boolean>;

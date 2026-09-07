@@ -101,7 +101,7 @@ export const TARGET_FIELDS: Record<ImportCategory, TargetFieldDef[]> = {
     { field: 'parentName', label: { en: 'Parent Name', fr: 'Nom du Parent' }, type: 'text', required: false, aliases: ['parent', 'nom_parent', 'parent_name', 'pere', 'père', 'mere', 'mère', 'tuteur'] },
     { field: 'parentPhone', label: { en: 'Parent Phone', fr: 'Tél. Parent' }, type: 'phone', required: false, aliases: ['telephone', 'téléphone', 'phone', 'tel', 'mobile', 'tel_parent', 'contact', 'phone_parent'] },
     { field: 'parentEmail', label: { en: 'Parent Email', fr: 'Email Parent' }, type: 'text', required: false, aliases: ['email', 'e-mail', 'courriel', 'email_parent'] },
-    { field: 'totalDue', label: { en: 'Total Tuition (XOF)', fr: 'Scolarité Totale (FCFA)' }, type: 'currency', required: false, aliases: ['scolarite', 'scolarité', 'tuition', 'frais', 'total_due', 'montant_total', 'frais_scolarite', 'total'] },
+    { field: 'totalDue', label: { en: 'Total Tuition (FCFA)', fr: 'Scolarité Totale (FCFA)' }, type: 'currency', required: false, aliases: ['scolarite', 'scolarité', 'tuition', 'frais', 'total_due', 'montant_total', 'frais_scolarite', 'total'] },
     { field: 'amountPaid', label: { en: 'Amount Paid', fr: 'Montant Payé' }, type: 'currency', required: false, aliases: ['paye', 'payé', 'paid', 'amount_paid', 'montant_paye', 'verse', 'versé'] },
     { field: 'scholarshipDiscount', label: { en: 'Scholarship %', fr: 'Bourse %' }, type: 'number', required: false, aliases: ['bourse', 'scholarship', 'reduction', 'réduction', 'discount', 'remise'] },
     { field: 'dueDate', label: { en: 'Due Date', fr: 'Date d\'Échéance' }, type: 'date', required: false, aliases: ['echeance', 'échéance', 'due_date', 'date_limite'] },
@@ -110,7 +110,7 @@ export const TARGET_FIELDS: Record<ImportCategory, TargetFieldDef[]> = {
   ],
   payments: [
     { field: 'studentName', label: { en: 'Student Name', fr: 'Nom de l\'Élève' }, type: 'text', required: true, aliases: ['nom', 'name', 'eleve', 'élève', 'student', 'nom_eleve'] },
-    { field: 'amount', label: { en: 'Amount (XOF)', fr: 'Montant (FCFA)' }, type: 'currency', required: true, aliases: ['montant', 'amount', 'somme', 'versement', 'paiement'] },
+    { field: 'amount', label: { en: 'Amount (FCFA)', fr: 'Montant (FCFA)' }, type: 'currency', required: true, aliases: ['montant', 'amount', 'somme', 'versement', 'paiement'] },
     { field: 'date', label: { en: 'Payment Date', fr: 'Date du Paiement' }, type: 'date', required: true, aliases: ['date', 'date_paiement', 'payment_date', 'date_versement'] },
     { field: 'receiptNumber', label: { en: 'Receipt No.', fr: 'N° Reçu' }, type: 'text', required: false, aliases: ['recu', 'reçu', 'receipt', 'numero_recu', 'receipt_number', 'no_recu'] },
     { field: 'academicYear', label: { en: 'Academic Year', fr: 'Année Scolaire' }, type: 'text', required: false, aliases: ['annee', 'année', 'annee_scolaire', 'academic_year', 'year'] },
@@ -127,7 +127,7 @@ export const TARGET_FIELDS: Record<ImportCategory, TargetFieldDef[]> = {
   staff: [
     { field: 'name', label: { en: 'Full Name', fr: 'Nom Complet' }, type: 'text', required: true, aliases: ['nom', 'name', 'nom_complet', 'full_name', 'employe', 'employé', 'enseignant', 'professeur'] },
     { field: 'position', label: { en: 'Position', fr: 'Poste / Fonction' }, type: 'text', required: false, aliases: ['poste', 'position', 'fonction', 'titre', 'role', 'rôle'] },
-    { field: 'salary', label: { en: 'Monthly Salary (XOF)', fr: 'Salaire Mensuel (FCFA)' }, type: 'currency', required: false, aliases: ['salaire', 'salary', 'remuneration', 'rémunération', 'paie', 'montant'] },
+    { field: 'salary', label: { en: 'Monthly Salary (FCFA)', fr: 'Salaire Mensuel (FCFA)' }, type: 'currency', required: false, aliases: ['salaire', 'salary', 'remuneration', 'rémunération', 'paie', 'montant'] },
     { field: 'email', label: { en: 'Email', fr: 'Email' }, type: 'text', required: false, aliases: ['email', 'e-mail', 'courriel', 'mail'] },
     { field: 'phone', label: { en: 'Phone', fr: 'Téléphone' }, type: 'phone', required: false, aliases: ['telephone', 'téléphone', 'phone', 'tel', 'mobile', 'contact'] },
     { field: 'bankDetails', label: { en: 'Bank Details', fr: 'Détails Bancaires' }, type: 'text', required: false, aliases: ['banque', 'bank', 'rib', 'compte', 'bank_details'] },
@@ -135,7 +135,7 @@ export const TARGET_FIELDS: Record<ImportCategory, TargetFieldDef[]> = {
   ],
   expenses: [
     { field: 'description', label: { en: 'Description', fr: 'Description / Motif' }, type: 'text', required: true, aliases: ['description', 'motif', 'objet', 'libelle', 'libellé', 'detail', 'détail'] },
-    { field: 'amount', label: { en: 'Amount (XOF)', fr: 'Montant (FCFA)' }, type: 'currency', required: true, aliases: ['montant', 'amount', 'somme', 'cout', 'coût', 'total'] },
+    { field: 'amount', label: { en: 'Amount (FCFA)', fr: 'Montant (FCFA)' }, type: 'currency', required: true, aliases: ['montant', 'amount', 'somme', 'cout', 'coût', 'total'] },
     { field: 'category', label: { en: 'Category', fr: 'Catégorie' }, type: 'text', required: false, aliases: ['categorie', 'catégorie', 'category', 'type', 'type_depense', 'nature'] },
     { field: 'date', label: { en: 'Date', fr: 'Date' }, type: 'date', required: false, aliases: ['date', 'date_depense', 'expense_date'] },
     { field: 'academicYear', label: { en: 'Academic Year', fr: 'Année Scolaire' }, type: 'text', required: false, aliases: ['annee', 'année', 'annee_scolaire', 'academic_year', 'year'] },

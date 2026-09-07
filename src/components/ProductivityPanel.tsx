@@ -17,6 +17,7 @@ import { useEscapeToClose } from '../lib/useEscapeToClose';
 import type { TranslationDict } from '../i18n/translations';
 import type { ChatMessage } from '../app/useFloatingChat';
 import type { Todo } from '../lib/useSupabaseData';
+import type { CurrentTheme } from '../app/mainViewsProps';
 import { groupTodosByDate, type TodoGroupKey } from '../lib/todoSort';
 
 // ─── Panel sizing (resizable on desktop) ────────────────────────────────────
@@ -74,11 +75,7 @@ export interface ProductivityPanelProps {
   /** Edit an existing task's calendar date (empty string removes it). */
   handleUpdateTodoDate: (id: string, date: string) => Promise<boolean>;
   /** Theme tokens from the app theme engine. */
-  themeCard: string;
-  themeBorder: string;
-  themeMuted: string;
-  themeIsDark: boolean;
-  themeHeader: string;
+  currentTheme: CurrentTheme;
 }
 
 export function ProductivityPanel(props: ProductivityPanelProps) {
@@ -101,11 +98,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
     toggleTodo,
     deleteTodo,
     handleUpdateTodoDate,
-    themeCard,
-    themeBorder,
-    themeMuted,
-    themeIsDark,
-    themeHeader,
+    currentTheme,
   } = props;
 
   // Tab is confined to the panel while open; focus returns to the trigger on
@@ -215,9 +208,9 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
         animate={{ x: 0 }}
         exit={{ x: panelWidth }}
         style={{ width: panelWidth }}
-        className={`fixed right-0 top-0 h-full max-w-[88vw] ${themeCard} border-l ${themeBorder} shadow-2xl z-30 flex flex-col`}
+        className={`fixed right-0 top-0 h-full max-w-[88vw] ${currentTheme.card} border-l ${currentTheme.border} shadow-2xl z-30 flex flex-col`}
       >
-        <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: themeHeader }}>
+        <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white" style={{ backgroundColor: currentTheme.header }}>
           <h3 id="panel-title-productivity" className="text-lg font-bold flex items-center gap-3">
             {productivitySidebarTab === 'tasks' ? (
               <>
@@ -261,7 +254,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
             <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
               {aiMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs font-semibold ${msg.sender === 'user' ? 'bg-blue-600 text-white' : (themeIsDark ? 'bg-slate-800 text-emerald-400 border border-emerald-900/20' : 'bg-slate-100 text-slate-700')}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs font-semibold ${msg.sender === 'user' ? 'bg-blue-600 text-white' : (currentTheme.isDark ? 'bg-slate-800 text-emerald-400 border border-emerald-900/20' : 'bg-slate-100 text-slate-700')}`}>
                     <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                   </div>
                 </div>
@@ -276,25 +269,25 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
               <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto custom-scrollbar">
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion1)}
-                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${themeBorder} ${themeCard} ${themeIsDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion1}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion2)}
-                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${themeBorder} ${themeCard} ${themeIsDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion2}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion3)}
-                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${themeBorder} ${themeCard} ${themeIsDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion3}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion4)}
-                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${themeBorder} ${themeCard} ${themeIsDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion4}
                 </button>
@@ -314,7 +307,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                 value={aiInput}
                 onChange={(e) => setAiInput(e.target.value)}
                 placeholder={t.aiAskPlaceholder}
-                className={`flex-1 px-4 py-3 bg-white ${themeIsDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-800'} border rounded-xl text-xs font-semibold`}
+                className={`flex-1 px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-800'} border rounded-xl text-xs font-semibold`}
               />
               <button
                 type="submit"
@@ -332,14 +325,14 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                 value={todoInput}
                 onChange={(e) => setTodoInput(e.target.value)}
                 placeholder={t.taskPlaceholder}
-                className={`w-full px-5 py-4 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${themeIsDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-5 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
               />
               <input
                 type="date"
                 value={todoDate}
                 onChange={(e) => setTodoDate(e.target.value)}
                 aria-label={t.taskDate}
-                className={`w-full px-5 py-3.5 ${themeIsDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${themeBorder} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-semibold ${themeIsDark ? 'text-emerald-500 [color-scheme:dark]' : 'text-slate-800'}`}
+                className={`w-full px-5 py-3.5 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-semibold ${currentTheme.isDark ? 'text-emerald-500 [color-scheme:dark]' : 'text-slate-800'}`}
               />
               <button
                 type="submit"
@@ -367,7 +360,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                     >
                       {section.label}
                     </span>
-                    <span className={`min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${themeIsDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                    <span className={`min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${currentTheme.isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                       {section.count}
                     </span>
                   </div>
@@ -375,7 +368,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                   <motion.div
                     layout
                     key={section.todo.id}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${section.todo.completed ? (themeIsDark ? 'bg-emerald-900/10 border-emerald-900/20 opacity-60' : 'bg-slate-50 border-slate-100 opacity-60') : (themeIsDark ? 'bg-emerald-900/20 border-emerald-800/50 shadow-sm' : 'bg-white border-slate-100 shadow-sm')}`}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${section.todo.completed ? (currentTheme.isDark ? 'bg-emerald-900/10 border-emerald-900/20 opacity-60' : 'bg-slate-50 border-slate-100 opacity-60') : (currentTheme.isDark ? 'bg-emerald-900/20 border-emerald-800/50 shadow-sm' : 'bg-white border-slate-100 shadow-sm')}`}
                   >
                     <div className="flex items-center gap-3 flex-1">
                       <button
@@ -384,7 +377,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                       >
                         {section.todo.completed && <CheckCircle2 size={14} />}
                       </button>
-                      <span className={`text-sm font-bold ${section.todo.completed ? (themeIsDark ? 'text-emerald-500/50 line-through' : 'text-slate-400 line-through') : (themeIsDark ? 'text-emerald-500' : 'text-slate-700')}`}>
+                      <span className={`text-sm font-bold ${section.todo.completed ? (currentTheme.isDark ? 'text-emerald-500/50 line-through' : 'text-slate-400 line-through') : (currentTheme.isDark ? 'text-emerald-500' : 'text-slate-700')}`}>
                         {section.todo.text}
                       </span>
                       {editingDateId === section.todo.id ? (
@@ -398,14 +391,14 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                             void handleUpdateTodoDate(section.todo.id, e.target.value);
                           }}
                           onBlur={() => setEditingDateId(null)}
-                          className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${themeIsDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40 [color-scheme:dark]' : 'bg-white text-slate-700 border-blue-200'}`}
+                          className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${currentTheme.isDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40 [color-scheme:dark]' : 'bg-white text-slate-700 border-blue-200'}`}
                         />
                       ) : (
                         <button
                           type="button"
                           onClick={() => setEditingDateId(section.todo.id)}
                           title={t.taskDate}
-                          className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all hover:ring-2 hover:ring-blue-400/50 ${themeIsDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                          className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all hover:ring-2 hover:ring-blue-400/50 ${currentTheme.isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
                         >
                           {section.todo.date ? section.todo.date.split('-').reverse().join('/') : t.addDate}
                         </button>
@@ -413,7 +406,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                     </div>
                     <button
                       onClick={() => deleteTodo(section.todo.id)}
-                      className={`p-2 ${themeMuted} hover:text-rose-500 transition-all`}
+                      className={`p-2 ${currentTheme.muted} hover:text-rose-500 transition-all`}
                     >
                       <Trash2 size={16} />
                     </button>

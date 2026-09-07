@@ -1,12 +1,23 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useMainViews } from '../app/mainViewsContext';
+import type { StaffPositionFilter } from '../app/mainViewsProps';
 import type { Staff } from '../lib/useSupabaseData';
+import { sameYearMonth } from '../lib/dateWindows';
+import { isPayrollWindowOverdue } from '../lib/payrollWindow';
+import { payrollGridCellStatus } from '../lib/payrollGrid';
 import { ConfirmDialog } from './ConfirmDialog';
+import { isAdminPosition } from '../lib/adminPositions';
+
+/** School-year month sequence: September → August (12 cells). */
+const SCHOOL_YEAR_MONTH_KEYS = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'];
+const SCHOOL_YEAR_MONTH_INDEXES = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7];
+
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, Trash2, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffSearchTerm, setVisibleBankDetails, staff, staffSearchTerm, t, visibleBankDetails } = useMainViews();
+  const { AlertCircle, ChevronDown, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails } = useMainViews();
+  const currentYear = new Date().getFullYear();
   return (
     <>
           <div className="space-y-8">
@@ -21,7 +32,7 @@ export function PayrollView() {
               </div>
               <div className="divide-y divide-slate-100">
                 {staff.map(s => {
-                  const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth);
+                  const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && sameYearMonth(p.date, currentYear, currentMonth));
                   const paidThisMonth = paymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
                   const balance = s.salary - paidThisMonth;
                   return (
@@ -36,7 +47,7 @@ export function PayrollView() {
               </div>
             </div>
 
-            {/* 12-Month Payroll Summary Grid */}
+            {/* 12-Month Payroll Summary Grid — school year (September → August) */}
             <div className={`${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 no-print`}>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
@@ -44,7 +55,7 @@ export function PayrollView() {
                     {t.automaticPayrollAudit}
                   </h4>
                   <p className={`text-xs ${currentTheme.muted} mt-1`}>
-                    {t.n12MonthPayrollTrackingForTheCurrentCalendarYear}
+                    {t.n12MonthPayrollTrackingForTheCurrentSchoolYear.replace('{year}', selectedYear)}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-4 text-[10px] font-black uppercase tracking-widest">
@@ -64,30 +75,44 @@ export function PayrollView() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-4">
-                {['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].map((monthKey, index) => {
-                  const currentCalendarYear = new Date().getFullYear();
-                  const currentCalendarMonth = new Date().getMonth();
-                  const isFuture = index > currentCalendarMonth;
-                  const monthName = (t as Record<string, string>)[monthKey];
+                {(() => {
+                  // The school year starts in September: cells are Sep..Dec of
+                  // the start year then Jan..Aug of the following year — the
+                  // same horizon as the missed-payroll alerts.
+                  const schoolYearStart = parseInt(selectedYear.split('-')[0] || '', 10);
+                  const startYear = Number.isFinite(schoolYearStart) ? schoolYearStart : new Date().getFullYear();
+                  const now = new Date();
+                  const nowYear = now.getFullYear();
+                  const nowMonth = now.getMonth();
 
-                  // calculate payroll status for this month
-                  const monthPayments = salaryPayments.filter(p => {
-                    const payDate = new Date(p.date);
-                    return payDate.getFullYear() === currentCalendarYear && payDate.getMonth() === index;
-                  });
-                  const totalPaid = monthPayments.reduce((sum, p) => sum + p.amount, 0);
-                  const totalExpected = staff.reduce((sum, s) => sum + s.salary, 0);
+                  return SCHOOL_YEAR_MONTH_KEYS.map((monthKey, index) => {
+                    const monthIndex = SCHOOL_YEAR_MONTH_INDEXES[index]!;
+                    const cellYear = index < 4 ? startYear : startYear + 1;
+                    const isFuture = cellYear > nowYear || (cellYear === nowYear && monthIndex > nowMonth);
+                    const isCurrentCell = cellYear === nowYear && monthIndex === nowMonth;
+                    const monthName = (t as Record<string, string>)[monthKey];
+
+                    // Payroll status for this school-year cell
+                    const monthPayments = salaryPayments.filter(p => {
+                      const payDate = new Date(p.date);
+                      return payDate.getFullYear() === cellYear && payDate.getMonth() === monthIndex;
+                    });
+                    const totalPaid = monthPayments.reduce((sum, p) => sum + p.amount, 0);
+                    const totalExpected = staff.reduce((sum, s) => sum + s.salary, 0);
+
+                  const cellStatus = payrollGridCellStatus({ isFuture, isCurrentCell, totalPaid, totalExpected, now });
 
                   let boxClass = "";
                   let statusText = "";
-                  
-                  if (isFuture) {
+                  if (cellStatus === 'scheduled' || cellStatus === 'open') {
+                    // Future month, or current month while the window is still
+                    // open (1st–10th): neutral — not late yet.
                     boxClass = `${currentTheme.isDark ? 'bg-emerald-950/10 border-emerald-950/20 text-emerald-500/80' : 'bg-slate-50 border-slate-100 text-slate-500'}`;
-                    statusText = t.scheduled;
-                  } else if (totalPaid === 0) {
+                    statusText = cellStatus === 'open' ? t.open : t.scheduled;
+                  } else if (cellStatus === 'unpaid') {
                     boxClass = "bg-rose-500 text-white border-rose-600 animate-pulse shadow-lg shadow-rose-500/20";
                     statusText = t.unpaid;
-                  } else if (totalPaid >= totalExpected) {
+                  } else if (cellStatus === 'settle') {
                     boxClass = "bg-emerald-600 text-white border-emerald-700 shadow-lg shadow-emerald-600/20";
                     statusText = t.settle;
                   } else {
@@ -97,10 +122,10 @@ export function PayrollView() {
 
                   return (
                     <div 
-                      key={index} 
+                      key={`${cellYear}-${monthIndex}`} 
                       onClick={() => {
-                        setSelectedDraftMonth(index);
-                        setSelectedDraftYear(currentCalendarYear);
+                        setSelectedDraftMonth(monthIndex);
+                        setSelectedDraftYear(cellYear);
                         setShowMonthlyDraftModal(true);
                       }}
                       className={`${boxClass} p-4 rounded-2xl border flex flex-col items-center justify-center text-center transition-all hover:scale-[1.05] cursor-pointer shadow-sm`}
@@ -113,16 +138,30 @@ export function PayrollView() {
                       )}
                     </div>
                   );
-                })}
+                  });
+                })()}
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
-              <div>
+            <div className="flex flex-col md:flex-row flex-wrap justify-between items-start md:items-center gap-6 no-print">
+              <div className="min-w-0">
                 <h3 className={`text-2xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.staffDirectory}</h3>
                 <p className={`text-sm ${currentTheme.muted}`}>{t.manageEmployeeProfilesAndPayroll}</p>
               </div>
-              <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row flex-wrap items-center justify-end gap-4 w-full md:w-auto md:min-w-0 md:flex-1">
+                <div className="relative">
+                  <select
+                    value={staffPositionFilter}
+                    onChange={(e) => setStaffPositionFilter(e.target.value as StaffPositionFilter)}
+                    aria-label={t.staffPositionFilterLabel}
+                    className={`appearance-none cursor-pointer pl-4 pr-10 py-3 ${currentTheme.card} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                  >
+                    <option value="all">{t.staffFilterAll}</option>
+                    <option value="admin">{t.staffFilterAdmin}</option>
+                    <option value="employee">{t.staffFilterEmployees}</option>
+                  </select>
+                  <ChevronDown size={16} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${currentTheme.muted}`} />
+                </div>
                 <div className="relative flex-1 sm:w-80">
                   <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={18} />
                   <input 
@@ -132,6 +171,14 @@ export function PayrollView() {
                     onChange={(e) => setStaffSearchTerm(e.target.value)}
                     className={`w-full pl-12 pr-6 py-3 ${currentTheme.card} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
                   />
+                </div>
+                <div className={`inline-flex items-center gap-2 px-3.5 py-3 rounded-2xl bg-violet-100 dark:bg-violet-950/60`}>
+                  <ShieldCheck size={14} className="text-violet-600 dark:text-violet-300" />
+                  <span className={`text-xs font-black ${currentTheme.isDark ? 'text-violet-300' : 'text-violet-700'}`}>
+                    {adminStaffCount === 1
+                      ? t.adminMembersSingular.replace('{count}', String(adminStaffCount))
+                      : t.adminMembersPlural.replace('{count}', String(adminStaffCount))}
+                  </span>
                 </div>
                 <button 
                   onClick={() => {
@@ -148,23 +195,38 @@ export function PayrollView() {
                 <button 
                   onClick={() => {
                     setEditingStaff(null);
-                    setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '' });
+                    setStaffModalMode('employee');
+                    setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
                     setShowStaffModal(true);
                   }}
-                  className={`${currentTheme.accentBg} text-white px-6 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
+                  className={`${currentTheme.accentBg} ${currentTheme.accentText} px-6 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
                 >
                   <Plus size={18} />
                   {t.addStaff}
+                </button>
+                <button 
+                  onClick={() => {
+                    setEditingStaff(null);
+                    setStaffModalMode('admin');
+                    setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
+                    setShowStaffModal(true);
+                  }}
+                  className="bg-violet-600 hover:bg-violet-700 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-violet-500/20"
+                >
+                  <ShieldCheck size={18} />
+                  {t.addAdminMember}
                 </button>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredStaff.map(s => {
-                const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth);
+                const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && sameYearMonth(p.date, currentYear, currentMonth));
                 const paidThisMonth = paymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
                 const balance = s.salary - paidThisMonth;
-                const payDatePassed = new Date().getDate() > 25;
+                // Same late rule as the sidebar/banner window (1st–10th open;
+                // from the 11th an unpaid month is late) — see payrollWindow.ts.
+                const payDatePassed = isPayrollWindowOverdue(new Date().getDate());
                 
                 let statusColor = "";
                 let statusLabel = "";
@@ -203,7 +265,15 @@ export function PayrollView() {
                           <h4 className={`font-bold ${paidThisMonth > 0 || payDatePassed ? 'text-white' : (currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800')}`}>
                             <HighlightText text={s.name} highlight={staffSearchTerm} />
                           </h4>
-                          <p className={`text-xs ${paidThisMonth > 0 || payDatePassed ? 'text-white/70' : currentTheme.muted} font-bold uppercase tracking-widest`}>{s.position}</p>
+                          <p className={`text-xs ${paidThisMonth > 0 || payDatePassed ? 'text-white/70' : currentTheme.muted} font-bold uppercase tracking-widest flex items-center gap-2`}>
+                            {s.position}
+                            {isAdminPosition(s.position) && (
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300'}`}>
+                                <ShieldCheck size={9} />
+                                {t.admin}
+                              </span>
+                            )}
+                          </p>
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -305,7 +375,7 @@ export function PayrollView() {
                               setSalaryForm({ ...salaryForm, staffId: s.id, amount: balance.toString() });
                               setShowSalaryModal(true);
                             }}
-                            className={`flex-1 py-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white text-slate-800 hover:bg-white/90' : `${currentTheme.accentBg} text-white ${currentTheme.accentHover}`} text-xs font-bold transition-all shadow-md`}
+                            className={`flex-1 py-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white text-slate-800 hover:bg-white/90' : `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover}`} text-xs font-bold transition-all shadow-md`}
                           >
                             {t.recordSalary}
                           </button>

@@ -20,9 +20,9 @@ async function main() {
     // Update CHECK constraint to allow 'dev' role
     await client.query(`
       ALTER TABLE public.user_profiles DROP CONSTRAINT IF EXISTS user_profiles_role_check;
-      ALTER TABLE public.user_profiles ADD CONSTRAINT user_profiles_role_check CHECK (role IN ('admin', 'staff', 'dev'));
+      ALTER TABLE public.user_profiles ADD CONSTRAINT user_profiles_role_check CHECK (role IN ('admin', 'staff', 'dev', 'general_manager', 'econome'));
     `);
-    console.log('  ✅ CHECK constraint updated: admin | staff | dev');
+    console.log('  ✅ CHECK constraint updated: admin | staff | dev | general_manager | econome');
     
     // Update is_admin() to treat 'dev' as admin-equivalent
     await client.query(`
