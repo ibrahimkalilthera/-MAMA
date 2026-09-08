@@ -1,21 +1,10 @@
 import { StrictMode } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { YearProvider } from './app/YearProvider';
 import { createRoot } from 'react-dom/client';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { RootBoundary } from './app/rootBoundary';
 import './index.css';
 
 const root = createRoot(document.getElementById('root')!);
-
-// Fallback theme tokens for the root error boundary: at the very first render
-// the app theme is not available yet (App itself crashed), so we use the
-// default light tokens instead of a blank page.
-const ROOT_FALLBACK_THEME = {
-  card: 'bg-white',
-  muted: 'text-slate-400',
-  border: 'border-slate-100',
-  isDark: false,
-} as const;
 
 // Load the app asynchronously so a missing/invalid Supabase configuration
 // (thrown by supabaseClient.ts at module load) can be caught and rendered
@@ -24,11 +13,7 @@ import('./App.tsx')
   .then(({ default: App }) => {
     root.render(
       <StrictMode>
-        <ErrorBoundary currentTheme={ROOT_FALLBACK_THEME} label="l'application">
-          <YearProvider>
-            <App />
-          </YearProvider>
-        </ErrorBoundary>
+        <RootBoundary App={App} />
       </StrictMode>,
     );
   })
