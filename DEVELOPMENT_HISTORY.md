@@ -1,3 +1,44 @@
+## [2026-09-08] Notes de calendrier : restriction auteur (trigger created_by + RLS owner-only)
+
+Suite à la question « est-ce que si quelqu'un met une note dans le calendrier les
+autres comptes seront en possibilité de voir les notes ? » (réponse : oui — lecture
+partagée), la sécurité des notes du calendrier est resserrée : tout le monde lit et
+crée, mais seul l'auteur peut modifier ou supprimer sa note.
+
+- **Trigger `calendar_notes_set_created_by`** (fonction `set_calendar_note_created_by`,
+  `SECURITY DEFINER`) : à l'insertion, `NEW.created_by := auth.uid()` — l'app n'envoie
+  jamais `created_by`, et sans ce trigger toute restriction `created_by = auth.uid()`
+  serait inopérante (toutes les lignes auraient `created_by` NULL).
+- **Politiques RLS** (migration `20260908000000_calendar_notes_author_only.sql`) :
+  - **Lecture** : inchangée, partagée — `auth.role() = 'authenticated'` (toute
+    l'équipe voit les notes ; jamais verrouillée sur l'auteur).
+  - **Insertion** : inchangée, ouverte à tout authentifié.
+  - **Modification** : restreinte à l'auteur — `USING` **et** `WITH CHECK`
+    (`auth.role() = 'authenticated' AND created_by = auth.uid()`), politique
+    « Owner update calendar_notes » (l'ancienne « Authenticated update » est
+    supprimée).
+  - **Suppression** : restreinte à l'auteur — « Owner delete calendar_notes »
+    (l'ancienne « Authenticated delete » est supprimée).
+- **Verrou déterministe** : nouvelle suite `tests/calendar-notes-rls.test.ts` (pure
+  Node, sans backend ni réseau) qui lit la VRAIE migration et épingle le contrat —
+  trigger présent + `SECURITY DEFINER` + affectation `created_by`, lecture partagée,
+  insertion ouverte, UPDATE/DELETE owner-only en USING+WITH CHECK, exactement 1
+  politique UPDATE et 1 DELETE (toutes deux « Owner … »), anciennes politiques larges
+  supprimées. 8 assertions ; non-régression prouvée (deux brèches simulées —
+  réouverture UPDATE, retrait de la clause auteur — font bien échouer le garde-fou).
+- **Preuve E2E** : vérifiée en production avec deux comptes — RLS appliquée de bout
+  en bout (lecture croisée OK, édition/suppression refusées au non-auteur).
+- **À noter — notes existantes à `created_by` NULL** : le trigger ne s'applique
+  qu'aux nouvelles insertions ; les notes créées avant cette migration ont
+  `created_by` NULL et ne correspondent à aucune politique owner : elles restent
+  lisibles par tous mais ne peuvent être ni modifiées ni supprimées par personne
+  via l'app (lecture seule) — pour les retirer, passage par le service role en base.
+
+Vérifié : tsc 0 erreur, lint propre, **589/589 tests** (581 + 8 nouvelles
+assertions), fichier normalisé CRLF. Commit `cb0c479` poussé sur `origin/main`.
+
+---
+
 ## [2026-09-08] Dependabot — TypeScript 7 bloqué upstream (PR #4, à re-tester)
 
 - **Contexte** : la PR Dependabot `#4` (typescript 5.8.3 → 7.0.2) ne peut PAS être
