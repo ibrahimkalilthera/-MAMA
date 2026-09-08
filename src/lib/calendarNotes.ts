@@ -4,8 +4,10 @@
  * A day note added from the calendar is a TEAM artefact: every account sees
  * it (todos already behave this way through the todos table). The row lives
  * in `calendar_notes` (id uuid, note_date date, text text, created_by uuid
- * nullable, created_at timestamptz). Anyone authenticated can read and write
- * (RLS: authenticated only, no per-user scoping).
+ * nullable, created_at timestamptz). Anyone authenticated can READ, but only
+ * the AUTHOR (created_by = auth.uid()) can UPDATE or DELETE — set by the
+ * `calendar_notes_set_created_by` BEFORE INSERT trigger
+ * (migration 20260908000000_calendar_notes_author_only.sql).
  *
  * Locked by tests/calendar-notes-db.test.ts (supabaseClient module-mocked —
  * the real client module cannot be loaded under the test runner because
