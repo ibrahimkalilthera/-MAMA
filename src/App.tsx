@@ -777,6 +777,7 @@ const {
   Utensils,
   Wallet,
   Wifi,
+  Wrench,
   X,
   Zap,
   activeTab,

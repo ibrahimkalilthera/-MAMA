@@ -99,6 +99,21 @@ mock.module('../src/lib/pdfPayrollFiche', {
   },
 });
 
+// Recording spy for the template-based technique-center fiche generator
+// (pdf-lib): captures the options so the routing (technique → technique
+// fiche) can be asserted without running the real pdf-lib pipeline here.
+// The real rendering on the paper template is covered by
+// tests/pdf-technique.test.ts.
+const techniqueCalls: Array<{ staffMember: Staff; lang?: string; template?: unknown }> = [];
+mock.module('../src/lib/pdfPayrollTechnique', {
+  namedExports: {
+    generateTechniqueFichePdf: async (options: { staffMember: Staff; lang?: string; template?: unknown }) => {
+      techniqueCalls.push(options);
+      return { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), filename: 'Fiche_Technique_test_2026-09.pdf' };
+    },
+  },
+});
+
 // Recording spy for the template-based admin bulletin generator (pdf-lib):
 // captures the options and the produced filename — the real pdf-lib overlay
 // on the paper template is covered by tests/pdf-bulletin.test.ts.
@@ -446,6 +461,32 @@ describe('usePayroll.handleExportMonthlyPayrollExcel (bordereau XLSX)', () => {
       // The rates ride inside the bulletin generator (frozen constants,
       // covered by tests/pdf-bulletin.test.ts) — assert the spy saw the member.
       assert.ok(!pdfTextCalls.includes(t.consolidatedSalaryReceipt), 'the legacy receipt is not used for admin members');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('routes technical-center members to the technique-center fiche generator', async () => {
+    const tech = staff({ id: 't1', name: 'Moussa Coulibaly', position: 'Technicien', salary: 110000 });
+    const { args } = baseDeps({ staff: [tech] });
+    const { ref, root } = await mount(args);
+    try {
+      pdfSaveCalls.length = 0;
+      pdfTextCalls.length = 0;
+      ficheCalls.length = 0;
+      bulletinCalls.length = 0;
+      techniqueCalls.length = 0;
+      await act(async () => { await ref.current!.handleExportStaffReceiptPdf(tech); });
+
+      assert.equal(techniqueCalls.length, 1, 'the technique fiche generator is called exactly once');
+      assert.equal(techniqueCalls[0]!.staffMember.id, 't1', 'the clicked technique member is passed');
+      assert.equal(techniqueCalls[0]!.lang, 'fr', 'the active language is passed');
+      assert.equal(ficheCalls.length, 0, 'the employee fiche generator is not used for technique members');
+      assert.equal(bulletinCalls.length, 0, 'the admin bulletin generator is not used for technique members');
+      // The technique fiche IS the school's own paper PDF (template + printed
+      // data) — nothing is re-drawn with jsPDF for technique members.
+      assert.equal(pdfSaveCalls.length, 0, 'no jsPDF document for the technique fiche');
+      assert.equal(pdfTextCalls.length, 0, 'no jsPDF text drawn for the technique fiche');
     } finally {
       act(() => root.unmount());
     }

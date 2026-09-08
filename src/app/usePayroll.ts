@@ -19,7 +19,8 @@ import type { Staff, SalaryPayment } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import { generateAdminBulletinPdf } from '../lib/pdfPayrollBulletin';
 import { generateEmployeeFichePdf } from '../lib/pdfPayrollFiche';
-import { isAdminPosition } from '../lib/adminPositions';
+import { generateTechniqueFichePdf } from '../lib/pdfPayrollTechnique';
+import { isAdminPosition, isTechniquePosition } from '../lib/adminPositions';
 import type { StaffModalMode, StaffPositionFilter } from './mainViewsProps';
 
 interface UsePayrollDeps {
@@ -169,16 +170,23 @@ export function usePayroll(deps: UsePayrollDeps) {
    * l'administration") download the official monthly bulletin de paie
    * (src/lib/pdfPayrollBulletin.ts) — school template with the INPS 3,60 %
    * and AMO 3,06 % employee contributions, net salary, amount in words and
-   * signature blocks. Other employees (added via "Ajouter un Employé")
-   * download the fiche individuelle de paiement de salaire
-   * (src/lib/pdfPayrollFiche.ts) — THE school's own paper fiche is loaded
-   * as the document (public/templates/fiche-paiement-salaire.pdf, provided
-   * by the Direction) and the month's data is printed on it. That fiche has
-   * NO social contributions: its Retenues cell stays empty and the net paid
-   * is the base salary plus the allowances — the INPS/AMO rates remain
-   * exclusive to the administration bulletin.
+   * signature blocks. Technical-center members (added via "Ajouter un
+   * Membre du Centre Technique") download the technical-center fiche
+   * (src/lib/pdfPayrollTechnique.ts) — public/templates/fiche-technique.pdf
+   * with the member's data printed on it. Other employees (added via
+   * "Ajouter un Employé") download the fiche individuelle de paiement de
+   * salaire (src/lib/pdfPayrollFiche.ts) — THE school's own paper fiche is
+   * loaded as the document (public/templates/fiche-paiement-salaire.pdf,
+   * provided by the Direction) and the month's data is printed on it. Both
+   * fiches have NO social contributions: their Retenues cell stays empty and
+   * the net paid is the base salary plus the allowances — the INPS/AMO rates
+   * remain exclusive to the administration bulletin.
    */
   const handleExportStaffReceiptPdf = async (staffMember: Staff) => {
+    if (isTechniquePosition(staffMember.position)) {
+      await generateTechniqueFichePdf({ staffMember, lang });
+      return;
+    }
     if (isAdminPosition(staffMember.position)) {
       await generateAdminBulletinPdf({ staffMember, lang, schoolLogo });
       return;

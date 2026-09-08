@@ -340,6 +340,7 @@ export function AppModals(props: AppModalsProps) {
           overlayRef={register}
           onClose={onClose}
           adminMode={staffModalMode === 'admin'}
+          techniqueMode={staffModalMode === 'technique'}
           positionOptions={staffModalMode === 'admin' ? ADMIN_POSITIONS[lang] : undefined}
         />
       ),

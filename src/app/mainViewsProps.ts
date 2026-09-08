@@ -79,8 +79,8 @@ export interface StaffForm {
   housingAllowance: string;
 }
 
-/** Which staff form the modal opens with: employee (free position) or admin member (position dropdown). */
-export type StaffModalMode = 'employee' | 'admin';
+/** Which staff form the modal opens with: employee (free position), technical-center member (same free position), or admin member (position dropdown). */
+export type StaffModalMode = 'employee' | 'technique' | 'admin';
 
 /** Staff-directory position bucket: everyone, curated admin roles, or non-admin employees. */
 export type StaffPositionFilter = 'all' | 'admin' | 'employee';
@@ -234,6 +234,7 @@ export interface MainViewsProps {
   Utensils: LucideIcon;
   Wallet: LucideIcon;
   Wifi: LucideIcon;
+  Wrench: LucideIcon;
   X: LucideIcon;
   Zap: LucideIcon;
   activeTab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit';

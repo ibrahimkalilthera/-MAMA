@@ -7,7 +7,7 @@ import { sameYearMonth } from '../lib/dateWindows';
 import { isPayrollWindowOverdue } from '../lib/payrollWindow';
 import { payrollGridCellStatus } from '../lib/payrollGrid';
 import { ConfirmDialog } from './ConfirmDialog';
-import { isAdminPosition } from '../lib/adminPositions';
+import { isAdminPosition, TECH_POSITIONS } from '../lib/adminPositions';
 
 /** School-year month sequence: September → August (12 cells). */
 const SCHOOL_YEAR_MONTH_KEYS = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'];
@@ -16,7 +16,7 @@ const SCHOOL_YEAR_MONTH_INDEXES = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7];
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, ChevronDown, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails } = useMainViews();
+  const { AlertCircle, ChevronDown, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, Wrench, adminStaffCount, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails } = useMainViews();
   const currentYear = new Date().getFullYear();
   return (
     <>
@@ -191,6 +191,18 @@ export function PayrollView() {
                 >
                   <FileText size={16} />
                   <span>{t.monthlyDraft}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingStaff(null);
+                    setStaffModalMode('technique');
+                    setStaffForm({ name: '', position: TECH_POSITIONS[lang][0]!, salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
+                    setShowStaffModal(true);
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
+                >
+                  <Wrench size={18} />
+                  {t.addTechMember}
                 </button>
                 <button 
                   onClick={() => {

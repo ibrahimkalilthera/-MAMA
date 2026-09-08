@@ -13,7 +13,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
-import { ADMIN_POSITIONS, isAdminPosition } from '../src/lib/adminPositions';
+import { ADMIN_POSITIONS, isAdminPosition, isTechniquePosition } from '../src/lib/adminPositions';
 import type { CurrentTheme, StaffForm } from '../src/app/mainViewsProps';
 import { StaffFormModal } from '../src/components/StaffFormModal';
 import { installDomGlobals } from './harness';
@@ -133,6 +133,18 @@ describe('StaffFormModal', () => {
     document.body.removeChild(container);
   });
 
+  it('mode centre technique : champ libre comme un employé, titre « Ajouter un Membre du Centre Technique »', () => {
+    const { root, container } = mount({ techniqueMode: true });
+    const title = container.querySelector('#modal-title-staff-form');
+    assert.equal(title?.textContent, t.addTechMember);
+    const positionInput = Array.from(container.querySelectorAll('input')).find(
+      (el) => (el.placeholder ?? '') === 'Teacher',
+    );
+    assert.ok(positionInput, 'position stays a free-text input in technique mode (same as employee)');
+    root.unmount();
+    document.body.removeChild(container);
+  });
+
   it("mode administration : liste déroulante des postes, titre « Ajouter un Membre de l'Administration »", () => {
     const { root, container, setStaffFormCalls } = mount({
       adminMode: true,
@@ -240,5 +252,22 @@ describe('isAdminPosition', () => {
     assert.equal(isAdminPosition(''), false);
     assert.equal(isAdminPosition(null), false);
     assert.equal(isAdminPosition(undefined), false);
+  });
+});
+
+describe('isTechniquePosition', () => {
+  it('reconnaît les postes du centre technique des deux langues, insensible à la casse', () => {
+    assert.equal(isTechniquePosition('Technicien'), true);
+    assert.equal(isTechniquePosition('technicienne'), true);
+    assert.equal(isTechniquePosition('Agent Technique'), true);
+    assert.equal(isTechniquePosition('Technical Center Member'), true);
+    assert.equal(isTechniquePosition('Technician'), true);
+  });
+  it('rejette les postes non listés (employé et admin) et les valeurs vides', () => {
+    assert.equal(isTechniquePosition('Enseignante'), false);
+    assert.equal(isTechniquePosition('Proviseur'), false);
+    assert.equal(isTechniquePosition(''), false);
+    assert.equal(isTechniquePosition(null), false);
+    assert.equal(isTechniquePosition(undefined), false);
   });
 });
