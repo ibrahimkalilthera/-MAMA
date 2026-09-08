@@ -1,0 +1,130 @@
+name: PDF E2E — pixel check après déploiement
+
+# Vérifie les reçus PDF de paie AU PIXEL PRÈS contre les modèles papier de
+# l'école, à chaque déploiement Vercel en production.
+#
+# Trigger : le workflow « Deploy (Vercel) » (deploy.yml) se TERMINE sur main —
+# le pixel-check tourne donc toujours contre le déploiement FRAÎCHEMENT publié,
+# jamais contre un build intermédiaire. Le job `gate` vérifie que le run deploy
+# s'est conclu en `success` (un deploy annulé ou en échec → skip neutre, pas de
+# rouge parasite) puis le job `e2e` exécute scripts/verify-pdf-download.mjs en
+# mode auto :
+#
+#   1. compte auth éphémère créé via le service role et promu admin ;
+#   2. Chrome headless → connexion réelle → Paie/Salaires ;
+#   3. clic réel sur « Télécharger Reçu PDF » d'un membre (employé / admin /
+#      technique — le membre technique ou admin de démo est créé via le vrai
+#      bouton + formulaire quand aucun n'existe) ;
+#   4. capture du PDF produit (CDP) et pixel-check à 34 px/mm contre le modèle :
+#      taille de page identique, montants de la ligne 1 posés sur la ligne
+#      imprimée, date centrée, cachet centré, overlay présent ;
+#   5. nettoyage (compte + membre de démo + fichiers temporaires) — toujours,
+#      même en échec. Exit 0 = toutes les vérifications passent.
+#
+# Le script teste le code DÉPLOYÉ (l'URL prod), pas le checkout ; le checkout
+# sert uniquement à fournir le script + les modèles commités (les fetchs
+# /templates/*.pdf sont servis par le script lui-même via CDP Fetch, ce qui
+# rend la vérification hermétique au réseau).
+#
+# Secrets requis (Settings > Secrets and variables > Actions) :
+#   SUPABASE_SERVICE_ROLE_KEY — clé service (admin) du projet Supabase
+#     (création + suppression du compte éphémère). Jamais exposée : elle est
+#     passée au script via .env généré dans le job, fichier effacé ensuite.
+#   VITE_SUPABASE_URL est PUBLIQUE (embarquée dans le bundle client) et est
+#     hardcodée ci-dessous comme les autres workflows — pas un secret.
+#
+# Le run échoue (rouge) si une seule vérification pixel échoue : une régression
+# de rendu des PDF (placement, cachet, taille) bloque la visibilité du problème
+# ici, sans bloquer le déploiement lui-même (workflow_run en lecture seule —
+# cf. la porte deploy.yml qui reste l'unique entrée en prod).
+
+on:
+  workflow_run:
+    workflows: ["Deploy (Vercel)"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pdf-e2e-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read # lire la conclusion du run deploy
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      proceed: ${{ steps.deploy-gate.outputs.proceed }}
+    steps:
+      - name: Gate — pixel-check seulement si le deploy a réussi
+        id: deploy-gate
+        uses: actions/github-script@v9
+        with:
+          script: |
+            core.setOutput('proceed', 'false');
+            if (context.eventName !== 'workflow_run') {
+              console.log('Manual dispatch — vérification manuelle contre la prod.');
+              core.setOutput('proceed', 'true');
+              return;
+            }
+            const run = context.payload.workflow_run;
+            console.log(`Deploy workflow concluded '${run.conclusion}' on ${run.head_sha}.`);
+            if (run.conclusion !== 'success') {
+              console.log(`Deploy non réussi (${run.conclusion}) — rien à pixel-checker, skip neutre.`);
+              return;
+            }
+            core.setOutput('proceed', 'true');
+
+  e2e:
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    # Headroom : npm ci + build preview non requis ici ; le pixel-check rasterise
+    # 3 PDF à 34 px/mm et pilote Chrome — 20 min suffisent largement.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Le script lit .env (VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY) ;
+      # l'URL Supabase est publique (clé anon embarquée dans le bundle), seule
+      # la clé service est un secret. Le fichier est généré dans le job et
+      # n'est jamais commité (gitignored).
+      - name: Generate .env for the E2E script (public URL + service-role secret)
+        run: |
+          cat > .env <<'EOF'
+          VITE_SUPABASE_URL=https://rpcjdohfxwukbqngbprw.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          EOF
+
+      # Le CLI vercel deploy --prebuilt --prod retourne une fois le build
+      # uploadé ; la propagation CDN peut prendre quelques secondes. On attend
+      # un HTTP 200 de la racine avant de lancer le pixel-check.
+      - name: Wait for the fresh deployment to be live
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://mama-thera-finance.vercel.app/ || true)
+            if [ "$code" = "200" ]; then echo "prod en ligne (HTTP 200, essai $i)"; exit 0; fi
+            echo "attente du déploiement… HTTP $code (essai $i/30)"
+            sleep 5
+          done
+          echo "prod pas en ligne après 150s — abandon" >&2
+          exit 1
+
+      - name: PDF pixel-check E2E (auto, contre la prod)
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/verify-pdf-download.mjs --mode auto
