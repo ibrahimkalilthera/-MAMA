@@ -141,7 +141,10 @@ jobs:
   # Gate contraste : construit l'app (clés publiques client Supabase — anon,
   # non secrètes), démarre vite preview et pilote un Chrome headless sur les
   # 6 thèmes × 8 overlays (dashboard, modales Ajout Élève / Saisie de Paiement,
-  # notifications, fiche élève, relance parent, productivité, chat IA).
+  # notifications, fiche élève, relance parent, productivité, chat IA) + les
+  # boutons d'action de la page Paie (Centre Technique / Employé / Administration,
+  # en dessous de la ligne de flottaison — scannés en les faisant défiler à
+  # l'écran pour qu'une régression de contraste y soit attrapée dès le push).
   # Toute paire texte/fond mesurée < 3:1 échoue le job — la même mesure qui a
   # chassé les textes blancs sur blancs, désormais automatisée et CI-gated.
   # Le compte de login est fourni par les secrets AUDIT_EMAIL/AUDIT_PASSWORD

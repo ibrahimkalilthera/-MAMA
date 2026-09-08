@@ -441,6 +441,57 @@ async function main() {
         }
       }
 
+      // Paie action buttons — the three CTA buttons (Centre Technique /
+      // Employé / Administration) sit in the « Répertoire du personnel »
+      // header, BELOW the fold of the 1440×1000 audit viewport. The full-page
+      // Vue Paie scan skips off-viewport text (the scanner drops any node
+      // whose box is outside the window), so a contrast regression on these
+      // buttons (e.g. text-amber-950 on the slate-remapped bg-amber-500, the
+      // 2.15:1 bug that reached CI) was invisible to the audit. Scroll the
+      // CTA row into view and scan the whole viewport again so the buttons
+      // are actually measured here — from the first commit onward.
+      await (async () => {
+        const label = 'Boutons action Paie';
+        try {
+          await clickText('button', 'Paie/Salaires', 'nav Paie');
+          try { await waitFor(visibleText('Répertoire du personnel'), 12000, 'vue Paie'); }
+          catch { recordCheck(theme, label, false, 'marqueur « Répertoire du personnel » introuvable'); return; }
+          const scrolled = await page.evaluate(() => {
+            const btn = [...document.querySelectorAll('button')].find((b) => /Centre Technique/i.test(b.textContent || ''));
+            if (!btn) return false;
+            btn.scrollIntoView({ block: 'center', behavior: 'instant' });
+            return true;
+          });
+          if (!scrolled) { recordCheck(theme, label, false, 'bouton Centre Technique introuvable'); return; }
+          // Ensure each of the three CTAs is actually in the viewport so the
+          // scanner measures them (not just the first one).
+          const inView = await page.evaluate(() => {
+            // Match the full CTA labels only (a loose includes('Employé')
+            // would also hit the filter dropdown option « Employés »).
+            const labels = [
+              ['Centre Technique', /Ajouter un Membre du Centre Technique/i],
+              ['Employé', /Ajouter un Employé/i],
+              ['Administration', /Ajouter un Membre de l'Administration/i],
+            ];
+            return labels.map(([n, re]) => {
+              const b = [...document.querySelectorAll('button')].find((x) => re.test(x.textContent || ''));
+              if (!b) return n + ':absent';
+              const r = b.getBoundingClientRect();
+              return n + ':' + (r.top >= 0 && r.bottom <= window.innerHeight ? 'visible' : 'hors-écran');
+            });
+          });
+          const missing = inView.filter((s) => s.endsWith('absent') || s.endsWith('hors-écran'));
+          if (missing.length) {
+            recordCheck(theme, label, false, 'CTA non mesurables: ' + missing.join(', '));
+            return;
+          }
+          await sleep(900);
+          await scanAndRecord(theme, label, null);
+        } catch (e) {
+          recordCheck(theme, label, false, e.message.slice(0, 100));
+        }
+      })();
+
       // Ajouter un Élève modal
       await openOverlay(theme, 'Modal Ajouter un Élève', async () => {
         await clickText('button', 'Ajouter un Élève', 'CTA Ajouter un Élève');
