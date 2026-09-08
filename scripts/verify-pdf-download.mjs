@@ -8,6 +8,9 @@
 //   • employee  ("Ajouter un Employé"   → fiche   fiche-paiement-salaire.pdf)
 //   • admin     ("Ajouter un Membre de l'administration" → bulletin
 //                bulletin-paie-mensuelle.pdf)
+//   • technique ("Ajouter un Membre du Centre Technique" → fiche technique
+//                fiche-technique.pdf — the member is CREATED through the real
+//                UI button when none exists, so the whole flow is exercised)
 //
 // Steps, in one run:
 //   1. Create an ephemeral auth account via the service role (always deleted
@@ -15,32 +18,37 @@
 //   2. Headless Chrome → log in through the app → open Paie/Salaires.
 //   3. Target the requested staff card (or the first member of the requested
 //      mode) and click its « Télécharger Reçu PDF » button — a REAL click on
-//      the button the users click.
+//      the button the users click. In technique mode with no existing member,
+//      the member is first created through the REAL « Ajouter un Membre du
+//      Centre Technique » button + form (name, salary, allowances) + submit.
 //   4. Capture the produced PDF (CDP download). Template fetches are fulfilled
 //      with the exact committed template bytes via CDP Fetch (this machine's
 //      AV filter intercepts /templates/*.pdf in Chrome; the app's code path
 //      fetch → overlay → download is untouched).
 //   5. Pixel-check the captured file against the template at 34 px/mm:
-//      page size identical, row-1 amounts on the printed 98.0 mm line
-//      (fiche), date centered (fiche), seal centered on the printed
-//      L'EMPLOYEUR line (bulletin), data overlay present.
-//   6. Cleanup: delete the ephemeral account (+ any auto-created demo admin
-//      member), remove temp files. Exit 0 = all checks passed.
+//      page size identical, row-1 amounts on the printed lower line
+//      (fiche 98.0 / technique 97.65), date centered (fiche/technique), seal
+//      centered on the printed L'EMPLOYEUR line (bulletin), data overlay
+//      present.
+//   6. Cleanup: delete the ephemeral account (+ any auto-created demo admin or
+//      technique member), remove temp files. Exit 0 = all checks passed.
 //
 // Usage:
 //   node scripts/verify-pdf-download.mjs
 //   node scripts/verify-pdf-download.mjs --mode bulletin
+//   node scripts/verify-pdf-download.mjs --mode technique
 //   node scripts/verify-pdf-download.mjs --target "Madi"
 //   node scripts/verify-pdf-download.mjs --url http://127.0.0.1:4000/ --keep
 //
 // Flags:
 //   --target <name>  staff member to download (default: first of the mode)
-//   --mode <auto|fiche|bulletin>  which PDF to expect (default auto, decided
-//                    from the member's position — admin positions → bulletin)
+//   --mode <auto|fiche|bulletin|technique>  which PDF to expect (default auto,
+//                    decided from the member's position — admin positions →
+//                    bulletin, TECH_POSITIONS → technique, else fiche)
 //   --url <url>      app URL (default https://mama-thera-finance.vercel.app/)
 //   --keep           keep the downloaded PDF + pixel report in ./.verify-pdf/
 //   --cleanup-only   only delete any leftovers (ephemeral account, demo admin,
-//                    temp files) and exit
+//                    technique member, temp files) and exit
 //
 // Requires (devDependencies): puppeteer-core, pdfjs-dist, @napi-rs/canvas.
 // Service-role credentials are read from .env (never stored here).
@@ -97,8 +105,10 @@ const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Applic
 
 const TPL_FICHE = 'public/templates/fiche-paiement-salaire.pdf';
 const TPL_BULLETIN = 'public/templates/bulletin-paie-mensuelle.pdf';
+const TPL_TECHNIQUE = 'public/templates/fiche-technique.pdf';
 const TPL_FICHE_BYTES = readFileSync(join(root, TPL_FICHE));
 const TPL_BULLETIN_BYTES = readFileSync(join(root, TPL_BULLETIN));
+const TPL_TECHNIQUE_BYTES = readFileSync(join(root, TPL_TECHNIQUE));
 
 // Admin positions — keep in sync with src/lib/adminPositions.ts (both langs).
 const ADMIN_POSITIONS = [
@@ -110,6 +120,17 @@ const ADMIN_POSITIONS = [
 const isAdminPosition = (position) =>
   ADMIN_POSITIONS.includes(String(position || '').trim().toLowerCase());
 
+// Technical-center positions — keep in sync with src/lib/adminPositions.ts
+// TECH_POSITIONS (both langs).
+const TECH_POSITIONS = [
+  'membre du centre technique', 'technicien', 'technicienne',
+  'agent technique', 'formateur technique', 'instructeur technique',
+  'technical center member', 'technician', 'technical agent',
+  'technical trainer', 'technical instructor',
+];
+const isTechniquePosition = (position) =>
+  TECH_POSITIONS.includes(String(position || '').trim().toLowerCase());
+
 // ── Bookkeeping ──────────────────────────────────────────────────────────────
 const TS = Date.now().toString().slice(-6);
 const EMAIL = `verify-pdf-${TS}@audit.local`;
@@ -118,6 +139,7 @@ const WORK = join(tmpdir(), `verify-pdf-${TS}`);
 const DL_DIR = join(WORK, 'dl');
 let ephemeralUid = null;
 let demoMemberId = null; // auto-created admin member (bulletin mode, none present)
+let techniqueMemberId = null; // member created via the real UI button (technique mode)
 const checks = [];
 const check = (name, ok, detail = '') => {
   checks.push({ name, ok });
@@ -141,6 +163,10 @@ async function cleanup() {
     if (demoMemberId) {
       const del = await api(`/rest/v1/staff?id=eq.${demoMemberId}`, { method: 'DELETE' });
       console.log(`  🧹 membre admin de démo supprimé (${del.status})`);
+    }
+    if (techniqueMemberId) {
+      const del = await api(`/rest/v1/staff?id=eq.${techniqueMemberId}`, { method: 'DELETE' });
+      console.log(`  🧹 membre du centre technique supprimé (${del.status})`);
     }
   } catch (e) {
     console.error('  ⚠️ cleanup partiel:', e.message);
@@ -220,14 +246,95 @@ async function resolveTarget() {
     demoMemberId = ins.body[0].id;
     return { member: ins.body[0], mode: 'bulletin' };
   }
+  if (MODE === 'technique') {
+    const m = staff.find((s) => isTechniquePosition(s.position));
+    if (m) return { member: m, mode: 'technique' };
+    // none exists — create one through the REAL UI button (the requested
+    // end-to-end flow); the member is inserted by the app itself and deleted
+    // in cleanup.
+    console.log('  ℹ️ aucun membre du centre technique en base — création via le bouton réel');
+    return {
+      member: null,
+      mode: 'technique',
+      createViaUI: true,
+      techniqueName: `E2E Technique ${TS}`,
+      techniqueEmail: `e2e-technique-${TS}@audit.local`,
+    };
+  }
   // auto: default to the first member, route by position
   const m = staff[0];
   if (!m) throw new Error('aucun membre dans la base');
-  return { member: m, mode: isAdminPosition(m.position) ? 'bulletin' : 'fiche' };
+  return { member: m, mode: isAdminPosition(m.position) ? 'bulletin' : isTechniquePosition(m.position) ? 'technique' : 'fiche' };
 }
 
 // ── 2–4. Browser E2E ─────────────────────────────────────────────────────────
-async function runE2E(targetName) {
+// Creates a technical-center member through the REAL app UI: clicks
+// « Ajouter un Membre du Centre Technique », fills the employee form
+// (name, phone, email, salary, allowances), submits, and returns the
+// created member row (id resolved via the API for cleanup).
+async function createTechniqueMember(page, name, email) {
+  const btnClicked = await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find((b) =>
+      /Centre Technique/i.test(b.textContent || '') && /Ajouter/i.test(b.textContent || ''));
+    if (!btn) return false;
+    btn.scrollIntoView({ block: 'center' });
+    btn.click();
+    return true;
+  });
+  if (!btnClicked) throw new Error('bouton « Ajouter un Membre du Centre Technique » introuvable');
+  console.log('✅ clic sur « Ajouter un Membre du Centre Technique »');
+
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('form')].some((f) => f.querySelector('input[placeholder="Jane Doe"]')),
+    { timeout: 20000 });
+  await wait(600);
+
+  const salary = 120000, travel = 25000, comm = 10000;
+  const filled = await page.evaluate(({ name, email, salary, travel, comm }) => {
+    const setVal = (el, v) => {
+      const proto = el.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
+      el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+    };
+    const q = (sel) => document.querySelector(sel);
+    const nameEl = q('input[placeholder="Jane Doe"]');
+    const phoneEl = q('input[placeholder="+223 70 00 00 00"]');
+    const emailEl = q('input[type="email"]');
+    const salaryEl = q('input[placeholder="150 000"]');
+    if (!nameEl || !phoneEl || !emailEl || !salaryEl) return 'champs requis introuvables';
+    setVal(nameEl, name);
+    setVal(phoneEl, '+223 70 00 00 00');
+    setVal(emailEl, email);
+    setVal(salaryEl, String(salary));
+    const zeros = [...document.querySelectorAll('form input[type="number"][placeholder="0"]')];
+    if (zeros.length >= 4) {
+      setVal(zeros[1], String(travel)); // travel allowance
+      setVal(zeros[2], String(comm));   // communication allowance
+    }
+    const submit = [...document.querySelectorAll('form button[type="submit"]')].find((b) =>
+      /Ajouter|Créer|Enregistrer|Soumettre|Submit|Save/i.test(b.textContent || ''));
+    if (!submit) return 'bouton de soumission introuvable';
+    submit.click();
+    return 'ok';
+  }, { name, email, salary, travel, comm });
+  if (filled !== 'ok') throw new Error(`remplissage du formulaire: ${filled}`);
+  console.log(`✅ formulaire technique rempli et soumis (${name}, ${salary} + ${travel + comm} indemnités)`);
+
+  // Resolve the created member id via the API (for cleanup) — wait for the
+  // app's insert to land.
+  for (let i = 0; i < 20; i++) {
+    await wait(500);
+    const { body } = await api(`/rest/v1/staff?select=id&email=eq.${email}`);
+    if (Array.isArray(body) && body[0]?.id) {
+      techniqueMemberId = body[0].id;
+      return { id: body[0].id, name, email, position: 'Membre du Centre Technique', salary };
+    }
+  }
+  throw new Error('membre technique créé mais id introuvable via l\u2019API');
+}
+
+// target: { member (Staff row) | null, mode, createViaUI? }
+async function runE2E(target) {
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: 'new',
@@ -245,10 +352,13 @@ async function runE2E(targetName) {
       patterns: [
         { urlPattern: '*templates/fiche-paiement-salaire.pdf*', requestStage: 'Request' },
         { urlPattern: '*templates/bulletin-paie-mensuelle.pdf*', requestStage: 'Request' },
+        { urlPattern: '*templates/fiche-technique.pdf*', requestStage: 'Request' },
       ],
     });
     cdp.on('Fetch.requestPaused', async (e) => {
-      const body = e.request.url.includes('bulletin') ? TPL_BULLETIN_BYTES : TPL_FICHE_BYTES;
+      const url = e.request.url;
+      const body = url.includes('bulletin') ? TPL_BULLETIN_BYTES
+        : url.includes('technique') ? TPL_TECHNIQUE_BYTES : TPL_FICHE_BYTES;
       try {
         await cdp.send('Fetch.fulfillRequest', {
           requestId: e.requestId, responseCode: 200,
@@ -292,6 +402,14 @@ async function runE2E(targetName) {
       await wait(5000);
     }
     await wait(3500);
+
+    // technique mode with no existing member → create one through the REAL
+    // « Ajouter un Membre du Centre Technique » button + form + submit.
+    if (target.createViaUI) {
+      const created = await createTechniqueMember(page, target.techniqueName, target.techniqueEmail);
+      target.member = created;
+    }
+    const targetName = target.member.name;
 
     // wait for the target card to render
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -381,13 +499,72 @@ function diffBBox(live, tpl, x0mm, x1mm, y0mm, y1mm) {
 
 async function pixelCheck(pdfPath, mode) {
   console.log(`\n— Pixel check (${mode}, 34 px/mm) —`);
-  const tpl = await raster(join(root, mode === 'bulletin' ? TPL_BULLETIN : TPL_FICHE));
+  const tplFile = mode === 'bulletin' ? TPL_BULLETIN
+    : mode === 'technique' ? TPL_TECHNIQUE : TPL_FICHE;
+  const tpl = await raster(join(root, tplFile));
   const live = await raster(pdfPath.bytes || pdfPath);
   check('taille de page identique au modèle',
     Math.abs(mm(tpl.w) - mm(live.w)) < 0.5 && Math.abs(mm(tpl.h) - mm(live.h)) < 0.5,
     `${mm(live.w).toFixed(2)}×${mm(live.h).toFixed(2)} vs ${mm(tpl.w).toFixed(2)}×${mm(tpl.h).toFixed(2)} mm`);
 
-  if (mode === 'fiche') {
+  if (mode === 'technique') {
+    // Technical-center fiche (5 columns): PÉRIODE box (83.75–150.25 × 62–69.6),
+    // row 1 = 89.0→98.75 (lower line 98.75, amount baseline 97.65), date
+    // underline x 23→119 @ y 181.3 (center x 71.0).
+    const ROW1_BASELINE = 97.65;
+    const period = diffBBox(live, tpl, 85, 149, 62.5, 69.2);
+    check('période posée dans sa boîte', !!period && period.count > 100, period ? `${period.count} px` : 'absentes');
+    const name = diffBBox(live, tpl, 7, 46, 89.5, 98.4);
+    check('nom en ligne 1 (colonne 1)', !!name && name.count > 100, name ? `${name.count} px` : 'absents');
+    const bands = [
+      { name: 'salaire de base', x0: 50, x1: 84 },
+      { name: 'indemnités', x0: 90, x1: 123 },
+      { name: 'net payé', x0: 130, x1: 160 },
+    ];
+    const bottoms = [];
+    for (const b of bands) {
+      const d = diffBBox(live, tpl, b.x0, b.x1, 90, 98.75);
+      if (!d) continue;
+      bottoms.push(d.maxY);
+      check(`${b.name} sur la ligne 97.65 mm`, Math.abs(ROW1_BASELINE - d.maxY) <= 0.5, `bas ${d.maxY.toFixed(2)} mm`);
+    }
+    if (bottoms.length === 3) {
+      const spread = Math.max(...bottoms) - Math.min(...bottoms);
+      check('3 montants sur UNE même ligne', spread <= 0.5, `écart ${spread.toFixed(2)} mm`);
+    } else {
+      check('3 montants détectés', false, `${bottoms.length}/3`);
+    }
+    const date = diffBBox(live, tpl, 25, 118, 176, 181.5);
+    if (date) {
+      const cx = (date.minX + date.maxX) / 2;
+      check('date centrée sur son soulignement', Math.abs(cx - 71.0) <= 0.6, `centre ${cx.toFixed(2)} mm`);
+    } else {
+      check('date présente', false, 'non détectée');
+    }
+    // CACHET DE LA DIRECTION — the school cachet is stamped ON the printed
+    // line (x 23→119 @ y 166.4, center (71.0, 166.4)): the diff ink center
+    // must straddle the line symmetrically (bulletin-style centered-on-line).
+    const cachet = diffBBox(live, tpl, 40, 103, 156, 177);
+    if (cachet) {
+      const ccx = (cachet.minX + cachet.maxX) / 2;
+      const ccy = (cachet.minY + cachet.maxY) / 2;
+      check('cachet centré sur la ligne CACHET',
+        Math.abs(ccx - 71.0) <= 1.5 && Math.abs(ccy - 166.4) <= 1.5,
+        `centre (${ccx.toFixed(2)}, ${ccy.toFixed(2)})`);
+    } else {
+      check('cachet présent', false, 'non détecté');
+    }
+    const zones = [
+      ['période', 85, 149, 62.5, 69.2],
+      ['nom', 7, 46, 89.5, 98.4],
+      ['date', 25, 118, 176, 181.5],
+      ['cachet', 40, 103, 156, 177],
+    ];
+    for (const [name, x0, x1, y0, y1] of zones) {
+      const d = diffBBox(live, tpl, x0, x1, y0, y1);
+      check(`données « ${name} » posées`, !!d && d.count > 100, d ? `${d.count} px` : 'absentes');
+    }
+  } else if (mode === 'fiche') {
     // Row-1 amounts (salaire c2, indemnités c3, net c4) all on the printed
     // 98.0 mm lower line — the symmetric-alignment guarantee.
     const bands = [
@@ -464,9 +641,10 @@ if (CLEANUP_ONLY) {
 
 try {
   await createAccount();
-  const { member, mode } = await resolveTarget();
-  console.log(`🎯 cible: ${member.name} (${member.position}) → ${mode}`);
-  const pdf = await runE2E(member.name);
+  const target = await resolveTarget();
+  const { member, mode } = target;
+  console.log(`🎯 cible: ${member ? `${member.name} (${member.position})` : '(à créer via le bouton)'} → ${mode}`);
+  const pdf = await runE2E(target);
   await pixelCheck(pdf, mode);
   if (KEEP) {
     const report = checks.map((c) => `${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? ' — ' + c.detail : ''}`).join('\n');

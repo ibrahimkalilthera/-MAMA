@@ -24,6 +24,7 @@
 import type { TranslationDict } from '../i18n/translations';
 import { translations } from '../i18n/translations';
 import { splitName } from './pdfPayrollBulletin';
+import { drawSchoolStamp } from './pdfStamp';
 import type { Staff } from './useSupabaseData';
 
 export interface TechniqueFicheOptions {
@@ -65,6 +66,20 @@ const FIRST_ROW = { top: 89.0, bottom: 98.75, center: 93.9 };
 
 /** DATE DE PAIEMENT underline: x 23→119 mm at y 181.3 mm. */
 const DATE_UNDERLINE = { x0: 23.0, x1: 119.0, y: 181.3 };
+
+/** CACHET DE LA DIRECTION underline: x 23→119 mm at y 166.4 mm (center x 71.0).
+ *  The template's CACHET zone is BLANK (unlike the employee fiche whose form
+ *  carries a pre-printed seal), so the school cachet is stamped ON the printed
+ *  line — the same "centered on the printed line" discipline as the admin
+ *  bulletin's L'EMPLOYEUR seal. Box center: tampon.png ink sits 0.1 mm left of
+ *  and 2.53 mm above the box center (measured on the 20 mm box), and this
+ *  template's MediaBox x = 0 (no horizontal shift, unlike the bulletin), so
+ *  targeting the line center (71.0, 166.4) gives cx = 71.0 + 0.1 = 71.1 and
+ *  cy = 166.4 + 2.53 = 168.93. */
+const CACHET_LINE = { x0: 23.0, x1: 119.0, y: 166.4 };
+const STAMP_CX = 71.1;
+const STAMP_CY = 168.93;
+const STAMP_DIAMETER = 20;
 
 const ROW_TOP_LINE = FIRST_ROW.top + 3.1; // baseline of the upper line in row 1
 const ROW_BOTTOM_LINE = FIRST_ROW.bottom - 1.1; // baseline of the lower line in row 1
@@ -236,6 +251,15 @@ export async function generateTechniqueFichePdf({
   const dateFont = { font: helvBold, size: 10 };
   const dateW = helvBold.widthOfTextAtSize(todayLabel, 10) / PT_PER_MM;
   text(todayLabel, (DATE_UNDERLINE.x0 + DATE_UNDERLINE.x1) / 2 - dateW / 2, DATE_UNDERLINE.y - 0.5, { font: dateFont, color: INK });
+
+  // 4. CACHET DE LA DIRECTION — the school cachet stamped ON the printed line.
+  const stampDoc = {
+    embedPng: (png: string | Uint8Array | ArrayBuffer) => pdf.embedPng(png),
+    page,
+    mmToPdfX,
+    mmToPdfY,
+  };
+  await drawSchoolStamp(stampDoc, STAMP_CX, STAMP_CY, STAMP_DIAMETER);
 
   const bytes = await pdf.save();
   const safeName = staffMember.name.replace(/[^a-zA-Z0-9_-]/g, '_');
