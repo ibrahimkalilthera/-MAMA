@@ -199,7 +199,7 @@ export function PayrollView() {
                     setStaffForm({ name: '', position: TECH_POSITIONS[lang][0]!, salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
                     setShowStaffModal(true);
                   }}
-                  className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
+                  className="bg-amber-500 hover:bg-amber-600 text-amber-950 px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
                 >
                   <Wrench size={18} />
                   {t.addTechMember}
