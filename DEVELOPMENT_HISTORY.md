@@ -53,14 +53,18 @@ assertions), fichier normalisé CRLF. Commit `cb0c479` poussé sur `origin/main`
     typescript-eslint est inopérant sans l'API TS.
 - **Cause upstream** : issue typescript-eslint #12518 fermée — « there is no TS 7
   API at this time. There is nothing we can do about this until TS 7 provides an
-  API. » La PR #4 reste donc ouverte (pas fermée) en attendant.
+  API. » La PR #4 a été **fermée sans fusion** (`merged: false`).
+- **Nettoyage [2026-09-08]** : la branche distante `dependabot/npm_and_yarn/
+  typescript-7.0.2` a été purgée avec toutes les branches Dependabot orphelines
+  (le remote ne garde que `main`). La ref GitHub `refs/pull/4/head` (SHA
+  `52e09005aca1c9dad88a5db218acd8dedbd849af`) reste disponible pour le re-test.
 - **Procédure de re-test quand typescript-eslint supportera TS 7** :
-  1. `git fetch origin dependabot/npm_and_yarn/typescript-7.0.2`
-  2. `git checkout -B tmp-ts7 origin/dependabot/npm_and_yarn/typescript-7.0.2`
-  3. `git merge --no-edit main` puis `npm install` (sans ERESOLVE attendu)
-  4. `node node_modules/typescript/bin/tsc --noEmit` → 0 erreur
-  5. `npm run lint` + `npm test` (573/573) + `npx vite build`
-  6. push + squash-merge via l'API (message : bump typescript → 7.0.2)
+  1. `git fetch origin pull/4/head:tmp-ts7` (récupère la branche de la PR #4)
+  2. `git checkout tmp-ts7 && git merge --no-edit main` puis `npm install`
+     (sans ERESOLVE attendu)
+  3. `node node_modules/typescript/bin/tsc --noEmit` → 0 erreur
+  4. `npm run lint` + `npm test` + `npx vite build`
+  5. push + squash-merge via l'API (message : bump typescript → 7.0.2)
 - **À noter** : vite 8 (#12), @tailwindcss/vite 4.3.3 (#10) et tailwindcss 4.3.3
   (#3) ont été fusionnés le même jour (rollback du manualChunks objet → fonction
   dans vite.config.ts pour rolldown).
