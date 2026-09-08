@@ -57,6 +57,16 @@ const EXACT_WHITELIST = new Set([
   'RIB: ML01 00001 ...',
   'Spouse: +223 60 00 00 00',
   'MT-2026-001 (Optional)',
+  // ErrorBoundary zone labels (components/ErrorBoundary.tsx, main.tsx): the
+  // fallback card is deliberate French-only diagnostic copy (like the
+  // ConfigErrorScreen in main.tsx) shown only when a zone crashed — zone
+  // identifiers, not translated UI copy.
+  'la vue',
+  'la vue des archives',
+  'les fenêtres de saisie',
+  'l\'import Excel',
+  'le bordereau mensuel',
+  'l\'application',
 ]);
 
 // Value shapes that never need translation.

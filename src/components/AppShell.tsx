@@ -37,6 +37,7 @@ import { LockedYearBanner } from './LockedYearBanner';
 import { Login } from './Login';
 import { AddUserModal } from './AddUserModal';
 import { ExcelImportHost, MonthlyDraftHost } from './ModalHosts';
+import { ErrorBoundary } from './ErrorBoundary';
 
 const PromotionWizardModal = lazy(() => import('./PromotionWizardModal').then(m => ({ default: m.PromotionWizardModal })));
 const ArchivesView = lazy(() => import('./ArchivesView').then(m => ({ default: m.ArchivesView })));
@@ -268,12 +269,15 @@ onOpenPayroll={() => setActiveTab('payroll')}
         <LockedYearBanner t={t} show={lockedYears.includes(selectedYear)} />
 
         {/* --- Views (dashboard, students, parents, payroll, expenses, calendar, notes, audit, settings) --- */}
-        <Suspense fallback={<div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}><div className="h-6 w-64 bg-slate-300 dark:bg-slate-700 rounded-lg mb-8" /><div className="h-[400px] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" /></div>}>
-          <MainViews {...viewsProps} />
-        </Suspense>
+        <ErrorBoundary currentTheme={currentTheme} label="la vue">
+          <Suspense fallback={<div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}><div className="h-6 w-64 bg-slate-300 dark:bg-slate-700 rounded-lg mb-8" /><div className="h-[400px] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" /></div>}>
+            <MainViews {...viewsProps} />
+          </Suspense>
+        </ErrorBoundary>
 
         {/* --- Yearly Comparison & Archives View --- */}
         {activeTab === 'archives' && (
+          <ErrorBoundary currentTheme={currentTheme} label="la vue des archives">
           <Suspense fallback={<div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}><div className="h-6 w-72 bg-slate-300 dark:bg-slate-700 rounded-lg mb-8" /><div className="h-[320px] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" /></div>}>
             <ArchivesView
               lang={lang}
@@ -296,12 +300,15 @@ onOpenPayroll={() => setActiveTab('payroll')}
               setShowAuditModal={setShowAuditModal}
             />
           </Suspense>
+          </ErrorBoundary>
         )}
       </main>
 
-      <Suspense fallback={null}>
-        <AppModals {...viewsProps} />
-      </Suspense>
+      <ErrorBoundary currentTheme={currentTheme} label="les fenêtres de saisie">
+        <Suspense fallback={null}>
+          <AppModals {...viewsProps} />
+        </Suspense>
+      </ErrorBoundary>
 
       {/* Floating AI chat widget — panel + FAB (src/components/FloatingChat.tsx). */}
       <FloatingChat
@@ -348,38 +355,42 @@ onOpenPayroll={() => setActiveTab('payroll')}
       </AnimatePresence>
 
       {/* Smart Excel Import Modal */}
-      <ExcelImportHost
-        isOpen={showExcelImport}
-        onClose={() => setShowExcelImport(false)}
-        lang={lang}
-        t={t}
-        academicYears={academicYears}
-        selectedYear={selectedYear}
-        batchImportData={batchImportData}
-        currentTheme={currentTheme}
-      />
+      <ErrorBoundary currentTheme={currentTheme} label="l'import Excel">
+        <ExcelImportHost
+          isOpen={showExcelImport}
+          onClose={() => setShowExcelImport(false)}
+          lang={lang}
+          t={t}
+          academicYears={academicYears}
+          selectedYear={selectedYear}
+          batchImportData={batchImportData}
+          currentTheme={currentTheme}
+        />
+      </ErrorBoundary>
 
       {/* Monthly Payroll Draft Modal */}
-      <MonthlyDraftHost
-        isOpen={showMonthlyDraftModal}
-        onClose={() => setShowMonthlyDraftModal(false)}
-        monthIndex={selectedDraftMonth}
-        year={selectedDraftYear}
-        onMonthChange={setSelectedDraftMonth}
-        onYearChange={setSelectedDraftYear}
-        lang={lang}
-        t={t}
-        staff={staff}
-        salaryPayments={salaryPayments}
-        selectedYear={selectedYear}
-        onExportExcel={handleExportMonthlyPayrollExcel}
-        onRecordPayment={(staffId, balance) => {
-          setSalaryForm({ staffId, amount: balance.toString(), date: new Date().toISOString().split('T')[0] });
-          setShowSalaryModal(true);
-        }}
-        formatCurrency={formatCurrency}
-        currentTheme={currentTheme}
-      />
+      <ErrorBoundary currentTheme={currentTheme} label="le bordereau mensuel">
+        <MonthlyDraftHost
+          isOpen={showMonthlyDraftModal}
+          onClose={() => setShowMonthlyDraftModal(false)}
+          monthIndex={selectedDraftMonth}
+          year={selectedDraftYear}
+          onMonthChange={setSelectedDraftMonth}
+          onYearChange={setSelectedDraftYear}
+          lang={lang}
+          t={t}
+          staff={staff}
+          salaryPayments={salaryPayments}
+          selectedYear={selectedYear}
+          onExportExcel={handleExportMonthlyPayrollExcel}
+          onRecordPayment={(staffId, balance) => {
+            setSalaryForm({ staffId, amount: balance.toString(), date: new Date().toISOString().split('T')[0] });
+            setShowSalaryModal(true);
+          }}
+          formatCurrency={formatCurrency}
+          currentTheme={currentTheme}
+        />
+      </ErrorBoundary>
 
       {/* Global Toast Notifications & Offline Resilience Banner */}
       <OfflineBanner

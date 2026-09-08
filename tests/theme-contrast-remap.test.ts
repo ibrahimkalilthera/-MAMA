@@ -247,6 +247,10 @@ describe('derived dark manifest: every co-occurring text/bg pair >= 4.5:1 in sla
     'midnight emerald-400|emerald-500',
     'midnight emerald-400/80|emerald-500',
     'midnight rose-600|rose-50',
+    // ErrorBoundary alert icon (components/ErrorBoundary.tsx:68): decorative
+    // 20px glyph on a translucent rose wash, 4.42:1 in midnight — same
+    // quasi-AA family as the rose-600|rose-50 exemption above.
+    'midnight rose-600|rose-500/10',
   ]);
 
   for (const [key, info] of [...unique.entries()].sort()) {
