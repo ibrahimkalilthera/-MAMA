@@ -302,17 +302,17 @@ export function PayrollView() {
                       <div className={`pt-4 border-t ${paidThisMonth > 0 || payDatePassed ? 'border-white/10' : currentTheme.border} space-y-3`}>
                         <div className="flex items-center gap-3 text-xs">
                           <Phone size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted} />
-                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600'}>
+                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600 dark:text-slate-300'}>
                             <HighlightText text={s.phone} highlight={staffSearchTerm} />
                           </span>
                         </div>
                         <div className="flex items-center gap-3 text-xs">
                           <Mail size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted} />
-                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600'}>{s.email}</span>
+                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600 dark:text-slate-300'}>{s.email}</span>
                         </div>
                         <div className="flex items-center gap-3 text-xs">
                           <AlertCircle size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted} />
-                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600'}>
+                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600 dark:text-slate-300'}>
                             <span className="font-bold mr-1">{t.emergencyContact}:</span> {s.emergencyContact}
                           </span>
                         </div>
@@ -330,7 +330,7 @@ export function PayrollView() {
                             <Globe size={14} />
                           </button>
                         </div>
-                        <p className={`text-xs font-mono font-bold ${paidThisMonth > 0 || payDatePassed ? 'text-white' : 'text-slate-700'}`}>
+                        <p className={`text-xs font-mono font-bold ${paidThisMonth > 0 || payDatePassed ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`}>
                           {isBankVisible ? s.bankDetails : '•••• •••• •••• •••• ••••'}
                         </p>
                       </div>
