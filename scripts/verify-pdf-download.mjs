@@ -275,14 +275,14 @@ async function resolveTarget() {
 async function createTechniqueMember(page, name, email) {
   const btnClicked = await page.evaluate(() => {
     const btn = [...document.querySelectorAll('button')].find((b) =>
-      /Centre Technique/i.test(b.textContent || '') && /Ajouter/i.test(b.textContent || ''));
+      /Centre T et P/i.test(b.textContent || '') && /Ajouter/i.test(b.textContent || ''));
     if (!btn) return false;
     btn.scrollIntoView({ block: 'center' });
     btn.click();
     return true;
   });
-  if (!btnClicked) throw new Error('bouton « Ajouter un Membre du Centre Technique » introuvable');
-  console.log('✅ clic sur « Ajouter un Membre du Centre Technique »');
+  if (!btnClicked) throw new Error('bouton « Ajouter un Membre du Centre T et P » introuvable');
+  console.log('✅ clic sur « Ajouter un Membre du Centre T et P »');
 
   await page.waitForFunction(() =>
     [...document.querySelectorAll('form')].some((f) => f.querySelector('input[placeholder="Jane Doe"]')),

@@ -457,7 +457,7 @@ async function main() {
           try { await waitFor(visibleText('Répertoire du personnel'), 12000, 'vue Paie'); }
           catch { recordCheck(theme, label, false, 'marqueur « Répertoire du personnel » introuvable'); return; }
           const scrolled = await page.evaluate(() => {
-            const btn = [...document.querySelectorAll('button')].find((b) => /Centre Technique/i.test(b.textContent || ''));
+            const btn = [...document.querySelectorAll('button')].find((b) => /Centre T et P/i.test(b.textContent || ''));
             if (!btn) return false;
             btn.scrollIntoView({ block: 'center', behavior: 'instant' });
             return true;
@@ -469,7 +469,7 @@ async function main() {
             // Match the full CTA labels only (a loose includes('Employé')
             // would also hit the filter dropdown option « Employés »).
             const labels = [
-              ['Centre Technique', /Ajouter un Membre du Centre Technique/i],
+              ['Centre Technique', /Ajouter un Membre du Centre T et P/i],
               ['Employé', /Ajouter un Employé/i],
               ['Administration', /Ajouter un Membre de l'Administration/i],
             ];

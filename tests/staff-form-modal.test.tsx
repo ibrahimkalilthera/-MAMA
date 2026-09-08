@@ -133,7 +133,7 @@ describe('StaffFormModal', () => {
     document.body.removeChild(container);
   });
 
-  it('mode centre technique : champ libre comme un employé, titre « Ajouter un Membre du Centre Technique »', () => {
+  it('mode centre technique : champ libre comme un employé, titre « Ajouter un Membre du Centre T et P »', () => {
     const { root, container } = mount({ techniqueMode: true });
     const title = container.querySelector('#modal-title-staff-form');
     assert.equal(title?.textContent, t.addTechMember);

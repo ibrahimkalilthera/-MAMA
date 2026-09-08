@@ -7,7 +7,7 @@ import { sameYearMonth } from '../lib/dateWindows';
 import { isPayrollWindowOverdue } from '../lib/payrollWindow';
 import { payrollGridCellStatus } from '../lib/payrollGrid';
 import { ConfirmDialog } from './ConfirmDialog';
-import { isAdminPosition, TECH_POSITIONS } from '../lib/adminPositions';
+import { isAdminPosition } from '../lib/adminPositions';
 
 /** School-year month sequence: September → August (12 cells). */
 const SCHOOL_YEAR_MONTH_KEYS = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'];
@@ -197,7 +197,7 @@ export function PayrollView() {
                   onClick={() => {
                     setEditingStaff(null);
                     setStaffModalMode('technique');
-                    setStaffForm({ name: '', position: TECH_POSITIONS[lang][0]!, salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
+                    setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
                     setShowStaffModal(true);
                   }}
                   className="bg-amber-500 hover:bg-amber-600 text-amber-950 px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
