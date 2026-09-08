@@ -86,7 +86,6 @@ export function StaffFormModal(props: StaffFormModalProps) {
                       </div>
                     ) : (
                       <input 
-                        required
                         type="text" 
                         value={staffForm.position}
                         onChange={(e) => setStaffForm({ ...staffForm, position: e.target.value })}
