@@ -1,3 +1,29 @@
+## [2026-09-08] Dependabot — TypeScript 7 bloqué upstream (PR #4, à re-tester)
+
+- **Contexte** : la PR Dependabot `#4` (typescript 5.8.3 → 7.0.2) ne peut PAS être
+  fusionnée aujourd'hui. TS 7 est le portage natif (binaires `@typescript/*`,
+  sans API Node publique), et `typescript-eslint` (même la dernière 8.70.0)
+  exige toujours `typescript >=4.8.4 <6.1.0` → `npm install` échoue en ERESOLVE.
+- **Preuve testée localement** (`--legacy-peer-deps` pour contourner l'install) :
+  - `tsc --noEmit` → 18 erreurs : `tests/tailwind-pairs.ts` importe l'API TS
+    (`ts.createSourceFile`, `ts.SyntaxKind`, `ts.Node`…) qui n'existe plus dans
+    le portage natif.
+  - `eslint` → plante (« Oops! Something went wrong! ») : le parser
+    typescript-eslint est inopérant sans l'API TS.
+- **Cause upstream** : issue typescript-eslint #12518 fermée — « there is no TS 7
+  API at this time. There is nothing we can do about this until TS 7 provides an
+  API. » La PR #4 reste donc ouverte (pas fermée) en attendant.
+- **Procédure de re-test quand typescript-eslint supportera TS 7** :
+  1. `git fetch origin dependabot/npm_and_yarn/typescript-7.0.2`
+  2. `git checkout -B tmp-ts7 origin/dependabot/npm_and_yarn/typescript-7.0.2`
+  3. `git merge --no-edit main` puis `npm install` (sans ERESOLVE attendu)
+  4. `node node_modules/typescript/bin/tsc --noEmit` → 0 erreur
+  5. `npm run lint` + `npm test` (573/573) + `npx vite build`
+  6. push + squash-merge via l'API (message : bump typescript → 7.0.2)
+- **À noter** : vite 8 (#12), @tailwindcss/vite 4.3.3 (#10) et tailwindcss 4.3.3
+  (#3) ont été fusionnés le même jour (rollback du manualChunks objet → fonction
+  dans vite.config.ts pour rolldown).
+
 ## [2026-09-06] Fiche employé : LE modèle papier officiel est utilisé tel quel (overlay de données)
 
 Suite à « Quest ce que tu ne comprends pas… je veux le meme pdf pas un autre »,
