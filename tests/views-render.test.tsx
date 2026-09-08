@@ -215,7 +215,6 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     Utensils: iconStub,
     Wallet: iconStub,
     Wifi: iconStub,
-    Wrench: iconStub,
     X: iconStub,
     Zap: iconStub,
 

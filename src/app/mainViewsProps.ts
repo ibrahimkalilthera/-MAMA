@@ -234,7 +234,6 @@ export interface MainViewsProps {
   Utensils: LucideIcon;
   Wallet: LucideIcon;
   Wifi: LucideIcon;
-  Wrench: LucideIcon;
   X: LucideIcon;
   Zap: LucideIcon;
   activeTab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit';

@@ -16,7 +16,7 @@ const SCHOOL_YEAR_MONTH_INDEXES = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7];
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, ChevronDown, Download, FileText, Globe, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, Wrench, adminStaffCount, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails } = useMainViews();
+  const { AlertCircle, ChevronDown, Download, FileText, Globe, GraduationCap, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails } = useMainViews();
   const currentYear = new Date().getFullYear();
   return (
     <>
@@ -201,7 +201,7 @@ export function PayrollView() {
                   }}
                   className="bg-amber-500 hover:bg-amber-600 text-amber-950 px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
                 >
-                  <Wrench size={18} />
+                  <GraduationCap size={18} />
                   {t.addTechMember}
                 </button>
                 <button 
