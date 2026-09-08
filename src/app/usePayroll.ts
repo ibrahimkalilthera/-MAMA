@@ -68,6 +68,7 @@ export function usePayroll(deps: UsePayrollDeps) {
       if (!matchesSearch) return false;
       if (staffPositionFilter === 'admin') return isAdminPosition(s.position);
       if (staffPositionFilter === 'employee') return !isAdminPosition(s.position);
+      if (staffPositionFilter === 'technique') return isTechniquePosition(s.position);
       return true;
     });
   }, [staff, staffSearchTerm, staffPositionFilter]);

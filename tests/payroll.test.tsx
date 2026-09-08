@@ -573,6 +573,19 @@ describe('usePayroll.filteredStaff', () => {
     }
   });
 
+  it("filtre 'technique' : uniquement les postes TECH_POSITIONS, les deux langues comprises", async () => {
+    const tech = staff({ id: 't1', name: 'Issa Touré', position: 'Membre du Centre Technique', salary: 100000 });
+    const enTech = staff({ id: 't2', name: 'Kadiatou Diallo', position: 'Technical Center Member', salary: 95000 });
+    const { args } = baseDeps({ staff: [adminProviseur, employee, tech, enTech] });
+    const { ref, root } = await mount(args);
+    try {
+      await act(async () => { ref.current!.setStaffPositionFilter('technique'); });
+      assert.deepEqual(ref.current!.filteredStaff.map(s => s.id), ['t1', 't2'], 'technique fr+en only');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
   it('expose le nombre de membres de l\'administration (postes ADMIN_POSITIONS)', async () => {
     const { args } = baseDeps({ staff: [adminProviseur, adminSecretaire, employee] });
     const { ref, root } = await mount(args);

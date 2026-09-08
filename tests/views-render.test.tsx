@@ -433,11 +433,12 @@ describe('views render inside MainViewsContext', () => {
     assert.ok(htmlZero.includes(pluralZero), `chip zéro attendu : "${pluralZero}"`);
   });
 
-  it('PayrollView affiche le filtre de poste avec les trois options', () => {
+  it('PayrollView affiche le filtre de poste avec les quatre options', () => {
     const html = renderWithContext(createElement(PayrollView));
     assert.ok(html.includes(translations.en.staffFilterAll), 'option tout le personnel');
     assert.ok(html.includes(translations.en.staffFilterAdmin), 'option administration');
     assert.ok(html.includes(translations.en.staffFilterEmployees), 'option employés');
+    assert.ok(html.includes(translations.en.staffFilterTechnique), 'option centre technique');
     assert.ok(html.includes(translations.en.staffPositionFilterLabel), 'aria-label du filtre');
   });
 

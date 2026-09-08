@@ -83,7 +83,7 @@ export interface StaffForm {
 export type StaffModalMode = 'employee' | 'technique' | 'admin';
 
 /** Staff-directory position bucket: everyone, curated admin roles, or non-admin employees. */
-export type StaffPositionFilter = 'all' | 'admin' | 'employee';
+export type StaffPositionFilter = 'all' | 'admin' | 'employee' | 'technique';
 
 export interface SalaryForm {
   staffId: string;

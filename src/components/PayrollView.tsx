@@ -159,6 +159,7 @@ export function PayrollView() {
                     <option value="all">{t.staffFilterAll}</option>
                     <option value="admin">{t.staffFilterAdmin}</option>
                     <option value="employee">{t.staffFilterEmployees}</option>
+                    <option value="technique">{t.staffFilterTechnique}</option>
                   </select>
                   <ChevronDown size={16} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${currentTheme.muted}`} />
                 </div>
