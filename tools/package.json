@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "description": "Isolated deploy tooling (Vercel CLI). Kept out of the root lockfile so vercel's dev-only transitive pins never reach the app; Dependabot opens a reviewed PR here whenever a new CLI ships, and CI deploys with that reviewed pin.",
   "devDependencies": {
-    "vercel": "^59.10.0"
+    "vercel": "^59.11.0"
   },
   "allowScripts": {
     "esbuild": true,
