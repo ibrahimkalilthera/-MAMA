@@ -31,9 +31,9 @@ import {
   SOMME_LINE1,
   SOMME_LINE2,
   MOIS,
-  CLASSE_BOX,
+  CLASSE,
   MOTIF,
-  DATE_BOX,
+  DATE,
   PILL,
   NBOX,
 } from '../src/lib/pdfReceipt';
@@ -124,11 +124,11 @@ describe('calibrated fill-in zones — pixel-scan drift lock', () => {
     assert.deepEqual(SOMME_LINE2, { x: 13.5, y: 105.8 }, 'continuation line starts at the left of the second dotted line');
   });
 
-  it('keeps the Mois, Motif anchors and the drawn Class/Date cells at their scanned positions', () => {
+  it('keeps the Mois, Motif anchors and the placed Class/Date entries at their scanned spots', () => {
     assert.deepEqual(MOIS, { x: 31.5, y: 114.4 }, 'month after « Mois : »');
     assert.deepEqual(MOTIF, { x: 33.0, y: 125.7 }, 'motif after « Motif : »');
-    assert.deepEqual(CLASSE_BOX, { x0: 175.2, x1: 186.7, y0: 110.1, y1: 123.2 }, 'class cell drawn on the « Classe : » dotted line (Direction-marked spot)');
-    assert.deepEqual(DATE_BOX, { x0: 102.2, x1: 117.8, y0: 135.5, y1: 146.5 }, 'date cell drawn on the « Date, le » dotted line before the pre-printed « 20 »');
+    assert.deepEqual(CLASSE, { x: 180.95, y: 116.65 }, 'class centered on the right end of the « Classe : » dotted line (Direction-marked spot)');
+    assert.deepEqual(DATE, { x: 110.0, y: 139.8 }, 'date centered on the « Date, le » dotted line before the pre-printed « 20 »');
   });
 
   it('keeps the BPF pill and the N° box at their scanned bboxes', () => {
@@ -188,8 +188,7 @@ describe('somme en lettres — stays on the printed dotted lines (pixel scan)', 
     const d = diffStats(live, tpl, 53, 192, 89.5, 97.5);
     assert.ok(d && d.count > 1000, `the words are drawn on line 1 (${d ? d.count : 0} px)`);
     assert.ok(d!.minX >= 53.5 && d!.maxX <= 191, `line-1 words stay between x 53.5 and 191 (bbox ${d!.minX.toFixed(1)}–${d!.maxX.toFixed(1)})`);
-    // x stops at 170 so the drawn Class cell (x 175.2+, top border y 110.1) is out of scope
-    assert.ok(!diffStats(live, tpl, 12, 170, 108.5, 112.5), 'no ink leaks into the Mois line');
+    assert.ok(!diffStats(live, tpl, 12, 192, 108.5, 112.5), 'no ink leaks into the Mois line');
     assert.ok(!diffStats(live, tpl, 192, 201, 89.5, 108.5), 'nothing overflows right of the dotted line');
   });
 
@@ -209,7 +208,6 @@ describe('somme en lettres — stays on the printed dotted lines (pixel scan)', 
     assert.ok(line2!.minY >= 103.5 && line2!.maxY <= 108.5, `line 2 sits in its own dotted band (y ${line2!.minY.toFixed(1)}–${line2!.maxY.toFixed(1)})`);
     assert.ok(!diffStats(live, tpl, 53, 192, 97.5, 103.5), 'the interligne between the two lines stays clean');
     assert.ok(!diffStats(live, tpl, 192, 201, 89.5, 108.5), 'nothing overflows right of the dotted line');
-    // x stops at 170 so the drawn Class cell (x 175.2+, top border y 110.1) is out of scope
-    assert.ok(!diffStats(live, tpl, 12, 170, 108.5, 112.5), 'nothing leaks into the Mois line');
+    assert.ok(!diffStats(live, tpl, 12, 192, 108.5, 112.5), 'nothing leaks into the Mois line');
   });
 });
