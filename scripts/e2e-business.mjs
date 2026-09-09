@@ -126,6 +126,13 @@ if (FLAG_CLEANUP_ONLY) {
 // Clear any leftover test rows from a previous interrupted run.
 await cleanup();
 
+// Chrome doit exister AVANT la création du compte : un process.exit ici
+// laisserait le compte éphémère en base (le cleanup final ne tournerait pas).
+if (!existsSync(CHROME)) {
+  console.error('Chrome introuvable:', CHROME);
+  process.exit(1);
+}
+
 // ── 1. Create jetable user; elevate to admin so vendor expense / isPromoter ─
 let uid = null;
 {
@@ -146,8 +153,17 @@ let uid = null;
 
 // ── 2. Launch browser & login ──
 rmSync(PROFILE, { recursive: true, force: true });
-if (!existsSync(CHROME)) { console.error('Chrome introuvable:', CHROME); process.exit(1); }
-const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: PROFILE, args: ['--no-sandbox', '--disable-gpu'] });
+let browser;
+try {
+  browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', userDataDir: PROFILE, args: ['--no-sandbox', '--disable-gpu'] });
+} catch (e) {
+  console.error('Échec du lancement Chrome:', e.message);
+  if (uid) {
+    await cleanup(uid).catch(() => {});
+    console.log('  🧹 compte éphémère supprimé après échec de lancement');
+  }
+  process.exit(1);
+}
 const page = await browser.newPage();
 await page.setViewport({ width: 1280, height: 900 });
 const reqs = [];

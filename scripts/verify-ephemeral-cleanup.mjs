@@ -48,8 +48,17 @@ if (!supabaseBase || !SERVICE_KEY) {
 }
 const HDR = { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, 'Content-Type': 'application/json' };
 
-// Same ephemeral patterns as the scripts that create accounts.
-const EPHEMERAL = [/^verify-/i, /^e2e-/i, /^audit-/i, /@audit\.local$/i];
+// Same ephemeral patterns as the scripts that create accounts:
+//   verify-csp-guard / verify-pdf-download → verify-*@audit.local
+//   e2e-business                            → e2e-*@mamathera.org (prefix e2e-)
+//   theme-contrast-audit                   → {contrast,icon}-audit-*@mamathera.org
+//                                            and *@audit.local (AUDIT_EMAIL)
+//   verify-anon-rls (mode local)           → ci-probe-*@example.test
+//   calendar-notes E2E                     → note-*@example.test
+// `audit-` is matched ANYWHERE in the email (covers contrast-audit-*,
+// icon-audit-*, audit-*); the four real accounts contain no such marker.
+// `.test` is a reserved TLD and never used by a real account.
+const EPHEMERAL = [/^verify-/i, /^e2e-/i, /audit-/i, /^ci-probe-/i, /@audit\.local$/i, /@example\.test$/i];
 const isEphemeral = (email) => EPHEMERAL.some((re) => re.test(email || ''));
 
 const api = async (path) => {

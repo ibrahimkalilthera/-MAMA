@@ -652,12 +652,45 @@ if (isMain) {
       console.log('\nBase distante : aucune lecture ni écriture anon possible (métier + auth).');
     }
   } else {
-    const { ok, failures, skipped } = await verifyAnonRls({
-      base,
-      anonKey,
-      serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY,
-      tables,
-    });
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY;
+    let result;
+    try {
+      result = await verifyAnonRls({
+        base,
+        anonKey,
+        serviceKey,
+        tables,
+      });
+    } finally {
+      // Balayage anti-résidus : même si verifyAnonRls échoue en plein milieu
+      // (exception, brèche détectée), aucun compte ci-probe-*@example.test ne
+      // doit rester en base — les suppressions du pas 21 ne couvrent que le
+      // chemin nominal. Le service-role est présent ici par construction
+      // (mode local).
+      if (serviceKey) {
+        try {
+          const list = await (
+            await fetch(`${base}/auth/v1/admin/users?per_page=1000`, {
+              headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+            })
+          ).json();
+          const probes = (list.users || []).filter((u) =>
+            /^ci-probe-.*@example\.test$/i.test(u.email || '')
+          );
+          for (const u of probes) {
+            const del = await fetch(`${base}/auth/v1/admin/users/${u.id}`, {
+              method: 'DELETE',
+              headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+            });
+            console.log(`  🧹 résidu ci-probe supprimé (${u.email}, HTTP ${del.status})`);
+          }
+          if (!probes.length) console.log('  🧹 aucun résidu ci-probe-* à nettoyer');
+        } catch (e) {
+          console.error('  ⚠️ balayage ci-probe partiel:', e.message);
+        }
+      }
+    }
+    const { ok, failures, skipped } = result;
     if (skipped) {
       console.error('\n⚠ Vérification RLS SKIPPÉE — backend local injoignable (ce n\'est PAS une brèche). Exit 0, à relancer quand supabase est démarré.');
       process.exitCode = 0;
