@@ -1,3 +1,25 @@
+## [2026-09-09] Son de notification : déblocage audio à la première interaction (fin des warnings autoplay)
+
+Suite au signalement « corrige ces erreurs de la console » : Chrome/les navigateurs
+refusent de démarrer un `AudioContext` créé ou repris hors geste utilisateur et
+loguent en boucle « The AudioContext was not allowed to start. It must be resumed
+(or created) after a user gesture on the page. » — chaque notification arrivant en
+session (poll 60 s) déclenchait ce warning.
+
+- **Correctif `src/lib/notificationSound.ts`** : le contexte n'est plus jamais créé
+  ni repris hors geste. Un écouteur passif `pointerdown`/`keydown`/`touchstart`
+  (once) est posé à la première demande ; au **premier geste utilisateur**, il crée
+  le contexte (autorisé à démarrer), le `resume()` s'il est suspendu, puis joue le
+  chime en attente s'il y en avait un. Avant le déblocage, `playNotificationChime`
+  **retient** la demande (`pendingChime`) sans créer de contexte — le toast
+  d'aperçu continue d'apparaître, aucun warning n'est émis.
+- **Tests `tests/notification-sound.test.ts`** (4 → 5 cas) : no-op sans AC ; **le
+  contexte n'est JAMAIS créé avant un geste** (la régression autoplay est épinglée) ;
+  constructeur qui jette ; chime retenu puis joué au premier geste (1 contexte
+  partagé, 2 notes) ; contexte suspendu repris pendant le geste. Hook de reset
+  test-only `__resetNotificationSoundForTests`.
+- Chaîne complète verte : tsc 0, lint 0, **603/603 tests**.
+
 ## [2026-09-08] Notes de calendrier : restriction auteur (trigger created_by + RLS owner-only)
 
 Suite à la question « est-ce que si quelqu'un met une note dans le calendrier les

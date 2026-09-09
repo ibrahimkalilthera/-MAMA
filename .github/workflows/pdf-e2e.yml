@@ -8,8 +8,9 @@ name: PDF E2E — pixel check après déploiement
 # jamais contre un build intermédiaire. Le job `gate` vérifie que le run deploy
 # s'est conclu en `success` (un deploy annulé ou en échec → skip neutre, pas de
 # rouge parasite) puis le job `e2e` exécute scripts/verify-pdf-download.mjs en
-# mode auto :
+# mode auto PUIS en mode recu-parent :
 #
+#   auto (Paie/Salaires) :
 #   1. compte auth éphémère créé via le service role et promu admin ;
 #   2. Chrome headless → connexion réelle → Paie/Salaires ;
 #   3. clic réel sur « Télécharger Reçu PDF » d'un membre (employé / admin /
@@ -20,6 +21,18 @@ name: PDF E2E — pixel check après déploiement
 #      imprimée, date centrée, cachet centré, overlay présent ;
 #   5. nettoyage (compte + membre de démo + fichiers temporaires) — toujours,
 #      même en échec. Exit 0 = toutes les vérifications passent.
+#
+#   recu-parent (Élèves) :
+#   1. nouveau compte éphémère + connexion réelle → Élèves ;
+#   2. clic réel sur « Télécharger Reçu PDF » du paiement d'un élève (le
+#      paiement réel existant est utilisé ; sinon élève + paiement de démo
+#      créés via l'API, supprimés au nettoyage) ;
+#   3. pixel-check à 34 px/mm contre recu-parent.pdf : taille de page
+#      identique, les 8 zones remplies (nom, somme en lettres, montant en
+#      chiffres dans la pilule BPF, mois, classe, motif, date, numéro dans la
+#      boîte N°) et le centrage des chiffres dans la pilule / du numéro dans
+#      la boîte N° ;
+#   4. nettoyage complet (compte + éventuel élève de démo + fichiers).
 #
 # Le script teste le code DÉPLOYÉ (l'URL prod), pas le checkout ; le checkout
 # sert uniquement à fournir le script + les modèles commités (les fetchs
@@ -33,10 +46,15 @@ name: PDF E2E — pixel check après déploiement
 #   VITE_SUPABASE_URL est PUBLIQUE (embarquée dans le bundle client) et est
 #     hardcodée ci-dessous comme les autres workflows — pas un secret.
 #
-# Le run échoue (rouge) si une seule vérification pixel échoue : une régression
-# de rendu des PDF (placement, cachet, taille) bloque la visibilité du problème
-# ici, sans bloquer le déploiement lui-même (workflow_run en lecture seule —
-# cf. la porte deploy.yml qui reste l'unique entrée en prod).
+# Le job exécute aussi une garde de sécurité : après la mise en ligne, il curl
+# la racine et exige X-Frame-Options (SAMEORIGIN/DENY) et X-Content-Type-Options
+# (nosniff) — une régression des headers vercel.json devient rouge ici.
+#
+# Le run échoue (rouge) si une seule vérification (pixel ou header) échoue : une
+# régression de rendu des PDF (placement, cachet, taille) ou des headers de
+# sécurité bloque la visibilité du problème ici, sans bloquer le déploiement
+# lui-même (workflow_run en lecture seule — cf. la porte deploy.yml qui reste
+# l'unique entrée en prod).
 
 on:
   workflow_run:
@@ -124,7 +142,41 @@ jobs:
           echo "prod pas en ligne après 150s — abandon" >&2
           exit 1
 
-      - name: PDF pixel-check E2E (auto, contre la prod)
+      # Garde de sécurité : X-Frame-Options (SAMEORIGIN/DENY) et
+      # X-Content-Type-Options (nosniff) doivent être servis sur la racine —
+      # la config vercel.json les applique à toutes les routes (source /(.*)).
+      # Un oubli ou une valeur affaiblie échoue le run (rouge) sans bloquer le
+      # déploiement lui-même.
+      - name: Security headers — X-Frame-Options & X-Content-Type-Options
+        run: |
+          set -euo pipefail
+          url=https://mama-thera-finance.vercel.app/
+          headers=$(curl -s -D - -o /dev/null --max-time 15 "$url" || true)
+          ok=1
+          grep -qi '^x-frame-options:' <<<"$headers" || { echo "❌ X-Frame-Options manquant"; ok=0; }
+          grep -qi '^x-content-type-options:' <<<"$headers" || { echo "❌ X-Content-Type-Options manquant"; ok=0; }
+          xfo=$(grep -i '^x-frame-options:' <<<"$headers" | head -1 | tr -d '\r')
+          case "$xfo" in
+            *DENY*|*SAMEORIGIN*) : ;;
+            *) echo "❌ X-Frame-Options avec valeur inattendue : $xfo"; ok=0 ;;
+          esac
+          if [ "$ok" = "1" ]; then
+            echo "✅ X-Frame-Options + X-Content-Type-Options servis ($url)"
+          else
+            echo "--- headers reçus ---"
+            echo "$headers"
+            exit 1
+          fi
+
+      - name: PDF pixel-check E2E — paie (mode auto, contre la prod)
         env:
           CHROME_PATH: /usr/bin/google-chrome
         run: node scripts/verify-pdf-download.mjs --mode auto
+
+      # Deuxième flux, page Élèves : le reçu des parents (formulaire papier
+      # recu-parent.pdf rempli en overlay). Chaque invocation crée son propre
+      # compte éphémère — indépendants, nettoyés chacun à la fin.
+      - name: PDF pixel-check E2E — reçu parent (mode recu-parent, contre la prod)
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/verify-pdf-download.mjs --mode recu-parent
