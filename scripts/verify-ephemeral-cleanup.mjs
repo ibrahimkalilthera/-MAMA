@@ -17,9 +17,13 @@
 // The Supabase admin API deletes the auth user; the cascade handles the
 // profile. A residue here means the cleanup chain is broken → red run.
 //
-// Usage: node scripts/verify-ephemeral-cleanup.mjs
+// Usage:
+//   node scripts/verify-ephemeral-cleanup.mjs              → détecte (exit 1 si résidus)
+//   node scripts/verify-ephemeral-cleanup.mjs --cleanup-only → purge les résidus (maintenance)
 // Reads .env (VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY), same as the
-// other E2E scripts. Exit 0 = base propre, exit 1 = résidus trouvés.
+// other E2E scripts. Exit 0 = base propre, exit 1 = résidus trouvés (ou
+// purge incomplète). Le mode purge est EXPLICITE (--cleanup-only) : la CI
+// reste en détection pure pour qu'un nettoyage cassé fasse toujours rouge.
 // ─────────────────────────────────────────────────────────────────────────────
 import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -60,6 +64,13 @@ const api = async (path) => {
   return { status: r.status, body: t ? JSON.parse(t) : null };
 };
 
+// --cleanup-only : purge mode. Deletes every residue found instead of only
+// reporting them, then exits 0 when the base is clean. This is an EXPLICIT
+// maintenance step (run by hand after a broken cleanup); the CI final guard
+// stays detect-only so a broken cleanup is always a red run, never silently
+// masked by an auto-fix.
+const CLEANUP_ONLY = process.argv.includes('--cleanup-only');
+
 let fail = false;
 
 // 1. auth.users — every ephemeral account created by the E2E scripts.
@@ -86,8 +97,40 @@ if (leftoverProfiles.length) {
   console.log('✅ aucun profil éphémère résiduel dans user_profiles');
 }
 
+// ── 3. Purge mode (--cleanup-only) ─────────────────────────────────────────
+if (CLEANUP_ONLY) {
+  let ok = true;
+  // Delete the accounts; ON DELETE CASCADE removes their user_profiles row.
+  for (const u of leftoverUsers) {
+    const del = await fetch(`${supabaseBase}/auth/v1/admin/users/${u.id}`, {
+      method: 'DELETE', headers: HDR,
+    });
+    const fine = del.status === 204 || del.status === 200;
+    console.log(`${fine ? '🧹' : '❌'} compte supprimé ${u.email} (HTTP ${del.status})`);
+    ok = ok && fine;
+  }
+  // Orphan profiles (no matching auth user left — cascade already gone) can
+  // only be removed here.
+  const orphanProfiles = leftoverProfiles.filter((p) => !leftoverUsers.some((u) => u.id === p.id));
+  for (const p of orphanProfiles) {
+    const del = await fetch(`${supabaseBase}/rest/v1/user_profiles?id=eq.${p.id}`, {
+      method: 'DELETE', headers: HDR,
+    });
+    const fine = del.status === 204 || del.status === 200;
+    console.log(`${fine ? '🧹' : '❌'} profil orphelin supprimé ${p.email} (HTTP ${del.status})`);
+    ok = ok && fine;
+  }
+  if (!ok) {
+    console.error('\n❌ Purge incomplète — relancez la vérification (mode détection) pour lister ce qui reste.');
+    process.exit(1);
+  }
+  console.log('\n✅ Purge terminée — base exempte de comptes éphémères.');
+  process.exit(0);
+}
+
 if (fail) {
   console.error('\n❌ Nettoyage cassé — un script E2E a laissé un résidu en base.');
+  console.error('   → purge manuelle : node scripts/verify-ephemeral-cleanup.mjs --cleanup-only');
   process.exit(1);
 }
 console.log('\n✅ Base propre — tous les comptes éphémères ont été supprimés par leurs scripts.');
