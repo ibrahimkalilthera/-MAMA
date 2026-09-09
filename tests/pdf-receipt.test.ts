@@ -28,6 +28,7 @@ import type { ReceiptDataOptions } from '../src/lib/pdfReceipt';
 import {
   buildParentReceiptPdf,
   LINE_M,
+  TEL,
   SOMME_LINE1,
   SOMME_LINE2,
   MOIS,
@@ -118,8 +119,9 @@ describe('calibrated fill-in zones — pixel-scan drift lock', () => {
   // The constants below were produced by pixel scans of the 201.1 × 155.8 mm
   // paper raster (12 px/mm). They map rendered-page mm to the printed zones;
   // do not nudge them by eye. See the geometry comment in src/lib/pdfReceipt.ts.
-  it('keeps the M line and the La somme de lines at their scanned positions', () => {
+  it('keeps the M line, the Tél. line and the La somme de lines at their scanned positions', () => {
     assert.deepEqual(LINE_M, { x: 20.5, y: 82.0 }, 'name goes right after the printed « M » on the dotted line');
+    assert.deepEqual(TEL, { x: 93.0, y: 46.3 }, 'phone starts right after the printed « Tél. : » label, on its dotted line');
     assert.deepEqual(SOMME_LINE1, { x: 54.5, y: 92.9 }, 'amount in words starts after the « La somme de : » label');
     assert.deepEqual(SOMME_LINE2, { x: 13.5, y: 105.8 }, 'continuation line starts at the left of the second dotted line');
   });
@@ -211,5 +213,66 @@ describe('somme en lettres — stays on the printed dotted lines (pixel scan)', 
     assert.ok(!diffStats(live, tpl, 192, 201, 89.5, 109.5), 'nothing overflows right of the dotted line');
     // 14 pt text: line-2 descenders end at 108.6, Mois caps start at 112.6 → clean band 109.5–112.0
     assert.ok(!diffStats(live, tpl, 12, 192, 109.5, 112.0), 'nothing leaks into the Mois line');
+  });
+});
+
+describe('téléphone du parent — sur la ligne « Tél. : » (pixel scan)', () => {
+  // Renders the generated receipt and the paper form at 17 px/mm and diffs the
+  // « Tél. : » header line: the phone must be drawn right after the printed
+  // label (x ≥ 93), ON the dotted line (baseline 48.0, band y 44–50.5), and
+  // must not leak into the « République du Mali » line below (y 50.5–53.5).
+  const PX = 6 * 72 / 25.4; // 17.01 px/mm
+  const mm = (px: number) => px / PX;
+
+  async function raster(bytes: Uint8Array) {
+    const u8 = Buffer.isBuffer(bytes) ? new Uint8Array(bytes) : bytes;
+    const doc = await pdfjs.getDocument({ data: u8 }).promise;
+    const page = await doc.getPage(1);
+    const vp = page.getViewport({ scale: 6 });
+    const canvas = createCanvas(Math.ceil(vp.width), Math.ceil(vp.height));
+    const ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport: vp } as unknown as Parameters<typeof page.render>[0]).promise;
+    return { w: canvas.width, h: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height).data };
+  }
+
+  function diffStats(live: { w: number; h: number; data: Uint8ClampedArray }, tpl: { w: number; h: number; data: Uint8ClampedArray }, x0mm: number, x1mm: number, y0mm: number, y1mm: number) {
+    const x0 = Math.floor(x0mm * PX), x1 = Math.ceil(x1mm * PX);
+    const y0 = Math.floor(y0mm * PX), y1 = Math.ceil(y1mm * PX);
+    let minX = 1e9, maxX = -1, minY = 1e9, maxY = -1, count = 0;
+    for (let y = y0; y < y1 && y < live.h; y++) {
+      for (let x = x0; x < x1 && x < live.w; x++) {
+        const i = (y * live.w + x) * 4;
+        const d = Math.abs(live.data[i] - tpl.data[i]) + Math.abs(live.data[i + 1] - tpl.data[i + 1]) + Math.abs(live.data[i + 2] - tpl.data[i + 2]);
+        if (d > 60) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          count++;
+        }
+      }
+    }
+    return count ? { minX: mm(minX), maxX: mm(maxX), minY: mm(minY), maxY: mm(maxY), count } : null;
+  }
+
+  it('writes the parent phone on the « Tél. : » dotted line', async () => {
+    const { bytes } = await buildParentReceiptPdf(options());
+    const tpl = await raster(templateBytes);
+    const live = await raster(bytes);
+
+    const d = diffStats(live, tpl, 93, 175, 44, 50.5);
+    assert.ok(d && d.count > 500, `the phone is drawn after the « Tél. : » label (${d ? d.count : 0} px)`);
+    assert.ok(d!.minX >= 93, `it starts right after the label (minX ${d!.minX.toFixed(1)})`);
+    assert.ok(d!.minY >= 44.0 && d!.maxY <= 50.5, `it sits on the dotted line (y ${d!.minY.toFixed(1)}–${d!.maxY.toFixed(1)})`);
+    assert.ok(!diffStats(live, tpl, 93, 175, 50.5, 53.5), 'nothing leaks into the « République du Mali » line below');
+  });
+
+  it('skips the Tél. entry when the parent has no phone', async () => {
+    const { bytes } = await buildParentReceiptPdf(
+      options({ student: { ...baseStudent, parentPhone: '' } }),
+    );
+    const tpl = await raster(templateBytes);
+    const live = await raster(bytes);
+    assert.ok(!diffStats(live, tpl, 93, 175, 44, 50.5), 'no phone ink on the line when parentPhone is empty');
   });
 });

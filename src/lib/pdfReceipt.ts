@@ -9,6 +9,8 @@
  * and only the payment data is printed on it:
  *
  *   • « M » (the payer) gets the parent/guardian name;
+ *   • « Tél. : » (header) gets the parent's phone number, written on the
+ *     dotted line right after the printed label;
  *   • « La somme de : » gets the paid amount IN WORDS (French, capitalized);
  *   • the BPF gradient pill (sous BPF) gets the paid amount IN FIGURES,
  *     « … FCFA »;
@@ -77,11 +79,17 @@ const TEMPLATE_URL = 'templates/recu-parent.pdf';
 //     x 107.2–115.5 (widened to x 102.2–117.8 to fit « dd/mm/ » at the
 //     larger size) — anchor (110.0, 139.8), on the same baseline as the
 //     year digits;
+//   • the « Tél. : » header line: the label glyphs sit at x 75–92 (band
+//     y 45.0–48.0, center 46.5), then the dotted line runs x 93–174.5 at
+//     y 47.5–48.5 (baseline level 48.0) — the phone number starts right
+//     after the label (x 93.0), on the line;
 //   • the BPF box: dark blue label block x 158–192, y 20–33 (white « BPF »
 //     text at y 24–32), then the gradient pill x 158–190.5, y 36–45.5 — dark
 //     blue at the ends, LIGHT in the middle (x 162.7–184.9) where the paid
 //     amount in figures is written, centered on (174.3, 40.8).
 export const LINE_M = { x: 20.5, y: 82.0 };
+/** « Tél. : » entry anchor — right after the printed label, on its dotted line (baseline 48.0). */
+export const TEL = { x: 93.0, y: 46.3 };
 export const SOMME_LINE1 = { x: 54.5, y: 92.9 };
 export const SOMME_LINE2 = { x: 13.5, y: 105.8 };
 export const MOIS = { x: 31.5, y: 114.4 };
@@ -209,6 +217,16 @@ export async function buildParentReceiptPdf({
   // 1. « M » — the payer (parent/guardian, falling back to the student).
   const payer = student.parentName || student.name || '—';
   text(payer, LINE_M.x, baseline(LINE_M.y, DATA_SIZE), { font: { font: helv, size: DATA_SIZE } });
+
+  // 1b. « Tél. : » — the parent's phone number, on the header dotted line
+  //     right after the printed label (fits the line at most, like the class).
+  const phone = (student.parentPhone || '').trim();
+  if (phone) {
+    const telMaxW = 174.5 - TEL.x;
+    const phoneW = helv.widthOfTextAtSize(phone, DATA_SIZE) / PT_PER_MM;
+    const phoneSize = Math.min(DATA_SIZE, (telMaxW / phoneW) * DATA_SIZE);
+    text(phone, TEL.x, baseline(TEL.y, phoneSize), { font: { font: helv, size: phoneSize } });
+  }
 
   // 2. « La somme de : » — the amount in words, wrapped on the two dotted lines.
   const words = amountInWords(amount);
