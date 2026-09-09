@@ -3,12 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, useRef, FormEvent, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, FormEvent } from 'react';
 import { useSupabaseData } from './lib/useSupabaseData';
 import { sameYearMonth } from './lib/dateWindows';
-import type { UserProfile } from './lib/useAuth';
-import type { MainViewsProps } from './app/mainViewsProps';
-import type { AppModalsProps } from './components/AppModals';
 import { useToast } from './lib/useToast';
 import { useFloatingChat } from './app/useFloatingChat';
 import { useAuthWelcome } from './app/useAuthWelcome';
@@ -26,95 +23,17 @@ import { useUsers } from './app/useUsers';
 import { useInactivityLogout } from './app/useInactivityLogout';
 import { fetchInactivityMinutes, saveInactivityMinutes } from './lib/teamSettings';
 import { logAuditEvent } from './lib/auditLogger';
-import { InactivityWarning } from './components/InactivityWarning';
 import { useYear } from './app/yearContext';
 import { getReadNotificationIds, saveReadNotificationIds } from './lib/notificationReads';
 import { playNotificationChime } from './lib/notificationSound';
 import { findNewNotifications } from './lib/notificationWatch';
 import { useYearOps } from './app/useYearOps';
-import type { ImportCategory } from './lib/excelImporter';
+import { buildShellProps } from './app/viewsWiring';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
-import { generatePaymentReceiptPdf } from './lib/pdfReceipt';
-import { generateStaffPayslipPdf } from './lib/pdfPayroll';
-import { generateFinancialReportPdf } from './lib/pdfFinancialReport';
-import { generateMultiYearReportPdf } from './lib/pdfMultiYearReport';
-import { generateExpensesReportPdf } from './lib/pdfExpensesReport';
-import { generateMonthlyPayrollDraftPdf } from './lib/pdfPayrollDraft';
-import { AppShell, type AppShellExtras } from './components/AppShell';
+import { AppShell } from './components/AppShell';
 
-const DashboardCharts = lazy(() => import('./components/DashboardCharts').then(m => ({ default: m.DashboardCharts })));
-import { HighlightText, ChartsFallback } from './components/SharedUi';
-import { formatCurrency as formatCurrencyImpl, formatDateLang, getGradeDisplay as getGradeDisplayImpl } from './lib/formatters';
-import { getStudentStanding } from './lib/classes';
+import { formatCurrency as formatCurrencyImpl, formatDateLang } from './lib/formatters';
 
-import { 
-  LayoutDashboard, 
-  Users, 
-  Layers,
-  CreditCard, 
-  AlertCircle, 
-  CheckCircle2, 
-  Clock, 
-  Plus, 
-  Globe,
-  TrendingUp,
-  DollarSign,
-  Search,
-  Mail,
-  Phone,
-  MessageSquare,
-  X,
-  Download,
-  Copy,
-  ChevronRight,
-  ChevronLeft,
-  Printer,
-  ShieldCheck,
-  Calendar,
-  FileText,
-  Bell,
-  StickyNote,
-  Trash2,
-  CheckSquare,
-  UploadCloud,
-  Flag,
-  Briefcase,
-  Receipt,
-  PieChart,
-  Wallet,
-  Lock,
-  LogOut,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  GraduationCap,
-  TrendingDown,
-  Coins,
-  Edit2,
-  Zap,
-  Droplet,
-  Wifi,
-  Sparkles,
-  AlertTriangle,
-  BookOpen,
-  Heart,
-  UserPlus,
-  ChevronDown,
-  ChevronUp,
-  MapPin,
-  UserCheck,
-  Link as LinkIcon,
-  Unlink,
-  FileSpreadsheet,
-  Sun,
-  Utensils,
-  Landmark,
-  Award,
-  Shield,
-  Cpu,
-  Sprout,
-  Hammer
-} from 'lucide-react';
 import { translations } from './i18n/translations';
 import type { Language, User, Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, SchoolClass } from './app/types';
 
@@ -168,7 +87,22 @@ export default function App() {
     addTodo: { en: 'Task added', fr: 'Tâche ajoutée' },
   }), []);
 
-  const {
+  const supabaseData = useSupabaseData({
+    onMutationSuccess: (operation) => {
+      const label = operationLabels[operation];
+      if (label) {
+        toast.success(label[lang]);
+      }
+    },
+    onMutationError: (operation, errorMessage) => {
+      const formatted = formatSupabaseError({ message: errorMessage }, lang);
+      toast.error(`${formatted.title}: ${formatted.message}`);
+    },
+    onRetry: (attempt) => {
+      toast.retrying(t.retryingConnection.replace('{n}', String(attempt)));
+    },
+  });
+const {
     customClasses,
     addCustomClass,
     updateCustomClass,
@@ -208,21 +142,7 @@ export default function App() {
     deleteTodo: deleteTodoItem,
     batchPromoteStudents,
     batchImportData,
-  } = useSupabaseData({
-    onMutationSuccess: (operation) => {
-      const label = operationLabels[operation];
-      if (label) {
-        toast.success(label[lang]);
-      }
-    },
-    onMutationError: (operation, errorMessage) => {
-      const formatted = formatSupabaseError({ message: errorMessage }, lang);
-      toast.error(`${formatted.title}: ${formatted.message}`);
-    },
-    onRetry: (attempt) => {
-      toast.retrying(t.retryingConnection.replace('{n}', String(attempt)));
-    },
-  });
+  } = supabaseData;
 
 
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -234,11 +154,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit'>('dashboard');
   // Auth/welcome domain (session, greeting banner, profiles, admin tab guard) —
   // extracted to src/app/useAuthWelcome.ts.
-  const {
+  const authWelcomeData = useAuthWelcome({ t, activeTab, setActiveTab });
+const {
     auth, currentUser, isPromoter, isGeneralManager, authLoading,
     userProfiles, setUserProfiles,
     welcomeMessage, setWelcomeMessage,
-  } = useAuthWelcome({ t, activeTab, setActiveTab });
+  } = authWelcomeData;
 
   // Inactivity auto-logout: TEAM-wide configurable window (stored in the
   // app_settings table, applied by every account), warning countdown before
@@ -276,7 +197,11 @@ export default function App() {
 
   // Users/settings domain (add-user modal, role management, password reset) —
   // extracted to src/app/useUsers.ts.
-  const {
+  const usersData = useUsers({
+    t, auth, userProfiles, setUserProfiles,
+    toast,
+  });
+const {
     showAddUserModal, setShowAddUserModal,
     userSearchTerm, setUserSearchTerm,
     userRoleFilter, setUserRoleFilter,
@@ -287,14 +212,12 @@ export default function App() {
     handleToggleRole,
     handleSendPasswordReset,
     handleSetPassword,
-  } = useUsers({
-    t, auth, userProfiles, setUserProfiles,
-    toast,
-  });
+  } = usersData;
 
   // Academic-year state (selected/locked) — owned by the YearProvider, read
   // here through the context and passed down to the domain hooks as deps.
-  const { selectedYear, setSelectedYear, lockedYears, setLockedYears } = useYear();
+  const yearData = useYear();
+const { selectedYear, setSelectedYear, lockedYears, setLockedYears } = yearData;
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditYear, setAuditYear] = useState<string | null>(null);
 
@@ -302,18 +225,25 @@ export default function App() {
   const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
 
-  const {
+  const themeData = useTheme();
+const {
     theme, setTheme,
     schoolLogo, setSchoolLogo,
     logoColor, setLogoColor,
     logoInputRef,
     currentTheme,
     handleLogoUpload,
-  } = useTheme();
+  } = themeData;
 
   // Expenses/vendors domain (modals, filters, calendar, forms, tickets) —
   // extracted to src/app/useExpenses.ts.
-  const {
+  const expensesData = useExpenses({
+    t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser,
+    addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense,
+    showToast,
+    toastError: (msg) => toast.error(msg),
+  });
+const {
     showExpenseModal, setShowExpenseModal,
     showVendorExpenseModal, setShowVendorExpenseModal,
     vendorExpensesTab, setVendorExpensesTab,
@@ -337,18 +267,19 @@ export default function App() {
     changeMonth,
     getMonthName,
     getDayName,
-  } = useExpenses({
-    t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser,
-    addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense,
-    showToast,
-    toastError: (msg) => toast.error(msg),
-  });
+  } = expensesData;
 
   const today = new Date().toISOString().split('T')[0];
 
   // Students domain (list, sort, add/edit modal, notes, flags, A4 print) —
   // extracted to src/app/useStudents.ts.
-  const {
+  const studentsData = useStudents({
+    t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager,
+    students, addStudent, updateStudent,
+    showToast,
+    toastError: (msg) => toast.error(msg),
+  });
+const {
     searchTerm, setSearchTerm,
     selectedStudent, setSelectedStudent,
     showStudentModal, setShowStudentModal,
@@ -365,18 +296,17 @@ export default function App() {
     openEditModal,
     handleSaveNote,
     toggleFlag,
-  } = useStudents({
-    t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager,
-    students, addStudent, updateStudent,
-    showToast,
-    toastError: (msg) => toast.error(msg),
-  });
+  } = studentsData;
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
 
   // --- Calculations ---
 
-  const {
+  const dashboardData = useDashboard({
+    t, today, currentMonth, selectedYear,
+    students, staff, expenses, vendorExpenses, salaryPayments,
+  });
+const {
     stats,
     notifications,
     lateStudents,
@@ -384,10 +314,7 @@ export default function App() {
     pieData,
     missedMonths,
     payrollWindowStatus,
-  } = useDashboard({
-    t, today, currentMonth, selectedYear,
-    students, staff, expenses, vendorExpenses, salaryPayments,
-  });
+  } = dashboardData;
 
   // --- Notification read-state (persisted per user in localStorage) ---
 
@@ -480,51 +407,55 @@ export default function App() {
 
   // Year-operations domain (close current year + year stats) — extracted to
   // src/app/useYearOps.ts.
-  const {
-    handleCloseCurrentYear,
-    getYearStats,
-  } = useYearOps({
+  const yearOpsData = useYearOps({
     t, currentUser, students, expenses, vendorExpenses, salaryPayments,
     updateStudent, addStudent,
     selectedYear, lockedYears, setLockedYears, setAcademicYears, setAuditYear, setShowAuditModal,
     showToast,
     toastError: (msg) => toast.error(msg),
   });
+const {
+    handleCloseCurrentYear,
+    getYearStats,
+  } = yearOpsData;
 
   // Chat IA (aba Productividade + widget flutuante) — dominio extraido para
   // src/app/useFloatingChat.ts (estado, saudacao, Escape e os 2 handlers).
-  const {
-    aiMessages, setAiMessages, aiInput, setAiInput, handleAiQuery,
-    isFloatingChatOpen, setIsFloatingChatOpen,
-    floatingChatMessages, floatingChatInput, setFloatingChatInput, handleFloatingAiQuery,
-  } = useFloatingChat({
+  const chatData = useFloatingChat({
     lang, t, stats, students, staff, salaryPayments, expenses, vendorExpenses,
     formatCurrency: formatCurrencyImpl,
     formatDate: (dateStr: string) => formatDateLang(dateStr, lang),
   });
+const {
+    aiMessages, setAiMessages, aiInput, setAiInput, handleAiQuery,
+    isFloatingChatOpen, setIsFloatingChatOpen,
+    floatingChatMessages, floatingChatInput, setFloatingChatInput, handleFloatingAiQuery,
+  } = chatData;
 
   // To-Do list + Productivité panel domain — extracted to src/app/useTodoSidebar.ts.
-  const {
-    todoInput, setTodoInput, todoDate, setTodoDate,
-    showTodoSidebar, setShowTodoSidebar,
-    productivitySidebarTab, setProductivitySidebarTab,
-    handleAddTodo, toggleTodo, deleteTodo, handleUpdateTodoDate,
-  } = useTodoSidebar({
+  const todoData = useTodoSidebar({
     todos, t,
     handleSaveNote,
     addTodoItem, updateTodoItem, deleteTodoItem,
   });
+const {
+    todoInput, setTodoInput, todoDate, setTodoDate,
+    showTodoSidebar, setShowTodoSidebar,
+    productivitySidebarTab, setProductivitySidebarTab,
+    handleAddTodo, toggleTodo, deleteTodo, handleUpdateTodoDate,
+  } = todoData;
 
 
-  const {
-    handleExport,
-    handleExportAllData,
-    handlePrint,
-  } = useExports({
+  const exportsData = useExports({
     t, lateStudents,
     students, staff, expenses, salaryPayments,
     showToast,
   });
+const {
+    handleExport,
+    handleExportAllData,
+    handlePrint,
+  } = exportsData;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -539,7 +470,14 @@ export default function App() {
 
   // Parents domain (directory, link-student, notify/reminder, ledger PDF) —
   // extracted to src/app/useParents.ts.
-  const {
+  const parentsData = useParents({
+    t, lang, formatCurrency,
+    students, setStudents,
+    addParent, updateParent, deleteParent, updateStudent,
+    setWelcomeMessage,
+    setConfirmAction,
+  });
+const {
     expandedParentId, setExpandedParentId,
     parentSearchTerm, setParentSearchTerm,
     showParentModal, setShowParentModal,
@@ -570,14 +508,13 @@ export default function App() {
     handleUnlinkStudent,
     handleDeleteParent,
     openEditParentModal,
-  } = useParents({
-    t, lang, formatCurrency,
-    students, setStudents,
-    addParent, updateParent, deleteParent, updateStudent,
-    setWelcomeMessage,
-    setConfirmAction,
-  });
+  } = parentsData;
 
+const paymentsData = usePayments({
+  t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser,
+  addPayment,
+  toastError: (msg) => toast.error(msg),
+});
 const {
   showPaymentForm, setShowPaymentForm,
   selectedCalendarDay, setSelectedCalendarDay,
@@ -590,12 +527,13 @@ const {
   savingNoteOnDate,
   saveNoteOnDate,
   getNotesForDay,
-} = usePayments({
-  t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser,
-  addPayment,
+} = paymentsData;
+
+const payrollData = usePayroll({
+  t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast,
+  addStaff, updateStaff, addSalaryPayment, schoolLogo,
   toastError: (msg) => toast.error(msg),
 });
-
 const {
   showStaffModal, setShowStaffModal,
   staffModalMode, setStaffModalMode,
@@ -616,14 +554,15 @@ const {
   openEditStaffModal,
   handleExportStaffReceiptPdf,
   handleExportMonthlyPayrollExcel,
-} = usePayroll({
-  t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast,
-  addStaff, updateStaff, addSalaryPayment, schoolLogo,
-  toastError: (msg) => toast.error(msg),
-});
+} = payrollData;
 
-  const {
-    availableClasses,
+  const classesData = useClasses({
+    t, customClasses, toast,
+    autoSelectGrade: (grade: string) => setStudentForm(prev => ({ ...prev, grade })),
+    setConfirmAction,
+    addCustomClass, updateCustomClass, deleteCustomClass,
+  });
+const {
     showEditClassModal, setShowEditClassModal,
     editingClassRowId, setEditingClassRowId,
     editClassForm, setEditClassForm,
@@ -633,56 +572,7 @@ const {
     openEditClass,
     handleEditClassSubmit,
     handleDeleteClass,
-  } = useClasses({
-    t, customClasses, toast,
-    autoSelectGrade: (grade: string) => setStudentForm(prev => ({ ...prev, grade })),
-    setConfirmAction,
-    addCustomClass, updateCustomClass, deleteCustomClass,
-  });
-
-  const formatDate = (dateStr: string) => formatDateLang(dateStr, lang);
-
-  const getGradeDisplay = (grade: string | undefined, currentLang: 'en' | 'fr' = lang) =>
-    getGradeDisplayImpl(grade, availableClasses, t, currentLang);
-
-
-  const getStatus = (student: Student) => {
-    const standing = getStudentStanding(student, today);
-
-    if (standing.key === 'settled') {
-      return { 
-        label: t.settle, 
-        color: 'text-emerald-600 bg-emerald-50 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/60', 
-        icon: <CheckCircle2 size={14} />,
-        standing: t.goodStanding
-      };
-    }
-
-    if (standing.key === 'overdue') {
-      return { 
-        label: `${standing.daysOverdue} ${t.daysOverdue}`, 
-        color: 'text-rose-600 bg-rose-50 border-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/60 animate-badge-pulse', 
-        icon: <Clock size={14} />,
-        standing: t.overdue
-      };
-    }
-
-    if (standing.key === 'dueSoon') {
-      return { 
-        label: t.dueSoon, 
-        color: 'text-amber-700 bg-amber-50 border-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60', 
-        icon: <AlertCircle size={14} />,
-        standing: t.partial
-      };
-    }
-
-    return { 
-      label: t.partial, 
-      color: 'text-blue-600 bg-blue-50 border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/60', 
-      icon: <Calendar size={14} />,
-      standing: t.partial
-    };
-  };
+  } = classesData;
 
   // Open the add-student modal (shared by the sidebar and header buttons).
   const openAddStudentModal = () => {
@@ -714,370 +604,66 @@ const {
   // Single wiring object for the two shell components (<MainViews> and
   // <AppModals>). The intersection type keeps both contracts honest — tsc
   // fails if a key is missing or mistyped — and the wiring guard
-  // (scripts/check-component-props.mjs) resolves THIS literal against both
-  // interfaces, so a partial wiring still fails the gate.
-  const viewsProps: MainViewsProps & AppModalsProps = {
-  AlertCircle,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  Award,
-  Bell,
-  BookOpen,
-  Briefcase,
-  Calendar,
-  ChartsFallback,
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  Clock,
-  Coins,
-  Cpu,
-  CreditCard,
-  DashboardCharts,
-  DollarSign,
-  Download,
-  Droplet,
-  Edit2,
-  FileText,
-  Flag,
-  Globe,
-  GraduationCap,
-  Hammer,
-  Heart,
-  HighlightText,
-  Landmark,
-  Layers,
-  Mail,
-  MapPin,
-  Phone,
-  PieChart,
-  Plus,
-  Printer,
-  Receipt,
-  Search,
-  Shield,
-  ShieldCheck,
-  Sparkles,
-  Sprout,
-  StickyNote,
-  Sun,
-  Suspense,
-  Trash2,
-  TrendingDown,
-  TrendingUp,
-  Unlink,
-  UploadCloud,
-  UserCheck,
-  UserPlus,
-  Users,
-  Utensils,
-  Wallet,
-  Wifi,
-  X,
-  Zap,
-  activeTab,
-  auditLogs,
-  auth,
-  availableClasses,
-  calendarDate,
-  changeMonth,
-  chartData,
-  currentMonth,
-  currentTheme,
-  deleteStaff,
-  deleteStudent,
-  deleteTodo,
-  expandedParentId,
-  expenseCategoryList,
-  expenses,
-  fetchAuditLogs,
-  filteredStaff,
-  filteredStudents,
-  formatCurrency,
-  formatDate,
-  generateExpensesReportPdf,
-  generateStaffPayslipPdf,
-  getChildrenForParent,
-  getDayName,
-  getDaysInMonth,
-  getEventsForDay,
-  getNotesForDay,
-  getGradeDisplay,
-  getMonthName,
-  getParentOutstandingBalance,
-  getParentPaymentHistory,
-  getStatus,
-  handleAddTodo,
-  handleDeleteClass,
-  handleDeleteParent,
-  handleDeleteVendorExpense,
-  handleExportAllData,
-  handleExportParentLedgerPdf,
-  handleExportStaffReceiptPdf,
-  handleLogoUpload,
-  handlePrint,
-  handleSendPasswordReset,
-  handleSetPassword,
-  handleSort,
-  handleUnlinkStudent,
-  handleUpdateRole,
-  isPromoter,
-  isGeneralManager,
-  lang,
-  lateStudents,
-  logoColor,
-  logoInputRef,
-  missedMonths,
-  openEditClass,
-  openEditModal,
-  openEditParentModal,
-  openEditStaffModal,
-  openNotifyModal,
-  parentChildrenSortBy,
-  parentSearchTerm,
-  parents,
-  payrollWindowStatus,
-  pieData,
-  salaryForm,
-  salaryPayments,
-  schoolLogo,
-  searchTerm,
-  selectedYear,
-  setActiveLinkingParent,
-  setCalendarDate,
-  setEditingParent,
-  setEditingStaff,
-  setEditingVendorExpense,
-  setExpandedParentId,
-  setLogoColor,
-  setParentChildrenSortBy,
-  setParentForm,
-  setParentSearchTerm,
-  setSalaryForm,
-  setSchoolLogo,
-  setSelectedCalendarDay,
-  setSelectedDraftMonth,
-  setSelectedDraftYear,
-  setSelectedStudent,
-  setShowAddClassModal,
-  setShowAddUserModal,
-  setShowCalendarModal,
-  setShowLinkStudentModal,
-  setShowMonthlyDraftModal,
-  setShowParentModal,
-  setShowSalaryModal,
-  setShowStaffModal,
-  setShowVendorExpenseModal,
-  setGeneralExpenseCategoryFilter,
-  setGeneralExpenseSearch,
-  setVendorExpensesTab,
-  setStaffForm,
-  setStaffModalMode,
-  setStaffPositionFilter,
-  setStaffSearchTerm,
-  setStudentToLinkId,
-  setTheme,
-  setTicketStudent,
-  setTodoInput,
-  setUserProfiles,
-  setUserRoleFilter,
-  setUserSearchTerm,
-  setVendorCategoryFilter,
-  setVendorExpenseForm,
-  setVendorSearch,
-  setVendorStatusFilter,
-  setVisibleBankDetails,
-  staff,
-  adminStaffCount,
-  staffModalMode,
-  staffPositionFilter,
-  staffSearchTerm,
-  stats,
-  studentSortKey,
-  studentSortOrder,
-  t,
-  theme,
-  today,
-  todoDate,
-  setTodoDate,
-  todoInput,
-  todos,
-  toggleFlag,
-  toggleLanguage,
-  toggleTodo,
-  handleUpdateTodoDate,
-  inactivityMinutes: inactivity.minutes,
-  setInactivityMinutes: inactivity.setMinutes,
-  passwordInput,
-  passwordTarget,
-  setPasswordInput,
-  setPasswordTarget,
-  updatingUserId,
-  userProfiles,
-  userRoleFilter,
-  userSearchTerm,
-  generalExpenseCategoryFilter,
-  generalExpenseSearch,
-  vendorCategoryFilter,
-  vendorExpenses,
-  vendorExpensesTab,
-  vendorSearch,
-  vendorStatusFilter,
-  visibleBankDetails,
-  CheckSquare,
-  Copy,
-  MessageSquare,
-  academicYears,
-  activeLinkingParent,
-  aiInput,
-  aiMessages,
-  auditYear,
-  copiedToast,
-  copyToClipboard,
-  currentUser,
-  editClassForm,
-  editingParent,
-  editingStaff,
-  editingStudent,
-  editingVendorExpense,
-  expenseForm,
-  generateInstallmentMemo,
-  generatePaymentReceiptPdf,
-  getYearStats,
-  handleAiQuery,
-  handleCopyNotifyMessage,
-  handleCreateClassSubmit,
-  handleEditClassSubmit,
-  handleExpenseSubmit,
-  handleLinkStudentSubmit,
-  handleNotifyTemplateChange,
-  handleParentSubmit,
-  handlePaymentSubmit,
-  handleSalarySubmit,
-  handleSaveNote,
-  handleSendSMS,
-  handleSendWhatsApp,
-  handleStaffSubmit,
-  handleStudentSubmit,
-  handleVendorExpenseSubmit,
-  newClassForm,
-  notifyCustomText,
-  notifyParent,
-  notifySelectedPhone,
-  notifyTemplateType,
-  noteText,
-  parentForm,
-  paymentAmount,
-  paymentDate,
-  paymentStudentId,
-  printStudentFile,
-  productivitySidebarTab,
-  savingNoteOnDate,
-  saveNoteOnDate,
-  selectedCalendarDay,
-  selectedStudent,
-  setAiInput,
-  setEditClassForm,
-  setExpenseForm,
-  setNewClassForm,
-  setNotifyCustomText,
-  setNoteText,
-  setNotifySelectedPhone,
-  setPaymentAmount,
-  setPaymentDate,
-  setPaymentStudentId,
-  setPrintStudentFile,
-  setProductivitySidebarTab,
-  setShowAuditModal,
-  setShowEditClassModal,
-  setShowExpenseModal,
-  setShowNotifyModal,
-  setShowPaymentForm,
-  setShowStudentModal,
-  setShowTodoSidebar,
-  setStudentDetailTab,
-  setStudentForm,
-  showAddClassModal,
-  showAuditModal,
-  showCalendarModal,
-  showEditClassModal,
-  showExpenseModal,
-  showLinkStudentModal,
-  showNotifyModal,
-  showParentModal,
-  showPaymentForm,
-  showSalaryModal,
-  showStaffModal,
-  showStudentModal,
-  showSuccessToast,
-  showTodoSidebar,
-  showVendorExpenseModal,
-  staffForm,
-  studentDetailTab,
-  studentForm,
-  studentToLinkId,
-  students,
-  ticketStudent,
-  vendorExpenseForm,
-  welcomeMessage,
-  };
-  const appShellExtras: AppShellExtras = {
-    viewsProps,
-    fetchAll,
-    authLoading,
-    currentUser,
-    supabaseLoading,
-    supabaseError,
-    appEnv,
+  // (scripts/check-component-props.mjs) resolves the literal in
+  // src/app/viewsWiring.ts against both interfaces, so a partial wiring
+  // still fails the gate. The literal moved there so App.tsx stays under
+  // the line budget; buildShellProps recombines it with the shell extras.
+  const shellProps = buildShellProps({
+    ...supabaseData,
+    ...authWelcomeData,
+    ...usersData,
+    ...themeData,
+    ...expensesData,
+    ...studentsData,
+    ...dashboardData,
+    ...yearOpsData,
+    ...chatData,
+    ...todoData,
+    ...exportsData,
+    ...parentsData,
+    ...paymentsData,
+    ...payrollData,
+    ...classesData,
+    ...yearData,
+    supabaseLoading: supabaseData.loading,
+    supabaseError: supabaseData.error,
+    lang,
+    t,
     toast,
+    appEnv,
+    inactivity,
+    inactivityMinutes: inactivity.minutes,
+    setInactivityMinutes: inactivity.setMinutes,
+    activeTab,
     setActiveTab,
+    currentMonth,
+    today,
+    generateInstallmentMemo,
+    showSuccessToast,
+    copyToClipboard,
+    toggleLanguage,
     openAddStudentModal,
     setSelectedYear,
-    setSearchTerm,
-    studentGradeFilter,
-    setStudentGradeFilter,
-    setIsPromotionWizardOpen,
-    setShowExcelImport,
-    generateMultiYearReportPdf,
     lockedYears,
-    vendorExpensesTab,
-    handleExport,
-    generateFinancialReportPdf,
-    notifications,
+    academicYears,
+    auditYear,
+    setAuditYear,
+    showAuditModal,
+    setShowAuditModal,
+    setIsPromotionWizardOpen,
+    isPromotionWizardOpen,
+    setShowExcelImport,
+    showExcelImport,
     readNotificationIds,
     markNotificationRead,
     markAllNotificationsRead,
     markNotificationUnread,
     openCalendarOnDate,
-    handleCloseCurrentYear,
-    setAuditYear,
-    isFloatingChatOpen,
-    setIsFloatingChatOpen,
-    floatingChatMessages,
-    floatingChatInput,
-    setFloatingChatInput,
-    handleFloatingAiQuery,
-    isPromotionWizardOpen,
-    batchPromoteStudents,
-    showAddUserModal,
-    showExcelImport,
-    batchImportData,
-    showMonthlyDraftModal,
-    selectedDraftMonth,
-    selectedDraftYear,
-    handleExportMonthlyPayrollExcel,
-    pendingQueueCount,
-    isSyncing,
-    syncOfflineQueue,
     confirmAction,
     setConfirmAction,
-    inactivity,
     formatCurrency,
-  };
-  const shellProps: MainViewsProps & AppModalsProps & AppShellExtras = { ...viewsProps, ...appShellExtras };
+  });
+
   return (
     <AppShell {...shellProps} />
   );

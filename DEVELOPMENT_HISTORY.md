@@ -1,3 +1,13 @@
+## [2026-09-09] Campagne de découpage : App.tsx (1084 → 670 lignes) et admin.ts (1059 → 2×534)
+
+Suite de la campagne de découpage (après useSupabaseData / AppModals) pour ramener les plus gros fichiers sous ~700 lignes, **sans aucun changement de comportement** :
+
+- **`src/App.tsx` (1084 → 670 lignes)** : le littéral de câblage `viewsProps` + `appShellExtras` (~365 lignes) est extrait dans un nouveau module **`src/app/viewsWiring.ts`** qui expose `buildShellProps(deps)` + le type `ShellDeps`. App.tsx capture maintenant chaque résultat de hook (`const supabaseData = useSupabaseData(...)`, puis destructure depuis la variable) et appelle `buildShellProps({ ...hookResults, ...locaux })` — renames (`supabaseLoading`, `supabaseError`) et valeurs dérivées (`inactivityMinutes`) passés explicitement. Les helpers `formatDate`, `getGradeDisplay` et `getStatus` (qui utilise du JSX via `createElement`) déménagent aussi dans viewsWiring.
+- **Garde câblage** (`scripts/check-component-props.mjs`) : le chemin `literal` des 4 composants passe de `src/App.tsx` à `src/app/viewsWiring.ts` — la vérification des clés contre les interfaces reste active.
+- **`src/i18n/domains/admin.ts` (1059 lignes)** : scindé en **`adminEn.ts` + `adminFr.ts`** (~534 lignes chacun) + baril `admin.ts` qui re-exporte `en`/`fr` — `translations.ts` et le garde `l10n-verify.mjs` (parité en/fr, 1062 clés) fonctionnent sans modification.
+- **Imports nettoyés** au passage : 5 icônes lucide mortes (`LayoutDashboard`, `Lock`, `LogOut`, `AlertTriangle`, `LinkIcon`, `FileSpreadsheet`), 6 générateurs PDF déplacés, `UserProfile`/`ImportCategory`/`InactivityWarning` morts, `DashboardCharts` lazy déplacé.
+
+**Vérifié** : tsc 0 erreur, 605/605 tests, lint complet vert (guard câblage ✅, l10n 1062 clés ✅, budget lignes ✅), build Vite OK, rendu réel vérifié en dev (page de connexion, 0 erreur console).
 ## [2026-09-09] Son de notification : déblocage audio à la première interaction (fin des warnings autoplay)
 
 Suite au signalement « corrige ces erreurs de la console » : Chrome/les navigateurs

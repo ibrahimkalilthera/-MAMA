@@ -9,12 +9,13 @@ const COMPONENTS = [
   // MainViews' props contract lives in its dedicated types module — the single
   // source of truth (see src/app/mainViewsProps.ts + tests/mainviews-props.test.ts).
   // The app-shell JSX (and thus the <MainViews {...viewsProps} /> renders) moved
-  // to src/components/AppShell.tsx; the `viewsProps` wiring literal itself stays
-  // in src/App.tsx, so each entry names its `literal` file explicitly.
-  { name: 'MainViews', file: 'src/app/mainViewsProps.ts', render: 'src/components/AppShell.tsx', literal: 'src/App.tsx' },
-  { name: 'AppModals', file: 'src/components/AppModals.tsx', render: 'src/components/AppShell.tsx', literal: 'src/App.tsx' },
-  { name: 'ArchivesView', file: 'src/components/ArchivesView.tsx', render: 'src/components/AppShell.tsx', literal: 'src/App.tsx' },
-  { name: 'PromotionWizardModal', file: 'src/components/PromotionWizardModal.tsx', render: 'src/components/AppShell.tsx', literal: 'src/App.tsx' },
+  // to src/components/AppShell.tsx; the `viewsProps` wiring literal itself lives
+  // in src/app/viewsWiring.tsx (extracted from App.tsx in the split campaign),
+  // so each entry names its `literal` file explicitly.
+  { name: 'MainViews', file: 'src/app/mainViewsProps.ts', render: 'src/components/AppShell.tsx', literal: 'src/app/viewsWiring.ts' },
+  { name: 'AppModals', file: 'src/components/AppModals.tsx', render: 'src/components/AppShell.tsx', literal: 'src/app/viewsWiring.ts' },
+  { name: 'ArchivesView', file: 'src/components/ArchivesView.tsx', render: 'src/components/AppShell.tsx', literal: 'src/app/viewsWiring.ts' },
+  { name: 'PromotionWizardModal', file: 'src/components/PromotionWizardModal.tsx', render: 'src/components/AppShell.tsx', literal: 'src/app/viewsWiring.ts' },
   { name: 'DashboardCharts', file: 'src/components/DashboardCharts.tsx', render: 'src/components/DashboardView.tsx' },
   { name: 'MultiYearChart', file: 'src/components/MultiYearChart.tsx', render: 'src/components/ArchivesView.tsx' },
 ];
