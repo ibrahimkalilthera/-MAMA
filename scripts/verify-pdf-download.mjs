@@ -711,9 +711,9 @@ async function pixelCheck(pdfPath, mode) {
       ['somme en lettres', 54.5, 191, 89.5, 97],
       ['montant en chiffres (pilule BPF)', 158, 190.5, 36, 45.5],
       ['mois', 31, 100, 111.5, 117.5],
-      ['classe', 150, 183, 111.5, 117.5],
+      ['classe', 150, 188, 110.5, 122.5],
       ['motif', 33, 190, 122, 129],
-      ['date', 76, 141, 137, 142.5],
+      ['date', 76, 141, 135, 147.5],
       ['numéro (boîte N°)', 154.3, 191.9, 132.5, 144.3],
     ];
     for (const [name, x0, x1, y0, y1] of zones) {

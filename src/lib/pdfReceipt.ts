@@ -12,10 +12,14 @@
  *   • « La somme de : » gets the paid amount IN WORDS (French, capitalized);
  *   • the BPF gradient pill (sous BPF) gets the paid amount IN FIGURES,
  *     « … FCFA »;
- *   • « Mois » gets the payment month, « Classe » the student grade;
+ *   • « Mois » gets the payment month;
+ *   • « Classe » gets the student grade — written inside a drawn blue cell
+ *     (same style as the printed « N° » box) placed where the Direction
+ *     marks the class entry;
  *   • « Motif » gets the payment reason;
- *   • « Date, le … 20 … » gets the payment date (dd/mm/ + the last two year
- *     digits written after the pre-printed « 20 »);
+ *   • « Date, le … 20 … » gets the payment date: dd/mm/ inside a drawn blue
+ *     cell on the dotted line, then the last two year digits written after
+ *     the pre-printed « 20 »;
  *   • the « N° » box gets the receipt number.
  *
  * No French/English labels are drawn — they are printed on the paper template
@@ -63,6 +67,15 @@ const TEMPLATE_URL = 'templates/recu-parent.pdf';
 //     (x 118.8–125.4), y 137.4–142.2 (center 139.8);
 //   • the « N° » box (rounded outline): x 154.3–191.9, y 132.5–144.3
 //     (center 173.1, 138.4);
+//   • the CLASS cell is a DRAWN box (the Direction circles it on the paper)
+//     — the grade is written inside it. The cell bbox comes from the red
+//     square the Direction drew on the filled receipt (x 175.2–186.7,
+//     y 110.1–123.2, center 180.95, 116.65), at the right end of the
+//     « Classe : » dotted line;
+//   • the DATE cell is the same drawn box on the « Date, le » dotted line,
+//     placed before the pre-printed « 20 »: x 102.2–117.8, y 135.5–146.5
+//     (the Direction's red square was x 107.2–115.5 — widened to fit
+//     « dd/mm/ » at the larger size);
 //   • the BPF box: dark blue label block x 158–192, y 20–33 (white « BPF »
 //     text at y 24–32), then the gradient pill x 158–190.5, y 36–45.5 — dark
 //     blue at the ends, LIGHT in the middle (x 162.7–184.9) where the paid
@@ -71,9 +84,11 @@ export const LINE_M = { x: 20.5, y: 82.0 };
 export const SOMME_LINE1 = { x: 54.5, y: 92.9 };
 export const SOMME_LINE2 = { x: 13.5, y: 105.8 };
 export const MOIS = { x: 31.5, y: 114.4 };
-export const CLASSE = { x: 150.5, y: 114.4 };
 export const MOTIF = { x: 33.0, y: 125.7 };
-export const DATE = { x: 76.5, y: 139.8 };
+/** Drawn blue cell on the « Classe : » dotted line (Direction's marked spot). */
+export const CLASSE_BOX = { x0: 175.2, x1: 186.7, y0: 110.1, y1: 123.2 };
+/** Drawn blue cell on the « Date, le » dotted line, before the « 20 ». */
+export const DATE_BOX = { x0: 102.2, x1: 117.8, y0: 135.5, y1: 146.5 };
 /** The pre-printed « 20 » of the year on the date line (x 118.8–125.4). */
 export const DATE_PRINTED_20_X1 = 125.4;
 export const PILL = { x0: 158.0, x1: 190.5, y0: 36.0, y1: 45.5 };
@@ -86,6 +101,10 @@ const PT_PER_MM = 72 / 25.4;
 /** Inks that read like typed entries on the paper form. */
 const INK = { r: 0.09, g: 0.12, b: 0.2 }; // near-black slate
 const DARK_BLUE = { r: 0.04, g: 0.13, b: 0.42 }; // deep blue #0A226B
+/** The vivid blue of the printed « N° » box outline (sampled on the raster). */
+const BOX_BLUE = { r: 0.08, g: 0.33, b: 0.91 };
+/** Shared size for the handwritten-style entries (the letters were too small). */
+const DATA_SIZE = 12.5;
 
 interface PtFont {
   font: import('pdf-lib').PDFFont;
@@ -180,18 +199,37 @@ export async function buildParentReceiptPdf({
 
   const baseline = (centerY: number, sizePt: number) => centerY + (sizePt / PT_PER_MM) * 0.35;
 
+  /** Draws a white cell with the form's blue outline (N° box style). */
+  const drawCell = (b: { x0: number; x1: number; y0: number; y1: number }): void => {
+    page.drawRectangle({
+      x: mmToPdfX(b.x0),
+      y: mmToPdfY(b.y1),
+      width: (b.x1 - b.x0) * PT_PER_MM,
+      height: (b.y1 - b.y0) * PT_PER_MM,
+      color: rgb(1, 1, 1),
+      borderColor: rgb(BOX_BLUE.r, BOX_BLUE.g, BOX_BLUE.b),
+      borderWidth: 2,
+    });
+  };
+
+  /** Centered text helper (for the cells). */
+  const textCentered = (str: string, cx: number, cy: number, font: PtFont): void => {
+    const wMm = font.font.widthOfTextAtSize(str, font.size) / PT_PER_MM;
+    text(str, cx - wMm / 2, baseline(cy, font.size), { font });
+  };
+
   // 1. « M » — the payer (parent/guardian, falling back to the student).
   const payer = student.parentName || student.name || '—';
-  text(payer, LINE_M.x, baseline(LINE_M.y, 9.5), { font: { font: helv, size: 9.5 } });
+  text(payer, LINE_M.x, baseline(LINE_M.y, DATA_SIZE), { font: { font: helv, size: DATA_SIZE } });
 
   // 2. « La somme de : » — the amount in words, wrapped on the two dotted lines.
   const words = amountInWords(amount);
-  const wordFont: PtFont = { font: helv, size: 9.5 };
+  const wordFont: PtFont = { font: helv, size: DATA_SIZE };
   const line1MaxW = 190 - SOMME_LINE1.x;
   const line2MaxW = 190 - SOMME_LINE2.x;
-  const wordsW = (s: string) => helv.widthOfTextAtSize(s, 9.5) / PT_PER_MM;
+  const wordsW = (s: string) => helv.widthOfTextAtSize(s, DATA_SIZE) / PT_PER_MM;
   if (wordsW(words) <= line1MaxW) {
-    text(words, SOMME_LINE1.x, baseline(SOMME_LINE1.y, 9.5), { font: wordFont });
+    text(words, SOMME_LINE1.x, baseline(SOMME_LINE1.y, DATA_SIZE), { font: wordFont });
   } else {
     const wordsArr = words.split(' ');
     let line1 = '';
@@ -202,11 +240,11 @@ export async function buildParentReceiptPdf({
       else line2 = line2 ? `${line2} ${w}` : w;
     }
     if (!line2) {
-      text(words, SOMME_LINE1.x, baseline(SOMME_LINE1.y, 9), { font: { font: helv, size: 9 } });
+      text(words, SOMME_LINE1.x, baseline(SOMME_LINE1.y, DATA_SIZE - 3.5), { font: { font: helv, size: DATA_SIZE - 3.5 } });
     } else {
-      if (wordsW(line2) > line2MaxW) line2 = `${line2.slice(0, Math.max(20, Math.floor(line2MaxW / 1.6)))}…`;
-      text(line1, SOMME_LINE1.x, baseline(SOMME_LINE1.y, 9.5), { font: wordFont });
-      text(line2, SOMME_LINE2.x, baseline(SOMME_LINE2.y, 9.5), { font: wordFont });
+      if (wordsW(line2) > line2MaxW) line2 = `${line2.slice(0, Math.max(20, Math.floor(line2MaxW / 2.2)))}…`;
+      text(line1, SOMME_LINE1.x, baseline(SOMME_LINE1.y, DATA_SIZE), { font: wordFont });
+      text(line2, SOMME_LINE2.x, baseline(SOMME_LINE2.y, DATA_SIZE), { font: wordFont });
     }
   }
 
@@ -221,21 +259,37 @@ export async function buildParentReceiptPdf({
   const pillCy = (PILL.y0 + PILL.y1) / 2;
   text(figures, pillCx - figuresW / 2, baseline(pillCy, figuresSize), { font: { font: helvBold, size: figuresSize }, color: DARK_BLUE });
 
-  // 4. « Mois » / « Classe ».
+  // 4. « Mois ».
   const payDate = payment.date ? new Date(payment.date) : new Date();
   const monthIdx = Number.isNaN(payDate.getTime()) ? new Date().getMonth() : payDate.getMonth();
   const monthKey = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'][monthIdx] as keyof TranslationDict;
-  text(String(t[monthKey]), MOIS.x, baseline(MOIS.y, 9.5), { font: { font: helv, size: 9.5 } });
-  if (student.grade) text(student.grade, CLASSE.x, baseline(CLASSE.y, 9.5), { font: { font: helv, size: 9.5 } });
+  text(String(t[monthKey]), MOIS.x, baseline(MOIS.y, DATA_SIZE), { font: { font: helv, size: DATA_SIZE } });
 
-  // 5. « Motif » — the payment reason.
-  text(t.pdfMotifTuition, MOTIF.x, baseline(MOTIF.y, 9.5), { font: { font: helv, size: 9.5 } });
+  // 5. « Classe » — the grade written INSIDE the drawn cell on the dotted line.
+  if (student.grade) {
+    drawCell(CLASSE_BOX);
+    const gradeSize = DATA_SIZE;
+    const gradeW = helv.widthOfTextAtSize(student.grade, gradeSize) / PT_PER_MM;
+    const usableW = CLASSE_BOX.x1 - CLASSE_BOX.x0 - 2.8;
+    const fit = Math.min(gradeSize, (usableW / gradeW) * gradeSize);
+    const clsCx = (CLASSE_BOX.x0 + CLASSE_BOX.x1) / 2;
+    const clsCy = (CLASSE_BOX.y0 + CLASSE_BOX.y1) / 2;
+    textCentered(student.grade, clsCx, clsCy, { font: helv, size: fit });
+  }
 
-  // 6. « Date, le … 20 … » — dd/mm/ after the label, then the last two year
-  //    digits after the pre-printed « 20 ».
+  // 6. « Motif » — the payment reason.
+  text(t.pdfMotifTuition, MOTIF.x, baseline(MOTIF.y, DATA_SIZE), { font: { font: helv, size: DATA_SIZE } });
+
+  // 7. « Date, le … 20 … » — dd/mm/ inside the drawn cell, then the last two
+  //    year digits after the pre-printed « 20 » (same baseline as the cell).
   const { ddmm, yy } = fmtDateShort(payment.date);
-  if (ddmm) text(ddmm, DATE.x, baseline(DATE.y, 9), { font: { font: helv, size: 9 } });
-  if (yy) text(yy, DATE_PRINTED_20_X1 + 1, baseline(DATE.y, 9), { font: { font: helv, size: 9 } });
+  const dateCy = DATE_BOX.y0 + 4.3; // visual center of the cell (its own center is 141.0)
+  if (ddmm) {
+    drawCell(DATE_BOX);
+    const dateCx = (DATE_BOX.x0 + DATE_BOX.x1) / 2;
+    textCentered(ddmm, dateCx, dateCy, { font: helv, size: DATA_SIZE });
+  }
+  if (yy) text(yy, DATE_PRINTED_20_X1 + 1, baseline(dateCy, DATA_SIZE), { font: { font: helv, size: DATA_SIZE } });
 
   // 7. The « N° » box — the receipt number, centered.
   const nBoxCx = (NBOX.x0 + NBOX.x1) / 2;
