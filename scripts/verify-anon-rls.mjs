@@ -56,6 +56,7 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 
 export const PROBE_NAME = 'CI Probe — anon RLS';
 const HACKED_NAME = `${PROBE_NAME} (hacked)`;
@@ -240,7 +241,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   // le trigger handle_new_user doit produire sa ligne user_profiles. Sans
   // cette ligne (FK vers auth.users), PATCH/DELETE anon seraient vides — le
   // même piège 204 que pour students.
-  const probeEmail = `ci-probe-${Date.now()}@example.test`;
+  const probeEmail = ephemeralEmail('ci-probe', 'example.test');
   const adminCreate = await authApi('admin/users', serviceKey, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -308,7 +309,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
 
   // 14. Deuxième utilisateur : prouver qu'un utilisateur authentifié ne voit
   // que SON profil exige au moins 2 lignes en base.
-  const secondEmail = `ci-probe-b-${Date.now()}@example.test`;
+  const secondEmail = ephemeralEmail('ci-probe-b', 'example.test');
   const adminCreateB = await authApi('admin/users', serviceKey, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -397,7 +398,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
 
   // 18. Créer un utilisateur C puis promouvoir son profil en 'admin' (via
   // service_role — la RLS est contournée, mais le rôle est posé en base).
-  const adminEmail = `ci-probe-admin-${Date.now()}@example.test`;
+  const adminEmail = ephemeralEmail('ci-probe-admin', 'example.test');
   const adminCreateC = await authApi('admin/users', serviceKey, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -590,7 +591,7 @@ export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, table
   const recover = await authApi('recover', anonKey, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: `ci-remote-${Date.now()}@example.test` }),
+    body: JSON.stringify({ email: ephemeralEmail('ci-remote', 'example.test') }),
   });
   check(recover.status < 400, `recover (reset par email) joignable pour anon (${recover.status})`);
 

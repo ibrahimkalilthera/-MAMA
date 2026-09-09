@@ -30,6 +30,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
+import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const parseEnv = (p) => {
@@ -58,7 +59,7 @@ const URL = (process.argv.includes('--url') ? process.argv[process.argv.indexOf(
 const KEEP = process.argv.includes('--keep');
 
 const TS = Date.now().toString().slice(-6);
-const EMAIL = `verify-csp-${TS}@audit.local`;
+const EMAIL = ephemeralEmail('verify-csp');
 const PASS = 'Audit-Pass-2026!';
 let ephemeralUid = null;
 

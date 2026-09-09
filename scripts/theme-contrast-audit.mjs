@@ -33,6 +33,7 @@
  */
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
+import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -236,8 +237,7 @@ async function main() {
       console.error('❌ Aucun compte : fournissez AUDIT_EMAIL/AUDIT_PASSWORD (CI) ou SUPABASE_SERVICE_ROLE_KEY dans .env (compte éphémère local).');
       process.exit(1);
     }
-    const ts = Date.now().toString().slice(-6);
-    const email = `contrast-audit-${ts}@mamathera.org`;
+    const email = ephemeralEmail('contrast-audit', 'mamathera.org');
     const password = 'Contrast-2026!Audit';
     const HDR = { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, 'Content-Type': 'application/json' };
     const r = await fetch(`${supabaseBase}/auth/v1/admin/users`, {

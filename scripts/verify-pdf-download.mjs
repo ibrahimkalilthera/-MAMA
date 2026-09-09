@@ -73,6 +73,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
+import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -145,7 +146,7 @@ const isTechniquePosition = (position) =>
 
 // ── Bookkeeping ──────────────────────────────────────────────────────────────
 const TS = Date.now().toString().slice(-6);
-const EMAIL = `verify-pdf-${TS}@audit.local`;
+const EMAIL = ephemeralEmail('verify-pdf');
 const PASS = 'Audit-Pass-2026!';
 const WORK = join(tmpdir(), `verify-pdf-${TS}`);
 const DL_DIR = join(WORK, 'dl');

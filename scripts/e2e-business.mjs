@@ -26,6 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import puppeteer from 'puppeteer-core';
 import { readFileSync, rmSync, existsSync } from 'node:fs';
+import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -71,7 +72,7 @@ const check = (name, ok, detail = '') => {
 
 // ── Test-data markers (safe, unique, cleanable by prefix) ───────────────────
 const TS = Date.now().toString().slice(-6);
-const EMAIL = `e2e-${TS}@mamathera.org`;
+const EMAIL = ephemeralEmail('e2e', 'mamathera.org');
 const PASS = 'E2e-2026!Xy';
 const STUDENT_ID = `MT-TEST-${TS}`;
 const STUDENT_NAME = `BizTest ${TS}`;
