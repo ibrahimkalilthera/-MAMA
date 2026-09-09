@@ -13,7 +13,7 @@ const COMPONENTS = [
   // in src/app/viewsWiring.tsx (extracted from App.tsx in the split campaign),
   // so each entry names its `literal` file explicitly.
   { name: 'MainViews', file: 'src/app/mainViewsProps.ts', render: 'src/components/AppShell.tsx', literal: 'src/app/viewsWiring.ts' },
-  { name: 'AppModals', file: 'src/components/AppModals.tsx', render: 'src/components/AppShell.tsx', literal: 'src/app/viewsWiring.ts' },
+  { name: 'AppModals', file: 'src/app/appModalsProps.ts', render: 'src/components/AppShell.tsx', literal: 'src/app/viewsWiring.ts' },
   { name: 'ArchivesView', file: 'src/components/ArchivesView.tsx', render: 'src/components/AppShell.tsx', literal: 'src/app/viewsWiring.ts' },
   { name: 'PromotionWizardModal', file: 'src/components/PromotionWizardModal.tsx', render: 'src/components/AppShell.tsx', literal: 'src/app/viewsWiring.ts' },
   { name: 'DashboardCharts', file: 'src/components/DashboardCharts.tsx', render: 'src/components/DashboardView.tsx' },
