@@ -68,8 +68,9 @@ const TEMPLATE_URL = 'templates/recu-parent.pdf';
 //   • the « N° » box (rounded outline): x 154.3–191.9, y 132.5–144.3
 //     (center 173.1, 138.4);
 //   • the CLASS entry sits at the spot the Direction marked on the filled
-//     receipt (center 180.95, 116.65) — the red square was x 175.2–186.7,
-//     y 110.1–123.2 on the right end of the « Classe : » dotted line. Only
+//     receipt (center x 180.95 — the red square was x 175.2–186.7, y
+//     110.1–123.2 on the right end of the « Classe : » dotted line), ON
+//     the printed line itself (y 114.4, same baseline as « Mois »). Only
 //     the position and size were requested: no box is drawn;
 //   • the DATE entry (dd/mm/) sits centered on the « Date, le » dotted line
 //     just before the pre-printed « 20 »: the Direction's red square was
@@ -85,8 +86,8 @@ export const SOMME_LINE1 = { x: 54.5, y: 92.9 };
 export const SOMME_LINE2 = { x: 13.5, y: 105.8 };
 export const MOIS = { x: 31.5, y: 114.4 };
 export const MOTIF = { x: 33.0, y: 125.7 };
-/** « Classe » entry anchor (center of the Direction's marked spot, right end of the dotted line). */
-export const CLASSE = { x: 180.95, y: 116.65 };
+/** « Classe » entry anchor — on the printed line (y 114.4), at the Direction's marked spot (x 180.95). */
+export const CLASSE = { x: 180.95, y: 114.4 };
 /** « Date » entry anchor — dd/mm/ centered before the pre-printed « 20 ». */
 export const DATE = { x: 110.0, y: 139.8 };
 /** The pre-printed « 20 » of the year on the date line (x 118.8–125.4). */
@@ -102,7 +103,7 @@ const PT_PER_MM = 72 / 25.4;
 const INK = { r: 0.09, g: 0.12, b: 0.2 }; // near-black slate
 const DARK_BLUE = { r: 0.04, g: 0.13, b: 0.42 }; // deep blue #0A226B
 /** Shared size for the handwritten-style entries (the letters were too small). */
-const DATA_SIZE = 12.5;
+const DATA_SIZE = 14;
 /** Max width of the class entry — the width of the spot the Direction marked. */
 const CLASSE_MAX_W = 11.5;
 

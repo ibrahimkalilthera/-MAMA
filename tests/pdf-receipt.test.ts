@@ -127,7 +127,7 @@ describe('calibrated fill-in zones — pixel-scan drift lock', () => {
   it('keeps the Mois, Motif anchors and the placed Class/Date entries at their scanned spots', () => {
     assert.deepEqual(MOIS, { x: 31.5, y: 114.4 }, 'month after « Mois : »');
     assert.deepEqual(MOTIF, { x: 33.0, y: 125.7 }, 'motif after « Motif : »');
-    assert.deepEqual(CLASSE, { x: 180.95, y: 116.65 }, 'class centered on the right end of the « Classe : » dotted line (Direction-marked spot)');
+    assert.deepEqual(CLASSE, { x: 180.95, y: 114.4 }, 'class on the printed line (same baseline as Mois) at the right end of the « Classe : » dotted line');
     assert.deepEqual(DATE, { x: 110.0, y: 139.8 }, 'date centered on the « Date, le » dotted line before the pre-printed « 20 »');
   });
 
@@ -188,7 +188,8 @@ describe('somme en lettres — stays on the printed dotted lines (pixel scan)', 
     const d = diffStats(live, tpl, 53, 192, 89.5, 97.5);
     assert.ok(d && d.count > 1000, `the words are drawn on line 1 (${d ? d.count : 0} px)`);
     assert.ok(d!.minX >= 53.5 && d!.maxX <= 191, `line-1 words stay between x 53.5 and 191 (bbox ${d!.minX.toFixed(1)}–${d!.maxX.toFixed(1)})`);
-    assert.ok(!diffStats(live, tpl, 12, 192, 108.5, 112.5), 'no ink leaks into the Mois line');
+    // 14 pt text: line-2 descenders end at 108.6, Mois caps start at 112.6 → clean band 109.5–112.0
+    assert.ok(!diffStats(live, tpl, 12, 192, 109.5, 112.0), 'no ink leaks into the Mois line');
     assert.ok(!diffStats(live, tpl, 192, 201, 89.5, 108.5), 'nothing overflows right of the dotted line');
   });
 
@@ -201,13 +202,14 @@ describe('somme en lettres — stays on the printed dotted lines (pixel scan)', 
     const live = await raster(bytes);
 
     const line1 = diffStats(live, tpl, 53, 192, 89.5, 97.5);
-    const line2 = diffStats(live, tpl, 12, 192, 103.5, 108.5);
+    const line2 = diffStats(live, tpl, 12, 192, 103.0, 109.5);
     assert.ok(line1 && line1.count > 1000, `line 1 is filled (${line1 ? line1.count : 0} px)`);
     assert.ok(line2 && line2.count > 1000, `the continuation is drawn on line 2 (${line2 ? line2.count : 0} px)`);
     assert.ok(line1!.maxX <= 191, `line 1 ends before the dots do (${line1!.maxX.toFixed(1)})`);
-    assert.ok(line2!.minY >= 103.5 && line2!.maxY <= 108.5, `line 2 sits in its own dotted band (y ${line2!.minY.toFixed(1)}–${line2!.maxY.toFixed(1)})`);
+    assert.ok(line2!.minY >= 103.0 && line2!.maxY <= 109.5, `line 2 sits in its own dotted band (y ${line2!.minY.toFixed(1)}–${line2!.maxY.toFixed(1)})`);
     assert.ok(!diffStats(live, tpl, 53, 192, 97.5, 103.5), 'the interligne between the two lines stays clean');
-    assert.ok(!diffStats(live, tpl, 192, 201, 89.5, 108.5), 'nothing overflows right of the dotted line');
-    assert.ok(!diffStats(live, tpl, 12, 192, 108.5, 112.5), 'nothing leaks into the Mois line');
+    assert.ok(!diffStats(live, tpl, 192, 201, 89.5, 109.5), 'nothing overflows right of the dotted line');
+    // 14 pt text: line-2 descenders end at 108.6, Mois caps start at 112.6 → clean band 109.5–112.0
+    assert.ok(!diffStats(live, tpl, 12, 192, 109.5, 112.0), 'nothing leaks into the Mois line');
   });
 });
