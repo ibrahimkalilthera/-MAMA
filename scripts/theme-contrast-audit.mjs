@@ -601,6 +601,15 @@ async function main() {
     const counts = checks.reduce((a, c) => (a[c.ok ? 'ok' : 'ko'] += 1, a), { ok: 0, ko: 0 });
     console.log(`Couvertures : ${checks.length} (${counts.ok} ok, ${counts.ko} KO)`);
     console.log(`Paires sous ${MIN_RATIO}:1 : ${failures.length}`);
+    // Coverage assertion: every configured theme must have produced at least
+    // one scanned check. Without this, a future partial audit (e.g. the theme
+    // switcher silently breaking after theme N, or AUDIT_THEMES accidentally
+    // trimmed in CI) would pass green on the remaining themes.
+    const auditedThemes = new Set(checks.map((c) => c.theme));
+    const missingThemes = THEMES.filter((t) => !auditedThemes.has(t));
+    if (missingThemes.length) {
+      console.error(`\n❌ Thèmes sans aucune couverture : ${missingThemes.join(', ')} — audit KO.`);
+    }
     // A step that could not open/scan its overlay (timeout, broken trigger)
     // means that surface was NOT verified — treat it as a hard failure so the
     // gate cannot silently skip coverage ("non applicable" stays OK: the
@@ -618,9 +627,10 @@ async function main() {
     if (process.env.AUDIT_OUT) {
       writeFileSync(process.env.AUDIT_OUT, JSON.stringify({ checks, failures, ignored: ignoredSeen }, null, 2));
     }
-    process.exitCode = failures.length > 0 || counts.ko > 0 ? 1 : 0;
+    process.exitCode = failures.length > 0 || counts.ko > 0 || missingThemes.length > 0 ? 1 : 0;
     if (failures.length > 0) console.log(`\n❌ ${failures.length} paire(s) sous ${MIN_RATIO}:1 — audit KO.`);
     else if (counts.ko > 0) console.log(`\n❌ ${counts.ko} étape(s) non couvertes (timeout/erreur d'ouverture) — audit KO.`);
+    else if (missingThemes.length > 0) console.log(`\n❌ Audit partiel : ${missingThemes.join(', ')} sans couverture — audit KO.`);
     else console.log('\n✅ Aucune paire sous le seuil, toutes les étapes couvertes — contraste conforme.');
   } finally {
     if (preview) { try { preview.kill('SIGTERM'); } catch { /* ignore */ } }
