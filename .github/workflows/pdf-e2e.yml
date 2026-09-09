@@ -46,14 +46,17 @@ name: PDF E2E — pixel check après déploiement
 #   VITE_SUPABASE_URL est PUBLIQUE (embarquée dans le bundle client) et est
 #     hardcodée ci-dessous comme les autres workflows — pas un secret.
 #
-# Le job exécute aussi deux gardes de sécurité : après la mise en ligne, il curl
-# la racine et exige X-Frame-Options (SAMEORIGIN/DENY) et X-Content-Type-Options
-# (nosniff), puis il NAVIGUE la vraie app (compte éphémère admin, toutes les
-# pages principales) et échoue si une violation Content-Security-Policy est
-# émise en console / via SecurityPolicyViolationEvent (scripts/verify-csp-guard.mjs,
-# qui vérifie aussi que le header CSP est présent — une page sans politique ne
-# peut pas violer et ne doit pas passer en silence). Une régression des headers
-# ou de la policy vercel.json devient rouge ici.
+# Le job exécute aussi trois gardes de sécurité/hygiène : après la mise en
+# ligne, il curl la racine et exige X-Frame-Options (SAMEORIGIN/DENY) et
+# X-Content-Type-Options (nosniff), il NAVIGUE la vraie app (compte éphémère
+# admin, toutes les pages principales) et échoue si une violation
+# Content-Security-Policy est émise en console / via SecurityPolicyViolationEvent
+# (scripts/verify-csp-guard.mjs, qui vérifie aussi que le header CSP est présent
+# — une page sans politique ne peut pas violer et ne doit pas passer en silence),
+# puis une garde finale vérifie qu'aucun compte éphémère (verify-*/e2e-*/
+# audit-*/@audit.local) ne subsiste en base après tous les checks
+# (scripts/verify-ephemeral-cleanup.mjs). Une régression des headers, de la
+# policy vercel.json ou du nettoyage devient rouge ici.
 #
 # Le run échoue (rouge) si une seule vérification (pixel ou header) échoue : une
 # régression de rendu des PDF (placement, cachet, taille) ou des headers de
@@ -197,3 +200,14 @@ jobs:
         env:
           CHROME_PATH: /usr/bin/google-chrome
         run: node scripts/verify-pdf-download.mjs --mode recu-parent
+
+      # Garde finale anti-résidus : chaque script E2E (garde CSP, pixel-checks
+      # paie/reçu parent) crée et supprime son compte éphémère dans un finally —
+      # mais un nettoyage cassé (crash, erreur avalée) laisserait un résidu
+      # (verify-*/e2e-*/audit-*/@audit.local). Cette étape tourne en DERNIER et
+      # fait échouer le run si un compte éphémère subsiste dans auth.users ou
+      # dans public.user_profiles (la FK en ON DELETE CASCADE doit avoir
+      # supprimé le profil avec le compte). Réutilise le même .env que les
+      # pixel-checks ; lecture seule, ne supprime rien.
+      - name: Vérification finale — aucun compte éphémère résiduel en base
+        run: node scripts/verify-ephemeral-cleanup.mjs
