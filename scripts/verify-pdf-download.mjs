@@ -11,6 +11,13 @@
 //   • technique ("Ajouter un Membre du Centre Technique" → fiche technique
 //                fiche-technique.pdf — the member is CREATED through the real
 //                UI button when none exists, so the whole flow is exercised)
+//   • recu-parent (Élèves → fiche d'un élève → bouton « Reçu » d'un paiement
+//                → reçu-parent recu-parent.pdf — the parent payment receipt,
+//                filled with the payer name, the phone on the « Tél. : »
+//                dotted line, the amount in words, the amount in figures in
+//                the BPF pill, the N° box, month/class/motif and the date; a
+//                demo student+payment is created via the API when the base
+//                holds no payment)
 //
 // Steps, in one run:
 //   1. Create an ephemeral auth account via the service role (always deleted
@@ -37,14 +44,17 @@
 //   node scripts/verify-pdf-download.mjs
 //   node scripts/verify-pdf-download.mjs --mode bulletin
 //   node scripts/verify-pdf-download.mjs --mode technique
+//   node scripts/verify-pdf-download.mjs --mode recu-parent
 //   node scripts/verify-pdf-download.mjs --target "Madi"
 //   node scripts/verify-pdf-download.mjs --url http://127.0.0.1:4000/ --keep
 //
 // Flags:
 //   --target <name>  staff member to download (default: first of the mode)
-//   --mode <auto|fiche|bulletin|technique>  which PDF to expect (default auto,
-//                    decided from the member's position — admin positions →
-//                    bulletin, TECH_POSITIONS → technique, else fiche)
+//   --mode <auto|fiche|bulletin|technique|recu-parent>  which PDF to expect
+//                    (default auto, decided from the member's position — admin
+//                    positions → bulletin, TECH_POSITIONS → technique, else
+//                    fiche; recu-parent is explicit: the parent payment
+//                    receipt is a different flow, the Élèves page)
 //   --url <url>      app URL (default https://mama-thera-finance.vercel.app/)
 //   --keep           keep the downloaded PDF + pixel report in ./.verify-pdf/
 //   --cleanup-only   only delete any leftovers (ephemeral account, demo admin,
@@ -106,9 +116,11 @@ const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Applic
 const TPL_FICHE = 'public/templates/fiche-paiement-salaire.pdf';
 const TPL_BULLETIN = 'public/templates/bulletin-paie-mensuelle.pdf';
 const TPL_TECHNIQUE = 'public/templates/fiche-technique.pdf';
+const TPL_RECU = 'public/templates/recu-parent.pdf';
 const TPL_FICHE_BYTES = readFileSync(join(root, TPL_FICHE));
 const TPL_BULLETIN_BYTES = readFileSync(join(root, TPL_BULLETIN));
 const TPL_TECHNIQUE_BYTES = readFileSync(join(root, TPL_TECHNIQUE));
+const TPL_RECU_BYTES = readFileSync(join(root, TPL_RECU));
 
 // Admin positions — keep in sync with src/lib/adminPositions.ts (both langs).
 const ADMIN_POSITIONS = [
@@ -140,6 +152,8 @@ const DL_DIR = join(WORK, 'dl');
 let ephemeralUid = null;
 let demoMemberId = null; // auto-created admin member (bulletin mode, none present)
 let techniqueMemberId = null; // member created via the real UI button (technique mode)
+let demoStudentId = null; // auto-created student (recu-parent mode, no payment in base)
+let demoPaymentId = null; // its payment
 const checks = [];
 const check = (name, ok, detail = '') => {
   checks.push({ name, ok });
@@ -168,6 +182,12 @@ async function cleanup() {
       const del = await api(`/rest/v1/staff?id=eq.${techniqueMemberId}`, { method: 'DELETE' });
       console.log(`  🧹 membre du centre technique supprimé (${del.status})`);
     }
+    if (demoStudentId) {
+      // payments cascade on delete
+      const del = await api(`/rest/v1/students?id=eq.${demoStudentId}`, { method: 'DELETE' });
+      console.log(`  🧹 élève de démo + paiement supprimés (${del.status})`);
+    }
+    void demoPaymentId;
   } catch (e) {
     console.error('  ⚠️ cleanup partiel:', e.message);
   }
@@ -245,6 +265,68 @@ async function resolveTarget() {
     if (!ins.body?.[0]?.id) throw new Error(`insertion membre de démo échouée (${ins.status})`);
     demoMemberId = ins.body[0].id;
     return { member: ins.body[0], mode: 'bulletin' };
+  }
+  if (MODE === 'recu-parent') {
+    // Find a student that already has ≥1 payment; else create a demo pair via
+    // the API (payments cascade on student delete — cleanup deletes the student).
+    const { status, body } = await api('/rest/v1/payments?select=id,student_id,date,amount,receipt_number&limit=1000');
+    if (status !== 200) throw new Error(`lecture payments échouée (${status})`);
+    const pay = Array.isArray(body) ? body : [];
+    const studentId = pay[0]?.student_id;
+    if (studentId) {
+      const stu = await api(`/rest/v1/students?select=id,name,parent_name,grade,parent_phone&id=eq.${studentId}`);
+      // The Tél. line check needs the student to have a phone: prefer a real
+      // payment only when its student carries one, else fall through to the
+      // demo student (which is guaranteed to).
+      if (Array.isArray(stu.body) && stu.body[0] && (stu.body[0].parent_phone || '').trim()) {
+        console.log('  ℹ️ reçu vérifié sur un paiement réel en base');
+        return {
+          member: null,
+          student: stu.body[0],
+          payment: { date: pay[0].date, amount: Number(pay[0].amount), receiptNumber: pay[0].receipt_number || undefined },
+          mode: 'recu-parent',
+        };
+      }
+    }
+    console.log('  ℹ️ aucun paiement en base — création d’un élève + paiement de démo');
+    // academic_year is deliberately NULL so the app's year filter (which
+    // keeps students without a year in EVERY year) always shows the row.
+    const demo = {
+      name: `E2E Élève ${TS}`,
+      parent_name: 'Parent E2E',
+      parent_phone: '+223 70 00 00 00',
+      grade: '9eme A',
+      total_due: 150000,
+      amount_paid: 25000,
+      status: 'Active',
+    };
+    const ins = await api('/rest/v1/students', {
+      method: 'POST',
+      headers: { ...HDR, Prefer: 'return=representation' },
+      body: JSON.stringify(demo),
+    });
+    if (!ins.body?.[0]?.id) throw new Error(`insertion élève de démo échouée (${ins.status})`);
+    demoStudentId = ins.body[0].id;
+    const p = {
+      student_id: demoStudentId,
+      date: '2026-09-02',
+      amount: 25000,
+      academic_year: '2026-2027',
+      receipt_number: `REC-E2E-${TS}`,
+    };
+    const pin = await api('/rest/v1/payments', {
+      method: 'POST',
+      headers: { ...HDR, Prefer: 'return=representation' },
+      body: JSON.stringify(p),
+    });
+    if (!pin.body?.[0]?.id) throw new Error(`insertion paiement de démo échouée (${pin.status})`);
+    demoPaymentId = pin.body[0].id;
+    return {
+      member: null,
+      student: ins.body[0],
+      payment: { date: p.date, amount: p.amount, receiptNumber: p.receipt_number },
+      mode: 'recu-parent',
+    };
   }
   if (MODE === 'technique') {
     const m = staff.find((s) => isTechniquePosition(s.position));
@@ -353,12 +435,14 @@ async function runE2E(target) {
         { urlPattern: '*templates/fiche-paiement-salaire.pdf*', requestStage: 'Request' },
         { urlPattern: '*templates/bulletin-paie-mensuelle.pdf*', requestStage: 'Request' },
         { urlPattern: '*templates/fiche-technique.pdf*', requestStage: 'Request' },
+        { urlPattern: '*templates/recu-parent.pdf*', requestStage: 'Request' },
       ],
     });
     cdp.on('Fetch.requestPaused', async (e) => {
       const url = e.request.url;
       const body = url.includes('bulletin') ? TPL_BULLETIN_BYTES
-        : url.includes('technique') ? TPL_TECHNIQUE_BYTES : TPL_FICHE_BYTES;
+        : url.includes('technique') ? TPL_TECHNIQUE_BYTES
+        : url.includes('recu-parent') ? TPL_RECU_BYTES : TPL_FICHE_BYTES;
       try {
         await cdp.send('Fetch.fulfillRequest', {
           requestId: e.requestId, responseCode: 200,
@@ -403,47 +487,103 @@ async function runE2E(target) {
     }
     await wait(3500);
 
-    // technique mode with no existing member → create one through the REAL
-    // « Ajouter un Membre du Centre Technique » button + form + submit.
-    if (target.createViaUI) {
-      const created = await createTechniqueMember(page, target.techniqueName, target.techniqueEmail);
-      target.member = created;
-    }
-    const targetName = target.member.name;
-
-    // wait for the target card to render
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const ok = await page.waitForFunction((name) =>
-        [...document.querySelectorAll('*')].some((el) => el.children.length === 0 && (el.textContent || '').trim() === name),
-        { timeout: 20000 }, targetName).then(() => true).catch(() => false);
-      if (ok) break;
-      console.log(`  ⚠️ carte « ${targetName} » non rendue (essai ${attempt + 1}) — rechargement`);
-      await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
-      await wait(5000);
-    }
-
-    // Click the member's Reçu PDF button. Walk up from the NAME leaf and stop
-    // at the first ancestor that contains EXACTLY ONE Reçu button (the card);
-    // walking from the button up is wrong with ≥2 cards (a shared container
-    // holds every card's text, so the first button matches for every name).
-    const clicked = await page.evaluate((name) => {
-      const isReçu = (b) => /reçu|recu|receipt/i.test(b.title || '') || /reçu|recu/i.test(b.textContent || '');
-      const nameEls = [...document.querySelectorAll('*')].filter((el) =>
-        el.children.length === 0 && el.textContent?.trim() === name);
-      for (const nameEl of nameEls) {
-        let anc = nameEl;
-        for (let i = 0; i < 10 && anc; i++) {
-          anc = anc.parentElement;
-          if (!anc) break;
-          const btns = [...anc.querySelectorAll('button')].filter(isReçu);
-          if (btns.length === 1) { btns[0].click(); return true; }
-          if (btns.length > 1) break; // shared container — not the card
-        }
+    // ── recu-parent: Élèves → fiche de l'élève → bouton « Reçu » d'un paiement
+    let clicked = false;
+    if (target.mode === 'recu-parent') {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const ok = await page.evaluate(() => {
+          const items = [...document.querySelectorAll('a, button, [role="menuitem"]')];
+          const el = items.find((e) => /élèves|eleves|students/i.test(e.textContent || '') && (e.textContent || '').trim().length < 25);
+          if (!el) return false;
+          el.click();
+          return true;
+        });
+        if (ok) break;
+        await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
+        await wait(5000);
       }
-      return false;
-    }, targetName);
-    if (!clicked) throw new Error(`bouton Reçu PDF de « ${targetName} » introuvable`);
-    console.log(`✅ clic sur « Télécharger Reçu PDF » de ${targetName}`);
+      await wait(3500);
+      const studentName = target.student.name;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const opened = await page.evaluate((name) => {
+          const nameEls = [...document.querySelectorAll('*')].filter((el) =>
+            el.children.length === 0 && (el.textContent || '').trim() === name);
+          for (const n of nameEls) {
+            let anc = n;
+            for (let i = 0; i < 8 && anc; i++) {
+              anc = anc.parentElement;
+              if (!anc) continue;
+              const cls = anc.getAttribute('class') || '';
+              if (anc.onclick || anc.getAttribute('role') === 'button' || anc.tagName === 'TR' || /cursor/.test(cls)) {
+                anc.click();
+                return true;
+              }
+            }
+          }
+          return false;
+        }, studentName);
+        if (opened) break;
+        console.log(`  ⚠️ ligne « ${studentName} » non ouverte (essai ${attempt + 1}) — rechargement`);
+        await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
+        await wait(5000);
+      }
+      await wait(2500);
+      for (let attempt = 0; attempt < 4; attempt++) {
+        clicked = await page.evaluate(() => {
+          const btns = [...document.querySelectorAll('button')].filter((b) =>
+            /reçu|recu|receipt/i.test(b.title || '') || /reçu|recu/i.test(b.textContent || ''));
+          if (!btns.length) return false;
+          btns[0].click();
+          return true;
+        });
+        if (clicked) break;
+        await wait(2000);
+      }
+      if (!clicked) throw new Error(`bouton « Reçu » de « ${studentName} » introuvable dans la fiche`);
+      console.log(`✅ clic sur « Télécharger Reçu PDF » (paiement) de ${studentName}`);
+    } else {
+      // technique mode with no existing member → create one through the REAL
+      // « Ajouter un Membre du Centre Technique » button + form + submit.
+      if (target.createViaUI) {
+        const created = await createTechniqueMember(page, target.techniqueName, target.techniqueEmail);
+        target.member = created;
+      }
+      const targetName = target.member.name;
+
+      // wait for the target card to render
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const ok = await page.waitForFunction((name) =>
+          [...document.querySelectorAll('*')].some((el) => el.children.length === 0 && (el.textContent || '').trim() === name),
+          { timeout: 20000 }, targetName).then(() => true).catch(() => false);
+        if (ok) break;
+        console.log(`  ⚠️ carte « ${targetName} » non rendue (essai ${attempt + 1}) — rechargement`);
+        await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
+        await wait(5000);
+      }
+
+      // Click the member's Reçu PDF button. Walk up from the NAME leaf and stop
+      // at the first ancestor that contains EXACTLY ONE Reçu button (the card);
+      // walking from the button up is wrong with ≥2 cards (a shared container
+      // holds every card's text, so the first button matches for every name).
+      clicked = await page.evaluate((name) => {
+        const isReçu = (b) => /reçu|recu|receipt/i.test(b.title || '') || /reçu|recu/i.test(b.textContent || '');
+        const nameEls = [...document.querySelectorAll('*')].filter((el) =>
+          el.children.length === 0 && el.textContent?.trim() === name);
+        for (const nameEl of nameEls) {
+          let anc = nameEl;
+          for (let i = 0; i < 10 && anc; i++) {
+            anc = anc.parentElement;
+            if (!anc) break;
+            const btns = [...anc.querySelectorAll('button')].filter(isReçu);
+            if (btns.length === 1) { btns[0].click(); return true; }
+            if (btns.length > 1) break; // shared container — not the card
+          }
+        }
+        return false;
+      }, targetName);
+      if (!clicked) throw new Error(`bouton Reçu PDF de « ${targetName} » introuvable`);
+      console.log(`✅ clic sur « Télécharger Reçu PDF » de ${targetName}`);
+    }
 
     let file = null;
     for (let i = 0; i < 120; i++) {
@@ -500,7 +640,8 @@ function diffBBox(live, tpl, x0mm, x1mm, y0mm, y1mm) {
 async function pixelCheck(pdfPath, mode) {
   console.log(`\n— Pixel check (${mode}, 34 px/mm) —`);
   const tplFile = mode === 'bulletin' ? TPL_BULLETIN
-    : mode === 'technique' ? TPL_TECHNIQUE : TPL_FICHE;
+    : mode === 'technique' ? TPL_TECHNIQUE
+    : mode === 'recu-parent' ? TPL_RECU : TPL_FICHE;
   const tpl = await raster(join(root, tplFile));
   const live = await raster(pdfPath.bytes || pdfPath);
   check('taille de page identique au modèle',
@@ -563,6 +704,44 @@ async function pixelCheck(pdfPath, mode) {
     for (const [name, x0, x1, y0, y1] of zones) {
       const d = diffBBox(live, tpl, x0, x1, y0, y1);
       check(`données « ${name} » posées`, !!d && d.count > 100, d ? `${d.count} px` : 'absentes');
+    }
+  } else if (mode === 'recu-parent') {
+    // Parent payment receipt — the school's paper form (201.1 × 155.8 mm):
+    // every field must land on its printed zone. Zones calibrated at
+    // 34 px/mm against the raster (see the geometry comment in
+    // src/lib/pdfReceipt.ts). Threshold 500 px of overlay ink per zone
+    // (measured 6k–25k px per zone on a real fill).
+    const zones = [
+      ['nom (M)', 20.5, 190, 79.5, 85.5],
+      ['téléphone (Tél.)', 93, 175, 44, 50.5],
+      ['somme en lettres', 54.5, 191, 89.5, 97],
+      ['montant en chiffres (pilule BPF)', 158, 190.5, 36, 45.5],
+      ['mois', 31, 100, 111.5, 117.5],
+      ['classe', 150, 188, 110.5, 122.5],
+      ['motif', 33, 190, 122, 129],
+      ['date', 76, 141, 135, 147.5],
+      ['numéro (boîte N°)', 154.3, 191.9, 132.5, 144.3],
+    ];
+    for (const [name, x0, x1, y0, y1] of zones) {
+      const d = diffBBox(live, tpl, x0, x1, y0, y1);
+      check(`données « ${name} » posées`, !!d && d.count > 500, d ? `${d.count} px` : 'absentes');
+    }
+    // centering guarantees: the amount in figures sits centered in the BPF
+    // gradient pill (center x 174.25), the receipt number centered in the
+    // N° box (center x 173.1).
+    const pill = diffBBox(live, tpl, 158, 190.5, 36, 45.5);
+    if (pill) {
+      const cx = (pill.minX + pill.maxX) / 2;
+      check('montant centré dans la pilule BPF', Math.abs(cx - 174.25) <= 1.5, `centre ${cx.toFixed(2)} mm`);
+    } else {
+      check('montant centré dans la pilule BPF', false, 'non détecté');
+    }
+    const nbox = diffBBox(live, tpl, 154.3, 191.9, 132.5, 144.3);
+    if (nbox) {
+      const cx = (nbox.minX + nbox.maxX) / 2;
+      check('numéro centré dans la boîte N°', Math.abs(cx - 173.1) <= 1.5, `centre ${cx.toFixed(2)} mm`);
+    } else {
+      check('numéro centré dans la boîte N°', false, 'non détecté');
     }
   } else if (mode === 'fiche') {
     // Row-1 amounts (salaire c2, indemnités c3, net c4) all on the printed
@@ -642,8 +821,11 @@ if (CLEANUP_ONLY) {
 try {
   await createAccount();
   const target = await resolveTarget();
-  const { member, mode } = target;
-  console.log(`🎯 cible: ${member ? `${member.name} (${member.position})` : '(à créer via le bouton)'} → ${mode}`);
+  const { member, student, mode } = target;
+  const label = member ? `${member.name} (${member.position})`
+    : student ? `élève ${student.name}`
+    : '(à créer via le bouton)';
+  console.log(`🎯 cible: ${label} → ${mode}`);
   const pdf = await runE2E(target);
   await pixelCheck(pdf, mode);
   if (KEEP) {

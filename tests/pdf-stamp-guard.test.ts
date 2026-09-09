@@ -9,6 +9,11 @@
  * zone is pre-printed on the raster form — nothing is drawn, so no stamp
  * guard applies (see src/lib/pdfPayrollFiche.ts).
  *
+ * Same for pdfReceipt.ts (reçu de paiement des parents): that document is
+ * now ALSO the school's own paper form (public/templates/recu-parent.pdf),
+ * which carries no cachet zone — only the payment data is printed on it, so
+ * no stamp guard applies (see src/lib/pdfReceipt.ts).
+ *
  * Why static: the stamp module's fetch/canvas path is environment-bound
  * (browser-only), so each generator's own unit tests mock pdfStamp and
  * cannot see whether the REAL generator code regressed to a text
@@ -37,8 +42,6 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The document generators that must each draw the school stamp. */
 const GENERATORS: Array<{ file: string; minDiameter: number; maxDiameter: number }> = [
-  // Payment receipt (A5): stamp inside the dedicated 55×22 mm cachet box.
-  { file: 'src/lib/pdfReceipt.ts', minDiameter: 20, maxDiameter: 20 },
   // Employee payslip (A5): stamp inside the dedicated employer box.
   { file: 'src/lib/pdfPayroll.ts', minDiameter: 20, maxDiameter: 20 },
   // Monthly payroll draft / bordereau (A4 landscape).
