@@ -46,9 +46,14 @@ name: PDF E2E — pixel check après déploiement
 #   VITE_SUPABASE_URL est PUBLIQUE (embarquée dans le bundle client) et est
 #     hardcodée ci-dessous comme les autres workflows — pas un secret.
 #
-# Le job exécute aussi une garde de sécurité : après la mise en ligne, il curl
+# Le job exécute aussi deux gardes de sécurité : après la mise en ligne, il curl
 # la racine et exige X-Frame-Options (SAMEORIGIN/DENY) et X-Content-Type-Options
-# (nosniff) — une régression des headers vercel.json devient rouge ici.
+# (nosniff), puis il NAVIGUE la vraie app (compte éphémère admin, toutes les
+# pages principales) et échoue si une violation Content-Security-Policy est
+# émise en console / via SecurityPolicyViolationEvent (scripts/verify-csp-guard.mjs,
+# qui vérifie aussi que le header CSP est présent — une page sans politique ne
+# peut pas violer et ne doit pas passer en silence). Une régression des headers
+# ou de la policy vercel.json devient rouge ici.
 #
 # Le run échoue (rouge) si une seule vérification (pixel ou header) échoue : une
 # régression de rendu des PDF (placement, cachet, taille) ou des headers de
@@ -167,6 +172,18 @@ jobs:
             echo "$headers"
             exit 1
           fi
+
+      # Garde CSP : le header doit être présent ET respecté. Le script crée un
+      # compte éphémère admin, se connecte par l'UI réelle, visite les 7 pages
+      # principales (tableau de bord, paie, dépenses, élèves, parents,
+      # calendrier, archives) et échoue si une violation Content-Security-Policy
+      # est émise (console + SecurityPolicyViolationEvent). Réutilise le même
+      # .env (service-role) et Chrome que les pixel-checks ; le compte est
+      # supprimé en fin de run, même en échec.
+      - name: CSP guard — aucune violation en navigation
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: node scripts/verify-csp-guard.mjs
 
       - name: PDF pixel-check E2E — paie (mode auto, contre la prod)
         env:
