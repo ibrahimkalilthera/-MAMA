@@ -21,14 +21,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const BUDGET = 1100;
+const BUDGET = 700;
 const ROOT = 'src';
 const EXT = /\.(ts|tsx|css)$/;
 
 // Grandfathered mid-split files. The reason names the split that retires the
 // entry; delete the entry in that same split's commit (the gate fails on a
 // stale entry, so forgetting is impossible).
-const ALLOWLIST = {};
+const ALLOWLIST = {
+  // Single CSS entry point (design-system remap + per-theme overrides). Its
+  // section 6 (Theme Overrides, ~600 lines) is a natural split candidate once
+  // the theme tokens stabilize — extract it to src/themes/overrides.css and
+  // delete this entry in that commit.
+  'src/index.css': 'split src/index.css section 6 (Theme Overrides) into src/themes/overrides.css',
+};
 
 /** wc-equivalent line count: drop the empty fragment a trailing \n leaves. */
 function countLines(src) {
