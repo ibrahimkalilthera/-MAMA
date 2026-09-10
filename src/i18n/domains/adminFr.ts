@@ -254,6 +254,7 @@ export const fr = {
     auditFilterGroupUpdate: "UPDATE",
     auditFilterReplayOnly: "Replay hors-ligne",
     auditExportRole: "Rôle",
+    auditReplay: "Replay",
     auditFilterTo: "Au",
     exportCsv: "Exporter CSV",
     noAuditEntriesMatchingFilters: "Aucune entrée ne correspond aux filtres.",

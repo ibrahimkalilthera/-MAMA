@@ -32,10 +32,11 @@ export function AuditView() {
   // CSV export of the CURRENT filtered view (BOM for Excel's accent handling).
   const downloadCsv = () => {
     const esc = (v: string | null | undefined) => `"${(v ?? '').replace(/"/g, '""')}"`;
-    const header = [t.timestamp, t.actions, t.staffUser, t.auditExportRole, t.details];
+    const header = [t.timestamp, t.actions, t.auditReplay, t.staffUser, t.auditExportRole, t.details];
     const rows = filtered.map((log) => [
       new Date(log.createdAt).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US'),
       log.action,
+      (log.details || '').includes('[replay]') ? '[replay]' : '',
       `${log.userName || ''}${log.userEmail ? ` (${log.userEmail})` : ''}`,
       log.userRole || '',
       log.details || '',
@@ -158,6 +159,7 @@ export function AuditView() {
                       <th className="px-6 py-4">{t.timestamp}</th>
                       <th className="px-6 py-4">{t.staffUser}</th>
                       <th className="px-6 py-4">{t.actions}</th>
+                      <th className="px-6 py-4">{t.auditReplay}</th>
                       <th className="px-6 py-4">{t.details}</th>
                     </tr>
                   </thead>
@@ -194,6 +196,15 @@ export function AuditView() {
                                 {log.action}
                               </span>
                             </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {(log.details || '').includes('[replay]') ? (
+                                <span className="text-[10px] font-black tracking-wider uppercase px-2.5 py-1 rounded-full border bg-violet-500/10 text-violet-600 dark:text-violet-300 border-violet-500/20">
+                                  [replay]
+                                </span>
+                              ) : (
+                                <span className={`text-xs ${currentTheme.muted}`}>—</span>
+                              )}
+                            </td>
                             <td className="px-6 py-4">
                               <span className={`text-xs font-medium ${currentTheme.text}`}>{log.details || '—'}</span>
                             </td>
@@ -202,7 +213,7 @@ export function AuditView() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">
+                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
                           {auditLogs.length === 0 ? t.noAuditLogEntriesRecordedYet : t.noAuditEntriesMatchingFilters}
                         </td>
                       </tr>
