@@ -52,6 +52,13 @@ mock.module('node:child_process', {
       }
       return child;
     },
+    // Provided so the git-retry import (spawnSync for resolveGit) loads; the
+    // hook chain itself never calls it.
+    spawnSync: (_cmd: string, _args: string[]) => ({
+      status: 0,
+      stdout: '',
+      stderr: '',
+    }),
   },
 });
 
