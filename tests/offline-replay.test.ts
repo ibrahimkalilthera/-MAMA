@@ -2,7 +2,7 @@
 // use it") — replayOfflineItem is exercised against a plain fake ReplayDb.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { replayOfflineItem } from '../src/lib/offlineReplay';
+import { offlineAuditInfo, replayOfflineItem } from '../src/lib/offlineReplay';
 import type { OfflineActionType, OfflinePayload, QueueItem } from '../src/lib/offlineQueue';
 import { makeFakeDb } from './fakes';
 
@@ -76,4 +76,33 @@ describe('offline queue replay (replayOfflineItem)', () => {
     const ok = await replayOfflineItem(db, itemOf('addExpense', { category: 'stationery', description: 'd', amount: 5, date: '2026-01-01' }));
     assert.equal(ok, false, 'an errored insert must not count as synced');
   });
+});
+
+describe('offline replay audit mapping (offlineAuditInfo)', () => {
+  // Actions whose online equivalent is audited → must produce an entry.
+  const AUDITED: OfflineActionType[] = [
+    'addPayment', 'addExpense', 'addVendorExpense', 'updateVendorExpense', 'deleteVendorExpense',
+    'addStudent', 'deleteStudent',
+    'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment',
+    'addParent', 'deleteParent',
+  ];
+  // Not audited online → replay stays silent (todos, student/parent edits).
+  const SILENT: OfflineActionType[] = ['updateStudent', 'updateParent', 'addTodo', 'updateTodo', 'deleteTodo'];
+
+  for (const type of AUDITED) {
+    it(`maps '${type}' to an audited entry tagged [replay]`, () => {
+      const item = CASES.find((c) => c.type === type)!.build();
+      const info = offlineAuditInfo(item);
+      assert.ok(info, `${type} should produce an audit entry`);
+      assert.ok(info.action, `${type} should carry an action`);
+      assert.ok(info.details && info.details.endsWith(' [replay]'), `${type} details should carry the [replay] tag`);
+    });
+  }
+
+  for (const type of SILENT) {
+    it(`keeps '${type}' silent (no audit entry)`, () => {
+      const item = CASES.find((c) => c.type === type)!.build();
+      assert.equal(offlineAuditInfo(item), null, `${type} should not be audited`);
+    });
+  }
 });

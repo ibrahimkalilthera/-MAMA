@@ -65,6 +65,17 @@ export function createStaffOps(ctx: SupabaseDataCtx) {
 
     const { error } = await supabase.from('staff').update(row).eq('id', id);
     if (error) { console.error('updateStaff error:', error.message); notifyError('updateStaff', error.message); return false; }
+    const prev = staff.find(s => s.id === id);
+    const changes: string[] = [];
+    if (prev && updates.salary !== undefined && updates.salary !== prev.salary) changes.push(`salaire ${prev.salary}→${updates.salary}`);
+    if (prev && updates.position !== undefined && updates.position !== prev.position) changes.push(`poste ${prev.position}→${updates.position}`);
+    if (updates.name !== undefined && updates.name !== prev?.name) changes.push(`nom → ${updates.name}`);
+    void logAuditEvent({
+      action: 'UPDATE_STAFF',
+      targetType: 'staff',
+      targetId: id,
+      details: `${prev?.name || id}${changes.length ? ` — ${changes.join(', ')}` : ''}`,
+    });
     setStaff(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
     notifySuccess('updateStaff');
     return true;

@@ -7,9 +7,10 @@ import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Expense, VendorExpense } from '../domainTypes';
 import type { DbUpdate } from '../database.types';
 import { mapExpenseRow, mapVendorExpenseRow, createTempId } from '../rowMappers';
+import { logAuditEvent } from '../auditLogger';
 
 export function createExpenseOps(ctx: SupabaseDataCtx) {
-  const { setExpenses, setVendorExpenses, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
+  const { vendorExpenses, setExpenses, setVendorExpenses, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
 
   const addExpense = async (exp: Omit<Expense, 'id'>): Promise<Expense | null> => {
     if (isOffline()) {
@@ -34,6 +35,12 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     if (error) { console.error('addExpense error:', error.message); notifyError('addExpense', error.message); return null; }
     const mapped = mapExpenseRow(data);
     setExpenses(prev => [...prev, mapped]);
+    void logAuditEvent({
+      action: 'ADD_EXPENSE',
+      targetType: 'expense',
+      targetId: mapped.id,
+      details: `${exp.description} (${exp.category}) — ${exp.amount} FCFA`,
+    });
     notifySuccess('addExpense');
     return mapped;
   };
@@ -67,6 +74,12 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     if (error) { console.error('addVendorExpense error:', error.message); notifyError('addVendorExpense', error.message); return null; }
     const mapped = mapVendorExpenseRow(data);
     setVendorExpenses(prev => [...prev, mapped]);
+    void logAuditEvent({
+      action: 'ADD_VENDOR_EXPENSE',
+      targetType: 'vendor_expense',
+      targetId: mapped.id,
+      details: `${ve.vendorName} — ${ve.category} — ${ve.amount} FCFA`,
+    });
     notifySuccess('addVendorExpense');
     return mapped;
   };
@@ -92,6 +105,16 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
 
     const { error } = await supabase.from('vendor_expenses').update(row).eq('id', id);
     if (error) { console.error('updateVendorExpense error:', error.message); notifyError('updateVendorExpense', error.message); return false; }
+    const prev = vendorExpenses.find(v => v.id === id);
+    const changes: string[] = [];
+    if (prev && updates.amount !== undefined && updates.amount !== prev.amount) changes.push(`montant ${prev.amount}→${updates.amount}`);
+    if (prev && updates.paymentStatus !== undefined && updates.paymentStatus !== prev.paymentStatus) changes.push(`statut ${prev.paymentStatus}→${updates.paymentStatus}`);
+    void logAuditEvent({
+      action: 'UPDATE_VENDOR_EXPENSE',
+      targetType: 'vendor_expense',
+      targetId: id,
+      details: `${prev?.vendorName || id}${changes.length ? ` — ${changes.join(', ')}` : ''}`,
+    });
     setVendorExpenses(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
     notifySuccess('updateVendorExpense');
     return true;
@@ -106,6 +129,13 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     }
     const { error } = await supabase.from('vendor_expenses').delete().eq('id', id);
     if (error) { console.error('deleteVendorExpense error:', error.message); notifyError('deleteVendorExpense', error.message); return false; }
+    const deleted = vendorExpenses.find(v => v.id === id);
+    void logAuditEvent({
+      action: 'DELETE_VENDOR_EXPENSE',
+      targetType: 'vendor_expense',
+      targetId: id,
+      details: deleted?.vendorName,
+    });
     setVendorExpenses(prev => prev.filter(v => v.id !== id));
     notifySuccess('deleteVendorExpense');
     return true;
