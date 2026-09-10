@@ -106,6 +106,19 @@ describe('sweepOrphanNodeProcesses', () => {
     assert.match(command, /node\.exe/);
     assert.doesNotMatch(command, /Stop-Process -Name node/);
   });
+
+  it('all: true → purge élargie, mais orphelin STRICT (parent disparu), sans filtre chaîne qualité', async () => {
+    plan = [{ mode: 'close', code: 0, stdout: '3' }];
+    spawnCalls = [];
+    const n = await sweepOrphanNodeProcesses({ platform: 'win32', all: true, log: () => {} });
+    assert.equal(n, 3);
+    const command = spawnCalls[0].join(' ');
+    assert.doesNotMatch(command, /quality-chain/, 'plus de filtre chaîne qualité');
+    assert.match(command, /\$eligible = \$parentGone;/, 'éligible = parent disparu uniquement');
+    assert.doesNotMatch(command, /\(\$parentGone -or \$old\)/, 'jamais « parent vivant mais ancien » (dev server)');
+    assert.match(command, /ParentProcessId/);
+    assert.match(command, /node\.exe/);
+  });
 });
 
 describe('runGitWithRetry', () => {
@@ -215,6 +228,20 @@ describe('runGitWithRetry', () => {
     assert.equal(spawnCalls.length, 1, 'un seul spawn git');
   });
 
+  it('avec sweepAll → purge ÉLARGIE avant la 1re tentative (sans --sweep)', async () => {
+    plan = [
+      { mode: 'close', code: 0 }, // sweep élargi (powershell)
+      { mode: 'close', code: 0 }, // git
+    ];
+    const code = await runGitWithRetry(['status'], { ...quiet, attempts: 1, waitMs: 1, sweepAll: true });
+    assert.equal(code, 0);
+    assert.equal(spawnCalls.length, 2, 'sweep puis git');
+    const sweepCommand = spawnCalls[0].join(' ');
+    assert.doesNotMatch(sweepCommand, /quality-chain/, 'filtre élargi à tous les node.exe');
+    assert.match(sweepCommand, /\$eligible = \$parentGone;/);
+    assert.deepEqual(spawnCalls[1], ['-c', 'alias.status=status', 'status']);
+  });
+
   it('avec sweep → purge avant la 1re tentative ET entre l’échec fork et le retry', async () => {
     plan = [
       { mode: 'close', code: 254 },
@@ -286,6 +313,13 @@ describe('parseArgs', () => {
     assert.deepEqual(args, ['push', 'origin', 'main']);
     assert.equal(opts.sweep, true);
     assert.equal(opts.attempts, 2);
+  });
+
+  it('reconnaît --sweep-all sans le transmettre à git', () => {
+    const { args, opts } = parseArgs(['--sweep-all', '--', 'push', 'origin', 'main']);
+    assert.deepEqual(args, ['push', 'origin', 'main']);
+    assert.equal(opts.sweepAll, true);
+    assert.equal(opts.sweep, false, 'sweepAll est une option dédiée, pas --sweep');
   });
 
   it('supporte la forme --opt=valeur', () => {

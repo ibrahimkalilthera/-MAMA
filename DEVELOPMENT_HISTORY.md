@@ -1,3 +1,12 @@
+## [2026-09-10] `--sweep-all` : purge élargie à tous les node.exe orphelins (option dédiée)
+
+Le sweep était volontairement **sélectif** (uniquement les lignes de commande connues de la chaîne qualité). Nouvelle option dédiée **`--sweep-all`** (wrapper git-retry, et `sweepAll` sur `runHookQualityChain` / `runCommandWithRetry`) : le filtre de ligne de commande est abandonné et **tout** `node.exe` orphelin est purgé.
+
+- **Sémantique de sûreté** : « orphelin » au sens strict = **parent disparu** — PAS la règle « parent disparu OU périmé » du mode sélectif. Sinon un dev server node légitime démarré il y a 10 min (parent vivant) serait tué : inacceptable. La garde parent-disparu est vérifiée par test (`$eligible = $parentGone;`, jamais `($parentGone -or $old)`).
+- **Timing** : identique à `--sweep` (avant la 1re tentative + entre les retries, best-effort, un échec du sweep n'empêche jamais la tentative). `--sweep-all` active le timing même sans `--sweep`.
+- **Périmètre** : opt-in, jamais activé par le shim ni par le hook par défaut (le hook l'accepte en passthrough `--sweep-all`). Le log distingue les deux modes (« purge élargie » vs « de la chaîne qualité »).
+- **Tests** : `sweepOrphanNodeProcesses({ all: true })` → commande sans filtre qualité + éligibilité parent-disparu stricte ; `parseArgs(['--sweep-all'])` → `sweepAll` sans `sweep` et sans fuite vers git ; `runGitWithRetry`/`runHookQualityChain` avec `sweepAll` → balayage élargi avant la 1re tentative. Suite : **45/45 vert** (29 git-retry + 6 hook + 6 installeur/helpers + 4 shim E2E), tsc 0 erreur, lint vert.
+
 ## [2026-09-10] `--sweep` purge désormais AUSSI avant la première tentative
 
 Le sweep était limité aux retries (jamais avant la commande initiale). Désormais `--sweep` (wrapper git-retry, hook-quality-chain via `sweep: true`, shim git.cmd) purgera les orphelins node.exe connus **avant la première tentative ET entre les retries** : l'orphelin laissé par un timeout watchdog précédent est précisément ce qui maintient la panique — le purger d'emblée permet à la tentative 1 de réussir immédiatement au lieu de consommer un échec de panique. Toujours best-effort (un échec du sweep n'empêche jamais la tentative), toujours sélectif (uniquement les lignes de commande connues de la chaîne qualité, parent disparu ou > fenêtre de péremption).

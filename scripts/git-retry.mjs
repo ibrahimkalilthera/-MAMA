@@ -45,6 +45,7 @@
 //   node scripts/git-retry.mjs commit -am "message"
 //   node scripts/git-retry.mjs push origin main
 //   node scripts/git-retry.mjs --sweep --attempts 5 --wait-ms 2000 -- push origin main
+//   node scripts/git-retry.mjs --sweep-all -- push origin main   (purge élargie)
 //   npm run git:retry -- commit -am "message"
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawn, spawnSync } from 'node:child_process';
@@ -64,33 +65,41 @@ export function isForkPanicFailure(exitCode, stderrTail = '') {
   return FORK_PANIC_PATTERN.test(stderrTail);
 }
 
-// Only these known quality-chain command lines are eligible for the optional
-// sweep. Never kill arbitrary node.exe processes: a dev server, editor helper,
-// or another user's Node task is not an orphan just because git is retrying.
-const NODE_ORPHAN_SWEEP_SCRIPT = (minAgeMinutes) => [
+// The optional sweep is selective by default: only known quality-chain command
+// lines are eligible (and only when hung/left over). With `all: true` (CLI
+// --sweep-all) the command-line filter is dropped — but eligibility stays a
+// TRUE ORPHAN check (parent gone). Deliberately NOT the "parent gone OR older
+// than the stale window" rule of the selective mode: that would kill a
+// legitimately long-running node.exe such as a dev server started 10 minutes
+// ago whose parent is still alive.
+const NODE_ORPHAN_SWEEP_SCRIPT = (minAgeMinutes, all = false) => [
   `$cut = (Get-Date).AddMinutes(-${minAgeMinutes});`,
   `$processes = @(Get-CimInstance Win32_Process);`,
   `$all = @($processes | Where-Object { $_.Name -eq 'node.exe' });`,
   `$ids = @($processes | ForEach-Object { [int]$_.ProcessId });`,
   `$k = 0; foreach ($p in $all) { $cmd = [string]$p.CommandLine;`,
-  `$known = $cmd -match 'quality-chain\\.mjs|npm-cli\\.js.*run (lint|test|audit)|--test.*tests[\\\\/].*\\.test';`,
   `$parentGone = $ids -notcontains [int]$p.ParentProcessId;`,
   `$old = ($null -ne $p.CreationDate) -and ($p.CreationDate -lt $cut);`,
-  `if ($known -and ($parentGone -or $old)) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; $k++ } }; $k`,
+  all
+    ? `$eligible = $parentGone;`
+    : `$eligible = ($cmd -match 'quality-chain\\.mjs|npm-cli\\.js.*run (lint|test|audit)|--test.*tests[\\\\/].*\\.test') -and ($parentGone -or $old);`,
+  `if ($eligible) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; $k++ } }; $k`,
 ].join(' ');
 
 /**
- * Best-effort sweep of orphaned quality-chain Node processes. It is opt-in
- * because even a marker-based process sweep must never be implicit in a git
- * command. A process is eligible only when its command line belongs to the
- * quality chain/test runner AND its parent is gone or it is older than the
- * stale-age window. Returns the number killed; never rejects.
+ * Best-effort sweep of orphaned Node processes. It is opt-in because even a
+ * process sweep must never be implicit in a git command. By default a process
+ * is eligible only when its command line belongs to the quality chain/test
+ * runner AND its parent is gone or it is older than the stale-age window;
+ * with `all: true` the command-line filter is dropped (any node.exe orphan).
+ * Returns the number killed; never rejects.
  */
 export function sweepOrphanNodeProcesses({
   minAgeMinutes = 5,
   timeoutMs = 10000,
   platform = process.platform,
   log = () => {},
+  all = false,
 } = {}) {
   if (platform !== 'win32') return Promise.resolve(0);
   return new Promise((resolve) => {
@@ -99,12 +108,18 @@ export function sweepOrphanNodeProcesses({
       if (settled) return;
       settled = true;
       const n = Number.isFinite(count) ? count : 0;
-      if (n > 0) log(`🧹 ${n} processus Node orphelin(s) de la chaîne qualité purgé(s)`);
+      if (n > 0) {
+        log(
+          all
+            ? `🧹 ${n} processus Node orphelin(s) purgé(s) (sweep élargi)`
+            : `🧹 ${n} processus Node orphelin(s) de la chaîne qualité purgé(s)`,
+        );
+      }
       resolve(n);
     };
     let child;
     try {
-      child = spawn('powershell', ['-NoProfile', '-Command', NODE_ORPHAN_SWEEP_SCRIPT(minAgeMinutes)], {
+      child = spawn('powershell', ['-NoProfile', '-Command', NODE_ORPHAN_SWEEP_SCRIPT(minAgeMinutes, all)], {
         stdio: ['ignore', 'pipe', 'ignore'],
         windowsHide: true,
       });
@@ -191,7 +206,7 @@ export function neutralizeAlias(args) {
  * @param {{ attempts?: number, waitMs?: number, timeoutMs?: number,
  *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
  *   sweep?: boolean, sweepFn?: (() => unknown),
- *   label?: string }} options
+ *   sweepAll?: boolean, label?: string }} options
  */
 export function runCommandWithRetry(
   command,
@@ -199,7 +214,7 @@ export function runCommandWithRetry(
   /** @type {{ attempts?: number, waitMs?: number, timeoutMs?: number,
    * forwardStderr?: boolean, log?: (...data: unknown[]) => void,
    * sweep?: boolean, sweepFn?: (() => unknown),
-   * label?: string }} */
+   * sweepAll?: boolean, label?: string }} */
   {
     attempts = 3,
     waitMs = 5000,
@@ -208,6 +223,7 @@ export function runCommandWithRetry(
     log = console.log,
     sweep = false,
     sweepFn = undefined,
+    sweepAll = false,
     label = `${command} ${args.join(' ')}`,
   } = {},
 ) {
@@ -215,13 +231,14 @@ export function runCommandWithRetry(
     let attempt = 0;
     let lastCode = 1;
 
-    // Best-effort orphan purge (opt-in via --sweep). Runs before the FIRST
-    // attempt AND between retries; a sweep failure never prevents the retry
-    // itself. Selectivity is the safety: only known quality-chain orphans
-    // (parent gone / older than the stale window) are ever killed.
+    // Best-effort orphan purge (opt-in via --sweep / --sweep-all). Runs before
+    // the FIRST attempt AND between retries; a sweep failure never prevents
+    // the retry itself. Selectivity is the safety: by default only known
+    // quality-chain orphans (parent gone / older than the stale window) are
+    // killed; --sweep-all drops the command-line filter.
     const runSweepOnce = () =>
       Promise.resolve()
-        .then(sweepFn || (() => sweepOrphanNodeProcesses({ log })))
+        .then(sweepFn || (() => sweepOrphanNodeProcesses({ log, all: sweepAll })))
         .catch(() => {});
 
     const retryOrGiveUp = (reason) => {
@@ -230,7 +247,7 @@ export function runCommandWithRetry(
           log(`↻ ${reason} — retry dans ${waitMs} ms (tentative ${attempt + 1}/${attempts})`);
           setTimeout(tryOnce, waitMs);
         };
-        if (sweep || sweepFn) {
+        if (sweep || sweepFn || sweepAll) {
           runSweepOnce().then(continueRetry);
         } else {
           continueRetry();
@@ -292,11 +309,12 @@ export function runCommandWithRetry(
       });
     }
 
-    // With --sweep, purge orphans BEFORE the first attempt too: the orphaned
-    // node.exe left by a previous watchdog timeout is what keeps the panic
-    // alive, so clearing it up front lets attempt 1 succeed immediately.
+    // With --sweep/--sweep-all, purge orphans BEFORE the first attempt too:
+    // the orphaned node.exe left by a previous watchdog timeout is what keeps
+    // the panic alive, so clearing it up front lets attempt 1 succeed
+    // immediately.
     const start = () => {
-      if (sweep || sweepFn) {
+      if (sweep || sweepFn || sweepAll) {
         runSweepOnce().then(tryOnce);
       } else {
         tryOnce();
@@ -315,7 +333,7 @@ export function runCommandWithRetry(
  * @param {string[]} args
  * @param {{ attempts?: number, waitMs?: number, timeoutMs?: number,
  *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
- *   sweep?: boolean, sweepFn?: (() => unknown) }} options
+ *   sweep?: boolean, sweepFn?: (() => unknown), sweepAll?: boolean }} options
  */
 export function runGitWithRetry(args, options = {}) {
   return runCommandWithRetry(resolveGit(), neutralizeAlias(args), {
@@ -335,16 +353,19 @@ Options:
   --wait-ms N     délai entre tentatives en ms (défaut: 5000)
   --timeout-ms N  timeout par tentative en ms, kill de l'arbre entier (défaut: 300000)
   --sweep         purger avant la 1re tentative et entre les retries les orphelins Node connus de la chaîne qualité
+  --sweep-all     purge ÉLARGIE : TOUS les node.exe orphelins (parent disparu),
+                  pas seulement la chaîne qualité — agressif, opt-in
   -h, --help      cette aide
 
 Exemples:
   node scripts/git-retry.mjs commit -am "message"
   node scripts/git-retry.mjs push origin main
+  node scripts/git-retry.mjs --sweep-all -- push origin main
   npm run git:retry -- commit -am "message"`;
 
 /** Parse wrapper options, then [--] and the git args. */
 export function parseArgs(argv) {
-  const opts = { attempts: 3, waitMs: 5000, timeoutMs: 300000, sweep: false };
+  const opts = { attempts: 3, waitMs: 5000, timeoutMs: 300000, sweep: false, sweepAll: false };
   const args = [];
   let i = 0;
   while (i < argv.length) {
@@ -365,6 +386,11 @@ export function parseArgs(argv) {
     }
     if (a === '--sweep') {
       opts.sweep = true;
+      i++;
+      continue;
+    }
+    if (a === '--sweep-all') {
+      opts.sweepAll = true;
       i++;
       continue;
     }

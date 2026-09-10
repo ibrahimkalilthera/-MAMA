@@ -128,6 +128,17 @@ describe('runHookQualityChain', () => {
     assert.equal(spawns.filter(isSweep).length, 3);
   });
 
+  it('sweepAll → purge élargie (tous les node.exe orphelins) avant la 1re tentative', async () => {
+    plan = [{ mode: 'close', code: 0 }];
+    const code = await runHookQualityChain({ ...quiet, attempts: 1, waitMs: 1, sweepAll: true });
+    assert.equal(code, 0);
+    assert.equal(spawns.length, 2, 'sweep élargi + chaîne');
+    assert.ok(isSweep(spawns[0]));
+    assert.doesNotMatch(spawns[0].args.join(' '), /quality-chain/);
+    assert.match(spawns[0].args.join(' '), /\$eligible = \$parentGone;/);
+    assert.ok(isChain(spawns[1]));
+  });
+
   it('uv_spawn EUNKNOWN en plein run → sweep avant, sweep intercalé, puis succès', async () => {
     plan = [
       { mode: 'error', message: 'uv_spawn: EUNKNOWN' },

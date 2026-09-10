@@ -30,7 +30,8 @@ const CHAIN = [process.execPath, 'scripts/quality-chain.mjs', 'lint', 'test', 'a
 /**
  * Run the quality chain with panic retry + orphan sweep before the first
  * attempt and between retries. Resolves with the chain's exit code (0 on
- * success); never rejects.
+ * success); never rejects. The sweep is selective (quality-chain orphans only)
+ * unless `sweepAll` is set.
  */
 export function runHookQualityChain({
   attempts = 3,
@@ -40,6 +41,7 @@ export function runHookQualityChain({
   timeoutMs = 1500000,
   log = console.log,
   forwardStderr = true,
+  sweepAll = false,
 } = {}) {
   return runCommandWithRetry(CHAIN[0], CHAIN.slice(1), {
     attempts,
@@ -48,6 +50,7 @@ export function runHookQualityChain({
     log,
     forwardStderr,
     sweep: true,
+    sweepAll,
   });
 }
 
@@ -60,5 +63,6 @@ if (isMain) {
     attempts: opts.attempts,
     waitMs: opts.waitMs,
     timeoutMs: opts.timeoutMs,
+    sweepAll: opts.sweepAll,
   }).then((code) => process.exit(code));
 }
