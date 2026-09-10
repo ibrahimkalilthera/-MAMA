@@ -23,13 +23,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { sweepOrphanElectron } from './lib/orphan-chrome.mjs';
 
 const SETUP = join(process.cwd(), 'release', 'MamaTheraFinance-1.0.0-setup.exe');
 const EXE = join(process.cwd(), 'release', 'win-unpacked', 'MamaTheraFinance.exe');
 const PORT = 9450 + Math.floor(Math.random() * 100);
 const TMP = tmpdir();
 const LOG_FILE = join(TMP, `updater-proof-${Date.now()}.log`);
-const USER_DATA = join(TMP, `updater-proof-ud-${Date.now()}`);
+const USER_DATA = join(TMP, `electron-proof-ud-updater-${Date.now()}`);
+// electron-updater's shared download cache (app-update.yml → updaterCacheDirName).
+const UPDATER_CACHE = join(process.env.LOCALAPPDATA || join(tmpdir(), 'AppData', 'Local'), 'mama-thera-finance-updater');
 const FAKE_VERSION = '1.0.1';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -68,22 +71,26 @@ const server = createServer((req, res) => {
   }
 });
 
-const killAll = async () => {
-  try {
-    await new Promise((res) => {
-      const p = spawn('taskkill', ['//F', '//IM', 'MamaTheraFinance.exe'], { stdio: 'ignore' });
-      p.on('exit', res);
-    });
-  } catch { /* aucun process */ }
-  await wait(2000);
-};
-
 let app = null;
 try {
   await new Promise((res) => server.listen(PORT, '127.0.0.1', res));
   console.log(`🖥️  feed local: http://127.0.0.1:${PORT}/ (v${FAKE_VERSION} annoncée)`);
 
-  await killAll();
+  // Startup sweep: kill orphaned MamaTheraFinance.exe from interrupted runs
+  // (our electron-proof-ud marker, or past the minimum age window). Replaces
+  // the blunt image-name taskkill that also killed a legitimately open app.
+  const sweptE = await sweepOrphanElectron();
+  if (sweptE) console.log(`🧹 ${sweptE} processus Electron orphelin(s) purgé(s)`);
+
+  // Purge electron-updater's shared download cache: a previous successful run
+  // leaves MamaTheraFinance-1.0.1-setup.exe there, so the app would "download"
+  // from cache (sha512-validated) with no download-progress event — an
+  // incomplete chain. Forcing a real download proves the full path.
+  if (existsSync(UPDATER_CACHE)) {
+    rmSync(UPDATER_CACHE, { recursive: true, force: true });
+    console.log('🧹 cache electron-updater purgé (téléchargement réel forcé)');
+  }
+
   app = spawn(EXE, [`--user-data-dir=${USER_DATA}`], {
     env: { ...process.env, UPDATER_FEED_URL: `http://127.0.0.1:${PORT}/`, UPDATER_LOG_FILE: LOG_FILE },
     stdio: 'ignore',
@@ -117,7 +124,10 @@ try {
   process.exitCode = 1;
 } finally {
   try { app && app.kill(); } catch { /* ignore */ }
-  await killAll();
+  // Post-run sweep: our own app is killed by PID above; this replaces the
+  // blunt taskkill with the age-windowed sweep (marker kills ours regardless
+  // of age, a legitimately open fresh app is never touched).
+  await sweepOrphanElectron();
   server.close();
   rmSync(LOG_FILE, { recursive: true, force: true });
   rmSync(USER_DATA, { recursive: true, force: true });
