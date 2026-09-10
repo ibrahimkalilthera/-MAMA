@@ -45,6 +45,18 @@ let staffId = null;
 let app = null;
 
 try {
+  // ── 0. purge any leftover staff rows from crashed previous runs (same
+  //        naming pattern as this script) so the payroll table never
+  //        accumulates test data that pollutes the school's Paie view.
+  const leftovers = await (async () => {
+    const lr = await fetch(`${BASE}/rest/v1/staff?select=id&name=like.*PreuveBureau*`, { headers: HDR });
+    return lr.ok ? (await lr.json()).map((r) => r.id) : [];
+  })();
+  for (const id of leftovers) {
+    await fetch(`${BASE}/rest/v1/staff?id=eq.${id}`, { method: 'DELETE', headers: HDR }).catch(() => {});
+  }
+  if (leftovers.length) console.log(`🧹 ${leftovers.length} employé(s) résiduel(s) PreuveBureau purgé(s)`);
+
   // ── 1. ephemeral admin account + profile → admin ────────────────────────
   const email = ephemeralEmail('verify-desktop');
   const r = await fetch(`${BASE}/auth/v1/admin/users`, {

@@ -1,3 +1,12 @@
+## [2026-09-10] Fix CI : cible déterministe du pixel-check fiche + purge des résidus de preuve
+
+Le pixel-check de la fiche de paie (PDF E2E post-deploy) prenait le **premier** membre non-admin de la table `staff` et exigeait le montant « total indemnités » sur la ligne imprimée 98,0 mm. Un résidu « PreuveBureau 82427 » (run de preuve desktop interrompu ; indemnités à 0) faisait imprimer « — » sur la ligne du haut à la place → le check passait rouge sur main depuis le commit Electron `0084e6e` (avant tout travail sur l'icône) :
+
+- `scripts/verify-pdf-download.mjs` : cible fiche **déterministe** — préférer un membre non-admin avec indemnités > 0, sinon auto-créer un employé de démo (salaire + indemnités connus, supprimé au nettoyage). Même choix réutilisé par `--mode auto` quand le premier membre route vers fiche.
+- `scripts/verify-desktop-app.mjs` : purge des lignes `staff` résiduelles `PreuveBureau*` au démarrage — un run interrompu ne peut plus polluer la vue Paie de l'école.
+- Prod : résidu `PreuveBureau 82427` supprimé (table `staff` désormais vide).
+- **Preuve locale contre la prod** : fiche **9/9 OK** (employé de démo), recu-parent **12/12 OK**, eslint propre.
+
 ## [2026-09-10] Reprise du chantier Electron : icône officielle (photo) + rebuild + re-preuve
 
 Reprise de la version bureau après retrait des fichiers de l'arbre de travail — tous les éléments Electron sont remis en place et le cycle complet est rejoué :

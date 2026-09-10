@@ -177,7 +177,7 @@ async function cleanup() {
     }
     if (demoMemberId) {
       const del = await api(`/rest/v1/staff?id=eq.${demoMemberId}`, { method: 'DELETE' });
-      console.log(`  🧹 membre admin de démo supprimé (${del.status})`);
+      console.log(`  🧹 membre de démo supprimé (${del.status})`);
     }
     if (techniqueMemberId) {
       const del = await api(`/rest/v1/staff?id=eq.${techniqueMemberId}`, { method: 'DELETE' });
@@ -221,7 +221,7 @@ async function createAccount() {
 }
 
 async function resolveTarget() {
-  const { status, body } = await api('/rest/v1/staff?select=id,name,position,email,salary');
+  const { status, body } = await api('/rest/v1/staff?select=id,name,position,email,salary,travel_allowance,communication_allowance,housing_allowance');
   if (status !== 200) throw new Error(`lecture staff échouée (${status})`);
   const staff = Array.isArray(body) ? body : [];
   if (TARGET) {
@@ -229,11 +229,49 @@ async function resolveTarget() {
     if (!m) throw new Error(`membre « ${TARGET} » introuvable (présents: ${staff.map((s) => s.name).join(', ') || 'aucun'})`);
     return { member: m, mode: isAdminPosition(m.position) ? 'bulletin' : 'fiche' };
   }
+  // A fiche employee must carry allowances: the row-1 amounts (salaire,
+  // total indemnités, net) all sit on the printed 98.0 mm line — with zero
+  // allowances the form prints « — » on the upper line instead, which the
+  // pixel check (correctly) never mistakes for an amount. Prefer a real
+  // member with allowances; if none exists (fresh DB, or leftover rows from
+  // crashed proof runs), auto-create a demo employee with known allowances
+  // so the check stays deterministic — deleted in cleanup.
+  const pickFicheMember = async () => {
+    const withAlloc = (s) =>
+      !isAdminPosition(s.position) &&
+      ((s.travel_allowance ?? 0) + (s.communication_allowance ?? 0) + (s.housing_allowance ?? 0)) > 0;
+    const m = staff.find(withAlloc);
+    if (m) return { member: m, mode: 'fiche' };
+    console.log('  ℹ️ aucun employé non-admin avec indemnités — création d’un employé de démo');
+    const demo = {
+      name: `E2E Employé ${TS}`,
+      position: 'Enseignant',
+      salary: 150000,
+      email: `e2e-employe-${TS}@audit.local`,
+      phone: '90000000',
+      bank_details: 'BOA 0000 1111 2222',
+      emergency_contact: 'Awa Demo',
+      academic_year: '2026-2027',
+      inps_number: `INPS-E2E-${TS}`,
+      hire_date: '2021-10-01',
+      family_status: 'married',
+      children_count: 2,
+      travel_allowance: 25000,
+      communication_allowance: 10000,
+      housing_allowance: 0,
+    };
+    const ins = await api('/rest/v1/staff', {
+      method: 'POST',
+      headers: { ...HDR, Prefer: 'return=representation' },
+      body: JSON.stringify(demo),
+    });
+    if (!ins.body?.[0]?.id) throw new Error(`insertion employé de démo échouée (${ins.status})`);
+    demoMemberId = ins.body[0].id;
+    return { member: ins.body[0], mode: 'fiche' };
+  };
   // auto: first member of the requested mode (or first overall in auto mode)
   if (MODE === 'fiche') {
-    const m = staff.find((s) => !isAdminPosition(s.position));
-    if (!m) throw new Error('aucun employé (non-admin) dans la base');
-    return { member: m, mode: 'fiche' };
+    return pickFicheMember();
   }
   if (MODE === 'bulletin') {
     const m = staff.find((s) => isAdminPosition(s.position));
@@ -347,7 +385,10 @@ async function resolveTarget() {
   // auto: default to the first member, route by position
   const m = staff[0];
   if (!m) throw new Error('aucun membre dans la base');
-  return { member: m, mode: isAdminPosition(m.position) ? 'bulletin' : isTechniquePosition(m.position) ? 'technique' : 'fiche' };
+  const mode = isAdminPosition(m.position) ? 'bulletin' : isTechniquePosition(m.position) ? 'technique' : 'fiche';
+  // A fiche-routed member must carry allowances — reuse the deterministic pick.
+  if (mode === 'fiche') return pickFicheMember();
+  return { member: m, mode };
 }
 
 // ── 2–4. Browser E2E ─────────────────────────────────────────────────────────
