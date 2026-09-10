@@ -264,10 +264,9 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
 // ─── Audit mapping for replayed actions ─────────────────────────────────────
 // Pure mapping from a queued item to the audit entry it should produce once
 // replayed, so it can be unit tested like replayOfflineItem itself. Returns
-// null for actions whose online equivalent is not audited (todos, student/
-// parent edits), keeping the replay trail consistent with the online one.
-// Details carry a [replay] tag so AuditView can tell offline materialization
-// from live actions.
+// null for actions whose online equivalent is not audited (todos), keeping
+// the replay trail consistent with the online one. Details carry a [replay]
+// tag so AuditView can tell offline materialization from live actions.
 
 export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> | null {
   const tag = ' [replay]';
@@ -284,6 +283,8 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
       return { action: 'DELETE_VENDOR_EXPENSE', targetType: 'vendor_expense', targetId: item.payload.id, details: `suppression dépense fournisseur${tag}` };
     case 'addStudent':
       return { action: 'ADD_STUDENT', targetType: 'student', targetId: null, details: `${item.payload.name}${tag}` };
+    case 'updateStudent':
+      return { action: 'UPDATE_STUDENT', targetType: 'student', targetId: item.payload.id, details: `mise à jour élève${tag}` };
     case 'deleteStudent':
       return { action: 'DELETE_STUDENT', targetType: 'student', targetId: item.payload.id, details: `suppression élève${tag}` };
     case 'addStaff':
@@ -296,10 +297,12 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
       return { action: 'RECORD_SALARY_PAYMENT', targetType: 'salary_payment', targetId: null, details: `${item.payload.amount} FCFA (${item.payload.date})${tag}` };
     case 'addParent':
       return { action: 'ADD_PARENT', targetType: 'parent', targetId: null, details: `${item.payload.fullName}${tag}` };
+    case 'updateParent':
+      return { action: 'UPDATE_PARENT', targetType: 'parent', targetId: item.payload.id, details: `mise à jour parent${tag}` };
     case 'deleteParent':
       return { action: 'DELETE_PARENT', targetType: 'parent', targetId: item.payload.id, details: `suppression parent${tag}` };
     default:
-      // updateStudent / updateParent / todos — not audited online, kept out here too.
+      // todos — not audited online, kept out here too.
       return null;
   }
 }

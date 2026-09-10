@@ -82,12 +82,12 @@ describe('offline replay audit mapping (offlineAuditInfo)', () => {
   // Actions whose online equivalent is audited → must produce an entry.
   const AUDITED: OfflineActionType[] = [
     'addPayment', 'addExpense', 'addVendorExpense', 'updateVendorExpense', 'deleteVendorExpense',
-    'addStudent', 'deleteStudent',
+    'addStudent', 'updateStudent', 'deleteStudent',
     'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment',
-    'addParent', 'deleteParent',
+    'addParent', 'updateParent', 'deleteParent',
   ];
-  // Not audited online → replay stays silent (todos, student/parent edits).
-  const SILENT: OfflineActionType[] = ['updateStudent', 'updateParent', 'addTodo', 'updateTodo', 'deleteTodo'];
+  // Not audited online → replay stays silent (todos only).
+  const SILENT: OfflineActionType[] = ['addTodo', 'updateTodo', 'deleteTodo'];
 
   for (const type of AUDITED) {
     it(`maps '${type}' to an audited entry tagged [replay]`, () => {
