@@ -17,7 +17,9 @@ const SERVICE_KEY = get('SUPABASE_SERVICE_ROLE_KEY');
 const BASE = (get('VITE_SUPABASE_URL') || '').replace(/\/$/, '');
 const HDR = { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, 'Content-Type': 'application/json' };
 
-const EXE = join(process.cwd(), 'release', 'MamaTheraFinance-1.0.0-portable.exe');
+// Default: the packaged portable exe. Override with DESKTOP_EXE to prove the
+// same flow on the NSIS-INSTALLED app (installer smoke test) or any build.
+const EXE = process.env.DESKTOP_EXE || join(process.cwd(), 'release', 'MamaTheraFinance-1.0.0-portable.exe');
 const DL_DIR = join(tmpdir(), `electron-proof-dl-${Date.now()}`);
 // Electron userData dir (portable = same Roaming dir as the installed app) —
 // wiped before launch so every run proves the login from a clean state, and

@@ -1,3 +1,31 @@
+## [2026-09-10] Signature de code Windows : câblage CSC_LINK/CSC_KEY_PASSWORD + workflow de release
+
+Le build electron-builder est prêt à signer tous les artefacts Windows dès qu'un certificat est fourni (aucun code de build à changer) :
+
+- **Config** : documenté dans `electron-builder.yml` — `CSC_LINK` (chemin/URL du `.pfx`) + `CSC_KEY_PASSWORD` signent exe win-unpacked, `elevate.exe`, installeur NSIS (y compris `__uninstaller.exe`) et portable ; sans `CSC_LINK`, build non signé (no-op, pas d'erreur).
+- **CI** : nouveau `.github/workflows/desktop-release.yml` (workflow_dispatch, Windows) — restaure le `.pfx` depuis le secret `CSC_PFX_B64`, pose `CSC_LINK`/`CSC_KEY_PASSWORD`, exécute `electron:release` (build + signature + publication GitHub Release, canal electron-updater). Avertit et ne publie pas si le secret est absent.
+- **Preuve du pipeline** (certificat auto-signé de test, build isolé dans `release-signed-test/`, `release/` intact) : les 5 artefacts sont bien signés (« signing file=… certificateFile=… » pour chacun) et `Get-AuthenticodeSignature` lit le signataire « CN=Mama Thera Finance Test » ; le statut « chaîne terminée par une racine non approuvée » est le comportement attendu d'un certificat auto-signé — un certificat d'une CA de confiance (OV/EV) donnerait « Valid » et lèverait SmartScreen. Nettoyage complet après la preuve (certificat, .pfx, répertoire de test).
+- **À noter** : SmartScreen ne s'efface pas avec un certificat auto-signé ; il faut un certificat OV/EV d'une autorité reconnue (l'édition de réputation suit ensuite les téléchargements).
+- **Guide d'acquisition** : `docs/CODE_SIGNING.md` (choix OV/EV vs Azure Trusted Signing, fournisseurs, export `.pfx`, activation locale + CI via secrets `CSC_PFX_B64`/`CSC_KEY_PASSWORD`, sécurité).
+
+## [2026-09-10] Smoke-test installeur NSIS : install silencieuse → preuve login + PDF → désinstallation propre
+
+Cycle complet rejoué sur la machine réelle avec `release/MamaTheraFinance-1.0.0-setup.exe` :
+
+- **Install silencieuse** par utilisateur (`/S /D=C:\Users\user\AppData\Local\Programs\MamaTheraFinance`) : exe + « Uninstall MamaTheraFinance.exe » + ressources déployés.
+- **Vérifs** : entrée registre `HKCU\…\Uninstall\{f4d2054b-…}` (« MamaTheraFinance 1.0.0 », `UninstallString` + `QuietUninstallString` avec `/currentuser /S`) ; raccourcis Start Menu + Desktop « Mama Thera Finance.lnk ».
+- **Preuve login + PDF sur l'app INSTALLÉE** : `scripts/verify-desktop-app.mjs` accepte désormais `DESKTOP_EXE` (en plus du portable par défaut) → compte éphémère + employé temporaire, lancement de l'exe installé (profil isolé), **login réel OK** (CORS `file://`), clic « Télécharger Reçu PDF », **PDF réel** `Fiche_Paie_PreuveBureau_10235_2026-09.pdf` (102 381 octets, signature `%PDF-`) → `PROOF_OK`, nettoyage complet.
+- **Désinstallation silencieuse** (`/currentuser /S`, via PowerShell pour éviter le mangling de quoting bash→cmd) : répertoire d'installation supprimé, entrée registre disparue, raccourcis supprimés, aucun processus résiduel.
+
+## [2026-09-10] Mises à jour automatiques du bureau (electron-updater, GitHub Releases)
+
+L'app installée (NSIS) se met désormais à jour **toute seule** : au démarrage, `electron/main.cjs` interroge le feed (`electron-updater` 6.8.9, provider GitHub sur ce repo, config `publish` ajoutée à `electron-builder.yml` → `app-update.yml` embarqué) ; si une version plus récente existe, elle est téléchargée (vérif sha512 de `latest.yml`) puis installée après confirmation (« Redémarrer maintenant / Plus tard » → `quitAndInstall`).
+
+- **`electron/main.cjs`** : `setupAutoUpdater(win)` — check 5 s après le démarrage, événements loggés (checking/available/not-available/progress/downloaded). Désactivé en dev et sur le **portable** (détection `PORTABLE_EXECUTABLE_FILE` — pas de répertoire d'installation). Hooks E2E dans l'esprit de `ELECTRON_DL_DIR` : `UPDATER_FEED_URL` (feed local) + `UPDATER_LOG_FILE` (journal d'événements, mode preuve sans modale).
+- **`electron-builder.yml`** : bloc `publish` (provider github, owner `ibrahimkalilthera`, repo `-MAMA`) ; `npm run electron:release` = build + `--publish always` (GH_TOKEN requis). `latest.yml` est déjà produit à côté de l'installeur — il doit atterrir dans le même release GitHub.
+- **Preuve E2E (`scripts/verify-updater.mjs`, rejouable)** : serveur HTTP local annonçant v1.0.1 (sha512 réel de l'installeur) + lancement de l'exe empaqueté (`win-unpacked`) avec `UPDATER_FEED_URL`/`UPDATER_LOG_FILE`/profil isolé → **chaîne complète vérifiée** : `checking-for-update` → `update-available 1.0.1` → `download-progress 100%` (128 937 766 octets) → `update-downloaded 1.0.1` → `PROOF_OK`. Sanity check du feed GitHub réel : « No published versions on GitHub » (repo correctement résolu — aucun release publié pour l'instant).
+- **Dépendance** : `electron-updater` en `dependencies` (embarqué dans l'asar, vérifié) ; `npm audit --omit=dev` : 0 vulnérabilité.
+
 ## [2026-09-10] Fix CI : cible déterministe du pixel-check fiche + purge des résidus de preuve
 
 Le pixel-check de la fiche de paie (PDF E2E post-deploy) prenait le **premier** membre non-admin de la table `staff` et exigeait le montant « total indemnités » sur la ligne imprimée 98,0 mm. Un résidu « PreuveBureau 82427 » (run de preuve desktop interrompu ; indemnités à 0) faisait imprimer « — » sur la ligne du haut à la place → le check passait rouge sur main depuis le commit Electron `0084e6e` (avant tout travail sur l'icône) :

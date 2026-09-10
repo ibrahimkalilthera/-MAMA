@@ -1,0 +1,60 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Desktop release (Windows) — build + signature + publication manuelle.
+#
+# workflow_dispatch uniquement : construit l'app de bureau Windows, la SIGNE
+# avec le certificat de signature de code (secrets) et publie un GitHub
+# Release — le canal electron-updater (setup.exe + portable + latest.yml dans
+# le même release). Sans secret CSC_PFX_B64, le build reste non signé
+# (SmartScreen « éditeur inconnu ») — le workflow avertit et ne publie pas.
+#
+# Secrets à configurer (Settings → Secrets and variables → Actions) :
+#   CSC_PFX_B64       certificat .pfx encodé en base64
+#   CSC_KEY_PASSWORD  mot de passe du certificat
+# ─────────────────────────────────────────────────────────────────────────────
+name: Desktop release (Windows)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-sign-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore code-signing certificate
+        shell: bash
+        env:
+          CSC_PFX_B64: ${{ secrets.CSC_PFX_B64 }}
+        run: |
+          if [ -n "$CSC_PFX_B64" ]; then
+            echo "$CSC_PFX_B64" | base64 -d > "$RUNNER_TEMP/code-sign.pfx"
+            echo "certificat restauré ($(wc -c < "$RUNNER_TEMP/code-sign.pfx") octets)"
+          else
+            echo "::warning::Secret CSC_PFX_B64 absent — build NON signé (SmartScreen « éditeur inconnu »)"
+          fi
+
+      - name: Build, sign and publish (electron-updater channel)
+        shell: bash
+        env:
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f "$RUNNER_TEMP/code-sign.pfx" ]; then
+            export CSC_LINK="$(cygpath -w "$RUNNER_TEMP/code-sign.pfx")"
+            echo "→ build signé avec CSC_LINK=$CSC_LINK"
+            npm run electron:release
+          else
+            echo "→ aucun certificat : build non signé (electron:dist, pas de publication)"
+            npm run electron:dist
+          fi

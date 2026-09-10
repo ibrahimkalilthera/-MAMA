@@ -1,16 +1,28 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # electron-builder.yml — packaging MamaTheraFinance for Windows.
 #
-#   npm run electron:ui    → vite build --base=./ --outDir electron-ui-dist
-#   npm run electron:dist  → electron:ui + electron-builder --win
+#   npm run electron:ui      → vite build --base=./ --outDir electron-ui-dist
+#   npm run electron:dist    → electron:ui + electron-builder --win (local)
+#   npm run electron:release → electron:ui + electron-builder --win --publish always
+#                              (build + GitHub release, requires GH_TOKEN)
 #
 # Output: release/ with an NSIS setup.exe + a portable exe.
 # The icon comes from build/icon.png (512×512, generated from the school
 # emblem image) — electron-builder converts it to .ico automatically.
+#
+# Auto-update: the publish block below points the packaged app at the GitHub
+# Releases of this repo — electron-updater (main.cjs) checks it at startup and
+# installs new NSIS installers. latest.yml is generated alongside the exe and
+# must land in the same release for the updater to see it.
 # ─────────────────────────────────────────────────────────────────────────────
 appId: com.mamathera.finance
 productName: MamaTheraFinance
 copyright: Copyright © 2026 MAMA THERA
+
+publish:
+  provider: github
+  owner: ibrahimkalilthera
+  repo: "-MAMA"
 
 directories:
   output: release
@@ -23,6 +35,22 @@ files:
 
 asar: true
 
+# ── Code signing (Windows) ──────────────────────────────────────────────────
+# electron-builder signe automatiquement TOUS les artefacts Windows dès que
+# les variables standard sont définies dans l'environnement du build :
+#   CSC_LINK           chemin (ou URL) du certificat .pfx
+#   CSC_KEY_PASSWORD   mot de passe de ce certificat
+# Sont signés : l'exe win-unpacked, resources\elevate.exe, l'installeur NSIS
+# (y compris son __uninstaller.exe) et le portable. Sans CSC_LINK, le build
+# reste NON signé (SmartScreen « éditeur inconnu ») — c'est un no-op, pas une
+# erreur.
+#
+# ⚠️ Un certificat auto-signé ne lève PAS SmartScreen : seule une autorité de
+#    certification de confiance (OV/EV) est reconnue par Windows. La réputation
+#    SmartScreen se construit ensuite avec les téléchargements/installations.
+# CI : .github/workflows/desktop-release.yml restaure le .pfx depuis le secret
+#      CSC_PFX_B64 (+ CSC_KEY_PASSWORD) et publie le release (canal updater).
+# ─────────────────────────────────────────────────────────────────────────────
 win:
   target:
     - nsis

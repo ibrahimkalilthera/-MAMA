@@ -119,6 +119,20 @@ npm run electron:dist    # une fois, pour produire release/
 node scripts/verify-desktop-app.mjs
 ```
 
+**Mises à jour automatiques** (`electron-updater`) : l'app installée (NSIS) vérifie les **GitHub Releases** de ce repo au démarrage et, si une nouvelle version existe, télécharge et installe l'installeur (dialogue « Redémarrer maintenant / Plus tard »). `latest.yml` est généré à côté de l'installeur — il doit être publié dans le même release. Publication :
+
+```bash
+npm run electron:release  # electron:ui + electron-builder --win --publish always (GH_TOKEN requis)
+```
+
+**Signature de code Windows** : le build signe automatiquement **tous** les artefacts (exe win-unpacked, `elevate.exe`, installeur NSIS + son désinstalleur, portable) dès que les variables standard sont définies : `CSC_LINK` (chemin/URL du `.pfx`) + `CSC_KEY_PASSWORD`. En CI, `.github/workflows/desktop-release.yml` (workflow_dispatch) restaure le certificat depuis les secrets `CSC_PFX_B64` + `CSC_KEY_PASSWORD`, signe et publie le GitHub Release (canal updater). ⚠️ SmartScreen n'est levé qu'avec un certificat d'une autorité de confiance (**OV/EV**) — un certificat auto-signé ne change rien à SmartScreen. Marche à suivre complète (achat, export `.pfx`, secrets CI) : [`docs/CODE_SIGNING.md`](docs/CODE_SIGNING.md).
+
+Le **portable** ne se met pas à jour (pas de répertoire d'installation — désactivé à la détection de `PORTABLE_EXECUTABLE_FILE`). Preuve E2E du mécanisme (feed local, exe empaqueté) :
+
+```bash
+node scripts/verify-updater.mjs   # attend release/win-unpacked/MamaTheraFinance.exe
+```
+
 **Prérequis** : Windows 10/11 x64, internet pour Supabase. L'installeur installe dans le dossier utilisateur (pas d'administration requise).
 
 ## Structure
