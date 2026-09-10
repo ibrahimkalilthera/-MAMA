@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import puppeteer from 'puppeteer-core';
 import { ephemeralEmail } from '../scripts/lib/ephemeral-accounts.mjs';
-import { sweepOrphanElectron } from '../scripts/lib/orphan-chrome.mjs';
+import { sweepOrphanElectron } from './lib/orphan-chrome.mjs';
 
 const envFile = readFileSync('.env', 'utf8');
 const get = (k) => (envFile.match(new RegExp(`^${k}=(.*)$`, 'm')) || [])[1]?.replace(/^["']|["']$/g, '');
@@ -32,10 +32,6 @@ const PORT = 9400 + Math.floor(Math.random() * 400); // unique per run — no st
 const PASS = 'Audit-Pass-2026!';
 const staffName = `PreuveBureau ${Date.now().toString().slice(-5)}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const killAll = async () => {
-  try { await new Promise((res) => { const p = spawn('taskkill', ['//F', '//IM', 'MamaTheraFinance.exe'], { stdio: 'ignore' }); p.on('exit', res); }); } catch { /* aucun process */ }
-  await wait(2500);
-};
 const wipeUserData = () => {
   for (let i = 0; i < 5; i++) {
     try { rmSync(USER_DATA, { recursive: true, force: true }); return; } catch { /* verrou transitoire */ }
@@ -213,10 +209,12 @@ try {
   // ── cleanup ─────────────────────────────────────────────────────────────
   // Graceful close over CDP (terminates the app for real — disconnect() only
   // detaches and left orphan processes; the portable stub also survives a bare
-  // app.kill()). taskkill stays as the safety net.
+  // app.kill()). Our app is killed by PID above; the age-windowed sweep then
+  // clears any orphan (our electron-proof-ud marker → killed regardless of
+  // age; a legitimately open fresh app is never touched).
   await Promise.race([browser.close().catch(() => {}), wait(5000)]);
   app.kill();
-  await killAll();
+  await sweepOrphanElectron();
   await fetch(`${BASE}/rest/v1/staff?id=eq.${staffId}`, { method: 'DELETE', headers: HDR });
   await fetch(`${BASE}/auth/v1/admin/users/${uid}`, { method: 'DELETE', headers: HDR });
   rmSync(DL_DIR, { recursive: true, force: true });
@@ -226,12 +224,12 @@ try {
   process.exit(ok ? 0 : 1);
 } catch (e) {
   console.error('❌', e.message);
-  // Same hygiene as the success path: close the CDP browser, then sweep the
-  // app by image name (the missing killAll here left 8 orphans on a CDP
-  // attach failure), then clean the DB rows.
+  // Same hygiene as the success path: close the CDP browser and kill our app
+  // by PID, then the age-windowed sweep clears any orphan (the missing sweep
+  // here left 8 orphans on a CDP attach failure), then clean the DB rows.
   try { browser && await Promise.race([browser.close().catch(() => {}), wait(5000)]); } catch { /* ignore */ }
   try { app && app.kill(); } catch { /* ignore */ }
-  await killAll();
+  await sweepOrphanElectron();
   if (staffId) await fetch(`${BASE}/rest/v1/staff?id=eq.${staffId}`, { method: 'DELETE', headers: HDR }).catch(() => {});
   if (uid) await fetch(`${BASE}/auth/v1/admin/users/${uid}`, { method: 'DELETE', headers: HDR }).catch(() => {});
   rmSync(DL_DIR, { recursive: true, force: true });

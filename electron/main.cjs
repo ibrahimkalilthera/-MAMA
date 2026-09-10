@@ -15,12 +15,60 @@
 const { app, BrowserWindow, dialog, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
 
 const FALLBACK_URL = 'https://mama-thera-finance.vercel.app/';
 const isDev = !app.isPackaged;
 // electron-builder sets PORTABLE_EXECUTABLE_FILE only for the portable target:
 // auto-update installs via the NSIS installer, so it is disabled on portable.
 const isPortable = !!process.env.PORTABLE_EXECUTABLE_FILE;
+
+// ── Updater stale-cache guard ────────────────────────────────────────────────
+// electron-updater's download cache dir. Mirrors the derived `updaterCacheDirName`
+// (sanitized package name + "-updater", set by electron-builder): it lives under
+// %LOCALAPPDATA% and is SHARED across installs of the app. A downloaded update
+// stays here (setup exe + update-info.json) and, if sha512-valid, is reused by
+// the next run WITHOUT any real GET — so a failed/interrupted install would be
+// re-served from cache forever, never re-downloaded.
+const updaterCacheDir = () =>
+  path.join(
+    process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
+    'mama-thera-finance-updater'
+  );
+// Sentinel written right before quitAndInstall(). If the app later starts with
+// this file present, the previous install never completed (setup cancelled or
+// failed) → purge the stale cache so the next check really re-downloads.
+const installPendingFlag = () => path.join(app.getPath('userData'), 'update-install-pending');
+
+// Version targeted by the cached update (from update-info.json fileName), or
+// null if it cannot be read. Used to tell "install succeeded" (the app now
+// runs the cached version) from "install did not complete" (it does not).
+function staleCacheVersion() {
+  const info = path.join(updaterCacheDir(), 'pending', 'update-info.json');
+  if (!fs.existsSync(info)) return null;
+  try {
+    const { fileName } = JSON.parse(fs.readFileSync(info, 'utf8'));
+    const m = /-(\d+\.\d+\.\d+)-/.exec(fileName || '');
+    return m ? m[1] : null;
+  } catch { /* ignore */ return null; }
+}
+
+function purgeStaleUpdaterCache(log) {
+  const flag = installPendingFlag();
+  if (!fs.existsSync(flag)) return; // no attempted install → cache stays (e.g. "Later")
+  fs.rmSync(flag, { force: true });
+  const dir = updaterCacheDir();
+  if (!fs.existsSync(dir)) {
+    log('installation précédente non aboutie — cache updater absent');
+    return;
+  }
+  const cachedVersion = staleCacheVersion();
+  fs.rmSync(dir, { recursive: true, force: true });
+  const outcome = cachedVersion && cachedVersion !== app.getVersion()
+    ? 'installation précédente non aboutie'
+    : 'mise à jour appliquée (cache inutile)';
+  log(`cache electron-updater purgé (${outcome})`);
+}
 
 // ── Auto-update (electron-updater, GitHub releases) ─────────────────────────
 // Checked shortly after startup; a downloaded update is installed on user
@@ -48,6 +96,10 @@ function setupAutoUpdater(win) {
       try { fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`); } catch { /* best-effort */ }
     }
   };
+  // Stale-cache guard: runs before the first check. A leftover sentinel means
+  // the previous install did not complete — purge the cache, never re-serve it.
+  try { purgeStaleUpdaterCache(log); } catch (e) { log(`purge-cache échec ${(e && e.message) || e}`); }
+
   if (process.env.UPDATER_FEED_URL) {
     autoUpdater.setFeedURL({ provider: 'generic', url: process.env.UPDATER_FEED_URL });
   }
@@ -69,7 +121,12 @@ function setupAutoUpdater(win) {
       defaultId: 0,
       cancelId: 1,
     });
-    if (response === 0) autoUpdater.quitAndInstall();
+    if (response === 0) {
+      // Sentinel: marks an install attempt. If the app comes up again on this
+      // version, purgeStaleUpdaterCache() wipes the shared cache on next start.
+      try { fs.writeFileSync(installPendingFlag(), `${new Date().toISOString()}\n`); } catch { /* best-effort */ }
+      autoUpdater.quitAndInstall();
+    }
   });
   setTimeout(() => {
     autoUpdater.checkForUpdates().catch((e) => log(`check-failed ${(e && e.message) || e}`));
