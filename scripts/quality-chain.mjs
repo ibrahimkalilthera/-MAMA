@@ -26,6 +26,12 @@
  *      the msys panic is an ORPHANED node.exe left by a timed-out run — a
  *      full tree kill leaves nothing behind.
  *
+ *   5. ORPHAN HYGIENE (root cause) — this chain must never seed the next
+ *      panic: it sweeps orphaned Chrome/Electron before the first step,
+ *      starts a DETACHED guard (scripts/lib/orphan-guard.mjs) that outlives
+ *      it so an EXTERNAL kill still gets its leftovers swept, and sweeps its
+ *      own node.exe orphans at the end of every run (plus on Ctrl-C/kill).
+ *
  * Usage:  node scripts/quality-chain.mjs           (all steps)
  *         node scripts/quality-chain.mjs lint test  (selected steps)
  *
@@ -39,6 +45,8 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { sweepOrphanElectron, sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
+import { spawnOrphanGuard } from './lib/orphan-guard.mjs';
+import { sweepOrphanNodeProcesses } from './git-retry.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -54,6 +62,23 @@ process.on('uncaughtException', (err) => {
 });
 
 const win32 = process.platform === 'win32';
+
+/** Purge the chain's OWN known node.exe orphans (selective sweep, best-effort). */
+async function sweepOwnOrphans() {
+  try {
+    await sweepOrphanNodeProcesses({ log: (m) => console.log(m) });
+  } catch {
+    /* best-effort: cleanup must never fail the chain */
+  }
+}
+
+// Ctrl-C / kill: sweep the step children we are about to abandon before
+// leaving, so an interrupted run does not seed the next fork panic.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    sweepOwnOrphans().finally(() => process.exit(130));
+  });
+}
 
 function memMb() {
   const m = process.memoryUsage();
@@ -186,12 +211,22 @@ if (swept > 0) console.log(`🧹 ${swept} processus Chrome orphelin(s) purgé(s)
 const sweptElectron = await sweepOrphanElectron();
 if (sweptElectron > 0) console.log(`🧹 ${sweptElectron} processus MamaTheraFinance.exe orphelin(s) purgé(s)`);
 
+// Own-orphan hygiene: start the DETACHED guard (double-spawned out of this
+// process tree), which outlives us and sweeps our node.exe orphans even when
+// we are killed from OUTSIDE (tool/CI timeout, taskkill /T) before the
+// end-of-run sweep below can run.
+spawnOrphanGuard();
+
 console.log(`🚀 Chaîne qualité — ${names.join(' → ')}  [${memMb()}]  (pid ${process.pid})`);
 const results = [];
 for (const name of names) {
   if (process.exitCode) break; // a global handler already failed us
   results.push(await STEPS[name]());
 }
+
+// Own-orphan hygiene: end of run, success or failure — never leave a step
+// child behind (the guard covers the external-kill case).
+await sweepOwnOrphans();
 
 const failed = results.filter((r) => !r.ok);
 if (failed.length > 0) {
