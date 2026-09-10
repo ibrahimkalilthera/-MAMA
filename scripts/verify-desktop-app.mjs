@@ -45,6 +45,7 @@ const wipeUserData = () => {
 let uid = null;
 let staffId = null;
 let app = null;
+let browser = null;
 
 try {
   // ── 0. purge any leftover staff rows from crashed previous runs (same
@@ -100,7 +101,7 @@ try {
   if (!ws) throw new Error('CDP injoignable — le portable n’a pas démarré');
   console.log('✅ CDP connecté');
 
-  const browser = await puppeteer.connect({ browserWSEndpoint: ws, defaultViewport: null });
+  browser = await puppeteer.connect({ browserWSEndpoint: ws, defaultViewport: null });
   const targets = await browser.pages();
   console.log('cibles CDP:', targets.map((p) => p.url().slice(0, 55)).join(' | '));
   let page = targets.find((p) => p.url().startsWith('file://')) || targets[0];
@@ -205,7 +206,10 @@ try {
   console.log(ok ? `✅ PDF TÉLÉCHARGÉ: ${pdfPath} (${statSync(full).size} octets, signature ${head})` : `❌ fichier non-PDF: ${head}`);
 
   // ── cleanup ─────────────────────────────────────────────────────────────
-  await browser.disconnect();
+  // Graceful close over CDP (terminates the app for real — disconnect() only
+  // detaches and left orphan processes; the portable stub also survives a bare
+  // app.kill()). taskkill stays as the safety net.
+  await Promise.race([browser.close().catch(() => {}), wait(5000)]);
   app.kill();
   await killAll();
   await fetch(`${BASE}/rest/v1/staff?id=eq.${staffId}`, { method: 'DELETE', headers: HDR });
@@ -217,7 +221,12 @@ try {
   process.exit(ok ? 0 : 1);
 } catch (e) {
   console.error('❌', e.message);
+  // Same hygiene as the success path: close the CDP browser, then sweep the
+  // app by image name (the missing killAll here left 8 orphans on a CDP
+  // attach failure), then clean the DB rows.
+  try { browser && await Promise.race([browser.close().catch(() => {}), wait(5000)]); } catch { /* ignore */ }
   try { app && app.kill(); } catch { /* ignore */ }
+  await killAll();
   if (staffId) await fetch(`${BASE}/rest/v1/staff?id=eq.${staffId}`, { method: 'DELETE', headers: HDR }).catch(() => {});
   if (uid) await fetch(`${BASE}/auth/v1/admin/users/${uid}`, { method: 'DELETE', headers: HDR }).catch(() => {});
   rmSync(DL_DIR, { recursive: true, force: true });
