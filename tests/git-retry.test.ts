@@ -199,7 +199,23 @@ describe('runGitWithRetry', () => {
     assert.equal(spawnCalls.length, 1);
   });
 
-  it('avec sweep → balaie entre l’échec fork et le retry suivant', async () => {
+  it('avec sweep → purge AVANT la première tentative aussi (succès direct)', async () => {
+    plan = [{ mode: 'close', code: 0 }];
+    const events: string[] = [];
+    const code = await runGitWithRetry(['status'], {
+      ...quiet,
+      attempts: 2,
+      waitMs: 1,
+      sweep: true,
+      sweepFn: async () => { events.push('sweep'); },
+      log: () => {},
+    });
+    assert.equal(code, 0);
+    assert.deepEqual(events, ['sweep'], 'sweep avant la 1re tentative, même sans panique');
+    assert.equal(spawnCalls.length, 1, 'un seul spawn git');
+  });
+
+  it('avec sweep → purge avant la 1re tentative ET entre l’échec fork et le retry', async () => {
     plan = [
       { mode: 'close', code: 254 },
       { mode: 'close', code: 0 },
@@ -214,7 +230,7 @@ describe('runGitWithRetry', () => {
       log: () => {},
     });
     assert.equal(code, 0);
-    assert.deepEqual(events, ['sweep']);
+    assert.deepEqual(events, ['sweep', 'sweep'], 'avant la 1re tentative puis avant le retry');
     assert.equal(spawnCalls.length, 2);
   });
 });

@@ -215,17 +215,23 @@ export function runCommandWithRetry(
     let attempt = 0;
     let lastCode = 1;
 
+    // Best-effort orphan purge (opt-in via --sweep). Runs before the FIRST
+    // attempt AND between retries; a sweep failure never prevents the retry
+    // itself. Selectivity is the safety: only known quality-chain orphans
+    // (parent gone / older than the stale window) are ever killed.
+    const runSweepOnce = () =>
+      Promise.resolve()
+        .then(sweepFn || (() => sweepOrphanNodeProcesses({ log })))
+        .catch(() => {});
+
     const retryOrGiveUp = (reason) => {
       if (attempt < attempts) {
         const continueRetry = () => {
           log(`↻ ${reason} — retry dans ${waitMs} ms (tentative ${attempt + 1}/${attempts})`);
           setTimeout(tryOnce, waitMs);
         };
-        // The sweep happens only between attempts, never before the initial
-        // command. It is best-effort and must not prevent the retry itself.
         if (sweep || sweepFn) {
-          const runSweep = sweepFn || (() => sweepOrphanNodeProcesses({ log }));
-          Promise.resolve().then(runSweep).then(continueRetry, continueRetry);
+          runSweepOnce().then(continueRetry);
         } else {
           continueRetry();
         }
@@ -286,7 +292,18 @@ export function runCommandWithRetry(
       });
     }
 
-    tryOnce();
+    // With --sweep, purge orphans BEFORE the first attempt too: the orphaned
+    // node.exe left by a previous watchdog timeout is what keeps the panic
+    // alive, so clearing it up front lets attempt 1 succeed immediately.
+    const start = () => {
+      if (sweep || sweepFn) {
+        runSweepOnce().then(tryOnce);
+      } else {
+        tryOnce();
+      }
+    };
+
+    start();
   });
 }
 
@@ -317,7 +334,7 @@ Options:
   --attempts N    nombre maximal de tentatives (défaut: 3)
   --wait-ms N     délai entre tentatives en ms (défaut: 5000)
   --timeout-ms N  timeout par tentative en ms, kill de l'arbre entier (défaut: 300000)
-  --sweep         purger avant chaque retry les orphelins Node connus de la chaîne qualité
+  --sweep         purger avant la 1re tentative et entre les retries les orphelins Node connus de la chaîne qualité
   -h, --help      cette aide
 
 Exemples:

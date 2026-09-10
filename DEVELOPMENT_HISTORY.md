@@ -1,3 +1,10 @@
+## [2026-09-10] `--sweep` purge désormais AUSSI avant la première tentative
+
+Le sweep était limité aux retries (jamais avant la commande initiale). Désormais `--sweep` (wrapper git-retry, hook-quality-chain via `sweep: true`, shim git.cmd) purgera les orphelins node.exe connus **avant la première tentative ET entre les retries** : l'orphelin laissé par un timeout watchdog précédent est précisément ce qui maintient la panique — le purger d'emblée permet à la tentative 1 de réussir immédiatement au lieu de consommer un échec de panique. Toujours best-effort (un échec du sweep n'empêche jamais la tentative), toujours sélectif (uniquement les lignes de commande connues de la chaîne qualité, parent disparu ou > fenêtre de péremption).
+
+- **Implémentation** : `runCommandWithRetry` extrait un `runSweepOnce` partagé (avant la 1re tentative via `start()` + entre les retries dans `retryOrGiveUp`) ; description `--sweep` du `--help` mise à jour ; commentaires hook-quality-chain alignés.
+- **Tests** : succès direct avec `--sweep` → exactement 1 sweep puis 1 spawn git (sweep avant la 1re tentative, même sans panique) ; panique → sweeps [avant, intercalé] ; hook-quality-chain : comptes de spawn mis à jour (sweep + chaîne + sweep + chaîne, borné 3 tentatives → 3 chaîne + 3 sweep, échec réel → 1 sweep + 1 chaîne sans retry). Suite : **41/41 vert** (27 git-retry + 5 hook + 4 helpers/installeur + 5 shim E2E), tsc 0 erreur, lint vert.
+
 ## [2026-09-10] Shim natif git.cmd sur le PATH : `git commit`/`git push` passent par git-retry même en pleine panique
 
 La frontière git → hook (le sh du hook meurt du bug de fork AVANT de lancer node quand la panique est déjà active) ne peut pas être couverte côté git — git 2.55 refuse les alias qui ombragent un builtin (`alias.commit` ignoré, vérifié) et les hooks scripts passent obligatoirement par sh. La parade : intercepter `git` en amont, **nativement** (cmd.exe → node.exe → CreateProcess, aucun fork msys).

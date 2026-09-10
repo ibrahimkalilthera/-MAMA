@@ -79,37 +79,40 @@ describe('runHookQualityChain', () => {
     spawns = [];
   });
 
-  it('succès direct → un seul spawn de la chaîne, AUCUN sweep, exit 0', async () => {
+  it('succès direct → sweep AVANT la 1re tentative puis un seul spawn de chaîne, exit 0', async () => {
     plan = [{ mode: 'close', code: 0 }];
     const code = await runHookQualityChain({ ...quiet, attempts: 3, waitMs: 1 });
     assert.equal(code, 0);
-    assert.equal(spawns.length, 1, 'un seul spawn');
-    assert.ok(isChain(spawns[0]), 'la chaîne qualité est lancée');
+    assert.equal(spawns.length, 2, 'sweep + chaîne');
+    assert.ok(isSweep(spawns[0]), 'le sweep passe avant la 1re tentative');
+    assert.ok(isChain(spawns[1]), 'la chaîne qualité est lancée');
     assert.deepEqual(
-      spawns[0].opts.stdio,
+      spawns[1].opts.stdio,
       ['inherit', 'inherit', 'pipe'],
       'spawn-only, seuls stdout/stderr sont capturés',
     );
   });
 
-  it('fork-panic (exit 254) → sweep entre les tentatives puis succès', async () => {
+  it('fork-panic (exit 254) → sweep avant la 1re tentative, entre les retries, puis succès', async () => {
     plan = [
       { mode: 'close', code: 254 },
       { mode: 'close', code: 0 },
     ];
     const code = await runHookQualityChain({ ...quiet, attempts: 3, waitMs: 1 });
     assert.equal(code, 0);
-    assert.equal(spawns.length, 3, 'chaîne + sweep + chaîne');
-    assert.ok(isChain(spawns[0]));
-    assert.ok(isSweep(spawns[1]), 'le sweep orphelins passe entre les tentatives');
-    assert.ok(isChain(spawns[2]));
+    assert.equal(spawns.length, 4, 'sweep + chaîne + sweep + chaîne');
+    assert.ok(isSweep(spawns[0]));
+    assert.ok(isChain(spawns[1]));
+    assert.ok(isSweep(spawns[2]), 'le sweep orphelins passe entre les tentatives');
+    assert.ok(isChain(spawns[3]));
   });
 
   it('échec réel (exit 1, stderr propre) → AUCUN retry, code passé à git tel quel', async () => {
     plan = [{ mode: 'close', code: 1, stderr: 'ESLint: 3 errors\n' }];
     const code = await runHookQualityChain({ ...quiet, attempts: 3, waitMs: 1 });
     assert.equal(code, 1);
-    assert.equal(spawns.length, 1, 'pas de retry sur un échec réel');
+    assert.equal(spawns.filter(isChain).length, 1, 'pas de retry sur un échec réel');
+    assert.equal(spawns.filter(isSweep).length, 1, 'le sweep avant la 1re tentative a bien eu lieu');
   });
 
   it('fork-panic persistant → borné à `attempts`, dernier code retourné', async () => {
@@ -120,21 +123,22 @@ describe('runHookQualityChain', () => {
     ];
     const code = await runHookQualityChain({ ...quiet, attempts: 3, waitMs: 1 });
     assert.equal(code, 254);
-    assert.equal(spawns.length, 5, '3 tentatives chaîne + 2 sweeps intercalés');
+    assert.equal(spawns.length, 6, 'sweep avant + 3 tentatives chaîne + 2 sweeps intercalés');
     assert.equal(spawns.filter(isChain).length, 3);
-    assert.equal(spawns.filter(isSweep).length, 2);
+    assert.equal(spawns.filter(isSweep).length, 3);
   });
 
-  it('uv_spawn EUNKNOWN en plein run → sweep puis retry', async () => {
+  it('uv_spawn EUNKNOWN en plein run → sweep avant, sweep intercalé, puis succès', async () => {
     plan = [
       { mode: 'error', message: 'uv_spawn: EUNKNOWN' },
       { mode: 'close', code: 0 },
     ];
     const code = await runHookQualityChain({ ...quiet, attempts: 3, waitMs: 1 });
     assert.equal(code, 0);
-    assert.equal(spawns.length, 3);
-    assert.ok(isChain(spawns[0]));
-    assert.ok(isSweep(spawns[1]));
-    assert.ok(isChain(spawns[2]));
+    assert.equal(spawns.length, 4);
+    assert.ok(isSweep(spawns[0]));
+    assert.ok(isChain(spawns[1]));
+    assert.ok(isSweep(spawns[2]));
+    assert.ok(isChain(spawns[3]));
   });
 });
