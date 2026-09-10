@@ -26,6 +26,7 @@ import {
 } from './offlineQueue';
 import { drainOfflineQueue } from './offlineSync';
 import type { AuditLogEntry } from './auditLogger';
+import { logAuditEvent } from './auditLogger';
 import { mapExpenseRow, mapParentRow, mapSalaryPaymentRow, mapStaffRow, mapStudentRow, mapTodoRow, mapVendorExpenseRow } from './rowMappers';
 import { importBatchData } from './batchImport';
 import type { SupabaseDataCtx } from './dataOpsContext';
@@ -152,7 +153,11 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     try {
       // Drains the queued mutations (replay + removal per item) — the full
       // behaviour is unit-tested in tests/offline-sync.test.ts.
-      syncedCount = await drainOfflineQueue(supabase);
+      // Replayed offline mutations are audited too (the queue drain is where
+      // they materialize in the DB), with the [replay] tag in details.
+      syncedCount = await drainOfflineQueue(supabase, (info) => {
+        if (info) void logAuditEvent(info);
+      });
     } finally {
       updateQueueCount();
       setIsSyncing(false);
@@ -303,6 +308,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     students,
     staff,
     parents,
+    vendorExpenses,
     setParents, setStudents, setStaff, setSalaryPayments,
     setExpenses, setVendorExpenses, setTodos, setCustomClasses,
     notifySuccess, notifyError, isOffline, enqueueOffline, updateQueueCount,

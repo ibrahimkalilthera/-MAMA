@@ -11,6 +11,7 @@ import type { Database, DbUpdate, Json } from './database.types';
 import type { QueueItem } from './offlineQueue';
 import type { Parent, Student, Staff } from '../app/types';
 import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
+import type { LogAuditParams } from './auditLogger';
 
 /** The surface of the Supabase client that replay touches. */
 export type ReplayDb = Pick<SupabaseClient<Database>, 'from'>;
@@ -258,4 +259,47 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     if (!error) success = true;
   }
   return success;
+}
+
+// ─── Audit mapping for replayed actions ─────────────────────────────────────
+// Pure mapping from a queued item to the audit entry it should produce once
+// replayed, so it can be unit tested like replayOfflineItem itself. Returns
+// null for actions whose online equivalent is not audited (todos, student/
+// parent edits), keeping the replay trail consistent with the online one.
+// Details carry a [replay] tag so AuditView can tell offline materialization
+// from live actions.
+
+export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> | null {
+  const tag = ' [replay]';
+  switch (item.type) {
+    case 'addPayment':
+      return { action: 'RECORD_PAYMENT', targetType: 'payment', targetId: item.payload.studentId, details: `Payment of ${item.payload.payment.amount} FCFA recorded (Receipt: ${item.payload.payment.receiptNumber || 'N/A'})${tag}` };
+    case 'addExpense':
+      return { action: 'ADD_EXPENSE', targetType: 'expense', targetId: null, details: `${item.payload.description} (${item.payload.category}) — ${item.payload.amount} FCFA${tag}` };
+    case 'addVendorExpense':
+      return { action: 'ADD_VENDOR_EXPENSE', targetType: 'vendor_expense', targetId: null, details: `${item.payload.vendorName} — ${item.payload.category} — ${item.payload.amount} FCFA${tag}` };
+    case 'updateVendorExpense':
+      return { action: 'UPDATE_VENDOR_EXPENSE', targetType: 'vendor_expense', targetId: item.payload.id, details: `mise à jour dépense fournisseur${tag}` };
+    case 'deleteVendorExpense':
+      return { action: 'DELETE_VENDOR_EXPENSE', targetType: 'vendor_expense', targetId: item.payload.id, details: `suppression dépense fournisseur${tag}` };
+    case 'addStudent':
+      return { action: 'ADD_STUDENT', targetType: 'student', targetId: null, details: `${item.payload.name}${tag}` };
+    case 'deleteStudent':
+      return { action: 'DELETE_STUDENT', targetType: 'student', targetId: item.payload.id, details: `suppression élève${tag}` };
+    case 'addStaff':
+      return { action: 'ADD_STAFF', targetType: 'staff', targetId: null, details: item.payload.position ? `${item.payload.name} (${item.payload.position})${tag}` : `${item.payload.name}${tag}` };
+    case 'updateStaff':
+      return { action: 'UPDATE_STAFF', targetType: 'staff', targetId: item.payload.id, details: `mise à jour membre${tag}` };
+    case 'deleteStaff':
+      return { action: 'DELETE_STAFF', targetType: 'staff', targetId: item.payload.id, details: `suppression membre${tag}` };
+    case 'addSalaryPayment':
+      return { action: 'RECORD_SALARY_PAYMENT', targetType: 'salary_payment', targetId: null, details: `${item.payload.amount} FCFA (${item.payload.date})${tag}` };
+    case 'addParent':
+      return { action: 'ADD_PARENT', targetType: 'parent', targetId: null, details: `${item.payload.fullName}${tag}` };
+    case 'deleteParent':
+      return { action: 'DELETE_PARENT', targetType: 'parent', targetId: item.payload.id, details: `suppression parent${tag}` };
+    default:
+      // updateStudent / updateParent / todos — not audited online, kept out here too.
+      return null;
+  }
 }

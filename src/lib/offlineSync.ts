@@ -9,8 +9,9 @@
  * React rendering, or a DOM. The hook drives this with the real client.
  */
 import type { ReplayDb } from './offlineReplay';
-import { replayOfflineItem } from './offlineReplay';
+import { offlineAuditInfo, replayOfflineItem } from './offlineReplay';
 import { getOfflineQueue, removeOfflineAction } from './offlineQueue';
+import type { LogAuditParams } from './auditLogger';
 
 /**
  * Replay every queued mutation against `supabase` and remove each
@@ -20,8 +21,15 @@ import { getOfflineQueue, removeOfflineAction } from './offlineQueue';
  * An item whose replay reports an error STAYS queued — it will be retried on
  * the next sync pass. A replay that THROWS stops the whole drain so later
  * mutations keep their relative order. Returns the number of synced items.
+ *
+ * `audit` is optional (unit tests call the drain without it): when provided,
+ * every successfully replayed critical action is audited — the queue drain is
+ * where an offline mutation materializes in the DB, so it must leave a trail.
  */
-export async function drainOfflineQueue(supabase: ReplayDb): Promise<number> {
+export async function drainOfflineQueue(
+  supabase: ReplayDb,
+  audit?: (info: Omit<LogAuditParams, 'user'> | null) => void
+): Promise<number> {
   const queue = getOfflineQueue();
   if (queue.length === 0) return 0;
 
@@ -32,6 +40,7 @@ export async function drainOfflineQueue(supabase: ReplayDb): Promise<number> {
       const success = await replayOfflineItem(supabase, item);
 
       if (success) {
+        if (audit) audit(offlineAuditInfo(item));
         removeOfflineAction(item.id);
         syncedCount++;
       }

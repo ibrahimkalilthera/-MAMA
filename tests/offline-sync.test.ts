@@ -142,7 +142,7 @@ describe('offline sync (drainOfflineQueue — the full syncOfflineQueue behaviou
   it('the hook drives this exact function — useSupabaseData has no inline replay loop left', () => {
     const hook = readFileSync('src/lib/useSupabaseData.ts', 'utf8');
     assert.match(hook, /import \{ drainOfflineQueue \} from '\.\/offlineSync';/);
-    assert.match(hook, /await drainOfflineQueue\(supabase\)/);
+    assert.match(hook, /await drainOfflineQueue\(supabase/);
     assert.ok(
       !/replayOfflineItem\(supabase, item\)/.test(hook),
       'the inline replay loop must be gone from the hook',
