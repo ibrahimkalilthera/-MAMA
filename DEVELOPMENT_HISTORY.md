@@ -5,6 +5,7 @@ Le pixel-check de la fiche de paie (PDF E2E post-deploy) prenait le **premier** 
 - `scripts/verify-pdf-download.mjs` : cible fiche **déterministe** — préférer un membre non-admin avec indemnités > 0, sinon auto-créer un employé de démo (salaire + indemnités connus, supprimé au nettoyage). Même choix réutilisé par `--mode auto` quand le premier membre route vers fiche.
 - `scripts/verify-desktop-app.mjs` : purge des lignes `staff` résiduelles `PreuveBureau*` au démarrage — un run interrompu ne peut plus polluer la vue Paie de l'école.
 - Prod : résidu `PreuveBureau 82427` supprimé (table `staff` désormais vide).
+- Suite (table vide) : le mode `--mode auto` créait « aucun membre dans la base » sur une table vidée — il retombe désormais aussi sur l'employé de démo (fiche).
 - **Preuve locale contre la prod** : fiche **9/9 OK** (employé de démo), recu-parent **12/12 OK**, eslint propre.
 
 ## [2026-09-10] Reprise du chantier Electron : icône officielle (photo) + rebuild + re-preuve

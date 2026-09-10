@@ -384,7 +384,12 @@ async function resolveTarget() {
   }
   // auto: default to the first member, route by position
   const m = staff[0];
-  if (!m) throw new Error('aucun membre dans la base');
+  if (!m) {
+    // Empty staff table (fresh DB, or wiped by the leftover purge) — auto-create
+    // the demo employee (fiche) so the check stays deterministic.
+    console.log('  ℹ️ aucun membre dans la base — création d’un employé de démo');
+    return pickFicheMember();
+  }
   const mode = isAdminPosition(m.position) ? 'bulletin' : isTechniquePosition(m.position) ? 'technique' : 'fiche';
   // A fiche-routed member must carry allowances — reuse the deterministic pick.
   if (mode === 'fiche') return pickFicheMember();
