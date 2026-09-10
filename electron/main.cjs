@@ -96,6 +96,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Correct taskbar grouping / notifications on Windows.
+  app.setAppUserModelId('com.mamathera.finance');
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

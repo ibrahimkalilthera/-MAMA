@@ -1,3 +1,13 @@
+## [2026-09-10] Reprise du chantier Electron : icône officielle (photo) + rebuild + re-preuve
+
+Reprise de la version bureau après retrait des fichiers de l'arbre de travail — tous les éléments Electron sont remis en place et le cycle complet est rejoué :
+
+- **Fichiers restaurés** : `electron/main.cjs` (gagne `app.setAppUserModelId('com.mamathera.finance')` pour un bon groupement dans la barre des tâches), `electron/preload.cjs`, `electron-builder.yml` ; scripts `electron:ui` / `electron:dist` + champs `main` / `version` / `description` / `author` remis dans `package.json` ; `.gitignore` (`electron-ui-dist/`, `release/`, exception `!build/icon.png`) et ignores ESLint ré-armés.
+- **Icône = la photo officielle fournie** (emblème circulaire « COMPLEXE SCOLAIRE MAMA THERA ») : nouveau script reproductible `scripts/generate-app-icon.mjs` — flood-fill depuis les coins (fond blanc → transparent, tolérance 48) + feather 1 px, redimensionnement → `build/icon.png` 512×512 **à coins transparents** (l'emblème circulaire ressort sur n'importe quelle couleur de barre des tâches). Vérifié par comptage de pixels : texte blanc de la bande, étoiles jaunes et figures intactes (rien de connecté au fond blanc n'est mangé).
+- **Rebuild complet** (`npm run electron:dist`) : `release/MamaTheraFinance-1.0.0-setup.exe` (NSIS, ~128 Mo) + `release/MamaTheraFinance-1.0.0-portable.exe` (~128 Mo), `.ico` régénéré depuis la nouvelle icône.
+- **Re-preuve E2E en conditions réelles** (`node scripts/verify-desktop-app.mjs`) : compte admin éphémère + employé temporaire, lancement du **portable empaqueté** (profil `--user-data-dir` isolé par run, `ELECTRON_DL_DIR`), login OK (**CORS `file://` accepté par Supabase**), navigation Paie/Salaires, clic sur le bouton-icône « Télécharger Reçu PDF », **PDF réel** `Fiche_Paie_PreuveBureau_82427_2026-09.pdf` (102 383 octets, signature `%PDF-`) → `PROOF_OK`, nettoyage complet (employé, compte, profil utilisateur).
+- **Détail d'exécution** : un premier run échouait à joindre CDP — des processus `MamaTheraFinance.exe` orphelins s'accumulaient (le stub portable survit à `app.kill()` ; 8 instances résiduelles). `taskkill /F /IM MamaTheraFinance.exe` puis re-run : succès immédiat.
+
 ## [2026-09-10] Version bureau Windows (Electron) : installeur NSIS + portable
 
 - **Sous-système Electron** (`electron/`, hors `src/`, l'app web inchangée) :

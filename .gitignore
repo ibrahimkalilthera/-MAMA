@@ -1,6 +1,7 @@
 node_modules/
-build/
+build/*
 !build/icon.png
+!build/icon-source.jpg
 dist/
 coverage/
 .DS_Store

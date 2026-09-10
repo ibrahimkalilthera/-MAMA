@@ -101,7 +101,7 @@ L'application est aussi empaquetée en **application de bureau Windows** (shell 
 
 - `electron/main.cjs` charge le **build local** de l'app (`electron-ui-dist/`) — le bureau s'ouvre même si le serveur Vercel est indisponible ; seuls les appels Supabase (login, données, PDF) passent par internet. Fallback : si le build local manque, l'URL hébergée est chargée.
 - Sécurité : `contextIsolation` activé, `nodeIntegration` désactivé, sandbox activé ; les liens externes s'ouvrent dans le navigateur système ; les PDF téléchargés passent par une boîte de dialogue d'enregistrement (ou un dossier auto si `ELECTRON_DL_DIR` est défini).
-- Icône : emblème « COMPLEXE SCOLAIRE MAMA THERA » (généré depuis `public/favicon.svg`, asset `build/icon.png`).
+- Icône : emblème officiel « COMPLEXE SCOLAIRE MAMA THERA » (photo fournie, `build/icon.png` 512×512, coins transparents pour l'emblème circulaire — régénérable via `node scripts/generate-app-icon.mjs [image] [size]`).
 
 **Build + installeur :**
 

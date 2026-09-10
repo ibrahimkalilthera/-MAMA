@@ -6,7 +6,7 @@
 #
 # Output: release/ with an NSIS setup.exe + a portable exe.
 # The icon comes from build/icon.png (512×512, generated from the school
-# emblem) — electron-builder converts it to .ico automatically.
+# emblem image) — electron-builder converts it to .ico automatically.
 # ─────────────────────────────────────────────────────────────────────────────
 appId: com.mamathera.finance
 productName: MamaTheraFinance
