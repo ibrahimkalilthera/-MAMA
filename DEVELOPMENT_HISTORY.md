@@ -1,3 +1,19 @@
+## [2026-09-10] Bruit machine : retry systématique automatisé du spawn PowerShell (fork msys)
+
+Le « bruit machine » documenté — pannes de fork msys transitoires récurrentes (commit retry, powershell), jamais bloquantes grâce au retry systématique — est désormais **automatisé en code** pour les sweeps, au lieu d'un retry manuel à chaque run :
+
+- **`scripts/lib/orphan-chrome.mjs`** : `runPowershellSweep` réessaie son propre spawn jusqu'à 3 tentatives espacées de 400 ms quand le fork msys frappe (`uv_spawn: EUNKNOWN` sur le child 'error') — un spawn manqué ne no-op plus silencieusement le sweep (les orphelins seraient restés non balayés). Borné (3 tentatives max), garde anti-double-résolution (`settled`/`done`), ne bloque jamais l'appelant, et le timeout par tentative tue toujours l'enfant. `sweepOrphanPuppeteer` et `sweepOrphanElectron` héritent automatiquement du retry.
+- **Tests unitaires** : nouvelle suite `tests/orphan-chrome-powershell-retry.test.ts` (4 tests, node:test + mock.module sur `node:child_process`/`node:fs`/`node:os` + mock timers) — échec transitoire puis succès (résultat du 2e spawn utilisé), échecs persistants → 0 sans jamais lever après exactement 3 tentatives, succès direct → 1 seul spawn, héritage par le sweep Electron.
+- Les appels git (commit/push) restent manuels (retry au clavier) — rien à automatiser côté code : la chaîne qualité passe déjà par le watchdog spawn-only (`quality-chain.mjs`) qui empêche le fork panic.
+
+## [2026-09-10] Purge des artefacts temp résiduels de preuve + sweeps durcis (processus ET répertoires)
+
+Les runs de preuve interrompus laissaient non seulement des processus orphelins, mais aussi leurs **artefacts temp par run** dans `%TEMP%` : 26 répertoires résiduels (`electron-proof-ud-*` × 5 + `puppeteer_dev_chrome_profile-*` × 21), plus 2 `electron-proof-dl-*` (dossiers de téléchargement) et 2 `verify-pdf-*` (dossiers de travail de verify-pdf-download) — tous purgés.
+
+- **`scripts/lib/orphan-chrome.mjs`** : les sweeps tuent désormais les processus **puis suppriment les artefacts temp correspondants** sous le temp OS — `sweepOrphanPuppeteer` → `puppeteer_dev*` (dont `puppeteer_dev-e2e-*` d'e2e-business) **+ `verify-pdf-*`** ; `sweepOrphanElectron` → `electron-proof-*` (user-data, downloads, profil updater) **+ `updater-proof-*.log`** (journal de preuve verify-updater). Préfixes stricts uniquement (jamais un vrai profil utilisateur), best-effort borné (deadline 10 s, 3 tentatives espacées de 400 ms pour les verrous transitoires Windows après le kill), ne bloque jamais l'appelant. Le helper est exporté (`removeLeftoverTempArtifacts`) pour être testé.
+- **Tests unitaires** : `tests/orphan-chrome-sweep.test.ts` (7 tests, node:test + mock.module sur `node:fs`/`node:os` + mock timers) — préfixes stricts, retry après verrou transitoire, best-effort sans throw, isolation d'un artefact verrouillé, `readdirSync` en échec, tmp vide, garde plateforme non-Windows. Suite complète : 631/631 vert (635/635 avec les 4 tests du retry spawn ajoutés ensuite, voir entrée « Bruit machine »).
+- **Appelants inchangés** (retour = processus tués, comme avant) : `quality-chain`, `e2e-business`, `verify-desktop-app`, `verify-updater`, `verify-csp-guard` et `verify-pdf-download` héritent automatiquement du nettoyage.
+
 ## [2026-09-10] Signature de code Windows : câblage CSC_LINK/CSC_KEY_PASSWORD + workflow de release
 
 Le build electron-builder est prêt à signer tous les artefacts Windows dès qu'un certificat est fourni (aucun code de build à changer) :
