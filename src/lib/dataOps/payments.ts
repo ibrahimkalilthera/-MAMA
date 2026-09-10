@@ -100,6 +100,12 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
     if (error) { console.error('addSalaryPayment error:', error.message); notifyError('addSalaryPayment', error.message); return null; }
     const mapped = mapSalaryPaymentRow(data);
     setSalaryPayments(prev => [...prev, mapped]);
+    void logAuditEvent({
+      action: 'RECORD_SALARY_PAYMENT',
+      targetType: 'salary_payment',
+      targetId: mapped.id,
+      details: `${sp.amount} FCFA (${sp.date})`,
+    });
     notifySuccess('addSalaryPayment');
     return mapped;
   };

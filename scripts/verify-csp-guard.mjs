@@ -31,6 +31,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const parseEnv = (p) => {
@@ -137,6 +138,9 @@ const failMsg = (m) => { console.error('  ❌ ' + m); fail = true; };
 
 (async () => {
   try {
+    // Startup sweep: kill Chrome orphans left by interrupted runs (Windows only).
+    const swept = await sweepOrphanPuppeteer();
+    if (swept) console.log(`🧹 ${swept} orphelin(s) Chrome puppeteer purgé(s)`);
     await createAccount();
     browser = await puppeteer.launch({
       executablePath: CHROME,

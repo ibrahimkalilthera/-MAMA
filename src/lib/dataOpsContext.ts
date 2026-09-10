@@ -23,6 +23,10 @@ import type { OfflineActionType, OfflinePayload } from './offlineQueue';
 export interface SupabaseDataCtx {
   /** Current students array (needed by promotion/import logic). */
   students: Student[];
+  /** Current staff array (audit details on delete). */
+  staff: Staff[];
+  /** Current parents array (audit details on delete). */
+  parents: Parent[];
   // State setters
   setParents: Dispatch<SetStateAction<Parent[]>>;
   setStudents: Dispatch<SetStateAction<Student[]>>;

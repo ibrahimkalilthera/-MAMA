@@ -34,6 +34,12 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
     if (error) { console.error('addStudent error:', error.message); notifyError('addStudent', error.message); return null; }
     const mapped = mapStudentRow(data, []);
     setStudents(prev => [...prev, mapped]);
+    void logAuditEvent({
+      action: 'ADD_STUDENT',
+      targetType: 'student',
+      targetId: mapped.id,
+      details: mapped.name,
+    });
     notifySuccess('addStudent');
     return mapped;
   };
@@ -71,6 +77,13 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
     }
     const { error } = await supabase.from('students').delete().eq('id', id);
     if (error) { console.error('deleteStudent error:', error.message); notifyError('deleteStudent', error.message); return false; }
+    const deleted = students.find(s => s.id === id);
+    void logAuditEvent({
+      action: 'DELETE_STUDENT',
+      targetType: 'student',
+      targetId: id,
+      details: deleted?.name,
+    });
     setStudents(prev => prev.filter(s => s.id !== id));
     notifySuccess('deleteStudent');
     return true;

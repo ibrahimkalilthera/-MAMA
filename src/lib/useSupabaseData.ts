@@ -301,6 +301,8 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
   const ctx: SupabaseDataCtx = {
     students,
+    staff,
+    parents,
     setParents, setStudents, setStaff, setSalaryPayments,
     setExpenses, setVendorExpenses, setTodos, setCustomClasses,
     notifySuccess, notifyError, isOffline, enqueueOffline, updateQueueCount,

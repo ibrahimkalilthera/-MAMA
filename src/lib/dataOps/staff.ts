@@ -8,9 +8,10 @@ import type { Staff } from '../domainTypes';
 import type { DbUpdate } from '../database.types';
 import { mapStaffRow, createTempId } from '../rowMappers';
 import { staffToRow } from '../offlineReplay';
+import { logAuditEvent } from '../auditLogger';
 
 export function createStaffOps(ctx: SupabaseDataCtx) {
-  const { setStaff, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
+  const { staff, setStaff, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
 
   const addStaff = async (s: Omit<Staff, 'id'>): Promise<Staff | null> => {
     if (isOffline()) {
@@ -29,6 +30,12 @@ export function createStaffOps(ctx: SupabaseDataCtx) {
     if (error) { console.error('addStaff error:', error.message); notifyError('addStaff', error.message); return null; }
     const mapped = mapStaffRow(data);
     setStaff(prev => [...prev, mapped]);
+    void logAuditEvent({
+      action: 'ADD_STAFF',
+      targetType: 'staff',
+      targetId: mapped.id,
+      details: s.position ? `${s.name} (${s.position})` : s.name,
+    });
     notifySuccess('addStaff');
     return mapped;
   };
@@ -72,6 +79,13 @@ export function createStaffOps(ctx: SupabaseDataCtx) {
     }
     const { error } = await supabase.from('staff').delete().eq('id', id);
     if (error) { console.error('deleteStaff error:', error.message); notifyError('deleteStaff', error.message); return false; }
+    const deleted = staff.find(x => x.id === id);
+    void logAuditEvent({
+      action: 'DELETE_STAFF',
+      targetType: 'staff',
+      targetId: id,
+      details: deleted?.name,
+    });
     setStaff(prev => prev.filter(s => s.id !== id));
     notifySuccess('deleteStaff');
     return true;

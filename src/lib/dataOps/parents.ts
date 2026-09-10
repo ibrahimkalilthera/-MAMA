@@ -8,9 +8,10 @@ import type { Parent } from '../domainTypes';
 import type { DbUpdate } from '../database.types';
 import { mapParentRow, createTempId } from '../rowMappers';
 import { parentToRow } from '../offlineReplay';
+import { logAuditEvent } from '../auditLogger';
 
 export function createParentOps(ctx: SupabaseDataCtx) {
-  const { setParents, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
+  const { parents, setParents, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
 
   const addParent = async (parent: Omit<Parent, 'id'>): Promise<Parent | null> => {
     if (isOffline()) {
@@ -29,6 +30,12 @@ export function createParentOps(ctx: SupabaseDataCtx) {
     if (error) { console.error('addParent error:', error.message); notifyError('addParent', error.message); return null; }
     const mapped = mapParentRow(data);
     setParents(prev => [...prev, mapped]);
+    void logAuditEvent({
+      action: 'ADD_PARENT',
+      targetType: 'parent',
+      targetId: mapped.id,
+      details: mapped.fullName,
+    });
     notifySuccess('addParent');
     return mapped;
   };
@@ -65,6 +72,13 @@ export function createParentOps(ctx: SupabaseDataCtx) {
     }
     const { error } = await supabase.from('parents').delete().eq('id', id);
     if (error) { console.error('deleteParent error:', error.message); notifyError('deleteParent', error.message); return false; }
+    const deleted = parents.find(p => p.id === id);
+    void logAuditEvent({
+      action: 'DELETE_PARENT',
+      targetType: 'parent',
+      targetId: id,
+      details: deleted?.fullName,
+    });
     setParents(prev => prev.filter(p => p.id !== id));
     notifySuccess('deleteParent');
     return true;
