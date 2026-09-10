@@ -1,3 +1,13 @@
+## [2026-09-10] Hook pre-commit branché sur le moteur de retry git-retry (sweep entre tentatives)
+
+Le fork-panic msys peut frapper **en plein run** de la chaîne qualité (un spawn enfant échoue avec exit 254/66 ou `uv_spawn: EUNKNOWN`), abortant le commit alors que le code est bon. `.husky/pre-commit` exécute désormais la chaîne via **`scripts/hook-quality-chain.mjs`**, qui la relance à travers le moteur partagé extrait de git-retry.mjs (`runCommandWithRetry`) :
+
+- **Retry signature-based + sweep** : sur une signature de panique, il balaie les orphelins node.exe connus (l'orphelin laissé par un timeout watchdog est précisément ce qui maintient la panique) puis relance la chaîne — borné (`--attempts 3`), backoff, watchdog par tentative (kill d'arbre, timeout par défaut 25 min pour ne jamais tuer un run légitime — lint ~2 min + tests ~2,5 min + audit froid jusqu'à 10 min).
+- **Échec réel jamais masqué** : une erreur lint/test/audit (exit propre, stderr propre) ressort telle quelle, exit code passé à git — aucun retry.
+- **Anti-récursion** : le wrapper neutralise l'alias du sous-commande qu'il lance en interne (`-c alias.<cmd>=<cmd>`), avec `label` pour des logs lisibles (`git commit …` et non `git -c alias.commit=commit …`).
+- **Limite documentée (constat empirique)** : git 2.55 **refuse les alias qui ombragent un builtin** — `alias.commit`, `alias.status`, `alias.checkout` sont ignorés au dispatch (vérifié en conditions réelles : seuls les noms libres comme `alias.st` s'appliquent). L'option « brancher git-retry pour que `git commit` retente automatiquement » est donc impossible **côté git** : la frontière git → hook (le sh du hook meurt du bug de fork avant de lancer node) reste couverte par le wrapper à la frappe (`npm run git:retry -- commit …`, voir entrée ci-dessous) et par la récupération manuelle documentée ; le retry automatique livré ici couvre les paniques qui frappent **pendant** l'exécution du hook.
+- **Tests** : `tests/hook-quality-chain.test.ts` (5 cas — succès direct = 1 spawn sans sweep, panique → sweep entre tentatives, échec réel non retryé, borné à `attempts`, EUNKNOWN → sweep + retry) + `neutralizeAlias` (3 cas). Suite git-retry complète : **27/27 vert** (22 git-retry + 5 hook), tsc 0 erreur, lint vert.
+
 ## [2026-09-10] Wrapper git-retry : option --sweep contre les node.exe orphelins
 
 Le wrapper `scripts/git-retry.mjs` accepte désormais `--sweep` : lorsqu'un commit/push échoue à cause du fork-panic msys, il balaie les processus Node orphelins **avant chaque nouvelle tentative** (jamais avant la première commande) puis relance git.

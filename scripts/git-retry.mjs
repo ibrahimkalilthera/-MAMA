@@ -32,6 +32,15 @@
 // recovery remains: kill the orphaned node.exe processes (Task Manager or
 // reboot), then re-run — the panic never touches working-tree content.
 //
+//   - ALIAS-SAFE: a user-level alias for the wrapped subcommand is neutralized
+//     for the inner git spawn (`-c alias.<cmd>=<cmd>`), so the wrapper always
+//     controls the real command — an alias can never recurse into the wrapper
+//     or add non-retryable behavior. (Note: git 2.55 refuses aliases that
+//     shadow a builtin — `alias.commit` is ignored at dispatch — so only
+//     non-builtin alias names can actually recurse.)
+//   - scripts/hook-quality-chain.mjs reuses the same retry engine for the
+//     pre-commit quality chain (see .husky/pre-commit).
+//
 // Usage:
 //   node scripts/git-retry.mjs commit -am "message"
 //   node scripts/git-retry.mjs push origin main
@@ -134,18 +143,39 @@ function killTree(pid) {
 }
 
 /**
- * Run `git <args>` with bounded automatic retry on the msys fork panic.
- * Resolves with git's exit code (0 on success); never rejects.
+ * Git commands are dispatched through aliases from the user's config. The
+ * wrapper must run the REAL subcommand: a `!` alias for the wrapped subcommand
+ * would otherwise recurse — wrapper → git → alias → wrapper → … Neutralizing
+ * `alias.<cmd>=<cmd>` makes git dispatch to the builtin, which is exactly what
+ * the retry loop needs to control, and guarantees a user-level alias for the
+ * wrapped subcommand can never mask a real failure or add non-retryable
+ * behavior. (git 2.55 already ignores aliases that shadow a builtin, so the
+ * guard matters for non-builtin subcommand names.)
+ */
+export function neutralizeAlias(args) {
+  const cmd = args[0];
+  if (!cmd || cmd.startsWith('-') || !/^[a-z][a-z0-9-]*$/i.test(cmd)) return args;
+  return ['-c', `alias.${cmd}=${cmd}`, ...args];
+}
+
+/**
+ * Run a command with bounded automatic retry on the msys fork panic.
+ * Resolves with the command's exit code (0 on success); never rejects.
+ * A real failure (non-panic exit code / clean stderr) is never retried.
+ * @param {string} command
  * @param {string[]} args
  * @param {{ attempts?: number, waitMs?: number, timeoutMs?: number,
  *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
- *   sweep?: boolean, sweepFn?: (() => unknown) }} options
+ *   sweep?: boolean, sweepFn?: (() => unknown),
+ *   label?: string }} options
  */
-export function runGitWithRetry(
+export function runCommandWithRetry(
+  command,
   args,
   /** @type {{ attempts?: number, waitMs?: number, timeoutMs?: number,
    * forwardStderr?: boolean, log?: (...data: unknown[]) => void,
-   * sweep?: boolean, sweepFn?: (() => unknown) }} */
+   * sweep?: boolean, sweepFn?: (() => unknown),
+   * label?: string }} */
   {
     attempts = 3,
     waitMs = 5000,
@@ -154,6 +184,7 @@ export function runGitWithRetry(
     log = console.log,
     sweep = false,
     sweepFn = undefined,
+    label = `${command} ${args.join(' ')}`,
   } = {},
 ) {
   return new Promise((resolve) => {
@@ -183,8 +214,8 @@ export function runGitWithRetry(
 
     function tryOnce() {
       attempt++;
-      log(`⏳ git ${args.join(' ')} — tentative ${attempt}/${attempts}`);
-      const child = spawn('git', args, {
+      log(`⏳ ${label} — tentative ${attempt}/${attempts}`);
+      const child = spawn(command, args, {
         stdio: ['inherit', 'inherit', 'pipe'],
         windowsHide: true,
       });
@@ -218,20 +249,37 @@ export function runGitWithRetry(
         settled = true;
         lastCode = code ?? 1;
         if (lastCode === 0) {
-          log(`✅ git ${args[0]} OK.`);
+          log(`✅ ${label} OK.`);
           resolve(0);
           return;
         }
         if (isForkPanicFailure(lastCode, stderrTail)) {
           retryOrGiveUp(`fork-panic msys (exit ${lastCode})`);
         } else {
-          log(`❌ git a échoué (exit ${lastCode}) — pas un fork-panic, aucun retry.`);
+          log(`❌ ${command} a échoué (exit ${lastCode}) — pas un fork-panic, aucun retry.`);
           resolve(lastCode);
         }
       });
     }
 
     tryOnce();
+  });
+}
+
+/**
+ * Run `git <args>` with bounded automatic retry on the msys fork panic.
+ * Resolves with git's exit code (0 on success); never rejects. The subcommand
+ * alias is neutralized so the retry loop controls the real git command (see
+ * neutralizeAlias).
+ * @param {string[]} args
+ * @param {{ attempts?: number, waitMs?: number, timeoutMs?: number,
+ *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
+ *   sweep?: boolean, sweepFn?: (() => unknown) }} options
+ */
+export function runGitWithRetry(args, options = {}) {
+  return runCommandWithRetry('git', neutralizeAlias(args), {
+    ...options,
+    label: `git ${args.join(' ')}`,
   });
 }
 

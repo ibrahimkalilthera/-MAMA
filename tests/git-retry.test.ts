@@ -51,8 +51,13 @@ mock.module('node:child_process', {
   },
 });
 
-const { runGitWithRetry, isForkPanicFailure, parseArgs, sweepOrphanNodeProcesses } =
-  await import('../scripts/git-retry.mjs');
+const {
+  runGitWithRetry,
+  isForkPanicFailure,
+  parseArgs,
+  neutralizeAlias,
+  sweepOrphanNodeProcesses,
+} = await import('../scripts/git-retry.mjs');
 
 const quiet = { log: () => {}, forwardStderr: false };
 
@@ -103,12 +108,12 @@ describe('runGitWithRetry', () => {
     killed = [];
   });
 
-  it('succès direct → un seul spawn, exit 0', async () => {
+  it('succès direct → un seul spawn, exit 0, alias du sous-commande neutralisé', async () => {
     plan = [{ mode: 'close', code: 0 }];
     const code = await runGitWithRetry(['status'], { ...quiet, attempts: 3, waitMs: 1 });
     assert.equal(code, 0);
     assert.equal(spawnCalls.length, 1);
-    assert.deepEqual(spawnCalls[0], ['status']);
+    assert.deepEqual(spawnCalls[0], ['-c', 'alias.status=status', 'status']);
   });
 
   it('exit 254 (fork-panic) → retry puis succès au 2e spawn', async () => {
@@ -204,6 +209,22 @@ describe('runGitWithRetry', () => {
     assert.equal(code, 0);
     assert.deepEqual(events, ['sweep']);
     assert.equal(spawnCalls.length, 2);
+  });
+});
+
+describe('neutralizeAlias', () => {
+  it('neutralise l’alias du sous-commande pour éviter la récursion wrapper → alias', () => {
+    assert.deepEqual(neutralizeAlias(['commit', '-am', 'x']), ['-c', 'alias.commit=commit', 'commit', '-am', 'x']);
+    assert.deepEqual(neutralizeAlias(['push', 'origin', 'main']), ['-c', 'alias.push=push', 'push', 'origin', 'main']);
+  });
+
+  it('laisse intacts les args commençant par une option (pas de sous-commande)', () => {
+    assert.deepEqual(neutralizeAlias(['--version']), ['--version']);
+    assert.deepEqual(neutralizeAlias(['-C', '/tmp', 'status']), ['-C', '/tmp', 'status']);
+  });
+
+  it('renvoie tel quel une liste vide', () => {
+    assert.deepEqual(neutralizeAlias([]), []);
   });
 });
 
