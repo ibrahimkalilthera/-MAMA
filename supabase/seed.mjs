@@ -7,8 +7,18 @@
  * Clean:    node --env-file=.env supabase/seed.mjs --clean
  * 
  * Flags:
- *   --clean   Delete all existing data before seeding (with confirmation)
- *   --force   Skip the confirmation prompt for --clean
+ *   --clean       Delete all existing data before seeding (with confirmation)
+ *   --force       Skip the confirmation prompt for --clean
+ *   --force-prod  Explicitly override the environment guards (VITE_APP_ENV
+ *                 must be dev|staging, and --clean refuses the production
+ *                 project) — for exceptional, deliberate runs only.
+ *
+ * Environment guards (fail-closed by design):
+ *   - VITE_APP_ENV must be 'dev' or 'staging'. `npm run seed` loads .env,
+ *     which carries no VITE_APP_ENV → refused: the demo seeder must never
+ *     touch production.
+ *   - `--clean` refuses to run against the production project (URL ref
+ *     rpcjdohfxwukbqngbprw) — the historical Madi-wipe footgun.
  */
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
@@ -30,6 +40,35 @@ const HEADERS = {
 const args = process.argv.slice(2);
 const shouldClean = args.includes('--clean');
 const forceClean = args.includes('--force');
+const forceProd = args.includes('--force-prod');
+
+// ── Environment guard: demo seeder is dev/staging only ──────────────────────
+if (!forceProd) {
+  const appEnv = (process.env.VITE_APP_ENV || '').trim().toLowerCase();
+  if (appEnv !== 'dev' && appEnv !== 'staging') {
+    console.error('❌ Refusé — supabase/seed.mjs est un seeder de DÉMO (dev/staging uniquement).');
+    console.error(`   VITE_APP_ENV = ${process.env.VITE_APP_ENV || '(non défini)'} (attendu: dev | staging)`);
+    console.error('   Utilisez `npm run seed:staging`, ou définissez VITE_APP_ENV=dev|staging.');
+    console.error('   ⚠️  Dérogation explicite (jamais recommandée): npm run seed -- --force-prod');
+    process.exit(1);
+  }
+}
+
+// ── Production --clean guard: refuse to wipe the real data ──────────────────
+// The URL ref of the PRODUCTION project (deployed app + CI). `.env` points at
+// it, so even a dev/staging-labelled run reaching this project is refused
+// on --clean (the historical Madi-wipe footgun).
+const PROD_REF = 'rpcjdohfxwukbqngbprw';
+if (shouldClean && !forceProd) {
+  const ref = (SUPABASE_URL.match(/https:\/\/([^.]+)\.supabase\.co/) || [])[1] || '';
+  if (ref === PROD_REF) {
+    console.error(`❌ Refusé — --clean vise le projet de PRODUCTION (${ref}.supabase.co).`);
+    console.error('   Le nettoyage large (`?created_at=not.is.null`) effacerait les données réelles.');
+    console.error('   Si c’est réellement voulu: npm run seed -- --clean --force-prod');
+    process.exit(1);
+  }
+}
+
 
 async function post(table, rows) {
   const res = await fetch(`${API}/${table}`, {

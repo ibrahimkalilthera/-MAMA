@@ -50,7 +50,7 @@ Variables (voir `.env.example`) :
 | `npm run lint` | ESLint 0-warning + tsc strict + 7 guards custom (props, `any`, stylelint, CSS, i18n, emoji, snapshot SQL) |
 | `npm run quality` | lint + tests + audit de contraste WCAG 6 thèmes (identique au pre-commit/CI) |
 | `npm run check:contrast` | audit de contraste seul |
-| `npm run seed` | seed Supabase (dev) ; variantes `:staging`, `:production` |
+| `npm run seed` | seed de DÉMO (dev/staging uniquement — garde : refuse la prod sans `VITE_APP_ENV=dev\|staging`, et `--clean` refuse le projet de production) ; `:staging` ; `seed:production` = script structurel |
 | `npm run db:snapshot` | régénère `supabase/FULL_SETUP_MIGRATION.sql` depuis les migrations |
 | `npm run db:snapshot:check` | CI : échoue si le snapshot SQL a dérivé des migrations |
 | `npm run db:profiles:export` | exporte `user_profiles` (rôles) via la service key → JSON |
@@ -66,7 +66,7 @@ Les migrations sont dans `supabase/migrations/` (19 migrations ordonnées).
 
 ```bash
 npx supabase migrations up   # ou via le dashboard Supabase
-npm run seed                 # données de démo (env .env)
+npm run seed                 # données de démo (env .env — refusé sans VITE_APP_ENV dev|staging)
 ```
 
 > **Runners hérités supprimés** : `supabase/run-migrations.mjs` et `supabase/run_migration.mjs`
