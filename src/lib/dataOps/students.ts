@@ -63,6 +63,17 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
     const row = studentUpdatesToRow(normalizedUpdates);
     const { error } = await supabase.from('students').update(row).eq('id', id);
     if (error) { console.error('updateStudent error:', error.message); notifyError('updateStudent', error.message); return false; }
+    const changes: string[] = [];
+    if (currentStudent && normalizedUpdates.name !== undefined && normalizedUpdates.name !== currentStudent.name) changes.push(`nom ${currentStudent.name}→${normalizedUpdates.name}`);
+    if (currentStudent && normalizedUpdates.grade !== undefined && normalizedUpdates.grade !== currentStudent.grade) changes.push(`classe ${currentStudent.grade}→${normalizedUpdates.grade}`);
+    if (currentStudent && normalizedUpdates.totalDue !== undefined && normalizedUpdates.totalDue !== currentStudent.totalDue) changes.push(`total dû ${currentStudent.totalDue}→${normalizedUpdates.totalDue}`);
+    if (currentStudent && normalizedUpdates.status !== undefined && normalizedUpdates.status !== currentStudent.status) changes.push(`statut ${currentStudent.status}→${normalizedUpdates.status}`);
+    void logAuditEvent({
+      action: 'UPDATE_STUDENT',
+      targetType: 'student',
+      targetId: id,
+      details: `${currentStudent?.name || id}${changes.length ? ` — ${changes.join(', ')}` : ''}`,
+    });
     setStudents(prev => prev.map(s => s.id === id ? { ...s, ...normalizedUpdates } : s));
     notifySuccess('updateStudent');
     return true;

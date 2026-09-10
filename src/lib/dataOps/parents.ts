@@ -58,6 +58,17 @@ export function createParentOps(ctx: SupabaseDataCtx) {
 
     const { error } = await supabase.from('parents').update(row).eq('id', id);
     if (error) { console.error('updateParent error:', error.message); notifyError('updateParent', error.message); return false; }
+    const prevParent = parents.find(p => p.id === id);
+    const changes: string[] = [];
+    if (prevParent && updates.fullName !== undefined && updates.fullName !== prevParent.fullName) changes.push(`nom ${prevParent.fullName}→${updates.fullName}`);
+    if (prevParent && updates.phones !== undefined && JSON.stringify(updates.phones) !== JSON.stringify(prevParent.phones)) changes.push('téléphones modifiés');
+    if (prevParent && updates.occupation !== undefined && updates.occupation !== prevParent.occupation) changes.push(`profession ${prevParent.occupation}→${updates.occupation}`);
+    void logAuditEvent({
+      action: 'UPDATE_PARENT',
+      targetType: 'parent',
+      targetId: id,
+      details: `${prevParent?.fullName || id}${changes.length ? ` — ${changes.join(', ')}` : ''}`,
+    });
     setParents(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     notifySuccess('updateParent');
     return true;
