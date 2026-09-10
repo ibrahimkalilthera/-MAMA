@@ -27,6 +27,8 @@ export interface SupabaseDataCtx {
   staff: Staff[];
   /** Current parents array (audit details on delete). */
   parents: Parent[];
+  /** Current vendor expenses array (audit details on delete/update). */
+  vendorExpenses: VendorExpense[];
   // State setters
   setParents: Dispatch<SetStateAction<Parent[]>>;
   setStudents: Dispatch<SetStateAction<Student[]>>;

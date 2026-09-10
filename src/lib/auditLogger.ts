@@ -16,7 +16,7 @@ export interface AuditLogEntry {
 export interface LogAuditParams {
   action: string;
   targetType?: string;
-  targetId?: string;
+  targetId?: string | null;
   details?: string;
   user?: {
     id?: string;
