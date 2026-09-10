@@ -74,6 +74,7 @@ import { dirname, join } from 'node:path';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -859,6 +860,10 @@ async function pixelCheck(pdfPath, mode) {
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
+// Startup sweep: kill Chrome orphans left by interrupted runs (Windows only).
+const swept = await sweepOrphanPuppeteer();
+if (swept) console.log(`🧹 ${swept} orphelin(s) Chrome puppeteer purgé(s)`);
+
 if (CLEANUP_ONLY) {
   await cleanup();
   console.log('Cleanup terminé.');
