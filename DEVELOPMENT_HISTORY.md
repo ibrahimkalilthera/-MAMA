@@ -1,10 +1,34 @@
+## [2026-09-10] Wrapper git-retry : option --sweep contre les node.exe orphelins
+
+Le wrapper `scripts/git-retry.mjs` accepte désormais `--sweep` : lorsqu'un commit/push échoue à cause du fork-panic msys, il balaie les processus Node orphelins **avant chaque nouvelle tentative** (jamais avant la première commande) puis relance git.
+
+- **Sécurité** : le sweep est opt-in et ne tue jamais tous les `node.exe` — seules les lignes de commande connues de la chaîne qualité (`quality-chain.mjs`, npm lint/test/audit, workers Node de test) sont éligibles, et uniquement si leur parent a disparu ou si le processus dépasse la fenêtre de péremption (5 minutes). Un serveur de développement ou un helper Node légitime est laissé intact.
+- **Résilience** : purge best-effort, spawn PowerShell sans shell, timeout borné, kill de l'arbre avec `taskkill /T /F` sous Windows ; tout échec du sweep laisse le retry git continuer. Les erreurs git réelles restent non retryées.
+- **Usage** : `node scripts/git-retry.mjs --sweep commit -am "message"` ou `npm run git:retry -- --sweep push origin main` ; `--attempts`, `--wait-ms` et `--timeout-ms` restent disponibles.
+- **Tests** : `tests/git-retry.test.ts` passe à 19 cas — sélectivité du sweep, garde non-Windows, parsing de `--sweep` et ordre sweep → retry inclus. Suite complète : **654/654 vert**, tsc 0 erreur, lint complet vert.
+
+## [2026-09-10] Preuve E2E réelle : sweeps purgent processus ET répertoires (verify-desktop-app rejoué)
+
+Re-run complet de `node scripts/verify-desktop-app.mjs` en conditions réelles après la purge des 26 artefacts temp + le durcissement des sweeps (processus ET répertoires) :
+
+- Compte admin éphémère + employé temporaire `PreuveBureau 89993` créés, portable empaqueté lancé (profil `--user-data-dir` isolé), **login réel OK** (CORS `file://`), navigation Paie/Salaires, clic « Télécharger Reçu PDF » → **PDF réel** `Fiche_Paie_PreuveBureau_89993_2026-09.pdf` (102 382 octets, signature `%PDF-`) → `PROOF_OK`.
+- **Preuve du nettoyage** : en fin de run, le sweep a loggé « 🧹 2 artefact(s) temp résiduel(s) de preuve purgé(s) (electron-proof-, updater-proof-) » — les répertoires temp par run sont bien supprimés, plus seulement les processus. Vérification manuelle après coup : **0** répertoire résiduel (`electron-proof-*`, `puppeteer_dev_*`, `verify-pdf-*`, `updater-proof-*`), **0** processus `MamaTheraFinance.exe`, **0** processus chrome puppeteer orphelin. Employé + compte éphémère supprimés (base propre).
+
+## [2026-09-10] Bruit machine : retry systématique automatisé des commandes git (commit/push) contre le fork msys
+
+Le retry au clavier des commandes git (commit/push) quand le fork-panic msys frappe est désormais **automatisé** :
+
+- **Nouveau script `scripts/git-retry.mjs`** (+ alias npm `git:retry`) : `node scripts/git-retry.mjs commit -am "…"` / `push origin main`. Spawn-only (git lancé via node spawn, jamais un shell bash/cmd → le wrapper ne peut ni déclencher ni coincer la panique), retry **signature-based** (exit 254/66 ou stderr « fork: Resource temporarily unavailable » / uv_spawn EUNKNOWN — un échec git RÉEL, ex. lint du hook, n'est jamais masqué et ressort tel quel), borné (`--attempts 3` par défaut, backoff `--wait-ms`), watchdog par tentative avec kill de TOUT l'arbre (`taskkill /T`), interactif-safe (stdin/stdout hérités pour identifiants/éditeur, seul stderr est capturé pour la détection). Si la panique persiste : message rappelant la récupération manuelle documentée (tuer les node.exe orphelins).
+- **Tests unitaires** : nouvelle suite `tests/git-retry.test.ts` (15 tests, node:test + mock.module sur `node:child_process`) — signatures 254/66/stderr reconnues, échec réel non retryé, retry borné à `attempts`, erreur de spawn retryée, `parseArgs` (options + `--`), attempts=1. Suite complète : 650/650 vert.
+- **Vérif réelle** : `node scripts/git-retry.mjs status` → tentative 1/3, OK, exit 0.
+
 ## [2026-09-10] Bruit machine : retry systématique automatisé du spawn PowerShell (fork msys)
 
 Le « bruit machine » documenté — pannes de fork msys transitoires récurrentes (commit retry, powershell), jamais bloquantes grâce au retry systématique — est désormais **automatisé en code** pour les sweeps, au lieu d'un retry manuel à chaque run :
 
 - **`scripts/lib/orphan-chrome.mjs`** : `runPowershellSweep` réessaie son propre spawn jusqu'à 3 tentatives espacées de 400 ms quand le fork msys frappe (`uv_spawn: EUNKNOWN` sur le child 'error') — un spawn manqué ne no-op plus silencieusement le sweep (les orphelins seraient restés non balayés). Borné (3 tentatives max), garde anti-double-résolution (`settled`/`done`), ne bloque jamais l'appelant, et le timeout par tentative tue toujours l'enfant. `sweepOrphanPuppeteer` et `sweepOrphanElectron` héritent automatiquement du retry.
 - **Tests unitaires** : nouvelle suite `tests/orphan-chrome-powershell-retry.test.ts` (4 tests, node:test + mock.module sur `node:child_process`/`node:fs`/`node:os` + mock timers) — échec transitoire puis succès (résultat du 2e spawn utilisé), échecs persistants → 0 sans jamais lever après exactement 3 tentatives, succès direct → 1 seul spawn, héritage par le sweep Electron.
-- Les appels git (commit/push) restent manuels (retry au clavier) — rien à automatiser côté code : la chaîne qualité passe déjà par le watchdog spawn-only (`quality-chain.mjs`) qui empêche le fork panic.
+- Les appels git (commit/push) ne sont plus manuels : un retry automatique signature-based est maintenant fourni par `scripts/git-retry.mjs` (voir entrée « Bruit machine : commandes git » ci-dessus).
 
 ## [2026-09-10] Purge des artefacts temp résiduels de preuve + sweeps durcis (processus ET répertoires)
 
