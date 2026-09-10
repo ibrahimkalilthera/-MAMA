@@ -3,8 +3,9 @@
 // scripts/hook-quality-chain.mjs — run the pre-commit quality chain through
 // the shared fork-panic retry engine (scripts/git-retry.mjs).
 //
-// Context: .husky/pre-commit runs the full quality chain (lint → test →
-// audit). The chain itself is spawn-only and watchdog-protected, but the
+// Context: the husky hooks (.husky/pre-commit AND .husky/pre-push) run the
+// quality chain (lint → test → audit by default; the step list is overridable
+// per hook). The chain itself is spawn-only and watchdog-protected, but the
 // transient msys fork panic can still strike MID-RUN (a child spawn fails
 // with exit 254/66 or uv_spawn EUNKNOWN), aborting the commit even though the
 // code is fine. This script re-runs the chain through runCommandWithRetry
@@ -25,7 +26,11 @@
 import { pathToFileURL } from 'node:url';
 import { runCommandWithRetry, parseArgs } from './git-retry.mjs';
 
-const CHAIN = [process.execPath, 'scripts/quality-chain.mjs', 'lint', 'test', 'audit'];
+// Steps understood by scripts/quality-chain.mjs. The hooks pass an explicit
+// subset (pre-commit and pre-push both gate on the same full chain today).
+export const DEFAULT_STEPS = ['lint', 'test', 'audit'];
+export const KNOWN_STEPS = ['lint', 'l10n', 'test', 'build', 'audit'];
+const QUALITY_CHAIN_SCRIPT = 'scripts/quality-chain.mjs';
 
 /**
  * Run the quality chain with panic retry + orphan sweep before the first
@@ -34,6 +39,7 @@ const CHAIN = [process.execPath, 'scripts/quality-chain.mjs', 'lint', 'test', 'a
  * unless `sweepAll` is set.
  */
 export function runHookQualityChain({
+  steps = DEFAULT_STEPS,
   attempts = 3,
   waitMs = 5000,
   // The chain legitimately runs several minutes (cold audit up to 10 min):
@@ -43,7 +49,8 @@ export function runHookQualityChain({
   forwardStderr = true,
   sweepAll = false,
 } = {}) {
-  return runCommandWithRetry(CHAIN[0], CHAIN.slice(1), {
+  const chainSteps = steps.length > 0 ? steps : DEFAULT_STEPS;
+  return runCommandWithRetry(process.execPath, [QUALITY_CHAIN_SCRIPT, ...chainSteps], {
     attempts,
     waitMs,
     timeoutMs,
@@ -58,8 +65,12 @@ const isMain =
   process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMain) {
-  const { opts } = parseArgs(process.argv.slice(2));
+  const { args, opts } = parseArgs(process.argv.slice(2));
+  // Leftover CLI args select the steps (unknown names are ignored):
+  //   node scripts/hook-quality-chain.mjs l10n
+  const steps = args.filter((a) => KNOWN_STEPS.includes(a));
   runHookQualityChain({
+    steps,
     attempts: opts.attempts,
     waitMs: opts.waitMs,
     timeoutMs: opts.timeoutMs,

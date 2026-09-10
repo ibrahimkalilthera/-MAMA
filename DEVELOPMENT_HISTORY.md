@@ -1,3 +1,13 @@
+## [2026-09-10] Hook pre-push branché sur le moteur de retry git-retry (même gate que le commit)
+
+`git push` n'était plus vérifié localement : `.husky/pre-push` n'existait pas, donc le wrapper husky `_/pre-push` (core.hooksPath = `.husky/_`) faisait un no-op (`[ ! -f ../pre-push ] && exit 0`). Le fichier existe désormais et exécute le **même gate complet que le commit**, via le **moteur de retry partagé** (`.husky/pre-push` → `scripts/hook-quality-chain.mjs` → `runCommandWithRetry`) :
+
+- **Retry + sweep** : une panique msys en plein run (exit 254/66, `uv_spawn: EUNKNOWN`) déclenche le sweep des orphelins node.exe connus (avant la 1re tentative et entre les retries) puis la relance de la chaîne ; un échec RÉEL (lint/test/audit) ressort tel quel, jamais masqué, jamais retryé.
+- **Étapes paramétrables** : `runHookQualityChain({ steps })` + argumentaire CLI (`node scripts/hook-quality-chain.mjs l10n`) — les deux hooks passent aujourd'hui `lint test audit` (défaut), mais alléger le pre-push est une simple édition de sa ligne. Étapes inconnues filtrées ; liste vide → retour au défaut (jamais 0 étape).
+- **Distribution** : fichier en mode 100755 comme `pre-commit` (les wrappers husky l'invoquent via `sh`, donc le bit reste cosmétique sur Windows). Échappatoires documentées dans le hook : `git push --no-verify` (la CI re-vérifie on push) et `HUSKY=0 git push`. Caveat assumé d'un gate sur l'arbre de TRAVAIL : un WIP non committé qui échoue le gate bloque le push — committer le fix ou `--no-verify`.
+- **Tests** : `hook-quality-chain.test.ts` +3 cas (étapes par défaut = lint/test/audit, étapes personnalisées transmises à la chaîne, liste vide → défaut). Suite : **55/55 vert** (29 git-retry + 7 garde + 9 hook + 6 installeur + 4 shim E2E), tsc 0 erreur, lint vert.
+- **Vérif réelle** : `sh .husky/_/pre-push origin <url>` (dispatch husky réel, comme git) → chaîne complète « 3 étapes vertes » puis « ✅ C:\Program Files\nodejs\node.exe scripts/quality-chain.mjs lint test audit OK. » (log du moteur de retry), exit 0.
+
 ## [2026-09-10] quality-chain purge ses propres orphelins en fin de run — et même après un kill externe (garde détaché)
 
 Traitement du **déclencheur à la source** du fork-panic : la chaîne qualité ne doit plus jamais laisser d'orphelin node.exe derrière elle. Elle balayait déjà Chrome/Electron au démarrage et tuait l'arbre de chaque étape sur timeout, mais un **kill externe** (timeout d'outil/CI, Task Manager, `taskkill /T`) ne lui laissait aucune chance de nettoyer : ce qui survivait gardait la table de fork saturée, et le fork msys suivant (hook git, bash) paniquait.

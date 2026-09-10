@@ -1,0 +1,17 @@
+# The full quality gate (lint → test → audit) must pass before publishing.
+# Commits are already gated by pre-commit, but a push publishes a whole range
+# at once — and CI re-verifies on push, so `--no-verify` stays a valid escape.
+#
+# Like pre-commit, the chain runs through scripts/hook-quality-chain.mjs — the
+# shared fork-panic retry engine (scripts/git-retry.mjs): on a panic signature
+# (exit 254/66, uv_spawn EUNKNOWN) it sweeps the orphaned node.exe processes
+# (before the first attempt and between retries) and re-runs the chain, so a
+# transient msys fork panic mid-run no longer aborts the push. A real
+# lint/test/audit failure passes straight through — never masked, never retried.
+#
+# Caveats:
+#   - the gate scans the WORKING TREE, so uncommitted WIP that fails it blocks
+#     the push: commit the fix, or `git push --no-verify` (CI re-verifies).
+#   - lighter subset: `node scripts/hook-quality-chain.mjs lint` (other known
+#     steps: l10n, test, build, audit). `HUSKY=0 git push` disables the hooks.
+AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 node scripts/hook-quality-chain.mjs lint test audit
