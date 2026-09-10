@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import puppeteer from 'puppeteer-core';
 import { ephemeralEmail } from '../scripts/lib/ephemeral-accounts.mjs';
+import { sweepOrphanElectron } from '../scripts/lib/orphan-chrome.mjs';
 
 const envFile = readFileSync('.env', 'utf8');
 const get = (k) => (envFile.match(new RegExp(`^${k}=(.*)$`, 'm')) || [])[1]?.replace(/^["']|["']$/g, '');
@@ -87,7 +88,11 @@ try {
 
   // ── 3. launch the packaged exe with CDP + auto download dir ─────────────
   console.log('🚀 lancement du portable (session vierge, profil isolé)…');
-  await killAll();
+  // Startup sweep: kill orphaned MamaTheraFinance.exe from interrupted runs
+  // (our electron-proof-ud marker, or past the minimum age window). Replaces
+  // the blunt image-name taskkill that also killed a legitimately open app.
+  const sweptE = await sweepOrphanElectron();
+  if (sweptE) console.log(`🧹 ${sweptE} processus Electron orphelin(s) purgé(s)`);
   app = spawn(EXE, [`--remote-debugging-port=${PORT}`, `--user-data-dir=${USER_DATA}`], { env: { ...process.env, ELECTRON_DL_DIR: DL_DIR }, stdio: 'ignore' });
 
   let ws = null;
