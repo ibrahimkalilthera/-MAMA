@@ -38,6 +38,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { sweepOrphanElectron, sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -170,6 +171,20 @@ const STEPS = {
 
 const wanted = process.argv.slice(2);
 const names = wanted.length > 0 ? wanted.filter((n) => n in STEPS) : Object.keys(STEPS);
+
+// Sweep orphan Chrome from interrupted verify runs — a watchdog timeout kills
+// the step's whole tree, but a puppeteer Chrome wedged mid-run survives and
+// accumulates (the exact pile-up that saturates the msys fork table). Sweep
+// before the first step, while the machine is still quiet.
+const swept = await sweepOrphanPuppeteer();
+if (swept > 0) console.log(`🧹 ${swept} processus Chrome orphelin(s) purgé(s)`);
+
+// Same sweep for the packaged app: verify-desktop-app / verify-updater runs
+// launch MamaTheraFinance.exe with the electron-proof-ud marker (killed
+// regardless of age); a legitimately open instance is only touched past the
+// 5-minute window, so a fresh app the user just opened is never harmed.
+const sweptElectron = await sweepOrphanElectron();
+if (sweptElectron > 0) console.log(`🧹 ${sweptElectron} processus MamaTheraFinance.exe orphelin(s) purgé(s)`);
 
 console.log(`🚀 Chaîne qualité — ${names.join(' → ')}  [${memMb()}]  (pid ${process.pid})`);
 const results = [];

@@ -27,6 +27,7 @@
 import puppeteer from 'puppeteer-core';
 import { readFileSync, rmSync, existsSync } from 'node:fs';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -84,9 +85,11 @@ const TOTAL_DUE = '150000';
 const PAYMENT = '50000';
 const STAFF_SALARY = '120000';
 const VENDOR_AMOUNT = '45000';
+// Profile under the puppeteer_dev marker: the startup sweep then covers
+// orphans of THIS script too (an interrupted run leaves its Chrome behind).
 const PROFILE = join(
   'C:/Users/user/AppData/Local/Temp',
-  `e2e-${FLAG_PROD ? 'prod' : 'stag'}-${TS}-profile`
+  `puppeteer_dev-e2e-${FLAG_PROD ? 'prod' : 'stag'}-${TS}`
 );
 
 // Cleanup by test prefix (idempotent; safe because prefixes are synthetic)
@@ -127,6 +130,12 @@ if (FLAG_CLEANUP_ONLY) {
 // Clear any leftover test rows from a previous interrupted run.
 await cleanup();
 
+// Kill orphan Chrome from interrupted runs — our own profile now carries the
+// puppeteer_dev marker, so leftovers of this script are swept regardless of
+// age (same safety contract as the verify-* scripts).
+const swept = await sweepOrphanPuppeteer();
+if (swept > 0) console.log(`🧹 ${swept} processus Chrome orphelin(s) purgé(s)`);
+
 // Chrome doit exister AVANT la création du compte : un process.exit ici
 // laisserait le compte éphémère en base (le cleanup final ne tournerait pas).
 if (!existsSync(CHROME)) {
@@ -165,220 +174,227 @@ try {
   }
   process.exit(1);
 }
-const page = await browser.newPage();
-await page.setViewport({ width: 1280, height: 900 });
-const reqs = [];
-const logs = [];
-page.on('request', (r) => { if (r.method() !== 'GET' && r.url().includes('supabase.co')) reqs.push(`${r.method()} ${r.url().replace(base, '').split('?')[0]}`); });
-page.on('console', (m) => { const t = m.text(); if (/error/i.test(t)) logs.push(`CONSOLE: ${t.slice(0, 200)}`); });
-page.on('pageerror', (e) => logs.push('PAGEERROR: ' + String(e).slice(0, 200)));
 
-const clickNav = async (text) => {
-  await page.evaluate((t) => {
-    const el = [...document.querySelectorAll('button, a, .nav-item')].find((e) => {
-      const s = (e.textContent || '').trim().toLowerCase();
-      return s.indexOf(t.toLowerCase()) === 0;
-    });
-    if (el) el.click();
-  }, text);
-  await new Promise((r) => setTimeout(r, 1500));
-};
-const clickBtn = async (text) => {
-  const ok = await page.evaluate((t) => {
-    const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim().toLowerCase() === t.toLowerCase());
-    if (b) { b.click(); return true; }
-    return false;
-  }, text);
-  await new Promise((r) => setTimeout(r, 1200));
-  return ok;
-};
-const setInput = async (placeholder, value) => {
-  await page.waitForSelector(`input[placeholder="${placeholder}"]`, { timeout: 8000 });
-  await page.click(`input[placeholder="${placeholder}"]`, { clickCount: 3 });
-  await page.type(`input[placeholder="${placeholder}"]`, value);
-};
-const setValue = async (placeholder, value) => {
-  await page.waitForSelector(`input[placeholder="${placeholder}"]`, { timeout: 8000 });
-  await page.evaluate(([ph, v]) => {
-    const i = [...document.querySelectorAll('input')].find((x) => x.placeholder === ph);
-    const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-    set.call(i, v);
-    i.dispatchEvent(new Event('input', { bubbles: true }));
-    i.dispatchEvent(new Event('change', { bubbles: true }));
-  }, [placeholder, value]);
-};
-const submitForm = async (anchorPlaceholder) => {
-  await page.evaluate((ph) => {
-    const anchor = [...document.querySelectorAll('input')].find((i) => i.placeholder === ph);
-    const form = anchor.closest('form');
-    const btn = [...form.querySelectorAll('button')].find((b) => b.type === 'submit');
-    btn.click();
-  }, anchorPlaceholder);
-  await new Promise((r) => setTimeout(r, 3000));
-};
-
-await page.goto(URL, { waitUntil: 'networkidle2', timeout: 45000 });
+// ── 3. Business flow (guaranteed cleanup: browser.close() + profile removal) ─
 try {
-  await page.waitForSelector('input[placeholder="name@mamathera.org"]', { timeout: 15000 });
-  await page.type('input[placeholder="name@mamathera.org"]', EMAIL);
-  await page.type('input[type="password"]', PASS);
-  await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').toLowerCase().includes('se connecter')); b && b.click(); });
-  await page.waitForFunction(() => document.body.innerText.includes('Gestion des Élèves') || document.body.innerText.includes('Tableau de bord') || document.body.innerText.includes('Résumé Exécutif'), { timeout: 30000 });
-  check('Login OK (shell app affiché)', true);
-} catch (e) {
-  check('Login OK', false, String(e).slice(0, 120));
-}
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1280, height: 900 });
+  const reqs = [];
+  const logs = [];
+  page.on('request', (r) => { if (r.method() !== 'GET' && r.url().includes('supabase.co')) reqs.push(`${r.method()} ${r.url().replace(base, '').split('?')[0]}`); });
+  page.on('console', (m) => { const t = m.text(); if (/error/i.test(t)) logs.push(`CONSOLE: ${t.slice(0, 200)}`); });
+  page.on('pageerror', (e) => logs.push('PAGEERROR: ' + String(e).slice(0, 200)));
 
-// ══ CYCLE A — STUDENT: class → student → payment → balance ══════════════════
-{
-  console.log('\n── Cycle A · Élève ──');
+  const clickNav = async (text) => {
+    await page.evaluate((t) => {
+      const el = [...document.querySelectorAll('button, a, .nav-item')].find((e) => {
+        const s = (e.textContent || '').trim().toLowerCase();
+        return s.indexOf(t.toLowerCase()) === 0;
+      });
+      if (el) el.click();
+    }, text);
+    await new Promise((r) => setTimeout(r, 1500));
+  };
+  const clickBtn = async (text) => {
+    const ok = await page.evaluate((t) => {
+      const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim().toLowerCase() === t.toLowerCase());
+      if (b) { b.click(); return true; }
+      return false;
+    }, text);
+    await new Promise((r) => setTimeout(r, 1200));
+    return ok;
+  };
+  const setInput = async (placeholder, value) => {
+    await page.waitForSelector(`input[placeholder="${placeholder}"]`, { timeout: 8000 });
+    await page.click(`input[placeholder="${placeholder}"]`, { clickCount: 3 });
+    await page.type(`input[placeholder="${placeholder}"]`, value);
+  };
+  const setValue = async (placeholder, value) => {
+    await page.waitForSelector(`input[placeholder="${placeholder}"]`, { timeout: 8000 });
+    await page.evaluate(([ph, v]) => {
+      const i = [...document.querySelectorAll('input')].find((x) => x.placeholder === ph);
+      const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      set.call(i, v);
+      i.dispatchEvent(new Event('input', { bubbles: true }));
+      i.dispatchEvent(new Event('change', { bubbles: true }));
+    }, [placeholder, value]);
+  };
+  const submitForm = async (anchorPlaceholder) => {
+    await page.evaluate((ph) => {
+      const anchor = [...document.querySelectorAll('input')].find((i) => i.placeholder === ph);
+      const form = anchor.closest('form');
+      const btn = [...form.querySelectorAll('button')].find((b) => b.type === 'submit');
+      btn.click();
+    }, anchorPlaceholder);
+    await new Promise((r) => setTimeout(r, 3000));
+  };
+
+  await page.goto(URL, { waitUntil: 'networkidle2', timeout: 45000 });
   try {
-    // open student modal → add a custom class (cycle 'other', unique name)
-    await clickBtn('Ajouter un Élève');
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => (b.textContent || '').includes('Nouvelle Classe')), { timeout: 10000 });
-    await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('Nouvelle Classe')); b && b.click(); });
-    await page.waitForFunction(() => [...document.querySelectorAll('select')].some((s) => [...s.options].some((o) => o.value === 'other')), { timeout: 10000 });
-    await page.evaluate(() => {
-      const sel = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'other'));
-      sel.value = 'other';
-      sel.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await setValue('ex. 1ère D ou Garderie', CLASS_NAME);
-    await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('Créer la classe')); b && b.click(); });
-    await new Promise((r) => setTimeout(r, 2500));
-    const cls = await api(`/custom_classes?select=code,name_fr&code=eq.${CLASS_NAME}`);
-    check('Classe persistée en base', (cls.body || []).some((c) => c.code === CLASS_NAME), JSON.stringify(cls.body).slice(0, 80));
+    await page.waitForSelector('input[placeholder="name@mamathera.org"]', { timeout: 15000 });
+    await page.type('input[placeholder="name@mamathera.org"]', EMAIL);
+    await page.type('input[type="password"]', PASS);
+    await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').toLowerCase().includes('se connecter')); b && b.click(); });
+    await page.waitForFunction(() => document.body.innerText.includes('Gestion des Élèves') || document.body.innerText.includes('Tableau de bord') || document.body.innerText.includes('Résumé Exécutif'), { timeout: 30000 });
+    check('Login OK (shell app affiché)', true);
+  } catch (e) {
+    check('Login OK', false, String(e).slice(0, 120));
+  }
 
-    await setInput('Ibrahim', STUDENT_NAME);
-    await setInput('MT-2026-001 (Optional)', STUDENT_ID);
-    await setInput('Djeneba', PARENT_NAME);
-    await setInput('+223 70 00 00 00', '+223 70 00 01 01');
-    await setValue('120000', TOTAL_DUE);
-    const selOk = await page.evaluate((n) => {
-      const sel = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.text === n));
-      if (!sel) return false;
-      const opt = [...sel.options].find((o) => o.text === n);
-      sel.value = opt.value; sel.dispatchEvent(new Event('change', { bubbles: true }));
-      return true;
-    }, CLASS_NAME);
-    check('Classe sélectionnée dans le formulaire élève', selOk);
+  // ══ CYCLE A — STUDENT: class → student → payment → balance ══════════════════
+  {
+    console.log('\n── Cycle A · Élève ──');
+    try {
+      // open student modal → add a custom class (cycle 'other', unique name)
+      await clickBtn('Ajouter un Élève');
+      await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => (b.textContent || '').includes('Nouvelle Classe')), { timeout: 10000 });
+      await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('Nouvelle Classe')); b && b.click(); });
+      await page.waitForFunction(() => [...document.querySelectorAll('select')].some((s) => [...s.options].some((o) => o.value === 'other')), { timeout: 10000 });
+      await page.evaluate(() => {
+        const sel = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'other'));
+        sel.value = 'other';
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await setValue('ex. 1ère D ou Garderie', CLASS_NAME);
+      await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('Créer la classe')); b && b.click(); });
+      await new Promise((r) => setTimeout(r, 2500));
+      const cls = await api(`/custom_classes?select=code,name_fr&code=eq.${CLASS_NAME}`);
+      check('Classe persistée en base', (cls.body || []).some((c) => c.code === CLASS_NAME), JSON.stringify(cls.body).slice(0, 80));
 
-    reqs.length = 0;
-    await submitForm('Ibrahim');
-    check('Requête POST /students émise', reqs.some((r) => r.includes('POST /rest/v1/students')), reqs.join(', ').slice(0, 100) || 'aucune');
-    const st = await api(`/students?select=id,name,student_id,total_due,amount_paid&student_id=eq.${STUDENT_ID}`);
-    const srow = (st.body || [])[0];
-    check('Élève persisté en base', !!srow, srow ? `total_due=${srow.total_due} | amount_paid=${srow.amount_paid}` : 'absent');
-
-    // record payment
-    if (srow) {
-      await clickBtn('Enregistrer le Paiement');
-      await new Promise((r) => setTimeout(r, 800));
-      const pSel = await page.evaluate((n) => {
-        const sel = [...document.querySelectorAll('select')].find((s) => s.closest('form') && [...s.options].some((o) => o.text.includes(n)));
+      await setInput('Ibrahim', STUDENT_NAME);
+      await setInput('MT-2026-001 (Optional)', STUDENT_ID);
+      await setInput('Djeneba', PARENT_NAME);
+      await setInput('+223 70 00 00 00', '+223 70 00 01 01');
+      await setValue('120000', TOTAL_DUE);
+      const selOk = await page.evaluate((n) => {
+        const sel = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.text === n));
         if (!sel) return false;
-        const opt = [...sel.options].find((o) => o.text.includes(n));
+        const opt = [...sel.options].find((o) => o.text === n);
         sel.value = opt.value; sel.dispatchEvent(new Event('change', { bubbles: true }));
         return true;
-      }, STUDENT_NAME);
-      check('Élève sélectionné dans le formulaire de paiement', pSel);
-      await setValue('10 000', PAYMENT);
+      }, CLASS_NAME);
+      check('Classe sélectionnée dans le formulaire élève', selOk);
+
       reqs.length = 0;
-      await submitForm('10 000');
-      check('Requête paiement émise (payments / students)', reqs.some((r) => /POST \/rest\/v1\/payments|PATCH \/rest\/v1\/students/.test(r)), reqs.join(', ').slice(0, 100) || 'aucune');
-      const upd = await api(`/students?select=amount_paid,total_due&id=eq.${srow.id}`);
-      const u = (upd.body || [])[0];
-      check('Solde mis à jour : amount_paid = 50000', u?.amount_paid === 50000, u ? `amount_paid=${u.amount_paid} / total_due=${u.total_due}` : 'élève introuvable');
+      await submitForm('Ibrahim');
+      check('Requête POST /students émise', reqs.some((r) => r.includes('POST /rest/v1/students')), reqs.join(', ').slice(0, 100) || 'aucune');
+      const st = await api(`/students?select=id,name,student_id,total_due,amount_paid&student_id=eq.${STUDENT_ID}`);
+      const srow = (st.body || [])[0];
+      check('Élève persisté en base', !!srow, srow ? `total_due=${srow.total_due} | amount_paid=${srow.amount_paid}` : 'absent');
+
+      // record payment
+      if (srow) {
+        await clickBtn('Enregistrer le Paiement');
+        await new Promise((r) => setTimeout(r, 800));
+        const pSel = await page.evaluate((n) => {
+          const sel = [...document.querySelectorAll('select')].find((s) => s.closest('form') && [...s.options].some((o) => o.text.includes(n)));
+          if (!sel) return false;
+          const opt = [...sel.options].find((o) => o.text.includes(n));
+          sel.value = opt.value; sel.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }, STUDENT_NAME);
+        check('Élève sélectionné dans le formulaire de paiement', pSel);
+        await setValue('10 000', PAYMENT);
+        reqs.length = 0;
+        await submitForm('10 000');
+        check('Requête paiement émise (payments / students)', reqs.some((r) => /POST \/rest\/v1\/payments|PATCH \/rest\/v1\/students/.test(r)), reqs.join(', ').slice(0, 100) || 'aucune');
+        const upd = await api(`/students?select=amount_paid,total_due&id=eq.${srow.id}`);
+        const u = (upd.body || [])[0];
+        check('Solde mis à jour : amount_paid = 50000', u?.amount_paid === 50000, u ? `amount_paid=${u.amount_paid} / total_due=${u.total_due}` : 'élève introuvable');
+      }
+    } catch (e) {
+      check('Cycle A (élève → paiement)', false, String(e).slice(0, 150));
     }
-  } catch (e) {
-    check('Cycle A (élève → paiement)', false, String(e).slice(0, 150));
   }
-}
 
-// ══ CYCLE B — parent · staff · salary · vendor expense ══════════════════════
-{
-  console.log('\n── Cycle B · Parent / Salaire / Dépense ──');
-  try {
-    // PARENT
-    await clickNav('Parents');
-    await page.waitForFunction(() => document.body.innerText.includes('Annuaire des Parents'), { timeout: 10000 });
-    await clickBtn('Ajouter Parent/Tuteur');
-    await setInput('e.g. Mamadou Traoré', PARENT_NAME);
-    await setInput('+223 70 00 00 00', '+223 70 00 01 02');
-    await setInput('e.g. Civil Engineer, Banker, Merchant...', 'Commerçant');
-    await setInput('e.g. Quartier Hippodrome, Bamako', 'Bamako');
-    await submitForm('e.g. Mamadou Traoré');
-    const par = await api(`/parents?select=full_name,phones,relationship&full_name=eq.${encodeURIComponent(PARENT_NAME)}`);
-    const p = (par.body || [])[0];
-    check('Parent persisté en base', !!p, p ? `${p.full_name} | ${p.phones[0]} | ${p.relationship}` : 'absent');
+  // ══ CYCLE B — parent · staff · salary · vendor expense ══════════════════════
+  {
+    console.log('\n── Cycle B · Parent / Salaire / Dépense ──');
+    try {
+      // PARENT
+      await clickNav('Parents');
+      await page.waitForFunction(() => document.body.innerText.includes('Annuaire des Parents'), { timeout: 10000 });
+      await clickBtn('Ajouter Parent/Tuteur');
+      await setInput('e.g. Mamadou Traoré', PARENT_NAME);
+      await setInput('+223 70 00 00 00', '+223 70 00 01 02');
+      await setInput('e.g. Civil Engineer, Banker, Merchant...', 'Commerçant');
+      await setInput('e.g. Quartier Hippodrome, Bamako', 'Bamako');
+      await submitForm('e.g. Mamadou Traoré');
+      const par = await api(`/parents?select=full_name,phones,relationship&full_name=eq.${encodeURIComponent(PARENT_NAME)}`);
+      const p = (par.body || [])[0];
+      check('Parent persisté en base', !!p, p ? `${p.full_name} | ${p.phones[0]} | ${p.relationship}` : 'absent');
 
-    // STAFF
-    await clickNav('Paie/Salaires');
-    await page.waitForFunction(() => document.body.innerText.includes('Paie/Salaires'), { timeout: 10000 });
-    await clickBtn('Ajouter un Employé');
-    await setInput('Jane Doe', STAFF_NAME);
-    await setInput('Teacher', 'Enseignant');
-    await setInput('+223 70 00 00 00', '+223 70 00 01 03');
-    await setInput('jane.doe@school.com', `staff${TS}@e2e.org`);
-    await setValue('150 000', STAFF_SALARY);
-    await submitForm('Jane Doe');
-    const stf = await api(`/staff?select=id,name,position,salary&name=eq.${encodeURIComponent(STAFF_NAME)}`);
-    const srow = (stf.body || [])[0];
-    check('Employé persisté en base', !!srow, srow ? `${srow.name} | ${srow.position} | salary=${srow.salary}` : 'absent');
+      // STAFF
+      await clickNav('Paie/Salaires');
+      await page.waitForFunction(() => document.body.innerText.includes('Paie/Salaires'), { timeout: 10000 });
+      await clickBtn('Ajouter un Employé');
+      await setInput('Jane Doe', STAFF_NAME);
+      await setInput('Teacher', 'Enseignant');
+      await setInput('+223 70 00 00 00', '+223 70 00 01 03');
+      await setInput('jane.doe@school.com', `staff${TS}@e2e.org`);
+      await setValue('150 000', STAFF_SALARY);
+      await submitForm('Jane Doe');
+      const stf = await api(`/staff?select=id,name,position,salary&name=eq.${encodeURIComponent(STAFF_NAME)}`);
+      const srow = (stf.body || [])[0];
+      check('Employé persisté en base', !!srow, srow ? `${srow.name} | ${srow.position} | salary=${srow.salary}` : 'absent');
 
-    // SALARY — staff pre-fills the balance; submit directly
-    if (srow) {
-      await page.waitForFunction((n) => document.body.innerText.includes(n), { timeout: 10000 }, STAFF_NAME);
-      const opened = await clickBtn('Enregistrer Salaire');
-      check('Modal salaire ouvert', opened);
-      reqs.length = 0;
-      await page.evaluate(() => {
-        const sel = [...document.querySelectorAll('select')].find((s) => s.closest('form') && s.value !== '');
-        const form = sel ? sel.closest('form') : null;
-        const btn = form ? [...form.querySelectorAll('button')].find((b) => b.type === 'submit') : null;
-        if (btn) btn.click();
-      });
-      await new Promise((r) => setTimeout(r, 3000));
-      const sal = await api(`/salary_payments?select=staff_id,amount,date&staff_id=eq.${srow.id}`);
-      const salRow = (sal.body || [])[0];
-      check('Salaire persisté en base (salary_payments)', !!salRow, salRow ? `amount=${salRow.amount} | date=${salRow.date}` : 'absent');
-      if (salRow) check('Montant salaire = 120000', salRow.amount === 120000, String(salRow.amount));
+      // SALARY — staff pre-fills the balance; submit directly
+      if (srow) {
+        await page.waitForFunction((n) => document.body.innerText.includes(n), { timeout: 10000 }, STAFF_NAME);
+        const opened = await clickBtn('Enregistrer Salaire');
+        check('Modal salaire ouvert', opened);
+        reqs.length = 0;
+        await page.evaluate(() => {
+          const sel = [...document.querySelectorAll('select')].find((s) => s.closest('form') && s.value !== '');
+          const form = sel ? sel.closest('form') : null;
+          const btn = form ? [...form.querySelectorAll('button')].find((b) => b.type === 'submit') : null;
+          if (btn) btn.click();
+        });
+        await new Promise((r) => setTimeout(r, 3000));
+        const sal = await api(`/salary_payments?select=staff_id,amount,date&staff_id=eq.${srow.id}`);
+        const salRow = (sal.body || [])[0];
+        check('Salaire persisté en base (salary_payments)', !!salRow, salRow ? `amount=${salRow.amount} | date=${salRow.date}` : 'absent');
+        if (salRow) check('Montant salaire = 120000', salRow.amount === 120000, String(salRow.amount));
+      }
+
+      // VENDOR EXPENSE (dépense fournisseur — promotrice uniquement)
+      await clickNav('Dépenses');
+      await page.waitForFunction(() => document.body.innerText.includes('Dépenses'), { timeout: 10000 });
+      const vOpen = await clickBtn('Ajouter une Dépense');
+      check('Modal dépense fournisseur ouvert', vOpen);
+      await setInput('ex. SENELEC', VENDOR_NAME);
+      await setValue('50000', VENDOR_AMOUNT);
+      await submitForm('ex. SENELEC');
+      const ve = await api(`/vendor_expenses?select=vendor_name,amount,payment_status&vendor_name=eq.${encodeURIComponent(VENDOR_NAME)}`);
+      const vrow = (ve.body || [])[0];
+      check('Dépense fournisseur persistée en base', !!vrow, vrow ? `amount=${vrow.amount} | ${vrow.payment_status}` : 'absent');
+      if (vrow) check('Montant dépense = 45000', vrow.amount === 45000, String(vrow.amount));
+    } catch (e) {
+      check('Cycle B (parent / salaire / dépense)', false, String(e).slice(0, 150));
     }
-
-    // VENDOR EXPENSE (dépense fournisseur — promotrice uniquement)
-    await clickNav('Dépenses');
-    await page.waitForFunction(() => document.body.innerText.includes('Dépenses'), { timeout: 10000 });
-    const vOpen = await clickBtn('Ajouter une Dépense');
-    check('Modal dépense fournisseur ouvert', vOpen);
-    await setInput('ex. SENELEC', VENDOR_NAME);
-    await setValue('50000', VENDOR_AMOUNT);
-    await submitForm('ex. SENELEC');
-    const ve = await api(`/vendor_expenses?select=vendor_name,amount,payment_status&vendor_name=eq.${encodeURIComponent(VENDOR_NAME)}`);
-    const vrow = (ve.body || [])[0];
-    check('Dépense fournisseur persistée en base', !!vrow, vrow ? `amount=${vrow.amount} | ${vrow.payment_status}` : 'absent');
-    if (vrow) check('Montant dépense = 45000', vrow.amount === 45000, String(vrow.amount));
-  } catch (e) {
-    check('Cycle B (parent / salaire / dépense)', false, String(e).slice(0, 150));
   }
-}
 
-// ── Cleanup (mandatory) ─────────────────────────────────────────────────────
-console.log('\n── Nettoyage ──');
-await cleanup(uid);
-// verify the base is back to virgin
-const t = ['students', 'payments', 'parents', 'staff', 'salary_payments', 'vendor_expenses', 'custom_classes'];
-const counts = {};
-for (const table of t) {
-  const r = await api(`/${table}?select=id&limit=1000`);
-  counts[table] = Array.isArray(r.body) ? r.body.length : -1;
-}
-const virgin = Object.values(counts).every((n) => n === 0);
-check('Base revenue à l\'état vierge après cleanup', virgin, JSON.stringify(counts));
+  // ── Cleanup (mandatory) ─────────────────────────────────────────────────────
+  console.log('\n── Nettoyage ──');
+  await cleanup(uid);
+  // verify the base is back to virgin
+  const t = ['students', 'payments', 'parents', 'staff', 'salary_payments', 'vendor_expenses', 'custom_classes'];
+  const counts = {};
+  for (const table of t) {
+    const r = await api(`/${table}?select=id&limit=1000`);
+    counts[table] = Array.isArray(r.body) ? r.body.length : -1;
+  }
+  const virgin = Object.values(counts).every((n) => n === 0);
+  check('Base revenue à l\'état vierge après cleanup', virgin, JSON.stringify(counts));
 
-console.log('\n=== ERREURS CONSOLE / PAGE ===');
-console.log(logs.length ? logs.join('\n') : 'aucune');
-await browser.close();
-rmSync(PROFILE, { recursive: true, force: true });
+  console.log('\n=== ERREURS CONSOLE / PAGE ===');
+  console.log(logs.length ? logs.join('\n') : 'aucune');
+} finally {
+  // Guaranteed: whatever happens above (throw, timeout, Ctrl-C can't land here
+  // but any uncaught error can), the browser dies and the profile is removed.
+  try { await browser.close(); } catch { /* already gone */ }
+  rmSync(PROFILE, { recursive: true, force: true });
+}
 
 const failed = results.filter((r) => !r.ok);
 console.log(`\n=== RÉSULTAT : ${results.length - failed.length}/${results.length} OK ===`);
