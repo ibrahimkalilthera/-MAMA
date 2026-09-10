@@ -1,7 +1,7 @@
 {
   "name": "mama-thera-finance",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -23,12 +23,14 @@
     "clean": "rm -rf dist",
     "electron:ui": "vite build --base=./ --outDir electron-ui-dist",
     "electron:dist": "npm run electron:ui && electron-builder --win",
+    "electron:release": "npm run electron:ui && electron-builder --win --publish always",
     "lint": "eslint . --max-warnings 0 && tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs && node scripts/check-test-harness.mjs && stylelint \"src/**/*.css\" && node scripts/check-css-selectors.mjs && node scripts/check-no-emoji-icons.mjs && node scripts/check-jsx-i18n.mjs && node scripts/check-date-windows.mjs && node scripts/check-line-budget.mjs && node supabase/regenerate-full-setup.mjs --check",
     "test": "node --import tsx --experimental-test-module-mocks --test \"tests/*.test.ts\" \"tests/*.test.tsx\"",
     "prepare": "husky"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.115.0",
+    "electron-updater": "^6.8.9",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.41.0",
     "motion": "^13.2.0",
@@ -38,7 +40,6 @@
     "recharts": "^3.10.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
-  "version": "1.0.0",
   "description": "Application de gestion financière scolaire (MAMA THERA) — version bureau Windows.",
   "author": "MAMA THERA",
   "main": "electron/main.cjs",

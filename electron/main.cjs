@@ -18,6 +18,64 @@ const fs = require('node:fs');
 
 const FALLBACK_URL = 'https://mama-thera-finance.vercel.app/';
 const isDev = !app.isPackaged;
+// electron-builder sets PORTABLE_EXECUTABLE_FILE only for the portable target:
+// auto-update installs via the NSIS installer, so it is disabled on portable.
+const isPortable = !!process.env.PORTABLE_EXECUTABLE_FILE;
+
+// ── Auto-update (electron-updater, GitHub releases) ─────────────────────────
+// Checked shortly after startup; a downloaded update is installed on user
+// confirmation. Only active in packaged (non-portable) builds — dev and the
+// portable exe never touch the update feed.
+// E2E hooks (same convention as ELECTRON_DL_DIR):
+//   UPDATER_FEED_URL  → override the feed with a local HTTP server (proves
+//                       check + download without a published release)
+//   UPDATER_LOG_FILE  → append every updater event to this file and skip the
+//                       modal (proof mode — the E2E script reads the log)
+function setupAutoUpdater(win) {
+  if (!app.isPackaged) {
+    console.log('[updater] dev — auto-update désactivé');
+    return;
+  }
+  if (isPortable) {
+    console.log('[updater] portable — auto-update désactivé (NSIS requis)');
+    return;
+  }
+  const { autoUpdater } = require('electron-updater');
+  const logFile = process.env.UPDATER_LOG_FILE;
+  const log = (msg) => {
+    console.log(`[updater] ${msg}`);
+    if (logFile) {
+      try { fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`); } catch { /* best-effort */ }
+    }
+  };
+  if (process.env.UPDATER_FEED_URL) {
+    autoUpdater.setFeedURL({ provider: 'generic', url: process.env.UPDATER_FEED_URL });
+  }
+  autoUpdater.autoDownload = true;
+  autoUpdater.on('checking-for-update', () => log('checking-for-update'));
+  autoUpdater.on('update-available', (i) => log(`update-available ${i.version}`));
+  autoUpdater.on('update-not-available', () => log('update-not-available'));
+  autoUpdater.on('error', (e) => log(`error ${(e && e.message) || e}`));
+  autoUpdater.on('download-progress', (p) => log(`download-progress ${Math.round(p.percent)}%`));
+  autoUpdater.on('update-downloaded', async (i) => {
+    log(`update-downloaded ${i.version}`);
+    if (process.env.UPDATER_LOG_FILE) return; // proof mode — E2E reads the log
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'info',
+      title: 'Mise à jour disponible',
+      message: `La version ${i.version} est prête à être installée.`,
+      detail: 'Redémarrer maintenant pour appliquer la mise à jour ?',
+      buttons: ['Redémarrer maintenant', 'Plus tard'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 0) autoUpdater.quitAndInstall();
+  });
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((e) => log(`check-failed ${(e && e.message) || e}`));
+  }, 5000);
+}
+
 
 function uiIndexPath() {
   // Packaged: files are inside app.asar; dev: repo root.
@@ -91,6 +149,8 @@ function createWindow() {
     console.warn(`[electron] build local introuvable (${index}) — fallback ${FALLBACK_URL}`);
     win.loadURL(FALLBACK_URL);
   }
+
+  setupAutoUpdater(win);
 
   return win;
 }
