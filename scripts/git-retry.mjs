@@ -47,7 +47,7 @@
 //   node scripts/git-retry.mjs --sweep --attempts 5 --wait-ms 2000 -- push origin main
 //   npm run git:retry -- commit -am "message"
 // ─────────────────────────────────────────────────────────────────────────────
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 const FORK_PANIC_EXIT_CODES = new Set([254, 66]);
@@ -140,6 +140,30 @@ function killTree(pid) {
   } catch {
     /* already gone */
   }
+}
+
+/**
+ * Resolve the REAL git binary to spawn. The repo-local shim
+ * (scripts/git-shim.cmd, installed as git.cmd on the user PATH) forwards
+ * commit/push to this wrapper, so spawning plain `git` here could re-enter the
+ * shim; node cannot spawn a .cmd without a shell anyway. Priority:
+ *  1. GIT_RETRY_REAL_GIT (set by the shim itself before invoking us),
+ *  2. `where git.exe` (which skips .cmd files - always the genuine binary),
+ *  3. plain `git` as a last resort (non-Windows / resolution failure).
+ */
+export function resolveGit({ env = process.env, platform = process.platform } = {}) {
+  if (env.GIT_RETRY_REAL_GIT) return env.GIT_RETRY_REAL_GIT;
+  if (platform !== 'win32') return 'git';
+  try {
+    const r = spawnSync('where', ['git.exe'], { encoding: 'utf8', windowsHide: true });
+    if (r.status === 0 && r.stdout) {
+      const first = r.stdout.split(/\r?\n/).find((line) => line.trim());
+      if (first) return first.trim();
+    }
+  } catch {
+    /* fall through to the plain name */
+  }
+  return 'git';
 }
 
 /**
@@ -277,7 +301,7 @@ export function runCommandWithRetry(
  *   sweep?: boolean, sweepFn?: (() => unknown) }} options
  */
 export function runGitWithRetry(args, options = {}) {
-  return runCommandWithRetry('git', neutralizeAlias(args), {
+  return runCommandWithRetry(resolveGit(), neutralizeAlias(args), {
     ...options,
     label: `git ${args.join(' ')}`,
   });

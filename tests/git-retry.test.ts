@@ -48,6 +48,12 @@ mock.module('node:child_process', {
       }
       return child;
     },
+    // `where git.exe` used by resolveGit on Windows.
+    spawnSync: (_cmd: string, _args: string[]) => ({
+      status: 0,
+      stdout: 'C:\\Program Files\\Git\\cmd\\git.exe\n',
+      stderr: '',
+    }),
   },
 });
 
@@ -56,6 +62,7 @@ const {
   isForkPanicFailure,
   parseArgs,
   neutralizeAlias,
+  resolveGit,
   sweepOrphanNodeProcesses,
 } = await import('../scripts/git-retry.mjs');
 
@@ -209,6 +216,23 @@ describe('runGitWithRetry', () => {
     assert.equal(code, 0);
     assert.deepEqual(events, ['sweep']);
     assert.equal(spawnCalls.length, 2);
+  });
+});
+
+describe('resolveGit', () => {
+  it('GIT_RETRY_REAL_GIT a la priorité (posé par le shim git.cmd)', () => {
+    assert.equal(
+      resolveGit({ env: { GIT_RETRY_REAL_GIT: 'C:\\real\\git.exe' }, platform: 'win32' }),
+      'C:\\real\\git.exe',
+    );
+  });
+
+  it('hors Windows → « git » sans recherche', () => {
+    assert.equal(resolveGit({ env: {}, platform: 'linux' }), 'git');
+  });
+
+  it('sur Windows → le premier git.exe de `where` (jamais un .cmd)', () => {
+    assert.equal(resolveGit({ env: {}, platform: 'win32' }), 'C:\\Program Files\\Git\\cmd\\git.exe');
   });
 });
 
