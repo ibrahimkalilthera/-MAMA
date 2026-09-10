@@ -95,6 +95,32 @@ Le hook husky `pre-commit` et le workflow `perf-guard` exécutent la même chaî
 **lint (0 warning, guards) → tests → audit npm → Lighthouse ≥ 0,60 → audit contraste réel (6 thèmes × 8 overlays)**.
 `deploy.yml` ne déploie que si la porte qualité est verte sur le commit exact.
 
+## Version bureau (Windows)
+
+L'application est aussi empaquetée en **application de bureau Windows** (shell Electron) :
+
+- `electron/main.cjs` charge le **build local** de l'app (`electron-ui-dist/`) — le bureau s'ouvre même si le serveur Vercel est indisponible ; seuls les appels Supabase (login, données, PDF) passent par internet. Fallback : si le build local manque, l'URL hébergée est chargée.
+- Sécurité : `contextIsolation` activé, `nodeIntegration` désactivé, sandbox activé ; les liens externes s'ouvrent dans le navigateur système ; les PDF téléchargés passent par une boîte de dialogue d'enregistrement (ou un dossier auto si `ELECTRON_DL_DIR` est défini).
+- Icône : emblème « COMPLEXE SCOLAIRE MAMA THERA » (généré depuis `public/favicon.svg`, asset `build/icon.png`).
+
+**Build + installeur :**
+
+```bash
+npm run electron:ui      # vite build --base=./ --outDir electron-ui-dist
+npm run electron:dist    # electron:ui + empaquetage Windows (NSIS + portable)
+# → release/MamaTheraFinance-<version>-setup.exe (installeur)
+# → release/MamaTheraFinance-<version>-portable.exe (portable, sans installation)
+```
+
+**Vérification E2E du bureau** (login + navigation + téléchargement PDF dans l'app empaquetée) :
+
+```bash
+npm run electron:dist    # une fois, pour produire release/
+node scripts/verify-desktop-app.mjs
+```
+
+**Prérequis** : Windows 10/11 x64, internet pour Supabase. L'installeur installe dans le dossier utilisateur (pas d'administration requise).
+
 ## Structure
 
 ```

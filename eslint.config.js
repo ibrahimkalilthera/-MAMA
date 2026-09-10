@@ -15,6 +15,10 @@ export default tseslint.config(
       'coverage/**',
       'supabase/**',
       'lh-vercel.json',
+      // Desktop shell (Electron main/preload) — Node code outside the app gates.
+      'electron/**',
+      'electron-ui-dist/**',
+      'release/**',
     ],
   },
 

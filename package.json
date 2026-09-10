@@ -21,6 +21,8 @@
     "db:snapshot": "node supabase/regenerate-full-setup.mjs",
     "db:snapshot:check": "node supabase/regenerate-full-setup.mjs --check",
     "clean": "rm -rf dist",
+    "electron:ui": "vite build --base=./ --outDir electron-ui-dist",
+    "electron:dist": "npm run electron:ui && electron-builder --win",
     "lint": "eslint . --max-warnings 0 && tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs && node scripts/check-test-harness.mjs && stylelint \"src/**/*.css\" && node scripts/check-css-selectors.mjs && node scripts/check-no-emoji-icons.mjs && node scripts/check-jsx-i18n.mjs && node scripts/check-date-windows.mjs && node scripts/check-line-budget.mjs && node supabase/regenerate-full-setup.mjs --check",
     "test": "node --import tsx --experimental-test-module-mocks --test \"tests/*.test.ts\" \"tests/*.test.tsx\"",
     "prepare": "husky"
@@ -36,6 +38,10 @@
     "recharts": "^3.10.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
+  "version": "1.0.0",
+  "description": "Application de gestion financière scolaire (MAMA THERA) — version bureau Windows.",
+  "author": "MAMA THERA",
+  "main": "electron/main.cjs",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@napi-rs/canvas": "^1.0.8",
@@ -45,6 +51,8 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.5.5",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",

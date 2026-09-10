@@ -1,3 +1,15 @@
+## [2026-09-10] Version bureau Windows (Electron) : installeur NSIS + portable
+
+- **Sous-système Electron** (`electron/`, hors `src/`, l'app web inchangée) :
+  - `electron/main.cjs` charge le **build local** (`electron-ui-dist/`, produit par `vite build --base=./`) — le bureau s'ouvre même si Vercel tombe, seuls les appels Supabase passent par internet. Fallback robuste : URL hébergée si le build local manque.
+  - `electron/preload.cjs` : pont minimal, `contextIsolation` ON, `nodeIntegration` OFF, `sandbox` ON ; navigation verrouillée à la surface de l'app, liens externes → navigateur système ; téléchargements PDF via boîte de dialogue (ou `ELECTRON_DL_DIR` pour l'auto-save / E2E).
+  - `electron-builder.yml` : NSIS (`oneClick: false`, dossier utilisateur, raccourcis bureau/menu) + portable, nom produit **MamaTheraFinance**, icône = emblème scolaire (`build/icon.png`, généré depuis l'image fournie, 512×512, converti en `.ico` par electron-builder).
+- **Scripts npm** : `electron:ui` (build Vite relatif), `electron:dist` (UI + `electron-builder --win` → `release/`).
+- **Preuve E2E en conditions réelles** (`scripts/verify-desktop-app.mjs`, rejouable) : création d'un compte admin éphémère + d'un employé temporaire, lancement du **portable empaqueté** (`--user-data-dir` isolé par run, `ELECTRON_DL_DIR`), login via CDP (puppeteer-core), navigation Paie/Salaires, clic sur « Télécharger Reçu PDF » (bouton-icône), **PDF réel généré et sauvegardé** (`Fiche_Paie_…pdf`, signature `%PDF-`). Points levés en route : **CORS origine `file://` accepté par Supabase** (pas besoin de protocole custom), « JWT issued at future » (retry sur le bouton Réessayer, même mécanisme que les E2E web), bouton Reçu PDF en icône seule (`title`). Nettoyage complet en fin de run (employé, compte éphémère, profil utilisateur).
+- **Smoke-test installeur NSIS** : installation silencieuse dans le dossier utilisateur (exe + entrée registre « MamaTheraFinance 1.0.0 »), désinstallation propre.
+- **Chaîne qualité inchangée** : tsc 0, lint vert (nouveaux chemins `electron/**`, `electron-ui-dist/**`, `release/**` ignorés d'ESLint), 605/605 tests — aucun fichier `src/` modifié.
+- **Config** : `electron` 44.3.0 + `electron-builder` 26.15.3 en devDependencies ; `.gitignore` += `electron-ui-dist/`, `release/` ; `main` = `electron/main.cjs`, version `1.0.0` ajoutée à package.json.
+
 ## [2026-09-09] Campagne de découpage : App.tsx (1084 → 670 lignes) et admin.ts (1059 → 2×534)
 
 Suite de la campagne de découpage (après useSupabaseData / AppModals) pour ramener les plus gros fichiers sous ~700 lignes, **sans aucun changement de comportement** :

@@ -1,5 +1,6 @@
 node_modules/
 build/
+!build/icon.png
 dist/
 coverage/
 .DS_Store
@@ -16,3 +17,7 @@ lh-vercel.json
 
 # État local de la CLI Supabase
 supabase/.temp/
+
+# Build/paquetage desktop (Electron)
+electron-ui-dist/
+release/
