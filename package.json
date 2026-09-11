@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "optimize:stamp": "node scripts/optimize-stamp.mjs",
     "check:perf": "node scripts/check-performance.mjs",
-    "quality": "node scripts/quality-chain.mjs",
+    "setup:node": "node scripts/setup-node-runtime.mjs",
+    "quality": "node scripts/with-pinned-node.mjs --node scripts/quality-chain.mjs",
     "git:retry": "node scripts/git-retry.mjs",
     "check:contrast": "node scripts/theme-contrast-audit.mjs",
     "deploy:prod": "node scripts/deploy-notice.mjs",
@@ -25,9 +26,10 @@
     "electron:ui": "vite build --base=./ --outDir electron-ui-dist",
     "electron:dist": "npm run electron:ui && electron-builder --win",
     "electron:release": "npm run electron:ui && electron-builder --win --publish always",
-    "lint": "node scripts/check-node-version.mjs && eslint . --max-warnings 0 && tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs && node scripts/check-test-harness.mjs && stylelint \"src/**/*.css\" && node scripts/check-css-selectors.mjs && node scripts/check-no-emoji-icons.mjs && node scripts/check-jsx-i18n.mjs && node scripts/check-date-windows.mjs && node scripts/check-line-budget.mjs && node supabase/regenerate-full-setup.mjs --check",
+    "lint": "node scripts/with-pinned-node.mjs --npm lint:chain",
+    "lint:chain": "node scripts/check-node-version.mjs && eslint . --max-warnings 0 && tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs && node scripts/check-test-harness.mjs && stylelint \"src/**/*.css\" && node scripts/check-css-selectors.mjs && node scripts/check-no-emoji-icons.mjs && node scripts/check-jsx-i18n.mjs && node scripts/check-date-windows.mjs && node scripts/check-line-budget.mjs && node supabase/regenerate-full-setup.mjs --check",
     "test": "node --import tsx --experimental-test-module-mocks --test \"tests/*.test.ts\" \"tests/*.test.tsx\"",
-    "prepare": "husky"
+    "prepare": "node scripts/setup-node-runtime.mjs --soft && husky"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.115.0",

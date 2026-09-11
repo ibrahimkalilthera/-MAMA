@@ -89,8 +89,8 @@ if (isMain) {
     console.error("   Un « vert » local sur un autre majeur n'engage rien : c'est exactement");
     console.error('   comme ça que deux pushes ont été rejetés par la CI le 2026-09-11.');
     console.error('   Remède :');
-    console.error('     nvm install && nvm use        (ou fnm/asdf — ils lisent .nvmrc)');
-    console.error('     npx --yes node@22 <commande>  (vérification ponctuelle, sans changer de version)');
+    console.error('     npm run setup:node            (le projet provisionne le runtime épinglé — aucun gestionnaire à installer)');
+    console.error('     nvm install && nvm use        (si nvm/fnm/asdf est déjà là — il lit .nvmrc)');
     console.error('   Détail : README.md § « Version de Node — pourquoi 22 ? ».');
     console.error('');
     process.exit(1);

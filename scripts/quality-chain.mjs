@@ -40,10 +40,10 @@
  * the old `execSync('npm run lint && npm test && …', {shell:true})` line
  * could (DEVELOPMENT_HISTORY.md, “msys fork panic”).
  */
-import { spawn, execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { resolveNpmCliJs } from './lib/npm-cli.mjs';
 import { sweepOrphanElectron, sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { spawnOrphanGuard } from './lib/orphan-guard.mjs';
 import { sweepOrphanNodeProcesses } from './git-retry.mjs';
@@ -132,24 +132,11 @@ function runStep(name, args, { timeoutMs = 300000, nodeOpts } = {}) {
   });
 }
 
-// Spawn npm through its JS entry (node npm-cli.js) instead of npm.cmd:
-// spawning .cmd directly needs a shell, and a shell is exactly what we
-// must avoid on this machine (msys fork panic). npm lives next to the
-// node executable in a standard install; fall back to PATH resolution.
-
-function resolveNpmCliJs() {
-  for (const base of [dirname(process.execPath), dirname(dirname(process.execPath))]) {
-    const cli = join(base, 'node_modules', 'npm', 'bin', 'npm-cli.js');
-    if (existsSync(cli)) return cli;
-  }
-  const which = execFileSync(process.platform === 'win32' ? 'where' : 'which', ['npm'], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  }).trim().split(/\r?\n/)[0];
-  return join(dirname(which), 'node_modules', 'npm', 'bin', 'npm-cli.js');
-}
-
-const npmCliJs = resolveNpmCliJs();
+// Spawn npm through its JS entry (node npm-cli.js) instead of npm.cmd — the
+// shared resolver lives in ./lib/npm-cli.mjs, because the runtime launcher
+// (./with-pinned-node.mjs) needs exactly the same rule to run npm under the
+// PINNED node rather than the one that started us.
+const npmCliJs = resolveNpmCliJs(process.execPath);
 
 const runNpm = (name, script, opts) =>
   new Promise((resolve) => {

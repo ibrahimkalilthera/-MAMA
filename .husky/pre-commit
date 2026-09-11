@@ -18,4 +18,8 @@
 # dependencies re-audit instantly; offline (registry unreachable) it only
 # warns — the CI quality job re-checks on push.
 # `git commit --no-verify` skips all of this in an emergency.
-AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 node scripts/hook-quality-chain.mjs
+# Node : la chaîne tourne sur le runtime épinglé par .nvmrc, provisionné par le
+# projet si le Node courant ne correspond pas (scripts/with-pinned-node.mjs) —
+# un poste sans gestionnaire de version peut donc committer. Tout ce que la
+# chaîne lance hérite de ce runtime (elle spawn via process.execPath).
+AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs

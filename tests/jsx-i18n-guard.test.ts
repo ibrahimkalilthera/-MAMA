@@ -48,7 +48,12 @@ describe('jsx-i18n guard — the gate keeps all three detectors and stays wired'
   });
 
   it('is wired into npm run lint', () => {
-    assert.match(PKG.scripts.lint, /node scripts\/check-jsx-i18n\.mjs/,
+    // The links may live directly in `lint` or in the chain it delegates to
+    // (`lint:chain`, the part the runtime launcher pins). What must hold is that
+    // the guard runs inside the gate command pre-commit and CI execute — not
+    // which key happens to hold it.
+    const chain = [PKG.scripts.lint, PKG.scripts['lint:chain']].join(' && ');
+    assert.match(chain, /node scripts\/check-jsx-i18n\.mjs/,
       'the jsx-i18n gate must run inside npm run lint (pre-commit + CI)');
   });
 
