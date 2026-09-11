@@ -177,7 +177,38 @@ jobs:
       # un compte admin éphémère via le service-role (lu dans .env), le
       # supprime en fin de run (finally) — comme les pixel-checks PDF. La CI
       # reste fonctionnelle même si la base est purgée.
+      #
+      # Préflight : les runs déclenchés par Dependabot (et les PR de fork) ne
+      # reçoivent AUCUN secret du dépôt — politique GitHub. Le service-role
+      # arrive donc vide, le compte éphémère est impossible à créer et le
+      # script sortait en 1 au démarrage : un rouge qui ne dit rien du contraste,
+      # précisément sur les PR les plus susceptibles de le casser (bump d'icônes,
+      # de Tailwind). Ce n'est pas un verdict, donc pas un rouge. Le secret
+      # n'est exposé qu'à ce préflight (un `env` de job le diffuserait aussi à
+      # `npm ci`) et `secrets` est interdit dans un `if:` — GitHub rejette le
+      # YAML entier — d'où le passage par un output d'étape.
+      - name: Credentials disponibles ? (Dependabot et PR de fork n'en reçoivent aucun)
+        id: creds
+        env:
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -n "$SERVICE_KEY" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "✅ service-role disponible — l'audit de contraste s'exécute."
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Audit de contraste NON EXÉCUTÉ : SUPABASE_SERVICE_ROLE_KEY indisponible (un run Dependabot / une PR de fork ne reçoit aucun secret du dépôt). Ce n'est pas un verdict de contraste — le gate reste armé sur les pushs de main et les PR internes."
+            {
+              echo "### Contraste thèmes — non exécuté"
+              echo ""
+              echo "Aucun credential disponible : les runs **Dependabot** et les **PR de fork** ne reçoivent pas les secrets du dépôt (politique GitHub), donc le compte éphémère ne peut pas être créé."
+              echo ""
+              echo "Ce n'est pas un verdict de contraste. Le gate reste **armé** sur les pushs de \`main\` et les PR internes : une montée de version mergée est mesurée sur \`main\` — rouge compris — avant tout déploiement."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Theme contrast audit (6 thèmes x 8 overlays, échoue < 3:1)
+        if: steps.creds.outputs.ok == 'true'
         env:
           AUDIT_URL: http://127.0.0.1:4173/
           CHROME_PATH: /usr/bin/google-chrome

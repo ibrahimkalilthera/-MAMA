@@ -1,3 +1,14 @@
+## [2026-09-11] Job contraste : plus de rouge Dependabot sans secret (préflight + skip visible)
+
+Les 3 PR Dependabot restaient rouges alors que rien n'était cassé : un run déclenché par Dependabot — comme une PR de fork — ne reçoit **aucun secret** du dépôt. `SUPABASE_SERVICE_ROLE_KEY` arrive vide dans le `.env` que le workflow écrit, le compte admin éphémère ne peut pas être créé et `theme-contrast-audit.mjs` sort en 1 au démarrage, en une seconde. Un rouge qui ne dit rien du contraste, sur les PR les plus susceptibles de le casser (bump d'icônes, de Tailwind), et qui brouillait le tableau de bord Actions.
+
+- **Préflight `id: creds`** : une étape dédiée reçoit le secret dans son seul `env` (un `env` de job le diffuserait aussi à `npm ci`), écrit `ok=true|false` dans `$GITHUB_OUTPUT` et, sans credential, émet un `::warning::` + un step summary explicite. L'audit porte `if: steps.creds.outputs.ok == 'true'` : il est **skippé** (visiblement non exécuté), jamais vert en silence.
+- **Pourquoi pas `if: secrets.… != ''`** : GitHub **rejette le YAML entier** quand le contexte `secrets` apparaît dans un `if:` — d'où le passage par un output d'étape.
+- **Pourquoi pas un `exit 0` dans le script** : un vert silencieux serait pire qu'un skip ; le script garde sa sortie en 1 dès que des creds existent et échouent (échec réel jamais masqué).
+- **Le gate reste armé** partout où les creds existent (push sur `main`, PR internes) : une montée de version mergée est mesurée sur `main` — rouge compris — avant tout déploiement. La détection n'est pas perdue, elle est déplacée du PR au merge.
+- **Vérifié hors CI** : le workflow est re-parsé (js-yaml) et le script du préflight est extrait du YAML puis exécuté en bash dans les deux cas — sans secret : `ok=false`, exit 0, warning + step summary ; avec secret : `ok=true`, exit 0 (l'audit s'exécute).
+- **Option (réglage, pas code)** : ajouter `SUPABASE_SERVICE_ROLE_KEY` dans Settings → Secrets and variables → **Dependabot** arme l'audit dès la PR. La clé du projet cible (`rpcjdohfxwukbqngbprw`) est celle de `.env` — vérifié par le claim `ref` du JWT, sans jamais afficher la clé (`.env.staging` pointe un autre projet).
+
 ## [2026-09-11] Parité de version Node poste ↔ CI : `.nvmrc` + `engines` + un gate qui refuse les faux verts
 
 Deux pushes venaient d'être rejetés pour un bug **invisible en local** : la suite passait sur Node 24 (poste) et plantait sur Node 22 (CI) — `mock.module('node:fs', { exports })` casse l'interop ESM des exports nommés sur 22 seulement — et les déploiements Vercel sont restés bloqués pendant ce temps. Un « vert » local sur un autre majeur n'est pas une validation. Le README documentait déjà « Node 22 (pinné dans `.nvmrc`) » : le fichier n'existait pas, il existe désormais, avec de quoi le faire respecter.

@@ -95,7 +95,7 @@ Le hook husky `pre-commit` et le workflow `perf-guard` exécutent la même chaî
 **lint (0 warning, guards) → tests → audit npm → Lighthouse ≥ 0,60 → audit contraste réel (6 thèmes × 8 overlays)**.
 `deploy.yml` ne déploie que si la porte qualité est verte sur le commit exact.
 
-La chaîne `lint` commence par `scripts/check-node-version.mjs` : un poste dont le majeur diffère de `.nvmrc` (donc de la CI) est refusé **avant** les autres vérifications, avec le remède affiché. Un « vert » local sur un autre majeur ne doit plus jamais passer pour une validation — c'est exactement ce qui a bloqué deux déploiements (voir « Version de Node » ci-dessus).
+La chaîne `lint` commence par `scripts/check-node-version.mjs` : un poste dont le majeur diffère de `.nvmrc` (donc de la CI) est refusé **avant** les autres vérifications, avec le remède affiché. Un « vert » local sur un autre majeur ne doit plus jamais passer pour une validation — c'est exactement ce qui a bloqué deux déploiements (voir « Version de Node » ci-dessus). Côté CI, le job d'audit de contraste est **non exécuté** (skip + `::warning::`, jamais un rouge) sur les runs Dependabot et les PR de fork, qui ne reçoivent aucun secret du dépôt : ce n'est pas un verdict, et le gate reste armé sur `main` et les PR internes.
 
 ## Version bureau (Windows)
 
