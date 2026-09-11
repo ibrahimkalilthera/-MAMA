@@ -14,6 +14,7 @@ const {
   joinPath,
   addPathEntry,
   removePathEntry,
+  shimPrecedence,
 } = await import('../scripts/install-git-shim.mjs');
 
 const quiet = { log: () => {} };
@@ -25,15 +26,54 @@ describe('PATH helpers', () => {
     assert.equal(joinPath(parts), 'C:\\a;C:\\b');
   });
 
-  it('addPathEntry est insensible à la casse et aux slashes finaux', () => {
+  it('addPathEntry PRÉFIXE (jamais en queue) et ignore les doublons', () => {
+    // Le shim n'existe que pour être trouvé AVANT le vrai git : une entrée
+    // ajoutée en queue perd même la course qu'il peut gagner.
     const parts = ['C:\\Program Files\\Git'];
     assert.deepEqual(addPathEntry(parts, 'c:\\program files\\git\\'), parts, 'déjà présent → inchangé');
-    assert.deepEqual(addPathEntry(parts, 'C:\\bin'), ['C:\\Program Files\\Git', 'C:\\bin']);
+    assert.deepEqual(addPathEntry(parts, 'C:\\bin'), ['C:\\bin', 'C:\\Program Files\\Git']);
   });
 
   it('removePathEntry retire exactement l’entrée ciblée', () => {
     assert.deepEqual(removePathEntry(['C:\\bin', 'C:\\Program Files\\Git'], 'C:\\BIN\\'), ['C:\\Program Files\\Git']);
     assert.deepEqual(removePathEntry(['C:\\bin'], 'C:\\autre'), ['C:\\bin']);
+  });
+});
+
+describe('shimPrecedence — le shim peut-il seulement être atteint ?', () => {
+  const binDir = 'C:\\Shim';
+  const noGit = () => false;
+
+  it('signalé PARASITÉ quand un dossier antérieur fournit déjà un git', () => {
+    // Composition Windows : PATH machine PUIS PATH utilisateur — donc un
+    // git.exe machine (C:\\Program Files\\Git\\cmd) passe toujours avant une
+    // entrée utilisateur, même préfixée.
+    const r = shimPrecedence({
+      machinePath: 'C:\\Windows;C:\\Program Files\\Git\\cmd',
+      userPath: 'C:\\Shim;C:\\autre',
+      binDir,
+      providesGit: (d) => /Git/i.test(d),
+    });
+    assert.equal(r.installed, true);
+    assert.equal(r.shadowedBy, 'C:\\Program Files\\Git\\cmd');
+  });
+
+  it('aucun parasite quand le shim est avant tout fournisseur de git', () => {
+    const r = shimPrecedence({
+      machinePath: 'C:\\Shim;C:\\Windows',
+      userPath: 'C:\\Program Files\\Git\\cmd',
+      binDir,
+      providesGit: (d) => /Git/i.test(d),
+    });
+    assert.equal(r.shadowedBy, null);
+    assert.equal(r.shimIndex, 0);
+  });
+
+  it('installed=false quand le dossier du shim n’est pas (encore) sur le PATH', () => {
+    const r = shimPrecedence({ machinePath: 'C:\\Windows', userPath: 'C:\\autre', binDir, providesGit: noGit });
+    assert.equal(r.installed, false);
+    assert.equal(r.shimIndex, -1);
+    assert.equal(r.shadowedBy, null);
   });
 });
 

@@ -13,6 +13,12 @@
 // the fork bug, so `git commit`/`git push` abort with a panic exit code).
 // Recovery was manual: probe, retry at the keyboard, kill orphaned node.exe.
 //
+// The stateful long commands (pull, rebase) are covered by the same retry
+// engine: they run hooks too (post-merge, post-rewrite, pre-rebase) and a
+// panic mid-replay leaves a work to clean up by hand — which is the situation
+// the retry is cheapest to prevent. A conflict or a diverged branch is a real
+// failure and is never retried.
+//
 // This wrapper automates the retry part, in the same spirit as
 // scripts/quality-chain.mjs:
 //   - SPAWN-ONLY: git is spawned through node's spawn (CreateProcess on
@@ -44,6 +50,7 @@
 // Usage:
 //   node scripts/git-retry.mjs commit -am "message"
 //   node scripts/git-retry.mjs push origin main
+//   node scripts/git-retry.mjs pull --rebase
 //   node scripts/git-retry.mjs --sweep --attempts 5 --wait-ms 2000 -- push origin main
 //   node scripts/git-retry.mjs --sweep-all -- push origin main   (purge élargie)
 //   npm run git:retry -- commit -am "message"
@@ -160,8 +167,8 @@ function killTree(pid) {
 /**
  * Resolve the REAL git binary to spawn. The repo-local shim
  * (scripts/git-shim.cmd, installed as git.cmd on the user PATH) forwards
- * commit/push to this wrapper, so spawning plain `git` here could re-enter the
- * shim; node cannot spawn a .cmd without a shell anyway. Priority:
+ * commit/push/pull/rebase to this wrapper, so spawning plain `git` here could
+ * re-enter the shim; node cannot spawn a .cmd without a shell anyway. Priority:
  *  1. GIT_RETRY_REAL_GIT (set by the shim itself before invoking us),
  *  2. `where git.exe` (which skips .cmd files - always the genuine binary),
  *  3. plain `git` as a last resort (non-Windows / resolution failure).
@@ -362,6 +369,7 @@ Options:
 Exemples:
   node scripts/git-retry.mjs commit -am "message"
   node scripts/git-retry.mjs push origin main
+  node scripts/git-retry.mjs rebase main
   node scripts/git-retry.mjs --sweep-all -- push origin main
   npm run git:retry -- commit -am "message"`;
 
@@ -373,6 +381,16 @@ export function parseArgs(argv) {
   while (i < argv.length) {
     const a = argv[i];
     if (a === '--') {
+      // The wrapper's own option terminator — but only BEFORE the git
+      // subcommand. Once git args have started, a bare `--` belongs to git:
+      // `git pull -- origin main` and `git commit -- <pathspec>` are valid
+      // invocations, and swallowing the separator would turn the first into
+      // `git origin main` — a failure the shim would have introduced.
+      if (args.length > 0) {
+        args.push(a);
+        i++;
+        continue;
+      }
       args.push(...argv.slice(i + 1));
       break;
     }

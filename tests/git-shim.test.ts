@@ -3,9 +3,10 @@
 // Copie le shim dans un répertoire temp, le met en tête du PATH du processus
 // enfant (uniquement pour ce child, aucune modification machine) et l'exécute
 // via cmd.exe réel contre de vrais dépôts git. Prouve :
-//   - les commandes non commit/push passent telles quelles au vrai git ;
-//   - `commit` / `push` sont routés vers scripts/git-retry.mjs du dépôt courant
-//     (le log « tentative » du wrapper apparaît) ;
+//   - les commandes non routées passent telles quelles au vrai git ;
+//   - `commit` / `push` / `pull` / `rebase` sont routés vers scripts/git-retry.mjs
+//     du dépôt courant (le log « tentative » du wrapper apparaît), et un succès
+//     comme un échec réel en ressortent avec le code de git, jamais retentés ;
 //   - dans un dépôt SANS scripts/git-retry.mjs, tout est simplement forwardé ;
 //   - le code de sortie réel est préservé.
 // Plain-node suite (git + cmd réels, dépôts jetables).
@@ -37,6 +38,30 @@ function makeRepo(): string {
   writeFileSync(join(dir, 'f.txt'), 'data');
   spawnSync('git', ['add', 'f.txt'], { cwd: dir });
   return dir;
+}
+
+// A repo wired to a real (local) remote with an upstream branch, so `git pull`
+// and `git rebase` have something legitimate to do and exit 0 — the only way
+// to prove routing WITHOUT also proving that git fails: the wrapper's own
+// "tentative 1/3" line is what distinguishes a routed command from a forwarded
+// one, and a zero exit proves success is still passed through untouched.
+function makeClonedRepo(): { repo: string; origin: string } {
+  const origin = mkdtempSync(join(tmpdir(), 'git-shim-origin-'));
+  spawnSync('git', ['init', '--bare', '-q'], { cwd: origin });
+  const repo = mkdtempSync(join(tmpdir(), 'git-shim-e2e-'));
+  for (const args of [
+    ['init', '-q'],
+    ['config', 'user.email', 't@t'],
+    ['config', 'user.name', 'T'],
+  ]) {
+    spawnSync('git', args, { cwd: repo });
+  }
+  writeFileSync(join(repo, 'f.txt'), 'data');
+  spawnSync('git', ['add', 'f.txt'], { cwd: repo });
+  spawnSync('git', ['commit', '-q', '-m', 'init'], { cwd: repo });
+  spawnSync('git', ['remote', 'add', 'origin', origin], { cwd: repo });
+  spawnSync('git', ['push', '-q', '-u', 'origin', 'HEAD'], { cwd: repo });
+  return { repo, origin };
 }
 
 function runShim(args: string[], cwd: string, shimDir: string) {
@@ -76,6 +101,68 @@ describe('git-shim.cmd (E2E cmd.exe réel)', { skip: process.platform !== 'win32
       assert.equal(r.status, 0, r.stderr);
       assert.ok((r.stdout || '').includes('git commit --dry-run'), 'log du wrapper présent');
       assert.ok((r.stdout || '').includes('tentative 1/3'), 'le retry engine est engagé');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+      rmSync(shimDir, { recursive: true, force: true });
+    }
+  });
+
+  it('route `pull` via le wrapper du dépôt courant et préserve le succès réel', () => {
+    const { repo, origin } = makeClonedRepo();
+    const shimDir = mkdtempSync(join(tmpdir(), 'git-shim-bin-'));
+    try {
+      copyFileSync(SHIM_SRC, join(shimDir, 'git.cmd'));
+      mkdirSync(join(repo, 'scripts'), { recursive: true });
+      copyFileSync(join(process.cwd(), 'scripts', 'git-retry.mjs'), join(repo, 'scripts', 'git-retry.mjs'));
+      const r = runShim(['pull'], repo, shimDir);
+      assert.equal(r.status, 0, r.stderr);
+      assert.ok((r.stdout || '').includes('git pull'), 'label du wrapper présent');
+      assert.ok((r.stdout || '').includes('tentative 1/3'), 'pull est routé, pas forwardé');
+      assert.ok((r.stdout || '').includes('OK'), 'succès git transmis tel quel');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+      rmSync(origin, { recursive: true, force: true });
+      rmSync(shimDir, { recursive: true, force: true });
+    }
+  });
+
+  it('route `rebase` via le wrapper du dépôt courant et préserve le succès réel', () => {
+    const { repo, origin } = makeClonedRepo();
+    const shimDir = mkdtempSync(join(tmpdir(), 'git-shim-bin-'));
+    try {
+      copyFileSync(SHIM_SRC, join(shimDir, 'git.cmd'));
+      mkdirSync(join(repo, 'scripts'), { recursive: true });
+      copyFileSync(join(process.cwd(), 'scripts', 'git-retry.mjs'), join(repo, 'scripts', 'git-retry.mjs'));
+      const r = runShim(['rebase'], repo, shimDir);
+      assert.equal(r.status, 0, r.stderr);
+      assert.ok((r.stdout || '').includes('git rebase'), 'label du wrapper présent');
+      assert.ok((r.stdout || '').includes('tentative 1/3'), 'rebase est routé, pas forwardé');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+      rmSync(origin, { recursive: true, force: true });
+      rmSync(shimDir, { recursive: true, force: true });
+    }
+  });
+
+  it('un échec réel de `pull` n’est pas retenté et garde le code de git', () => {
+    // Same repo, but without any remote: `git pull` fails for a real reason.
+    // The wrapper must hand git's verdict back untouched — no retry (a retry
+    // would hide a real configuration error behind a second identical failure)
+    // and the same exit code as the real git.exe.
+    const repo = makeRepo();
+    const shimDir = mkdtempSync(join(tmpdir(), 'git-shim-bin-'));
+    try {
+      copyFileSync(SHIM_SRC, join(shimDir, 'git.cmd'));
+      mkdirSync(join(repo, 'scripts'), { recursive: true });
+      copyFileSync(join(process.cwd(), 'scripts', 'git-retry.mjs'), join(repo, 'scripts', 'git-retry.mjs'));
+      const direct = spawnSync('git', ['pull'], { cwd: repo, encoding: 'utf8', windowsHide: true });
+      const r = runShim(['pull'], repo, shimDir);
+      assert.notEqual(r.status, 0, 'git pull sans remote échoue');
+      assert.equal(r.status, direct.status, 'code de sortie de git préservé');
+      const out = r.stdout || '';
+      assert.ok(out.includes('git pull'), 'le wrapper a bien pris la commande');
+      assert.ok(!out.includes('retry dans'), 'échec réel → aucun retry');
+      assert.ok(!out.includes('persistant'), 'échec réel → pas d’épuisement des tentatives');
     } finally {
       rmSync(repo, { recursive: true, force: true });
       rmSync(shimDir, { recursive: true, force: true });

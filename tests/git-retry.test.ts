@@ -339,4 +339,13 @@ describe('parseArgs', () => {
     assert.equal(opts.attempts, 7);
     assert.equal(opts.timeoutMs, 1000);
   });
+
+  it('un `--` APRÈS le sous-commande reste un argument git (`git pull -- origin main`)', () => {
+    // Le séparateur n'appartient au wrapper que tant qu'aucun arg git n'a été
+    // vu : sinon le shim routerait `git pull -- origin main` vers
+    // `git origin main`, une panne que le wrapper aurait lui-même créée.
+    const { args, opts } = parseArgs(['--sweep', 'pull', '--', 'origin', 'main']);
+    assert.deepEqual(args, ['pull', '--', 'origin', 'main']);
+    assert.equal(opts.sweep, true);
+  });
 });
