@@ -50,6 +50,14 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import {
+  formatTimingReport,
+  parallelPlan,
+  previousSteps,
+  readTimings,
+  summarizeTimings,
+  writeTimings,
+} from './lib/chain-timings.mjs';
 import { resolveNpmCliJs } from './lib/npm-cli.mjs';
 import { sweepOrphanElectron, sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { spawnOrphanGuard } from './lib/orphan-guard.mjs';
@@ -70,6 +78,12 @@ process.on('uncaughtException', (err) => {
 
 const win32 = process.platform === 'win32';
 
+// Every link that costs wall-clock time lands here — the steps, but also the
+// hygiene that runs around them (the sweeps before the first step, the purge on
+// the way out): on this machine those are seconds of `node.exe`/powershell work,
+// and a link that is not measured is a link nobody can decide about.
+const timings = [];
+
 /**
  * Purge the node.exe processes THIS run created — BY LINEAGE, never by command
  * line. The former selective filter recognised the `npm-cli.js run …` wrapper
@@ -85,11 +99,13 @@ let purgeStarted = false;
 async function purgeOwnOrphans(origin) {
   if (purgeStarted) return { killed: 0, passes: 0 };
   purgeStarted = true;
+  const started = Date.now();
   const result = await sweepOwnNodeOrphans({
     rootPids: [process.pid], // still alive here, so the closure is still valid
     excludePid: process.pid,
     log: (m) => console.log(m),
   });
+  timings.push({ name: `purge:${origin}`, ok: true, ms: Date.now() - started });
   recordSweep({ origin, ...result });
   return result;
 }
@@ -210,14 +226,18 @@ const names = wanted.length > 0 ? wanted.filter((n) => n in STEPS) : Object.keys
 // the step's whole tree, but a puppeteer Chrome wedged mid-run survives and
 // accumulates (the exact pile-up that saturates the msys fork table). Sweep
 // before the first step, while the machine is still quiet.
+const sweepChromeStart = Date.now();
 const swept = await sweepOrphanPuppeteer();
+timings.push({ name: 'sweep:chrome', ok: true, ms: Date.now() - sweepChromeStart });
 if (swept > 0) console.log(`🧹 ${swept} processus Chrome orphelin(s) purgé(s)`);
 
 // Same sweep for the packaged app: verify-desktop-app / verify-updater runs
 // launch MamaTheraFinance.exe with the electron-proof-ud marker (killed
 // regardless of age); a legitimately open instance is only touched past the
 // 5-minute window, so a fresh app the user just opened is never harmed.
+const sweepElectronStart = Date.now();
 const sweptElectron = await sweepOrphanElectron();
+timings.push({ name: 'sweep:electron', ok: true, ms: Date.now() - sweepElectronStart });
 if (sweptElectron > 0) console.log(`🧹 ${sweptElectron} processus MamaTheraFinance.exe orphelin(s) purgé(s)`);
 
 // Own-orphan hygiene: start the DETACHED guard (double-spawned out of this
@@ -239,6 +259,23 @@ try {
   // covers the one path we cannot reach: a kill from outside.)
   await purgeOwnOrphans('exit');
 }
+
+// Where the time went, and what parallelising would buy — printed for every
+// run, so "this commit felt slow" becomes a number with a name on it. The
+// previous run comes from the cache, hence the read BEFORE the write.
+const previous = previousSteps(readTimings({ root }));
+const summary = summarizeTimings(
+  [...timings, ...results],
+  { previous },
+);
+for (const line of formatTimingReport(summary, { parallel: parallelPlan(summary.rows) })) {
+  console.log(line);
+}
+writeTimings({
+  at: new Date().toISOString(),
+  totalMs: summary.totalMs,
+  steps: summary.rows.map((r) => ({ name: r.name, ms: r.ms, ok: r.ok })),
+}, { root });
 
 const failed = results.filter((r) => !r.ok);
 if (failed.length > 0) {
