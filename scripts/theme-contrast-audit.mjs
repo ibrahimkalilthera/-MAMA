@@ -222,6 +222,7 @@ const SCANNER = (minRatio) => {
 const failures = []; // { theme, step, text, fg, bg, ratio, cls }
 const ignoredSeen = []; // { theme, step, text }
 const checks = [];
+const nonApplicable = []; // 'theme · step' — a trigger was absent (see the report)
 const recordCheck = (theme, step, ok, note = '') => {
   checks.push({ theme, step, ok, note });
   console.log(`   ${ok ? '✅' : '❌'} [${theme}] ${step}${note ? ' — ' + note : ''}`);
@@ -425,7 +426,24 @@ async function main() {
         return;
       }
       if (opened === null) {
-        recordCheck(theme, name, true, 'non applicable (aucun déclencheur)');
+        // With the frozen fixture dataset EVERY one of these surfaces has a
+        // trigger: a student row, an overdue parent, the notification bell, the
+        // AI button. The dataset is deterministic — that is its entire point —
+        // so "no trigger" under fixtures is not a dataset quirk, it is a LOST
+        // trigger: the surface stops being measured while the run stays green.
+        // That is precisely how the student fiche went unmeasured in all six
+        // themes (the fixture year emptied the table; see FIXTURE_ACADEMIC_YEAR).
+        // Under a real backend (AUDIT_FIXTURES=0) an absent trigger is
+        // legitimate: the step stays ok and is labelled, never hidden.
+        nonApplicable.push(`${theme} · ${name}`);
+        recordCheck(
+          theme,
+          name,
+          !USE_FIXTURES,
+          USE_FIXTURES
+            ? 'non applicable — déclencheur perdu (les fixtures en fournissent toujours un)'
+            : 'non applicable (aucun déclencheur)',
+        );
         return;
       }
       await scanAndRecord(theme, name, opened.rootSel, opened.guard);
@@ -671,9 +689,15 @@ async function main() {
       console.error(`\n❌ Thèmes sans aucune couverture : ${missingThemes.join(', ')} — audit KO.`);
     }
     // A step that could not open/scan its overlay (timeout, broken trigger)
-    // means that surface was NOT verified — treat it as a hard failure so the
-    // gate cannot silently skip coverage ("non applicable" stays OK: the
-    // overlay legitimately has no trigger with this dataset).
+    // means that surface was NOT verified — a hard failure, so the gate cannot
+    // silently skip coverage. "Non applicable" is now part of that class under
+    // fixtures (recordCheck above made it KO): the frozen dataset always
+    // provides a trigger, so its absence is a regression, not a data quirk.
+    // The list is printed in both modes, because a real-backend run must still
+    // say which surfaces it did not measure — silence is how coverage dies.
+    if (nonApplicable.length) {
+      console.log(`\nℹ️  étapes non applicables (aucun déclencheur) : ${nonApplicable.join(', ')}`);
+    }
     if (ignoredSeen.length) {
       const ign = [...new Set(ignoredSeen.map((i) => i.text))];
       console.log(`Textes ignorés (non utilisateur, signalés seulement) : ${ign.join(', ')}`);
@@ -694,7 +718,7 @@ async function main() {
     }
     process.exitCode = failures.length > 0 || counts.ko > 0 || missingThemes.length > 0 || unrouted.size > 0 ? 1 : 0;
     if (failures.length > 0) console.log(`\n❌ ${failures.length} paire(s) sous ${MIN_RATIO}:1 — audit KO.`);
-    else if (counts.ko > 0) console.log(`\n❌ ${counts.ko} étape(s) non couvertes (timeout/erreur d'ouverture) — audit KO.`);
+    else if (counts.ko > 0) console.log(`\n❌ ${counts.ko} étape(s) non couvertes (ouverture impossible, 0 texte scanné, ou déclencheur perdu sous fixtures) — audit KO.`);
     else if (missingThemes.length > 0) console.log(`\n❌ Audit partiel : ${missingThemes.join(', ')} sans couverture — audit KO.`);
     else if (unrouted.size > 0) console.log(`\n❌ Backend fixtures incomplet (${[...unrouted].join(', ')}) — audit KO.`);
     else console.log('\n✅ Aucune paire sous le seuil, toutes les étapes couvertes — contraste conforme.');
