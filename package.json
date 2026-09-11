@@ -25,7 +25,7 @@
     "electron:ui": "vite build --base=./ --outDir electron-ui-dist",
     "electron:dist": "npm run electron:ui && electron-builder --win",
     "electron:release": "npm run electron:ui && electron-builder --win --publish always",
-    "lint": "eslint . --max-warnings 0 && tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs && node scripts/check-test-harness.mjs && stylelint \"src/**/*.css\" && node scripts/check-css-selectors.mjs && node scripts/check-no-emoji-icons.mjs && node scripts/check-jsx-i18n.mjs && node scripts/check-date-windows.mjs && node scripts/check-line-budget.mjs && node supabase/regenerate-full-setup.mjs --check",
+    "lint": "node scripts/check-node-version.mjs && eslint . --max-warnings 0 && tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs && node scripts/check-test-harness.mjs && stylelint \"src/**/*.css\" && node scripts/check-css-selectors.mjs && node scripts/check-no-emoji-icons.mjs && node scripts/check-jsx-i18n.mjs && node scripts/check-date-windows.mjs && node scripts/check-line-budget.mjs && node supabase/regenerate-full-setup.mjs --check",
     "test": "node --import tsx --experimental-test-module-mocks --test \"tests/*.test.ts\" \"tests/*.test.tsx\"",
     "prepare": "husky"
   },
@@ -43,6 +43,9 @@
   },
   "description": "Application de gestion financière scolaire (MAMA THERA) — version bureau Windows.",
   "author": "MAMA THERA",
+  "engines": {
+    "node": ">=22.0.0 <23.0.0"
+  },
   "main": "electron/main.cjs",
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -47,7 +47,7 @@ Variables (voir `.env.example`) :
 | `npm run dev:staging` | dev server en mode staging |
 | `npm run build[:staging\|:production]` | build de production |
 | `npm test` | 525 tests (node:test + tsx, module-mocks expérimental) |
-| `npm run lint` | ESLint 0-warning + tsc strict + 7 guards custom (props, `any`, stylelint, CSS, i18n, emoji, snapshot SQL) |
+| `npm run lint` | **parité de version Node** (`.nvmrc` ↔ poste) + ESLint 0-warning + tsc strict + 7 guards custom (props, `any`, stylelint, CSS, i18n, emoji, snapshot SQL) |
 | `npm run quality` | lint + tests + audit de contraste WCAG 6 thèmes (identique au pre-commit/CI) |
 | `npm run check:contrast` | audit de contraste seul |
 | `npm run seed` | seed de DÉMO (dev/staging uniquement — garde : refuse la prod sans `VITE_APP_ENV=dev\|staging`, et `--clean` refuse le projet de production) ; `:staging` ; `seed:production` = script structurel |
@@ -94,6 +94,8 @@ node --import tsx --experimental-test-module-mocks --test tests/payments.test.ts
 Le hook husky `pre-commit` et le workflow `perf-guard` exécutent la même chaîne :
 **lint (0 warning, guards) → tests → audit npm → Lighthouse ≥ 0,60 → audit contraste réel (6 thèmes × 8 overlays)**.
 `deploy.yml` ne déploie que si la porte qualité est verte sur le commit exact.
+
+La chaîne `lint` commence par `scripts/check-node-version.mjs` : un poste dont le majeur diffère de `.nvmrc` (donc de la CI) est refusé **avant** les autres vérifications, avec le remède affiché. Un « vert » local sur un autre majeur ne doit plus jamais passer pour une validation — c'est exactement ce qui a bloqué deux déploiements (voir « Version de Node » ci-dessus).
 
 ## Version bureau (Windows)
 

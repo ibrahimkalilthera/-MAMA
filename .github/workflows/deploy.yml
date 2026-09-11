@@ -228,7 +228,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       # Gate n°3 — base distante saine AVANT de déployer (fail-on-breach) :
