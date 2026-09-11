@@ -64,6 +64,28 @@ import { dirname, join } from 'node:path';
 /** Purge log, under the already-ignored node_modules cache. */
 export const SWEEP_LOG_REL = 'node_modules/.cache/quality-chain-sweeps.jsonl';
 
+/**
+ * THE definition of "a quality-chain wrapper" — the residual command-line
+ * eligibility of the selective sweep, so a stale wrapper whose non-node parent
+ * died (the panic's own product) is still recognised.
+ *
+ * Defined ONCE, shared by:
+ *   - the sweep's PowerShell filter (./../git-retry.mjs), which embeds it in a
+ *     single-quoted `-match` — so the value must be PowerShell-literal-safe;
+ *   - the diagnostic (./panic-doctor.mjs), which classifies with `new RegExp`.
+ * Two copies of a filter is how a sweep quietly stops matching (this repo has
+ * already paid for a duplicated lint chain and a duplicated CSS corpus).
+ *
+ * Caveat kept in mind: PowerShell's `-match` is CASE-INSENSITIVE, so the
+ * diagnostic compiles it with the `i` flag rather than pretending otherwise.
+ */
+export const KNOWN_CHAIN_WRAPPER_PATTERN = String.raw`quality-chain\.mjs|npm-cli\.js.*run (lint|test|audit)|--test.*tests[\\/].*\.test`;
+
+/** Same pattern as a JS RegExp, mirroring PowerShell's case-insensitivity. */
+export function matchesKnownChainWrapper(commandLine) {
+  return new RegExp(KNOWN_CHAIN_WRAPPER_PATTERN, 'i').test(String(commandLine ?? ''));
+}
+
 /** How many passes a purge may run before giving up (children die in waves). */
 const DEFAULT_PASSES = 4;
 const DEFAULT_WAIT_MS = 1200;

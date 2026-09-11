@@ -342,6 +342,23 @@ describe('journal des purges --sweep et des fork-panics', () => {
     assert.equal(b.entries[0].killed, 0, 'les zéros sont enregistrés : sans eux, pas de dénominateur');
   });
 
+  it('une origine explicite remplace celle du mode (purge d’un hook ≠ commande git)', async () => {
+    const c = collector();
+    plan = [{ mode: 'close', code: 0, stdout: '1' }];
+    await sweepOrphanNodeProcesses({
+      platform: 'win32',
+      log: () => {},
+      origin: 'hook-quality-chain:sweep',
+      record: c.record,
+      env: {},
+    });
+    assert.equal(
+      c.entries[0].origin,
+      'hook-quality-chain:sweep',
+      'sinon les purges du hook seraient comptées comme celles du wrapper git',
+    );
+  });
+
   it('une purge qui n’a PAS pu s’exécuter est journalisée failed, jamais « rien à tuer »', async () => {
     for (const failure of [{ mode: 'error', message: 'powershell boom' }, { mode: 'close', code: 1 }] as const) {
       const c = collector();

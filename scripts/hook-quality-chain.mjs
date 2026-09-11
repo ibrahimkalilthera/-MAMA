@@ -61,6 +61,10 @@ export function runHookQualityChain({
     sweep: true,
     sweepAll,
     platform,
+    // This sweep runs for a HOOK, not for a git command: without its own
+    // origin, the journal would attribute the pre-commit sweeps to the git
+    // wrapper and misread where the panic actually bites.
+    sweepOrigin: sweepAll ? 'hook-quality-chain:sweep-all' : 'hook-quality-chain:sweep',
   });
 }
 

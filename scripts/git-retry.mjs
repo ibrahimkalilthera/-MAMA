@@ -59,7 +59,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawn, spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { recordSweep } from './lib/orphan-node.mjs';
+import { KNOWN_CHAIN_WRAPPER_PATTERN, recordSweep } from './lib/orphan-node.mjs';
 
 const FORK_PANIC_EXIT_CODES = new Set([254, 66]);
 const FORK_PANIC_PATTERN =
@@ -92,7 +92,7 @@ const NODE_ORPHAN_SWEEP_SCRIPT = (minAgeMinutes, all = false) => [
   `$old = ($null -ne $p.CreationDate) -and ($p.CreationDate -lt $cut);`,
   all
     ? `$eligible = $parentGone;`
-    : `$eligible = ($cmd -match 'quality-chain\\.mjs|npm-cli\\.js.*run (lint|test|audit)|--test.*tests[\\\\/].*\\.test') -and ($parentGone -or $old);`,
+    : `$eligible = ($cmd -match '${KNOWN_CHAIN_WRAPPER_PATTERN}') -and ($parentGone -or $old);`,
   `if ($eligible) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; $k++ } }; $k`,
 ].join(' ');
 
@@ -143,6 +143,11 @@ export function sweepOrphanNodeProcesses({
   all = false,
   git = '',
   phase = 'start',
+  // Callers that run the sweep for something OTHER than a git command (the
+  // pre-commit hook drives the chain through this same engine) must be able to
+  // say so: lumping their sweeps under `git-retry:sweep` would misattribute the
+  // frequency to the wrong path, which is the one thing this journal is for.
+  origin = '',
   record = recordSweep,
   env = process.env,
 } = {}) {
@@ -169,7 +174,7 @@ export function sweepOrphanNodeProcesses({
       recordGitRetryEvent(
         {
           kind: 'purge',
-          origin: all ? 'git-retry:sweep-all' : 'git-retry:sweep',
+          origin: origin || (all ? 'git-retry:sweep-all' : 'git-retry:sweep'),
           killed: n,
           failed,
           all,
@@ -299,7 +304,7 @@ export function gitSubcommand(args = []) {
  * @param {{ attempts?: number, waitMs?: number, timeoutMs?: number,
  *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
  *   sweep?: boolean, sweepFn?: (() => unknown),
- *   sweepAll?: boolean, platform?: string, label?: string,
+ *   sweepAll?: boolean, platform?: string, label?: string, sweepOrigin?: string,
  *   record?: (entry: Record<string, unknown>) => unknown, env?: NodeJS.ProcessEnv }} options
  */
 export function runCommandWithRetry(
@@ -307,7 +312,7 @@ export function runCommandWithRetry(
   args,  /** @type {{ attempts?: number, waitMs?: number, timeoutMs?: number,
    *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
    *   sweep?: boolean, sweepFn?: (() => unknown),
-   *   sweepAll?: boolean, platform?: string, label?: string,
+   *   sweepAll?: boolean, platform?: string, label?: string, sweepOrigin?: string,
    *   record?: (entry: Record<string, unknown>) => unknown, env?: NodeJS.ProcessEnv }} */
   {
     attempts = 3,
@@ -320,6 +325,7 @@ export function runCommandWithRetry(
     sweepAll = false,
     platform = process.platform,
     label = `${command} ${args.join(' ')}`,
+    sweepOrigin = '',
     record = recordSweep,
     env = process.env,
   } = {},
@@ -348,6 +354,7 @@ export function runCommandWithRetry(
                 platform,
                 git: subcommand,
                 phase,
+                origin: sweepOrigin,
                 record,
                 env,
               })),
@@ -454,7 +461,8 @@ export function runCommandWithRetry(
  * @param {{ attempts?: number, waitMs?: number, timeoutMs?: number,
  *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
  *   sweep?: boolean, sweepFn?: (() => unknown), sweepAll?: boolean,
- *   platform?: string, record?: (entry: Record<string, unknown>) => unknown,
+ *   platform?: string, sweepOrigin?: string,
+ *   record?: (entry: Record<string, unknown>) => unknown,
  *   env?: NodeJS.ProcessEnv }} options
  */
 export function runGitWithRetry(args, options = {}) {
