@@ -14,6 +14,11 @@
 // is skipped on Linux/CI runners instead of failing on a missing `cmd`. The
 // wrapper itself (git-retry.mjs) keeps its own platform-injected suite,
 // which runs everywhere.
+//
+// @platform-skip : le shim EST un .cmd — la suite exige un vrai cmd.exe, elle ne
+// peut pas tourner sur un runner Linux. Déclaré ici pour que le gate de
+// neutralisation (scripts/check-test-integrity.mjs) l'affiche dans son résumé à
+// chaque run au lieu de laisser croire que ces tests ont tourné.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';

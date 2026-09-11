@@ -10,6 +10,11 @@
 // The `shell` entry point is the part a developer actually opens, so its wiring
 // is asserted too: it must reuse the same shim the launcher writes (one writer,
 // not two that can drift) and it must prepend that directory to PATH.
+//
+// @platform-guard : le bit exécutable n'existe pas sur Windows (chmod n'y
+// change que l'attribut lecture seule) — l'assertion d'exécutabilité est posix
+// par nature et s'arrête là-bas. Déclaré pour que le gate de neutralisation
+// l'affiche au lieu de compter un test vide comme vert.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';

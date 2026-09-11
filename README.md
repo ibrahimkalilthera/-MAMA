@@ -47,7 +47,7 @@ Variables (voir `.env.example`) :
 | `npm run dev:staging` | dev server en mode staging |
 | `npm run build[:staging\|:production]` | build de production |
 | `npm test` | 525 tests (node:test + tsx, module-mocks expérimental) |
-| `npm run lint` | **parité de version Node** (`.nvmrc` ↔ poste) + ESLint 0-warning + tsc strict + 7 guards custom (props, `any`, stylelint, CSS, i18n, emoji, snapshot SQL) |
+| `npm run lint` | **parité de version Node** (`.nvmrc` ↔ poste) + ESLint 0-warning + tsc strict + guards custom (props, `any`, harnais de tests, **intégrité des suites**, stylelint, CSS, i18n, emoji, dates Windows, budget de lignes, snapshot SQL) |
 | `npm run quality` | lint + tests + audit de contraste WCAG 6 thèmes (identique au pre-commit/CI) |
 | `npm run check:contrast` | audit de contraste seul (backend fixtures, aucun secret ; `AUDIT_FIXTURES=0` + `AUDIT_EMAIL`/`AUDIT_PASSWORD` pour un vrai backend) |
 | `npm run seed` | seed de DÉMO (dev/staging uniquement — garde : refuse la prod sans `VITE_APP_ENV=dev\|staging`, et `--clean` refuse le projet de production) ; `:staging` ; `seed:production` = script structurel |
@@ -89,6 +89,7 @@ node --import tsx --experimental-test-module-mocks --test tests/payments.test.ts
 
 - Framework : `node:test` natif + `tsx`, rendu DOM via `happy-dom`
 - Garde-fous testés : file offline (replay FIFO), PDF (tampon, i18n), contraste calculé ≥ 4,5:1, focus traps, ARIA, contrats de props (`MainViewsProps`), RLS anon (CI Supabase local)
+- Garde-fou des garde-fous : `scripts/check-test-integrity.mjs` refuse une suite qui ne peut pas échouer — `mock.module()` que personne ne charge (vérifié contre la fermeture d'imports réelle), mock vide, branche d'OS asserée sans injecter `platform`, suite sautée selon la plateforme, fichier sans assertion. Un saut légitime (le shim `git.cmd` a besoin d'un vrai `cmd.exe`) se **déclare** en commentaire (`// @platform-skip : …`, `// @platform-guard : …`) et le gate l'affiche dans son résumé à chaque run — la couverture manquante reste visible au lieu de compter comme des tests verts.
 
 ## Chaîne qualité (pre-commit + CI)
 
