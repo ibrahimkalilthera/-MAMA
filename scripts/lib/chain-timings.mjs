@@ -38,6 +38,14 @@ const KEPT_RUNS = 20;
 export const PARALLEL_FLOOR_MS = 4000;
 
 /**
+ * Below this, a delta is measurement noise, not a regression. Measured on a real
+ * run: `+711 ms` on a 46 s link and `+6 ms` on a 436 ms link both got flagged —
+ * and a warning that fires on noise is a warning nobody reads any more. The
+ * first version of this report did exactly that.
+ */
+export const REGRESSION_FLOOR_MS = 1000;
+
+/**
  * The links that only read the working tree. Declared here as data, with the
  * reason, so the report cannot claim an independence the code does not have:
  *   - `lint` (eslint/tsc/stylelint/guards/snapshot check) reads;
@@ -71,6 +79,7 @@ export function summarizeTimings(entries = [], { previous = [] } = {}) {
       ...r,
       share: totalMs > 0 ? r.ms / totalMs : 0,
       deltaMs: beforeOf.has(r.name) ? r.ms - beforeOf.get(r.name) : null,
+      regression: beforeOf.has(r.name) ? r.ms - beforeOf.get(r.name) >= REGRESSION_FLOOR_MS : false,
     }))
     .sort((a, b) => b.ms - a.ms);
   return { rows: shaped, totalMs, hasPrevious: beforeOf.size > 0 };
@@ -116,6 +125,14 @@ export function formatDelta(deltaMs) {
 }
 
 /**
+ * Is that delta a regression, or just noise? Only the caller's `regression`
+ * field decides the warning; this helper exists so the rule is stated once.
+ */
+export function isRegression(deltaMs) {
+  return typeof deltaMs === 'number' && deltaMs >= REGRESSION_FLOOR_MS;
+}
+
+/**
  * The report, as printable lines: cost, share, delta, then the parallelism
  * figure with its cost. Pure.
  * @param {{ rows: object[], totalMs: number, hasPrevious?: boolean }} summary
@@ -134,7 +151,7 @@ export function formatTimingReport(summary, { parallel, note } = {}) {
     const delta = formatDelta(row.deltaMs);
     lines.push(
       `   ${formatDuration(row.ms).padStart(8)}  ${share}  ${row.name.padEnd(width)}` +
-        (delta ? `  ${delta}${row.deltaMs > 0 ? ' ⚠️' : ''}` : '') +
+        (delta ? `  ${delta}${row.regression ? ' ⚠️' : ''}` : '') +
         (row.ok ? '' : '  (échec)'),
     );
   }

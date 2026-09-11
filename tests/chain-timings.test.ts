@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import {
   INDEPENDENT_READ_ONLY,
   PARALLEL_FLOOR_MS,
+  isRegression,
   formatDelta,
   formatDuration,
   formatTimingReport,
@@ -127,9 +128,9 @@ describe('formatDuration / formatDelta', () => {
 
 describe('formatTimingReport — lisible, et honnête sur la concurrence', () => {
   const rows = [
-    { name: 'tests', ms: 34000, ok: true, share: 0.8, deltaMs: -2000 },
-    { name: 'lint', ms: 6000, ok: true, share: 0.14, deltaMs: 1500 },
-    { name: 'audit-gate', ms: 2500, ok: false, share: 0.06, deltaMs: null },
+    { name: 'tests', ms: 34000, ok: true, share: 0.8, deltaMs: -2000, regression: false },
+    { name: 'lint', ms: 6000, ok: true, share: 0.14, deltaMs: 1500, regression: true },
+    { name: 'audit-gate', ms: 2500, ok: false, share: 0.06, deltaMs: null, regression: false },
   ];
 
   it('imprime coût, part, delta (avec alerte sur une régression) et l’échec', () => {
@@ -140,6 +141,27 @@ describe('formatTimingReport — lisible, et honnête sur la concurrence', () =>
     assert.match(lines, /\+1\.5 s ⚠️/, 'une régression est signalée, pas juste affichée');
     assert.match(lines, /\(échec\)/);
     assert.match(lines, /attaquer en premier : tests \(80% du total\)/);
+  });
+
+  it('un écart de bruit n’est PAS une régression (sinon l’alerte ne vaut plus rien)', () => {
+    // Mesuré sur un vrai run : +711 ms sur 46 s et +6 ms sur 436 ms étaient
+    // signalés — une alerte qui se déclenche sur le bruit n'est plus lue.
+    const noisy = summarizeTimings(
+      [
+        { name: 'lint', ms: 46_400 },
+        { name: 'purge:exit', ms: 436 },
+      ],
+      { previous: [{ name: 'lint', ms: 45_700 }, { name: 'purge:exit', ms: 430 }] },
+    );
+    assert.equal(noisy.rows.every((r) => r.regression === false), true, 'sous le plancher : pas de ⚠️');
+    const lines = formatTimingReport(noisy, {}).join('\n');
+    assert.doesNotMatch(lines, /⚠️/);
+    assert.match(lines, /\+700 ms/, 'l’écart reste affiché : il est visible, il n’est pas alarmant');
+
+    const real = summarizeTimings([{ name: 'lint', ms: 30_000 }], { previous: [{ name: 'lint', ms: 24_000 }] });
+    assert.equal(real.rows[0]?.regression, true);
+    assert.equal(isRegression(1000), true);
+    assert.equal(isRegression(999), false);
   });
 
   it('quand la concurrence vaut le coup, elle est chiffrée AVEC sa contrepartie', () => {
