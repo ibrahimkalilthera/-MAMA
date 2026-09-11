@@ -92,8 +92,10 @@ node --import tsx --experimental-test-module-mocks --test tests/payments.test.ts
 ## Chaîne qualité (pre-commit + CI)
 
 Le hook husky `pre-commit` et le workflow `perf-guard` exécutent la même chaîne :
-**lint (0 warning, guards) → tests → audit npm → Lighthouse ≥ 0,60 → audit contraste réel (6 thèmes × 8 overlays)**.
+**lint (0 warning, guards) → tests → audit npm → Lighthouse ≥ 0,60 → audit contraste (6 thèmes × 8 overlays)**.
 `deploy.yml` ne déploie que si la porte qualité est verte sur le commit exact.
+
+Et « la même chaîne » se lit au sens strict : le job CI lance **`npm run lint`**, la commande du poste telle quelle, jamais un sous-ensemble recopié. Il exécutait auparavant `npx eslint .` + `npx tsc` + deux gardes et sautait donc en silence stylelint, les sélecteurs CSS, emoji, i18n, les dates Windows, le budget de lignes, les gardes du harnais de tests et le contrôle du snapshot SQL — et un test échoue désormais si l'un de ces sous-ensembles réapparaît dans le workflow.
 
 La chaîne `lint` commence par `scripts/check-node-version.mjs` : un poste dont le majeur diffère de `.nvmrc` (donc de la CI) est refusé **avant** les autres vérifications, avec le remède affiché. Un « vert » local sur un autre majeur ne doit plus jamais passer pour une validation — c'est exactement ce qui a bloqué deux déploiements (voir « Version de Node » ci-dessus). Côté CI, l'audit de contraste **ne demande plus aucun secret** : il construit le bundle contre un hôte Supabase factice et répond à toutes ses requêtes depuis un jeu de données figé (`scripts/lib/audit-fixtures.mjs`), grant de mot de passe compris — le formulaire de login est donc rempli pour de vrai, et la session stockée est celle que l'audit a fournie. Le gate tourne donc **à l'identique** sur un push, une PR interne, une PR **Dependabot** ou une PR de fork, avec exactement les mêmes données à chaque run (une couleur ne doit pas changer de verdict parce qu'une ligne a été ajoutée en base). Pour auditer un vrai backend : `AUDIT_FIXTURES=0 AUDIT_EMAIL=… AUDIT_PASSWORD=… npm run check:contrast`.
 

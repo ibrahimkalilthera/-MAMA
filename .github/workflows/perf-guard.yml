@@ -3,9 +3,11 @@ name: Quality & performance guard
 # Porte de qualité unique à chaque push sur main — remplace les deux anciens
 # workflows security-audit.yml (audit npm) et perf-guard.yml (Lighthouse) :
 #
-#   Job `quality`   : gate ESLint SANS WARNING (eslint --max-warnings 0 — le
-#                     moindre warning, même bénin, échoue le push), puis tsc
-#                     strict + câblage des props + gate des casts interdits,
+#   Job `quality`   : `npm run lint` — LA chaîne du poste, telle quelle, pas un
+#                     sous-ensemble recopié (ESLint 0 warning, tsc strict,
+#                     props/casts, gardes du harnais de tests, stylelint, CSS,
+#                     emoji, i18n, dates Windows, budget de lignes, snapshot SQL ;
+#                     le gate de version Node est le premier maillon), puis
 #                     tests (node:test), puis le gate d'audit
 #                     (scripts/check-audit.mjs) en deux volets :
 #                       1. Aucune vulnérabilité de PRODUCTION (les dépendances
@@ -64,21 +66,22 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      # setup-node lit `.nvmrc`, mais son succès ne prouve pas dans le log que le
-      # majeur RÉELLEMENT exécuté est celui épinglé (ni qu'engines est d'accord).
-      # Ce gate — le même que celui en tête de `npm run lint` — le vérifie et
-      # l'affiche, job par job : c'est la preuve côté runner.
-      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
-        run: node scripts/check-node-version.mjs
-
       - name: Install dependencies
         run: npm ci
 
-      - name: ESLint — zero-warning gate (any warning fails the push)
-        run: npx eslint . --max-warnings 0
-
-      - name: Typecheck strict + props wiring + forbidden casts
-        run: npx tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs
+      # UNE commande : exactement celle du hook pre-commit. Elle commence par le
+      # gate de version Node (donc la parité .nvmrc/engines/runtime est prouvée
+      # ici aussi) et enchaîne ESLint 0 warning, tsc strict, props/casts, gardes
+      # du harnais, stylelint, sélecteurs CSS, emoji, i18n, dates Windows, budget
+      # de lignes et snapshot SQL.
+      #
+      # Recopier un sous-ensemble est précisément comment les deux chaînes ont
+      # divergé : ce job lançait `npx eslint .` + `npx tsc` + deux gardes et
+      # sautait silencieusement les six autres — dont stylelint et le harnais de
+      # tests, c'est-à-dire la moitié des filets. Un gate qui n'est pas exécuté
+      # ici ne protège rien ici.
+      - name: Lint — la chaîne du poste telle quelle (npm run lint)
+        run: npm run lint
 
       - name: Tests
         run: npm test
