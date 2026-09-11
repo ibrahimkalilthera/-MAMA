@@ -7,8 +7,10 @@
 // procedure"): Git Bash periodically enters a state where every external
 // command fails — `fork: Resource temporarily unavailable` (exit 254 for
 // multi-command lines, exit 66 even for `node -e`), occasionally
-// `uv_spawn: EUNKNOWN`. The trigger is an orphaned node.exe left by a hard
-// timeout, and it also kills husky hooks (the hook content itself is fine —
+// `uv_spawn: EUNKNOWN`. The documented trigger is an orphaned node.exe left by
+// a hard timeout; measured (scripts/lib/orphan-node.mjs), a NON-detached node
+// child dies with its parent, so what can actually survive is a detached child
+// or a wrapper whose `sh.exe` died mid-hook. The panic also kills husky hooks (the hook content itself is fine —
 // spawn-only watchdog — but the sh wrapper that git uses to run it dies of
 // the fork bug, so `git commit`/`git push` abort with a panic exit code).
 // Recovery was manual: probe, retry at the keyboard, kill orphaned node.exe.
@@ -57,6 +59,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawn, spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { recordSweep } from './lib/orphan-node.mjs';
 
 const FORK_PANIC_EXIT_CODES = new Set([254, 66]);
 const FORK_PANIC_PATTERN =
@@ -94,12 +97,43 @@ const NODE_ORPHAN_SWEEP_SCRIPT = (minAgeMinutes, all = false) => [
 ].join(' ');
 
 /**
+ * Write one journal entry — except from a TEST RUN, which never journalises.
+ *
+ * The rule has to be automatic and class-wide, not a flag one suite remembers
+ * to set: measured, `tests/hook-quality-chain.test.ts` exercises the real
+ * wrapper (`--sweep` included) end to end and wrote **17 phantom entries** into
+ * the real journal — exactly the noise that makes "how often does the panic
+ * happen?" unreadable, which is the journal's only reason to exist. The node
+ * test runner sets `NODE_TEST_CONTEXT` in every test child, and children of a
+ * test inherit it, so the marker protects every suite, present and future.
+ * `GIT_RETRY_NO_JOURNAL=1` stays as an explicit opt-out for anything else.
+ * Best-effort: a journal that cannot be written never fails a git command.
+ * @param {Record<string, unknown>} entry
+ * @param {{ record?: (entry: Record<string, unknown>) => unknown, env?: NodeJS.ProcessEnv }} [options]
+ */
+export function recordGitRetryEvent(entry, { record = recordSweep, env = process.env } = {}) {
+  if (env.NODE_TEST_CONTEXT || env.GIT_RETRY_NO_JOURNAL === '1') return false;
+  try {
+    return record(entry) !== false;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Best-effort sweep of orphaned Node processes. It is opt-in because even a
  * process sweep must never be implicit in a git command. By default a process
  * is eligible only when its command line belongs to the quality chain/test
  * runner AND its parent is gone or it is older than the stale-age window;
  * with `all: true` the command-line filter is dropped (any node.exe orphan).
  * Returns the number killed; never rejects.
+ *
+ * Every invocation is JOURNALED (`git-retry:sweep` / `git-retry:sweep-all`),
+ * zeros included: this is the path the panic actually hits — inside a git
+ * command — so "how often does a purge find something to kill?" was the one
+ * number the chain-side purge could not produce. A pass that could not RUN
+ * (powershell killed by the panic itself) is recorded as `failed`, never as a
+ * clean "nothing to kill".
  */
 export function sweepOrphanNodeProcesses({
   minAgeMinutes = 5,
@@ -107,11 +141,15 @@ export function sweepOrphanNodeProcesses({
   platform = process.platform,
   log = () => {},
   all = false,
+  git = '',
+  phase = 'start',
+  record = recordSweep,
+  env = process.env,
 } = {}) {
   if (platform !== 'win32') return Promise.resolve(0);
   return new Promise((resolve) => {
     let settled = false;
-    const finish = (count) => {
+    const finish = (count, failed = false) => {
       if (settled) return;
       settled = true;
       const n = Number.isFinite(count) ? count : 0;
@@ -122,6 +160,25 @@ export function sweepOrphanNodeProcesses({
             : `🧹 ${n} processus Node orphelin(s) de la chaîne qualité purgé(s)`,
         );
       }
+      if (failed) {
+        log(
+          '⚠️  purge --sweep impossible à exécuter (powershell n\'a pas répondu — fork-panic) : ' +
+            'des orphelins peuvent subsister. `npm run orphans:report` les compte.',
+        );
+      }
+      recordGitRetryEvent(
+        {
+          kind: 'purge',
+          origin: all ? 'git-retry:sweep-all' : 'git-retry:sweep',
+          killed: n,
+          failed,
+          all,
+          minAgeMinutes,
+          git,
+          phase,
+        },
+        { record, env },
+      );
       resolve(n);
     };
     let child;
@@ -131,22 +188,27 @@ export function sweepOrphanNodeProcesses({
         windowsHide: true,
       });
     } catch {
-      finish(0);
+      // Could not even LOOK — the panic that justifies the sweep also stops
+      // powershell from starting. Distinct from "nothing to kill".
+      finish(0, true);
       return;
     }
     let out = '';
     const timer = setTimeout(() => {
       child.kill();
-      finish(0);
+      finish(0, true);
     }, timeoutMs);
     child.stdout.on('data', (d) => { out += d; });
     child.on('error', () => {
       clearTimeout(timer);
-      finish(0);
+      finish(0, true);
     });
-    child.on('close', () => {
+    child.on('close', (code) => {
       clearTimeout(timer);
-      finish(parseInt((out.match(/\d+/) || ['0'])[0], 10));
+      const parsed = out.match(/\d+/);
+      // The script always prints the count, so a non-zero exit with no output
+      // is a failure to look, not a clean zero.
+      finish(parsed ? parseInt(parsed[0], 10) : 0, !parsed && code !== 0);
     });
   });
 }
@@ -205,6 +267,30 @@ export function neutralizeAlias(args) {
 }
 
 /**
+ * The git subcommand inside an argv that may start with options of ours
+ * (`-c alias.push=push`, from neutralizeAlias) or of git's own (`-C <dir>`,
+ * `--git-dir=…`). Used for the journal: the report must name the command the
+ * panic interrupted, and `alias.push=push` is not a command. Pure.
+ * @param {string[]} [args]
+ * @returns {string} '' when there is none
+ */
+export function gitSubcommand(args = []) {
+  const takesValue = new Set(['-c', '-C', '--git-dir', '--work-tree', '--namespace']);
+  for (let i = 0; i < args.length; i++) {
+    const a = String(args[i] ?? '');
+    if (takesValue.has(a)) {
+      i++; // skip the value too
+      continue;
+    }
+    if (a.startsWith('-')) continue;
+    // A subcommand NAME, never the inline script of a `-e` flag: the journal
+    // must not record a whole program as "the git command".
+    return /^[a-z][a-z0-9-]*$/i.test(a) ? a : '';
+  }
+  return '';
+}
+
+/**
  * Run a command with bounded automatic retry on the msys fork panic.
  * Resolves with the command's exit code (0 on success); never rejects.
  * A real failure (non-panic exit code / clean stderr) is never retried.
@@ -213,15 +299,16 @@ export function neutralizeAlias(args) {
  * @param {{ attempts?: number, waitMs?: number, timeoutMs?: number,
  *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
  *   sweep?: boolean, sweepFn?: (() => unknown),
- *   sweepAll?: boolean, platform?: string, label?: string }} options
+ *   sweepAll?: boolean, platform?: string, label?: string,
+ *   record?: (entry: Record<string, unknown>) => unknown, env?: NodeJS.ProcessEnv }} options
  */
 export function runCommandWithRetry(
   command,
-  args,
-  /** @type {{ attempts?: number, waitMs?: number, timeoutMs?: number,
-   * forwardStderr?: boolean, log?: (...data: unknown[]) => void,
-   * sweep?: boolean, sweepFn?: (() => unknown),
-   * sweepAll?: boolean, platform?: string, label?: string }} */
+  args,  /** @type {{ attempts?: number, waitMs?: number, timeoutMs?: number,
+   *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
+   *   sweep?: boolean, sweepFn?: (() => unknown),
+   *   sweepAll?: boolean, platform?: string, label?: string,
+   *   record?: (entry: Record<string, unknown>) => unknown, env?: NodeJS.ProcessEnv }} */
   {
     attempts = 3,
     waitMs = 5000,
@@ -233,20 +320,38 @@ export function runCommandWithRetry(
     sweepAll = false,
     platform = process.platform,
     label = `${command} ${args.join(' ')}`,
+    record = recordSweep,
+    env = process.env,
   } = {},
 ) {
   return new Promise((resolve) => {
     let attempt = 0;
     let lastCode = 1;
+    // The git subcommand, for the journal: `git push` and `git rebase` are the
+    // commands a panic interrupts at the worst moment, so the report has to be
+    // able to say which one was hit.
+    const subcommand = gitSubcommand(args);
 
     // Best-effort orphan purge (opt-in via --sweep / --sweep-all). Runs before
     // the FIRST attempt AND between retries; a sweep failure never prevents
     // the retry itself. Selectivity is the safety: by default only known
     // quality-chain orphans (parent gone / older than the stale window) are
     // killed; --sweep-all drops the command-line filter.
-    const runSweepOnce = () =>
+    const runSweepOnce = (phase) =>
       Promise.resolve()
-        .then(sweepFn || (() => sweepOrphanNodeProcesses({ log, all: sweepAll, platform })))
+        .then(
+          sweepFn ||
+            (() =>
+              sweepOrphanNodeProcesses({
+                log,
+                all: sweepAll,
+                platform,
+                git: subcommand,
+                phase,
+                record,
+                env,
+              })),
+        )
         .catch(() => {});
 
     const retryOrGiveUp = (reason) => {
@@ -256,7 +361,7 @@ export function runCommandWithRetry(
           setTimeout(tryOnce, waitMs);
         };
         if (sweep || sweepFn || sweepAll) {
-          runSweepOnce().then(continueRetry);
+          runSweepOnce('retry').then(continueRetry);
         } else {
           continueRetry();
         }
@@ -309,6 +414,13 @@ export function runCommandWithRetry(
           return;
         }
         if (isForkPanicFailure(lastCode, stderrTail)) {
+          // The event the report is really about: the panic ITSELF, not only the
+          // purges that follow it. Without it, "how often does it happen?" still
+          // depends on someone having used --sweep.
+          recordGitRetryEvent(
+            { kind: 'panic', origin: 'git-retry:panic', git: subcommand, exitCode: lastCode, attempt },
+            { record, env },
+          );
           retryOrGiveUp(`fork-panic msys (exit ${lastCode})`);
         } else {
           log(`❌ ${command} a échoué (exit ${lastCode}) — pas un fork-panic, aucun retry.`);
@@ -323,7 +435,7 @@ export function runCommandWithRetry(
     // immediately.
     const start = () => {
       if (sweep || sweepFn || sweepAll) {
-        runSweepOnce().then(tryOnce);
+        runSweepOnce('start').then(tryOnce);
       } else {
         tryOnce();
       }
@@ -342,7 +454,8 @@ export function runCommandWithRetry(
  * @param {{ attempts?: number, waitMs?: number, timeoutMs?: number,
  *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
  *   sweep?: boolean, sweepFn?: (() => unknown), sweepAll?: boolean,
- *   platform?: string }} options
+ *   platform?: string, record?: (entry: Record<string, unknown>) => unknown,
+ *   env?: NodeJS.ProcessEnv }} options
  */
 export function runGitWithRetry(args, options = {}) {
   return runCommandWithRetry(resolveGit(), neutralizeAlias(args), {
@@ -362,6 +475,7 @@ Options:
   --wait-ms N     délai entre tentatives en ms (défaut: 5000)
   --timeout-ms N  timeout par tentative en ms, kill de l'arbre entier (défaut: 300000)
   --sweep         purger avant la 1re tentative et entre les retries les orphelins Node connus de la chaîne qualité
+                  — chaque purge est journalisée (nombre tué, quand, quelle commande git) : npm run orphans:report
   --sweep-all     purge ÉLARGIE : TOUS les node.exe orphelins (parent disparu),
                   pas seulement la chaîne qualité — agressif, opt-in
   -h, --help      cette aide

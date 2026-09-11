@@ -14,6 +14,13 @@ import { beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 
+// No test ever writes into the REAL purge/panic journal — and the protection
+// must not depend on a line a suite remembers to add: this file was never the
+// leak, `hook-quality-chain.test.ts` was (it drives the real wrapper end to
+// end, so 17 phantom entries landed in the journal). The rule is therefore
+// automatic (`NODE_TEST_CONTEXT`, set by the runner in every test child), and
+// the assertion at the bottom is what keeps it honest.
+
 // ── Mocked child_process state ───────────────────────────────────────────────
 type ClosePlan = { mode: 'close'; code: number; stderr?: string; stdout?: string };
 type ErrorPlan = { mode: 'error'; message: string };
@@ -68,6 +75,8 @@ const {
   neutralizeAlias,
   resolveGit,
   sweepOrphanNodeProcesses,
+  recordGitRetryEvent,
+  gitSubcommand,
 } = await import('../scripts/git-retry.mjs');
 
 const quiet = { log: () => {}, forwardStderr: false };
@@ -271,6 +280,154 @@ describe('runGitWithRetry', () => {
     assert.equal(code, 0);
     assert.deepEqual(events, ['sweep', 'sweep'], 'avant la 1re tentative puis avant le retry');
     assert.equal(spawnCalls.length, 2);
+  });
+});
+
+describe('gitSubcommand', () => {
+  it('trouve le sous-commande derrière nos propres options et celles de git', () => {
+    assert.equal(gitSubcommand(['-c', 'alias.push=push', 'push', 'origin', 'main']), 'push');
+    assert.equal(gitSubcommand(['commit', '-am', 'x']), 'commit');
+    assert.equal(gitSubcommand(['-C', '/tmp/repo', 'rebase', 'main']), 'rebase');
+    assert.equal(gitSubcommand(['--version']), '', 'aucun sous-commande → chaîne vide, jamais un flag');
+    assert.equal(gitSubcommand([]), '');
+    assert.equal(
+      gitSubcommand(['-e', 'console.log(1)']),
+      '',
+      'jamais un script inline (ou un chemin) pris pour un nom de sous-commande',
+    );
+  });
+});
+
+describe('journal des purges --sweep et des fork-panics', () => {
+  type Entry = Record<string, unknown>;
+  const collector = () => {
+    const entries: Entry[] = [];
+    return { entries, record: (e: Entry) => (entries.push(e), true) };
+  };
+
+  it('chaque purge journalise son compteur et l’instant — et l’origine du mode', async () => {
+    const a = collector();
+    plan = [{ mode: 'close', code: 0, stdout: '2' }];
+    const n = await sweepOrphanNodeProcesses({
+      platform: 'win32',
+      log: () => {},
+      git: 'push',
+      phase: 'retry',
+      record: a.record,
+      env: {},
+    });
+    assert.equal(n, 2);
+    assert.equal(a.entries.length, 1, 'une entrée par purge, pas une par orphelin');
+    assert.deepEqual(a.entries[0], {
+      kind: 'purge',
+      origin: 'git-retry:sweep',
+      killed: 2,
+      failed: false,
+      all: false,
+      minAgeMinutes: 5,
+      git: 'push',
+      phase: 'retry',
+    });
+
+    const b = collector();
+    plan = [{ mode: 'close', code: 0, stdout: '0' }];
+    await sweepOrphanNodeProcesses({
+      platform: 'win32',
+      all: true,
+      log: () => {},
+      record: b.record,
+      env: {},
+    });
+    assert.equal(b.entries[0].origin, 'git-retry:sweep-all', 'mode élargi identifiable dans le rapport');
+    assert.equal(b.entries[0].killed, 0, 'les zéros sont enregistrés : sans eux, pas de dénominateur');
+  });
+
+  it('une purge qui n’a PAS pu s’exécuter est journalisée failed, jamais « rien à tuer »', async () => {
+    for (const failure of [{ mode: 'error', message: 'powershell boom' }, { mode: 'close', code: 1 }] as const) {
+      const c = collector();
+      plan = [failure as never];
+      const n = await sweepOrphanNodeProcesses({
+        platform: 'win32',
+        log: () => {},
+        record: c.record,
+        env: {},
+      });
+      assert.equal(n, 0);
+      assert.equal(c.entries[0].failed, true, `échec réel non déguisé en zéro propre (${JSON.stringify(failure)})`);
+    }
+  });
+
+  it('hors Windows : aucun journal (le sweep n’existe pas là-bas)', async () => {
+    const c = collector();
+    const n = await sweepOrphanNodeProcesses({ platform: 'linux', record: c.record, env: {} });
+    assert.equal(n, 0);
+    assert.deepEqual(c.entries, []);
+  });
+
+  it('un fork-panic est journalisé comme tel — commande git, exit et origine', async () => {
+    plan = [
+      { mode: 'close', code: 254 },
+      { mode: 'close', code: 0 },
+    ];
+    const c = collector();
+    const code = await runGitWithRetry(['push', 'origin', 'main'], {
+      ...quiet,
+      attempts: 2,
+      waitMs: 1,
+      record: c.record,
+      env: {},
+    });
+    assert.equal(code, 0);
+    assert.equal(c.entries.length, 1);
+    assert.equal(c.entries[0].kind, 'panic');
+    assert.equal(c.entries[0].origin, 'git-retry:panic');
+    assert.equal(c.entries[0].git, 'push', 'la commande que la panique interrompt, pas les options d’alias');
+    assert.equal(c.entries[0].exitCode, 254);
+  });
+
+  it('un échec git réel n’est jamais journalisé comme panique', async () => {
+    plan = [{ mode: 'close', code: 1, stderr: 'ESLint: 3 errors\n' }];
+    const c = collector();
+    const code = await runGitWithRetry(['commit', '-m', 'x'], {
+      ...quiet,
+      attempts: 3,
+      waitMs: 1,
+      record: c.record,
+      env: {},
+    });
+    assert.equal(code, 1);
+    assert.deepEqual(c.entries, [], 'pas de panique inventée sur un échec réel');
+  });
+
+  it('un processus de test n’écrit JAMAIS dans le journal réel (règle automatique)', () => {
+    let wrote = 0;
+    const record = () => {
+      wrote++;
+      return true;
+    };
+    // The marker the node runner sets — the only protection that also covers
+    // the suites which drive the real wrapper instead of mocking it.
+    assert.equal(
+      recordGitRetryEvent({ kind: 'panic' }, { record, env: { NODE_TEST_CONTEXT: 'child-v8' } }),
+      false,
+    );
+    assert.equal(wrote, 0);
+    assert.equal(recordGitRetryEvent({ kind: 'panic' }, { record, env: { GIT_RETRY_NO_JOURNAL: '1' } }), false);
+    assert.equal(wrote, 0);
+    assert.equal(recordGitRetryEvent({ kind: 'panic' }, { record, env: {} }), true);
+    assert.equal(wrote, 1);
+    assert.equal(
+      recordGitRetryEvent({ kind: 'panic' }, { record: () => { throw new Error('disque plein'); }, env: {} }),
+      false,
+      'un journal inaccessible ne fait jamais échouer une commande git',
+    );
+  });
+
+  it('la suite tourne bien sous le runner node (sinon elle polluerait le journal réel)', () => {
+    assert.ok(
+      process.env.NODE_TEST_CONTEXT,
+      'NODE_TEST_CONTEXT absent : la protection automatique du journal ne s’applique plus',
+    );
   });
 });
 

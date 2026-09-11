@@ -34,6 +34,7 @@ import {
   readSweepLog,
   recordSweep,
   snapshotDescendants,
+  summarizeSweepLog,
   sweepLogPath,
   sweepOwnNodeOrphans,
 } from '../scripts/lib/orphan-node.mjs';
@@ -324,6 +325,67 @@ describe('journal des purges — les zéros comptent', () => {
   });
 });
 
+describe('summarizeSweepLog — le rapport compte, il ne raconte pas', () => {
+  it('sépare purges et panics, et additionne les tués', () => {
+    const summary = summarizeSweepLog([
+      { at: '2026-09-11T10:00:00.000Z', origin: 'exit', killed: 0, passes: 1, failed: 0 },
+      { at: '2026-09-11T10:30:00.000Z', origin: 'guard', killed: 3, passes: 2, failed: 0 },
+      { at: '2026-09-11T10:31:00.000Z', kind: 'panic', origin: 'git-retry:panic', git: 'push', exitCode: 254 },
+    ]);
+    assert.equal(summary.total, 3);
+    assert.deepEqual(
+      [summary.purges.count, summary.purges.nonEmpty, summary.purges.killed],
+      [2, 1, 3],
+      'les zéros comptent : 2 purges, 1 non vide, 3 tués',
+    );
+    assert.equal(summary.panics.count, 1, 'la panique est comptée à part des purges');
+    assert.deepEqual(summary.panics.byGitCommand, [{ key: 'push', count: 1, killed: 0 }]);
+    assert.deepEqual(summary.purges.byOrigin, [
+      { key: 'guard', count: 1, killed: 3 },
+      { key: 'exit', count: 1, killed: 0 },
+    ]);
+  });
+
+  it('compte les purges qui n’ont pas pu s’exécuter (jamais fondues dans les zéros)', () => {
+    const summary = summarizeSweepLog([
+      { origin: 'git-retry:sweep', killed: 0, failed: true },
+      { origin: 'git-retry:sweep', killed: 0, failed: 2 },
+      { origin: 'exit', killed: 1, passes: 1 },
+    ]);
+    assert.equal(summary.purges.failed, 2);
+    assert.equal(summary.purges.killed, 1);
+  });
+
+  it('fenêtre : bornes du journal, jamais un taux sur un instant', () => {
+    const summary = summarizeSweepLog([
+      { at: '2026-09-11T10:00:00.000Z', origin: 'exit', killed: 0 },
+      { at: '2026-09-11T10:31:00.000Z', origin: 'guard', killed: 1 },
+    ]);
+    assert.equal(summary.spanMs, 31 * 60_000);
+    const single = summarizeSweepLog([{ at: '2026-09-11T10:00:00.000Z', origin: 'exit', killed: 0 }]);
+    assert.equal(single.spanMs, 0, 'un seul événement ne fait pas une fenêtre');
+  });
+
+  it('entrées illisibles ou champs absents ne cassent ni le compte ni la lecture', () => {
+    const summary = summarizeSweepLog([
+      null as never,
+      {},
+      { at: 'pas une date', killed: '4' },
+    ]);
+    assert.equal(summary.total, 2, 'null est ignoré');
+    assert.equal(summary.purges.killed, 4, 'un compteur textuel est normalisé');
+    assert.equal(summary.purges.byOrigin.some((o) => o.key === '?'), true);
+    assert.equal(summary.firstAt, null, 'une date illisible ne fabrique pas une borne');
+  });
+
+  it('journal vide → zéro partout, jamais NaN', () => {
+    const summary = summarizeSweepLog([]);
+    assert.deepEqual(summary.purges, { count: 0, nonEmpty: 0, failed: 0, killed: 0, byOrigin: [] });
+    assert.equal(summary.panics.count, 0);
+    assert.equal(summary.spanMs, 0);
+  });
+});
+
 describe('câblage — la purge à la sortie ne peut pas se décâbler', () => {
   const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\r\n]*/g, ' ');
   const chain = strip(readFileSync(join(ROOT, 'scripts/quality-chain.mjs'), 'utf8'));
@@ -354,5 +416,23 @@ describe('câblage — la purge à la sortie ne peut pas se décâbler', () => {
   it('le rapport de purge est branché en npm script', () => {
     const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
     assert.match(pkg.scripts['orphans:report'], /sweep-report\.mjs/);
+  });
+
+  it('le wrapper git journalise ses purges --sweep ET la panique elle-même', () => {
+    const gitRetry = strip(readFileSync(join(ROOT, 'scripts/git-retry.mjs'), 'utf8'));
+    assert.match(gitRetry, /recordGitRetryEvent\(\s*\{\s*kind: 'purge'/, 'chaque --sweep écrit son compteur');
+    assert.match(
+      gitRetry,
+      /recordGitRetryEvent\(\s*\{ kind: 'panic'/, 
+      'la panique est journalisée même sans --sweep : c’est la fréquence demandée',
+    );
+    assert.match(gitRetry, /runSweepOnce\('start'\)/);
+    assert.match(gitRetry, /runSweepOnce\('retry'\)/);
+  });
+
+  it('le rapport sépare les purges des paniques', () => {
+    const report = strip(readFileSync(join(ROOT, 'scripts/sweep-report.mjs'), 'utf8'));
+    assert.match(report, /summarizeSweepLog\(entries\)/);
+    assert.match(report, /panics\.count/);
   });
 });

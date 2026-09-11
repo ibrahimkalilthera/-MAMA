@@ -392,3 +392,59 @@ export function readSweepLog({ root = process.cwd() } = {}) {
     return [];
   }
 }
+
+/**
+ * Split the journal into the two things it measures, and count them. PURE —
+ * the CLI only formats, so the arithmetic that decides "is the panic rare?" is
+ * asserted in tests instead of eyeballed in a terminal.
+ *
+ *   - PURGES: how much was cleaned, ZEROS INCLUDED — that denominator is the
+ *     whole point (a log of hits only cannot say how often nothing happens).
+ *   - PANICS: how often the git wrapper saw the msys fork panic AT ALL, which
+ *     is the frequency asked for — and which the purge count alone can never
+ *     give, since a panic without `--sweep` purges nothing.
+ * @param {Record<string, unknown>[]} [entries]
+ */
+export function summarizeSweepLog(entries = []) {
+  const list = (entries ?? []).filter((e) => e && typeof e === 'object' && !Array.isArray(e));
+  const killedOf = (e) => (Number.isFinite(Number(e.killed)) ? Number(e.killed) : 0);
+  const failedOf = (e) => e.failed === true || Number(e.failed) > 0;
+  const purges = list.filter((e) => e.kind !== 'panic');
+  const panics = list.filter((e) => e.kind === 'panic');
+
+  const tally = (rows, keyOf) => {
+    const map = new Map();
+    for (const row of rows) {
+      const key = String(keyOf(row) ?? '') || '?';
+      const seen = map.get(key) ?? { key, count: 0, killed: 0 };
+      seen.count += 1;
+      seen.killed += killedOf(row);
+      map.set(key, seen);
+    }
+    return [...map.values()].sort((a, b) => b.killed - a.killed || b.count - a.count);
+  };
+
+  const times = list
+    .map((e) => Date.parse(String(e.at)))
+    .filter((t) => Number.isFinite(t))
+    .sort((a, b) => a - b);
+
+  return {
+    total: list.length,
+    purges: {
+      count: purges.length,
+      nonEmpty: purges.filter((e) => killedOf(e) > 0).length,
+      failed: purges.filter(failedOf).length,
+      killed: purges.reduce((n, e) => n + killedOf(e), 0),
+      byOrigin: tally(purges, (e) => e.origin),
+    },
+    panics: {
+      count: panics.length,
+      byGitCommand: tally(panics, (e) => e.git),
+      byOrigin: tally(panics, (e) => e.origin),
+    },
+    firstAt: times.length > 0 ? times[0] : null,
+    lastAt: times.length > 0 ? times[times.length - 1] : null,
+    spanMs: times.length > 1 ? times[times.length - 1] - times[0] : 0,
+  };
+}

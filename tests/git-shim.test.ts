@@ -22,9 +22,9 @@
 // chaque run au lieu de laisser croire que ces tests ont tourné.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const SHIM_SRC = join(process.cwd(), 'scripts', 'git-shim.cmd');
@@ -64,6 +64,33 @@ function makeClonedRepo(): { repo: string; origin: string } {
   return { repo, origin };
 }
 
+/**
+ * Copy the wrapper AND its local module graph into the fixture repo.
+ *
+ * A hand-written file list is what broke this suite the moment the wrapper
+ * gained a dependency (`./lib/orphan-node.mjs`): the shim routed, the wrapper
+ * died on module resolution, and the test looked like a routing bug. Copying
+ * the graph makes the fixture follow the real imports.
+ */
+function copyWrapper(repo: string) {
+  const scriptsDir = join(process.cwd(), 'scripts');
+  const copied = new Set<string>();
+  const copyOne = (rel: string) => {
+    const normalised = rel.replace(/\\/g, '/');
+    if (copied.has(normalised)) return;
+    copied.add(normalised);
+    const src = join(scriptsDir, normalised);
+    const dest = join(repo, 'scripts', normalised);
+    mkdirSync(dirname(dest), { recursive: true });
+    copyFileSync(src, dest);
+    const code = readFileSync(src, 'utf8');
+    for (const match of code.matchAll(/from\s+'(\.[^']+)'/g)) {
+      copyOne(join(dirname(normalised), match[1]).replace(/\\/g, '/'));
+    }
+  };
+  copyOne('git-retry.mjs');
+}
+
 function runShim(args: string[], cwd: string, shimDir: string) {
   return spawnSync('cmd', ['/c', join(shimDir, 'git.cmd'), ...args], {
     cwd,
@@ -95,8 +122,7 @@ describe('git-shim.cmd (E2E cmd.exe réel)', { skip: process.platform !== 'win32
     try {
       copyFileSync(SHIM_SRC, join(shimDir, 'git.cmd'));
       // The repo must have scripts/git-retry.mjs for the shim to route through it.
-      mkdirSync(join(repo, 'scripts'), { recursive: true });
-      copyFileSync(join(process.cwd(), 'scripts', 'git-retry.mjs'), join(repo, 'scripts', 'git-retry.mjs'));
+      copyWrapper(repo);
       const r = runShim(['commit', '--dry-run'], repo, shimDir);
       assert.equal(r.status, 0, r.stderr);
       assert.ok((r.stdout || '').includes('git commit --dry-run'), 'log du wrapper présent');
@@ -112,8 +138,7 @@ describe('git-shim.cmd (E2E cmd.exe réel)', { skip: process.platform !== 'win32
     const shimDir = mkdtempSync(join(tmpdir(), 'git-shim-bin-'));
     try {
       copyFileSync(SHIM_SRC, join(shimDir, 'git.cmd'));
-      mkdirSync(join(repo, 'scripts'), { recursive: true });
-      copyFileSync(join(process.cwd(), 'scripts', 'git-retry.mjs'), join(repo, 'scripts', 'git-retry.mjs'));
+      copyWrapper(repo);
       const r = runShim(['pull'], repo, shimDir);
       assert.equal(r.status, 0, r.stderr);
       assert.ok((r.stdout || '').includes('git pull'), 'label du wrapper présent');
@@ -131,8 +156,7 @@ describe('git-shim.cmd (E2E cmd.exe réel)', { skip: process.platform !== 'win32
     const shimDir = mkdtempSync(join(tmpdir(), 'git-shim-bin-'));
     try {
       copyFileSync(SHIM_SRC, join(shimDir, 'git.cmd'));
-      mkdirSync(join(repo, 'scripts'), { recursive: true });
-      copyFileSync(join(process.cwd(), 'scripts', 'git-retry.mjs'), join(repo, 'scripts', 'git-retry.mjs'));
+      copyWrapper(repo);
       const r = runShim(['rebase'], repo, shimDir);
       assert.equal(r.status, 0, r.stderr);
       assert.ok((r.stdout || '').includes('git rebase'), 'label du wrapper présent');
@@ -153,8 +177,7 @@ describe('git-shim.cmd (E2E cmd.exe réel)', { skip: process.platform !== 'win32
     const shimDir = mkdtempSync(join(tmpdir(), 'git-shim-bin-'));
     try {
       copyFileSync(SHIM_SRC, join(shimDir, 'git.cmd'));
-      mkdirSync(join(repo, 'scripts'), { recursive: true });
-      copyFileSync(join(process.cwd(), 'scripts', 'git-retry.mjs'), join(repo, 'scripts', 'git-retry.mjs'));
+      copyWrapper(repo);
       const direct = spawnSync('git', ['pull'], { cwd: repo, encoding: 'utf8', windowsHide: true });
       const r = runShim(['pull'], repo, shimDir);
       assert.notEqual(r.status, 0, 'git pull sans remote échoue');
