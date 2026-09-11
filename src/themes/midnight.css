@@ -145,6 +145,13 @@
 .theme-midnight .text-emerald-700 {
   color: #6EE7B7 !important;
 }
+/* Même angle mort que slate : la variante `.text-emerald-500/50` (tâche
+   terminée) n'était pas remappée, donc du vert à 50 % mesurait 2.69:1 sur le
+   panneau sombre — mesuré par l'audit de contraste ; aucun thème sombre ne la
+   couvrait. Neutre plutôt que vert : une tâche faite doit paraître éteinte. */
+.theme-midnight .text-emerald-500\/50 {
+  color: #CBD5E1 !important;
+}
 .theme-midnight .text-purple-400,
 .theme-midnight .text-purple-600,
 .theme-midnight .text-purple-700 {

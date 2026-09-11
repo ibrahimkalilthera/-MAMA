@@ -815,6 +815,20 @@ textarea:focus-visible {
 .theme-slate .text-rose-600\/80 {
   color: #FDA4AF !important;
 }
+/* Deux angles morts du remap, révélés le jour où l'audit de contraste a tourné
+   sur des données figées : `.text-rose-500` (le badge « En retard » du panneau
+   Productivité) n'avait aucune règle pour slate et mesurait 2.76:1 sur le
+   panneau #334155 ; la variante `.text-emerald-500/50` (tâche terminée) n'était
+   remappée dans AUCUN thème sombre, donc du vert à 50 % tombait à 2.09:1 ici et
+   2.69:1 en midnight. Les voisins 600/700 étaient déjà couverts : ces deux
+   règles les rejoignent, avec un neutre pour la barre oblique (une tâche faite
+   se lit comme éteinte, pas comme colorée). */
+.theme-slate .text-rose-500 {
+  color: #FDA4AF !important;
+}
+.theme-slate .text-emerald-500\/50 {
+  color: #CBD5E1 !important;
+}
 .theme-slate .text-amber-600,
 .theme-slate .text-amber-700 {
   color: #FBBF24 !important;

@@ -161,8 +161,12 @@ jobs:
   # l'écran pour qu'une régression de contraste y soit attrapée dès le push).
   # Toute paire texte/fond mesurée < 3:1 échoue le job — la même mesure qui a
   # chassé les textes blancs sur blancs, désormais automatisée et CI-gated.
-  # Le compte de login est créé éphémère par le script lui-même (service-role
-  # lu dans .env) et supprimé en fin de run — plus aucun secret fixe requis.
+  # AUCUN secret : l'audit tourne sur un backend de fixtures servi dans le
+  # navigateur (scripts/lib/audit-fixtures.mjs) — la session de test est mintée
+  # par l'interception du grant mot de passe, sans compte à créer ni à
+  # supprimer, et sans écrire une ligne en base. Le gate mesure donc sur un push
+  # comme sur une PR Dependabot ou une PR de fork, avec exactement les mêmes
+  # données à chaque run.
   theme-contrast:
     name: Contraste thèmes (WCAG >= 3:1)
     runs-on: ubuntu-latest
@@ -185,51 +189,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Provide public env vars for the build (anon key = client key, non secret)
-        run: |
-          cat > .env <<'EOF'
-          VITE_SUPABASE_URL=https://rpcjdohfxwukbqngbprw.supabase.co
-          VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
-          VITE_APP_ENV=production
-          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          EOF
-
-      # Le compte de login n'est plus un secret fixe : le script crée lui-même
-      # un compte admin éphémère via le service-role (lu dans .env), le
-      # supprime en fin de run (finally) — comme les pixel-checks PDF. La CI
-      # reste fonctionnelle même si la base est purgée.
-      #
-      # Préflight : les runs déclenchés par Dependabot (et les PR de fork) ne
-      # reçoivent AUCUN secret du dépôt — politique GitHub. Le service-role
-      # arrive donc vide, le compte éphémère est impossible à créer et le
-      # script sortait en 1 au démarrage : un rouge qui ne dit rien du contraste,
-      # précisément sur les PR les plus susceptibles de le casser (bump d'icônes,
-      # de Tailwind). Ce n'est pas un verdict, donc pas un rouge. Le secret
-      # n'est exposé qu'à ce préflight (un `env` de job le diffuserait aussi à
-      # `npm ci`) et `secrets` est interdit dans un `if:` — GitHub rejette le
-      # YAML entier — d'où le passage par un output d'étape.
-      - name: Credentials disponibles ? (Dependabot et PR de fork n'en reçoivent aucun)
-        id: creds
-        env:
-          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          if [ -n "$SERVICE_KEY" ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-            echo "✅ service-role disponible — l'audit de contraste s'exécute."
-          else
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Audit de contraste NON EXÉCUTÉ : SUPABASE_SERVICE_ROLE_KEY indisponible (un run Dependabot / une PR de fork ne reçoit aucun secret du dépôt). Ce n'est pas un verdict de contraste — le gate reste armé sur les pushs de main et les PR internes."
-            {
-              echo "### Contraste thèmes — non exécuté"
-              echo ""
-              echo "Aucun credential disponible : les runs **Dependabot** et les **PR de fork** ne reçoivent pas les secrets du dépôt (politique GitHub), donc le compte éphémère ne peut pas être créé."
-              echo ""
-              echo "Ce n'est pas un verdict de contraste. Le gate reste **armé** sur les pushs de \`main\` et les PR internes : une montée de version mergée est mesurée sur \`main\` — rouge compris — avant tout déploiement."
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+      # Aucun env de build ici : en mode fixtures, l'audit injecte lui-même une
+      # URL factice et une clé bidon dans le build (process.env, prioritaire sur
+      # tout fichier .env) — il n'y a donc rien à préparer ni à cacher, et aucun
+      # bundle audité ne peut viser la vraie base.
 
       - name: Theme contrast audit (6 thèmes x 8 overlays, échoue < 3:1)
-        if: steps.creds.outputs.ok == 'true'
         env:
           AUDIT_URL: http://127.0.0.1:4173/
           CHROME_PATH: /usr/bin/google-chrome
