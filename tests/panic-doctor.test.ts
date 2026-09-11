@@ -29,6 +29,7 @@ import {
   describeAge,
   diagnose,
   formatDiagnosis,
+  inspectHooks,
   parseMachineSnapshot,
   shortCommand,
 } from '../scripts/lib/panic-doctor.mjs';
@@ -227,6 +228,62 @@ describe('diagnose — ce que le sweep prendrait, et ce qu’il ne touchera jama
   });
 });
 
+describe('inspectHooks — un hook vert dans le diff peut être inerte', () => {
+  const body = 'AUDIT_CACHE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs';
+  const both = { 'pre-commit': body, 'pre-push': body };
+
+  it('les deux moitiés présentes → vert, et le runtime épinglé est relevé', () => {
+    const state = inspectHooks({ hooksPath: '.husky/_', hooks: both, launchers: ['pre-commit', 'pre-push'] });
+    assert.equal(state.huskyActive, true);
+    assert.equal(state.hooks.every((h) => h.runnable && h.viaRetryEngine && h.pinnedRuntime), true);
+    assert.equal(state.verdicts.length, 1);
+    assert.equal(state.verdicts[0].level, 'ok');
+  });
+
+  it('lanceur absent → INERTE : le fichier suivi ne prouve rien', () => {
+    // Le cas exact du shim git installé mais jamais exécuté, et de l'étape
+    // d'audit qui ne mesurait rien : vert dans le diff, inactif en vrai.
+    const state = inspectHooks({ hooksPath: '.husky/_', hooks: both, launchers: ['pre-push'] });
+    const alarm = state.verdicts.find((v) => v.level === 'alarm');
+    assert.equal(alarm?.level, 'alarm');
+    assert.match(alarm?.text ?? '', /^pre-commit :/, 'le hook réellement inerte est nommé');
+    assert.match(alarm?.text ?? '', /INERTE/);
+    assert.match(alarm?.text ?? '', /npx husky/, 'le remède est nommé');
+  });
+
+  it('hooksPath détourné → les hooks du dépôt ne tournent pas', () => {
+    const state = inspectHooks({ hooksPath: '/dev/null', hooks: both, launchers: ['pre-commit', 'pre-push'] });
+    assert.equal(state.huskyActive, false);
+    assert.match(state.verdicts[0]?.text ?? '', /core\.hooksPath/);
+    assert.match(state.verdicts[0]?.text ?? '', /sans la chaîne qualité/);
+  });
+
+  it('hook absent, et hook présent mais non routé par le moteur de retry', () => {
+    const missing = inspectHooks({ hooksPath: '.husky/_', hooks: {}, launchers: ['pre-commit', 'pre-push'] });
+    assert.equal(missing.verdicts.filter((v) => /absent/.test(v.text)).length, 2);
+
+    const bare = inspectHooks({
+      hooksPath: '.husky/_',
+      hooks: { 'pre-commit': 'npm run quality', 'pre-push': body },
+      launchers: ['pre-commit', 'pre-push'],
+    });
+    assert.equal(bare.hooks[0]?.bareNpm, true);
+    assert.equal(bare.hooks[0]?.viaRetryEngine, false);
+    assert.match(bare.verdicts[0]?.text ?? '', /ne passe pas par hook-quality-chain\.mjs/);
+  });
+
+  it('l’état des hooks apparaît dans le diagnostic et dans le rapport imprimé', () => {
+    const report = diagnose({
+      processes: [],
+      hooks: inspectHooks({ hooksPath: '.husky/_', hooks: both, launchers: ['pre-commit', 'pre-push'] }),
+      nowMs: NOW,
+    });
+    assert.ok(report.hooks);
+    const lines = formatDiagnosis(report, { nowMs: NOW }).join('\n');
+    assert.match(lines, /hooks : core\.hooksPath=\.husky\/_ · pre-commit ✓ routé · runtime épinglé/);
+  });
+});
+
 describe('formatDiagnosis', () => {
   it('imprime les orphelins avec pid, âge et parent disparu', () => {
     const report = diagnose({
@@ -287,6 +344,12 @@ describe('câblage — le docteur ne peut ni tuer, ni diverger du sweep', () => 
       seen: 0,
     });
     assert.equal(await snapshotDescendants({ platform: 'win32', rootPids: [] }), null, 'sans racine, rien à relever');
+  });
+
+  it('le CLI lit les lanceurs husky, pas seulement les fichiers suivis', () => {
+    assert.match(doctorCli, /readdirSync\(join\(cwd, '\.husky', '_'\)\)/);
+    assert.match(doctorCli, /inspectHooks\(\{ hooksPath/);
+    assert.match(doctorCli, /'config', 'core\.hooksPath'/);
   });
 
   it('le docteur est branché en npm script', () => {

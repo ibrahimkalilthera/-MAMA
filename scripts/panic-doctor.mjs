@@ -21,11 +21,15 @@
  *      themselves, over the last 24 h.
  */
 import { spawnSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { readSweepLog } from './lib/orphan-node.mjs';
 import {
+  HOOK_NAMES,
   buildMachineSnapshotScript,
   diagnose,
   formatDiagnosis,
+  inspectHooks,
   parseMachineSnapshot,
 } from './lib/panic-doctor.mjs';
 
@@ -55,10 +59,35 @@ function snapshot(platform = process.platform) {
   return { ...parseMachineSnapshot(result.stdout), warning: null };
 }
 
+/**
+ * Read the hook installation: `core.hooksPath` from git itself, the tracked
+ * hook files, and husky's launchers (what git actually runs). Read-only; a
+ * missing piece is data, not an exception.
+ */
+function readHookState({ cwd = process.cwd() } = {}) {
+  const config = spawnSync('git', ['config', 'core.hooksPath'], { encoding: 'utf8', cwd, windowsHide: true });
+  const hooks = {};
+  for (const name of HOOK_NAMES) {
+    try {
+      hooks[name] = readFileSync(join(cwd, '.husky', name), 'utf8');
+    } catch {
+      /* missing hook: reported as absent, not thrown */
+    }
+  }
+  let launchers;
+  try {
+    launchers = readdirSync(join(cwd, '.husky', '_'));
+  } catch {
+    launchers = [];
+  }
+  return inspectHooks({ hooksPath: (config.stdout || '').trim(), hooks, launchers });
+}
+
 const snap = snapshot();
 const journal = readSweepLog();
+const hooks = readHookState();
 const nowMs = Date.now();
-const diagnosis = diagnose({ ...snap, journal, nowMs });
+const diagnosis = diagnose({ ...snap, journal, hooks, nowMs });
 
 if (asJson) {
   console.log(JSON.stringify({ at: new Date(nowMs).toISOString(), ...diagnosis }, null, 2));

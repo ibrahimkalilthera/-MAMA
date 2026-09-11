@@ -35,6 +35,90 @@ export const CHROME_LIKE_NAMES = ['chrome.exe', 'electron.exe', 'msedge.exe'];
 /** The detached cleaner: alive guards are expected, not a leak. */
 export const GUARD_SCRIPT = 'orphan-guard.mjs';
 
+/** The hooks that gate a commit and a push. */
+export const HOOK_NAMES = ['pre-commit', 'pre-push'];
+
+/** What the tracked hooks must run to survive a fork panic. */
+export const HOOK_ENGINE = 'hook-quality-chain.mjs';
+
+/** Where husky's launchers live — the files git ACTUALLY executes. */
+export const HUSKY_HOOKS_PATH = '.husky/_';
+
+/**
+ * Classify the hook installation from what was read. Pure: the caller passes
+ * `core.hooksPath`, the tracked hook contents and the launcher names.
+ *
+ * Two halves must BOTH be in place, and the distinction is the whole point:
+ * the tracked file is what the team reviews (`husky/<hook>`), the launcher is
+ * what git runs (`husky/_/<hook>`, because `core.hooksPath` points there). A
+ * tracked hook whose launcher is missing looks perfect in a diff and does
+ * nothing in real life — the same "green and inert" class as the git shim that
+ * was never on the PATH and the audit step that measured nothing.
+ *
+ * Executability is deliberately NOT checked: on Windows the bit means nothing
+ * (`chmod` only toggles read-only), so an assertion on it would be a lie on the
+ * platform these hooks mostly run on.
+ * @param {{ hooksPath?: string, hooks?: Record<string, string>,
+ *   launchers?: string[], engine?: string }} [options]
+ */
+export function inspectHooks({
+  hooksPath = '',
+  hooks = {},
+  launchers = [],
+  engine = HOOK_ENGINE,
+} = {}) {
+  const normalise = (p) => String(p ?? '').replace(/\\/g, '/').replace(/\/+$/, '');
+  const huskyActive = normalise(hooksPath) === HUSKY_HOOKS_PATH;
+  const entries = HOOK_NAMES.map((name) => {
+    const content = typeof hooks[name] === 'string' ? hooks[name] : '';
+    const present = content.trim().length > 0;
+    const launcher = launchers.includes(name);
+    return {
+      name,
+      present,
+      launcher,
+      viaRetryEngine: present && content.includes(engine),
+      pinnedRuntime: present && content.includes('with-pinned-node'),
+      bareNpm: present && !content.includes(engine) && /\bnpm(\.cmd)?\b/.test(content),
+      runnable: present && launcher,
+    };
+  });
+
+  const verdicts = [];
+  if (!huskyActive) {
+    verdicts.push({
+      level: 'warn',
+      text:
+        `core.hooksPath = « ${hooksPath || '(vide)'} » au lieu de ${HUSKY_HOOKS_PATH} : les hooks du dépôt ne ` +
+        `tournent pas, donc les commits passent sans la chaîne qualité.`,
+    });
+  }
+  for (const hook of entries) {
+    if (!hook.present) {
+      verdicts.push({ level: 'warn', text: `.husky/${hook.name} absent : ce hook ne vérifie plus rien.` });
+    } else if (!hook.launcher) {
+      verdicts.push({
+        level: 'alarm',
+        text:
+          `${hook.name} : fichier suivi présent mais aucun lanceur dans ${HUSKY_HOOKS_PATH}/ — git exécute le ` +
+          `lanceur, donc ce hook est INERTE (vert dans le diff, inactif en vrai). Restaurez-le avec \`npx husky\`.`,
+      });
+    } else if (!hook.viaRetryEngine) {
+      verdicts.push({
+        level: 'warn',
+        text: `${hook.name} ne passe pas par ${engine} : un fork-panic tue le hook au lieu d'être retenté.`,
+      });
+    }
+  }
+  if (verdicts.length === 0) {
+    verdicts.push({
+      level: 'ok',
+      text: `Hooks actifs (${HUSKY_HOOKS_PATH}) et routés via ${engine} : un fork-panic est retenté, pas fatal.`,
+    });
+  }
+  return { hooksPath, huskyActive, hooks: entries, verdicts };
+}
+
 /** NODE_PRESSURE: above this, the fork table is a plausible suspect. */
 export const NODE_PRESSURE_THRESHOLD = 40;
 
@@ -132,9 +216,15 @@ export function shortCommand(cmd, { max = 70 } = {}) {
  * The whole analysis, pure: facts in, findings out. No I/O, no clock of its
  * own (the caller passes `nowMs`), so every branch below is asserted in tests.
  *
- * @param {{ processes?: object[], memory?: object, journal?: object[], nowMs?: number }} [input]
+ * @param {{ processes?: object[], memory?: object, journal?: object[], hooks?: object, nowMs?: number }} [input]
  */
-export function diagnose({ processes = [], memory = {}, journal = [], nowMs = Date.now() } = {}) {
+export function diagnose({
+  processes = [],
+  memory = {},
+  journal = [],
+  hooks = undefined,
+  nowMs = Date.now(),
+} = {}) {
   const list = processes.filter((p) => p && Number.isInteger(p.pid) && p.pid > 0);
   const byPid = new Map(list.map((p) => [p.pid, p]));
   const alivePid = (pid) => Number.isInteger(pid) && pid > 0 && byPid.has(pid);
@@ -248,6 +338,7 @@ export function diagnose({ processes = [], memory = {}, journal = [], nowMs = Da
   }
 
   return {
+    hooks,
     counts: {
       processes: list.length,
       node: nodes.length,
@@ -267,7 +358,7 @@ export function diagnose({ processes = [], memory = {}, journal = [], nowMs = Da
       .slice(0, 5)
       .map(withAge),
     journal: stats,
-    verdicts,
+    verdicts: hooks ? [...verdicts, ...hooks.verdicts] : verdicts,
   };
 }
 
@@ -312,6 +403,18 @@ export function formatDiagnosis(diagnosis, { nowMs = Date.now() } = {}) {
     for (const p of diagnosis.biggestNode) {
       lines.push(`     pid ${p.pid} · ${p.memMb} Mo · ${p.age} · ${shortCommand(p.cmd)}`);
     }
+  }
+
+  if (diagnosis.hooks) {
+    const { hooks } = diagnosis;
+    const state = hooks.hooks
+      .map((h) => {
+        if (!h.present) return `${h.name} ✗ absent`;
+        if (!h.launcher) return `${h.name} ✗ lanceur absent`;
+        return `${h.name} ✓ ${h.viaRetryEngine ? 'routé' : 'NON routé'}${h.pinnedRuntime ? ' · runtime épinglé' : ''}`;
+      })
+      .join(' · ');
+    lines.push(`   hooks : core.hooksPath=${hooks.hooksPath || '(vide)'} · ${state}`);
   }
 
   const { journal } = diagnosis;
