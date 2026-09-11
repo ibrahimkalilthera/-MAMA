@@ -41,6 +41,8 @@ const { watchParentAndSweep, spawnOrphanGuard } =
   await import('../scripts/lib/orphan-guard.mjs');
 
 const noSleep = async () => {};
+// Aucun relevé réel : les tests n'invoquent jamais PowerShell.
+const noSnapshot = async () => [];
 
 describe('watchParentAndSweep', () => {
   it('parent déjà mort → sweep une fois, résultat « swept »', async () => {
@@ -49,6 +51,7 @@ describe('watchParentAndSweep', () => {
       parentPid: 4242,
       pollMs: 1,
       isAlive: () => false,
+      snapshot: noSnapshot,
       sweep: async () => { events.push('sweep'); },
       sleep: noSleep,
     });
@@ -63,6 +66,7 @@ describe('watchParentAndSweep', () => {
       pollMs: 1,
       maxMs: 5,
       isAlive: () => true,
+      snapshot: noSnapshot,
       sweep: async () => { sweeps++; },
       sleep: noSleep,
     });
@@ -78,6 +82,7 @@ describe('watchParentAndSweep', () => {
       pollMs: 1,
       maxMs: 100,
       isAlive: () => alive-- > 0,
+      snapshot: noSnapshot,
       sweep: async () => { sweeps++; },
       sleep: noSleep,
     });
@@ -90,10 +95,74 @@ describe('watchParentAndSweep', () => {
       parentPid: 4242,
       pollMs: 1,
       isAlive: () => false,
+      snapshot: noSnapshot,
       sweep: async () => { throw new Error('powershell boom'); },
       sleep: noSleep,
     });
     assert.equal(result, 'swept');
+  });
+
+  it('enregistre les descendants PENDANT que la chaîne vit, et passe l’union à la purge', async () => {
+    // Le relevé vit avec la chaîne pour que l'ensemble à tuer soit ancré dans
+    // un arbre VIVANT : chaque cible est ensuite vérifiée contre l'horodatage
+    // de création relevé ici, donc un pid recyclé ne peut pas passer pour un
+    // nôtre. (La fermeture ParentProcessId survit, elle, à la mort de la
+    // racine — mesuré — mais un walk post-mortem n'a plus rien pour authentifier
+    // ce qu'il trouve.)
+    let alive = 3;
+    let snapshots = 0;
+    const rounds = [
+      [{ pid: 11, name: 'node.exe', born: 'b1' }, { pid: 12, name: 'cmd.exe', born: 'b2' }],
+      [{ pid: 13, name: 'node.exe', born: 'b3' }],
+    ];
+    let recordedAtSweep: { pid: number }[] = [];
+    const result = await watchParentAndSweep({
+      parentPid: 4242,
+      pollMs: 1,
+      snapshotMs: 0, // un relevé à chaque poll
+      maxMs: 100,
+      isAlive: () => alive-- > 0,
+      snapshot: async () => rounds[Math.min(snapshots++, rounds.length - 1)],
+      sweep: async ({ recorded }: { recorded: { pid: number }[] }) => { recordedAtSweep = recorded; },
+      sleep: noSleep,
+    });
+    assert.equal(result, 'swept');
+    assert.ok(snapshots > 1, 'le relevé tourne plusieurs fois, pas une seule au démarrage');
+    assert.deepEqual(recordedAtSweep.map((e) => e.pid).sort((a, b) => a - b), [11, 12, 13]);
+  });
+
+  it('un relevé qui échoue ne casse ni la veille ni la purge', async () => {
+    let alive = 2;
+    let sweeps = 0;
+    const result = await watchParentAndSweep({
+      parentPid: 4242,
+      pollMs: 1,
+      snapshotMs: 0,
+      maxMs: 100,
+      isAlive: () => alive-- > 0,
+      snapshot: async () => { throw new Error('powershell boom'); },
+      sweep: async () => { sweeps++; },
+      sleep: noSleep,
+    });
+    assert.equal(result, 'swept');
+    assert.equal(sweeps, 1);
+  });
+
+  it('un relevé « impossible » (null) n’ajoute rien mais n’interrompt rien', async () => {
+    let alive = 2;
+    let recordedAtSweep: unknown[] = [{}];
+    const result = await watchParentAndSweep({
+      parentPid: 4242,
+      pollMs: 1,
+      snapshotMs: 0,
+      maxMs: 100,
+      isAlive: () => alive-- > 0,
+      snapshot: async () => null,
+      sweep: async ({ recorded }: { recorded: unknown[] }) => { recordedAtSweep = recorded; },
+      sleep: noSleep,
+    });
+    assert.equal(result, 'swept');
+    assert.deepEqual(recordedAtSweep, []);
   });
 
   it('pid invalide → aucun poll, aucun sweep', async () => {
@@ -102,6 +171,7 @@ describe('watchParentAndSweep', () => {
       const result = await watchParentAndSweep({
         parentPid: parentPid as number,
         isAlive: () => false,
+        snapshot: noSnapshot,
         sweep: async () => { sweeps++; },
         sleep: noSleep,
       });
@@ -118,7 +188,12 @@ describe('spawnOrphanGuard', () => {
   });
 
   it('sur Windows → relais détaché + unref (survit au taskkill de l’arbre)', () => {
-    const ok = spawnOrphanGuard({ parentPid: 777, platform: 'win32', execPath: 'C:\\node.exe', selfUrl: 'file:///C:/x/orphan-guard.mjs' });
+    const ok = spawnOrphanGuard({
+      parentPid: 777,
+      platform: 'win32',
+      execPath: 'C:\\node.exe',
+      selfUrl: 'file:///C:/x/orphan-guard.mjs',
+    });
     assert.equal(ok, true);
     assert.equal(spawnCalls.length, 1);
     assert.equal(spawnCalls[0].opts.detached, true);

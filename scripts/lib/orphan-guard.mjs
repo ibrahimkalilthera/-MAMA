@@ -16,23 +16,40 @@
 //     guard DETACHED and exits immediately. The guard's parent (the dead relay)
 //     is no longer part of the chain's process tree, so a `taskkill /T` on that
 //     tree cannot reach it.
-//   - Once the chain pid is gone — for ANY reason, external kill included — it
-//     runs the selective orphan sweep (scripts/git-retry.mjs
-//     sweepOrphanNodeProcesses: known quality-chain command lines whose parent
-//     is gone, or stale ones). It never touches unrelated node.exe processes.
+//   - While the chain lives, it RECORDS the chain's descendants (pid +
+//     creation stamp). Recording in a LIVE tree is what makes the kill set
+//     verifiable: each target is checked against the creation stamp recorded
+//     here, so a recycled pid can never be mistaken for one of ours. Once the
+//     chain is gone for ANY reason, it kills exactly what it recorded and is
+//     still alive, then runs the selective command-line sweep (./git-retry.mjs)
+//     for leftovers of runs whose pid is long gone.
+//
+//   Measured (see ./orphan-node.mjs): a non-detached node child dies with its
+//   parent — 9/9 gone 500 ms after the root alone was killed — so the reachable
+//   orphan is the DETACHED one (1 of 4 survived in the probe this purge then
+//   killed) or a wrapper whose non-node parent died (the panic's own product:
+//   the `sh.exe` running a git hook dies, the node wrapper it started stays).
+//   The command-line sweep is the right tool for that stale wrapper; lineage is
+//   the right tool for a tree that is still attached.
 //   - Bounded and best-effort: it gives up after maxMs and swallows every
 //     failure — it is a cleaner, not a gatekeeper.
 //
 // Windows only (the platform where these orphans accumulate and hurt).
 // Usage (internal):
 //   node scripts/lib/orphan-guard.mjs --relay <chainPid>   (relay + exit)
-//   node scripts/lib/orphan-guard.mjs <chainPid>           (watch + sweep)
+//   node scripts/lib/orphan-guard.mjs <chainPid>           (watch + record + purge)
 // ─────────────────────────────────────────────────────────────────────────────
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { sweepOrphanNodeProcesses } from '../git-retry.mjs';
+import { recordSweep, snapshotDescendants, sweepOwnNodeOrphans } from './orphan-node.mjs';
 
 const POLL_MS = 2000;
+// Registering descendants means spawning powershell, so it is much slower than
+// the liveness poll. The interval bounds the one residual hole: a subtree
+// spawned in the last window before an external kill escapes (documented in
+// ./orphan-node.mjs, and visible in the log rather than hidden).
+const SNAPSHOT_MS = 10000;
 const MAX_MS = 60 * 60 * 1000; // hard cap: never linger for more than an hour
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -48,35 +65,87 @@ function defaultIsAlive(pid) {
 }
 
 /**
- * Poll the parent pid and sweep its orphans once it is gone.
+ * Default cleaner: kill what we RECORDED while the chain was alive, then the
+ * selective command-line sweep for leftovers of runs whose pid is long gone
+ * (they are not descendants of this chain, so lineage cannot see them).
+ * Never rejects.
+ */
+async function sweepChainLeftovers({ recorded, log = () => {} }) {
+  const own = await sweepOwnNodeOrphans({
+    recorded,
+    excludePid: process.pid,
+    log,
+  });
+  // Recorded like the chain's own exit purge: this is THE path that runs when
+  // a run is killed from outside — the case the whole mechanism exists for,
+  // and the one whose frequency we want to know.
+  recordSweep({ origin: 'guard', ...own });
+  const older = await sweepOrphanNodeProcesses({});
+  return { ...own, older };
+}
+
+/**
+ * Poll the parent pid, RECORD its descendants while it lives, and purge the
+ * recorded ones once it is gone.
  * Resolves with 'swept', 'timeout' or 'invalid-pid'; never rejects.
  * All collaborators are injectable so the policy is unit-testable without
  * spawning anything.
- * @param {{ parentPid?: number, pollMs?: number, maxMs?: number,
- *   isAlive?: (pid: number) => boolean, sweep?: () => unknown,
+ * @param {{ parentPid?: number, pollMs?: number, snapshotMs?: number,
+ *   maxMs?: number, isAlive?: (pid: number) => boolean,
+ *   snapshot?: () => Promise<{ pid: number, name: string, born: string }[] | null>,
+ *   sweep?: (info: { recorded: { pid: number, name: string, born: string }[] }) => unknown,
  *   sleep?: (ms: number) => Promise<void> }} options
  */
 export async function watchParentAndSweep({
   parentPid,
   pollMs = POLL_MS,
+  snapshotMs = SNAPSHOT_MS,
   maxMs = MAX_MS,
   isAlive = defaultIsAlive,
-  sweep = () => sweepOrphanNodeProcesses({}),
+  snapshot,
+  sweep,
   sleep = wait,
 } = {}) {
   if (!Number.isInteger(parentPid) || parentPid <= 0) return 'invalid-pid';
+
+  const takeSnapshot = snapshot ?? (() => snapshotDescendants({ rootPids: [parentPid] }));
+  // pid → { pid, name, born } : what the chain created, learned while it could
+  // still be learned. Once the chain dies this knowledge is all we have.
+  const known = new Map();
+  const remember = (entries) => {
+    for (const e of entries ?? []) {
+      if (e && Number.isInteger(e.pid) && e.pid > 0 && typeof e.born === 'string') known.set(e.pid, e);
+    }
+  };
+  const runSweep = async () => {
+    const recorded = [...known.values()];
+    if (sweep) return sweep({ recorded });
+    return sweepChainLeftovers({ recorded, log: () => {} });
+  };
+
   const checks = Math.max(1, Math.ceil(maxMs / pollMs));
   await sleep(pollMs);
+  let nextSnapshotAt = 0;
   for (let i = 0; i < checks; i++) {
     if (!isAlive(parentPid)) {
       // Let the external kill finish tearing the tree down, then clean up.
       await sleep(pollMs);
       try {
-        await sweep();
+        await runSweep();
       } catch {
         /* best-effort cleaner: a failed sweep must never surface */
       }
       return 'swept';
+    }
+    // The chain is alive: this is the only moment its descendants can be found
+    // by lineage, so record them before that knowledge is lost.
+    if (Date.now() >= nextSnapshotAt) {
+      nextSnapshotAt = Date.now() + snapshotMs;
+      try {
+        remember(await takeSnapshot());
+      } catch {
+        /* best-effort recorder: a failed snapshot must never surface */
+      }
     }
     await sleep(pollMs);
   }
@@ -118,14 +187,14 @@ if (isMain) {
     // Double-spawn: the relay exits at once, so the real guard is orphaned out
     // of the chain's process tree and survives a `taskkill /T` on it.
     try {
-      const guard = spawn(
-        process.execPath,
-        [fileURLToPath(import.meta.url), String(Number(args[1]))],
-        { detached: true, stdio: 'ignore', windowsHide: true },
-      );
+      const guard = spawn(process.execPath, [fileURLToPath(import.meta.url), String(Number(args[1]))], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
       guard.unref();
     } catch {
-      /* nothing we can do — the chain's own end-of-run sweep still runs */
+      /* nothing we can do — the chain's own end-of-run purge still runs */
     }
     process.exit(0);
   }

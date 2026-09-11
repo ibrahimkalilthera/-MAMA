@@ -29,8 +29,15 @@
  *   5. ORPHAN HYGIENE (root cause) — this chain must never seed the next
  *      panic: it sweeps orphaned Chrome/Electron before the first step,
  *      starts a DETACHED guard (scripts/lib/orphan-guard.mjs) that outlives
- *      it so an EXTERNAL kill still gets its leftovers swept, and sweeps its
- *      own node.exe orphans at the end of every run (plus on Ctrl-C/kill).
+ *      it so an EXTERNAL kill still gets its leftovers swept, and purges the
+ *      node.exe processes it created on EVERY exit path (normal end,
+ *      failure, Ctrl-C/SIGTERM) — identified by LINEAGE (descendants of this
+ *      pid), not by command line: the chain's real workload is
+ *      `with-pinned-node.mjs` → `check-*.mjs` → eslint/tsc/stylelint, none of
+ *      which a command-line filter recognises. See ./lib/orphan-node.mjs.
+ *      (Lineage only closes while the root lives, which is why the guard
+ *      RECORDS descendants while the chain runs instead of closing over a dead
+ *      pid afterwards — measured, see that module's header.)
  *
  * Usage:  node scripts/quality-chain.mjs           (all steps)
  *         node scripts/quality-chain.mjs lint test  (selected steps)
@@ -46,7 +53,7 @@ import { dirname, join } from 'node:path';
 import { resolveNpmCliJs } from './lib/npm-cli.mjs';
 import { sweepOrphanElectron, sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { spawnOrphanGuard } from './lib/orphan-guard.mjs';
-import { sweepOrphanNodeProcesses } from './git-retry.mjs';
+import { recordSweep, sweepOwnNodeOrphans } from './lib/orphan-node.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -63,20 +70,35 @@ process.on('uncaughtException', (err) => {
 
 const win32 = process.platform === 'win32';
 
-/** Purge the chain's OWN known node.exe orphans (selective sweep, best-effort). */
-async function sweepOwnOrphans() {
-  try {
-    await sweepOrphanNodeProcesses({ log: (m) => console.log(m) });
-  } catch {
-    /* best-effort: cleanup must never fail the chain */
-  }
+/**
+ * Purge the node.exe processes THIS run created — BY LINEAGE, never by command
+ * line. The former selective filter recognised the `npm-cli.js run …` wrapper
+ * but none of the processes doing the actual work (`with-pinned-node.mjs`, the
+ * check-* guards, eslint, tsc, stylelint, the tsx test workers), so a kill that
+ * does not take the tree with it (agent/CI timeout, OOM) left the whole
+ * workload behind — precisely the orphans that hold the msys fork table.
+ *
+ * Runs on EVERY exit path and records its result (./lib/orphan-node.mjs), so
+ * the panic's real frequency becomes measurable. Idempotent: first call wins.
+ */
+let purgeStarted = false;
+async function purgeOwnOrphans(origin) {
+  if (purgeStarted) return { killed: 0, passes: 0 };
+  purgeStarted = true;
+  const result = await sweepOwnNodeOrphans({
+    rootPids: [process.pid], // still alive here, so the closure is still valid
+    excludePid: process.pid,
+    log: (m) => console.log(m),
+  });
+  recordSweep({ origin, ...result });
+  return result;
 }
 
-// Ctrl-C / kill: sweep the step children we are about to abandon before
+// Ctrl-C / kill: purge the step children we are about to abandon before
 // leaving, so an interrupted run does not seed the next fork panic.
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
-    sweepOwnOrphans().finally(() => process.exit(130));
+    purgeOwnOrphans(`signal:${signal}`).finally(() => process.exit(130));
   });
 }
 
@@ -202,22 +224,27 @@ if (sweptElectron > 0) console.log(`🧹 ${sweptElectron} processus MamaTheraFin
 // process tree), which outlives us and sweeps our node.exe orphans even when
 // we are killed from OUTSIDE (tool/CI timeout, taskkill /T) before the
 // end-of-run sweep below can run.
-spawnOrphanGuard();
+spawnOrphanGuard({ parentPid: process.pid });
 
 console.log(`🚀 Chaîne qualité — ${names.join(' → ')}  [${memMb()}]  (pid ${process.pid})`);
 const results = [];
-for (const name of names) {
-  if (process.exitCode) break; // a global handler already failed us
-  results.push(await STEPS[name]());
+try {
+  for (const name of names) {
+    if (process.exitCode) break; // a global handler already failed us
+    results.push(await STEPS[name]());
+  }
+} finally {
+  // Own-orphan hygiene on EVERY exit path — normal end, step failure, or a
+  // throw — so a run never leaves a step child behind. (The detached guard
+  // covers the one path we cannot reach: a kill from outside.)
+  await purgeOwnOrphans('exit');
 }
-
-// Own-orphan hygiene: end of run, success or failure — never leave a step
-// child behind (the guard covers the external-kill case).
-await sweepOwnOrphans();
 
 const failed = results.filter((r) => !r.ok);
 if (failed.length > 0) {
   console.error(`\n❌ ${failed.length} étape(s) en échec : ${failed.map((f) => f.name).join(', ')}`);
-  process.exit(1);
+  // process.exitCode (not process.exit): the finally above must still run.
+  process.exitCode = 1;
+} else {
+  console.log(`\n✅ Chaîne qualité complète — ${results.length} étapes vertes.`);
 }
-console.log(`\n✅ Chaîne qualité complète — ${results.length} étapes vertes.`);
