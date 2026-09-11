@@ -9,6 +9,12 @@
  * clones this project is not asked to install tooling by hand before their
  * commits can pass.
  *
+ * It also points the project's `node_modules/.bin` entries (`node`, `npm`,
+ * `npx`) at the resolved runtime — the directory npm already puts first for
+ * every script, and therefore where the pin now lives (see
+ * scripts/lib/bin-shims.mjs). `prepare` runs this after each install, so a
+ * fresh `npm ci` leaves the project pinned without anyone running the launcher.
+ *
  * Flags:
  *   --check   resolve and report only; never provision from the network
  *   --soft    never fail the caller (used by `prepare`, so a fresh `npm install`
@@ -17,6 +23,8 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve as resolvePath } from 'node:path';
+import { removeLegacyShimDir, writeBinShims } from './lib/bin-shims.mjs';
+import { resolveNpmCliJs } from './lib/npm-cli.mjs';
 import {
   cacheFileFor,
   majorOf,
@@ -51,6 +59,20 @@ try {
   }[runtime.source];
   console.log(`✅ Node ${major} prêt — ${origin}.`);
   console.log(`   ${runtime.execPath}`);
+  // Pin the project's own commands where npm already looks. Best-effort: not
+  // finding npm-cli.js here must not fail an install (`prepare` runs on every
+  // one) — the launcher writes the same entries before any chain runs.
+  try {
+    const binDir = writeBinShims({
+      root,
+      execPath: runtime.execPath,
+      npmEntry: resolveNpmCliJs(runtime.execPath),
+    });
+    removeLegacyShimDir({ root });
+    console.log(`   node, npm et npx de ${binDir} pointent sur ce runtime.`);
+  } catch (error) {
+    console.warn(`⚠️  Shims non écrits — ${error.message.split('\n')[0]}`);
+  }
   if (runtime.source === 'current') {
     console.log('   Rien à faire : la CI et les hooks utiliseront ce runtime tel quel.');
   }

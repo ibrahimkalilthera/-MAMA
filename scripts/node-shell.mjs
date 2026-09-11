@@ -12,25 +12,27 @@
  *
  * No version manager, no admin rights, no system-wide install: the project
  * resolves the runtime itself (scripts/lib/node-runtime.mjs, provisioning the
- * official node@<major> through npm only if needed) and puts a shim directory
- * first in PATH, so `node`, `npm` and `npx` all mean the pin.
+ * official node@<major> through npm only if needed) and points the project's
+ * `node_modules/.bin` entries at it, so `node`, `npm` and `npx` all mean the
+ * pin. Interactive shells are the one place where PATH must carry it (a shell
+ * cannot be re-parented), so this entry point prepends that same directory —
+ * the ones npm already prepends for every script — rather than a private shim
+ * directory of ours.
  *
  * Usage:
  *   npm run shell                  # interactive shell on the pinned runtime
- *   npm run shell -- --print       # print the shim directory, nothing else
+ *   npm run shell -- --print       # print the directory, nothing else
  *   export PATH="$(npm run --silent shell -- --print):$PATH"
  *                                  # …to pin the terminal you already have open
  *
- * `--print` exists for that last line: a shell cannot be re-parented once it is
- * running, so the honest way to pin an existing terminal is to prepend the shim
- * to its PATH. On a machine already on the pinned major this is a no-op that
- * installs nothing.
+ * `--print` exists for that last line. On a machine already on the pinned major
+ * the shims point at that very node: nothing is downloaded, nothing installed.
  */
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { delimiter, dirname, resolve as resolvePath } from 'node:path';
 import { resolveNpmCliJs } from './lib/npm-cli.mjs';
-import { writePathShim } from './lib/node-path-shim.mjs';
+import { removeLegacyShimDir, writeBinShims } from './lib/bin-shims.mjs';
 import { cacheFileFor, majorOf, pinnedMajor, resolveNodeRuntime } from './lib/node-runtime.mjs';
 
 const root = resolvePath(dirname(fileURLToPath(import.meta.url)), '..');
@@ -59,7 +61,8 @@ try {
   process.exit(1);
 }
 
-const shimDir = writePathShim({ root, execPath: runtime.execPath, npmEntry: npmCliJs });
+const shimDir = writeBinShims({ root, execPath: runtime.execPath, npmEntry: npmCliJs });
+removeLegacyShimDir({ root });
 
 if (printOnly) {
   // Only the directory, so the caller can eval it without swallowing a banner.
@@ -71,8 +74,9 @@ const env = {
   ...process.env,
   MAMA_PINNED_NODE: '1',
   MAMA_NPM_CLI_JS: npmCliJs,
-  // Always prepended, unlike the launcher's fast path: the whole point of this
-  // entry point is that `node` means the pin, whatever PATH it was opened with.
+  // Always prepended, unlike the launcher (which writes the same entries and
+  // lets npm put them on PATH itself): the whole point of this entry point is
+  // that `node` means the pin, whatever PATH the terminal was opened with.
   PATH: shimDir + delimiter + (process.env.PATH ?? ''),
 };
 

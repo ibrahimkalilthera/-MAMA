@@ -26,7 +26,9 @@ const {
   resolveNodeRuntime,
 } = await import('../scripts/lib/node-runtime.mjs');
 
-const { resolveNpmCliJs } = await import('../scripts/lib/npm-cli.mjs');
+const { explainNpmCliJs, isProjectBinShim, resolveNpmCliJs } = await import(
+  '../scripts/lib/npm-cli.mjs'
+);
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'mama-node-runtime-'));
 
@@ -72,6 +74,38 @@ describe('npm-cli — dispositions d’installation', () => {
     withLayout(['node_modules', 'npm', 'bin', 'npm-cli.js'], (node, cli) => {
       assert.equal(resolveNpmCliJs(node), cli);
     });
+  });
+
+  it('notre propre wrapper dans un .bin n’est pas pris pour l’npm de la machine', () => {
+    // Le projet écrit `npm` dans node_modules/.bin (voir lib/bin-shims.mjs) — le
+    // dossier que npm met EN PREMIER pour chaque script. Un repli PATH qui le
+    // prendrait pour npm en déduirait une arborescence qui ne contient aucun npm.
+    assert.equal(isProjectBinShim('C:\\p\\node_modules\\.bin\\npm.cmd'), true);
+    assert.equal(isProjectBinShim('/p/node_modules/.bin/npm'), true);
+    assert.equal(isProjectBinShim('C:\\Program Files\\nodejs\\npm.cmd'), false);
+    assert.equal(isProjectBinShim('/usr/lib/node_modules/npm/bin/npm-cli.js'), false);
+
+    const prefix = tmp();
+    // Le node qui nous occupe n'a AUCUN npm à côté de lui : sans quoi l'étape
+    // « à côté de node » gagnerait et le repli PATH ne serait jamais exercé —
+    // c'est le défaut que cette version du test corrige (elle assertait `path`
+    // sur un chemin que `layout` trouvait avant lui).
+    const node = join(prefix, 'runtime', 'node');
+    mkdirSync(dirname(node), { recursive: true });
+    writeFileSync(node, '');
+    const real = join(prefix, 'machine', 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    mkdirSync(dirname(real), { recursive: true });
+    writeFileSync(real, '');
+    const ours = join(prefix, 'project', 'node_modules', '.bin', 'npm.cmd');
+    mkdirSync(dirname(ours), { recursive: true });
+    writeFileSync(ours, '');
+    const found = explainNpmCliJs(node, {
+      declared: '',
+      which: () => [ours, join(prefix, 'machine', 'npm.cmd')], // notre wrapper d'abord
+    });
+    assert.equal(found.path, real, 'le wrapper doit être ignoré, pas suivi');
+    assert.equal(found.source, 'path');
+    rmSync(prefix, { recursive: true, force: true });
   });
 
   it('un chemin déclaré gagne la recherche, mais seulement s’il existe', () => {

@@ -29,17 +29,36 @@ import { dirname, join } from 'node:path';
 /** npm's nested directory, per install layout, in probe order. */
 export const NPM_NESTED_LAYOUTS = ['node_modules', join('lib', 'node_modules')];
 
-/** `where npm` / `which npm`, first hit, or null when npm is not on the PATH. */
+/** `where npm` / `which npm`, every hit, or [] when npm is not on the PATH. */
 function whichNpm(command) {
   try {
     const out = execFileSync(process.platform === 'win32' ? 'where' : 'which', [command], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     });
-    return out.trim().split(/\r?\n/)[0] || null;
+    return out
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
   } catch {
-    return null;
+    return [];
   }
+}
+
+/**
+ * Is this hit one of OUR own wrappers? The project writes `node`, `npm` and
+ * `npx` into `node_modules/.bin` (see ./bin-shims.mjs) — the directory npm puts
+ * first for every script — so a PATH search can now land on a wrapper that
+ * contains no npm at all. The directory is the tell: a real npm lives in an
+ * install prefix (`lib/node_modules/npm`, `node_modules/npm`, a global bin dir),
+ * never in a project's `.bin`.
+ *
+ * @param {string} hit
+ * @returns {boolean}
+ */
+export function isProjectBinShim(hit) {
+  return /[\\/]node_modules[\\/]\.bin[\\/]/.test(String(hit ?? ''));
 }
 
 /**
@@ -55,7 +74,7 @@ function whichNpm(command) {
  * filesystem or a PATH.
  *
  * @param {string} npmNode absolute path of the node that will run npm
- * @param {{ exists?: (p: string) => boolean, declared?: string, which?: (c: string) => string | null }} [deps]
+ * @param {{ exists?: (p: string) => boolean, declared?: string, which?: (c: string) => string[] | null }} [deps]
  * @returns {{ path: string | null, source: 'declared' | 'layout' | 'path' | null,
  *            layout: string | null, prefix: string | null, tried: string[] }}
  */
@@ -88,9 +107,9 @@ export function explainNpmCliJs(npmNode, deps = {}) {
   }
 
   // 3. Last resort: the npm on PATH (its directory is the prefix, so both
-  //    layouts are tried from there too).
-  const onPath = which('npm');
-  if (onPath) {
+  //    layouts are tried from there too) — skipping our own `.bin` wrappers,
+  //    which are found first and lead nowhere.
+  for (const onPath of (which('npm') ?? []).filter((hit) => !isProjectBinShim(hit))) {
     for (const base of [dirname(onPath), dirname(dirname(onPath))]) {
       for (const layout of NPM_NESTED_LAYOUTS) {
         const hit = probe(base, layout, 'path');

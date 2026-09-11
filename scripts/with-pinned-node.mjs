@@ -21,16 +21,18 @@
  * Everything below an entry point inherits the pinned runtime, because the
  * quality chain spawns its steps through `process.execPath` (see
  * scripts/quality-chain.mjs) rather than through a PATH lookup — so pinning the
- * entry point is enough for it. The npm chain is the one exception (`npm run`
- * resolves `eslint`/`tsc` through PATH), which is why a shim directory is
- * written and prepended when — and only when — the current node is not the pin;
- * see scripts/lib/node-path-shim.mjs.
+ * entry point is enough for it. The npm chain is the one exception: `npm run`
+ * resolves `node`, `eslint` and `tsc` through PATH, and the shims npm generates
+ * in `node_modules/.bin` call `node`. That directory is therefore where the pin
+ * is written — it is the one npm already puts FIRST for every script — instead
+ * of a private directory prepended to the environment; see
+ * scripts/lib/bin-shims.mjs. Nothing here rewrites PATH any more.
  */
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { delimiter, dirname, join, resolve as resolvePath } from 'node:path';
+import { dirname, join, resolve as resolvePath } from 'node:path';
 import { resolveNpmCliJs } from './lib/npm-cli.mjs';
-import { writePathShim } from './lib/node-path-shim.mjs';
+import { removeLegacyShimDir, writeBinShims } from './lib/bin-shims.mjs';
 import {
   cacheFileFor,
   majorOf,
@@ -90,16 +92,17 @@ const [command, args] =
     ? [runtime.execPath, [npmCliJs, 'run', rest[0], ...rest.slice(1)]]
     : [runtime.execPath, [join(root, rest[0]), ...rest.slice(1)]];
 
-// Fast path (already on the pin, e.g. CI): no shim, no rewrite, no PATH change.
-// MAMA_NPM_CLI_JS is always exported: children then resolve npm exactly, instead
-// of searching the PATH — where our own shim would be found first and misread.
+// The pin is written where npm already looks (`node_modules/.bin`), so the
+// environment is left ALONE: no PATH edit, nothing prepended. Written on every
+// pass, not only when the runtime changes — an entry left by a previous major
+// would otherwise survive a `.nvmrc` bump and win for every npm script. It is a
+// cheap no-op when the content already matches.
+// MAMA_NPM_CLI_JS is still exported: children then resolve npm by exact path
+// instead of searching a PATH where our own npm shim now sits first.
+writeBinShims({ root, execPath: runtime.execPath, npmEntry: npmCliJs });
+removeLegacyShimDir({ root });
+
 const env = { ...process.env, MAMA_PINNED_NODE: '1', MAMA_NPM_CLI_JS: npmCliJs };
-if (runtime.source !== 'current') {
-  env.PATH =
-    writePathShim({ root, execPath: runtime.execPath, npmEntry: npmCliJs }) +
-    delimiter +
-    (process.env.PATH ?? '');
-}
 
 const child = spawn(command, args, {
   cwd: root,
