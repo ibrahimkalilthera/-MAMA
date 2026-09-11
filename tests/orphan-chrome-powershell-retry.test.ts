@@ -6,6 +6,10 @@
 // import, so no real powershell ever runs. node:fs/node:os are mocked too so
 // the trailing removeLeftoverTempArtifacts pass stays in the fake temp. Mock
 // timers keep the 400 ms retry spacing instant. Plain-node suite.
+//
+// The sweeps are Windows-only: `platform: 'win32'` is injected explicitly so
+// the real retry branch runs on every CI OS (Linux runners included) instead
+// of silently no-op'ing through the module's host-platform gate.
 import { beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -69,7 +73,7 @@ describe('sweepOrphanPuppeteer — retry systématique du spawn powershell', () 
     ];
     t.mock.timers.enable({ apis: ['setTimeout'] });
     try {
-      const p = sweepOrphanPuppeteer(1000);
+      const p = sweepOrphanPuppeteer(1000, 'win32');
       await Promise.resolve(); // laisse la microtask 'error' programmer le retry
       t.mock.timers.tick(400); // espacement du 1er retry
       const n = await p;
@@ -84,7 +88,7 @@ describe('sweepOrphanPuppeteer — retry systématique du spawn powershell', () 
     plan = [{ mode: 'error' }, { mode: 'error' }, { mode: 'error' }];
     t.mock.timers.enable({ apis: ['setTimeout'] });
     try {
-      const p = sweepOrphanPuppeteer(1000);
+      const p = sweepOrphanPuppeteer(1000, 'win32');
       for (let i = 0; i < 2; i++) {
         await Promise.resolve(); // microtask 'error' → programme le retry
         t.mock.timers.tick(400); // déclenche le retry suivant
@@ -101,7 +105,7 @@ describe('sweepOrphanPuppeteer — retry systématique du spawn powershell', () 
     plan = [{ mode: 'ok', out: '5' }];
     t.mock.timers.enable({ apis: ['setTimeout'] });
     try {
-      const n = await sweepOrphanPuppeteer(1000);
+      const n = await sweepOrphanPuppeteer(1000, 'win32');
       assert.equal(n, 5);
       assert.equal(spawnCount, 1);
     } finally {
@@ -116,7 +120,7 @@ describe('sweepOrphanPuppeteer — retry systématique du spawn powershell', () 
     ];
     t.mock.timers.enable({ apis: ['setTimeout'] });
     try {
-      const p = sweepOrphanElectron();
+      const p = sweepOrphanElectron({ platform: 'win32' });
       await Promise.resolve();
       t.mock.timers.tick(400);
       const n = await p;

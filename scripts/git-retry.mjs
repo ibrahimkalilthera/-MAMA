@@ -206,7 +206,7 @@ export function neutralizeAlias(args) {
  * @param {{ attempts?: number, waitMs?: number, timeoutMs?: number,
  *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
  *   sweep?: boolean, sweepFn?: (() => unknown),
- *   sweepAll?: boolean, label?: string }} options
+ *   sweepAll?: boolean, platform?: string, label?: string }} options
  */
 export function runCommandWithRetry(
   command,
@@ -214,7 +214,7 @@ export function runCommandWithRetry(
   /** @type {{ attempts?: number, waitMs?: number, timeoutMs?: number,
    * forwardStderr?: boolean, log?: (...data: unknown[]) => void,
    * sweep?: boolean, sweepFn?: (() => unknown),
-   * sweepAll?: boolean, label?: string }} */
+   * sweepAll?: boolean, platform?: string, label?: string }} */
   {
     attempts = 3,
     waitMs = 5000,
@@ -224,6 +224,7 @@ export function runCommandWithRetry(
     sweep = false,
     sweepFn = undefined,
     sweepAll = false,
+    platform = process.platform,
     label = `${command} ${args.join(' ')}`,
   } = {},
 ) {
@@ -238,7 +239,7 @@ export function runCommandWithRetry(
     // killed; --sweep-all drops the command-line filter.
     const runSweepOnce = () =>
       Promise.resolve()
-        .then(sweepFn || (() => sweepOrphanNodeProcesses({ log, all: sweepAll })))
+        .then(sweepFn || (() => sweepOrphanNodeProcesses({ log, all: sweepAll, platform })))
         .catch(() => {});
 
     const retryOrGiveUp = (reason) => {
@@ -333,7 +334,8 @@ export function runCommandWithRetry(
  * @param {string[]} args
  * @param {{ attempts?: number, waitMs?: number, timeoutMs?: number,
  *   forwardStderr?: boolean, log?: (...data: unknown[]) => void,
- *   sweep?: boolean, sweepFn?: (() => unknown), sweepAll?: boolean }} options
+ *   sweep?: boolean, sweepFn?: (() => unknown), sweepAll?: boolean,
+ *   platform?: string }} options
  */
 export function runGitWithRetry(args, options = {}) {
   return runCommandWithRetry(resolveGit(), neutralizeAlias(args), {

@@ -64,7 +64,10 @@ mock.module('node:child_process', {
 
 const { runHookQualityChain } = await import('../scripts/hook-quality-chain.mjs');
 
-const quiet = { log: () => {}, forwardStderr: false };
+// `platform: 'win32'` est injecté pour que le sweep (mocké) produise les mêmes
+// spawns que sur les machines de dev Windows : hérité, il serait un no-op sur
+// un runner Linux et les assertions d'ordre sweep/chaîne seraient vides.
+const quiet = { log: () => {}, forwardStderr: false, platform: 'win32' as const };
 const isChain = (s: { cmd: string; args: string[] }) =>
   s.cmd === process.execPath &&
   s.args[0] === 'scripts/quality-chain.mjs' &&

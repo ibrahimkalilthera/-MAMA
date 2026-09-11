@@ -9,6 +9,11 @@
 //   - dans un dépôt SANS scripts/git-retry.mjs, tout est simplement forwardé ;
 //   - le code de sortie réel est préservé.
 // Plain-node suite (git + cmd réels, dépôts jetables).
+//
+// Windows-only BY NATURE: the shim IS a .cmd driven by cmd.exe, so the suite
+// is skipped on Linux/CI runners instead of failing on a missing `cmd`. The
+// wrapper itself (git-retry.mjs) keeps its own platform-injected suite,
+// which runs everywhere.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -38,7 +43,7 @@ function runShim(args: string[], cwd: string, shimDir: string) {
   });
 }
 
-describe('git-shim.cmd (E2E cmd.exe réel)', () => {
+describe('git-shim.cmd (E2E cmd.exe réel)', { skip: process.platform !== 'win32' }, () => {
   it('forwarde les commandes non commit/push telles quelles (pas de wrapper)', () => {
     const repo = makeRepo();
     const shimDir = mkdtempSync(join(tmpdir(), 'git-shim-bin-'));

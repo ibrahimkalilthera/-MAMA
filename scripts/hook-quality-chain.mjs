@@ -36,7 +36,8 @@ const QUALITY_CHAIN_SCRIPT = 'scripts/quality-chain.mjs';
  * Run the quality chain with panic retry + orphan sweep before the first
  * attempt and between retries. Resolves with the chain's exit code (0 on
  * success); never rejects. The sweep is selective (quality-chain orphans only)
- * unless `sweepAll` is set.
+ * unless `sweepAll` is set. `platform` est injectable (tests) — défaut
+ * `process.platform`.
  */
 export function runHookQualityChain({
   steps = DEFAULT_STEPS,
@@ -48,6 +49,7 @@ export function runHookQualityChain({
   log = console.log,
   forwardStderr = true,
   sweepAll = false,
+  platform = process.platform,
 } = {}) {
   const chainSteps = steps.length > 0 ? steps : DEFAULT_STEPS;
   return runCommandWithRetry(process.execPath, [QUALITY_CHAIN_SCRIPT, ...chainSteps], {
@@ -58,6 +60,7 @@ export function runHookQualityChain({
     forwardStderr,
     sweep: true,
     sweepAll,
+    platform,
   });
 }
 

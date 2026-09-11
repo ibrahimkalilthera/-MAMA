@@ -233,7 +233,15 @@ describe('runGitWithRetry', () => {
       { mode: 'close', code: 0 }, // sweep élargi (powershell)
       { mode: 'close', code: 0 }, // git
     ];
-    const code = await runGitWithRetry(['status'], { ...quiet, attempts: 1, waitMs: 1, sweepAll: true });
+    // `platform: 'win32'` : le sweep élargi réel doit spawner quelle que soit
+    // la plateforme du runner (sinon no-op sur Linux/CI).
+    const code = await runGitWithRetry(['status'], {
+      ...quiet,
+      attempts: 1,
+      waitMs: 1,
+      sweepAll: true,
+      platform: 'win32',
+    });
     assert.equal(code, 0);
     assert.equal(spawnCalls.length, 2, 'sweep puis git');
     const sweepCommand = spawnCalls[0].join(' ');

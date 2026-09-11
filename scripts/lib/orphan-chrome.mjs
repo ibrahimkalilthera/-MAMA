@@ -49,9 +49,9 @@ import { join } from 'node:path';
 const SWEEP_SPAWN_ATTEMPTS = 3;
 const SWEEP_SPAWN_RETRY_MS = 400;
 
-function runPowershellSweep(script, timeoutMs) {
+function runPowershellSweep(script, timeoutMs, platform = process.platform) {
   return new Promise((resolve) => {
-    if (process.platform !== 'win32') {
+    if (platform !== 'win32') {
       resolve(0);
       return;
     }
@@ -106,9 +106,14 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
  * user profile. Best-effort + bounded: per-artifact retries ride out
  * transient locks left by a just-killed process; the whole pass gives up at
  * the deadline and never throws. Returns the number of artifacts removed.
+ * `platform` est injectable (tests) — défaut `process.platform` ; hors
+ * Windows c'est un no-op.
  */
-export async function removeLeftoverTempArtifacts(prefixes, deadlineMs = 10000) {
-  if (process.platform !== 'win32') return 0;
+export async function removeLeftoverTempArtifacts(
+  prefixes,
+  { deadlineMs = 10000, platform = process.platform } = {},
+) {
+  if (platform !== 'win32') return 0;
   const tmp = tmpdir();
   let entries;
   try {
@@ -142,11 +147,12 @@ export async function removeLeftoverTempArtifacts(prefixes, deadlineMs = 10000) 
 /**
  * Kill leftover puppeteer Chrome processes AND remove their leftover temp
  * profiles + verify-pdf work dirs (Windows only). Returns the number of
- * processes killed.
+ * processes killed. `platform` est injectable (tests) — défaut
+ * `process.platform` ; hors Windows c'est un no-op.
  */
-export async function sweepOrphanPuppeteer(timeoutMs = 20000) {
-  const killed = await runPowershellSweep(PUPPETEER_SWEEP_SCRIPT, timeoutMs);
-  await removeLeftoverTempArtifacts(['puppeteer_dev', 'verify-pdf-']);
+export async function sweepOrphanPuppeteer(timeoutMs = 20000, platform = process.platform) {
+  const killed = await runPowershellSweep(PUPPETEER_SWEEP_SCRIPT, timeoutMs, platform);
+  await removeLeftoverTempArtifacts(['puppeteer_dev', 'verify-pdf-'], { platform });
   return killed;
 }
 
@@ -159,9 +165,14 @@ export async function sweepOrphanPuppeteer(timeoutMs = 20000) {
  *     → killed regardless of age;
  *   - any other instance (e.g. a legitimately open app) is killed only past
  *     the minimum age window, protecting a freshly-started legit process.
- * Returns the number of processes killed; never rejects.
+ * Returns the number of processes killed; never rejects. `platform` est
+ * injectable (tests) — défaut `process.platform` ; hors Windows, no-op.
  */
-export async function sweepOrphanElectron({ minAgeMinutes = 5, timeoutMs = 20000 } = {}) {
+export async function sweepOrphanElectron({
+  minAgeMinutes = 5,
+  timeoutMs = 20000,
+  platform = process.platform,
+} = {}) {
   const script =
     `$cut = (Get-Date).AddMinutes(-${minAgeMinutes}); ` +
     `$c = @(Get-CimInstance Win32_Process -Filter "Name='MamaTheraFinance.exe'"); ` +
@@ -169,7 +180,7 @@ export async function sweepOrphanElectron({ minAgeMinutes = 5, timeoutMs = 20000
     `$ours = $p.CommandLine -match 'electron-proof-ud'; ` +
     `$old = ($null -ne $p.CreationDate) -and ($p.CreationDate -lt $cut); ` +
     `if ($ours -or $old) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; $k++ } }; $k`;
-  const killed = await runPowershellSweep(script, timeoutMs);
-  await removeLeftoverTempArtifacts(['electron-proof-', 'updater-proof-']);
+  const killed = await runPowershellSweep(script, timeoutMs, platform);
+  await removeLeftoverTempArtifacts(['electron-proof-', 'updater-proof-'], { platform });
   return killed;
 }
