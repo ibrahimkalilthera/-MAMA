@@ -24,13 +24,17 @@ const failCounts = new Map<string, number>();
 /** paths that always fail (locked forever). */
 const alwaysFail = new Set<string>();
 
+// `namedExports` et non `exports` : sur Node 22 (le runtime de la CI) mocker un
+// module BUILTIN via `exports` seul casse l'interop ESM (« The requested module
+// 'node:fs' does not provide an export named 'readdirSync' »), et Node 24
+// refuse les deux options ensemble.
 mock.module('node:os', {
-  exports: {
+  namedExports: {
     tmpdir: () => tmpPath,
   },
 });
 mock.module('node:fs', {
-  exports: {
+  namedExports: {
     readdirSync: () => {
       if (readdirThrows) throw new Error('EACCES');
       return entries;

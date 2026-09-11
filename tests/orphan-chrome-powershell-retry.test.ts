@@ -28,8 +28,12 @@ class FakeChild extends EventEmitter {
   }
 }
 
+// `namedExports` et non `exports` : sur Node 22 (le runtime de la CI) mocker un
+// module BUILTIN via `exports` seul casse l'interop ESM (« The requested module
+// 'node:child_process' does not provide an export named 'spawn' »), et Node 24
+// refuse les deux options ensemble.
 mock.module('node:child_process', {
-  exports: {
+  namedExports: {
     spawn: () => {
       spawnCount++;
       const child = new FakeChild();
@@ -47,10 +51,10 @@ mock.module('node:child_process', {
   },
 });
 mock.module('node:os', {
-  exports: { tmpdir: () => 'C:/fake/temp' },
+  namedExports: { tmpdir: () => 'C:/fake/temp' },
 });
 mock.module('node:fs', {
-  exports: {
+  namedExports: {
     readdirSync: () => [],
     rmSync: () => {},
   },
