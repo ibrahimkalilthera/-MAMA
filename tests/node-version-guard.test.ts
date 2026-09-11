@@ -7,8 +7,13 @@
 // (see the script header), so these cases are the regression guard.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 const { majorOf, mismatch } = await import('../scripts/check-node-version.mjs');
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 describe('majorOf', () => {
   it('lit le majeur dans toutes les formes utilisées (.nvmrc, engines, process.versions)', () => {
@@ -39,5 +44,33 @@ describe('mismatch', () => {
   it('entrée illisible → jamais de blocage', () => {
     assert.equal(mismatch('22.23.2', ''), null);
     assert.equal(mismatch('lts/*', '22'), null);
+  });
+});
+
+// The gate only protects the paths that actually RUN it. It used to be reachable
+// solely through `npm run lint` while the CI job called `npx eslint .` directly,
+// so the runner never executed it — the doc header said otherwise. These
+// assertions read the workflow as text (no YAML dependency, matching the
+// dependency-free style of this suite): removing the step from a job fails here.
+describe('câblage CI du gate de parité', () => {
+  const workflow = readFileSync(join(root, '.github/workflows/perf-guard.yml'), 'utf8');
+
+  it('chaque job qui installe Node vérifie le majeur réellement exécuté', () => {
+    const setups = workflow.match(/actions\/setup-node@/g)?.length ?? 0;
+    const gates = workflow.match(/node scripts\/check-node-version\.mjs/g)?.length ?? 0;
+    assert.ok(setups > 0, 'perf-guard.yml doit installer Node au moins une fois');
+    assert.equal(
+      gates,
+      setups,
+      'tout job qui installe Node doit lancer scripts/check-node-version.mjs',
+    );
+  });
+
+  it('.nvmrc, .node-version et engines.node épinglent le même majeur', () => {
+    const nvmrc = readFileSync(join(root, '.nvmrc'), 'utf8');
+    const nodeVersion = readFileSync(join(root, '.node-version'), 'utf8');
+    const engines = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).engines.node;
+    assert.equal(majorOf(nodeVersion), majorOf(nvmrc));
+    assert.equal(majorOf(engines), majorOf(nvmrc));
   });
 });

@@ -13,9 +13,13 @@
  * workflow's `actions/setup-node` via `node-version-file`). `engines.node` in
  * package.json must agree with it — drift there fails this gate too.
  *
- * Placed FIRST in `npm run lint` (pre-commit + pre-push + CI quality job): a
- * mismatch fails immediately with the remedy instead of surfacing as a red CI
- * run minutes later. `npm test` is deliberately left free, so a suite can
+ * Placed FIRST in `npm run lint` (pre-commit + pre-push) AND as an explicit step
+ * of every job of perf-guard.yml: the CI job used to call `npx eslint .`
+ * directly, so this gate never executed on the runner while this very header
+ * claimed it did — the same "the gate did not really run" class of bug it was
+ * written to catch. A mismatch now fails immediately with the remedy, and each
+ * job logs the major it actually runs (a `node-version-file` that setup-node
+ * accepts is not, by itself, proof of what got executed). `npm test` is deliberately left free, so a suite can
  * still be replayed under another major (`npx --yes node@22 …`) when
  * diagnosing exactly this kind of divergence.
  *

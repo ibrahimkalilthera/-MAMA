@@ -64,6 +64,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # setup-node lit `.nvmrc`, mais son succès ne prouve pas dans le log que le
+      # majeur RÉELLEMENT exécuté est celui épinglé (ni qu'engines est d'accord).
+      # Ce gate — le même que celui en tête de `npm run lint` — le vérifie et
+      # l'affiche, job par job : c'est la preuve côté runner.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
       - name: Install dependencies
         run: npm ci
 
@@ -110,6 +117,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      # setup-node lit `.nvmrc`, mais son succès ne prouve pas dans le log que le
+      # majeur RÉELLEMENT exécuté est celui épinglé (ni qu'engines est d'accord).
+      # Ce gate — le même que celui en tête de `npm run lint` — le vérifie et
+      # l'affiche, job par job : c'est la preuve côté runner.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
 
       - name: Install dependencies
         run: npm ci
@@ -160,6 +174,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      # setup-node lit `.nvmrc`, mais son succès ne prouve pas dans le log que le
+      # majeur RÉELLEMENT exécuté est celui épinglé (ni qu'engines est d'accord).
+      # Ce gate — le même que celui en tête de `npm run lint` — le vérifie et
+      # l'affiche, job par job : c'est la preuve côté runner.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
 
       - name: Install dependencies
         run: npm ci
@@ -232,6 +253,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
+
+      # Idem : le gate de parité tourne ici aussi pour que le job warning-only
+      # ne soit pas le seul à pouvoir mentir sur sa version de Node.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
 
       - name: Audit tools/ from its lockfile (report only — never fails)
         run: node scripts/report-tools-audit.mjs
