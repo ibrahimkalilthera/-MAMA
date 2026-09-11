@@ -19,6 +19,17 @@
 // directory npm insists on putting first is the one carrying the pin. The
 // entries we do not own (`eslint`, `tsc`, …) are npm's and are never touched.
 //
+// WHO STILL NEEDS THESE — AND WHO DOES NOT
+// ----------------------------------------
+// The quality chain does NOT any more: every step's links are resolved
+// explicitly (./chain-links.mjs), so it runs `node <abs>/eslint/bin/eslint.js`
+// and never a bare `eslint` — no shell, no PATH, nothing to keep in the right
+// order. What still needs the entries below is what launches an npm SCRIPT:
+// `npm run lint`, `npm test`, `npm run dev`, and CI, which runs npm scripts
+// through a shell. The shell is what reads PATH, so the pin has to be ON that
+// PATH — and the directory npm already puts first is this one. The interactive
+// shell (`npm run shell`) is the same case, stated at the top of node-shell.mjs.
+//
 // Two details are contracts, not choices — both were paid for by a real bug:
 //
 //   1. Every shim is an ARGV PREFIX (`node <cli.js>`), never a bare executable.

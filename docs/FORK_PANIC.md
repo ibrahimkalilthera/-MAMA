@@ -70,6 +70,7 @@ panique sur 24 h**.
 | Purge par lignée (fin de chaîne) + garde détaché | `scripts/lib/orphan-node.mjs`, `scripts/lib/orphan-guard.mjs` | ce que **cette** exécution a créé, sur **tous** les chemins de sortie (fin, échec, `SIGINT`/`SIGTERM`, kill externe via le garde) | ce qui est né dans la dernière fenêtre de relevé du garde (≤ 10 s) |
 | Retry du spawn PowerShell | `scripts/lib/orphan-chrome.mjs` | un spawn powershell manqué qui aurait rendu un sweep **silencieusement inutile** | — |
 | Journal, rapport, docteur | `scripts/lib/orphan-node.mjs`, `scripts/sweep-report.mjs`, `scripts/panic-doctor.mjs` | mesurer : fréquence des panics, purges (zéros compris), état machine | ne répare **rien** (lecture seule, garanti par test) |
+| Résolution explicite des outils de la chaîne | `scripts/lib/chain-links.mjs` | les maillons de `lint:chain`, `test` et `build` : programme **absolu** (l'entrée `bin` du paquet installé, lue et non devinée) pour le node épinglé — aucun shell, aucun npm, donc aucun ordre de `PATH` à tenir | les **entrées** npm lancées avec un shell (`npm run lint`, `npm test`) et les shells interactifs : là c'est le `PATH` qui décide, et c'est `node_modules/.bin` qui porte le pin (`scripts/lib/bin-shims.mjs`) |
 | Chaîne spawn-only + watchdog | `scripts/quality-chain.mjs` | un run lent ne bloque ni ne sature la table de fork (kill d'arbre par étape, aucun shell) | n'aide pas si la chaîne est tuée de l'extérieur → garde détaché |
 
 ## 4. Décision

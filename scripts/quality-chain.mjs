@@ -39,6 +39,19 @@
  *      RECORDS descendants while the chain runs instead of closing over a dead
  *      pid afterwards — measured, see that module's header.)
  *
+ *   6. NO PATH, NO npm — the steps' commands are RESOLVED EXPLICITLY instead
+ *      of being looked up. `npm run <script>` spawns a shell, the shell reads
+ *      PATH to find `node`, `eslint`, `tsc` and `stylelint`, and the pin then
+ *      depends on the ORDER of PATH (which is why `node_modules/.bin` carries
+ *      node/npm/npx wrappers at all, ./lib/bin-shims.mjs). Here a package.json
+ *      script is split into links and each link becomes an explicit argv for
+ *      THIS node — the one the launcher pinned: `node <abs>/eslint/bin/eslint.js`,
+ *      never a bare `eslint`. Three node processes per step disappear with it
+ *      (npm → shell → tool), which matters on this machine, where every extra
+ *      node.exe loads the msys fork table (docs/FORK_PANIC.md). A link that
+ *      cannot be resolved explicitly FAILS the step — it is never handed to
+ *      PATH, because that is the dependency this removes.
+ *
  * Usage:  node scripts/quality-chain.mjs           (all steps)
  *         node scripts/quality-chain.mjs lint test  (selected steps)
  *
@@ -48,8 +61,10 @@
  * could (DEVELOPMENT_HISTORY.md, “msys fork panic”).
  */
 import { spawn } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { resolveScript } from './lib/chain-links.mjs';
 import {
   formatTimingReport,
   parallelPlan,
@@ -58,7 +73,6 @@ import {
   summarizeTimings,
   writeTimings,
 } from './lib/chain-timings.mjs';
-import { resolveNpmCliJs } from './lib/npm-cli.mjs';
 import { sweepOrphanElectron, sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { spawnOrphanGuard } from './lib/orphan-guard.mjs';
 import { recordSweep, sweepOwnNodeOrphans } from './lib/orphan-node.mjs';
@@ -170,48 +184,53 @@ function runStep(name, args, { timeoutMs = 300000, nodeOpts } = {}) {
   });
 }
 
-// Spawn npm through its JS entry (node npm-cli.js) instead of npm.cmd — the
-// shared resolver lives in ./lib/npm-cli.mjs, because the runtime launcher
-// (./with-pinned-node.mjs) needs exactly the same rule to run npm under the
-// PINNED node rather than the one that started us.
-const npmCliJs = resolveNpmCliJs(process.execPath);
+// ── Scripts, resolved EXPLICITLY — no npm, no shell, no PATH lookup ─────────
+// Each link of a package.json script becomes an explicit argv for THIS node
+// (`process.execPath`, the runtime the launcher pinned), with the tool's entry
+// read from the installed package's own `bin` field — the same declaration
+// npm's wrappers are generated from, so the explicit path and the path npm
+// would have used are the same file. See ./lib/chain-links.mjs.
+const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 
-const runNpm = (name, script, opts) =>
-  new Promise((resolve) => {
-    const started = Date.now();
-    const child = spawn(process.execPath, [npmCliJs, 'run', script], {
-      cwd: root,
-      env: { ...process.env, ...(opts?.nodeOpts ? { NODE_OPTIONS: opts.nodeOpts } : {}) },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
-    child.stdout.on('data', (d) => process.stdout.write(d));
-    child.stderr.on('data', (d) => process.stderr.write(d));
-    const timer = setTimeout(() => {
-      console.error(`\n⏱  ${name} dépassé (${opts?.timeoutMs ?? 300000}ms) — kill de tout l'arbre ${child.pid}`);
-      killTree(child.pid);
-    }, opts?.timeoutMs ?? 300000);
-    child.on('error', (err) => {
-      clearTimeout(timer);
-      console.error(`❌ ${name}: ${err.message}`);
-      resolve({ name, ok: false, ms: Date.now() - started });
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      console.log(`\n— ${name}: ${code === 0 ? 'OK' : `exit ${code}`} en ${Date.now() - started}ms [${memMb()}]`);
-      resolve({ name, ok: code === 0, ms: Date.now() - started });
-    });
-  });
+/**
+ * Run a package.json script link by link, explicitly.
+ *
+ * The per-link progress lines name the link (`lint:eslint`), so a slow step can
+ * be attributed without reading the script; the measured timing stays ONE row
+ * per step, because that is the unit the report compares across runs.
+ * `timeoutMs` is per LINK: a wedged link is killed tree-wide and named instead
+ * of taking the thirteen healthy ones down with it.
+ */
+async function runScript(name, scriptName, { timeoutMs = 300000, nodeOpts } = {}) {
+  const started = Date.now();
+  let plan;
+  try {
+    plan = resolveScript(pkg.scripts?.[scriptName], { root });
+  } catch (error) {
+    console.error(`❌ ${name} : ${error instanceof Error ? error.message : error}`);
+    return { name, ok: false, ms: Date.now() - started };
+  }
+  for (const link of plan.links) {
+    // A single-link step keeps its own name (`tests`, `build`); the link prefix
+    // is for the many-link ones, where attributing the cost is the whole point.
+    const label = plan.links.length > 1 ? `${name}:${link.label}` : name;
+    const result = await runStep(label, link.args, { timeoutMs, nodeOpts });
+    if (!result.ok) return { name, ok: false, ms: Date.now() - started };
+  }
+  return { name, ok: true, ms: Date.now() - started };
+}
 
 const STEPS = {
-  lint: () => runNpm('lint', 'lint', { timeoutMs: 300000 }),
+  // `lint` is the chain's public entry (`npm run lint` → with-pinned-node →
+  // lint:chain); here the links themselves run, resolved explicitly.
+  lint: () => runScript('lint', 'lint:chain', { timeoutMs: 300000 }),
   l10n: () => runStep('l10n-verify', ['scripts/l10n-verify.mjs'], { timeoutMs: 60000 }),
   test: () =>
-    runNpm('tests', 'test', {
+    runScript('tests', 'test', {
       timeoutMs: 600000,
       nodeOpts: '--max-old-space-size=4096',
     }),
-  build: () => runNpm('build', 'build', { timeoutMs: 180000 }),
+  build: () => runScript('build', 'build', { timeoutMs: 180000 }),
   // Security gate (scripts/check-audit.mjs). Env-neutral here: the caller
   // decides AUDIT_CACHE / AUDIT_SOFT_OFFLINE — the pre-commit hook sets
   // both (cache + soft-offline), CI keeps it strict by calling the script
