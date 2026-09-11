@@ -138,6 +138,17 @@
 .theme-midnight .text-blue-700 {
   color: #93C5FD !important;
 }
+/* Papier "note collante" (`bg-[#FEF9C3]` — StudentDetailsModal,
+   CalendarDayModal) : délibérément CLAIR dans tous les thèmes, ce n'est pas une
+   carte thémée. La règle globale `input/textarea` ci-dessus peignait quand même
+   ses contrôles en #F9FAFB → texte blanc sur papier jaune, 1.03:1. Trouvé par
+   l'audit de contraste dès que les fixtures Élèves ont réellement rendu des
+   lignes (l'année des fixtures vidait le tableau et la surface était déclarée
+   "non applicable"). Même principe que les listes de titres : une surface que
+   le thème ne peint PAS en sombre garde sa propre couleur de texte. */
+.theme-midnight [class*="FEF9C3"] :is(input, textarea, select) {
+  color: #713F12 !important;
+}
 .theme-midnight .text-emerald-500,
 .theme-midnight .text-emerald-600 {
   color: #34D399 !important;

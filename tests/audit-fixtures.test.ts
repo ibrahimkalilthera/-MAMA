@@ -23,6 +23,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const {
   FIXTURE_URL,
   FIXTURE_TABLE_NAMES,
+  FIXTURE_TABLES,
+  FIXTURE_ACADEMIC_YEAR,
   FIXTURE_USER,
   fixtureRoute,
   fixtureSession,
@@ -107,6 +109,57 @@ const collectSources = (dir: string): string[] => {
   }
   return out;
 };
+
+// The dataset is only "real content" if the APP keeps it. Every year-filtered
+// view drops a row whose academicYear differs from selectedYear, so a fixture
+// year that no longer matches the app's default turns whole surfaces empty while
+// the audit keeps reporting green — which is exactly what happened: every row was
+// 2025-2026, the app opens on 2026-2027, the Élèves table rendered zero rows and
+// "Fiche Élève" was reported "non applicable (aucun déclencheur)" in all six
+// themes. These assertions pin the two together so the drift can only happen as
+// a red test.
+describe('audit-fixtures — année scolaire', () => {
+  const provider = readFileSync(join(root, 'src/app/YearProvider.tsx'), 'utf8');
+  const appDefault = provider.match(/useState<string>\('(\d{4}-\d{4})'\)/)?.[1];
+  const fixtureSource = readFileSync(join(root, 'scripts/lib/audit-fixtures.mjs'), 'utf8');
+  const auditSource = readFileSync(join(root, 'scripts/theme-contrast-audit.mjs'), 'utf8');
+
+  it('le jeu de données porte l’année sur laquelle l’app s’ouvre', () => {
+    assert.ok(appDefault, 'année par défaut introuvable dans YearProvider.tsx — le test doit être mis à jour, pas supprimé');
+    assert.equal(
+      FIXTURE_ACADEMIC_YEAR,
+      appDefault,
+      'FIXTURE_ACADEMIC_YEAR doit suivre YearProvider : sinon les vues filtrées par année se vident en silence',
+    );
+  });
+
+  it('aucune ligne de fixture ne porte une année en dur', () => {
+    const literals = [...fixtureSource.matchAll(/\b(?:academic_year|year):\s*'(\d{4}-\d{4})'/g)].map((m) => m[1]);
+    assert.deepEqual(literals, [], `années écrites en dur (elles doivent passer par FIXTURE_ACADEMIC_YEAR) : ${literals.join(', ')}`);
+  });
+
+  it('les élèves de fixture survivent au filtre d’année de la vue Élèves', () => {
+    const kept = FIXTURE_TABLES.students.filter(
+      (s) => !s.academic_year || s.academic_year === FIXTURE_ACADEMIC_YEAR,
+    );
+    assert.ok(
+      kept.length > 0,
+      'aucun élève ne passerait le filtre `!selectedYear || academicYear === selectedYear` — la fiche élève ne serait pas mesurée',
+    );
+  });
+
+  it('la fiche élève ne peut plus être sautée en silence', () => {
+    const step = auditSource.slice(auditSource.indexOf("openOverlay(theme, 'Fiche Élève'"), auditSource.indexOf("// Relance parent modal"));
+    assert.ok(step.length > 0, 'l’étape Fiche Élève a disparu de l’audit');
+    assert.match(step, /aucune ligne élève/, 'une table vide doit ÉCHOUER l’étape, pas la déclarer non applicable');
+    assert.doesNotMatch(
+      step,
+      /catch\s*\{[\s\S]{0,120}return null/,
+      'cette surface est une couverture requise : plus de sortie silencieuse quand les données manquent',
+    );
+    assert.match(step, /div\.cursor-pointer/, 'le déclencheur (cellule nom/avatar) doit rester explicite');
+  });
+});
 
 describe('audit-fixtures — couverture et absence de secret', () => {
   it('chaque table interrogée par src/ a des lignes fixtures', () => {

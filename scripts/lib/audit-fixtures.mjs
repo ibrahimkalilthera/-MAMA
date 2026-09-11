@@ -34,6 +34,22 @@ export const FIXTURE_ANON_KEY = 'audit-fixtures-anon-key';
 export const FIXTURE_EMAIL = 'contrast-audit@audit.local';
 export const FIXTURE_PASSWORD = 'Contrast-Fixture-2026';
 
+/**
+ * The academic year every fixture row belongs to.
+ *
+ * It MUST be the year the app opens on: `src/app/YearProvider.tsx` initialises
+ * `selectedYear` to the literal `'2026-2027'`, and every year-filtered view keeps
+ * a row only when `!selectedYear || row.academicYear === selectedYear`. The two
+ * were out of sync and NOTHING said so: with every fixture row on 2025-2026, the
+ * Élèves table rendered zero rows, and the "Fiche Élève" step reported "non
+ * applicable (aucun déclencheur)" — green, with that surface never measured.
+ *
+ * `tests/audit-fixtures.test.ts` pins this constant to the app's literal, so
+ * changing one without the other turns the suite red instead of silently
+ * emptying the year-filtered views.
+ */
+export const FIXTURE_ACADEMIC_YEAR = '2026-2027';
+
 const USER_ID = 'f1c7b000-0000-4000-8000-00000000a001';
 const PARENT_ID_A = 'f1c7b000-0000-4000-8000-00000000b001';
 const PARENT_ID_B = 'f1c7b000-0000-4000-8000-00000000b002';
@@ -84,6 +100,10 @@ const DUE_PAST = '2026-02-10';
 // real content: rows in Élèves/Parents/Paie/Dépenses, an overdue student (the
 // relance trigger), a staff member (the three Paie CTAs), audit log entries and
 // a calendar note.
+//
+// Every row that carries a year MUST use FIXTURE_ACADEMIC_YEAR, never a literal:
+// a row the app filters out is not "less content", it is a surface that silently
+// stops being audited (see that constant).
 
 /** @type {Record<string, Array<Record<string, unknown>>>} */
 export const FIXTURE_TABLES = {
@@ -129,7 +149,7 @@ export const FIXTURE_TABLES = {
         { date: '2026-02-01', text: 'Rappel envoyé à la mère.', author: 'Audit Contraste' },
       ],
       flagged: false,
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
       grade: '10ème Année',
       photo: null,
       emergency_contact_name: 'Moussa Keïta',
@@ -158,7 +178,7 @@ export const FIXTURE_TABLES = {
       last_note_date: null,
       note_entries: [],
       flagged: true,
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
       grade: '9ème Année',
       photo: null,
       emergency_contact_name: 'Aïssata Traoré',
@@ -177,7 +197,7 @@ export const FIXTURE_TABLES = {
       student_id: 'f1c7b000-0000-4000-8000-00000000c001',
       date: '2026-01-20',
       amount: 150000,
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
       receipt_number: 'REC-2026-0001',
     },
     {
@@ -185,7 +205,7 @@ export const FIXTURE_TABLES = {
       student_id: 'f1c7b000-0000-4000-8000-00000000c002',
       date: '2026-09-01',
       amount: 300000,
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
       receipt_number: 'REC-2026-0002',
     },
   ],
@@ -199,7 +219,7 @@ export const FIXTURE_TABLES = {
       phone: '+223 76 00 00 01',
       bank_details: 'BOA ML-0001',
       emergency_contact: 'Fatoumata Diallo +223 76 00 00 02',
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
       inps_number: 'INPS-0001',
       hire_date: '2021-10-01',
       family_status: 'married',
@@ -218,7 +238,7 @@ export const FIXTURE_TABLES = {
       phone: '+223 76 00 00 03',
       bank_details: 'BDM ML-0002',
       emergency_contact: 'Seydou Sylla +223 76 00 00 04',
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
       inps_number: 'INPS-0002',
       hire_date: '2022-09-01',
       family_status: 'single',
@@ -235,14 +255,14 @@ export const FIXTURE_TABLES = {
       staff_id: 'f1c7b000-0000-4000-8000-00000000e001',
       amount: 235000,
       date: '2026-08-28',
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
     },
     {
       id: 'f1c7b000-0000-4000-8000-00000000f002',
       staff_id: 'f1c7b000-0000-4000-8000-00000000e002',
       amount: 190000,
       date: '2026-08-28',
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
     },
   ],
   expenses: [
@@ -252,7 +272,7 @@ export const FIXTURE_TABLES = {
       description: 'Craies et cahiers — 1er trimestre',
       amount: 85000,
       date: '2026-08-30',
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
     },
     {
       id: 'f1c7b000-0000-4000-8000-00000000a102',
@@ -260,7 +280,7 @@ export const FIXTURE_TABLES = {
       description: 'Réparation du portail',
       amount: 120000,
       date: '2026-09-02',
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
     },
   ],
   vendor_expenses: [
@@ -273,7 +293,7 @@ export const FIXTURE_TABLES = {
       payment_status: 'pending',
       amount_paid: 0,
       description: 'Manuels de mathématiques',
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
       aid_type: null,
       beneficiary_student_name: null,
       beneficiary_student_grade: null,
@@ -288,7 +308,7 @@ export const FIXTURE_TABLES = {
       payment_status: 'paid',
       amount_paid: 310000,
       description: 'Mise aux normes du tableau',
-      academic_year: '2025-2026',
+      academic_year: FIXTURE_ACADEMIC_YEAR,
       aid_type: 'scholarship',
       beneficiary_student_name: 'Fatoumata Traoré',
       beneficiary_student_grade: '10ème Année',
@@ -318,7 +338,7 @@ export const FIXTURE_TABLES = {
       id: 'f1c7b000-0000-4000-8000-00000000a401',
       code: 'CM2-B',
       cycle: 'cycle2',
-      year: '2025-2026',
+      year: FIXTURE_ACADEMIC_YEAR,
       section: 'B',
       name_fr: 'CM2 B',
       name_en: 'CM2 B',

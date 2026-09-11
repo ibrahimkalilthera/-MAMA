@@ -563,36 +563,51 @@ async function main() {
         return { rootSel: null, guard: null };
       });
 
-      // Student fiche (first student row), data-dependent
+      // Student fiche (first student row) — REQUIRED coverage, not optional.
+      //
+      // This step used to `return null` when the Élèves table had no rows, which
+      // the report rendered as "non applicable (aucun déclencheur)" — a green
+      // step. It was hiding a real break: every fixture row carried
+      // academic_year 2025-2026 while the app opens on 2026-2027, so the year
+      // filter emptied the table and the fiche was never measured, in any theme.
+      // A surface this audit exists to measure is now a HARD failure when its
+      // data is missing or its trigger disappeared.
       await openOverlay(theme, 'Fiche Élève', async () => {
         await pressEsc(); // clear any leftover overlay so the fiche guard is honest
         await clickText('button', 'Élèves & Notes', 'nav Élèves');
         await waitFor(visibleText('Gestion des Élèves'), 15000, 'vue Élèves');
-        // The table loads lazily with the view chunk — wait for real rows
-        // (header row alone = empty dataset → non applicable).
+        // The table loads lazily with the view chunk.
         try {
-          await waitFor('(() => document.querySelectorAll(\'tbody tr\').length > 0)()', 6000, 'lignes élèves');
+          await waitFor('(() => document.querySelectorAll(\'tbody tr\').length > 0)()', 8000, 'lignes élèves');
         } catch {
-          return null;
+          const seen = await page.evaluate(() => {
+            const years = [...document.querySelectorAll('select')].map((s) => s.value).join('/');
+            return `tbody tr=0, selects=${years}`;
+          });
+          throw new Error(
+            `aucune ligne élève (${seen}) — le jeu de données doit fournir des élèves pour l'année sélectionnée ` +
+              '(voir FIXTURE_ACADEMIC_YEAR dans scripts/lib/audit-fixtures.mjs)',
+          );
         }
-        const clicked = await page.evaluate(() => {
+        // Open the fiche via the student name/avatar cell (setSelectedStudent)
+        // — NOT the row's first <button>, which is the flag toggle.
+        const picked = await page.evaluate(() => {
           const rows = [...document.querySelectorAll('tbody tr, table tr')];
-          const row = rows.find((r) => {
+          const dataRow = rows.find((r) => {
             const t = r.textContent || '';
             if (!t.trim()) return false;
-            // skip column-header rows (all-caps labels)
+            // skip column-header rows (the header's sort cells are clickable
+            // but open nothing)
             if (/NOM DE L'ÉLÈVE|SOLDE|ACTIONS|STATUT|ÉLÈVES/.test(t) && !/[a-zà-ÿ]/.test(t)) return false;
             return [...r.querySelectorAll('button')].length > 0;
           });
-          if (!row) return false;
-          // Open the fiche via the student name/avatar cell
-          // (setSelectedStudent) — NOT the row's first <button>, which is the
-          // flag toggle and opens nothing.
-          const open = row.querySelector('div.cursor-pointer');
-          if (open) { open.click(); return true; }
-          return false;
+          if (!dataRow) return 'aucune ligne de données (que des en-têtes ?)';
+          const open = dataRow.querySelector('div.cursor-pointer');
+          if (!open) return `ligne « ${(dataRow.textContent || '').trim().slice(0, 40)} » sans déclencheur cliquable`;
+          open.click();
+          return null;
         });
-        if (!clicked) return null;
+        if (picked) throw new Error(`${picked} — le déclencheur de la fiche a changé`);
         await sleep(1400);
         return { rootSel: '[role="dialog"]', guard: '(() => !!document.querySelector(\'[role="dialog"]\'))()' };
       });

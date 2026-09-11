@@ -826,6 +826,17 @@ textarea:focus-visible {
 .theme-slate .text-rose-500 {
   color: #FDA4AF !important;
 }
+/* Sticky-note paper (`bg-[#FEF9C3]` — StudentDetailsModal, CalendarDayModal) is
+   deliberately light in EVERY theme: it is a paper note, not a themed card. The
+   global `input/textarea` whiten above still painted its controls #F8FAFC, so
+   the note's text read white-on-yellow — 1.03:1, invisible. Found by the
+   contrast audit as soon as the Élèves fixtures actually rendered rows (the
+   fixture year had emptied the table and the surface was reported "non
+   applicable"). Same principle as the heading lists above: a surface the theme
+   does NOT paint dark keeps its own text colour. */
+.theme-slate [class*="FEF9C3"] :is(input, textarea, select) {
+  color: #713F12 !important;
+}
 .theme-slate .text-emerald-500\/50 {
   color: #CBD5E1 !important;
 }
