@@ -8,9 +8,10 @@
  * removed — so every retirement is a visible one-line diff inside the very
  * split commit that earns it, and the allowlist cannot silently rot.
  *
- * Scope: src/**\/*.{ts,tsx,css}. CSS is included on purpose: the index.css
- * per-theme remap split is part of the same campaign, and a stylesheet can
- * be just as unmaintainable past a thousand lines as a component file.
+ * Scope: src/**\/*.{ts,tsx,css}. CSS is included on purpose: index.css's
+ * per-theme remap split (the remap layer now lives in src/themes/overrides.css)
+ * was earned by this gate, and a stylesheet can be just as unmaintainable past
+ * a thousand lines as a component file.
  * (Vendored assets ride the same rule — none are near the budget today.)
  *
  * Line counting is wc-equivalent: a file ending in a newline counts its
@@ -28,13 +29,10 @@ const EXT = /\.(ts|tsx|css)$/;
 // Grandfathered mid-split files. The reason names the split that retires the
 // entry; delete the entry in that same split's commit (the gate fails on a
 // stale entry, so forgetting is impossible).
-const ALLOWLIST = {
-  // Single CSS entry point (design-system remap + per-theme overrides). Its
-  // section 6 (Theme Overrides, ~600 lines) is a natural split candidate once
-  // the theme tokens stabilize — extract it to src/themes/overrides.css and
-  // delete this entry in that commit.
-  'src/index.css': 'split src/index.css section 6 (Theme Overrides) into src/themes/overrides.css',
-};
+//
+// Empty since 2026-09: src/index.css section 6 (Theme Overrides) moved to
+// src/themes/overrides.css, which retired the only entry that ever lived here.
+const ALLOWLIST = {};
 
 /** wc-equivalent line count: drop the empty fragment a trailing \n leaves. */
 function countLines(src) {

@@ -46,7 +46,7 @@ Variables (voir `.env.example`) :
 | `npm run dev` | Vite dev server (port 3000, mode development) |
 | `npm run dev:staging` | dev server en mode staging |
 | `npm run build[:staging\|:production]` | build de production |
-| `npm test` | 525 tests (node:test + tsx, module-mocks expérimental) |
+| `npm test` | 788 tests (node:test + tsx, module-mocks expérimental) |
 | `npm run lint` | **parité de version Node** (`.nvmrc` ↔ poste) + ESLint 0-warning + tsc strict + guards custom (props, `any`, harnais de tests, **intégrité des suites**, stylelint, CSS, i18n, emoji, dates Windows, budget de lignes, snapshot SQL) |
 | `npm run quality` | lint + tests + audit de contraste WCAG 6 thèmes (identique au pre-commit/CI) |
 | `npm run check:contrast` | audit de contraste seul (backend fixtures, aucun secret ; `AUDIT_FIXTURES=0` + `AUDIT_EMAIL`/`AUDIT_PASSWORD` pour un vrai backend) |
@@ -163,8 +163,12 @@ src/
   components/     # vues + modales (AppModals, modales métier, ProductivityPanel…)
   lib/            # supabase client, PDF, offline queue, guards utilitaires
   i18n/           # translations.ts (fr/en)
+  index.css       # design system (sections 1-5) + styles d'impression
+  themes/         # midnight.css + overrides.css : les remaps !important par thème
 supabase/
-  migrations/     # 19 migrations SQL (schéma + RLS) ; FULL_SETUP_MIGRATION.sql généré
-scripts/          # guards qualité (props, contraste, i18n, any, …)
-tests/            # 82 suites node:test (525 tests)
+  migrations/     # 22 migrations SQL (schéma + RLS) ; FULL_SETUP_MIGRATION.sql généré
+scripts/          # guards qualité (props, contraste, i18n, any, …) + lib/ partagée
+tests/            # 70 suites node:test (788 tests)
 ```
+
+`src/index.css` garde le design system (sections 1-5) et les styles d'impression ; les surcharges de thème `!important` vivent dans `src/themes/` (`midnight.css`, `overrides.css`), importées **dans cet ordre** juste après le design system — c'est l'ordre qu'elles avaient dans le fichier unique, et les seules règles non-`!important` du bloc battent leurs concurrentes par spécificité, pas par position. Le budget de 700 lignes par fichier ne tolérait `index.css` que le temps de la scission : l'entrée `ALLOWLIST` a été retirée dans le même commit. Les gardes qui lisent ces feuilles (sélecteurs CSS, modèle de contraste des tests) passent par le **corpus** — `src/index.css` plus les couches qu'il importe, résolu par `scripts/lib/theme-css.mjs` — jamais par un chemin en dur : c'est ce qui empêche un garde de devenir vert en ne contrôlant plus rien après un déplacement de règles.

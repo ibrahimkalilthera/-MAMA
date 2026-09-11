@@ -1,13 +1,14 @@
 /**
  * Numeric WCAG lock for the light-theme contrast fixes (db70bc3 + the
- * light-theme remap layer in index.css) — with an AUTO-DERIVED manifest.
+ * theme remap layers — src/index.css + src/themes/*.css, read as one corpus)
+ * — with an AUTO-DERIVED manifest.
  *
  * Why numeric + static: the browser audit (scripts/theme-contrast-audit.mjs)
  * gates every theme at 3:1 for large/UI text, but small text (chips,
  * captions, pills: 9-12px) needs the WCAG AA 4.5:1 bar, and it only measures
  * whatever happens to be rendered with the ephemeral account's data. This
  * suite resolves the actual colors — base Tailwind palette, overridden by
- * each light theme's remap rules parsed from src/index.css — and asserts:
+ * each light theme's remap rules parsed from the theme CSS corpus — and asserts:
  *
  *   1. the light themes' remapped TEXT families (navy/emerald/bordeaux
  *      darken slate-400, emerald-500/600, rose-500/600, blue-500; cream
@@ -34,9 +35,6 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-
 import {
   LIGHT_THEMES,
   textOverrides,
@@ -57,11 +55,8 @@ import {
   slateBgRemap,
   slateDarkSurfaces,
   whitenSurfaces,
-  ROOT,
   type LightTheme,
 } from './tailwind-pairs.ts';
-
-const CSS = readFileSync(join(ROOT, 'src/index.css'), 'utf8');
 
 /** The remapped accent families monitored in section 1 (bg tokens that carry white text). */
 const ACCENT_SOLID = /^(blue|indigo|emerald|rose|amber|teal|purple|cyan)-(500|600|700)$/;

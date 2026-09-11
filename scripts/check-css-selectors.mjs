@@ -18,9 +18,19 @@
  *
  * Deliberately narrow: comments, strings and `-aside`/`header-x` never
  * match. Runs inside `npm run lint` (pre-commit + CI quality job).
+ *
+ * The theme checks further down read the theme CSS CORPUS (src/index.css +
+ * src/themes/*.css, resolved by ./lib/theme-css.mjs) instead of one hard-coded
+ * path. That is not decoration: when the remap layer was extracted to
+ * src/themes/overrides.css, a path-based guard would have kept passing while
+ * checking nothing — the file still exists, it simply no longer holds the
+ * rules. Only the OS-media-query check stays per-file: it is an invariant of
+ * EVERY stylesheet under src/, so a new file must not be able to hide it.
  */
 import fs from 'node:fs';
 import path from 'node:path';
+
+import { readThemeCss, themeCssFiles } from './lib/theme-css.mjs';
 
 const ROOTS = ['src'];
 
@@ -94,44 +104,50 @@ if (violations.length > 0) {
 
 const CSS_GUARDS = [
   {
-    file: 'src/index.css',
-    needle: 'prefers-color-scheme',
-    absent: true, // must NOT be present — the OS media query must never reappear
-    label: 'the OS media query must never reappear',
-  },
-  {
-    file: 'src/index.css',
-    needle: '.theme-slate .bg-rose-50',
-    label: 'the slate pastel-surface remap must stay (white headings on pastel cards otherwise)',
-  },
-  {
-    file: 'src/index.css',
-    needle: '.theme-slate .text-rose-600',
-    label: 'the slate rose-text remap must stay (dark rose on dark cards is unreadable)',
-  },
-  {
     // The Relance parent-name span moved with the NotifyParentModal extraction.
     file: 'src/components/NotifyParentModal.tsx',
     needle: 'text-sm font-black text-slate-900 dark:text-white',
     label: 'the Relance parent-name span must stay theme-safe (dark in light themes, white in dark themes)',
   },
+  {
+    needle: '.theme-slate .bg-rose-50',
+    label: 'the slate pastel-surface remap must stay (white headings on pastel cards otherwise)',
+  },
+  {
+    needle: '.theme-slate .text-rose-600',
+    label: 'the slate rose-text remap must stay (dark rose on dark cards is unreadable)',
+  },
 ];
 
 const guardViolations = [];
+
+// The OS media query must never come back in ANY stylesheet (comments are
+// stripped so an explanatory comment may still name it).
+for (const file of cssFiles('src')) {
+  if (stripComments(fs.readFileSync(file, 'utf8')).includes('prefers-color-scheme')) {
+    guardViolations.push(
+      `${file}  —  must NOT contain "prefers-color-scheme"  (the OS media query must never reappear)`
+    );
+  }
+}
+
+// Content checks read the CORPUS, never a path.
+const THEME_FILES = themeCssFiles();
+const THEME_CSS = stripComments(readThemeCss());
+const CORPUS = THEME_FILES.join(', ');
+
 for (const g of CSS_GUARDS) {
-  if (!fs.existsSync(g.file)) {
-    guardViolations.push(`${g.file}  —  missing (${g.label})`);
+  if (g.file) {
+    if (!fs.existsSync(g.file)) {
+      guardViolations.push(`${g.file}  —  missing (${g.label})`);
+    } else if (!fs.readFileSync(g.file, 'utf8').includes(g.needle)) {
+      guardViolations.push(`${g.file}  —  must contain ${JSON.stringify(g.needle)}  (${g.label})`);
+    }
     continue;
   }
-  // CSS files: comments are stripped so an explanatory comment can mention
-  // `prefers-color-scheme` without tripping the OS-media-query guard.
-  const content = g.file.endsWith('.css')
-    ? stripComments(fs.readFileSync(g.file, 'utf8'))
-    : fs.readFileSync(g.file, 'utf8');
-  const found = content.includes(g.needle);
-  if ((g.absent && found) || (!g.absent && !found)) {
+  if (!THEME_CSS.includes(g.needle)) {
     guardViolations.push(
-      `${g.file}  —  ${g.absent ? 'must NOT contain' : 'must contain'} ${JSON.stringify(g.needle)}  (${g.label})`
+      `theme CSS corpus (${CORPUS})  —  must contain ${JSON.stringify(g.needle)}  (${g.label})`
     );
   }
 }
@@ -161,21 +177,20 @@ for (const g of CSS_GUARDS) {
 //      heading ever sits on a CTA button, and whitening one there would
 //      break it.
 
-const INDEX_CSS = stripComments(fs.readFileSync('src/index.css', 'utf8'));
-
-// 1. Blanket heading rule absent.
-if (/\n\.theme-slate\s+h[1-4](?=[,{])/.test('\n' + INDEX_CSS)) {
+// 1. Blanket heading rule absent — in ANY corpus file: the remap layer may
+// move between files, the invariant may not.
+if (/\n\.theme-slate\s+h[1-4](?=[,{])/.test('\n' + THEME_CSS)) {
   guardViolations.push(
-    'src/index.css  —  the blanket `.theme-slate h1..h4 { color:#F8FAFC !important }` ' +
+    `theme CSS corpus (${CORPUS})  —  the blanket \`.theme-slate h1..h4 { color:#F8FAFC !important }\` ` +
     'whitening is back; headings must only be whitened by the scoped dark-surface rule'
   );
 }
 
 // 2. Blanket slate-text utility rule absent (standalone selector lines).
 const bareTextWhiten = /^\s*\.theme-slate \.text-slate-(950|900|800|700|600)\s*(,|\{)\s*$/m;
-if (bareTextWhiten.test(INDEX_CSS)) {
+if (bareTextWhiten.test(THEME_CSS)) {
   guardViolations.push(
-    'src/index.css  —  a bare `.theme-slate .text-slate-950|900|800|700|600 { … }` ' +
+    `theme CSS corpus (${CORPUS})  —  a bare \`.theme-slate .text-slate-950|900|800|700|600 { … }\` ` +
     'whitening is back; slate text must only be whitened by the scoped dark-surface rule'
   );
 }
@@ -192,9 +207,9 @@ function relativeLuminance(hex) {
 }
 
 const darkSurfaceTokens = new Set();
-const indexLines = INDEX_CSS.split(/\r?\n/);
-for (let i = 0; i < indexLines.length; i++) {
-  const sel = indexLines[i].match(/^\.theme-slate \.([^\s,{]+),?\{?$/);
+const corpusLines = THEME_CSS.split(/\r?\n/);
+for (let i = 0; i < corpusLines.length; i++) {
+  const sel = corpusLines[i].match(/^\.theme-slate \.([^\s,{]+),?\{?$/);
   if (!sel) continue;
   const token = sel[1];
   // Only background/card surface rules feed the scope list (text-/border-/
@@ -202,8 +217,8 @@ for (let i = 0; i < indexLines.length; i++) {
   if (!/^(bg-|card-)/.test(token)) continue;
   // Scan this rule for its background declaration (same or following lines).
   let bg = null;
-  for (let j = i + 1; j < Math.min(i + 6, indexLines.length); j++) {
-    const line = indexLines[j].trim();
+  for (let j = i + 1; j < Math.min(i + 6, corpusLines.length); j++) {
+    const line = corpusLines[j].trim();
     const bm = line.match(/^background(?:-color)?:\s*([^;!]+)/);
     if (bm) {
       bg = bm[1].trim();
@@ -225,13 +240,13 @@ const missingFromScope = [];
 for (const token of darkSurfaceTokens) {
   // One entry per surface must whiten BOTH the heading group and the
   // slate-neutral text family (they share the same `:is(…)` list).
-  if (!INDEX_CSS.includes(`.theme-slate .${token} :is(h1, h2, h3, h4, .text-slate-950`)) {
+  if (!THEME_CSS.includes(`.theme-slate .${token} :is(h1, h2, h3, h4, .text-slate-950`)) {
     missingFromScope.push(token);
   }
 }
 if (missingFromScope.length > 0) {
   guardViolations.push(
-    'src/index.css  —  slate surfaces painted dark without a matching heading+text scope entry: ' +
+    `theme CSS corpus (${CORPUS})  —  slate surfaces painted dark without a matching heading+text scope entry: ` +
     missingFromScope.join(', ') +
     ' (add `.theme-slate .' + missingFromScope[0] +
     ' :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600)` to the scoped rule)'

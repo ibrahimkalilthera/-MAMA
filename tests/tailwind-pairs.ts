@@ -17,12 +17,14 @@
  *
  * Also exports the WCAG helpers + the light-theme remap parser shared with
  * theme-contrast-remap.test.ts (single source of truth for the contrast
- * math, palette, and index.css parsing).
+ * math, palette, and theme CSS corpus parsing).
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import typescript from 'typescript';
+
+import { readThemeCss } from '../scripts/lib/theme-css.mjs';
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
@@ -275,12 +277,17 @@ export const extractMissingDarkBg = (): DarkGap[] => {
   }
   return gaps;
 };
-/* ─── Theme remap layer (from index.css) ─────────────────────────────────── */
+/* ─── Theme remap layer (the theme CSS corpus) ──────────────────────────── */
+/* The remap layer spans src/index.css and src/themes/*.css, so it is read
+   through the same corpus loader the lint gate uses (scripts/lib/theme-css.mjs).
+   Reading src/index.css alone would now parse ZERO remaps — and the "parser
+   drift" assertions below would still pass, because an empty manifest is a
+   small manifest. */
 
 export const LIGHT_THEMES = ['navy', 'emerald', 'cream', 'bordeaux'] as const;
 export type LightTheme = (typeof LIGHT_THEMES)[number];
 
-export const CSS_TEXT = readFileSync(join(ROOT, 'src/index.css'), 'utf8');
+export const CSS_TEXT = readThemeCss(ROOT);
 
 /** key: `${theme} ${token}` → solid hex. */
 export const textOverrides = new Map<string, string>();
@@ -406,7 +413,7 @@ export const resolve = (theme: LightTheme, kind: 'text' | 'bg', token: string): 
 
 /**
  * DARK themes resolve differently from the light four:
- *  - `slate`    — a CSS remap layer in index.css (!important) repaints the
+ *  - `slate`    — a CSS remap layer in the theme corpus (!important) repaints the
  *    pastel/neutral utility classes: bg-white→card, bg-slate-50→inset,
  *    pastel -50/-100 surfaces→dark equivalents, text-slate-950..600→
  *    #F8FAFC inside those dark surfaces (the :is() whiten rule),
