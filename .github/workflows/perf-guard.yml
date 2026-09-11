@@ -201,7 +201,10 @@ jobs:
         env:
           AUDIT_URL: http://127.0.0.1:4173/
           CHROME_PATH: /usr/bin/google-chrome
-        run: node scripts/theme-contrast-audit.mjs
+        # Par son nom, jamais recopiée : `check:contrast` EST cette commande,
+        # et une copie diverge en silence — c'est exactement ce que refuse
+        # scripts/check-ci-commands.mjs (ce garde a trouvé cette ligne).
+        run: npm run check:contrast
 
   # Warning-only: the isolated deploy CLI (tools/) keeps its dev-only pins on
   # purpose — they must stay visible without ever blocking deploys, because
