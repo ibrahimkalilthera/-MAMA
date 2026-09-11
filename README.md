@@ -6,7 +6,7 @@ Application de gestion financière scolaire (élèves, parents, paiements, dépe
 
 ## Démarrage rapide
 
-**Prérequis** : Node.js **22** (pinné dans `.nvmrc`) — **aucun gestionnaire de version à installer**. Le projet provisionne lui-même le runtime qu'il épingle : `npm run setup:node` (aussi lancé en douceur par `npm install`), et les points d'entrée qui comptent — hooks git, `npm run lint`, `npm run quality` — passent par `scripts/with-pinned-node.mjs`, qui bascule sur ce runtime et l'injecte dans leur PATH. Sur une machine déjà en 22 (comme la CI), la bascule est un no-op : rien à télécharger.
+**Prérequis** : Node.js **22** (pinné dans `.nvmrc`) — **aucun gestionnaire de version à installer**. Le projet provisionne lui-même le runtime qu'il épingle : `npm run setup:node` (aussi lancé en douceur par `npm install`), et les points d'entrée qui comptent — hooks git, `npm run lint`, `npm run quality` — passent par `scripts/with-pinned-node.mjs`, qui bascule sur ce runtime et l'injecte dans leur PATH. Sur une machine déjà en 22 (comme la CI), la bascule est un no-op : rien à télécharger. Pour un **terminal** sur ce runtime : `npm run shell` (ou, dans un terminal déjà ouvert, `export PATH="$(npm run --silent shell -- --print):$PATH"`).
 
 > ⚠️ **Version de Node — pourquoi 22 ?**
 > Les tests utilisent `mock.module()` avec l'option `namedExports`, **seule API disponible sur Node 22** (celle de la CI). Sur Node ≥ 25, cette option est dépréciée au profit de `exports` (warning `DeprecationWarning` local). Node 23/24 fonctionnent avec un warning ; rester sur 22 garantit la parité CI/local. Migrer vers `exports` seulement quand Node 22 EOL et que la CI passe sur Node ≥ 25.
@@ -55,6 +55,7 @@ Variables (voir `.env.example`) :
 | `npm run db:snapshot:check` | CI : échoue si le snapshot SQL a dérivé des migrations |
 | `npm run db:profiles:export` | exporte `user_profiles` (rôles) via la service key → JSON |
 | `npm run db:profiles:restore -- --file F.json` | restaure les rôles après migration sur base vide (confirmation interactive) |
+| `npm run shell` | terminal où `node`/`npm`/`npx` sont le runtime épinglé (`-- --print` n'imprime que le dossier de shim, à préfixer à `PATH`) |
 | `npm run optimize:stamp` | optimise le tampon scolaire (PNG → 38 Ko) |
 
 ## Base de données (Supabase)

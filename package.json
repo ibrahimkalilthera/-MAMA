@@ -13,6 +13,7 @@
     "optimize:stamp": "node scripts/optimize-stamp.mjs",
     "check:perf": "node scripts/check-performance.mjs",
     "setup:node": "node scripts/setup-node-runtime.mjs",
+    "shell": "node scripts/node-shell.mjs",
     "quality": "node scripts/with-pinned-node.mjs --node scripts/quality-chain.mjs",
     "git:retry": "node scripts/git-retry.mjs",
     "check:contrast": "node scripts/theme-contrast-audit.mjs",

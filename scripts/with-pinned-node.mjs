@@ -21,14 +21,16 @@
  * Everything below an entry point inherits the pinned runtime, because the
  * quality chain spawns its steps through `process.execPath` (see
  * scripts/quality-chain.mjs) rather than through a PATH lookup — so pinning the
- * entry point is enough, and no PATH shim is needed (or wanted: a shim is what
- * silently broke earlier attempts at this).
+ * entry point is enough for it. The npm chain is the one exception (`npm run`
+ * resolves `eslint`/`tsc` through PATH), which is why a shim directory is
+ * written and prepended when — and only when — the current node is not the pin;
+ * see scripts/lib/node-path-shim.mjs.
  */
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { delimiter, dirname, join, resolve as resolvePath } from 'node:path';
 import { resolveNpmCliJs } from './lib/npm-cli.mjs';
+import { writePathShim } from './lib/node-path-shim.mjs';
 import {
   cacheFileFor,
   majorOf,
@@ -83,55 +85,6 @@ if (runtime.source !== 'current') {
 
 const npmCliJs = resolveNpmCliJs(runtime.execPath);
 
-/**
- * A repo-local PATH shim, written only when the pin actually needs one.
- *
- * Why it is unavoidable: the npm chain resolves `node`, `eslint` and `tsc`
- * through PATH (the .bin shims call `node`). Re-execing the launcher is not
- * enough for those — without this, `npm run lint` on another major would still
- * run the links on the wrong runtime. Proven the hard way: the version gate
- * caught exactly that (a green-looking chain on Node 24).
- *
- * It lives in the ignored cache dir, is rewritten only when the resolved
- * runtime changes, and is never needed on a machine already on the pinned
- * major (CI included) — there, the fast path skips it entirely.
- * @param {string} execPath pinned node
- * @returns {string} directory to prepend to PATH
- */
-function writePathShim(execPath) {
-  const dir = join(root, 'node_modules', '.cache', 'pinned-node-bin');
-  mkdirSync(dir, { recursive: true });
-  // Every shim is an ARGV PREFIX, not a single executable: npm and npx are .js
-  // entry points and must be handed to the pinned node, never exec'd directly
-  // (a bare `exec npm-cli.js` is what silently broke the audit step — the
-  // offline branch then hung for its whole timeout instead of failing loudly).
-  const argvFor = (/** @type {string} */ node, /** @type {string[]} */ extra) => [node, ...extra];
-  const posix = (/** @type {string[]} */ argv) =>
-    `#!/bin/sh\nexec ${argv.map((a) => JSON.stringify(a)).join(' ')} "$@"\n`;
-  // CRLF matters for .cmd: cmd.exe misparses LF-only files badly enough that
-  // the shim leaks back to the host runtime mid-chain.
-  const windows = (/** @type {string[]} */ argv) =>
-    `@echo off\r\n${argv.map((a) => `"${a}"`).join(' ')} %*\r\n`;
-  const write = (/** @type {string} */ name, /** @type {string} */ body) => {
-    const file = join(dir, name);
-    if (existsSync(file) && readFileSync(file, 'utf8') === body) return;
-    writeFileSync(file, body);
-    if (!name.endsWith('.cmd')) chmodSync(file, 0o755);
-  };
-  const npxCliJs = join(dirname(npmCliJs), 'npx-cli.js');
-  /** @type {Record<string, string[]>} */
-  const targets = {
-    node: argvFor(execPath, []),
-    npm: argvFor(execPath, [npmCliJs]),
-    npx: argvFor(execPath, [existsSync(npxCliJs) ? npxCliJs : npmCliJs]),
-  };
-  for (const [name, argv] of Object.entries(targets)) {
-    write(name, posix(argv));
-    write(`${name}.cmd`, windows(argv));
-  }
-  return dir;
-}
-
 const [command, args] =
   mode === 'npm'
     ? [runtime.execPath, [npmCliJs, 'run', rest[0], ...rest.slice(1)]]
@@ -142,7 +95,10 @@ const [command, args] =
 // of searching the PATH — where our own shim would be found first and misread.
 const env = { ...process.env, MAMA_PINNED_NODE: '1', MAMA_NPM_CLI_JS: npmCliJs };
 if (runtime.source !== 'current') {
-  env.PATH = writePathShim(runtime.execPath) + delimiter + (process.env.PATH ?? '');
+  env.PATH =
+    writePathShim({ root, execPath: runtime.execPath, npmEntry: npmCliJs }) +
+    delimiter +
+    (process.env.PATH ?? '');
 }
 
 const child = spawn(command, args, {
