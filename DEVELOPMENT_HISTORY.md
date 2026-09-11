@@ -1,3 +1,11 @@
+## [2026-09-11] Runbook unique du fork-panic — sept entrées éparpillées, une procédure
+
+La panique de fork msys était documentée dans **sept entrées** de ce fichier, plus les corrections de 2026-09-11 qui les ont en partie contredites. Aucune n'était un point d'entrée : pour récupérer, il fallait déjà savoir quoi chercher, et la version la plus récente d'un fait pouvait côtoyer sa version périmée sans que rien ne le signale. `docs/FORK_PANIC.md` est désormais **le** point d'entrée.
+
+- **Ce qu'il contient** : les symptômes exacts (exit 254/66, motifs `fork:`/`uv_spawn`, ce que bash affiche) ; **ce que la panique ne fait jamais** (toucher l'arbre de travail) ; la cause telle qu'elle est *mesurée* aujourd'hui, avec la correction du modèle historique et les 32 chrome/electron relevés ; une table **quel mécanisme couvre quoi** — et surtout la colonne **ce qu'il ne couvre pas**, la plus utile des trois (le shim inerte sans PATH machine, le hook désactivé, l'orphelin que le filtre sélectif ne reconnaît pas) ; une table de **décision** (situation → commande) ; la **récupération manuelle** en six étapes (sonder, regarder avec le docteur, purger, vérifier `git status --porcelain`, reprendre, et ne jamais tuer des node.exe à l'aveugle) ; et les limites à ne pas re-découvrir.
+- **La règle qui évite le prochain éparpillement** : ce fichier reste la trace **datée** des mesures, le runbook décrit l'**état actuel** — un fait nouveau va dans les deux, et une correction doit **modifier** le runbook, pas seulement s'ajouter à côté. C'est la même discipline que les commentaires périmés corrigés ailleurs : une prose qui affirme ce que le code ne fait plus rend le comportement faux acceptable à nouveau.
+- **Vérifié** : le README pointe le runbook depuis la section qualité ; `npm run lint` et la suite complète inchangés.
+
 ## [2026-09-11] Un docteur pour l'état machine — et le filtre du sweep n'existe plus qu'en un exemplaire
 
 Toutes les corrections de cette série sont venues en **regardant** une machine réelle (un enfant node non détaché meurt avec son parent, 9/9 ; l'orphelin atteignable est le détaché, 1 survivant sur 4), jamais en raisonnant. Ce regard est maintenant une commande : `npm run orphans:doctor`.
