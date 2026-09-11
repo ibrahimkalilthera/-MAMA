@@ -12,7 +12,7 @@
 // launcher. A pin that nothing actually uses is a comment, not a pin.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, rmSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync, mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -26,7 +26,67 @@ const {
   resolveNodeRuntime,
 } = await import('../scripts/lib/node-runtime.mjs');
 
+const { resolveNpmCliJs } = await import('../scripts/lib/npm-cli.mjs');
+
 const tmp = () => mkdtempSync(join(tmpdir(), 'mama-node-runtime-'));
+
+// Both layouts are contracts, not preferences: Windows installs npm in
+// `<prefix>/node_modules/npm`, while the Unix/CI install (setup-node on ubuntu)
+// puts it in `<prefix>/lib/node_modules/npm`. Checking only the first is how a
+// green local run went red on the runner — the resolver threw there because the
+// path it assumed did not exist. These two cases make that specific blind spot
+// impossible to re-open without a failing test.
+describe('npm-cli — dispositions d’installation', () => {
+  const withLayout = (layout: string[], run: (node: string, cli: string) => void) => {
+    const prefix = tmp();
+    const node = join(prefix, 'bin', 'node');
+    const cli = join(prefix, ...layout);
+    mkdirSync(dirname(cli), { recursive: true });
+    mkdirSync(dirname(node), { recursive: true });
+    writeFileSync(cli, '');
+    writeFileSync(node, '');
+    const declared = process.env.MAMA_NPM_CLI_JS;
+    delete process.env.MAMA_NPM_CLI_JS; // the caller must not short-circuit the search
+    try {
+      run(node, cli);
+    } finally {
+      if (declared === undefined) delete process.env.MAMA_NPM_CLI_JS;
+      else process.env.MAMA_NPM_CLI_JS = declared;
+      rmSync(prefix, { recursive: true, force: true });
+    }
+  };
+
+  it('trouve npm dans <prefix>/lib/node_modules (Linux, runners CI)', () => {
+    withLayout(['lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'], (node, cli) => {
+      assert.equal(resolveNpmCliJs(node), cli);
+    });
+  });
+
+  it('trouve npm dans <prefix>/node_modules (Windows)', () => {
+    withLayout(['node_modules', 'npm', 'bin', 'npm-cli.js'], (node, cli) => {
+      assert.equal(resolveNpmCliJs(node), cli);
+    });
+  });
+
+  it('un chemin déclaré gagne la recherche, mais seulement s’il existe', () => {
+    const prefix = tmp();
+    const cli = join(prefix, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    const node = join(prefix, 'bin', 'node');
+    mkdirSync(dirname(cli), { recursive: true });
+    mkdirSync(dirname(node), { recursive: true });
+    writeFileSync(cli, '');
+    writeFileSync(node, '');
+    const declared = process.env.MAMA_NPM_CLI_JS;
+    try {
+      process.env.MAMA_NPM_CLI_JS = join(prefix, 'disparu.js');
+      assert.equal(resolveNpmCliJs(node), cli, 'un chemin déclaré mort ne doit pas gagner');
+    } finally {
+      if (declared === undefined) delete process.env.MAMA_NPM_CLI_JS;
+      else process.env.MAMA_NPM_CLI_JS = declared;
+      rmSync(prefix, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('node-runtime — résolution', () => {
   it('majeur d’une version, quelle que soit la forme', () => {

@@ -27,26 +27,32 @@ export function resolveNpmCliJs(npmNode) {
   const declared = process.env.MAMA_NPM_CLI_JS;
   if (declared && existsSync(declared)) return declared;
 
-  // 2. A standard install keeps npm right next to node.
+  // 2/3. The two real layouts. Windows keeps npm in `node_modules/npm` next to
+  //      node; Unix installs it in `<prefix>/lib/node_modules/npm`. Checking
+  //      only the first is how CI went red: setup-node on ubuntu puts npm under
+  //      lib/, so the resolver threw on the runner while passing at home.
+  const layouts = ['node_modules', join('lib', 'node_modules')];
+  const candidates = [];
   for (const base of [dirname(npmNode), dirname(dirname(npmNode))]) {
-    const cli = join(base, 'node_modules', 'npm', 'bin', 'npm-cli.js');
-    if (existsSync(cli)) return cli;
+    for (const layout of layouts) candidates.push(join(base, layout, 'npm', 'bin', 'npm-cli.js'));
   }
 
-  // 3. Last resort: the npm on PATH. Its own directory layout is assumed (the
-  //    standard npm.cmd/npm shell shim), so verify instead of returning a path
-  //    that cannot be loaded.
+  // 4. Last resort: the npm on PATH (its directory is the prefix, so both
+  //    layouts are tried from there too).
   const which = execFileSync(process.platform === 'win32' ? 'where' : 'which', ['npm'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   })
     .trim()
     .split(/\r?\n/)[0];
-  const cli = join(dirname(which), 'node_modules', 'npm', 'bin', 'npm-cli.js');
-  if (existsSync(cli)) return cli;
+  for (const base of [dirname(which), dirname(dirname(which))]) {
+    for (const layout of layouts) candidates.push(join(base, layout, 'npm', 'bin', 'npm-cli.js'));
+  }
+
+  for (const cli of candidates) if (existsSync(cli)) return cli;
 
   throw new Error(
     `npm-cli.js introuvable (node : ${npmNode}). ` +
-      `Définissez MAMA_NPM_CLI_JS ou installez npm à côté de node.`,
+      `Définissez MAMA_NPM_CLI_JS, ou installez npm à côté de node.`,
   );
 }
