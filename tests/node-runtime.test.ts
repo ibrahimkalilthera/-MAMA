@@ -33,9 +33,15 @@ const tmp = () => mkdtempSync(join(tmpdir(), 'mama-node-runtime-'));
 // Both layouts are contracts, not preferences: Windows installs npm in
 // `<prefix>/node_modules/npm`, while the Unix/CI install (setup-node on ubuntu)
 // puts it in `<prefix>/lib/node_modules/npm`. Checking only the first is how a
-// green local run went red on the runner — the resolver threw there because the
-// path it assumed did not exist. These two cases make that specific blind spot
-// impossible to re-open without a failing test.
+// green local run went red on the runner.
+//
+// Ce que ces cas valident, et ce qu'ils ne peuvent PAS valider : la LISTE DES
+// CANDIDATS et l'ordre des fournisseurs — pas ce qu'une machine a réellement
+// installé, puisqu'ils fabriquent l'arborescence qu'ils testent. Le layout réel
+// de chaque plateforme est prouvé ailleurs, sur un vrai runner, par la matrice
+// CI qui exécute `npm run check:node-layout` (ubuntu → lib/node_modules,
+// windows → node_modules) : une arborescence inventée ne peut pas dire ce que
+// setup-node a posé sur le disque.
 describe('npm-cli — dispositions d’installation', () => {
   const withLayout = (layout: string[], run: (node: string, cli: string) => void) => {
     const prefix = tmp();

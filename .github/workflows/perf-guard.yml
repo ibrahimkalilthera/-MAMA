@@ -106,6 +106,43 @@ jobs:
           AUDIT_CACHE: '1'
         run: node scripts/check-audit.mjs
 
+  # Le layout npm n'est pas une opinion : Windows installe npm dans
+  # `<prefix>/node_modules/npm`, les installations Unix (dont setup-node) dans
+  # `<prefix>/lib/node_modules/npm`. Une machine ne peut prouver que le sien —
+  # d'où une MATRICE, et non un test qui fabrique une arborescence : un arbre
+  # inventé prouve la liste des candidats, jamais ce que le runner a réellement
+  # installé. C'est exactement ce trou qui a produit un vert local et un rouge
+  # ubuntu (la résolution ne cherchait que le layout Windows), et c'est aussi
+  # pourquoi ce job existe séparément : il ne demande AUCUNE dépendance, donc il
+  # tourne sur les deux OS en une minute.
+  node-layouts:
+    name: Layout npm réel (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Une OS par layout : ubuntu prouve lib/node_modules, windows node_modules.
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Idem que les autres jobs : installer Node ne prouve pas le majeur
+      # réellement exécuté, et la résolution ci-dessous dépend justement de
+      # l'installation du runner.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # Pas de `npm ci` : le script est sans dépendance, et ce qu'on vérifie est
+      # justement l'installation de Node/npm fournie par le runner — pas la
+      # nôtre. `npm run` fonctionne sans node_modules installés.
+      - name: Résolution npm/node réelle de la plateforme
+        run: npm run check:node-layout
+
   lighthouse:
     runs-on: ubuntu-latest
     # Headroom calibrée sur les durées observées (56s à 917s selon le runner

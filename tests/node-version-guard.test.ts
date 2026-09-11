@@ -67,8 +67,11 @@ describe('câblage CI du gate de parité', () => {
     .split(/\n  (?=[a-z][\w-]*:\s*\n)/)
     .filter((c) => c.includes('steps:'));
 
-  it('reconnaît bien les 4 jobs du workflow', () => {
-    assert.equal(jobChunks.length, 4, `jobs détectés : ${jobChunks.length}`);
+  // Le compte est une assertion à part entière : il vérifie que la découpe en
+  // jobs fonctionne, donc que les règles ci-dessous s'appliquent à TOUS les jobs
+  // et pas à un sous-ensemble silencieusement mal découpé.
+  it('reconnaît bien les 5 jobs du workflow', () => {
+    assert.equal(jobChunks.length, 5, `jobs détectés : ${jobChunks.length}`);
   });
 
   it('chaque job qui installe Node prouve le majeur réellement exécuté', () => {
