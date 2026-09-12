@@ -89,8 +89,8 @@ function setupAutoUpdater(win) {
   }
   const { autoUpdater } = require('electron-updater');
   const {
-    shouldCheck, shouldPrompt, updateAction,
-    CHECK_INTERVAL_MS, FOCUS_COOLDOWN_MS, RE_PROMPT_MS,
+    shouldCheck, shouldPrompt, updateAction, updatePressure,
+    CHECK_INTERVAL_MS, FOCUS_COOLDOWN_MS, RE_PROMPT_MS, FORCED_RE_PROMPT_MS,
   } = require('./updater-policy.cjs');
   const logFile = process.env.UPDATER_LOG_FILE;
   const log = (msg) => {
@@ -125,6 +125,29 @@ function setupAutoUpdater(win) {
 
   let lastCheckAt = null;
   let lastPromptAt = null;
+  // Le retard de CE poste, recalculé dès qu'une version est annoncée. Il vit à
+  // part de l'état poussé à l'interface : l'interface a besoin de le MONTRER
+  // (et de bloquer tant qu'il est obligatoire), le main a besoin de le décider.
+  // Les deux champs restent dérivés de la même fonction, jamais d'un doublon.
+  let pressure = updatePressure({ currentVersion: app.getVersion() });
+  const pressureState = (info) => {
+    pressure = updatePressure({
+      currentVersion: app.getVersion(),
+      availableVersion: info && info.version,
+      releaseDate: info && info.releaseDate,
+      nowMs: Date.now(),
+    });
+    return {
+      currentVersion: app.getVersion(),
+      availableVersion: (info && info.version) || null,
+      forced: pressure.forced,
+      forcedCode: pressure.code,
+      forcedDetail: pressure.detail,
+      behindMajor: pressure.behindMajor,
+      behindMinor: pressure.behindMinor,
+      releaseAgeDays: pressure.releaseAgeDays,
+    };
+  };
 
   autoUpdater.on('checking-for-update', () => {
     lastCheckAt = Date.now();
@@ -132,8 +155,8 @@ function setupAutoUpdater(win) {
     log('checking-for-update');
   });
   autoUpdater.on('update-available', (i) => {
-    broadcast({ status: 'available', version: i.version });
-    log(`update-available ${i.version}`);
+    broadcast({ ...pressureState(i), status: 'available', version: i.version });
+    log(`update-available ${i.version}${pressure.forced ? ` — OBLIGATOIRE (${pressure.detail})` : ''}`);
   });
   autoUpdater.on('update-not-available', () => {
     broadcast({ status: 'current', version: app.getVersion() });
@@ -148,8 +171,8 @@ function setupAutoUpdater(win) {
     log(`download-progress ${Math.round(p.percent)}%`);
   });
   autoUpdater.on('update-downloaded', async (i) => {
-    broadcast({ status: 'downloaded', version: i.version });
-    log(`update-downloaded ${i.version}`);
+    broadcast({ ...pressureState(i), status: 'downloaded', version: i.version });
+    log(`update-downloaded ${i.version}${pressure.forced ? ` — OBLIGATOIRE (${pressure.detail})` : ''}`);
     if (process.env.UPDATER_LOG_FILE) return; // proof mode — E2E reads the log
     await askToInstall(i);
   });
@@ -158,11 +181,15 @@ function setupAutoUpdater(win) {
    * Pose la question — et la repose. « Plus tard » reporte, il ne refuse pas.
    */
   async function askToInstall(info) {
-    const verdict = shouldPrompt({ downloaded: true, lastPromptAt, nowMs: Date.now(), rePromptMs: RE_PROMPT_MS });
+    // Une obligation ne se reporte pas : on relance tout de suite, et la
+    // boîte de dialogue n'offre plus « Plus tard ».
+    const forced = pressure.forced;
+    const reinvite = forced ? FORCED_RE_PROMPT_MS : RE_PROMPT_MS;
+    const verdict = shouldPrompt({ downloaded: true, lastPromptAt, nowMs: Date.now(), rePromptMs: reinvite, forced });
     if (!verdict.prompt) {
       // Le report court encore : on programme le prochain rappel au lieu de
       // l'abandonner, sinon la version téléchargée serait gardée pour soi.
-      const waitMs = Math.max(1000, RE_PROMPT_MS - (Date.now() - (lastPromptAt || Date.now())));
+      const waitMs = Math.max(1000, reinvite - (Date.now() - (lastPromptAt || Date.now())));
       setTimeout(() => { void askToInstall(info); }, waitMs).unref?.();
       return;
     }
@@ -171,24 +198,28 @@ function setupAutoUpdater(win) {
     if (isPortable) {
       const { response } = await dialog.showMessageBox(win, {
         type: 'info',
-        title: 'Mise à jour disponible',
+        title: forced ? 'Mise à jour obligatoire' : 'Mise à jour disponible',
         message: `La version ${info.version} est disponible.`,
-        detail: action.detail,
-        buttons: ['Ouvrir la page de téléchargement', 'Plus tard'],
+        detail: forced ? `Mise à jour obligatoire : ${pressure.detail}. ${action.detail}` : action.detail,
+        buttons: forced ? ['Ouvrir la page de téléchargement'] : ['Ouvrir la page de téléchargement', 'Plus tard'],
         defaultId: 0,
-        cancelId: 1,
+        ...(forced ? {} : { cancelId: 1 }),
       });
       if (response === 0) shell.openExternal(RELEASES_URL);
       return;
     }
     const { response } = await dialog.showMessageBox(win, {
       type: 'info',
-      title: 'Mise à jour disponible',
-      message: `La version ${info.version} est prête à être installée.`,
-      detail: 'Redémarrer maintenant pour appliquer la mise à jour ?',
-      buttons: ['Redémarrer maintenant', 'Plus tard'],
+      title: forced ? 'Mise à jour obligatoire' : 'Mise à jour disponible',
+      message: forced
+        ? `Mise à jour obligatoire : vous êtes en ${app.getVersion()}, la version ${info.version} doit être installée.`
+        : `La version ${info.version} est prête à être installée.`,
+      detail: forced
+        ? `Retard constaté : ${pressure.detail}. Redémarrer maintenant pour l'appliquer.`
+        : 'Redémarrer maintenant pour appliquer la mise à jour ?',
+      buttons: forced ? ['Redémarrer maintenant'] : ['Redémarrer maintenant', 'Plus tard'],
       defaultId: 0,
-      cancelId: 1,
+      ...(forced ? {} : { cancelId: 1 }),
     });
     if (response === 0) {
       // Sentinel: marks an install attempt. If the app comes up again on this
@@ -197,7 +228,7 @@ function setupAutoUpdater(win) {
       autoUpdater.quitAndInstall();
     } else {
       // Report : on repropose plus tard sans attendre un redémarrage.
-      setTimeout(() => { void askToInstall(info); }, RE_PROMPT_MS).unref?.();
+      setTimeout(() => { void askToInstall(info); }, reinvite).unref?.();
     }
   }
 
@@ -229,8 +260,18 @@ function setupAutoUpdater(win) {
   // L'interface peut aussi demander elle-même l'état (bandeau monté après coup).
   try {
     ipcMain.handle('updates:get-state', () => state);
+    // L'interface peut relancer une vérification : une mise à jour obligatoire
+    // dont le téléchargement a échoué doit offrir un remède, sinon la seule
+    // issue serait d'attendre l'intervalle suivant — ou de fermer l'application.
+    ipcMain.handle('updates:check-now', async () => {
+      await autoUpdater.checkForUpdates().catch((e) => log(`check-failed ${(e && e.message) || e}`));
+      return state;
+    });
     ipcMain.handle('updates:install', async () => {
-      if (state.status !== 'downloaded') return { ok: false, reason: 'aucune mise à jour prête' };
+      // Le portable n'a jamais « rien de téléchargé » : sa seule action possible
+      // est la page de téléchargement, et l'y renvoyer est le geste attendu —
+      // surtout quand la mise à jour est obligatoire et qu'il n'a rien d'autre.
+      if (!isPortable && state.status !== 'downloaded') return { ok: false, reason: 'aucune mise à jour prête' };
       if (isPortable) {
         shell.openExternal(RELEASES_URL);
         return { ok: true, action: 'open-download' };
