@@ -1,0 +1,11 @@
+{
+  "_doc": [
+    "FREIN D'URGENCE — version retenue : ni proposée, ni imposée, ni installée.",
+    "Lu à chaque vérification de mise à jour par l'application de bureau (electron/main.cjs).",
+    "Retenir une version : ajouter {\"version\": \"1.0.4\", \"reason\": \"motif lisible\"} à holds, puis committer.",
+    "Un motif absent laisse la version retenue quand même ; c'est le motif qui manque, pas le frein.",
+    "Liste illisible ou absente : rien n'est imposé, mais la mise à jour reste proposée.",
+    "Retirer le release reste le geste qui vaut pour TOUS les postes — y compris ceux dont la version installée ne lit pas ce fichier."
+  ],
+  "holds": []
+}
