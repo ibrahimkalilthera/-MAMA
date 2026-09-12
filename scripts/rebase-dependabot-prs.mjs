@@ -239,11 +239,13 @@ async function main() {
   const token = (process.env[TOKEN_ENV] || '').trim();
 
   if (!token) {
-    // The `Inactif` annotation is a CONTRACT, not a message: `npm run
+    // The `[inactif]` mark is a CONTRACT, not a message: `npm run
     // check:automations` reads this workflow's last run and fails while it is
     // present. That is how a green run that did nothing stops being invisible
     // (see ./lib/automation-evidence.mjs) — reword the text freely, but keep it
-    // going through `inertAnnotation`, which is the single definition of it.
+    // going through `inertAnnotation`, which is the single definition of the
+    // mark, and keep it on STDOUT: the runner stores stdout, and it drops an
+    // annotation's title.
     console.log(
       inertAnnotation(
         'Dependabot rebase — le secret DEPENDABOT_REBASE_TOKEN n’est pas posé, donc aucune PR n’a été ' +

@@ -12,8 +12,14 @@
 // already (the git shim installed but never on PATH, the contrast step declared
 // "non applicable" while measuring nothing) — so the rule is written once here:
 //
-//   an automation that cannot do its job SAYS SO, with a `Inactif` annotation,
-//   and the audit reads every workflow's last real run looking for it.
+//   an automation that cannot do its job SAYS SO, with an `[inactif]` marker in
+//   its log, and the audit reads every workflow's last real run looking for it.
+//
+// A NOTE ON WHERE THE MARKER LIVES
+// -------------------------------
+// Not in the annotation title. The runner stores `##[warning]message` and drops
+// the title, so a title-only contract looked correct, tested green, and would
+// have missed the very run it exists for (see INERT_MARK).
 //
 // WHY AN ANNOTATION, AND NOT A PER-WORKFLOW TABLE
 // -----------------------------------------------
@@ -34,13 +40,29 @@
 export const INERT_TITLE = 'Inactif';
 
 /**
+ * The marker that actually travels in the LOG, and the reason it is not the
+ * title.
+ *
+ * Measured, not assumed: the runner intercepts `::warning title=…::message` and
+ * stores `##[warning]message` — the title never reaches the log the audit reads
+ * (run 34669815903 of `dependabot-rebase.yml`, green, declared inert, and
+ * invisible to a title-based check for exactly that reason). A marker that only
+ * exists in the title is a marker no audit can find, which is worse than no
+ * marker at all: it makes a dead automation look verified. So the marker lives
+ * in the MESSAGE, where GitHub provably keeps it, and the title stays for the
+ * Actions UI (which does render it).
+ */
+export const INERT_MARK = '[inactif]';
+
+/**
  * The exact annotation an automation emits when it cannot act. ONE definition:
  * the producer (../rebase-dependabot-prs.mjs) and the audit both use it, so a
  * reworded message can never silently stop being detected.
  * @param {string} scope what could not run, in human words
  * @returns {string}
  */
-export const inertAnnotation = (scope) => `::warning title=${INERT_TITLE}::${scope}`;
+export const inertAnnotation = (scope) =>
+  `::warning title=${INERT_TITLE}::${INERT_MARK} ${scope}`;
 
 /**
  * Every inert marker in a workflow log — the scope of each one, in order.
@@ -49,6 +71,10 @@ export const inertAnnotation = (scope) => `::warning title=${INERT_TITLE}::${sco
  * marker is searched anywhere in a line rather than anchored; and a multiline
  * message keeps its first line, which is the one that names what is missing.
  *
+ * The mark — not the annotation title — is what is searched: see INERT_MARK.
+ * `##[warning][inactif] …` is the shape the runner stores, which is why this
+ * reads the message rather than the command that produced it.
+ *
  * @param {string} [log] the job log as downloaded
  * @returns {string[]}
  */
@@ -56,10 +82,9 @@ export function inertMarkers(log = '') {
   const text = String(log ?? '');
   const out = [];
   for (const line of text.split(/\r?\n/)) {
-    const at = line.indexOf(`title=${INERT_TITLE}`);
+    const at = line.indexOf(INERT_MARK);
     if (at === -1) continue;
-    const message = line.slice(line.indexOf('::', at + `title=${INERT_TITLE}`.length) + 2).trim();
-    out.push(message);
+    out.push(line.slice(at + INERT_MARK.length).trim());
   }
   return out;
 }

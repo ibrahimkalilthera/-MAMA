@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   DORMANT_ALLOWANCE_DAYS,
+  INERT_MARK,
   INERT_TITLE,
   auditAutomations,
   inertAnnotation,
@@ -48,6 +49,40 @@ describe('la convention : une automatisation qui ne peut pas agir le DIT', () =>
     assert.match(marker, /le secret est absent/);
   });
 
+  it('la marque voyage dans le MESSAGE, pas seulement dans le titre', () => {
+    // Le runner réécrit `::warning title=…::message` en `##[warning]message` :
+    // le titre n’atteint JAMAIS le journal. Une marque qui ne vivrait que là
+    // serait introuvable — et pire, elle ferait passer une automatisation morte
+    // pour vérifiée. Donc la marque doit survivre à ce qui reste du message.
+    const [announce, message] = inertAnnotation('le secret est absent').split('::').slice(1);
+    assert.match(announce, /title=Inactif/);
+    assert.ok(message.startsWith(INERT_MARK), `la marque doit ouvrir le message, reçu : ${message}`);
+  });
+
+  it('la ligne telle que le runner la STOCKE est détectée', () => {
+    // Forme relevée sur le journal réel de `dependabot-rebase.yml`, run
+    // 34669815903 (SHA fc1b2b6, `success`, déclarant ne pas avoir pu agir) :
+    // horodatage, puis `##[warning]` + MESSAGE — le titre `Inactif` n’y est pas,
+    // c’est le fait mesuré qui a obligé à mettre la marque dans le message. La
+    // marque ci-dessous est donc celle que le helper compose, avec le reste de
+    // la ligne copié du journal. Cette ligne EST le cas de non-régression.
+    const realLine =
+      '2026-09-12T03:14:20.3564667Z ##[warning][inactif] Dependabot rebase — le secret ' +
+      'DEPENDABOT_REBASE_TOKEN n’est pas posé, donc aucune PR n’a été mise à jour.';
+    const found = inertMarkers(realLine);
+    assert.equal(found.length, 1);
+    assert.match(found[0], /DEPENDABOT_REBASE_TOKEN n’est pas posé/);
+    // Et cette même ligne, lue par le verdict complet, est bien un KO vert.
+    const v = lastRunVerdict({
+      name: 'Dependabot rebase',
+      run: { conclusion: 'success', created_at: daysAgo(0) },
+      log: realLine,
+      nowMs: NOW,
+    });
+    assert.equal(v.verdict, 'inert');
+    assert.equal(v.ko, true);
+  });
+
   it('le marqueur est retrouvé même préfixé par l’horodatage du log', () => {
     const found = inertMarkers(logWith(inertAnnotation('pas de token')));
     assert.deepEqual(found, ['pas de token']);
@@ -62,6 +97,8 @@ describe('la convention : une automatisation qui ne peut pas agir le DIT', () =>
     assert.deepEqual(inertMarkers(''), []);
     assert.deepEqual(inertMarkers('le job est inactif depuis 22 runs (mais sans annotation)'), []);
     assert.deepEqual(inertMarkers('::warning title=Autre::ceci est un autre avertissement'), []);
+    // Le TITRE seul ne compte plus : c’est précisément l’angle mort mesuré.
+    assert.deepEqual(inertMarkers('::warning title=Inactif::'), []);
   });
 });
 
@@ -258,9 +295,19 @@ describe('câblage — la convention est partagée, et l’audit lit le dépôt 
       ...readdirSync(join(root, 'scripts')).filter((f) => /\.mjs$/.test(f)).map((f) => join(root, 'scripts', f)),
       ...readdirSync(join(root, 'scripts', 'lib')).filter((f) => /\.mjs$/.test(f)).map((f) => join(root, 'scripts', 'lib', f)),
     ];
-    const naming = files.filter((f) => readFileSync(f, 'utf8').includes('INERT_TITLE'));
+    const naming = files.filter((f) => {
+      const text = readFileSync(f, 'utf8');
+      return text.includes('INERT_TITLE') || text.includes('INERT_MARK');
+    });
     assert.deepEqual(naming.map((f) => f.split(/[\\/]/).pop()), ['automation-evidence.mjs']);
     assert.equal(INERT_TITLE, 'Inactif');
+    assert.equal(INERT_MARK, '[inactif]');
+    // Et le PRODUCTEUR ne compose pas la marque lui-même : il passe par le
+    // helper, sinon deux écritures de la même marque pourraient diverger.
+    // (la prose a le droit de la nommer pour l'expliquer ; c'est le CODE du
+    // producteur qui ne doit pas la composer lui-même)
+    const producer = readFileSync(join(root, 'scripts', 'rebase-dependabot-prs.mjs'), 'utf8');
+    assert.doesNotMatch(producer, /INERT_MARK/);
   });
 
   it('l’audit tourne sur le dépôt RÉEL : chaque workflow est lu et au moins un est planifié', () => {
