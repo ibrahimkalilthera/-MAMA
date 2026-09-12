@@ -1,3 +1,37 @@
+## [2026-09-12] Un flux de mise à jour incohérent ne peut plus partir
+
+Demande : « ajoute un contrôle qui refuse de publier si latest.yml, l'installeur et la version du paquet ne portent pas la même version et le même sha512, pour qu'aucun poste ne reçoive un flux incohérent ».
+
+**Le raisonnement qui donne sa forme au contrôle.** Un poste se met à jour sur une **promesse d'octets** : `latest.yml` annonce une taille et un sha512, `electron-updater` refuse tout ce qui n'y répond pas. Vérifier la cohérence, c'est donc **recalculer ces octets** — relire les trois mêmes fichiers en espérant qu'ils se contredisent ne prouverait rien de ce que le poste recevra. Et les trois incohérences payées ici se réparent différemment, donc elles demandent trois contrôles distincts, plus un quatrième après coup :
+
+```
+local   le paquet, latest.yml et les OCTETS du dossier disent la même chose   → inclus dans electron:dist/release
+tag     le numéro est inédit        → refus AVANT tout téléversement (1.0.1 republiée n'atteindrait personne)
+draft   les octets TÉLÉVERSÉS répondent à latest.yml → c'est ce qui autorise la promotion
+live    ce que les postes lisent répond à la promesse  → rehaché depuis le dépôt public, sans jeton
+```
+
+**Ce que le mode local attrape, en plus de la version et du sha512 demandés** : un `path` qui n'est pas dans `files` (on ne saurait pas ce qu'on a haché), un blockmap absent (le poste retéléchargerait tout à chaque mise à jour), une taille qui ment, un artefact annoncé et introuvable, des noms qui ne portent pas la version annoncée — et il **nomme** les installeurs d'autres versions qui traînent dans `release/` sans en faire une erreur (le dossier accumule : chez moi six exécutables 1.0.0→1.0.2), parce que c'est précisément là qu'on prend le mauvais fichier à la main.
+
+**Ce que les modes distants attrapent, et qui n'a pas de version locale possible** : deux releases pour le même tag — les artefacts sont **éparpillés** entre eux et aucun outil ne les rassemble, c'est le brouillon en deux morceaux déjà mesuré ; un brouillon qui serait promu **après** qu'un poste a pu le lire (la vérification arrive trop tard) ; un brouillon dont le `latest.yml` n'est pas **celui du dossier, octet pour octet** (ce qui serait rendu visible ne serait pas ce qui vient d'être vérifié) ; et des octets publiés qui ne répondent pas à la promesse — la seule preuve qui compte pour un poste.
+
+**Le contrôle n'est pas un conseil, c'est un passeport.** `electron:release` enchaîne désormais `build → gate local → brouillon → gate du brouillon`, et le workflow de release **promu** le brouillon (`gh release edit --draft=false`) dans un pas séparé : un gate rouge fait échouer le job avant, donc rien n'est visible. La promotion est le seul geste qui rend une version lisible par `electron-updater` — c'est ce qui rend le gate bloquant par construction, au lieu de vérifier après coup. Le mode 2 (`--tag`) tombe encore avant, quand le refus ne coûte rien. Un dépôt qu'on n'a pas pu interroger est un **échec** : un canal muet ne doit jamais passer pour un canal sain.
+
+**Mesuré sur les vraies données du dépôt**, les trois modes :
+
+```
+local  ✅ version 1.0.3 (paquet) = 1.0.3 (latest.yml) · 129 030 387 octet(s) · sha512 bbn+8VOuyWYvzLVRwryfOPCn… (recalculé)
+       ⚠️  6 installeur(s) d'une AUTRE version traînent dans release/ — ne les publiez pas
+       à publier : latest.yml, …-1.0.3-setup.exe, …-1.0.3-setup.exe.blockmap, …-1.0.3-portable.exe
+tag    ❌ publication refusée pour v1.0.3 — le tag existe déjà : montez la version
+draft  ❌ « v1.0.3 » est DÉJÀ publié + le latest.yml du dossier local a changé (installeur reconstruit)
+live   ✅ flux publié cohérent — …-1.0.3-setup.exe · 129 025 046 octet(s) · sha512 YKMQPuLGkB3N6aUKmswTu6O/… (rehaché depuis le dépôt)
+```
+
+Ce relevé dit aussi, en passant, une vérité utile : les octets **publiés** (129 025 046) ne sont pas ceux que j'avais reconstruits localement (129 030 387) — c'est exactement le cas que le mode `draft` refuse, et la raison pour laquelle une nouvelle version doit **monter d'un numéro** au lieu d'écraser un numéro publié.
+
+**Preuves** : `tests/release-coherence.test.ts` (29 cas : lecture du yml, refus de version/sha512/taille/blockmap/`path` incohérents, noms d'artefacts contre version, avertissement sur les autres versions, liste de publication, et les six refus du distant — deux releases par tag, brouillon vs visible, latest.yml non identique, octets publiés non conformes, installeur d'une autre version, tag incohérent — plus le câblage vérifié dans `package.json` et dans le workflow, où l'ordre tag → publication → promotion → vérification publiée est asserté). `tsc`, eslint, l10n et les gardes passent ; `node scripts/check-release-coherence.mjs --live` est vert sur la v1.0.3 réellement publiée.
+
 ## [2026-09-12] Un poste bloqué par la porte se signale enfin
 
 Demande : « fais en sorte qu'un poste bloqué par la porte puisse signaler l'échec à l'administrateur (journal ouvert ou envoi au journal d'audit) au lieu de rester silencieux ».

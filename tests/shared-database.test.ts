@@ -262,13 +262,22 @@ describe('le câblage : le badge et la chaîne qualité', () => {
     // utilisateurs installent. L'ordre compte : vérifier après la signature ne
     // sert à rien, l'artefact est déjà produit.
     const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    // L'empaquetage vit dans `electron:build` (dist et release l'appellent) :
+    // c'est donc LUI qui doit vérifier avant de signer, et l'aliasing est vérifié
+    // à part — un `dist` qui n'appellerait plus l'empaquetage vérifié passerait
+    // sinon pour vert.
+    const build = pkg.scripts['electron:build'] as string;
+    const guard = build.indexOf('check-shared-db.mjs --dist electron-ui-dist');
+    assert.ok(guard !== -1, 'electron:build doit vérifier la base embarquée');
+    assert.ok(
+      guard < build.indexOf('electron-builder'),
+      'electron:build : la vérification doit précéder l’empaquetage',
+    );
     for (const script of ['electron:dist', 'electron:release']) {
-      const cmd = pkg.scripts[script] as string;
-      const guard = cmd.indexOf('check-shared-db.mjs --dist electron-ui-dist');
-      assert.ok(guard !== -1, `${script} doit vérifier la base embarquée`);
-      assert.ok(
-        guard < cmd.indexOf('electron-builder'),
-        `${script} : la vérification doit précéder l’empaquetage`,
+      assert.match(
+        pkg.scripts[script] as string,
+        /npm run electron:build/,
+        `${script} doit passer par l’empaquetage vérifié`,
       );
     }
   });

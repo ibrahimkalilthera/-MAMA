@@ -140,6 +140,17 @@ export const GUARD_INVENTORY = [
       [IMMUNITY.NON_VACUOUS]: 'il interroge des épingles de déploiement ; l’absence de réponse est traitée comme un échec par le script lui-même',
     },
   },
+  {
+    check: 'check-release-coherence.mjs',
+    input: 'artifact+network+config',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // La garantie de non-vacuité (aucun fichier annoncé ⇒ refus) vit dans le
+    // module qui compare, et elle est NOMMÉE ici plutôt que recopiée.
+    via: 'release-coherence.mjs',
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit un fichier de données (latest.yml) et des octets d’installeur, jamais du code source',
+    },
+  },
 ];
 
 /**

@@ -231,7 +231,7 @@ L'application est aussi empaquetée en **application de bureau Windows** (shell 
 
 ```bash
 npm run electron:ui      # vite build --base=./ --outDir electron-ui-dist
-npm run electron:dist    # electron:ui + empaquetage Windows (NSIS + portable)
+npm run electron:dist    # empaquetage Windows (NSIS + portable) + contrôle de cohérence du flux
 # → release/MamaTheraFinance-<version>-setup.exe (installeur)
 # → release/MamaTheraFinance-<version>-portable.exe (portable, sans installation)
 ```
@@ -246,10 +246,23 @@ node scripts/verify-desktop-app.mjs
 **Mises à jour automatiques** (`electron-updater`) : l'app installée (NSIS) vérifie les **GitHub Releases** de ce repo au démarrage et, si une nouvelle version existe, télécharge et installe l'installeur (dialogue « Redémarrer maintenant / Plus tard »). `latest.yml` est généré à côté de l'installeur — il doit être publié dans le même release. Publication :
 
 ```bash
-npm run electron:release  # electron:ui + electron-builder --win --publish always (GH_TOKEN requis)
-# → release créé en BROUILLON : le publier (Releases → Publish release) est ce qui rend
-#   la version visible pour electron-updater ; un brouillon ne met à jour personne.
+npm run electron:release  # build + gate local + brouillon + gate du brouillon (GH_TOKEN requis)
+# → release créé en BROUILLON : le promouvoir est ce qui rend la version visible pour
+#   electron-updater ; un brouillon ne met à jour personne. Le workflow de release ne
+#   fait cette promotion QUE si le gate du brouillon est vert — c'est ce qui le rend
+#   bloquant plutôt que décoratif.
 ```
+
+**Trois contrôles de cohérence, et chacun attrape une incohérence déjà payée.** Un poste se met à jour sur une **promesse d'octets** : `latest.yml` annonce une taille et un sha512, et `electron-updater` refuse tout ce qui n'y répond pas. Rien ne vérifiait cette promesse, et le dépôt l'a payé trois fois : une `1.0.1` publiée alors qu'**aucun release n'existait** (flux vide — tout le monde à jour de rien) ; un `electron-builder --publish always` créant **deux brouillons** pour le même tag, l'un portant `latest.yml`, l'autre le blockmap (invisibles pour l'updater) ; et un installeur reconstruit sous un numéro **déjà publié** (une republication n'atteint AUCUN poste, un même numéro ne se voit pas changer). D'où un contrôle à quatre modes, où l'empreinte est **recalculée sur les octets** — relire les trois mêmes fichiers ne prouverait rien :
+
+```bash
+npm run check:release          # 1. le paquet, latest.yml et les OCTETS du dossier disent la même chose
+npm run check:release:tag      # 2. le numéro est inédit  ← le refus qui ne coûte encore rien
+npm run check:release:draft    # 3. les octets TÉLÉVERSÉS répondent à latest.yml (brouillon)
+npm run check:release:live     # 4. ce que les postes lisent répond à la promesse (rehaché depuis le dépôt)
+```
+
+Le mode 1 est **inclus dans `electron:dist` et `electron:release`** (un build local refuse donc aussi un flux incohérent), le mode 2 tombe **avant** tout téléversement, et le mode 4 est le dernier pas du workflow — après la promotion, donc sur ce que les postes reçoivent réellement. Deux refus qui n'ont l'air de détails : deux releases pour un même tag (les artefacts sont **éparpillés** entre eux, et aucun outil ne les rassemble : c'est le brouillon en deux morceaux, mesuré), et un installeur d'une **autre version** présent dans le release (c'est le fichier qu'un humain téléchargera à la main). Et une panne de l'API est un **échec**, jamais un feu vert : un dépôt qu'on ne peut pas interroger ne prouve rien. Les installeurs d'anciennes versions qui traînent dans `release/` ne sont pas une erreur (le dossier accumule) mais sont **nommés** dans la sortie, parce que c'est exactement là qu'on prend le mauvais fichier.
 
 **Signature de code Windows** : le build signe automatiquement **tous** les artefacts (exe win-unpacked, `elevate.exe`, installeur NSIS + son désinstalleur, portable) dès que les variables standard sont définies : `CSC_LINK` (chemin/URL du `.pfx`) + `CSC_KEY_PASSWORD`. En CI, `.github/workflows/desktop-release.yml` (workflow_dispatch) restaure le certificat depuis les secrets `CSC_PFX_B64` + `CSC_KEY_PASSWORD`, signe et publie le GitHub Release (canal updater). ⚠️ SmartScreen n'est levé qu'avec un certificat d'une autorité de confiance (**OV/EV**) — un certificat auto-signé ne change rien à SmartScreen. Marche à suivre complète (achat, export `.pfx`, secrets CI) : [`docs/CODE_SIGNING.md`](docs/CODE_SIGNING.md).
 
