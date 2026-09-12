@@ -1,34 +1,36 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// scripts/lib/gate-sentinels.mjs — un contrôle qui lit des JOURNAUX a des
-// sentinelles ; qui a le droit de les imprimer ?
+// scripts/lib/gate-sentinels.mjs — une preuve s'écrit par un producteur ; qui a
+// le droit d'imprimer le canal ?
 //
 // POURQUOI CECI EXISTE
 // --------------------
-// `npm run check:automations` ne lit pas un état : il lit des journaux de runs et
-// y cherche des marqueurs. Un marqueur est du TEXTE, donc tout ce qui l'imprime
-// ressemble à une déclaration — l'incident du 2026-09-12 : `npm test` importait
-// le script Dependabot, qui imprimait la marque d'inaction, et l'audit accusait
-// le workflow dont le journal portait cette copie.
+// `npm run check:automations` lit des ANNOTATIONS stockées, et une annotation se
+// dépose en imprimant une commande (`::notice title=…::…`). Tout ce qui imprime
+// cette commande dépose donc une preuve dans le run où il tourne — l'incident du
+// 2026-09-12 : `npm test` importait le script Dependabot, sa déclaration
+// d'inaction se déposait dans le job de tests, et l'audit accusait `Quality &`
+// `performance guard` avec le motif de Dependabot.
 //
-// Deux remèdes ont déjà été posés ce jour-là : la preuve porte son SUJET (le nom
-// du workflow, voir scripts/lib/automation-evidence.mjs), et l'import d'un script
-// ne travaille plus (scripts/lib/import-effects.mjs). Il reste la faille que
-// ni l'un ni l'autre ne ferme : une suite qui imprime un marqueur DANS SON CORPS
-// de test — c'est du code différé, l'import n'y est pour rien, et le journal du
-// job le reçoit quand même.
+// Trois remèdes ont été posés depuis : la preuve porte son SUJET (le nom du
+// workflow, voir scripts/lib/automation-evidence.mjs), l'import d'un script ne
+// travaille plus (scripts/lib/import-effects.mjs), et un producteur n'écrit que
+// s'il en a le MANDAT (l'étape qui l'exécute le lui donne — voir
+// scripts/lib/evidence-publisher.mjs). Il reste la faille que ni l'un ni l'autre
+// ne ferme : une suite qui imprime la commande DANS SON CORPS de test — c'est du
+// code différé, l'import n'y est pour rien, et le run la reçoit quand même.
 //
 // LA RÈGLE, DONC
 // --------------
-// Un marqueur n'est imprimable QUE par l'automatisation dont il est la voix, et
-// les empreintes de ses lecteurs sont inventoriées ici. Tout autre imprimeur est
+// La commande d'annotation n'est imprimable QUE par les deux modules dont c'est
+// le métier, et leurs empreintes sont inventoriées ici. Tout autre imprimeur est
 // un échec — avec le fichier et la ligne, parce qu'un garde qui ne dit pas où
-// n'est pas réparable. L'inventaire est explicite et borné : chaque marqueur
-// nomme le contrôle qui le LIT, sinon personne ne saurait à quoi sert la règle.
+// n'est pas réparable. L'inventaire est explicite et borné : chaque sentinelle
+// nomme le contrôle qui la LIT, sinon personne ne saurait à quoi sert la règle.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import ts from 'typescript';
 
-import { EVIDENCE_PREFIX } from './automation-evidence.mjs';
+import { EVIDENCE_TITLE } from './automation-evidence.mjs';
 
 /**
  * Remplace le CONTENU des commentaires par des espaces, en gardant les sauts de
@@ -77,14 +79,19 @@ const PRINTING = /console\s*\.\s*[a-z]+|process\s*\.\s*(?:stdout|stderr)\s*\.\s*
  */
 export const GATE_SENTINELS = [
   {
-    token: EVIDENCE_PREFIX,
-    composer: 'evidenceAnnotation',
-    // Trois imprimeurs, et chacun a une raison : le producteur qui agit (le
-    // rebase Dependabot), l'audit qui publie sa propre preuve (il ne s'exempte
-    // pas de la règle qu'il impose), et le CLI que tous les workflows appellent.
+    // La marque textuelle (`AUTOMATION-EVIDENCE `) a été retirée : ce qui reste
+    // n'est plus un mot à imiter mais une ANNOTATION — `::notice title=…::` +
+    // JSON. La sentinelle est donc le TITRE (le sélecteur de l'audit) et le nom
+    // des deux seuls composeurs.
+    token: EVIDENCE_TITLE,
+    composer: ['evidenceAnnotation', 'publishEvidence'],
+    // Deux imprimeurs, et chacun a une raison : le CLI qu'un workflow appelle
+    // pour publier (le producteur qui n'a pas de script à lui), et le module
+    // partagé par lequel TOUS les scripts d'automatisation publient leur propre
+    // mesure. Les producteurs eux-mêmes n'impriment plus rien : ils passent par
+    // ce module, donc l'inventaire reste court et vérifiable.
     emitters: [
-      'scripts/rebase-dependabot-prs.mjs',
-      'scripts/check-automations.mjs',
+      'scripts/lib/evidence-publisher.mjs',
       'scripts/publish-automation-evidence.mjs',
     ],
     readBy: 'scripts/check-automations.mjs',
@@ -115,9 +122,10 @@ export function inspectSentinelPrinters({ files = [], sentinels = GATE_SENTINELS
     const lines = blankComments(text).split(/\r?\n/);
     for (const sentinel of sentinels) {
       if (sentinel.emitters.includes(file)) continue;
+      const composers = Array.isArray(sentinel.composer) ? sentinel.composer : [sentinel.composer];
       for (const [i, line] of lines.entries()) {
         if (!PRINTING.test(line)) continue;
-        if (!line.includes(sentinel.token) && !line.includes(sentinel.composer)) continue;
+        if (!line.includes(sentinel.token) && !composers.some((c) => line.includes(c))) continue;
         findings.push({
           file,
           line: i + 1,

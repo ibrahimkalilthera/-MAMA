@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { EVIDENCE_PREFIX } from '../scripts/lib/automation-evidence.mjs';
+import { EVIDENCE_TITLE } from '../scripts/lib/automation-evidence.mjs';
 import {
   DEFINITIONS,
   GATE_SENTINELS,
@@ -50,14 +50,31 @@ describe('la règle — qui a le droit d’imprimer une sentinelle', () => {
     assert.equal(findings.length, 1);
     assert.equal(findings[0].file, 'tests/x.test.ts');
     assert.equal(findings[0].line, 4);
-    assert.equal(findings[0].token, EVIDENCE_PREFIX);
+    assert.equal(findings[0].token, EVIDENCE_TITLE);
   });
 
-  it('l’automatisation dont c’est la voix garde le droit de parler', () => {
+  it('les deux modules du canal gardent le droit de l’imprimer', () => {
+    for (const emitter of ['scripts/lib/evidence-publisher.mjs', 'scripts/publish-automation-evidence.mjs']) {
+      const { findings } = inspectSentinelPrinters({
+        files: [{ file: emitter, text: `${PRINT}(evidenceAnnotation(X));\n` }],
+      });
+      assert.deepEqual(findings, [], `${emitter} est déclaré : sa sortie EST la déclaration`);
+    }
+  });
+
+  it('un script d’automatisation ne l’imprime plus lui-même — il passe par le producteur', () => {
+    // Ce que la migration a changé : les producteurs n'impriment plus rien. Le
+    // mandat (`AUTOMATION_EVIDENCE=1`) leur donne le droit de PARLER, pas celui
+    // d'écrire le canal à la main — et c'est ce qui garde l'inventaire court.
     const { findings } = inspectSentinelPrinters({
-      files: [{ file: 'scripts/rebase-dependabot-prs.mjs', text: `${PRINT}(evidenceAnnotation(X));\n` }],
+      files: [
+        {
+          file: 'scripts/rebase-dependabot-prs.mjs',
+          text: `import { publishEvidence } from './lib/evidence-publisher.mjs';\npublishEvidence({ acted: true, reason: 'x' });\n`,
+        },
+      ],
     });
-    assert.deepEqual(findings, [], 'l’émetteur est déclaré : sa sortie EST la déclaration');
+    assert.deepEqual(findings, [], 'publier par le producteur n’est pas imprimer une sentinelle');
   });
 
   it('le fichier qui DÉFINIT la preuve est exempté (il la nomme, il ne l’imprime pas)', () => {
@@ -75,10 +92,10 @@ describe('la règle — qui a le droit d’imprimer une sentinelle', () => {
   it('la sentinelle est bien celle du canal STRUCTURÉ — il n’en reste qu’une', () => {
     // Le transport par journal est mort : sa marque textuelle n’existe plus, donc
     // la surveillance porte sur le seul sentier qui reste (l’annotation).
-    const text = `${PRINT}('${EVIDENCE_PREFIX}' + JSON.stringify(x));\n`;
+    const text = `${PRINT}('::notice title=${EVIDENCE_TITLE}::' + JSON.stringify(x));\n`;
     const { findings } = inspectSentinelPrinters({ files: [{ file: 'tests/y.test.ts', text }] });
     assert.equal(findings.length, 1);
-    assert.equal(findings[0].token, EVIDENCE_PREFIX);
+    assert.equal(findings[0].token, EVIDENCE_TITLE);
     assert.equal(GATE_SENTINELS.length, 1, 'deux entrées pour un canal, c’est une à retirer');
   });
 
@@ -106,8 +123,8 @@ describe('l’inventaire — il n’existe qu’une fois, et il est lu', () => {
   it('les sentinelles viennent des constantes partagées, jamais recopiées', () => {
     assert.deepEqual(
       GATE_SENTINELS.map((s) => s.token).sort(),
-      [EVIDENCE_PREFIX].sort(),
-      'un marqueur renommé doit être surveillé sans qu’on y pense',
+      [EVIDENCE_TITLE].sort(),
+      'une sentinelle renommée doit être surveillée sans qu’on y pense',
     );
     for (const sentinel of GATE_SENTINELS) {
       assert.ok(sentinel.readBy, 'chaque sentinelle nomme le contrôle qui la lit');
@@ -119,11 +136,16 @@ describe('l’inventaire — il n’existe qu’une fois, et il est lu', () => {
     }
   });
 
-  it('le producteur déclare bien la sentinelle qu’il émet, et une seule fois', () => {
-    const producer = readFileSync(join(root, 'scripts', 'rebase-dependabot-prs.mjs'), 'utf8');
-    assert.match(producer, /evidenceAnnotation\(\{ workflow: WORKFLOW_FILE, acted: false/, 'la preuve d’inaction est signée');
-    assert.match(producer, /evidenceAnnotation\(\{\s*workflow: WORKFLOW_FILE,\s*acted: true/, 'et celle d’action aussi');
-    assert.match(producer, /const inertReason =/, 'la raison est écrite une fois et partagée');
+  it('les seuls imprimeurs déclarés sont les modules du canal, et rien d’autre', () => {
+    const publisher = readFileSync(join(root, 'scripts', 'lib', 'evidence-publisher.mjs'), 'utf8');
+    assert.match(publisher, /export function publishEvidence\(/, 'le producteur partagé existe');
+    assert.match(publisher, /EVIDENCE_MANDATE_ENV = 'AUTOMATION_EVIDENCE'/, 'et il nomme son mandat');
+    assert.match(publisher, /evidenceAnnotation\(parsed\)/, 'il compose l’annotation par la SEULE définition du canal');
+    // La marque textuelle du canal-journal n’existe plus : il n’y a plus rien à
+    // imiter pour se faire passer pour une preuve, il faut un vrai payload.
+    const contract = readFileSync(join(root, 'scripts', 'lib', 'automation-evidence.mjs'), 'utf8');
+    assert.equal(/export const EVIDENCE_PREFIX/.test(contract), false, 'la marque est retirée, pas renommée');
+    assert.match(contract, /export function evidencePayload/, 'le payload reste composé à un seul endroit');
   });
 
   it('le CLI lit tests/ ET scripts/, et la chaîne qualité le fait tourner', () => {

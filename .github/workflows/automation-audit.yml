@@ -82,6 +82,9 @@ jobs:
           # Le token est nécessaire : les runs ne sont pas publics, et l'audit
           # refuse de rendre un vert qu'il n'a pas pu mesurer.
           GITHUB_TOKEN: ${{ github.token }}
+          # Mandat de preuve : l'audit publie lui-même ses chiffres (combien de
+          # workflows jugés, combien de preuves publiées).
+          AUTOMATION_EVIDENCE: '1'
         run: npm run check:automations
 
       # L'audit n'est pas exempté de la règle qu'il impose : il publie sa propre
@@ -91,4 +94,4 @@ jobs:
       - name: Publier la preuve d’action — audit des automatisations
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "audit exécuté : verdict et comptes imprimés ci-dessus"
+          --reason "audit allé au bout ; les chiffres (workflows jugés, preuves publiées) sont publiés par scripts/check-automations.mjs"

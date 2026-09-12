@@ -48,6 +48,9 @@ jobs:
           # client Vercel, lisibles par quiconque — jamais de service_role ici.
           SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
           ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
+          # Mandat de preuve : le contrôle publie lui-même le nombre de sondes
+          # anon RÉELLEMENT exécutées contre la base distante.
+          AUTOMATION_EVIDENCE: '1'
 
       # Une preuve publiée par l'étape NOMMÉE, pour que `npm run check:automations`
       # sache qu'une preuve était ATTENDUE de ce run (et non qu'il n'en a jamais
@@ -55,4 +58,4 @@ jobs:
       - name: Publier la preuve d’action — garde-fou anon (base distante)
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "sondes anon exécutées contre la base distante : lectures, écritures et RPC refusées, recover joignable"
+          --reason "contrôle allé au bout ; les sondes anon mesurées (lectures, écritures et RPC refusées, recover joignable) sont publiées par scripts/verify-anon-rls.mjs"

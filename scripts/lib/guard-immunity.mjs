@@ -160,7 +160,7 @@ const PROOF = {
   // doit pas suffire à certifier l'immunité (c'est le défaut que ce dépôt
   // pourchasse — de la prose lue comme du code).
   [IMMUNITY.STORED_FIELDS]: /evidenceFromAnnotations\(|evidenceAnnotation\(/,
-  [IMMUNITY.SUBJECT_IDENTIFIED]: /EVIDENCE_PREFIX|"workflow"|'workflow'/,
+  [IMMUNITY.SUBJECT_IDENTIFIED]: /EVIDENCE_TITLE|"workflow"|'workflow'/,
 };
 
 /**

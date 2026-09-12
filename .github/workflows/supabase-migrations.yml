@@ -64,6 +64,10 @@ jobs:
         run: supabase start
 
       - name: Verify anon reads/writes refused — business tables + auth (user_profiles, RPC password)
+        # Mandat de preuve : le contrôle publie lui-même le nombre de
+        # vérifications RÉELLEMENT exécutées sur la pile locale migrée.
+        env:
+          AUTOMATION_EVIDENCE: '1'
         run: |
           # La CLI 2.116.0 exporte ANON_KEY / SERVICE_ROLE_KEY (pas les noms
           # SUPABASE_*) — le script accepte les deux conventions.
@@ -78,4 +82,4 @@ jobs:
       - name: Publier la preuve d’action — migrations et RLS (pile locale)
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "migrations appliquées sur la pile locale, lectures et écritures anon vérifiées"
+          --reason "migrations appliquées sur la pile locale ; le détail mesuré (sondes anon exécutées) est publié par scripts/verify-anon-rls.mjs"

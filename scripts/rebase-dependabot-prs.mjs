@@ -45,7 +45,7 @@
 
 import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { evidenceAnnotation } from './lib/automation-evidence.mjs';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 
 const API = 'https://api.github.com';
 const DEFAULT_REPO = 'ibrahimkalilthera/-MAMA';
@@ -258,13 +258,17 @@ async function main() {
     // check:automations` lit les annotations de ce workflow et échoue tant qu'elle
     // est là. C'est ainsi qu'un run vert qui n'a rien fait cesse d'être invisible
     // (voir ./lib/automation-evidence.mjs) — le texte se reformule librement, mais
-    // il passe par `evidenceAnnotation`, la seule définition du canal, et il
-    // reste sur STDOUT (c'est ce que le runner stocke).
+    // il passe par `publishEvidence`, la seule porte du canal (elle valide, elle
+    // impose le sujet du runner, et elle n'écrit que si l'étape qui nous lance
+    // nous en a donné le mandat).
     const inertReason =
       'Dependabot rebase — le secret DEPENDABOT_REBASE_TOKEN n’est pas posé, donc aucune PR n’a été ' +
       'mise à jour. Ajoutez un PAT (fine-grained : Contents + Pull requests read/write) dans ' +
       'Settings → Secrets and variables → ACTIONS (jamais « Dependabot secrets ») pour l’activer.';
-    console.log(evidenceAnnotation({ workflow: WORKFLOW_FILE, acted: false, reason: inertReason }));
+    // L'inaction se DIT toujours à l'écran, même sans mandat : le remède (poser
+    // le PAT) ne doit pas dépendre du canal de preuve.
+    console.log(`⚠️  ${inertReason}`);
+    publishEvidence({ workflow: WORKFLOW_FILE, acted: false, reason: inertReason });
     appendSummary(
       [
         '## Dependabot rebase — inactif',
@@ -330,14 +334,15 @@ async function main() {
   // Un run qui a AGI le déclare aussi, au même format : la preuve devient un
   // canal, pas un signal d'alarme. Un audit qui ne lit que les déclarations
   // d'échec ne saurait pas distinguer « a agi » de « n'a rien dit ».
-  console.log(
-    evidenceAnnotation({
-      workflow: WORKFLOW_FILE,
-      acted: true,
-      reason: `${rebased.length} PR remise(s) à jour sur ${results.length} examinée(s)`,
-      count: results.length,
-    }),
-  );
+  publishEvidence({
+    workflow: WORKFLOW_FILE,
+    acted: true,
+    reason: `${rebased.length} PR remise(s) à jour sur ${results.length} examinée(s)`,
+    // Zéro PR ouverte = rien à compter : une preuve d'action sur zéro chose se
+    // contredit elle-même (règle du canal), et un dépôt sans PR n'est pas une
+    // panne de l'automatisation.
+    count: results.length > 0 ? results.length : null,
+  });
 
   for (const f of failures) annotate('warning', `#${f.number} : ${f.detail}`, 'Dependabot rebase');
 }

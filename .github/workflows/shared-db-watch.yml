@@ -57,6 +57,10 @@ jobs:
       # dépendance à installer, donc pas de `npm ci` — et rien qui puisse échouer
       # avant la mesure.
       - name: Lire le site déployé et sa base
+        # Mandat de preuve : le script publie lui-même ce qu'il a LU (nombre de
+        # modules suivis dans le site réellement servi, base partagée retrouvée).
+        env:
+          AUTOMATION_EVIDENCE: '1'
         run: npm run check:shared-db:live
 
       # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
@@ -65,4 +69,4 @@ jobs:
       - name: Publier la preuve d’action — base servie par le site
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "site déployé lu : page et modules suivis, base partagée vérifiée"
+          --reason "lecture du site déployé allée au bout ; les chiffres (modules suivis, base partagée) sont publiés par scripts/check-shared-db.mjs"

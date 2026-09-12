@@ -33,6 +33,7 @@ import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 
 const DEV_BASELINE = 0;
 const CACHED = process.env.AUDIT_CACHE === '1';
@@ -120,6 +121,8 @@ function unreachable() {
   if (SOFT_OFFLINE) {
     console.warn('⚠️  npm audit could not run (registry unreachable or report unreadable).');
     console.warn('   Gate skipped for this offline commit — the CI quality job re-checks on push.');
+    // « Sauté » n'est ni une mesure ni un silence : la preuve le dira tel quel.
+    gateSkipped = true;
     return;
   }
   console.error('❌ npm audit could not run (registry unreachable or report unreadable).');
@@ -129,6 +132,11 @@ function unreachable() {
 
 // ─── Run ─────────────────────────────────────────────────────────────────────
 
+/** Ce que le gate a MESURÉ (jamais ce qu'on espère) — c'est la preuve publiée. */
+let gate;
+/** Vrai si le gate a été sauté (registre injoignable, commit hors ligne). */
+let gateSkipped = false;
+
 const hash = lockHash();
 const cache = CACHED && !FORCE_REFRESH ? readCache(hash) : null;
 
@@ -137,6 +145,7 @@ if (cache) {
   const source = `(cached, ${ageH}h old)`;
   enforceProductionGate(cache.prodVulns ?? [], source);
   enforceTotalGate(cache.total ?? 0, summaryOf(cache.summary), source);
+  gate = { prodVulns: (cache.prodVulns ?? []).length, total: cache.total ?? 0, source: `cache, ${ageH}h` };
 } else {
   const prod = runAudit('--omit=dev');
   if (!prod) unreachable();
@@ -148,4 +157,20 @@ if (cache) {
   const total = all?.metadata?.vulnerabilities?.total ?? 0;
   if (CACHED && prod && all) writeCache(hash, prodVulns, total, all.metadata?.vulnerabilities);
   enforceTotalGate(total, summaryOf(all?.metadata?.vulnerabilities), '');
+  gate = { prodVulns: prodVulns.length, total, source: 'live' };
+}
+
+// La substance de ce gate, publiée par le gate : les deux chiffres qu'il vient
+// de mesurer. Le workflow n'a plus à écrire une phrase qui vaudrait aussi bien
+// pour un arbre sain que pour un gate qui n'a rien regardé.
+if (gateSkipped) {
+  publishEvidence({
+    acted: false,
+    reason: 'npm audit injoignable — gate sauté (audit en ligne relancé par la CI du push)',
+  });
+} else if (gate) {
+  publishEvidence({
+    acted: true,
+    reason: `audit des dépendances (${gate.source}) : ${gate.prodVulns} vulnérabilité(s) de production, ${gate.total} au total (baseline ${DEV_BASELINE})`,
+  });
 }
