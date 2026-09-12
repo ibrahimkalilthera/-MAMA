@@ -60,6 +60,25 @@ contextBridge.exposeInMainWorld('desktop', {
      */
     journal: () => ipcRenderer.invoke('updates:journal'),
     /**
+     * La FILE D'ATTENTE du poste : ce qui a été inscrit sur CETTE machine et
+     * qu'aucun envoi n'a encore emporté.
+     *
+     * Le poste peut être bloqué AVANT qu'une session n'existe — c'est même le
+     * cas normal d'un poste qui démarre —, et l'envoi au journal d'audit exige
+     * un utilisateur connecté. Ces entrées ne sont donc pas perdues : elles
+     * attendent ici, et le prochain démarrage connecté les remonte.
+     */
+    pendingReports: () => ipcRenderer.invoke('updates:pending-reports'),
+    /**
+     * Marquer comme remontés les blocages qui sont réellement partis. Borné à
+     * 20 clés : l'interface ne peut pas réécrire le journal du poste, seulement
+     * dire ce que l'envoi a emporté — une clé qui ne correspond à rien ne marque
+     * rien.
+     * @param {string[]} keys
+     */
+    markReported: (keys) =>
+      ipcRenderer.invoke('updates:mark-reported', Array.isArray(keys) ? keys.slice(0, 20).map(String) : []),
+    /**
      * Ouvrir le journal dans l'explorateur (le fichier est créé s'il n'existe
      * pas encore) : un administrateur devant le poste doit pouvoir le récupérer
      * sans ligne de commande, et un fichier introuvable serait un cul-de-sac.

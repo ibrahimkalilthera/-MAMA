@@ -26,6 +26,28 @@
  *     (coupure de courant en pleine écriture) est ignorée à la lecture au lieu
  *     de rendre tout le fichier illisible. C'est le seul fichier que
  *     l'administrateur d'un poste lira sans outil.
+ *
+ * ─── Et c'est aussi la FILE D'ATTENTE du poste ──────────────────────────────
+ *
+ * Écrire le blocage ne suffit pas : il faut qu'il REMONTE. Or un poste d'école
+ * démarre bloqué sans personne de connecté — c'est même le cas normal —, et à
+ * cet instant l'envoi au journal d'audit est structurellement impossible. Les
+ * entrées ne sont donc pas perdues : elles attendent (`reportedAt` nul), et le
+ * prochain démarrage CONNECTÉ les emporte (`pendingReports` / `markReported`).
+ *
+ * Trois décisions portent cette file, et chacune évite un défaut précis :
+ *   • **une identité par panne** (`entryKey` : code, version visée, version
+ *     installée) — la vérification revient toutes les 30 minutes, donc un poste
+ *     bloqué des semaines inscrit des dizaines de fois le même fait ; les
+ *     envoyer tous rendrait le journal d'audit illisible, et un journal qu'on
+ *     cesse de lire ne signale plus rien. `occurrences` conserve ce que la
+ *     déduplication ne doit pas perdre : combien de fois le poste a buté.
+ *   • **on ne marque que ce qui est PARTI** — un envoi raté reste en file ;
+ *     marquer d'avance effacerait la panne d'un poste à cause d'une panne de
+ *     réseau, ce qui est le pire des deux sens de l'erreur.
+ *   • **le marquage n'est jamais fatal** — un disque plein rend
+ *     `{ marked: 0, written: false }`, l'entrée reste en file, et le poste la
+ *     renverra. Un doublon vaut mieux qu'un silence.
  */
 const nodeFs = require('node:fs');
 const { join, dirname } = require('node:path');
@@ -74,7 +96,117 @@ function normalizeEntry(raw, nowMs = Date.now()) {
     appVersion: raw.appVersion == null ? null : String(raw.appVersion),
     station: raw.station == null ? null : String(raw.station),
     detail,
+    // La seule marque de la FILE D'ATTENTE : l'instant où cette panne a été
+    // remontée au journal d'audit. Null = jamais partie. Une entrée écrite avant
+    // l'existence de ce champ n'a pas de `reportedAt` — et c'est exact : elle
+    // n'est jamais partie, donc elle doit être remontée.
+    reportedAt: raw.reportedAt == null ? null : String(raw.reportedAt),
   };
+}
+
+/**
+ * L'identité d'un blocage, dans le journal.
+ *
+ * Même code, même version visée et même version installée ⇒ même panne. C'est
+ * ce qui permet de dédupliquer la file : la vérification revient toutes les 30
+ * minutes, donc un poste bloqué des semaines inscrit des dizaines de fois le
+ * MÊME fait — les envoyer tous remplirait le journal d'audit de la même panne
+ * jusqu'à le rendre illisible, et un journal qu'on cesse de lire ne signale
+ * plus rien. La version fait partie de l'identité pour la raison déjà retenue
+ * côté interface : un blocage sur une version PLUS RÉCENTE est une information
+ * neuve.
+ *
+ * @param {object} entry
+ * @returns {string}
+ */
+function entryKey(entry) {
+  const e = entry && typeof entry === 'object' ? entry : {};
+  const at = (v) => (v == null ? '' : String(v));
+  return `${at(e.code)}|${at(e.version)}|${at(e.currentVersion)}`;
+}
+
+/**
+ * Ce qui reste à REMONTER : les blocages inscrits sur ce poste qu'aucun envoi
+ * n'a encore emportés.
+ *
+ * C'est la file d'attente du poste. Elle existe parce que le cas normal d'un
+ * poste d'école est de démarrer bloqué SANS personne de connecté : à cet
+ * instant, l'envoi au journal d'audit est impossible, et une entrée qui ne
+ * saurait pas attendre serait perdue — c'est-à-dire exactement le silence que
+ * ce mécanisme existe pour réparer.
+ *
+ * Dédupliqué par identité (`entryKey`), du plus récent au plus ancien, borné par
+ * `limit`. `occurrences` garde ce que la déduplication ne doit PAS perdre :
+ * combien de fois le poste a buté, sans quoi « bloqué 40 fois » se lirait comme
+ * « bloqué une fois ».
+ *
+ * @param {string} file
+ * @param {{ fs?: typeof nodeFs, limit?: number }} [options]
+ * @returns {object[]}
+ */
+function pendingReports(file, { fs = nodeFs, limit = 20 } = {}) {
+  const all = readEntries(file, { fs, limit: MAX_ENTRIES });
+  const reported = new Set();
+  for (const entry of all) {
+    if (entry.reportedAt) reported.add(entryKey(entry));
+  }
+  const counts = new Map();
+  for (const entry of all) {
+    const key = entryKey(entry);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const out = [];
+  const seen = new Set();
+  const max = Math.max(0, Number(limit) || 0);
+  for (const entry of all) {
+    if (out.length >= max) break;
+    const key = entryKey(entry);
+    if (reported.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...entry, key, occurrences: counts.get(key) || 1 });
+  }
+  return out;
+}
+
+/**
+ * Marquer comme REMONTÉS les blocages qui sont réellement partis — et rien de
+ * plus.
+ *
+ * Deux précautions, et chacune a une raison : on ne marque que les clés qu'on
+ * donne (un envoi raté doit RESTER en file, sinon la panne d'un poste serait
+ * effacée par la panne du réseau), et on ne jette pas la réécriture — un
+ * disque plein rend `{ marked: 0, written: false }`, et le poste renverra le
+ * même blocage au prochain démarrage connecté. C'est le bon côté de l'erreur :
+ * un doublon vaut mieux qu'un silence.
+ *
+ * @param {string} file
+ * @param {string[]} keys
+ * @param {{ fs?: typeof nodeFs, at?: string, maxEntries?: number }} [options]
+ * @returns {{ marked: number, written: boolean }}
+ */
+function markReported(file, keys, { fs = nodeFs, at = new Date().toISOString(), maxEntries = MAX_ENTRIES } = {}) {
+  const wanted = new Set((Array.isArray(keys) ? keys : []).map((key) => String(key)));
+  if (!wanted.size) return { marked: 0, written: false };
+  try {
+    // Ordre d'écriture (du plus ancien au plus récent) : la troncature garde
+    // ensuite les entrées les plus RÉCENTES, comme partout ailleurs.
+    const entries = readEntries(file, { fs, limit: MAX_ENTRIES }).reverse();
+    // Pas de journal du tout ⇒ rien à marquer, et surtout pas de fichier créé
+    // pour rien : un marquage ne doit pas faire apparaître un état.
+    if (!entries.length) return { marked: 0, written: false };
+    let marked = 0;
+    for (const entry of entries) {
+      if (!wanted.has(entryKey(entry))) continue;
+      entry.reportedAt = at;
+      marked += 1;
+    }
+    const kept = entries.slice(-Math.max(0, maxEntries));
+    fs.mkdirSync(dirname(file), { recursive: true });
+    fs.writeFileSync(file, kept.map((e) => JSON.stringify(e)).join('\n') + '\n');
+    return { marked, written: true };
+  } catch {
+    return { marked: 0, written: false };
+  }
 }
 
 /**
@@ -153,4 +285,7 @@ module.exports = {
   normalizeEntry,
   readEntries,
   appendEntry,
+  entryKey,
+  pendingReports,
+  markReported,
 };

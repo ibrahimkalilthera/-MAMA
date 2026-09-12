@@ -8,7 +8,7 @@
  * Props: `viewsProps` (the MainViewsProps & AppModalsProps wiring built by
  * App) plus the shell-only values (auth gate, toast, confirm dialog, chat).
  */
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
@@ -18,7 +18,8 @@ import type { User } from '../app/types';
 import { formatSupabaseError } from '../lib/networkUtils';
 import { database } from '../lib/sharedDatabase';
 import { UpdateBanner } from './UpdateBanner';
-import { reportBlockedStation } from '../lib/desktopUpdateReport';
+import { flushJournalReports, reportBlockedStation } from '../lib/desktopUpdateReport';
+import type { JournalQueueApi } from '../lib/desktopUpdateReport';
 import type { AppEnv } from '../lib/networkUtils';
 import type { ImportCategory } from '../lib/excelImporter';
 import type { useToast } from '../lib/useToast';
@@ -135,6 +136,26 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
     setShowSalaryModal, pendingQueueCount, isSyncing, syncOfflineQueue, confirmAction,
     setConfirmAction, inactivity,
   } = props;
+
+  // ─── La file d'attente du poste, vidée au premier démarrage CONNECTÉ ───────
+  // Un poste d'école démarre bloqué SANS personne de connecté — c'est le cas
+  // normal —, et à cet instant l'envoi au journal d'audit est structurellement
+  // impossible : le blocage attend dans le journal local du poste. C'est CE
+  // montage, dès qu'une session existe, qui le remonte. Une fois par session et
+  // par utilisateur : le processus principal marque ce qui est réellement
+  // parti, donc un second passage ne renverrait rien.
+  const flushedQueueFor = useRef<string | null>(null);
+  useEffect(() => {
+    const username = currentUser?.username ?? null;
+    if (!username || flushedQueueFor.current === username) return;
+    flushedQueueFor.current = username;
+    const api = (globalThis as { desktop?: { updates?: JournalQueueApi } }).desktop?.updates ?? null;
+    // Un pont muet ou une file vide rendent un bilan à zéro sans jeter : rien à
+    // dire à l'écran, et surtout rien d'effacé — ce qui n'est pas marqué repart
+    // au démarrage suivant.
+    void flushJournalReports({ api }).catch(() => {});
+  }, [currentUser?.username]);
+
   return (
     <>
       {authLoading ? (

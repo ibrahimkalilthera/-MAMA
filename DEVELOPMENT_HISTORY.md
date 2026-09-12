@@ -1,3 +1,32 @@
+## [2026-09-13] Un blocage remonte au prochain démarrage connecté : le journal devient une file
+
+Demande : « fais remonter les blocages au prochain démarrage connecté : mets les entrées du journal local en file d'attente et envoie-les dès qu'un utilisateur est authentifié ».
+
+**Le défaut manquait la moitié des cas, et c'était la moitié normale.** Le signalement au journal d'audit existe depuis la porte : il part quand le poste est bloqué ET qu'une session existe. Or un poste d'école fait exactement l'inverse — il bute à la première vérification de mise à jour, **avant que quiconque se soit connecté** (c'est pour ça que la porte le bloque : il a démarré), et c'est précisément à cet instant que l'envoi est impossible. Le journal local inscrivait bien le fait, mais **sur la machine** : l'administrateur, lui, est ailleurs, et il n'apprenait le blocage qu'en se déplaçant. Une entrée qui ne sait pas attendre est une entrée perdue.
+
+**Le journal porte donc une marque de file, et deux canaux bornés la vident.** `reportedAt` (nul tant que rien n'est parti) est la seule addition au contrat stocké — et son absence est le bon défaut : un poste déjà installé, dont le journal ne connaît pas le champ, a bien des blocages **jamais remontés**. Puis `updates:pending-reports` lit la file et `updates:mark-reported` marque ce qui est parti (borné à 20 clés des deux côtés, et une clé qui ne correspond à aucune entrée ne marque rien : l'interface ne peut pas réécrire le journal du poste, seulement dire ce que l'envoi a emporté). C'est **AppShell** qui vide la file — seul endroit qui connaît la session — au premier démarrage connecté, **une fois par utilisateur**.
+
+**Trois décisions, et chacune paie un cas réel :**
+
+```
+identité     code + version visée + version installée. La vérification revient toutes
+             les 30 min : un poste bloqué des semaines inscrit des dizaines de fois le
+             MÊME fait. Les envoyer tous remplirait le journal d'audit jusqu'à le rendre
+             illisible — et un journal qu'on cesse de lire ne signale plus rien.
+occurrences  ce que la déduplication ne doit PAS perdre : « bloqué 30 fois » qui se lirait
+             « bloqué une fois » ferait passer une école entière pour un incident isolé.
+marquage     on ne marque QUE ce qui est PARTI. Marquer d'avance effacerait la panne du
+             poste à cause de la panne du réseau — le mauvais sens de l'erreur.
+```
+
+**Et rien n'est jamais silencieux par accident.** Une version visée **plus récente** est une information neuve, donc elle repart même si la précédente était marquée (même règle que l'identité du signalement en direct). Une entrée **sans identité** n'est pas envoyée — elle ne pourrait pas être marquée, donc l'envoyer ferait diverger la file du journal. Un **marquage impossible** (disque plein, droits) rend `{ marked: 0, written: false }` sans jeter : la panne repart au démarrage suivant, et **un doublon vaut mieux qu'un silence**. Un envoi qui **jette** est un échec compté, jamais un vert. Et marquer un poste **sans journal** ne crée aucun fichier — un marquage ne doit pas faire apparaître un état.
+
+**Le rapport remonté se distingue du signalement en direct** : son action dit « remonté depuis le journal du poste », et il porte ce que le direct n'a pas — **quand** le poste a buté et **combien de fois**. Sans quoi une remontée tardive se lirait comme un incident qui vient d'arriver.
+
+**Mesures** : **1295/1295** tests (+20 : 9 sur la file du journal, 11 sur la remontée et son câblage) ; `npm run lint` **vert** (les 21 contrôles, les 95 suites, les 11 workflows). Le cas « entrée écrite avant l'existence du champ » est joué explicitement : c'est celui du parc déjà installé, et il doit être en attente, pas marqué.
+
+**Trois choses franchement.** La remontée part d'AppShell, donc d'un **rendu** : elle suppose qu'un utilisateur se connecte un jour — un poste bloqué que personne n'ouvre restera muet côté administrateur, et c'est bien pourquoi le journal local et le bouton « Ouvrir le journal du poste » existent. Le lot est borné à 20 par passage, et un poste qui aurait buté 500 fois avec 500 pannes **distinctes** en remonterait 20 par démarrage connecté (les autres restent en file : rien n'est perdu, mais ce n'est pas instantané). Enfin la file est **par poste** : deux machines bloquées par la même panne produisent deux remontées, chacune nommant son poste — ce qui est l'information utile, mais ne se lit pas comme un incident unique.
+
 ## [2026-09-13] Un canal de mise à jour cassé devient rouge — vérifié sans jeton
 
 Demande : « fais vérifier par la CI, sans jeton, que le release le plus récent est réellement livrable et que le frein est lisible, pour qu'un canal cassé devienne rouge ».

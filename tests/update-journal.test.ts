@@ -16,7 +16,7 @@
 // en a besoin), et il n'échoue JAMAIS d'une manière qui empêcherait une mise à
 // jour (disque plein, droits refusés).
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -25,6 +25,9 @@ import { describe, it } from 'node:test';
 
 const require = createRequire(import.meta.url);
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+type JournalEntry = Record<string, unknown> &
+  { key?: string; occurrences?: number; reportedAt?: string | null };
+
 const {
   MAX_ENTRIES,
   MAX_DETAIL,
@@ -33,6 +36,9 @@ const {
   normalizeEntry,
   readEntries,
   appendEntry,
+  entryKey,
+  pendingReports,
+  markReported,
 } = require('../electron/update-journal.cjs') as {
   MAX_ENTRIES: number;
   MAX_DETAIL: number;
@@ -45,6 +51,13 @@ const {
     entry: Record<string, unknown>,
     options?: { maxEntries?: number; nowMs?: number; fs?: unknown },
   ) => boolean;
+  entryKey: (entry: Record<string, unknown>) => string;
+  pendingReports: (file: string, options?: { limit?: number; fs?: unknown }) => JournalEntry[];
+  markReported: (
+    file: string,
+    keys: string[],
+    options?: { fs?: unknown; at?: string; maxEntries?: number },
+  ) => { marked: number; written: boolean };
 };
 
 function tmpFile(): { dir: string; file: string } {
@@ -81,8 +94,11 @@ describe('le journal d’un poste bloqué', () => {
       // un outil qui lit du JSONL — pas un format maison.
       const lines = readFileSync(file, 'utf8').trim().split('\n');
       assert.equal(lines.length, 2);
+      // `reportedAt` fait partie du contrat stocké : c'est la marque de la FILE
+      // D'ATTENTE (null = jamais remonté), et un poste déjà installé dont le
+      // journal n'a pas le champ doit rester en attente — ce que la lecture fait.
       assert.deepEqual(Object.keys(/** @type {object} */ (JSON.parse(lines[0]))).sort(), [
-        'appVersion', 'at', 'code', 'currentVersion', 'detail', 'station', 'version',
+        'appVersion', 'at', 'code', 'currentVersion', 'detail', 'reportedAt', 'station', 'version',
       ]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -189,5 +205,153 @@ describe('le journal d’un poste bloqué', () => {
     const source = readFileSync(join(root, 'electron', 'update-journal.cjs'), 'utf8');
     assert.doesNotMatch(source, /require\('electron'\)/);
     assert.match(source, /require\('node:fs'\)/);
+  });
+});
+
+describe('la file d’attente : ce qui reste à REMONTER', () => {
+  // Le journal ne sert à rien s'il reste sur la machine. Or un poste d'école
+  // démarre bloqué devant personne — l'envoi au journal d'audit est alors
+  // structurellement impossible — donc les entrées doivent POUVOIR attendre, et
+  // repartir au prochain démarrage connecté. Ces cas protègent les trois
+  // décisions de cette file : une identité par panne, un compte qui survit à la
+  // déduplication, et un marquage qui ne dit que ce qui est réellement parti.
+  const panne = { code: 'download', detail: '404', version: '2.0.0', currentVersion: '1.0.2' };
+
+  it('une panne répétée trente fois n’attend qu’UNE fois — mais le compte est gardé', () => {
+    const { dir, file } = tmpFile();
+    try {
+      for (let i = 0; i < 30; i += 1) appendEntry(file, panne);
+      const pending = pendingReports(file);
+      assert.equal(pending.length, 1, 'même panne = une seule remontée');
+      assert.equal(pending[0].occurrences, 30, 'le poste a buté trente fois : ça doit se dire');
+      assert.equal(pending[0].code, 'download');
+      assert.equal(pending[0].key, entryKey(pending[0]));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('une panne sur une version PLUS RÉCENTE est une information neuve', () => {
+    const { dir, file } = tmpFile();
+    try {
+      appendEntry(file, { ...panne, version: '2.0.0' });
+      appendEntry(file, { ...panne, version: '2.1.0' });
+      assert.equal(pendingReports(file).length, 2, 'la version fait partie de l’identité');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('marquer ce qui est PARTI retire la panne de la file — et seulement elle', () => {
+    const { dir, file } = tmpFile();
+    try {
+      appendEntry(file, panne);
+      appendEntry(file, { ...panne, code: 'install', detail: 'installation non aboutie' });
+      const [first] = pendingReports(file);
+      const result = markReported(file, [first.key as string]);
+      assert.deepEqual(result, { marked: 1, written: true });
+      const left = pendingReports(file);
+      assert.equal(left.length, 1);
+      assert.notEqual(left[0].key, first.key, 'c’est l’autre panne qui reste');
+      assert.equal(left[0].code, 'download', 'la file garde ce qui n’a pas été envoyé');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('le marquage tient au REDÉMARRAGE : ce qui est parti ne repart pas', () => {
+    const { dir, file } = tmpFile();
+    try {
+      appendEntry(file, panne);
+      const [first] = pendingReports(file);
+      markReported(file, [first.key as string]);
+      // Relecture depuis le disque (pas un état en mémoire) : c'est le seul
+      // niveau où la promesse compte, puisqu'entre-temps l'application a fermé.
+      assert.deepEqual(pendingReports(file), []);
+      // Et une NOUVELLE occurrence de la même panne ne repart pas non plus : la
+      // clé est déjà marquée dans le journal.
+      appendEntry(file, panne);
+      const text = readFileSync(file, 'utf8');
+      assert.match(text, /"reportedAt":"/, 'la marque est écrite dans le fichier, pas seulement en mémoire');
+      assert.deepEqual(pendingReports(file), []);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('une clé inconnue ne marque RIEN : un envoi raté doit pouvoir réessayer', () => {
+    const { dir, file } = tmpFile();
+    try {
+      appendEntry(file, panne);
+      const result = markReported(file, ['une-autre-panne|9.9.9|0.0.1']);
+      assert.deepEqual(result, { marked: 0, written: true });
+      assert.equal(pendingReports(file).length, 1, 'la panne attend toujours son envoi');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('marquer un poste SANS journal ne crée aucun fichier — un marquage ne doit rien faire apparaître', () => {
+    const { dir, file } = tmpFile();
+    try {
+      assert.deepEqual(markReported(file, ['a|b|c']), { marked: 0, written: false });
+      assert.deepEqual(markReported(file, []), { marked: 0, written: false });
+      assert.equal(existsSync(file), false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('une écriture impossible rend un marquage NON écrit, sans jeter — la panne reste en file', () => {
+    const { dir, file } = tmpFile();
+    try {
+      appendEntry(file, panne);
+      const [first] = pendingReports(file);
+      const result = markReported(file, [first.key as string], {
+        fs: {
+          readFileSync: readFileSync.bind(null),
+          mkdirSync: () => {
+            throw new Error('disque plein');
+          },
+          writeFileSync: () => {
+            throw new Error('disque plein');
+          },
+        },
+      });
+      assert.deepEqual(result, { marked: 0, written: false });
+      assert.equal(pendingReports(file).length, 1, 'rien n’a été perdu : le poste réessaiera');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('la file est bornée, et ce sont les pannes RÉCENTES qui survivent', () => {
+    const { dir, file } = tmpFile();
+    try {
+      for (let i = 0; i < MAX_ENTRIES + 20; i += 1) {
+        appendEntry(file, { code: 'download', detail: `e${i}`, version: `2.0.${i}` });
+      }
+      const pending = pendingReports(file, { limit: MAX_ENTRIES });
+      assert.ok(pending.length <= MAX_ENTRIES, `la file déborde : ${pending.length}`);
+      assert.equal(pending[0].version, `2.0.${MAX_ENTRIES + 19}`, 'la plus récente est en tête');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('les entrées écrites AVANT l’existence de la file sont bien en attente', () => {
+    // Le cas réel du parc déjà installé : son journal ne connaît pas
+    // `reportedAt`, donc rien n'est marqué — et c'est EXACT, ces blocages ne sont
+    // jamais partis.
+    const { dir, file } = tmpFile();
+    try {
+      writeFileSync(file, JSON.stringify({ at: '2026-09-01T00:00:00.000Z', code: 'download', detail: 'ancien', version: '1.0.1', currentVersion: '1.0.0' }) + '\n');
+      const pending = pendingReports(file);
+      assert.equal(pending.length, 1);
+      assert.equal(pending[0].reportedAt, null);
+      assert.equal(pending[0].occurrences, 1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

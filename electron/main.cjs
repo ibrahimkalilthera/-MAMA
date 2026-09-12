@@ -16,7 +16,7 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
-const { appendEntry, readEntries, journalPath } = require('./update-journal.cjs');
+const { appendEntry, readEntries, journalPath, pendingReports, markReported } = require('./update-journal.cjs');
 
 const FALLBACK_URL = 'https://mama-thera-finance.vercel.app/';
 // Où atterrit un poste qui ne peut pas s'auto-installer (portable) : le lien
@@ -411,6 +411,23 @@ function setupAutoUpdater(win) {
       path: journalFile,
       station,
       entries: readEntries(journalFile, { limit: 20 }),
+    }));
+    // La FILE D'ATTENTE du poste : les blocages inscrits qu'aucun envoi n'a
+    // encore emportés. Un poste d'école démarre bloqué sans personne de
+    // connecté — l'envoi au journal d'audit est alors impossible — donc ces
+    // entrées attendent ici, et le prochain démarrage connecté les remonte.
+    ipcMain.handle('updates:pending-reports', () => ({
+      path: journalFile,
+      station,
+      entries: pendingReports(journalFile, { limit: 20 }),
+    }));
+    // Le marquage : l'interface dit ce qui est RÉELLEMENT parti, et rien d'autre.
+    // Borné à 20 clés (autant que la file), et une clé qui ne correspond à aucune
+    // entrée du journal ne marque rien — il n'y a pas de surface pour réécrire
+    // le journal du poste depuis l'interface.
+    ipcMain.handle('updates:mark-reported', (_event, keys) => ({
+      ...markReported(journalFile, Array.isArray(keys) ? keys.map(String).slice(0, 20) : []),
+      path: journalFile,
     }));
     ipcMain.handle('updates:open-journal', () => {
       // Le fichier peut ne pas exister (aucun blocage) : le créer rend le geste

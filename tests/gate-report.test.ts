@@ -29,7 +29,14 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 
-import { blockId, blockedAuditEntry, reportBlockedStation } from '../src/lib/desktopUpdateReport';
+import {
+  blockId,
+  blockedAuditEntry,
+  flushJournalReports,
+  journalAuditEntry,
+  reportBlockedStation,
+} from '../src/lib/desktopUpdateReport';
+import type { BlockedReport, FlushOutcome, JournalQueueApi, QueuedReport } from '../src/lib/desktopUpdateReport';
 import { en as adminEn } from '../src/i18n/domains/adminEn';
 import { fr as adminFr } from '../src/i18n/domains/adminFr';
 
@@ -154,7 +161,7 @@ describe('le câblage du signalement', () => {
 
   it('le bandeau signale depuis AppShell, qui seul connaît la session', () => {
     const shell = read('src/components/AppShell.tsx');
-    assert.match(shell, /import \{ reportBlockedStation \} from '\.\.\/lib\/desktopUpdateReport'/);
+    assert.match(shell, /import \{ flushJournalReports, reportBlockedStation \} from '\.\.\/lib\/desktopUpdateReport'/);
     assert.match(shell, /onReport=\{\(state\) => reportBlockedStation\(state\)\}/);
   });
 
@@ -185,5 +192,179 @@ describe('le câblage du signalement', () => {
     assert.match(adminEn.updateBlockedDetail, /\{detail\}/);
     assert.match(adminFr.updateBlockedReportLocal, /\{path\}/);
     assert.match(adminEn.updateBlockedReportLocal, /\{path\}/);
+  });
+});
+
+describe('la file d’attente : un poste bloqué sans session remonte au démarrage connecté', () => {
+  // Le signalement en direct exige une session. Or le cas normal d'un poste
+  // d'école est de démarrer bloqué DEVANT PERSONNE : à cet instant, le journal
+  // local est le seul canal, et un blocage qui ne saurait pas attendre serait
+  // perdu — c'est-à-dire exactement le silence que ce mécanisme répare. Ces cas
+  // protègent les trois règles de la remontée : on envoie ce qui attend, on ne
+  // marque que ce qui est PARTI, et rien ne fuit quand il n'y a rien à faire.
+  const RAPPORT: QueuedReport = {
+    key: 'download|2.0.0|1.0.2',
+    code: 'download',
+    detail: 'Cannot download …setup.exe, status 404',
+    version: '2.0.0',
+    currentVersion: '1.0.2',
+    at: '2026-09-12T21:00:00.000Z',
+    occurrences: 3,
+  };
+
+  const bridge = (entries: QueuedReport[], over: Partial<JournalQueueApi> = {}): JournalQueueApi => ({
+    pendingReports: async () => ({ station: 'POSTE-ECOLE-1', entries }),
+    markReported: async (keys) => ({ marked: keys.length, written: true }),
+    ...over,
+  });
+
+  it('les blocages en attente PARTENT, et sont marqués — une seule fois, en une requête', async () => {
+    const marked: string[][] = [];
+    const sent: BlockedReport[] = [];
+    const outcome = await flushJournalReports({
+      api: bridge([RAPPORT, { ...RAPPORT, key: 'install|2.0.0|1.0.2', code: 'install' }], {
+        markReported: async (keys) => {
+          marked.push(keys);
+          return { marked: keys.length, written: true };
+        },
+      }),
+      log: (entry) => {
+        sent.push(entry);
+        return true;
+      },
+    });
+    assert.equal(outcome.queued, 2);
+    assert.equal(outcome.sent, 2);
+    assert.equal(outcome.failed, 0);
+    assert.equal(outcome.marked, 2);
+    assert.deepEqual(outcome.stillQueued, []);
+    assert.deepEqual(marked, [['download|2.0.0|1.0.2', 'install|2.0.0|1.0.2']]);
+    assert.match(sent[0].details, /poste POSTE-ECOLE-1/);
+  });
+
+  it('un envoi RATÉ reste en file : on ne marque que ce qui est vraiment parti', async () => {
+    const marked: string[][] = [];
+    const outcome = await flushJournalReports({
+      api: bridge([RAPPORT, { ...RAPPORT, key: 'install|2.0.0|1.0.2', code: 'install' }], {
+        markReported: async (keys) => {
+          marked.push(keys);
+          return { marked: keys.length, written: true };
+        },
+      }),
+      // Le second envoi échoue (réseau, RLS, session expirée…).
+      log: (entry) => !entry.action.includes('(install)'),
+    });
+    assert.equal(outcome.sent, 1);
+    assert.equal(outcome.failed, 1);
+    assert.deepEqual(outcome.stillQueued, ['install|2.0.0|1.0.2'], 'ce qui a échoué reste à remonter');
+    assert.deepEqual(marked, [['download|2.0.0|1.0.2']], 'on ne marque PAS l’envoi raté');
+  });
+
+  it('un envoi qui JETTE est un échec, jamais un silence', async () => {
+    const outcome = await flushJournalReports({
+      api: bridge([RAPPORT]),
+      log: () => {
+        throw new Error('session expirée');
+      },
+    });
+    assert.equal(outcome.sent, 0);
+    assert.equal(outcome.failed, 1);
+    assert.deepEqual(outcome.stillQueued, ['download|2.0.0|1.0.2']);
+  });
+
+  it('un marquage qui échoue ne retire rien de ce qui est RÉELLEMENT parti du journal d’audit', async () => {
+    const outcome = await flushJournalReports({
+      api: bridge([RAPPORT], {
+        markReported: async () => {
+          throw new Error('journal protégé');
+        },
+      }),
+      log: () => true,
+    });
+    assert.equal(outcome.sent, 1, 'l’audit a reçu le rapport');
+    assert.equal(outcome.marked, 0, 'mais le poste ne l’a pas marqué');
+  });
+
+  it('file vide, pont absent ou pont muet : RIEN n’est envoyé, rien n’est écrit', async () => {
+    const impossible = () => {
+      throw new Error('aucun envoi ne doit partir');
+    };
+    const vide = await flushJournalReports({ api: bridge([]), log: impossible });
+    assert.deepEqual(vide, { queued: 0, sent: 0, failed: 0, marked: 0, stillQueued: [] } as FlushOutcome);
+    // Hors application de bureau : aucune surface de mise à jour du tout.
+    assert.deepEqual(await flushJournalReports({}), {
+      queued: 0,
+      sent: 0,
+      failed: 0,
+      marked: 0,
+      stillQueued: [],
+    });
+    // Un pont qui ne répond pas (processus principal occupé, fenêtre fermée).
+    assert.deepEqual(
+      await flushJournalReports({
+        api: {
+          pendingReports: async () => {
+            throw new Error('pont muet');
+          },
+          markReported: async () => null,
+        },
+      }),
+      { queued: 0, sent: 0, failed: 0, marked: 0, stillQueued: [] },
+    );
+  });
+
+  it('une entrée sans identité n’est PAS envoyée : elle ne pourrait pas être marquée', async () => {
+    const outcome = await flushJournalReports({
+      api: bridge([{ code: 'download', detail: 'sans clé' }] as QueuedReport[]),
+      log: () => {
+        throw new Error('aucun envoi ne doit partir');
+      },
+    });
+    assert.equal(outcome.sent, 0);
+    assert.equal(outcome.failed, 1);
+  });
+
+  it('le rapport dit QUAND et COMBIEN de fois — ce que la déduplication pourrait perdre', () => {
+    const entry = journalAuditEntry(RAPPORT);
+    assert.ok(entry);
+    assert.match(entry.action, /remonté depuis le journal du poste/, 'une remontée tardive se distingue d’un signalement en direct');
+    assert.equal(entry.targetId, '2.0.0');
+    assert.equal(entry.targetType, 'update');
+    assert.match(entry.details, /constaté le 2026-09-12T21:00:00\.000Z/);
+    assert.match(entry.details, /bloqué 3 fois/, '« bloqué 40 fois » ne doit pas se lire « bloqué une fois »');
+    assert.match(entry.details, /Cannot download/, 'le motif est recopié, jamais résumé');
+  });
+
+  it('une entrée sans code ne produit aucun rapport, et le motif manquant est DIT', () => {
+    assert.equal(journalAuditEntry(null), null);
+    assert.equal(journalAuditEntry({} as QueuedReport), null);
+    const sansMotif = journalAuditEntry({ code: 'download', version: '2.0.0' });
+    assert.ok(sansMotif);
+    assert.match(sansMotif.details, /motif : non précisé/);
+    assert.doesNotMatch(sansMotif.details, /bloqué \d+ fois/, 'une seule occurrence ne se compte pas');
+  });
+
+  it('le pont expose la file, borné, sans surface générique', () => {
+    const preload = read('electron/preload.cjs');
+    assert.match(preload, /pendingReports: \(\) => ipcRenderer\.invoke\('updates:pending-reports'\)/);
+    assert.match(preload, /markReported: \(keys\) =>\s*\n?\s*ipcRenderer\.invoke\('updates:mark-reported'/);
+    assert.match(preload, /slice\(0, 20\)\.map\(String\)/, 'le nombre de clés est borné avant de traverser le pont');
+    assert.doesNotMatch(preload, /invoke\([^)]*process\.argv/, 'aucun canal générique');
+  });
+
+  it('le processus principal tient la file, et borne lui aussi ce qui vient de l’interface', () => {
+    const main = read('electron/main.cjs');
+    assert.match(main, /pendingReports, markReported \} = require\('\.\/update-journal\.cjs'\)/);
+    assert.match(main, /ipcMain\.handle\('updates:pending-reports'/);
+    assert.match(main, /entries: pendingReports\(journalFile, \{ limit: 20 \}\)/);
+    assert.match(main, /\.\.\.markReported\(journalFile, Array\.isArray\(keys\) \? keys\.map\(String\)\.slice\(0, 20\) : \[\]\)/);
+  });
+
+  it('la remontée part d’AppShell, qui seul connaît la session — une fois par utilisateur', () => {
+    const shell = read('src/components/AppShell.tsx');
+    assert.match(shell, /import \{ flushJournalReports, reportBlockedStation \} from '\.\.\/lib\/desktopUpdateReport'/);
+    assert.match(shell, /void flushJournalReports\(\{ api \}\)\.catch\(\(\) => \{\}\)/, 'un échec de remontée ne doit pas casser l’application');
+    assert.match(shell, /flushedQueueFor\.current === username/, 'un passage par session, pas à chaque rendu');
+    assert.match(shell, /if \(!username \|\| flushedQueueFor\.current === username\) return/);
   });
 });

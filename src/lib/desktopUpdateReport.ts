@@ -117,17 +117,189 @@ export async function reportBlockedStation(
 ): Promise<ReportOutcome> {
   const entry = blockedAuditEntry(state, { station: options.station ?? null });
   if (!entry) return { sent: false, detail: '' };
+  return { sent: await sendAudit(entry, options.user), detail: entry.details };
+}
+
+// ─── La file d'attente du poste : remonter ce qui a été inscrit sans session ──
+//
+// Le signalement ci-dessus part quand le poste est bloqué ET qu'une session
+// existe. Or le cas normal d'un poste d'école est l'inverse : il démarre bloqué
+// devant personne. Le journal local garde la trace (`reportedAt` nul) — mais un
+// journal qui reste sur la machine n'apprend rien à l'administrateur, qui est
+// ailleurs. D'où la file : au PREMIER démarrage connecté, les blocages en
+// attente partent, et ce qui est parti est marqué.
+
+/** Ce que le processus principal rend pour une entrée en attente. */
+export interface QueuedReport {
+  /** L'identité de la panne : c'est elle qu'on marque, jamais un index. */
+  key?: string;
+  code?: string;
+  detail?: string;
+  station?: string | null;
+  version?: string | null;
+  currentVersion?: string | null;
+  at?: string | null;
+  /** Combien de fois la même panne s'est inscrite (la dédup en garde le compte). */
+  occurrences?: number;
+}
+
+/** Ce que le pont rend : la file, et le nom du poste qui la tient. */
+export interface JournalQueuePayload {
+  path?: string;
+  station?: string;
+  entries?: QueuedReport[];
+}
+
+/** Le pont, réduit aux deux canaux qui servent à la file. */
+export interface JournalQueueApi {
+  pendingReports?: () => Promise<JournalQueuePayload | null>;
+  markReported?: (keys: string[]) => Promise<{ marked?: number; written?: boolean } | null>;
+}
+
+export interface FlushOutcome {
+  /** Ce que la file contenait au début de ce passage. */
+  queued: number;
+  sent: number;
+  failed: number;
+  /** Entrées réellement marquées par le processus principal. */
+  marked: number;
+  /** Les clés qui RESTENT en file (envoi raté, ou marquage raté). */
+  stillQueued: string[];
+}
+
+/**
+ * Envoyer un rapport au journal d'audit.
+ *
+ * Le client Supabase est chargé ICI et jamais à l'import du module : c'est ce
+ * qui permet de tester toute la composition sans configuration, et d'importer ce
+ * fichier depuis une suite sans effet de bord.
+ */
+async function sendAudit(entry: BlockedReport, user?: LogAuditParams['user']): Promise<boolean> {
   try {
     const { logAuditEvent } = await import('./auditLogger');
-    const sent = await logAuditEvent({
+    return await logAuditEvent({
       action: entry.action,
       targetType: entry.targetType,
       targetId: entry.targetId,
       details: entry.details,
-      user: options.user,
+      user,
     });
-    return { sent, detail: entry.details };
   } catch {
-    return { sent: false, detail: entry.details };
+    return false;
   }
+}
+
+/**
+ * Le rapport d'un blocage REMONTÉ DEPUIS LA FILE.
+ *
+ * Il porte deux choses que le rapport en direct n'a pas, et sans lesquelles la
+ * remontée tardive se lirait de travers : QUAND le poste a buté (`at`), et
+ * COMBIEN de fois (`occurrences`) — c'est la seule information que la
+ * déduplication de la file pourrait perdre, et « bloqué 40 fois » qui se lirait
+ * « bloqué une fois » ferait passer une école entière pour un incident isolé.
+ *
+ * @param entry une entrée de la file
+ * @param station le nom du poste, quand l'entrée ne le porte pas
+ * @returns le rapport, ou null si l'entrée ne dit rien d'exploitable.
+ */
+export function journalAuditEntry(
+  entry: QueuedReport | null | undefined,
+  { station = null }: { station?: string | null } = {},
+): BlockedReport | null {
+  if (!entry || !entry.code) return null;
+  const where = entry.station || station || 'poste inconnu';
+  const parts = [
+    `poste ${where}`,
+    `version ${entry.currentVersion ?? '?'} → ${entry.version ?? '?'}`,
+    `motif : ${entry.detail || 'non précisé'}`,
+  ];
+  if (entry.at) parts.push(`constaté le ${entry.at}`);
+  const occurrences = Number(entry.occurrences ?? 1);
+  if (Number.isFinite(occurrences) && occurrences > 1) parts.push(`bloqué ${occurrences} fois`);
+  return {
+    action: `poste bloqué — mise à jour obligatoire (${entry.code}) — remonté depuis le journal du poste`,
+    targetType: 'update',
+    targetId: entry.version ?? null,
+    details: parts.join(' · '),
+  };
+}
+
+/**
+ * Remonter au journal d'audit ce que la file du poste contient.
+ *
+ * Appelé au démarrage CONNECTÉ, une fois par session. Trois règles :
+ *   • **on ne marque que ce qui est PARTI** : un envoi raté reste en file, sinon
+ *     la panne du poste serait effacée par la panne du réseau — l'inverse du
+ *     sens utile ;
+ *   • **l'ordre suit la file** (du plus récent au plus ancien) et le lot est
+ *     borné, parce qu'un poste bloqué des semaines peut en avoir beaucoup ;
+ *   • **rien n'est envoyé s'il n'y a rien**: pas de session, pas de pont, ou
+ *     file vide rendent un bilan à zéro, sans erreur et sans écrire.
+ *
+ * Le journal local reste la référence : ce qui n'est pas marqué sera renvoyé au
+ * démarrage suivant. Un doublon vaut mieux qu'un silence.
+ *
+ * @returns le bilan du passage, y compris les clés qui n'ont PAS pu partir.
+ */
+export async function flushJournalReports(
+  options: {
+    api?: JournalQueueApi | null;
+    log?: (entry: BlockedReport) => Promise<boolean> | boolean;
+    limit?: number;
+  } = {},
+): Promise<FlushOutcome> {
+  const empty: FlushOutcome = { queued: 0, sent: 0, failed: 0, marked: 0, stillQueued: [] };
+  const api = options.api ?? null;
+  if (!api?.pendingReports || !api?.markReported) return empty;
+
+  let payload: JournalQueuePayload | null = null;
+  try {
+    payload = await api.pendingReports();
+  } catch {
+    // Un pont muet n'est pas un échec à signaler : le journal du poste reste, et
+    // le prochain démarrage connecté retentera.
+    return empty;
+  }
+
+  const limit = Number.isInteger(options.limit) ? (options.limit as number) : 20;
+  const entries = (payload?.entries ?? []).slice(0, Math.max(0, limit));
+  if (!entries.length) return empty;
+
+  const send = options.log ?? ((entry: BlockedReport) => sendAudit(entry));
+  const sentKeys: string[] = [];
+  const stillQueued: string[] = [];
+  let failed = 0;
+  for (const entry of entries) {
+    const key = String(entry.key ?? '');
+    const report = journalAuditEntry(entry, { station: payload?.station ?? null });
+    if (!report || !key) {
+      // Une entrée sans identité ne peut pas être marquée : l'envoyer ferait
+      // diverger la file du journal, donc elle est comptée et LAISSÉE en place.
+      failed += 1;
+      if (key) stillQueued.push(key);
+      continue;
+    }
+    let ok = false;
+    try {
+      ok = await send(report);
+    } catch {
+      ok = false;
+    }
+    if (ok) sentKeys.push(key);
+    else {
+      failed += 1;
+      stillQueued.push(key);
+    }
+  }
+
+  let marked = 0;
+  if (sentKeys.length) {
+    try {
+      const result = await api.markReported(sentKeys);
+      marked = Number(result?.marked ?? 0);
+    } catch {
+      marked = 0;
+    }
+  }
+  return { queued: entries.length, sent: sentKeys.length, failed, marked, stillQueued };
 }
