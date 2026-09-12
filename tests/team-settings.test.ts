@@ -4,8 +4,9 @@
 // BEFORE the import: the real client module cannot be loaded under the test
 // runner because import.meta.env does not exist there. No DOM needed — this
 // stays a plain-node suite (see tests/harness.ts "When NOT to use it").
-import { beforeEach, describe, it, mock } from 'node:test';
+import { beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { mockModule } from './module-mock';
 
 interface UpsertCall {
   table: string;
@@ -29,10 +30,8 @@ const fakeSupabase = {
   }),
 };
 
-mock.module('../src/lib/supabaseClient', {
-  namedExports: {
-    supabase: fakeSupabase,
-  },
+mockModule('../src/lib/supabaseClient', {
+  supabase: fakeSupabase,
 });
 
 const { fetchInactivityMinutes, saveInactivityMinutes, INACTIVITY_SETTINGS_KEY } =

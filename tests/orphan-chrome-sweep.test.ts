@@ -6,9 +6,14 @@
 // process sweeps. Mock timers keep the transient-lock retry waits instant.
 // No DOM needed — plain-node suite (see tests/harness.ts "When NOT to use
 // it": pure decision logic, no globals coupled).
+//
+// The helper is Windows-only: every call injects `platform: 'win32'` (and the
+// no-op case `platform: 'linux'`) instead of inheriting the host OS, so the
+// real win32 branch is exercised on every CI OS — Linux runners included.
 import { beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { mockModule } from './module-mock';
 
 // ── Mocked fs/os state ───────────────────────────────────────────────────────
 const tmpPath = 'C:/fake/temp';
@@ -20,26 +25,24 @@ const failCounts = new Map<string, number>();
 /** paths that always fail (locked forever). */
 const alwaysFail = new Set<string>();
 
-mock.module('node:os', {
-  exports: {
-    tmpdir: () => tmpPath,
-  },
+// Mocker un module dépend du majeur qui exécute la suite (le nom de l’option a
+// changé pour de bon en 24.20/25.9) : le nom est choisi par tests/module-mock.ts.
+mockModule('node:os', {
+  tmpdir: () => tmpPath,
 });
-mock.module('node:fs', {
-  exports: {
-    readdirSync: () => {
-      if (readdirThrows) throw new Error('EACCES');
-      return entries;
-    },
-    rmSync: (p: string) => {
-      if (alwaysFail.has(p)) throw new Error('EBUSY: répertoire verrouillé');
-      const fails = failCounts.get(p) ?? 0;
-      if (fails > 0) {
-        failCounts.set(p, fails - 1);
-        throw new Error('EBUSY: verrou transitoire');
-      }
-      removed.push(p);
-    },
+mockModule('node:fs', {
+  readdirSync: () => {
+    if (readdirThrows) throw new Error('EACCES');
+    return entries;
+  },
+  rmSync: (p: string) => {
+    if (alwaysFail.has(p)) throw new Error('EBUSY: répertoire verrouillé');
+    const fails = failCounts.get(p) ?? 0;
+    if (fails > 0) {
+      failCounts.set(p, fails - 1);
+      throw new Error('EBUSY: verrou transitoire');
+    }
+    removed.push(p);
   },
 });
 
@@ -64,7 +67,7 @@ describe('removeLeftoverTempArtifacts', () => {
       'user-profile', // jamais touché
       'OtherStuff', // jamais touché
     ];
-    const n = await removeLeftoverTempArtifacts(['electron-proof-', 'updater-proof-']);
+    const n = await removeLeftoverTempArtifacts(['electron-proof-', 'updater-proof-'], { platform: 'win32' });
     assert.equal(n, 3, 'seuls les artefacts au préfixe sont comptés');
     assert.deepEqual(removed, [
       join(tmpPath, 'electron-proof-ud-1789000665349'),
@@ -79,7 +82,7 @@ describe('removeLeftoverTempArtifacts', () => {
     failCounts.set(target, 1); // 1er rmSync échoue, le 2e passe
     t.mock.timers.enable({ apis: ['setTimeout'] });
     try {
-      const p = removeLeftoverTempArtifacts(['electron-proof-']);
+      const p = removeLeftoverTempArtifacts(['electron-proof-'], { platform: 'win32' });
       t.mock.timers.tick(400); // libère le wait du 1er échec
       const n = await p;
       assert.equal(n, 1);
@@ -96,7 +99,7 @@ describe('removeLeftoverTempArtifacts', () => {
     entries = ['electron-proof-ud-1', 'electron-proof-ud-2'];
     t.mock.timers.enable({ apis: ['setTimeout'] });
     try {
-      const p = removeLeftoverTempArtifacts(['electron-proof-']);
+      const p = removeLeftoverTempArtifacts(['electron-proof-'], { platform: 'win32' });
       // 2 waits de 400ms par artefact (3 tentatives) → 4 waits au total.
       // `await` entre chaque tick laisse la continuation (microtask) du helper
       // s'exécuter et programmer le wait suivant.
@@ -119,7 +122,7 @@ describe('removeLeftoverTempArtifacts', () => {
     alwaysFail.add(blocked);
     t.mock.timers.enable({ apis: ['setTimeout'] });
     try {
-      const p = removeLeftoverTempArtifacts(['electron-proof-']);
+      const p = removeLeftoverTempArtifacts(['electron-proof-'], { platform: 'win32' });
       for (let i = 0; i < 2; i++) {
         t.mock.timers.tick(400); // waits de l'artefact 1
         await Promise.resolve();
@@ -134,26 +137,20 @@ describe('removeLeftoverTempArtifacts', () => {
 
   it('readdirSync en échec → 0 sans jamais lever', async () => {
     readdirThrows = true;
-    const n = await removeLeftoverTempArtifacts(['electron-proof-']);
+    const n = await removeLeftoverTempArtifacts(['electron-proof-'], { platform: 'win32' });
     assert.equal(n, 0);
     assert.deepEqual(removed, []);
   });
 
   it('tmp vide → 0', async () => {
-    const n = await removeLeftoverTempArtifacts(['puppeteer_dev']);
+    const n = await removeLeftoverTempArtifacts(['puppeteer_dev'], { platform: 'win32' });
     assert.equal(n, 0);
   });
 
-  it('plateforme non-Windows → no-op (0, aucun appel fs)', async () => {
-    const orig = process.platform;
-    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
-    try {
-      entries = ['electron-proof-ud-1'];
-      const n = await removeLeftoverTempArtifacts(['electron-proof-']);
-      assert.equal(n, 0);
-      assert.deepEqual(removed, []);
-    } finally {
-      Object.defineProperty(process, 'platform', { value: orig, configurable: true });
-    }
+  it('plateforme non-Windows (injectée) → no-op (0, aucun appel fs)', async () => {
+    entries = ['electron-proof-ud-1'];
+    const n = await removeLeftoverTempArtifacts(['electron-proof-'], { platform: 'linux' });
+    assert.equal(n, 0);
+    assert.deepEqual(removed, []);
   });
 });

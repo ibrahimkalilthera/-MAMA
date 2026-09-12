@@ -1,0 +1,335 @@
+// Suite for scripts/lib/node-runtime.mjs + its wiring.
+//
+// The point of this feature is that the project provisions what it pins, so the
+// assertions are about ORDER and FAILURE, not about downloading: every provider
+// is injected, so the whole resolution — including "nothing worked" — runs
+// without a network. The failure message matters as much as the success path: it
+// is what a developer sees, and it must never send them to a version manager
+// they do not have.
+//
+// The wiring assertions lock the two halves that carry the guarantee: the npm
+// entry points (`lint`, `quality`) and the git hooks both go through the
+// launcher. A pin that nothing actually uses is a comment, not a pin.
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, rmSync, writeFileSync, mkdtempSync, mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const {
+  majorOf,
+  runtimeMatches,
+  readCachedExecPath,
+  writeCachedExecPath,
+  resolveNodeRuntime,
+} = await import('../scripts/lib/node-runtime.mjs');
+
+const { explainNpmCliJs, isProjectBinShim, resolveNpmCliJs } = await import(
+  '../scripts/lib/npm-cli.mjs'
+);
+
+const tmp = () => mkdtempSync(join(tmpdir(), 'mama-node-runtime-'));
+
+// Both layouts are contracts, not preferences: Windows installs npm in
+// `<prefix>/node_modules/npm`, while the Unix/CI install (setup-node on ubuntu)
+// puts it in `<prefix>/lib/node_modules/npm`. Checking only the first is how a
+// green local run went red on the runner.
+//
+// Ce que ces cas valident, et ce qu'ils ne peuvent PAS valider : la LISTE DES
+// CANDIDATS et l'ordre des fournisseurs — pas ce qu'une machine a réellement
+// installé, puisqu'ils fabriquent l'arborescence qu'ils testent. Le layout réel
+// de chaque plateforme est prouvé ailleurs, sur un vrai runner, par la matrice
+// CI qui exécute `npm run check:node-layout` (ubuntu → lib/node_modules,
+// windows → node_modules) : une arborescence inventée ne peut pas dire ce que
+// setup-node a posé sur le disque.
+describe('npm-cli — dispositions d’installation', () => {
+  const withLayout = (layout: string[], run: (node: string, cli: string) => void) => {
+    const prefix = tmp();
+    const node = join(prefix, 'bin', 'node');
+    const cli = join(prefix, ...layout);
+    mkdirSync(dirname(cli), { recursive: true });
+    mkdirSync(dirname(node), { recursive: true });
+    writeFileSync(cli, '');
+    writeFileSync(node, '');
+    const declared = process.env.MAMA_NPM_CLI_JS;
+    delete process.env.MAMA_NPM_CLI_JS; // the caller must not short-circuit the search
+    try {
+      run(node, cli);
+    } finally {
+      if (declared === undefined) delete process.env.MAMA_NPM_CLI_JS;
+      else process.env.MAMA_NPM_CLI_JS = declared;
+      rmSync(prefix, { recursive: true, force: true });
+    }
+  };
+
+  it('trouve npm dans <prefix>/lib/node_modules (Linux, runners CI)', () => {
+    withLayout(['lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'], (node, cli) => {
+      assert.equal(resolveNpmCliJs(node), cli);
+    });
+  });
+
+  it('trouve npm dans <prefix>/node_modules (Windows)', () => {
+    withLayout(['node_modules', 'npm', 'bin', 'npm-cli.js'], (node, cli) => {
+      assert.equal(resolveNpmCliJs(node), cli);
+    });
+  });
+
+  it('notre propre wrapper dans un .bin n’est pas pris pour l’npm de la machine', () => {
+    // Le projet écrit `npm` dans node_modules/.bin (voir lib/bin-shims.mjs) — le
+    // dossier que npm met EN PREMIER pour chaque script. Un repli PATH qui le
+    // prendrait pour npm en déduirait une arborescence qui ne contient aucun npm.
+    assert.equal(isProjectBinShim('C:\\p\\node_modules\\.bin\\npm.cmd'), true);
+    assert.equal(isProjectBinShim('/p/node_modules/.bin/npm'), true);
+    assert.equal(isProjectBinShim('C:\\Program Files\\nodejs\\npm.cmd'), false);
+    assert.equal(isProjectBinShim('/usr/lib/node_modules/npm/bin/npm-cli.js'), false);
+
+    const prefix = tmp();
+    // Le node qui nous occupe n'a AUCUN npm à côté de lui : sans quoi l'étape
+    // « à côté de node » gagnerait et le repli PATH ne serait jamais exercé —
+    // c'est le défaut que cette version du test corrige (elle assertait `path`
+    // sur un chemin que `layout` trouvait avant lui).
+    const node = join(prefix, 'runtime', 'node');
+    mkdirSync(dirname(node), { recursive: true });
+    writeFileSync(node, '');
+    const real = join(prefix, 'machine', 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    mkdirSync(dirname(real), { recursive: true });
+    writeFileSync(real, '');
+    const ours = join(prefix, 'project', 'node_modules', '.bin', 'npm.cmd');
+    mkdirSync(dirname(ours), { recursive: true });
+    writeFileSync(ours, '');
+    const found = explainNpmCliJs(node, {
+      declared: '',
+      which: () => [ours, join(prefix, 'machine', 'npm.cmd')], // notre wrapper d'abord
+    });
+    assert.equal(found.path, real, 'le wrapper doit être ignoré, pas suivi');
+    assert.equal(found.source, 'path');
+    rmSync(prefix, { recursive: true, force: true });
+  });
+
+  it('un chemin déclaré gagne la recherche, mais seulement s’il existe', () => {
+    const prefix = tmp();
+    const cli = join(prefix, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    const node = join(prefix, 'bin', 'node');
+    mkdirSync(dirname(cli), { recursive: true });
+    mkdirSync(dirname(node), { recursive: true });
+    writeFileSync(cli, '');
+    writeFileSync(node, '');
+    const declared = process.env.MAMA_NPM_CLI_JS;
+    try {
+      process.env.MAMA_NPM_CLI_JS = join(prefix, 'disparu.js');
+      assert.equal(resolveNpmCliJs(node), cli, 'un chemin déclaré mort ne doit pas gagner');
+    } finally {
+      if (declared === undefined) delete process.env.MAMA_NPM_CLI_JS;
+      else process.env.MAMA_NPM_CLI_JS = declared;
+      rmSync(prefix, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('node-runtime — résolution', () => {
+  it('majeur d’une version, quelle que soit la forme', () => {
+    assert.equal(majorOf('22'), 22);
+    assert.equal(majorOf('v22.23.2'), 22);
+    assert.equal(majorOf('>=22.0.0 <23.0.0'), 22);
+    assert.equal(majorOf('lts/*'), null);
+    assert.equal(runtimeMatches('22.23.2', '22'), true);
+    assert.equal(runtimeMatches('24.20.0', '22'), false);
+    assert.equal(runtimeMatches('24.20.0', 'lts/*'), false);
+  });
+
+  it('le Node courant gagne : aucun téléchargement quand le majeur correspond', () => {
+    let called = false;
+    const r = resolveNodeRuntime({
+      currentExecPath: '/node22',
+      currentVersion: '22.23.2',
+      pinned: '22',
+      cacheFile: '/nope/cache.json',
+      fetchNpm: () => {
+        called = true;
+        return '/downloaded';
+      },
+    });
+    assert.deepEqual(r, { execPath: '/node22', source: 'current' });
+    assert.equal(called, false, 'aucun provider réseau ne doit être sollicité');
+  });
+
+  it('un chemin en cache évite aussi le réseau', () => {
+    const dir = tmp();
+    const cacheFile = join(dir, 'cache.json');
+    const fakeNode = join(dir, 'node');
+    writeFileSync(fakeNode, '');
+    writeCachedExecPath(cacheFile, fakeNode, '22');
+    let called = false;
+    const r = resolveNodeRuntime({
+      currentExecPath: '/node24',
+      currentVersion: '24.20.0',
+      pinned: '22',
+      cacheFile,
+      fetchNpm: () => {
+        called = true;
+        return '/downloaded';
+      },
+    });
+    assert.deepEqual(r, { execPath: fakeNode, source: 'cache' });
+    assert.equal(called, false);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('sans cache, provisionne puis met en cache', () => {
+    const dir = tmp();
+    const cacheFile = join(dir, 'nested', 'cache.json');
+    const fakeNode = join(dir, 'node');
+    writeFileSync(fakeNode, '');
+    let asked = -1;
+    const r = resolveNodeRuntime({
+      currentExecPath: '/node24',
+      currentVersion: '24.20.0',
+      pinned: '22',
+      cacheFile,
+      fetchNpm: (major: number) => {
+        asked = major;
+        return fakeNode;
+      },
+    });
+    assert.deepEqual(r, { execPath: fakeNode, source: 'npm' });
+    assert.equal(asked, 22, 'le majeur demandé est celui de .nvmrc');
+    assert.equal(readCachedExecPath(cacheFile, '22'), fakeNode, 'le chemin doit être mémorisé');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('un cache périmé (fichier disparu) est ignoré, pas utilisé', () => {
+    const dir = tmp();
+    const cacheFile = join(dir, 'cache.json');
+    writeCachedExecPath(cacheFile, join(dir, 'disparu'), '22');
+    assert.equal(readCachedExecPath(cacheFile, '22'), null);
+    // Sans provider, la résolution doit ÉCHOUER plutôt que « réussir » avec un
+    // chemin mort : un cache périmé ne doit jamais devenir le runtime du projet.
+    assert.throws(
+      () =>
+        resolveNodeRuntime({
+          currentExecPath: '/node24',
+          currentVersion: '24.20.0',
+          pinned: '22',
+          cacheFile,
+          fetchNpm: () => null,
+        }),
+      /setup:node/,
+    );
+  });
+
+  it('un cache écrit pour un autre majeur est ignoré', () => {
+    const dir = tmp();
+    const cacheFile = join(dir, 'cache.json');
+    const fakeNode = join(dir, 'node');
+    writeFileSync(fakeNode, '');
+    writeCachedExecPath(cacheFile, fakeNode, '24');
+    assert.equal(readCachedExecPath(cacheFile, '22'), null);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('échec : le remède est le projet, jamais un gestionnaire à installer', () => {
+    const dir = tmp();
+    let error: Error & { code?: string } = new Error('pas d’erreur');
+    try {
+      resolveNodeRuntime({
+        currentExecPath: '/node24',
+        currentVersion: '24.20.0',
+        pinned: '22',
+        cacheFile: join(dir, 'cache.json'),
+        fetchNpm: () => null,
+      });
+    } catch (e) {
+      error = e as Error & { code?: string };
+    }
+    assert.equal(error.code, 'EPINNEDRUNTIME');
+    assert.match(error.message, /npm run setup:node/, 'le remède doit être la commande du projet');
+    assert.doesNotMatch(error.message, /nvm install/, 'aucun gestionnaire à installer à la main');
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('node-runtime — câblage', () => {
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const scripts: Record<string, string> = pkg.scripts;
+
+  it('les gates npm passent par le lanceur, la chaîne reste à un seul endroit', () => {
+    assert.match(scripts.lint, /with-pinned-node\.mjs/, 'npm run lint doit épingler le runtime');
+    assert.match(scripts.quality, /with-pinned-node\.mjs/, 'npm run quality doit épingler le runtime');
+    // The links stay in ONE place, and the gate's first link still asserts the
+    // runtime the chain actually got — the launcher pins, the gate verifies.
+    assert.ok(!scripts.lint.includes('eslint'), 'npm run lint ne doit plus contenir les maillons');
+    assert.match(scripts['lint:chain'], /^node scripts\/check-node-version\.mjs &&/);
+    assert.match(scripts['lint:chain'], /stylelint/);
+    assert.match(scripts['lint:chain'], /regenerate-full-setup\.mjs --check/);
+  });
+
+  it('les commandes du quotidien passent aussi par le lanceur (dev, build, preview)', () => {
+    // These are the commands a human types all day, and they were the LAST ones
+    // still reaching their tool through PATH: `dev` was `vite`, a package BIN,
+    // so it needed a mode of its own (`--bin`) rather than an npm script to
+    // hand over. A command left unwrapped here runs on whatever node the shell
+    // happens to have — silently, on the right major only by luck.
+    const daily = {
+      dev: /^node scripts\/with-pinned-node\.mjs --bin vite --port=3000 --host=0\.0\.0\.0$/,
+      'dev:staging': /--bin vite .*--mode staging$/,
+      build: /^node scripts\/with-pinned-node\.mjs --bin vite build$/,
+      'build:staging': /--bin vite build --mode staging$/,
+      'build:production': /--bin vite build --mode production$/,
+      preview: /^node scripts\/with-pinned-node\.mjs --bin vite preview$/,
+      'electron:ui': /--bin vite build --base=\.\/ --outDir electron-ui-dist$/,
+    };
+    for (const [name, expected] of Object.entries(daily)) {
+      assert.match(scripts[name], expected, `npm run ${name} doit épingler le runtime`);
+    }
+    // No command may reach vite (or any tool) by bare name: that is the PATH
+    // lookup the launcher removed.
+    for (const [name, script] of Object.entries(scripts)) {
+      assert.doesNotMatch(script, /(^|&&\s*)vite\s/, `npm run ${name} ne doit pas résoudre vite par PATH`);
+    }
+  });
+
+  it('le mode --bin exécute vraiment l’outil, sous le runtime épinglé', () => {
+    // The wiring above proves the scripts ASK for the pin. This runs it: an
+    // entry that exists but does not start (a missing dependency, a bad shim)
+    // still looks wired. `vite` is enough — it declares itself under `bin`, and
+    // printing its version proves the interpreter that reached it.
+    const run = spawnSync(
+      process.execPath,
+      ['scripts/with-pinned-node.mjs', '--bin', 'vite', '--version'],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(run.status, 0, `--bin vite doit sortir 0 (stderr : ${run.stderr})`);
+    assert.match(run.stdout, /vite\/\d+\.\d+\.\d+/, 'la sortie doit porter une version de vite');
+    const pinned = majorOf(readFileSync(join(root, '.nvmrc'), 'utf8').trim());
+    assert.match(
+      run.stdout,
+      new RegExp(`node-v${pinned}\\.`),
+      `vite doit avoir été exécuté par le majeur ${pinned}, pas par celui du shell`,
+    );
+  });
+
+  it('le provisionnement est explicite et le `prepare` ne casse pas un install hors ligne', () => {
+    assert.match(scripts['setup:node'], /setup-node-runtime\.mjs/);
+    assert.match(scripts.prepare, /setup-node-runtime\.mjs --soft/);
+    assert.match(scripts.prepare, /husky/, 'husky doit toujours être installé');
+  });
+
+  it('les deux hooks pinent le runtime (c’est là que ça bloquait)', () => {
+    for (const hook of ['pre-commit', 'pre-push']) {
+      const text = readFileSync(join(root, '.husky', hook), 'utf8');
+      const command = text
+        .split('\n')
+        .filter((line) => !/^\s*#/.test(line))
+        .filter((line) => line.includes('hook-quality-chain'));
+      assert.equal(command.length, 1, `${hook} doit lancer la chaîne une seule fois`);
+      assert.match(
+        command[0],
+        /with-pinned-node\.mjs --node scripts\/hook-quality-chain\.mjs/,
+        `${hook} doit passer par le lanceur`,
+      );
+    }
+  });
+});

@@ -11,12 +11,15 @@
  * the same measurement used to hunt the white-on-white overlay bugs, now
  * automated and gated in CI.
  *
- * Account handling (two modes):
- *   • CI / explicit creds:  AUDIT_EMAIL + AUDIT_PASSWORD env vars are used.
- *   • Local, no creds:       if SUPABASE_SERVICE_ROLE_KEY is present in .env,
- *                            an ephemeral admin account is created before the
- *                            audit and deleted afterwards (same pattern as
- *                            scripts/e2e-business.mjs). No cleanup → no audit.
+ * Backend — fixtures by default (see scripts/lib/audit-fixtures.mjs):
+ *   The build is pointed at a fake Supabase host and every request to it is
+ *   answered inside the browser from a frozen dataset. No secret, no database,
+ *   no account to create or delete — so the gate runs identically on a push, a
+ *   Dependabot PR and a fork PR. The login form is still filled for real: the
+ *   password grant is intercepted too, and the session supabase-js stores is
+ *   the one this audit handed it.
+ *   • AUDIT_FIXTURES=0 + AUDIT_EMAIL/AUDIT_PASSWORD audits a REAL backend
+ *     instead (manual debugging only — never the CI path).
  *
  * Env:
  *   AUDIT_URL        target URL (default http://127.0.0.1:4173/)
@@ -25,16 +28,28 @@
  *   AUDIT_MIN_RATIO  minimum contrast (default 3.0)
  *   AUDIT_THEMES     comma list to audit only a subset (e.g. navy,slate)
  *   AUDIT_OUT        write a JSON report to this path
- *   AUDIT_EMAIL / AUDIT_PASSWORD   login for the audited app
+ *   AUDIT_FIXTURES   0 = audit a real backend with AUDIT_EMAIL/AUDIT_PASSWORD
+ *   AUDIT_EMAIL / AUDIT_PASSWORD   login, only when AUDIT_FIXTURES=0
  *   CHROME_PATH      Chrome/Chromium executable (auto-detected otherwise)
+ *
+ * A request to the fixture host this audit cannot answer is reported as a HARD
+ * FAILURE: a surface that silently lost its backend would otherwise scan fewer
+ * texts — and stay green.
  *
  * Known non-user-facing text is excluded and reported separately ('DEV'
  * ribbon — dev-role only, never shown in production accounts).
  */
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'node:child_process';
-import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
-import { readFileSync, existsSync, writeFileSync } from 'node:fs';
+import {
+  FIXTURE_ANON_KEY,
+  FIXTURE_EMAIL,
+  FIXTURE_PASSWORD,
+  FIXTURE_URL,
+  fixtureRoute,
+  isFixtureUrl,
+} from './lib/audit-fixtures.mjs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
@@ -42,27 +57,17 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ── Configuration ──────────────────────────────────────────────────────────
-const parseEnvFile = (p) => {
-  const o = {};
-  if (!existsSync(p)) return o;
-  for (const l of readFileSync(p, 'utf8').split(/\r?\n/)) {
-    const m = l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
-    if (m) o[m[1]] = m[2].replace(/^["']|["']$/g, '');
-  }
-  return o;
-};
-const envFile = join(root, '.env');
-const env = parseEnvFile(envFile);
-
 const AUDIT_URL = process.env.AUDIT_URL || 'http://127.0.0.1:4173/';
 const AUDIT_PORT = Number(process.env.AUDIT_PORT ?? 4173);
 const MIN_RATIO = Number(process.env.AUDIT_MIN_RATIO ?? 3.0);
 const isLocalTarget = AUDIT_URL.includes('127.0.0.1') || AUDIT_URL.includes('localhost');
 const doBuild = !process.env.AUDIT_NO_BUILD;
-const AUDIT_EMAIL = process.env.AUDIT_EMAIL;
-const AUDIT_PASSWORD = process.env.AUDIT_PASSWORD;
-const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
-const supabaseBase = (env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+// Fixtures by default: the audit must not need a secret to run (a Dependabot or
+// fork run receives none), and a colour gate must not change its coverage
+// because of whatever rows the production database happens to hold that day.
+const USE_FIXTURES = process.env.AUDIT_FIXTURES !== '0';
+const AUDIT_EMAIL = USE_FIXTURES ? FIXTURE_EMAIL : process.env.AUDIT_EMAIL;
+const AUDIT_PASSWORD = USE_FIXTURES ? FIXTURE_PASSWORD : process.env.AUDIT_PASSWORD;
 
 const THEMES = (process.env.AUDIT_THEMES || 'navy,emerald,cream,bordeaux,slate,midnight')
   .split(',')
@@ -217,6 +222,7 @@ const SCANNER = (minRatio) => {
 const failures = []; // { theme, step, text, fg, bg, ratio, cls }
 const ignoredSeen = []; // { theme, step, text }
 const checks = [];
+const nonApplicable = []; // 'theme · step' — a trigger was absent (see the report)
 const recordCheck = (theme, step, ok, note = '') => {
   checks.push({ theme, step, ok, note });
   console.log(`   ${ok ? '✅' : '❌'} [${theme}] ${step}${note ? ' — ' + note : ''}`);
@@ -230,37 +236,30 @@ async function main() {
     process.exit(1);
   }
 
-  // Local: ephemeral account via service role (deleted afterwards). CI: creds.
-  let ephemeralUid = null;
-  if (!AUDIT_EMAIL || !AUDIT_PASSWORD) {
-    if (!SERVICE_KEY || !supabaseBase) {
-      console.error('❌ Aucun compte : fournissez AUDIT_EMAIL/AUDIT_PASSWORD (CI) ou SUPABASE_SERVICE_ROLE_KEY dans .env (compte éphémère local).');
-      process.exit(1);
-    }
-    const email = ephemeralEmail('contrast-audit', 'mamathera.org');
-    const password = 'Contrast-2026!Audit';
-    const HDR = { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, 'Content-Type': 'application/json' };
-    const r = await fetch(`${supabaseBase}/auth/v1/admin/users`, {
-      method: 'POST', headers: HDR, body: JSON.stringify({ email, password, email_confirm: true }),
-    });
-    const b = await r.json();
-    if (!r.ok) { console.error('❌ Création du compte éphémère impossible :', b.msg || r.status); process.exit(1); }
-    ephemeralUid = b.id;
-    await wait(2200); // profile trigger
-    await fetch(`${supabaseBase}/rest/v1/user_profiles?id=eq.${b.id}`, {
-      method: 'PATCH', headers: HDR, body: JSON.stringify({ role: 'admin' }),
-    });
-    console.log(`🔑 Compte éphémère créé : ${email} (sera supprimé en fin d'audit)`);
-    process.env.AUDIT_EMAIL = email;
-    process.env.AUDIT_PASSWORD = password;
+  // No account is created here any more: the fixture backend mints the session
+  // in-browser. Only the explicit opt-out needs real credentials.
+  if (!USE_FIXTURES && (!AUDIT_EMAIL || !AUDIT_PASSWORD)) {
+    console.error('❌ AUDIT_FIXTURES=0 exige AUDIT_EMAIL et AUDIT_PASSWORD (backend réel).');
+    process.exit(1);
   }
+  if (USE_FIXTURES) {
+    console.log(`🧪 Backend fixtures : ${FIXTURE_URL} — aucun secret, aucune écriture en base (${AUDIT_EMAIL}).`);
+  }
+
+  // The app reads its Supabase config through Vite at BUILD time. In fixture
+  // mode the build gets the fake host through process.env — which Vite's
+  // loadEnv() lets win over any `.env` file — so a developer's real credentials
+  // can never leak into an audited bundle, and the run cannot depend on them.
+  const buildEnv = USE_FIXTURES
+    ? { ...process.env, VITE_SUPABASE_URL: FIXTURE_URL, VITE_SUPABASE_ANON_KEY: FIXTURE_ANON_KEY, VITE_APP_ENV: 'production' }
+    : process.env;
 
   // Build + preview when targeting the local server.
   let preview = null;
   try {
     if (isLocalTarget && doBuild) {
       console.log('🏗️  Build de production…');
-      const build = spawn(process.execPath, [join(root, 'node_modules/vite/bin/vite.js'), 'build', '--mode', 'production'], { cwd: root, stdio: 'inherit' });
+      const build = spawn(process.execPath, [join(root, 'node_modules/vite/bin/vite.js'), 'build', '--mode', 'production'], { cwd: root, stdio: 'inherit', env: buildEnv });
       const buildCode = await new Promise((res) => build.on('close', res));
       if (buildCode !== 0) { console.error('❌ Build échoué.'); process.exit(1); }
     }
@@ -295,6 +294,34 @@ async function main() {
     });
     const page = await browser.newPage();
     await page.setViewport({ width: 1440, height: 1000 });
+
+    // Fixture backend: answer every fixture-host request in-process, before the
+    // first navigation, so nothing can escape to the network. Preflight is
+    // answered by hand because supabase-js sends `apikey` / `authorization`,
+    // which make every call a non-simple cross-origin request.
+    const unrouted = new Set();
+    if (USE_FIXTURES) {
+      await page.setRequestInterception(true);
+      page.on('request', (req) => {
+        if (!isFixtureUrl(req.url())) { void req.continue(); return; }
+        const cors = {
+          'access-control-allow-origin': '*',
+          'access-control-allow-methods': '*',
+          'access-control-allow-headers': req.headers()['access-control-request-headers'] || '*',
+          'access-control-expose-headers': 'content-range',
+        };
+        if (req.method() === 'OPTIONS') { void req.respond({ status: 204, headers: cors }); return; }
+        const u = new URL(req.url());
+        const r = fixtureRoute({ method: req.method(), pathname: u.pathname, search: u.search, accept: req.headers().accept });
+        if (r.status === 501) {
+          const body = JSON.parse(r.body);
+          unrouted.add(body.table || body.path || 'inconnu');
+        }
+        const headers = r.status === 200 ? { ...cors, 'content-range': '0-0/1' } : cors;
+        if (r.status === 204) { void req.respond({ status: 204, headers }); return; }
+        void req.respond({ status: r.status, headers, contentType: r.contentType, body: r.body });
+      });
+    }
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const waitFor = async (fn, ms = 15000, label = 'attente') => {
@@ -356,16 +383,35 @@ async function main() {
 
     // ── Login ───────────────────────────────────────────────────────────
     await page.goto(AUDIT_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    // "No login form" has exactly TWO acceptable meanings: an existing session,
+    // or a page that has not painted yet. The old 8 s waitFor could not tell
+    // them apart — it treated a slow FIRST paint as "session déjà présente" and
+    // then failed 45 s later blaming the login. A cold bundle (fresh preview, no
+    // HTTP cache, busy machine) needs more than 8 s, so wait properly and then
+    // check what is actually on screen.
+    const LOGIN_SEL = 'input[placeholder="name@mamathera.org"]';
+    const SHELL_RE = /Finance Exécutive|Résumé Exécutif|Élèves & Notes/;
+    let loginForm = true;
     try {
-      await page.waitForSelector('input[placeholder="name@mamathera.org"]', { timeout: 8000 });
-      await page.type('input[placeholder="name@mamathera.org"]', process.env.AUDIT_EMAIL);
-      await page.type('input[type="password"]', process.env.AUDIT_PASSWORD);
+      await page.waitForSelector(LOGIN_SEL, { timeout: 30000 });
+    } catch {
+      loginForm = false;
+    }
+    if (loginForm) {
+      // Resolved constants, not process.env: fixture mode never writes the
+      // credentials into the environment (nothing to leak, nothing to inherit).
+      await page.type(LOGIN_SEL, AUDIT_EMAIL);
+      await page.type('input[type="password"]', AUDIT_PASSWORD);
       await page.evaluate(() => {
         const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').toLowerCase().includes('se connecter'));
         if (b) b.click();
       });
       console.log('🔐 Login…');
-    } catch {
+    } else {
+      const shellShown = await page.evaluate(`(() => ${SHELL_RE}.test(document.body.innerText || ''))()`);
+      if (!shellShown) {
+        throw new Error(`Ni écran de login ni coquille applicative après 30 s sur ${AUDIT_URL} — page non reconnue.`);
+      }
       console.log('🔐 Session déjà présente (aucun écran de login).');
     }
     await waitFor(visibleText('Finance Exécutive') + ' || ' + visibleText('Résumé Exécutif') + ' || ' + visibleText('Élèves & Notes'), 45000, 'shell de l’app (login)');
@@ -380,7 +426,24 @@ async function main() {
         return;
       }
       if (opened === null) {
-        recordCheck(theme, name, true, 'non applicable (aucun déclencheur)');
+        // With the frozen fixture dataset EVERY one of these surfaces has a
+        // trigger: a student row, an overdue parent, the notification bell, the
+        // AI button. The dataset is deterministic — that is its entire point —
+        // so "no trigger" under fixtures is not a dataset quirk, it is a LOST
+        // trigger: the surface stops being measured while the run stays green.
+        // That is precisely how the student fiche went unmeasured in all six
+        // themes (the fixture year emptied the table; see FIXTURE_ACADEMIC_YEAR).
+        // Under a real backend (AUDIT_FIXTURES=0) an absent trigger is
+        // legitimate: the step stays ok and is labelled, never hidden.
+        nonApplicable.push(`${theme} · ${name}`);
+        recordCheck(
+          theme,
+          name,
+          !USE_FIXTURES,
+          USE_FIXTURES
+            ? 'non applicable — déclencheur perdu (les fixtures en fournissent toujours un)'
+            : 'non applicable (aucun déclencheur)',
+        );
         return;
       }
       await scanAndRecord(theme, name, opened.rootSel, opened.guard);
@@ -518,36 +581,51 @@ async function main() {
         return { rootSel: null, guard: null };
       });
 
-      // Student fiche (first student row), data-dependent
+      // Student fiche (first student row) — REQUIRED coverage, not optional.
+      //
+      // This step used to `return null` when the Élèves table had no rows, which
+      // the report rendered as "non applicable (aucun déclencheur)" — a green
+      // step. It was hiding a real break: every fixture row carried
+      // academic_year 2025-2026 while the app opens on 2026-2027, so the year
+      // filter emptied the table and the fiche was never measured, in any theme.
+      // A surface this audit exists to measure is now a HARD failure when its
+      // data is missing or its trigger disappeared.
       await openOverlay(theme, 'Fiche Élève', async () => {
         await pressEsc(); // clear any leftover overlay so the fiche guard is honest
         await clickText('button', 'Élèves & Notes', 'nav Élèves');
         await waitFor(visibleText('Gestion des Élèves'), 15000, 'vue Élèves');
-        // The table loads lazily with the view chunk — wait for real rows
-        // (header row alone = empty dataset → non applicable).
+        // The table loads lazily with the view chunk.
         try {
-          await waitFor('(() => document.querySelectorAll(\'tbody tr\').length > 0)()', 6000, 'lignes élèves');
+          await waitFor('(() => document.querySelectorAll(\'tbody tr\').length > 0)()', 8000, 'lignes élèves');
         } catch {
-          return null;
+          const seen = await page.evaluate(() => {
+            const years = [...document.querySelectorAll('select')].map((s) => s.value).join('/');
+            return `tbody tr=0, selects=${years}`;
+          });
+          throw new Error(
+            `aucune ligne élève (${seen}) — le jeu de données doit fournir des élèves pour l'année sélectionnée ` +
+              '(voir FIXTURE_ACADEMIC_YEAR dans scripts/lib/audit-fixtures.mjs)',
+          );
         }
-        const clicked = await page.evaluate(() => {
+        // Open the fiche via the student name/avatar cell (setSelectedStudent)
+        // — NOT the row's first <button>, which is the flag toggle.
+        const picked = await page.evaluate(() => {
           const rows = [...document.querySelectorAll('tbody tr, table tr')];
-          const row = rows.find((r) => {
+          const dataRow = rows.find((r) => {
             const t = r.textContent || '';
             if (!t.trim()) return false;
-            // skip column-header rows (all-caps labels)
+            // skip column-header rows (the header's sort cells are clickable
+            // but open nothing)
             if (/NOM DE L'ÉLÈVE|SOLDE|ACTIONS|STATUT|ÉLÈVES/.test(t) && !/[a-zà-ÿ]/.test(t)) return false;
             return [...r.querySelectorAll('button')].length > 0;
           });
-          if (!row) return false;
-          // Open the fiche via the student name/avatar cell
-          // (setSelectedStudent) — NOT the row's first <button>, which is the
-          // flag toggle and opens nothing.
-          const open = row.querySelector('div.cursor-pointer');
-          if (open) { open.click(); return true; }
-          return false;
+          if (!dataRow) return 'aucune ligne de données (que des en-têtes ?)';
+          const open = dataRow.querySelector('div.cursor-pointer');
+          if (!open) return `ligne « ${(dataRow.textContent || '').trim().slice(0, 40)} » sans déclencheur cliquable`;
+          open.click();
+          return null;
         });
-        if (!clicked) return null;
+        if (picked) throw new Error(`${picked} — le déclencheur de la fiche a changé`);
         await sleep(1400);
         return { rootSel: '[role="dialog"]', guard: '(() => !!document.querySelector(\'[role="dialog"]\'))()' };
       });
@@ -611,9 +689,15 @@ async function main() {
       console.error(`\n❌ Thèmes sans aucune couverture : ${missingThemes.join(', ')} — audit KO.`);
     }
     // A step that could not open/scan its overlay (timeout, broken trigger)
-    // means that surface was NOT verified — treat it as a hard failure so the
-    // gate cannot silently skip coverage ("non applicable" stays OK: the
-    // overlay legitimately has no trigger with this dataset).
+    // means that surface was NOT verified — a hard failure, so the gate cannot
+    // silently skip coverage. "Non applicable" is now part of that class under
+    // fixtures (recordCheck above made it KO): the frozen dataset always
+    // provides a trigger, so its absence is a regression, not a data quirk.
+    // The list is printed in both modes, because a real-backend run must still
+    // say which surfaces it did not measure — silence is how coverage dies.
+    if (nonApplicable.length) {
+      console.log(`\nℹ️  étapes non applicables (aucun déclencheur) : ${nonApplicable.join(', ')}`);
+    }
     if (ignoredSeen.length) {
       const ign = [...new Set(ignoredSeen.map((i) => i.text))];
       console.log(`Textes ignorés (non utilisateur, signalés seulement) : ${ign.join(', ')}`);
@@ -624,24 +708,22 @@ async function main() {
         console.log(`   « ${f.text} »  fg rgb(${f.fg}) / bg rgb(${f.bg})  → ${f.ratio}:1${f.cls ? `  [${f.cls}]` : ''}`);
       }
     }
-    if (process.env.AUDIT_OUT) {
-      writeFileSync(process.env.AUDIT_OUT, JSON.stringify({ checks, failures, ignored: ignoredSeen }, null, 2));
+    // A fixture route this audit cannot answer means an app surface lost its
+    // data source: the scan would cover less and still pass. Never silent.
+    if (unrouted.size > 0) {
+      console.error(`\n❌ Requête(s) fixtures non couvertes : ${[...unrouted].join(', ')} — audit KO.`);
     }
-    process.exitCode = failures.length > 0 || counts.ko > 0 || missingThemes.length > 0 ? 1 : 0;
+    if (process.env.AUDIT_OUT) {
+      writeFileSync(process.env.AUDIT_OUT, JSON.stringify({ checks, failures, ignored: ignoredSeen, unrouted: [...unrouted] }, null, 2));
+    }
+    process.exitCode = failures.length > 0 || counts.ko > 0 || missingThemes.length > 0 || unrouted.size > 0 ? 1 : 0;
     if (failures.length > 0) console.log(`\n❌ ${failures.length} paire(s) sous ${MIN_RATIO}:1 — audit KO.`);
-    else if (counts.ko > 0) console.log(`\n❌ ${counts.ko} étape(s) non couvertes (timeout/erreur d'ouverture) — audit KO.`);
+    else if (counts.ko > 0) console.log(`\n❌ ${counts.ko} étape(s) non couvertes (ouverture impossible, 0 texte scanné, ou déclencheur perdu sous fixtures) — audit KO.`);
     else if (missingThemes.length > 0) console.log(`\n❌ Audit partiel : ${missingThemes.join(', ')} sans couverture — audit KO.`);
+    else if (unrouted.size > 0) console.log(`\n❌ Backend fixtures incomplet (${[...unrouted].join(', ')}) — audit KO.`);
     else console.log('\n✅ Aucune paire sous le seuil, toutes les étapes couvertes — contraste conforme.');
   } finally {
     if (preview) { try { preview.kill('SIGTERM'); } catch { /* ignore */ } }
-    if (ephemeralUid && supabaseBase && SERVICE_KEY) {
-      try {
-        await fetch(`${supabaseBase}/auth/v1/admin/users/${ephemeralUid}`, {
-          method: 'DELETE', headers: { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY },
-        });
-        console.log('🧹 Compte éphémère supprimé.');
-      } catch (e) { console.log('⚠️ Nettoyage compte éphémère :', e.message); }
-    }
   }
 }
 

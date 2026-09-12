@@ -1,0 +1,512 @@
+// Suite for scripts/lib/panic-doctor.mjs — the read-only diagnosis of the
+// machine state around the msys fork panic.
+//
+// Everything is pure: a snapshot is text, a process is a record, and the clock
+// is a number the caller passes. That matters because the interesting branches
+// are exactly the ones you cannot produce on demand on a real machine — a chain
+// orphan whose parent is gone, a guard watching a dead pid, a stranger node.exe
+// that must never be purged. The CLI itself is NOT imported (importing it would
+// run a diagnosis); its guarantees are asserted on its source instead:
+//   - it is read-only (no kill primitive anywhere in it);
+//   - it shares the sweep's own definition of a quality-chain leftover, so the
+//     doctor can never describe a rule the sweep does not apply.
+// Plain-node suite.
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import {
+  KNOWN_CHAIN_WRAPPER_PATTERN,
+  matchesKnownChainWrapper,
+  snapshotDescendants,
+  sweepOwnNodeOrphans,
+} from '../scripts/lib/orphan-node.mjs';
+import {
+  BIN_SHIM_DIR,
+  NODE_PRESSURE_THRESHOLD,
+  buildMachineSnapshotScript,
+  describeAge,
+  diagnose,
+  formatDiagnosis,
+  inspectBinShims,
+  inspectHooks,
+  parseMachineSnapshot,
+  planRemedies,
+  shimTargetsOf,
+  shortCommand,
+} from '../scripts/lib/panic-doctor.mjs';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const NOW = Date.parse('2026-09-11T12:00:00.000Z');
+const bornAgo = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
+
+type Proc = {
+  pid: number;
+  ppid: number;
+  name: string;
+  born: string;
+  memMb: number;
+  cmd: string;
+};
+
+const proc = (over: Partial<Proc> = {}): Proc => ({
+  pid: 100,
+  ppid: 1,
+  name: 'node.exe',
+  born: bornAgo(5),
+  memMb: 40,
+  cmd: 'node scripts/quality-chain.mjs',
+  ...over,
+});
+
+describe('buildMachineSnapshotScript', () => {
+  it('demande pid, parent, nom, horodatage, mémoire et ligne de commande', () => {
+    const script = buildMachineSnapshotScript();
+    for (const field of ['ProcessId', 'ParentProcessId', 'CreationDate', 'WorkingSetSize', 'CommandLine']) {
+      assert.match(script, new RegExp(field), `${field} est nécessaire au diagnostic`);
+    }
+    assert.match(script, /MEMFREE=/, 'la mémoire est une donnée d’ambiance du diagnostic');
+  });
+});
+
+describe('parseMachineSnapshot', () => {
+  it('lit les processus et la ligne mémoire, ignore le reste', () => {
+    const stdout = [
+      'PID=101;PPID=1;NAME=node.exe;BORN=2026-09-11T11:00:00.000Z;MEM=104857600;CMD=node scripts/quality-chain.mjs lint',
+      'du bruit qui ne doit pas casser la lecture',
+      'PID=cassé;PPID=x;NAME=node.exe;BORN=;MEM=1;CMD=',
+      'PID=102;PPID=101;NAME=chrome.exe;BORN=2026-09-11T11:30:00.000Z;MEM=20971520;CMD=chrome.exe --type=renderer',
+      'MEMFREE=7516192768;MEMTOTAL=17045651456',
+    ].join('\n');
+    const { processes, memory } = parseMachineSnapshot(stdout);
+    assert.equal(processes.length, 2, 'les lignes illisibles sont ignorées, sans exception');
+    assert.deepEqual(processes[0], {
+      pid: 101,
+      ppid: 1,
+      name: 'node.exe',
+      born: '2026-09-11T11:00:00.000Z',
+      memMb: 100,
+      cmd: 'node scripts/quality-chain.mjs lint',
+    });
+    assert.deepEqual(memory, { freeBytes: 7516192768, totalBytes: 17045651456 });
+  });
+
+  it('sortie vide → aucun processus, aucune erreur', () => {
+    assert.deepEqual(parseMachineSnapshot(), {
+      processes: [],
+      memory: { freeBytes: null, totalBytes: null },
+    });
+  });
+});
+
+describe('describeAge / shortCommand', () => {
+  it('âge lisible : secondes, minutes, heures, jours, inconnu', () => {
+    assert.equal(describeAge(bornAgo(0.5), NOW), '30 s');
+    assert.equal(describeAge(bornAgo(7), NOW), '7 min');
+    assert.equal(describeAge(bornAgo(180), NOW), '3 h');
+    assert.equal(describeAge(bornAgo(60 * 24 * 3), NOW), '3 j');
+    assert.equal(describeAge('', NOW), 'âge inconnu');
+    assert.equal(describeAge('pas une date', NOW), 'âge inconnu');
+  });
+
+  it('le nom du script remplace une ligne de commande illisible', () => {
+    assert.equal(shortCommand('node /repo/scripts/quality-chain.mjs lint'), 'quality-chain.mjs');
+    assert.equal(shortCommand('"C:\\Program Files\\nodejs\\node.exe" C:\\repo\\scripts\\sweep-report.mjs'), 'sweep-report.mjs');
+    assert.equal(shortCommand(''), '(ligne de commande illisible)');
+    assert.ok(shortCommand(`node ${'x'.repeat(200)}.mjs`).endsWith('…'));
+  });
+});
+
+describe('diagnose — ce que le sweep prendrait, et ce qu’il ne touchera jamais', () => {
+  it('un wrapper à parent disparu est le seul orphelin, et il est nommé avec le remède', () => {
+    const report = diagnose({
+      processes: [
+        proc({ pid: 500, ppid: 999, cmd: 'node C:\\repo\\scripts\\quality-chain.mjs lint' }),
+        proc({ pid: 501, ppid: 500, cmd: 'node C:\\repo\\scripts\\lib\\orphan-guard.mjs 500' }),
+      ],
+      nowMs: NOW,
+    });
+    assert.equal(report.counts.chainOrphans, 1);
+    assert.equal(report.counts.guards, 1, 'le garde n’est jamais compté comme un orphelin');
+    assert.equal(report.chainOrphans[0]?.pid, 500);
+    assert.equal(report.chainOrphans[0]?.parentGone, true);
+    assert.match(report.chainOrphans[0]?.age ?? '', /min$/);
+    const alarm = report.verdicts.find((v) => v.level === 'alarm');
+    assert.ok(alarm, 'un orphelin de chaîne est un constat alarmant');
+    assert.match(alarm.text, /--sweep/, 'le remède exact est donné, pas seulement le constat');
+  });
+
+  it('une chaîne ATTACHÉE (parent vivant) n’est pas un orphelin : c’est du travail en cours', () => {
+    const report = diagnose({
+      processes: [
+        proc({ pid: 1, cmd: 'wrapper' }),
+        proc({ pid: 500, ppid: 1, cmd: 'node C:\\repo\\scripts\\quality-chain.mjs lint' }),
+      ],
+      nowMs: NOW,
+    });
+    assert.equal(report.counts.chainOrphans, 0);
+    assert.equal(report.counts.chainAttached, 1);
+    assert.equal(report.verdicts.some((v) => v.level === 'alarm'), false);
+    assert.match(report.verdicts.find((v) => v.level === 'ok')?.text ?? '', /rien à purger/);
+  });
+
+  it('un node.exe ÉTRANGER à parent disparu est montré, mais jamais candidat', () => {
+    const report = diagnose({
+      processes: [
+        proc({ pid: 700, ppid: 404, cmd: 'node C:\\outils\\serveur-dev.mjs --port 3000' }),
+        proc({ pid: 701, ppid: 700, cmd: 'node C:\\repo\\node_modules\\vite\\bin\\vite.js' }),
+      ],
+      nowMs: NOW,
+    });
+    assert.equal(report.counts.chainOrphans, 0);
+    assert.equal(report.otherNode.length, 2);
+    assert.equal(report.otherNode.every((p) => p.eligible === false), true);
+    const note = report.verdicts.find((v) => v.level === 'info');
+    assert.match(note?.text ?? '', /laissés tels quels|étrangers/i);
+  });
+
+  it('un garde qui surveille un pid mort est signalé (il devrait sortir)', () => {
+    const report = diagnose({
+      processes: [proc({ pid: 501, cmd: 'node C:\\repo\\scripts\\lib\\orphan-guard.mjs 424242' })],
+      nowMs: NOW,
+    });
+    assert.equal(report.guards[0].watchedPid, 424242);
+    assert.equal(report.guards[0].watchedAlive, false);
+    assert.equal(report.verdicts.find((v) => /garde/.test(v.text))?.level, 'warn');
+  });
+
+  it('un garde qui surveille une chaîne vivante est une information, pas une alerte', () => {
+    const report = diagnose({
+      processes: [
+        proc({ pid: 500, cmd: 'node C:\\repo\\scripts\\quality-chain.mjs lint' }),
+        proc({ pid: 501, cmd: 'node C:\\repo\\scripts\\lib\\orphan-guard.mjs --relay 500' }),
+      ],
+      nowMs: NOW,
+    });
+    assert.equal(report.guards[0].watchedPid, 500);
+    assert.equal(report.guards[0].watchedAlive, true);
+    assert.equal(report.verdicts.find((v) => /garde/.test(v.text))?.level, 'info');
+  });
+
+  it('chrome/electron restants et pression node sont comptés, pas confondus', () => {
+    const chrome = [proc({ pid: 900, name: 'chrome.exe', ppid: 898, cmd: 'chrome.exe --type=renderer' })];
+    const many = Array.from({ length: NODE_PRESSURE_THRESHOLD + 1 }, (_, i) =>
+      proc({ pid: 1000 + i, ppid: 1, cmd: 'node C:\\repo\\node_modules\\vite\\bin\\vite.js' }),
+    );
+    const report = diagnose({ processes: [...chrome, ...many], nowMs: NOW });
+    assert.equal(report.counts.chromeLike, 1);
+    assert.equal(report.counts.node, NODE_PRESSURE_THRESHOLD + 1);
+    const texts = report.verdicts.map((v) => v.text).join(' | ');
+    assert.match(texts, /chrome\/electron restants/);
+    assert.match(texts, /table de fork msys est chargée/);
+    assert.equal(report.counts.chainOrphans, 0, 'aucun de ces processus n’est un orphelin de chaîne');
+  });
+
+  it('le journal est résumé : zéros compris, et seules les paniques de 24 h comptent', () => {
+    const journal = [
+      { at: '2026-09-11T11:00:00.000Z', origin: 'exit', killed: 0 },
+      { at: '2026-09-11T11:30:00.000Z', origin: 'guard', killed: 2 },
+      { at: '2026-09-11T11:45:00.000Z', kind: 'panic', origin: 'git-retry:panic', git: 'push' },
+      { at: '2026-09-01T11:45:00.000Z', kind: 'panic', origin: 'git-retry:panic', git: 'commit' },
+    ];
+    const report = diagnose({ processes: [], journal, nowMs: NOW });
+    assert.deepEqual(
+      [report.journal.purges.count, report.journal.purges.killed, report.journal.panics.count],
+      [2, 2, 2],
+    );
+    const warn = report.verdicts.find((v) => /fork-panic/.test(v.text));
+    assert.match(warn?.text ?? '', /1 fork-panic\(s\) journalisée\(s\) sur les dernières 24 h/);
+    assert.match(warn?.text ?? '', /git push/, 'la commande que la panique a interrompue est citée');
+  });
+
+  it('aucun processus, aucun journal → un état vide se dit clairement, sans NaN', () => {
+    const report = diagnose({ nowMs: NOW });
+    assert.equal(report.counts.processes, 0);
+    assert.equal(report.biggestNode.length, 0);
+    const lines = formatDiagnosis(report, { nowMs: NOW }).join('\n');
+    assert.doesNotMatch(lines, /NaN/);
+    assert.match(lines, /Aucun orphelin de chaîne qualité/);
+    assert.match(lines, /lecture seule/);
+  });
+});
+
+describe('inspectHooks — un hook vert dans le diff peut être inerte', () => {
+  const body = 'AUDIT_CACHE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs';
+  const both = { 'pre-commit': body, 'pre-push': body };
+
+  it('les deux moitiés présentes → vert, et le runtime épinglé est relevé', () => {
+    const state = inspectHooks({ hooksPath: '.husky/_', hooks: both, launchers: ['pre-commit', 'pre-push'] });
+    assert.equal(state.huskyActive, true);
+    assert.equal(state.hooks.every((h) => h.runnable && h.viaRetryEngine && h.pinnedRuntime), true);
+    assert.equal(state.verdicts.length, 1);
+    assert.equal(state.verdicts[0].level, 'ok');
+  });
+
+  it('lanceur absent → INERTE : le fichier suivi ne prouve rien', () => {
+    // Le cas exact du shim git installé mais jamais exécuté, et de l'étape
+    // d'audit qui ne mesurait rien : vert dans le diff, inactif en vrai.
+    const state = inspectHooks({ hooksPath: '.husky/_', hooks: both, launchers: ['pre-push'] });
+    const alarm = state.verdicts.find((v) => v.level === 'alarm');
+    assert.equal(alarm?.level, 'alarm');
+    assert.match(alarm?.text ?? '', /^pre-commit :/, 'le hook réellement inerte est nommé');
+    assert.match(alarm?.text ?? '', /INERTE/);
+    assert.match(alarm?.text ?? '', /npx husky/, 'le remède est nommé');
+  });
+
+  it('hooksPath détourné → les hooks du dépôt ne tournent pas', () => {
+    const state = inspectHooks({ hooksPath: '/dev/null', hooks: both, launchers: ['pre-commit', 'pre-push'] });
+    assert.equal(state.huskyActive, false);
+    assert.match(state.verdicts[0]?.text ?? '', /core\.hooksPath/);
+    assert.match(state.verdicts[0]?.text ?? '', /sans la chaîne qualité/);
+  });
+
+  it('hook absent, et hook présent mais non routé par le moteur de retry', () => {
+    const missing = inspectHooks({ hooksPath: '.husky/_', hooks: {}, launchers: ['pre-commit', 'pre-push'] });
+    assert.equal(missing.verdicts.filter((v) => /absent/.test(v.text)).length, 2);
+
+    const bare = inspectHooks({
+      hooksPath: '.husky/_',
+      hooks: { 'pre-commit': 'npm run quality', 'pre-push': body },
+      launchers: ['pre-commit', 'pre-push'],
+    });
+    assert.equal(bare.hooks[0]?.bareNpm, true);
+    assert.equal(bare.hooks[0]?.viaRetryEngine, false);
+    assert.match(bare.verdicts[0]?.text ?? '', /ne passe pas par hook-quality-chain\.mjs/);
+  });
+
+  it('l’état des hooks apparaît dans le diagnostic et dans le rapport imprimé', () => {
+    const report = diagnose({
+      processes: [],
+      hooks: inspectHooks({ hooksPath: '.husky/_', hooks: both, launchers: ['pre-commit', 'pre-push'] }),
+      nowMs: NOW,
+    });
+    assert.ok(report.hooks);
+    const lines = formatDiagnosis(report, { nowMs: NOW }).join('\n');
+    assert.match(lines, /hooks : core\.hooksPath=\.husky\/_ · pre-commit ✓ routé · runtime épinglé/);
+  });
+});
+
+describe('inspectBinShims — les entrées du pin, lues sans provisionner', () => {
+  const NODE = 'C:\\rt\\node.exe';
+  const NPM_CLI = 'C:\\rt\\node_modules\\npm\\bin\\npm-cli.js';
+  const CMD = `@echo off\r\n"${NODE}" %*\r\n`;
+  const posix = `#!/bin/sh\nexec "${NODE}" "$@"\n`;
+  const npmShim = `@echo off\r\n"${NODE}" "${NPM_CLI}" %*\r\n`;
+  const exists = (p: string) => [NODE, NPM_CLI].includes(p);
+
+  it('les trois entrées présentes et leurs cibles sur le disque → vert', () => {
+    const state = inspectBinShims({
+      shims: { node: CMD + posix, npm: npmShim, npx: npmShim },
+      exists,
+    });
+    assert.deepEqual(state.absent, []);
+    assert.deepEqual(state.dead, []);
+    assert.equal(state.verdicts[0].level, 'ok');
+    assert.match(state.verdicts[0].text, /3 entrées du pin/);
+  });
+
+  it('une entrée absente est un avertissement avec son remède, pas une erreur', () => {
+    const state = inspectBinShims({ shims: { node: CMD, npm: '', npx: posix }, exists });
+    assert.deepEqual(state.absent, ['npm']);
+    assert.equal(state.verdicts[0].level, 'warn');
+    assert.match(state.verdicts[0].text, /npm run setup:node/);
+  });
+
+  it('une entrée qui pointe vers un binaire disparu est une ALERTE (l’objet est nommé)', () => {
+    const state = inspectBinShims({
+      shims: { node: '@echo off\r\n"C:\\autre\\node.exe" %*\r\n', npm: npmShim, npx: npmShim },
+      exists,
+    });
+    assert.deepEqual(state.absent, []);
+    assert.equal(state.verdicts[0].level, 'alarm');
+    assert.match(state.verdicts[0].text, /node → C:\\autre\\node\.exe/);
+    assert.match(state.verdicts[0].text, /setup:node/);
+  });
+
+  it('une entrée vide ou illisible n’est jamais « en place »', () => {
+    const illegible = '#!/bin/sh\nexec commande_sans_chemin "$@"\n';
+    const state = inspectBinShims({
+      shims: { node: illegible, npm: illegible, npx: '' },
+      exists,
+    });
+    assert.equal(state.entries[0].present, true, 'le fichier existe');
+    assert.deepEqual(state.entries[0].targets, [], 'mais aucune cible n’y est lisible');
+    assert.deepEqual(state.absent, ['npx'], 'un corps vide est ABSENT, pas illisible');
+    assert.equal(state.verdicts[0].level, 'warn', 'l’absence passe avant l’illisible');
+    const state2 = inspectBinShims({ shims: { node: illegible, npm: illegible, npx: illegible }, exists });
+    assert.equal(state2.verdicts[0].level, 'alarm', 'aucune cible lisible n’est pas un vert');
+  });
+
+  it('la cible se lit dans les deux écritures de shim, et les deux chemins d’un npm', () => {
+    assert.deepEqual(shimTargetsOf(CMD), [NODE]);
+    assert.deepEqual(shimTargetsOf(posix), [NODE]);
+    assert.deepEqual(shimTargetsOf(npmShim), [NODE, NPM_CLI], 'npm lance node PUIS npm-cli.js');
+    assert.deepEqual(shimTargetsOf(''), [], 'un corps vide ne rend pas un chemin inventé');
+  });
+});
+
+describe('planRemedies — ce que --fix a le droit de toucher, et ce qu’il ne touchera jamais', () => {
+  /** Un état sain : trois entrées du pin pointant vers un runtime présent. */
+  const HEALTHY_SHIMS = inspectBinShims({
+    shims: {
+      node: '#!/bin/sh\nexec "/rt/node" "$@"\n',
+      npm: '#!/bin/sh\nexec "/rt/node" "/rt/npm-cli.js" "$@"\n',
+      npx: '#!/bin/sh\nexec "/rt/node" "/rt/npx-cli.js" "$@"\n',
+    },
+    exists: () => true,
+  });
+  const HOOK_BODY =
+    'AUDIT_CACHE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs';
+  const BOTH = { 'pre-commit': HOOK_BODY, 'pre-push': HOOK_BODY };
+  const LAUNCHERS = ['pre-commit', 'pre-push'];
+  const clean = diagnose({
+    processes: [],
+    hooks: inspectHooks({ hooksPath: '.husky/_', hooks: BOTH, launchers: LAUNCHERS }),
+    binShims: HEALTHY_SHIMS,
+  });
+
+  it('un état sain ne produit aucun remède', () => {
+    assert.deepEqual(planRemedies(clean), []);
+  });
+
+  it('un lanceur husky manquant produit le remède husky (et le nomme)', () => {
+    const steps = planRemedies(
+      diagnose({
+        hooks: inspectHooks({ hooksPath: '.husky/_', hooks: BOTH, launchers: ['pre-push'] }),
+      }),
+    );
+    assert.deepEqual(steps.map((s) => s.id), ['husky-launchers']);
+    assert.match(steps[0].title, /pre-commit/);
+    assert.deepEqual(steps[0].cmd, ['node', 'scripts/with-pinned-node.mjs', '--bin', 'husky']);
+  });
+
+  it('un hooksPath détourné produit la réécriture de la config git', () => {
+    const steps = planRemedies(
+      diagnose({
+        hooks: inspectHooks({ hooksPath: '/dev/null', hooks: BOTH, launchers: LAUNCHERS }),
+      }),
+    );
+    assert.deepEqual(steps.map((s) => s.id), ['hooks-path']);
+    assert.deepEqual(steps[0].cmd, ['git', 'config', '--local', 'core.hooksPath', '.husky/_']);
+  });
+
+  it('une entrée du pin absente produit la réécriture des shims', () => {
+    const steps = planRemedies(
+      diagnose({
+        binShims: inspectBinShims({
+          shims: { node: '#!/bin/sh\nexec "/rt/node" "$@"\n', npm: '', npx: '' },
+          exists: () => true,
+        }),
+      }),
+    );
+    assert.deepEqual(steps.map((s) => s.id), ['bin-shims']);
+    assert.deepEqual(steps[0].cmd, ['node', 'scripts/setup-node-runtime.mjs']);
+  });
+
+  it('le sweep n’est PAS un remède, même avec des orphelins de chaîne', () => {
+    // Tuer ne se défait pas, et un docteur qui soigne en diagnostiquant cache
+    // l’état qu’on venait voir : le sweep reste un geste explicite.
+    const steps = planRemedies(
+      diagnose({ processes: [proc({ pid: 4242, ppid: 999, cmd: 'node scripts/quality-chain.mjs lint' })] }),
+    );
+    assert.deepEqual(steps, []);
+  });
+});
+
+describe('formatDiagnosis', () => {
+  it('imprime les orphelins avec pid, âge et parent disparu', () => {
+    const report = diagnose({
+      processes: [proc({ pid: 500, ppid: 999, born: bornAgo(9), cmd: 'node C:\\repo\\scripts\\quality-chain.mjs' })],
+      nowMs: NOW,
+    });
+    const lines = formatDiagnosis(report, { nowMs: NOW }).join('\n');
+    assert.match(lines, /pid 500/);
+    assert.match(lines, /9 min/);
+    assert.match(lines, /parent 999 disparu/);
+    assert.match(lines, /quality-chain\.mjs/);
+  });
+});
+
+describe('câblage — le docteur ne peut ni tuer, ni diverger du sweep', () => {
+  const doctorCli = readFileSync(join(ROOT, 'scripts', 'panic-doctor.mjs'), 'utf8');
+  const doctorLib = readFileSync(join(ROOT, 'scripts', 'lib', 'panic-doctor.mjs'), 'utf8');
+  const gitRetry = readFileSync(join(ROOT, 'scripts', 'git-retry.mjs'), 'utf8');
+
+  it('le diagnostic est en LECTURE SEULE', () => {
+    for (const killer of ['Stop-Process', 'taskkill', 'process.kill', 'killTree', 'pkill']) {
+      assert.doesNotMatch(doctorCli, new RegExp(killer), `un docteur qui soigne cache l’état qu’on venait voir (${killer})`);
+      assert.doesNotMatch(doctorLib, new RegExp(killer), `${killer} n’a rien à faire dans la bibliothèque de diagnostic`);
+    }
+  });
+
+  it('le sweep et le docteur partagent LA MÊME définition d’un orphelin de chaîne', () => {
+    assert.match(doctorLib, /matchesKnownChainWrapper/);
+    assert.match(gitRetry, /\$\{KNOWN_CHAIN_WRAPPER_PATTERN\}/, 'le filtre PowerShell vient de la constante partagée');
+    assert.equal(
+      /quality-chain\\+\.mjs\|npm-cli/.test(gitRetry),
+      false,
+      'plus aucune copie littérale du filtre dans le wrapper : une copie dérive en silence',
+    );
+  });
+
+  it('la constante partagée classe un wrapper et épargne un serveur de dev', () => {
+    assert.equal(matchesKnownChainWrapper('node C:\\repo\\scripts\\quality-chain.mjs lint'), true);
+    assert.equal(matchesKnownChainWrapper('node npm-cli.js run lint'), true);
+    assert.equal(matchesKnownChainWrapper('node --test tests/foo.test.ts'), true);
+    assert.equal(matchesKnownChainWrapper('node --test tests\\foo.test.ts'), true, 'le séparateur Windows aussi');
+    assert.equal(matchesKnownChainWrapper('node node_modules/vite/bin/vite.js'), false);
+    assert.equal(matchesKnownChainWrapper('node scripts/git-retry.mjs --sweep -- push'), false);
+    assert.equal(matchesKnownChainWrapper(''), false);
+    assert.match(KNOWN_CHAIN_WRAPPER_PATTERN, /\\\.mjs/, 'des points littéraux, pas des jokers');
+  });
+
+  it('la classification ne dépend pas de l’OS — mais l’inventaire et la purge, si', async () => {
+    // Injecté explicitement : hors Windows il n’y a ni instantané ni purge, et
+    // le docteur le dit (seul le journal reste) au lieu d’afficher un zéro qui
+    // aurait l’air d’un état machine propre.
+    assert.equal(matchesKnownChainWrapper('node scripts/quality-chain.mjs lint'), true);
+    assert.equal(await snapshotDescendants({ rootPids: [1], platform: 'linux' }), null, 'aucun relevé, pas un relevé vide');
+    assert.deepEqual(await sweepOwnNodeOrphans({ platform: 'linux' }), {
+      killed: 0,
+      passes: 0,
+      failed: 0,
+      seen: 0,
+    });
+    assert.equal(await snapshotDescendants({ platform: 'win32', rootPids: [] }), null, 'sans racine, rien à relever');
+  });
+
+  it('--fix est un SECOND passage, et il demande avant chaque remède', () => {
+    // L’ordre compte : le diagnostic est imprimé, PUIS les remèdes s’appliquent.
+    // Un docteur qui soigne en diagnostiquant cache l’état qu’on venait voir.
+    assert.match(doctorCli, /await applyRemedies\(remedies\)/);
+    assert.ok(
+      doctorCli.indexOf('formatDiagnosis(diagnosis') < doctorCli.indexOf('await applyRemedies(remedies)'),
+      'le diagnostic doit être imprimé avant toute réparation',
+    );
+    assert.match(doctorCli, /rl\.question\(/, 'chaque remède demande confirmation');
+    assert.match(doctorCli, /--fix demande une confirmation interactive, ou --yes/, 'hors TTY, refus explicite');
+    assert.match(doctorCli, /--json et --fix sont incompatibles/);
+    // Le plan est PUR (bibliothèque) et l’exécution seule vit dans le CLI :
+    // c’est ce qui rend « quels remèdes pour quel état » testable sans rien lancer.
+    assert.match(doctorLib, /export function planRemedies\(/);
+    assert.doesNotMatch(doctorLib, /spawnSync|execSync|spawn\(/, 'la bibliothèque de diagnostic n’exécute rien');
+  });
+
+  it('le CLI lit les lanceurs husky, pas seulement les fichiers suivis', () => {
+    assert.match(doctorCli, /readdirSync\(join\(cwd, '\.husky', '_'\)\)/);
+    assert.match(doctorCli, /inspectHooks\(\{ hooksPath/);
+    assert.match(doctorCli, /'config', 'core\.hooksPath'/);
+  });
+
+  it('le docteur est branché en npm script', () => {
+    const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+    assert.match(pkg.scripts['orphans:doctor'], /panic-doctor\.mjs/);
+  });
+
+  it('la purge du hook s’annonce comme telle, pas comme une commande git', () => {
+    const hook = readFileSync(join(ROOT, 'scripts', 'hook-quality-chain.mjs'), 'utf8');
+    assert.match(hook, /sweepOrigin: sweepAll \? 'hook-quality-chain:sweep-all' : 'hook-quality-chain:sweep'/);
+  });
+});

@@ -6,9 +6,20 @@
 # wedging the msys fork table (the documented reason commits used to need
 # core.hooksPath=/dev/null, see DEVELOPMENT_HISTORY.md).
 #
+# The chain is run through scripts/hook-quality-chain.mjs, which wraps it in
+# the shared fork-panic retry engine (scripts/git-retry.mjs): on a panic
+# signature (exit 254/66, uv_spawn EUNKNOWN) it sweeps the orphaned node.exe
+# processes between attempts and re-runs the chain, so a transient msys fork
+# panic mid-run no longer aborts the commit. A real lint/test/audit failure
+# passes straight through — never masked, never retried.
+#
 # The audit gate runs with a lockfile-hash cache
 # (node_modules/.cache/audit-gate.json, 24h TTL) so commits that don't touch
 # dependencies re-audit instantly; offline (registry unreachable) it only
 # warns — the CI quality job re-checks on push.
 # `git commit --no-verify` skips all of this in an emergency.
-AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 node scripts/quality-chain.mjs lint test audit
+# Node : la chaîne tourne sur le runtime épinglé par .nvmrc, provisionné par le
+# projet si le Node courant ne correspond pas (scripts/with-pinned-node.mjs) —
+# un poste sans gestionnaire de version peut donc committer. Tout ce que la
+# chaîne lance hérite de ce runtime (elle spawn via process.execPath).
+AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs

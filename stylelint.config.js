@@ -4,10 +4,11 @@
  * Rules, each chosen from the overlay-theming incidents of 2026-09:
  *
  *  • declaration-no-important — a naked `!important` outside the two carved
- *    zones (theme tokens, @media print) fails the lint. The theme sections
- *    NEED !important to beat Tailwind utilities, and @media print needs it
- *    to beat screen/inline styles; both zones carry scoped
- *    stylelint-disable comments in src/index.css. Any NEW use outside them
+ *    zones (theme tokens in src/themes/overrides.css, @media print in
+ *    src/index.css) fails the lint. The theme sections NEED !important to
+ *    beat Tailwind utilities, and @media print needs it to beat
+ *    screen/inline styles; each zone carries its own scoped
+ *    stylelint-disable comment. Any NEW use outside them
  *    fails — remove the need (scope by class) instead of reaching for
  *    !important. `reportNeedlessDisables` re-checks the zones: if a zone
  *    ever contains no violation at all (theme refactored away), the stale

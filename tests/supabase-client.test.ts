@@ -12,11 +12,12 @@
  *      the test runner because `import.meta.env` does not exist there) is
  *      locked by source assertion: env vars in, sessionStorage out.
  */
-import { describe, it, mock } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { installDomGlobals } from './harness';
+import { mockModule } from './module-mock';
 
 // ── happy-dom globals: real sessionStorage + spyable localStorage ───────────
 const win = installDomGlobals();
@@ -46,12 +47,10 @@ interface ClientCall {
 }
 const createCalls: ClientCall[] = [];
 
-mock.module('@supabase/supabase-js', {
-  namedExports: {
-    createClient: (url: unknown, key: unknown, config: unknown) => {
-      createCalls.push({ url, key, config });
-      return {};
-    },
+mockModule('@supabase/supabase-js', {
+  createClient: (url: unknown, key: unknown, config: unknown) => {
+    createCalls.push({ url, key, config });
+    return {};
   },
 });
 
