@@ -29,14 +29,43 @@ import { spawnSync } from 'node:child_process';
 
 const SHIM_SRC = join(process.cwd(), 'scripts', 'git-shim.cmd');
 
+/**
+ * Une commande de FIXTURE, qui DOIT réussir — et qui le dit quand ce n'est pas
+ * le cas.
+ *
+ * Mesuré : dans un run complet, le `git push -u origin HEAD` de la fixture a
+ * échoué une fois (épuisement transitoire des processus de la machine, la même
+ * panique de fork que les wrappers du dépôt retentent), et l'échec est ressorti
+ * trois lignes plus loin en « There is no tracking information for the current
+ * branch » — c'est-à-dire en accusant le code testé. La même suite passe 7/7
+ * seule. Une fixture qui avale sa propre panne fabrique un faux rouge, et un
+ * faux rouge coûte plus cher qu'un rouge : on cherche au mauvais endroit.
+ *
+ * D'où trois tentatives (la panne est transitoire) puis un échec NOMMÉ : ce qui
+ * a échoué, combien de fois, et ce que git a répondu.
+ */
+function setupStep(args: string[], cwd: string): void {
+  let status: number | null = null;
+  let detail = '';
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
+    status = r.status;
+    detail = r.stderr || r.error?.message || '';
+    if (r.status === 0) return;
+  }
+  assert.fail(
+    `fixture : \`git ${args.join(' ')}\` a échoué après 3 tentatives (code ${status}) — ${detail.trim()}`,
+  );
+}
+
 function makeRepo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'git-shim-e2e-'));
-  spawnSync('git', ['init', '-q'], { cwd: dir });
-  spawnSync('git', ['config', 'user.email', 't@t'], { cwd: dir });
-  spawnSync('git', ['config', 'user.name', 'T'], { cwd: dir });
+  setupStep(['init', '-q'], dir);
+  setupStep(['config', 'user.email', 't@t'], dir);
+  setupStep(['config', 'user.name', 'T'], dir);
   // A staged change makes `commit --dry-run` exit 0 (otherwise it exits 1).
   writeFileSync(join(dir, 'f.txt'), 'data');
-  spawnSync('git', ['add', 'f.txt'], { cwd: dir });
+  setupStep(['add', 'f.txt'], dir);
   return dir;
 }
 
@@ -54,13 +83,19 @@ function makeClonedRepo(): { repo: string; origin: string } {
     ['config', 'user.email', 't@t'],
     ['config', 'user.name', 'T'],
   ]) {
-    spawnSync('git', args, { cwd: repo });
+    setupStep(args, repo);
   }
   writeFileSync(join(repo, 'f.txt'), 'data');
-  spawnSync('git', ['add', 'f.txt'], { cwd: repo });
-  spawnSync('git', ['commit', '-q', '-m', 'init'], { cwd: repo });
-  spawnSync('git', ['remote', 'add', 'origin', origin], { cwd: repo });
-  spawnSync('git', ['push', '-q', '-u', 'origin', 'HEAD'], { cwd: repo });
+  setupStep(['add', 'f.txt'], repo);
+  setupStep(['commit', '-q', '-m', 'init'], repo);
+  setupStep(['remote', 'add', 'origin', origin], repo);
+  // Le nom de branche est RÉSOLU puis nommé : pousser `HEAD` peut ne laisser
+  // aucun upstream derrière soi (git ne saurait alors pas quel nom de branche
+  // distante inscrire), et la fixture doit garantir que `git pull` a quelque
+  // chose à faire — c'est tout l'intérêt du cas.
+  const branch = spawnSync('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+  setupStep(['push', '-q', '--set-upstream', 'origin', branch], repo);
+  setupStep(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], repo);
   return { repo, origin };
 }
 

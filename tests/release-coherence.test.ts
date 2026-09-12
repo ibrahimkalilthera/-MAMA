@@ -405,21 +405,36 @@ describe('publier un numéro déjà publié', () => {
 describe('le câblage du contrôle', () => {
   it('la publication passe par le gate, pas à côté', () => {
     const pkg = JSON.parse(read('package.json'));
-    assert.match(pkg.scripts['electron:release'], /npm run check:release &&.*--publish always &&.*check:release:draft/, 'le gate local précède la publication, celui du brouillon la suit');
+    assert.match(pkg.scripts['electron:release'], /npm run check:release && npm run release:publish/, 'le gate local précède la publication, le brouillon est vérifié par le publieur');
     assert.match(pkg.scripts['electron:dist'], /npm run electron:build && npm run check:release/, 'un build local refuse aussi un flux incohérent');
     assert.equal(pkg.scripts['check:release:tag'], 'node scripts/check-release-coherence.mjs --tag');
     assert.equal(pkg.scripts['check:release:live'], 'node scripts/check-release-coherence.mjs --live');
+  });
+
+  it('electron-builder ne publie PLUS : c’est le publieur qui ouvre l’unique release', () => {
+    const pkg = JSON.parse(read('package.json'));
+    // C'est la cause du défaut, retirée à la source : tant que le build peut
+    // ouvrir un release par cible, deux brouillons peuvent réapparaître, et
+    // promouvoir le mauvais publie un release sans latest.yml.
+    assert.doesNotMatch(pkg.scripts['electron:build'], /--publish always/, 'le build ne téléverse rien');
+    assert.match(pkg.scripts['electron:build'], /--publish never/, 'et il le dit explicitement');
+    assert.equal(pkg.scripts['release:publish'], 'node scripts/publish-release.mjs');
+    assert.equal(pkg.scripts['release:promote'], 'node scripts/publish-release.mjs --promote');
+    assert.match(read('electron-builder.yml'), /--publish never/, 'la raison est écrite là où on configure le packaging');
   });
 
   it('le workflow refuse de promouvoir avant que le brouillon soit vérifié', () => {
     const workflow = read('.github/workflows/desktop-release.yml');
     const tag = workflow.indexOf('npm run check:release:tag');
     const publish = workflow.indexOf('npm run electron:release');
-    const promote = workflow.indexOf('--draft=false');
-    const live = workflow.indexOf('npm run check:release:live');
+    const promote = workflow.indexOf('npm run release:promote');
     assert.ok(tag > 0 && publish > tag, 'le tag est vérifié AVANT le téléversement');
     assert.ok(promote > publish, 'la promotion est un pas à part, après la publication en brouillon');
-    assert.ok(live > promote, 'et le flux publié est vérifié après la promotion');
+    // Le geste manuel (`gh release edit --draft=false`) est ce qui a permis de
+    // promouvoir un brouillon incomplet : le même programme doit promouvoir ET
+    // relire le canal, sans quoi la preuve peut être sautée ou oubliée.
+    assert.doesNotMatch(workflow, /gh release edit/, 'la promotion n’est plus un ordre séparé, hors du publieur');
+    assert.doesNotMatch(workflow, /--draft=false/, 'et un brouillon ne se promeut plus à la main');
     assert.match(workflow, /c'est le\s*\n?\s*#?\s*contrôle qui sert de passeport, pas de conseil/, 'la raison du pas séparé est dite dans le workflow');
   });
 

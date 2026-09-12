@@ -3,8 +3,9 @@
 #
 #   npm run electron:ui      → vite build --base=./ --outDir electron-ui-dist
 #   npm run electron:dist    → electron:ui + electron-builder --win (local)
-#   npm run electron:release → electron:ui + electron-builder --win --publish always
-#                              (build + GitHub release, requires GH_TOKEN)
+#   npm run electron:release → electron:ui + gate local + `--publish never`
+#                              puis npm run release:publish (téléverse lui-même
+#                              les octets vérifiés, requires GH_TOKEN)
 #
 # Output: release/ with an NSIS setup.exe + a portable exe.
 # The icon comes from build/icon.png (512×512, generated from the school
@@ -14,6 +15,15 @@
 # Releases of this repo — electron-updater (main.cjs) checks it at startup and
 # installs new NSIS installers. latest.yml is generated alongside the exe and
 # must land in the same release for the updater to see it.
+#
+# `--publish never` est DÉLIBÉRÉ : electron-builder n'ouvre plus le release
+# (il en ouvrait un par cible, donc deux brouillons pour un même tag — l'un avec
+# latest.yml, l'autre avec le blockmap — et les artefacts se retrouvaient
+# répartis entre deux releases, donc invendables). Il ne fait plus que PRODUIRE
+# des octets ; c'est scripts/publish-release.mjs qui décide de la forme du
+# release, et il n'en ouvre qu'un. `latest.yml` reste écrit ici : c'est ce que
+# les postes lisent, et le publieur refuse de publier autre chose que ce que ce
+# fichier annonce.
 # ─────────────────────────────────────────────────────────────────────────────
 appId: com.mamathera.finance
 productName: MamaTheraFinance

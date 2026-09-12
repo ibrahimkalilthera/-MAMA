@@ -7,13 +7,19 @@
 # le même release). Sans secret CSC_PFX_B64, le build reste non signé
 # (SmartScreen « éditeur inconnu ») — le workflow avertit et ne publie pas.
 #
+# Le téléversement ne passe PLUS par `electron-builder --publish always` : ce
+# chemin a payé deux fois le même défaut ici (electron-builder ouvre un release
+# par cible — un brouillon pour le NSIS, un pour le portable — donc des artefacts
+# répartis entre deux releases, et promouvoir le mauvais publiait un release SANS
+# latest.yml, une mise à jour que personne ne voit). C'est désormais
+# `scripts/publish-release.mjs` qui téléverse les octets vérifiés, un fichier à la
+# fois, dans UN SEUL release : la forme du release ne dépend plus d'un outil tiers.
+#
 # Trois contrôles de cohérence encadrent la publication, et chacun attrape une
 # incohérence DÉJÀ payée ici : le tag ne doit pas exister (1.0.1 republiée
 # n'aurait atteint personne), le dossier local doit dire la même chose que le
 # paquet et ses octets, et les octets TÉLÉVERSÉS (brouillon) doivent répondre à
-# latest.yml avant que la promotion ne les rende visibles. C'est cette dernière
-# qui manquait : `electron-builder --publish always` peut créer deux brouillons
-# (un par cible), et un brouillon est invisible pour l'updater.
+# latest.yml avant que la promotion ne les rende visibles.
 #
 # Secrets à configurer (Settings → Secrets and variables → Actions) :
 #   CSC_PFX_B64       certificat .pfx encodé en base64
@@ -73,12 +79,15 @@ jobs:
             # 3. La promotion est le geste qui REND VISIBLE : un brouillon n'est
             #    lu par aucun poste, donc l'étape 2 seule ne livre rien. Elle ne
             #    s'exécute que si le gate du brouillon est vert — c'est le
-            #    contrôle qui sert de passeport, pas de conseil.
-            VERSION=$(node -p "require('./package.json').version")
-            gh release edit "v$VERSION" --draft=false
-            # 4. Et on vérifie ENFIN ce que les postes lisent : le flux publié,
-            #    rehaché depuis le dépôt public, sans jeton.
-            npm run check:release:live
+            #    contrôle qui sert de passeport, pas de conseil. C'est le même
+            #    programme qui promeut et qui prouve (étapes 4 et 5), pour qu'il
+            #    ne puisse pas y avoir de promotion sans relecture du canal.
+            npm run release:promote
+            # 4. `--promote` relit ENFIN ce que les postes lisent — le flux
+            #    publié, rehaché depuis le dépôt public, SANS jeton — puis le
+            #    canal vivant et le frein d'urgence. Comme il le fait dans le même
+            #    processus, un flux illisible fait rougir le job au lieu d'être
+            #    seulement signalé.
           else
             echo "→ aucun certificat : build non signé (electron:dist, pas de publication)"
             # electron:dist inclut le gate local : un flux incohérent échoue ici aussi.

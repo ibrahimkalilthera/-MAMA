@@ -1,3 +1,48 @@
+## [2026-09-13] Le release est ouvert par le publieur, plus par electron-builder
+
+Demande : « remplace le brouillon puis promotion d'electron-builder par un publieur qui téléverse lui-même les octets vérifiés, pour que le piège des deux brouillons disparaisse par construction ».
+
+**Le défaut n'était pas « on consolide mal » : c'était « un outil tiers décide de la forme du release ».** `electron-builder --publish always` ouvre **un release par cible** — une passe pour le NSIS, une pour le portable — donc deux brouillons pour un même tag, les artefacts **répartis** entre eux (l'un le blockmap, l'autre `latest.yml` et les deux exe), sans aucun outil pour les rassembler. C'est arrivé à la 1.0.4 **et** à la 1.0.5, et les deux fois la réparation a été une main humaine sur l'API. La cause se retire en une ligne : `electron-builder --win --publish never`. Il produit des octets, il ne publie plus rien.
+
+**`scripts/publish-release.mjs` est désormais le seul geste qui ouvre un release**, et `scripts/lib/release-publish.mjs` porte la décision — pure, donc testable sans réseau, et sans autre issue que quatre :
+
+```
+create       aucun release pour ce tag            → en créer un, en brouillon, avec tout
+reuse        un brouillon existe                  → n'y téléverser que ce qui manque
+consolidate  plusieurs brouillons (l'héritage)    → UNE cible conservée (celle qui porte
+                                                    déjà le plus d'artefacts attendus), les
+                                                    autres supprimés
+refuse       numéro déjà publié · rien à publier · artefact annoncé mais absent du disque
+```
+
+**La liste des octets publiés ne vient pas d'une liste écrite ici mais de `latest.yml`** (`assetsToPublish`), donc de ce que les postes lisent — et un artefact annoncé mais introuvable fait **refuser** la publication, pas publier un release incomplet. À la fin, le release contient les octets vérifiés **et rien d'autre** : ce qui est en trop est retiré, y compris l'installeur d'une autre version qui traînerait là, parce que c'est exactement le fichier qu'un humain télécharge à la main.
+
+**Le côté sûr est toujours de téléverser.** « Ne pas retéléverser ce qui est déjà là » est une optimisation, et une optimisation qui se trompe publie les mauvais octets : une **taille égale ne prouve pas** des octets égaux (un installeur reconstruit porte le même nom et une taille proche). Un téléversement n'est donc sauté que si l'API a renvoyé un `digest` qui correspond à l'empreinte calculée localement ; sans `digest`, « je ne sais pas » se traite comme « il faut téléverser ».
+
+**Prouvé en publiant pour de vrai, puis nettoyé.** Deux versions jetables (`0.0.1`, `0.0.2`) sont passées par le publieur de bout en bout : **un release chacune, 4 actifs, aucun brouillon** — puis releases **et** tags supprimés (`v0.0.x` n'aurait jamais été proposé à personne, mais un canal se lit aussi à la main, et une version plus basse laissée en tête est un piège pour l'œil). Et sur les vrais octets de production, le refus utile tombe :
+
+```
+$ npm run release:publish            # sur les octets 1.0.5, dont le release est publié
+❌ publication refusée pour v1.0.5
+   • v1.0.5 est DÉJÀ publié — un même numéro ne peut pas changer de contenu :
+     aucun poste ne verrait la différence. Montez la version.
+```
+
+**`--publish never` a été vérifié sur un build réel, pas supposé** — c'est la crainte évidente de ce changement : perdre `latest.yml`, c'est-à-dire le fichier que les postes lisent. Il est bien régénéré, et le gate local reste vert sur les octets reconstruits :
+
+```
+release/latest.yml   00:31:22 · 361 octets  →  01:06:51 · 361 octets   (régénéré)
+gate local  ✅ 1.0.5 (paquet) = 1.0.5 (latest.yml) · setup 129 032 764 o · sha512 recalculé
+```
+
+**Le workflow ne promeut plus à la main.** `gh release edit --draft=false` est remplacé par `npm run release:promote`, c'est-à-dire **le même programme** : il promeut *et* relit le canal dans le même processus. Une promotion sans relecture du flux publié n'est donc plus seulement déconseillée, elle n'est plus possible — et la relecture est faite **sans jeton**, parce qu'un canal qu'on ne sait relire qu'authentifié n'est pas prouvé pour un poste qui, lui, ne s'authentifie jamais. Le gate du brouillon, lui, reste ce qui précède : rouge, le release reste invisible.
+
+**Un faux rouge trouvé en chemin, et réparé** : `tests/git-shim.test.ts` échouait dans le run complet et passait 7/7 seul. La fixture ignorait le code de sortie de son propre `git push -u origin HEAD` ; quand il échouait (épuisement transitoire des processus de la machine — la même panique de fork que les wrappers du dépôt retentent), l'échec ressortait trois lignes plus loin en « There is no tracking information for the current branch », c'est-à-dire **en accusant le code testé**. Les commandes de fixture passent maintenant par une étape vérifiée, avec trois tentatives et un échec **nommé**, et l'upstream est établi explicitement sur le nom de branche résolu.
+
+**Mesures** : `npm run lint` **vert** de bout en bout, **1320/1320** tests (+25 : 24 pour le plan et son câblage, 1 pour la cause retirée du `package.json`), `check:guard-immunity` vert, `check:release` vert sur les octets reconstruits. Le workflow de release perd une commande `gh` gagnée en garantie : la promotion et sa preuve ne sont plus deux étapes qu'on peut séparer.
+
+**Trois choses franchement.** Le publieur ne décide pas **quand** publier : monter la version reste une décision humaine, et il refuse un numéro déjà publié sans proposer de le remplacer — c'est voulu, mais ça veut dire qu'une 1.0.5 abîmée se répare en 1.0.6, jamais en corrigeant la 1.0.5. La consolidation garde le brouillon **le plus complet** (départage : le plus ancien, puis l'identifiant) : un brouillon qui porterait les bons artefacts mais **signés d'une autre clé** ne serait pas distingué par le plan — c'est le gate du brouillon, qui rehache les octets téléversés depuis le dépôt, qui le refuse. Et le gain porte sur la **forme** du release (un seul, complet, vérifié), pas sur le contenu : si l'installeur empaqueté est mauvais, il sera publié proprement.
+
 ## [2026-09-13] La 1.0.5 est publiée : le signalement des postes bloqués existe sur le parc
 
 Demande : « publie une 1.0.4 pour que le signalement des postes bloqués existe réellement sur le parc installé, et vérifie le flux comme l'application le lit ».
