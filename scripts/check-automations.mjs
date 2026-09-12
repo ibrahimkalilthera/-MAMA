@@ -20,6 +20,15 @@
  * panne). Rouge = signalé sans doubler l'alerte : ce que cet audit cherche est
  * la panne SILENCIEUSE.
  *
+ * UNE SEULE EXCEPTION À « invérifiable = échec » : la course de publication.
+ * GitHub marque un run terminé AVANT d'archiver ses journaux, donc l'audit —
+ * déclenché par le même push que les workflows qu'il juge — lisait `logs 404`
+ * pour des runs verts qui venaient de finir, et les comptait comme un faux vert.
+ * Un 404 est donc retenté quelques fois (LOG_FETCH_ATTEMPTS), et s'il persiste
+ * sur un run RÉCENT il devient `pending` (⏳, nommé, non bloquant) ; au-delà de
+ * LOG_GRACE_MS le même 404 redevient l'échec qu'il est. La fenêtre est mesurée,
+ * pas devinée : les mêmes journaux répondaient 200 quelques secondes plus tard.
+ *
  * Le token est OBLIGATOIRE : les journaux ne sont pas publics. Sans lui, le
  * script sort en 2 avec la raison — il ne rend jamais un vert qu'il n'a pas
  * mesuré.
@@ -35,6 +44,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve as resolvePath } from 'node:path';
 import {
+  LOG_FETCH_ATTEMPTS,
   VERDICT_ICON,
   auditAutomations,
   parseWorkflowFile,
@@ -74,6 +84,33 @@ async function api(path, { raw = false } = {}) {
   }
 }
 
+/** Combien de temps on laisse à la plateforme entre deux tentatives de journal. */
+const LOG_RETRY_DELAY_MS = 3000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Le journal d'un job, retenté tant que GitHub répond « pas encore là ».
+ *
+ * Mesuré le 2026-09-12 sur ce dépôt : un run vert terminé depuis quelques
+ * secondes répond `logs 404`, puis 200. Retenter un 404 est donc légitime ;
+ * retenter un 403 ou un 500 ne le serait pas (le droit et la panne ne dépendent
+ * pas de notre patience), et on rend la main tout de suite dans ces cas.
+ *
+ * @param {number} jobId
+ * @returns {Promise<{ ok: boolean, status: number, data?: string, message?: string }>}
+ */
+async function fetchJobLog(jobId) {
+  let last = { ok: false, status: 0 };
+  for (let attempt = 1; attempt <= LOG_FETCH_ATTEMPTS; attempt += 1) {
+    last = await api(`/repos/${repo}/actions/jobs/${jobId}/logs`, { raw: true });
+    if (last.ok) return last;
+    if (last.status !== 404) return last;
+    if (attempt < LOG_FETCH_ATTEMPTS) await sleep(LOG_RETRY_DELAY_MS);
+  }
+  return last;
+}
+
 /** Every workflow of the repository, as the files describe them. */
 function readWorkflows() {
   return readdirSync(WORKFLOW_DIR)
@@ -111,16 +148,34 @@ async function evidenceFor(workflow) {
   const anyRun = runs[0] ?? null;
   if (!run) return { workflow, run: null, anyRun, log: null, error: null };
 
+  // Un run ROUGE n'a pas besoin de son journal : le verdict « déjà visible »
+  // tombe avant, et lire le journal d'un run rouge ne servait qu'à afficher un
+  // `(logs 404)` trompeur à côté d'un échec déjà annoncé.
+  if (run.conclusion && run.conclusion !== 'success') {
+    return { workflow, run, anyRun, log: null, logsUnavailable: false, error: null };
+  }
+
   const jobs = await api(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=${Math.max(1, maxJobs)}`);
-  if (!jobs.ok) return { workflow, run, anyRun, log: null, error: `jobs ${jobs.status}` };
+  if (!jobs.ok) return { workflow, run, anyRun, log: null, logsUnavailable: false, error: `jobs ${jobs.status}` };
 
   const parts = [];
   for (const job of (jobs.data?.jobs ?? []).slice(0, maxJobs)) {
-    const log = await api(`/repos/${repo}/actions/jobs/${job.id}/logs`, { raw: true });
-    if (!log.ok) return { workflow, run, anyRun, log: null, error: `logs ${log.status}` };
+    const log = await fetchJobLog(job.id);
+    // 404 = la plateforme n'a pas encore archivé le fichier (voir LOG_GRACE_MS) ;
+    // les autres statuts sont des échecs de lecture sans excuse.
+    if (!log.ok) {
+      return {
+        workflow,
+        run,
+        anyRun,
+        log: null,
+        logsUnavailable: log.status === 404,
+        error: `logs ${log.status}`,
+      };
+    }
     parts.push(log.data);
   }
-  return { workflow, run, anyRun, log: parts.join('\n'), error: null };
+  return { workflow, run, anyRun, log: parts.join('\n'), logsUnavailable: false, error: null };
 }
 
 const workflows = readWorkflows();
@@ -130,7 +185,7 @@ for (const workflow of workflows) {
 }
 
 const { results, ko, ok } = auditAutomations({
-  workflows: evidence.map(({ workflow, run, anyRun, absent, log }) => ({
+  workflows: evidence.map(({ workflow, run, anyRun, absent, log, logsUnavailable }) => ({
     file: workflow.file,
     name: workflow.name,
     hasSchedule: workflow.hasSchedule,
@@ -138,6 +193,7 @@ const { results, ko, ok } = auditAutomations({
     anyRun,
     absent,
     log,
+    logsUnavailable,
   })),
 });
 
@@ -149,11 +205,18 @@ for (const [i, r] of results.entries()) {
   if (evidenceRow.error) console.log(`     (${evidenceRow.error})`);
 }
 
+// Un `pending` n'est ni un échec ni un blanc-seing : le rapport le nomme, et le
+// résumé ne peut pas prétendre que TOUT a été vérifié quand un journal manque
+// encore (ce dépôt a déjà payé un silence pris pour un vert).
+const pending = results.filter((r) => r.verdict === 'pending');
+const pendingNote = pending.length ? ` — ${pending.length} journal(aux) pas encore publié(s), rien à en déduire` : '';
+
 console.log(
   ok
-    ? `\n✅ Les ${results.length} automatisations ont agi à leur dernier run.`
+    ? `\n✅ Les ${results.length} automatisations ont agi à leur dernier run${pendingNote}.`
     : `\n❌ ${ko.length} automatisation(s) n’ont pas agi — un run vert qui ne fait rien est un faux vert :`,
 );
 for (const r of ko) console.log(`   • ${r.name || r.file} : ${r.reason}`);
+if (!ok && pending.length) console.log(`   ⏳ hors verdict : ${pending.map((r) => r.name || r.file).join(', ')}`);
 
 process.exit(ok ? 0 : 1);

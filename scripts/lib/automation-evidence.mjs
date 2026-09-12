@@ -97,6 +97,28 @@ export function inertMarkers(log = '') {
  */
 export const DORMANT_ALLOWANCE_DAYS = 8;
 
+/**
+ * Combien de temps on accepte qu'un journal ne soit PAS ENCORE publié.
+ *
+ * Mesuré le 2026-09-12 : l'audit se déclenche sur le même push que les
+ * workflows qu'il juge, et il a lu `logs 404` pour `PDF E2E` et `Deploy` —
+ * quelques secondes plus tard, les mêmes journaux répondaient 200. GitHub
+ * archive le journal APRÈS avoir marqué le run terminé : pendant cette fenêtre,
+ * un 404 ne dit rien du contenu, il dit que la plateforme n'a pas encore
+ * publié.
+ *
+ * Donc on distingue deux cas, et c'est la seule façon de ne pas produire de
+ * faux rouge : un 404 sur un run RÉCENT est `pending` (⏳, pas un échec) ; le
+ * même 404 au-delà de ce délai est `unreadable` (❌) — un journal qui manque
+ * encore une demi-heure après coup est un vrai problème, pas une course.
+ * Un rouge permanent pour une course de plateforme entraînerait exactement ce
+ * que ce dépôt combat ailleurs : des gens qui apprennent à ignorer le rouge.
+ */
+export const LOG_GRACE_MS = 15 * 60 * 1000;
+
+/** Combien de fois on retente un journal 404 avant de conclure (espacé de 3 s). */
+export const LOG_FETCH_ATTEMPTS = 3;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -107,7 +129,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *                   unable to work. This is the only passing verdict.
  *   - `inert`     — it declared it (KO: a green run that did nothing).
  *   - `unreadable`— a run exists but its log could not be read (KO: unverifiable
- *                   is not the same as fine).
+ *                   is not the same as fine) — au-delà de la fenêtre de
+ *                   publication des journaux.
+ *   - `pending`   — journal pas ENCORE publié par la plateforme (404 sur un run
+ *                   récent). Ni vert ni rouge, et jamais silencieux : le
+ *                   rapport le nomme. Voir LOG_GRACE_MS.
  *   - `failed`    — the run is red. Already loud, so it is reported and does not
  *                   add a second alarm; what this audit exists for is the quiet
  *                   failure mode.
@@ -129,7 +155,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * @param {{ file?: string, name?: string, hasSchedule?: boolean,
  *   run?: { conclusion?: string, created_at?: string } | null,
  *   anyRun?: { status?: string, created_at?: string } | null, absent?: boolean,
- *   log?: string | null, nowMs?: number, allowanceDays?: number }} input
+ *   log?: string | null, logsUnavailable?: boolean, nowMs?: number,
+ *   allowanceDays?: number, logGraceMs?: number }} input
  * @returns {{ file: string, name: string, verdict: string, ko: boolean, reason: string }}
  */
 export function lastRunVerdict({
@@ -140,8 +167,10 @@ export function lastRunVerdict({
   anyRun = null,
   absent = false,
   log = null,
+  logsUnavailable = false,
   nowMs = Date.now(),
   allowanceDays = DORMANT_ALLOWANCE_DAYS,
+  logGraceMs = LOG_GRACE_MS,
 } = {}) {
   const label = name || file;
   const base = { file, name: label };
@@ -199,6 +228,23 @@ export function lastRunVerdict({
   }
 
   if (typeof log !== 'string' || log.trim().length === 0) {
+    // Un journal 404 sur un run RÉCENT n'est pas une preuve de faux vert :
+    // GitHub n'a pas encore publié le fichier (voir LOG_GRACE_MS). Sur un run
+    // plus ancien, le même 404 devient un vrai constat.
+    //
+    // L'âge se compare en MILLISECONDES, pas en jours entiers : la fenêtre fait
+    // 15 min, donc `Math.floor(ageMs / jour)` l'arrondissait à 0 et rendait
+    // TOUT run du jour « jeune » — la borne n'existait plus, et un journal
+    // disparu définitivement serait resté `pending` pour toujours.
+    const young = logGraceMs > 0 && (!Number.isFinite(ageMs) || ageMs <= logGraceMs);
+    if (logsUnavailable && young) {
+      return {
+        ...base,
+        verdict: 'pending',
+        ko: false,
+        reason: 'run terminé récemment — journal pas encore publié par la plateforme (rien à en déduire)',
+      };
+    }
     return {
       ...base,
       verdict: 'unreadable',
@@ -275,6 +321,7 @@ export const VERDICT_ICON = {
   unreadable: '❌',
   dormant: '❌',
   failed: '⚠️ ',
+  pending: '⏳',
   running: '⏳',
   absent: '➖',
   idle: '➖',

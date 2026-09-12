@@ -24,6 +24,7 @@ import {
   DORMANT_ALLOWANCE_DAYS,
   INERT_MARK,
   INERT_TITLE,
+  LOG_GRACE_MS,
   auditAutomations,
   inertAnnotation,
   inertMarkers,
@@ -130,6 +131,60 @@ describe('les verdicts — le seul qui passe est « a agi »', () => {
       assert.equal(v.verdict, 'unreadable');
       assert.equal(v.ko, true, `un log ${JSON.stringify(log)} ne doit pas passer`);
     }
+  });
+
+  it('un 404 de journal sur un run RÉCENT est une course de plateforme, pas un faux vert', () => {
+    // Mesuré le 2026-09-12 : l’audit se déclenche sur le MÊME push que les
+    // workflows qu’il juge, et GitHub archive les journaux APRÈS avoir marqué le
+    // run terminé. Il a lu `logs 404` pour `PDF E2E` et `Deploy`, quelques
+    // secondes avant que les mêmes journaux répondent 200. Compter cette course
+    // comme un échec produirait exactement ce que ce dépôt combat : un rouge
+    // permanent que les gens apprennent à ignorer.
+    const v = lastRunVerdict({
+      name: 'PDF E2E',
+      run: green,
+      log: null,
+      logsUnavailable: true,
+      nowMs: NOW,
+    });
+    assert.equal(v.verdict, 'pending');
+    assert.equal(v.ko, false, 'une course de publication ne bloque pas');
+    assert.match(v.reason, /pas encore publié/);
+  });
+
+  it('le même 404, une fois la fenêtre écoulée, redevient l’échec qu’il est', () => {
+    // La fenêtre est de 15 MINUTES, donc l’âge doit se comparer en millisecondes :
+    // un `Math.floor(ageMs / jour)` la ramenait à 0 et rendait tout run du jour
+    // « jeune », c’est-à-dire une borne qui n’existait plus. Ce cas a été écrit
+    // après avoir mesuré ce défaut (un run d’il y a 16 min rendait `pending`).
+    const old = lastRunVerdict({
+      name: 'PDF E2E',
+      run: { conclusion: 'success', created_at: new Date(NOW - LOG_GRACE_MS - 60_000).toISOString() },
+      log: null,
+      logsUnavailable: true,
+      nowMs: NOW,
+    });
+    assert.equal(old.verdict, 'unreadable');
+    assert.equal(old.ko, true, 'un journal qui manque encore après la fenêtre est un vrai problème');
+  });
+
+  it('un échec de lecture qui n’est PAS un 404 reste un échec, même sur un run jeune', () => {
+    // Un 403 (droit manquant) ou un 500 ne deviendra pas 200 parce qu’on a
+    // attendu : seule l’absence de publication est une course.
+    const v = lastRunVerdict({
+      name: 'X',
+      run: green,
+      log: null,
+      logsUnavailable: false,
+      nowMs: NOW,
+    });
+    assert.equal(v.verdict, 'unreadable');
+    assert.equal(v.ko, true);
+  });
+
+  it('un journal VIDE n’est pas une absence de publication (le fait est là, il est vide)', () => {
+    const v = lastRunVerdict({ name: 'X', run: green, log: '', logsUnavailable: true, nowMs: NOW });
+    assert.equal(v.verdict, 'pending');
   });
 
   it('rouge → signalé sans doubler l’alarme (ce n’est pas ce que cet audit cherche)', () => {
@@ -260,6 +315,20 @@ describe('auditAutomations — un audit qui n’examine rien n’est pas un vert
     assert.equal(ok, false);
     assert.deepEqual(ko.map((r) => r.name), ['Dependabot rebase']);
   });
+
+  it('la course de publication ne rend jamais l’audit vert à tort ni rouge à tort', () => {
+    const green = { conclusion: 'success', created_at: daysAgo(0) };
+    const { ok, ko, results } = auditAutomations({
+      workflows: [
+        { file: 'a.yml', name: 'A', run: green, log: 'travail' },
+        { file: 'pdf-e2e.yml', name: 'PDF E2E', run: green, log: null, logsUnavailable: true },
+      ],
+      nowMs: NOW,
+    });
+    assert.equal(ok, true, 'une course de plateforme ne doit pas rougir l’audit');
+    assert.equal(ko.length, 0);
+    assert.equal(results[1].verdict, 'pending', 'mais elle est NOMMÉE, jamais escamotée');
+  });
 });
 
 describe('parseWorkflowFile — lire les fichiers, CRLF compris', () => {
@@ -333,7 +402,20 @@ describe('câblage — la convention est partagée, et l’audit lit le dépôt 
     assert.match(cli, /runs\.find\(\(r\) => r\.status === 'completed'\)/, 'le dernier run TERMINÉ est choisi par la lecture, pas par la requête');
     assert.match(cli, /runs\[0\] \?\? null/, 'un run en cours reste visible : c’est ce qui distingue « en cours » de « dormant »');
     assert.match(cli, /branch=main/, 'l’automatisation telle qu’elle est déployée');
-    assert.match(cli, /\/jobs\/\$\{job\.id\}\/logs/, 'la preuve vient du journal, pas du statut');
+    assert.match(cli, /\/jobs\/\$\{jobId\}\/logs/, 'la preuve vient du journal, pas du statut');
+
+    // La course de publication est traitée LÀ OÙ ELLE SE PRODUIT : le 404 est
+    // retenté, et seul un 404 est retenté (un 403 ne devient pas 200 avec le
+    // temps). Le fait est ensuite transmis au verdict, sinon la règle ne
+    // s’appliquerait jamais en production.
+    assert.match(cli, /LOG_FETCH_ATTEMPTS/, 'le nombre de tentatives vient de la bibliothèque, pas d’un chiffre local');
+    assert.match(cli, /last\.status !== 404\) return last/, 'seul un 404 est retenté');
+    assert.match(cli, /logsUnavailable: log\.status === 404/, 'le fait est transmis au verdict');
+    assert.match(cli, /logsUnavailable,/, 'et il traverse jusqu’à l’audit');
+    // Un run rouge n’a pas besoin de son journal : le verdict tombe avant, et le
+    // lire ne produisait qu’un `(logs 404)` trompeur à côté d’un échec annoncé.
+    assert.match(cli, /Un run ROUGE n'a pas besoin de son journal/);
+    assert.match(cli, /if \(run\.conclusion && run\.conclusion !== 'success'\)/, 'le vert est la seule conclusion qui exige une preuve');
 
     const workflow = readFileSync(join(root, '.github', 'workflows', 'automation-audit.yml'), 'utf8');
     // L'audit doit rejuger APRÈS le workflow qu'il juge : sur un push, les deux
