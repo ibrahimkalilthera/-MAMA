@@ -28,8 +28,23 @@
  * build sans ces variables pourrait pointer quelque part en silence. Le script
  * le dit au lieu de le taire.
  *
- * Sortie : 0 si tout ce qui est lisible est sur la bonne base, 1 sinon, 2 si
- * l'invocation est fautive (aucune source lisible du tout).
+ * « RIEN À JUGER » ET « ON M'A DEMANDÉ DE JUGER » SONT DEUX CHOSES DIFFÉRENTES
+ * ---------------------------------------------------------------------------
+ * Ce script tourne dans la chaîne qualité, donc AUSSI dans un checkout sans
+ * aucun fichier d'environnement (le runner CI : `.env` est ignoré par git). La
+ * première version traitait ce cas comme une faute et sortait en 2 — elle a fait
+ * échouer quatre commits de suite sur le runner et bloqué le déploiement Vercel,
+ * pour un contrôle qui prétendait lutter contre les faux verts. La règle juste
+ * distingue donc :
+ *   • **rien à juger** (aucun fichier d'environnement, aucun `--dist`, aucun
+ *     `--live`) ⇒ not applicable, dit à voix haute, sortie 0. Il n'y a rien à
+ *     diverger : un build ne peut même pas sortir de ce checkout ;
+ *   • **on a demandé un avis et il est impossible** (un fichier d'environnement
+ *     existe mais aucune valeur n'en sort ; un `--dist`/`--live` fourni mais
+ *     illisible) ⇒ échec, sortie 2. Invérifiable n'est pas un vert.
+ *
+ * Sortie : 0 si tout ce qui est lisible est sur la bonne base (ou rien à
+ * juger), 1 si quelque chose diverge, 2 si l'on a demandé un verdict impossible.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -46,7 +61,9 @@ import {
   supabaseRefsIn,
 } from './lib/shared-project.mjs';
 
-const ROOT = resolvePath(dirname(fileURLToPath(import.meta.url)), '..');
+// Racine surchargeable : les tests doivent pouvoir fabriquer un checkout SANS
+// fichier d'environnement (c'est le cas du runner CI) et vérifier le verdict.
+const ROOT = resolvePath(process.env.CHECK_SHARED_DB_ROOT || join(dirname(fileURLToPath(import.meta.url)), '..'));
 
 /** Vite's own precedence: `.env.[mode].local` > `.env.[mode]` > `.env.local` > `.env`. */
 function envFilesFor(mode) {
@@ -77,6 +94,16 @@ function resolved(mode, key) {
 const problems = [];
 const notes = [];
 let readable = 0;
+
+/**
+ * Y a-t-il un fichier d'environnement dans ce checkout, quel qu'il soit ?
+ * C'est ce qui sépare « rien à juger » de « on m'a demandé un verdict et je ne
+ * peux pas le rendre » : un fichier présent qui ne résout rien est un problème,
+ * son absence totale n'en est pas un.
+ */
+const anyEnvFilePresent = USER_FACING_MODES.some((mode) =>
+  envFilesFor(mode).some((file) => existsSync(file)),
+);
 
 /** ── 1. What each user-facing mode would build with ─────────────────────── */
 for (const mode of USER_FACING_MODES) {
@@ -268,10 +295,25 @@ if (problems.length > 0) {
 }
 
 if (readable === 0) {
+  const asked = anyEnvFilePresent || distDirs.length > 0 || liveTargets.length > 0;
+  if (!asked) {
+    // Cas du runner CI : aucun secret local, donc aucun build possible, donc
+    // aucune dérive possible. Le dire clairement plutôt que de faire échouer
+    // un commit pour un contrôle qui n'a rien à mesurer ici.
+    console.log(
+      '➖ non applicable : aucun fichier d’environnement dans ce checkout, aucun artefact ' +
+        'fourni — un build ne peut pas sortir d’ici (l’application refuse de démarrer sans ces ' +
+        'variables). La vérification qui compte pour les utilisateurs est faite ailleurs : sur ' +
+        'l’artefact avant empaquetage, et sur le site déployé (workflow `shared-db-watch`).',
+    );
+    process.exit(0);
+  }
   console.error(
-    '\n❌ Rien à vérifier : aucun environnement lisible et aucun artefact fourni. ' +
-      'Un contrôle qui n’examine rien n’est pas un contrôle vert — passez `--dist <dossier>` ' +
-      'ou définissez VITE_SUPABASE_URL.',
+    '\n❌ On a demandé un verdict, et il est impossible à rendre : ' +
+      (anyEnvFilePresent ? 'un fichier d’environnement existe mais aucune valeur n’en sort. ' : '') +
+      (distDirs.length > 0 ? 'un artefact a été fourni mais il ne contient aucune référence lisible. ' : '') +
+      (liveTargets.length > 0 ? 'un site a été fourni mais il est injoignable ou muet. ' : '') +
+      'Invérifiable n’est pas un vert.',
   );
   process.exit(2);
 }

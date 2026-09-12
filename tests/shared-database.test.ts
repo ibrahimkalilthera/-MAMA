@@ -16,7 +16,8 @@
 // (`npm run check:shared-db -- --dist electron-ui-dist`), which is where the
 // committed `dist/` and `electron-ui-dist/` were measured.
 import { strict as assert } from 'node:assert';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync as spawnSyncSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
@@ -32,7 +33,8 @@ import {
   supabaseRefsIn,
 } from '../scripts/lib/shared-project.mjs';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const root0 = join(dirname(fileURLToPath(import.meta.url)), '..');
+const root = root0;
 const STAGING_REF = ALLOWED_DIVERGENCE[0].projectRef;
 
 describe('la base partagée est nommée une fois', () => {
@@ -219,6 +221,38 @@ describe('le câblage : le badge et la chaîne qualité', () => {
       assert.match(run.out, /SERT une autre base/);
     } finally {
       await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+
+  it('un checkout SANS fichier d’environnement ne fait pas échouer la chaîne (c’est le runner CI)', async () => {
+    // Régression payée cher : `.env` est ignoré par git, donc le runner n'en a
+    // aucun, et la première version sortait en 2 — quatre commits rouges d'affilée
+    // et le déploiement Vercel bloqué, pour un contrôle qui prétendait lutter
+    // contre les faux verts. « Rien à juger » et « on m'a demandé un verdict
+    // impossible » sont deux cas différents.
+    const { mkdtempSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const empty = mkdtempSync(join(tmpdir(), 'shared-db-empty-'));
+    const run = (root: string) => {
+      const r = spawnSyncSync(process.execPath, [join(root0, 'scripts', 'check-shared-db.mjs')], {
+        encoding: 'utf8',
+        cwd: root0,
+        env: { ...process.env, CHECK_SHARED_DB_ROOT: root },
+      });
+      return { status: r.status, out: `${r.stdout}${r.stderr}` };
+    };
+    try {
+      const none = run(empty);
+      assert.equal(none.status, 0, `un checkout sans env doit passer, obtenu ${none.status}\n${none.out}`);
+      assert.match(none.out, /non applicable/);
+      // Un fichier présent mais divergent, lui, doit ROUGIR : la règle n'est pas
+      // devenue permissive, elle distingue l'absence d'un fichier de son contenu.
+      writeFileSync(join(empty, '.env'), 'VITE_SUPABASE_URL=https://unautreprojetxyz12.supabase.co\n');
+      const divergent = run(empty);
+      assert.equal(divergent.status, 1, `attendu 1\n${divergent.out}`);
+      assert.match(divergent.out, /ne verrait pas les mêmes données/);
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
     }
   });
 
