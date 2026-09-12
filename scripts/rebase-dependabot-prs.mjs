@@ -45,7 +45,7 @@
 
 import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { evidenceAnnotation, workflowFileFromRef } from './lib/automation-evidence.mjs';
+import { evidenceAnnotation } from './lib/automation-evidence.mjs';
 
 const API = 'https://api.github.com';
 const DEFAULT_REPO = 'ibrahimkalilthera/-MAMA';
@@ -58,10 +58,16 @@ const TOKEN_ENV = 'REBASE_TOKEN';
  * Le sujet déclaré dans la preuve : le fichier de workflow qui porte ce script.
  * L'audit ne compte une preuve que si elle nomme CE workflow — sans quoi une
  * copie imprimée ailleurs (par une suite de tests, mesuré le 2026-09-12) ferait
- * accuser un workflow qui n'a rien dit. Le runner impose le sujet quand il est là
- * (`GITHUB_WORKFLOW_REF`) ; le repli sert aux exécutions locales.
+ * accuser un workflow qui n'a rien dit.
+ *
+ * C'est une CONSTANTE, et pas `GITHUB_WORKFLOW_REF` : mesuré sur le runner, la
+ * suite de tests de `perf-guard.yml` lance ce script dans un job dont
+ * l'environnement annonce `perf-guard.yml` — le script aurait donc publié sa
+ * déclaration au nom du workflow qui l'audit. Un automatisme qui sait qui il est
+ * n'a pas à demander son nom à son environnement ; le CLI, lui, publie pour
+ * l'étape qui l'appelle et c'est là que l'environnement fait foi.
  */
-const WORKFLOW_FILE = workflowFileFromRef(process.env.GITHUB_WORKFLOW_REF || '') || 'dependabot-rebase.yml';
+const WORKFLOW_FILE = 'dependabot-rebase.yml';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
