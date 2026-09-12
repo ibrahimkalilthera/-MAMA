@@ -21,6 +21,8 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+
+import { assertScanned } from './lib/source-text.mjs';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -117,7 +119,12 @@ const walk = (dir, acc = []) => {
 
 const violations = [];
 
-for (const file of walk(SRC)) {
+// 0 fichier lu ⇒ aucune chaîne JSX auditée : échec (exit 2), pas un vert.
+// Un `src/` déplacé ferait autrement dire « ✅ tout passe » à ce contrôle.
+const tsxFiles = process.env.CHECK_JSX_I18N_ROOT ? walk(process.env.CHECK_JSX_I18N_ROOT) : walk(SRC);
+assertScanned(tsxFiles, { what: 'fichier .tsx', root: process.env.CHECK_JSX_I18N_ROOT || SRC });
+
+for (const file of tsxFiles) {
   const code = readFileSync(file, 'utf8');
   const rel = file.replace(/\\/g, '/').replace(SRC.replace(/\\/g, '/') + '/', '');
   // Line-start offsets map an offset back to its source line.

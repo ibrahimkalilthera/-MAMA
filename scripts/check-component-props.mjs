@@ -86,6 +86,12 @@ const extractPassed = (render, name, literal) => {
 };
 
 let ok = true;
+// Le contrat de ce contrôle est la LISTE : une liste vide passerait en silence
+// en félicitant (« Tous les câblages sont complets » sur zéro composant).
+if (COMPONENTS.length === 0) {
+  console.error('❌ Rien à vérifier : 0 composant inventorié — un câblage non vérifié n’est pas un câblage complet.');
+  process.exit(2);
+}
 for (const { name, file, render, literal } of COMPONENTS) {
   const { required, all } = extractProps(file, name);
   const { passed, hasSpread } = extractPassed(render, name, literal);
