@@ -246,14 +246,12 @@ describe('la chaîne réelle — l’arbre INSTALLÉ, pas un arbre inventé', ()
 
   it('eslint, tsc, stylelint et vite viennent de leur paquet installé', () => {
     const byLabel = new Map(plans['lint:chain'].links.map((l) => [l.label, l]));
-    const build = plans.build.links[0];
     for (const [label, pkgDir] of [
       ['eslint', 'eslint'],
       ['tsc', 'typescript'],
       ['stylelint', 'stylelint'],
-      [build.label, 'vite'],
     ] as const) {
-      const link = label === build.label ? build : byLabel.get(label);
+      const link = byLabel.get(label);
       assert.ok(link, `maillon ${label} absent`);
       assert.equal(link.source, 'bin', `${label} doit venir d’une entrée DÉCLARÉE`);
       assert.ok(
@@ -261,6 +259,16 @@ describe('la chaîne réelle — l’arbre INSTALLÉ, pas un arbre inventé', ()
         `${label} doit pointer dans node_modules/${pkgDir} : ${link.args[0]}`,
       );
     }
+    // `vite` n'est plus un maillon du script `build` : la commande passe par le
+    // lanceur (`--bin vite`), qui épingle le runtime avant de l'exécuter. C'est
+    // donc le même résolveur qu'on interroge — et la propriété qui compte, que
+    // l'entrée soit DÉCLARÉE par le paquet, ne change pas.
+    const vite = resolveToolEntry({ root, tool: 'vite' });
+    assert.equal(vite.source, 'bin', 'vite doit venir d’une entrée DÉCLARÉE');
+    assert.ok(
+      vite.entry?.includes(join('node_modules', 'vite')),
+      `vite doit pointer dans node_modules/vite : ${vite.entry}`,
+    );
   });
 
   it('l’entrée résolue exécute vraiment l’outil, et à la version installée', () => {
