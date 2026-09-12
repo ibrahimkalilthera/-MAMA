@@ -40,7 +40,10 @@ import {
   SHARED_PROJECT_REF,
   SHARED_PROJECT_URL,
   USER_FACING_MODES,
+  assetUrlsIn,
+  bareAssetRefs,
   projectRefOf,
+  supabaseRefsIn,
 } from './lib/shared-project.mjs';
 
 const ROOT = resolvePath(dirname(fileURLToPath(import.meta.url)), '..');
@@ -160,6 +163,94 @@ for (const dir of distDirs) {
     continue;
   }
   console.log(`✅ ${dir} embarque la base partagée (${files.length} fichier(s) lus, ${SHARED_PROJECT_URL})`);
+  readable += 1;
+}
+
+/** ── 3. Ce que sert le site DÉPLOYÉ (`--live`) ─────────────────────────────
+ *
+ * Les deux lectures précédentes portent sur ce que le dépôt produit. Celle-ci
+ * porte sur ce que les utilisateurs reçoivent VRAIMENT, et elle est la seule à
+ * pouvoir attraper une variable d'environnement posée dans le tableau de bord
+ * de l'hébergeur — qui n'existe nulle part dans ce dépôt, donc qu'aucun fichier
+ * ne peut contredire. Un site dont le paquet est juste et dont la variable a été
+ * changée depuis sert l'ancienne base à tout le monde, sans un mot.
+ */
+const liveFlag = process.argv.indexOf('--live');
+const liveTargets = liveFlag !== -1 ? [process.argv[liveFlag + 1]].filter(Boolean) : [];
+
+/**
+ * Télécharge une ressource en texte, avec un plafond de taille : un bundle
+ * inattendu de 50 Mo ne doit pas transformer le contrôle en incident.
+ * Injectable, donc testable sans réseau.
+ */
+async function fetchText(url, { fetchFn = fetch, maxBytes = 8 * 1024 * 1024 } = {}) {
+  const res = await fetchFn(url, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`${res.status}`);
+  const text = await res.text();
+  if (text.length > maxBytes) throw new Error(`réponse trop volumineuse (${text.length} octets)`);
+  return text;
+}
+
+for (const target of liveTargets) {
+  const base = target.endsWith('/') ? target : `${target}/`;
+  let html;
+  try {
+    html = await fetchText(base);
+  } catch (e) {
+    problems.push(`site déployé injoignable (${target}) : ${e?.message ?? e}`);
+    continue;
+  }
+  // Largeur bornée et profondeur 2 : la page, puis ce que ses modules déclarent.
+  // Un site juste se vérifie en quelques requêtes ; un site qui référence des
+  // centaines de morceaux ne doit pas transformer ce contrôle en miroir complet.
+  const MAX_ASSETS = 24;
+  const queued = assetUrlsIn(html, base);
+  const assets = new Set(queued);
+  if (assets.size === 0) {
+    problems.push(`${target} : aucun module trouvé dans la page — impossible de vérifier la base servie`);
+    continue;
+  }
+  const seen = new Set();
+  let refused = null;
+  const queue = [...queued];
+  while (queue.length > 0 && assets.size <= MAX_ASSETS) {
+    const asset = queue.shift();
+    let code;
+    try {
+      code = await fetchText(asset);
+    } catch (e) {
+      // Un morceau qui ne se télécharge pas n'est pas un verdict : la page peut
+      // en référencer d'autres. Mais s'il n'en reste aucun de lisible, l'échec
+      // ci-dessous le dira.
+      refused = refused ?? `${asset} (${e?.message ?? e})`;
+      continue;
+    }
+    for (const ref of supabaseRefsIn(code)) seen.add(ref);
+    for (const rel of bareAssetRefs(code)) {
+      const abs = new URL(rel, base).href;
+      if (!assets.has(abs) && assets.size < MAX_ASSETS) {
+        assets.add(abs);
+        queue.push(abs);
+      }
+    }
+  }
+  if (seen.size === 0) {
+    problems.push(
+      `${target} : aucune référence Supabase lisible dans ${assets.size} module(s)` +
+        (refused ? ` — premier refus : ${refused}` : '') +
+        ` — un site dont on ne sait pas quelle base il sert n'est pas vérifié`,
+    );
+    continue;
+  }
+  const wrong = [...seen].filter((r) => r !== SHARED_PROJECT_REF);
+  if (wrong.length > 0) {
+    problems.push(
+      `${target} SERT une autre base : ${wrong.join(', ')} (attendu ${SHARED_PROJECT_REF}) — ` +
+        `tous les navigateurs qui ouvrent ce site voient des données séparées des autres postes`,
+    );
+    continue;
+  }
+  console.log(`✅ ${target} sert la base partagée (${assets.size} module(s) lus)`);
   readable += 1;
 }
 

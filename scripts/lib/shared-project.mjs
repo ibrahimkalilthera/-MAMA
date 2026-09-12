@@ -59,6 +59,79 @@ export function projectRefOf(url) {
 }
 
 /**
+ * Les URLs de modules chargées par une page, en absolu.
+ *
+ * Sert à vérifier un déploiement RÉEL : on ne peut pas lire l'application
+ * déployée sans savoir d'abord quels fichiers elle télécharge. Deux écritures
+ * dans le HTML de Vite, les deux présentes à la fois : les `<script src>` du
+ * document et la carte `__vite__mapDeps` des imports dynamiques.
+ *
+ * @param {string} html
+ * @param {string} [base] origine du site, pour résoudre les chemins relatifs
+ * @returns {string[]} URLs absolues, uniques, dans l'ordre d'apparition
+ */
+export function assetUrlsIn(html, base = '') {
+  const text = String(html ?? '');
+  const found = [];
+  const push = (raw) => {
+    if (!raw) return;
+    try {
+      const abs = new URL(raw, base).href;
+      if (!found.includes(abs)) found.push(abs);
+    } catch {
+      /* une référence illisible n'est pas une preuve : on l'ignore */
+    }
+  };
+  for (const m of text.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)) push(m[1]);
+  for (const m of text.matchAll(/["'](assets\/[A-Za-z0-9._/-]+\.js)["']/g)) push(m[1]);
+  return found;
+}
+
+/**
+ * Les morceaux référencés par du JavaScript construit.
+ *
+ * Indispensable pour lire un déploiement réel : la page ne déclare qu'UN script
+ * d'entrée, et les morceaux qui suivent — dont `vendor-supabase-*.js`, celui qui
+ * porte l'URL de la base — sont nommés dans le code, pas dans le HTML. Les
+ * chercher uniquement dans la page fait rendre « aucun module », donc un faux
+ * échec : notre premier essai sur le site réel s'y est cassé les dents.
+ *
+ * @param {string} js
+ * @returns {string[]} chemins relatifs uniques, dans l'ordre d'apparition
+ */
+export function bareAssetRefs(js) {
+  const found = [];
+  for (const m of String(js ?? '').matchAll(/["']((?:\/[^"']*)?assets\/[A-Za-z0-9._/-]+\.js)["']/g)) {
+    if (!found.includes(m[1])) found.push(m[1]);
+  }
+  return found;
+}
+
+/**
+ * Les refs de projet Supabase présentes dans du JavaScript construit.
+ *
+ * Deux formes, parce qu'un minifieur peut couper la chaîne : l'URL complète
+ * (`https://ref.supabase.co`) et la forme nue (`ref.supabase.co`). Une URL
+ * reconstruite par concaténation échapperait aux deux — c'est une limite
+ * assumée, et elle est dite : le contrôle échoue quand il ne trouve RIEN, il ne
+ * rend jamais un vert sur un bundle qu'il n'a pas su lire.
+ *
+ * @param {string} js
+ * @returns {string[]} refs uniques
+ */
+export function supabaseRefsIn(js) {
+  const text = String(js ?? '');
+  const refs = [];
+  for (const m of text.matchAll(/https?:\/\/([a-z0-9-]{15,})\.supabase\.(?:co|in)\b/gi)) {
+    if (!refs.includes(m[1])) refs.push(m[1]);
+  }
+  for (const m of text.matchAll(/(?:^|[^a-z0-9-])([a-z0-9]{18,})\.supabase\.(?:co|in)\b/gi)) {
+    if (!refs.includes(m[1])) refs.push(m[1]);
+  }
+  return refs;
+}
+
+/**
  * What the running app should say about its database — the fact a support call
  * needs and that nothing displayed before: is this install on the shared one?
  *

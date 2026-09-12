@@ -25,8 +25,11 @@ import {
   SHARED_PROJECT_REF,
   SHARED_PROJECT_URL,
   USER_FACING_MODES,
+  assetUrlsIn,
+  bareAssetRefs,
   describeDatabase,
   projectRefOf,
+  supabaseRefsIn,
 } from '../scripts/lib/shared-project.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -105,6 +108,35 @@ describe('l’application sait dire sur quelle base elle est', () => {
   });
 });
 
+describe('lire un déploiement RÉEL : la page ne dit pas tout', () => {
+  it('les modules se trouvent dans la page ET dans le code qu’elle charge', () => {
+    const html =
+      '<script type="module" crossorigin src="/assets/index-ABC.js"></script>' +
+      '<script src="https://cdn.example.com/tracker.js"></script>';
+    assert.deepEqual(assetUrlsIn(html, 'https://ecole.example/'), [
+      'https://ecole.example/assets/index-ABC.js',
+      'https://cdn.example.com/tracker.js',
+    ]);
+    // Le morceau qui porte le client Supabase n'est nommé QUE dans le code :
+    // chercher seulement dans la page rendait « aucun module », donc un faux
+    // échec — c'est ce qui est arrivé au premier essai sur le site réel.
+    const entry =
+      'const d=["assets/App-1.js","assets/vendor-supabase-2.js"];import("assets/App-1.js");';
+    assert.deepEqual(bareAssetRefs(entry), ['assets/App-1.js', 'assets/vendor-supabase-2.js']);
+  });
+
+  it('les refs se lisent dans les deux écritures, sans doublon', () => {
+    const js =
+      'u="https://rpcjdohfxwukbqngbprw.supabase.co";' +
+      'v="rpcjdohfxwukbqngbprw.supabase.co";' +
+      'w="https://unautreprojetxyz12.supabase.co";';
+    assert.deepEqual(supabaseRefsIn(js).sort(), [SHARED_PROJECT_REF, 'unautreprojetxyz12'].sort());
+    // Un bundle muet rend une liste vide, jamais une ref inventée : c'est
+    // l'appelant qui en fait un échec, pas la lecture.
+    assert.deepEqual(supabaseRefsIn('console.log(1)'), []);
+  });
+});
+
 describe('le câblage : le badge et la chaîne qualité', () => {
   it('le badge n’existe que pour la dérive, et il est visible en production', () => {
     const badge = readFileSync(join(root, 'src', 'components', 'ToastNotification.tsx'), 'utf8');
@@ -126,6 +158,17 @@ describe('le câblage : le badge et la chaîne qualité', () => {
     assert.match(shell, /import \{ database \} from '\.\.\/lib\/sharedDatabase'/);
   });
 
+  it('le site déployé est vérifié, et ce contrôle a son workflow', () => {
+    const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    assert.match(pkg.scripts['check:shared-db:live'], /--live https:\/\//);
+    const workflow = readFileSync(join(root, '.github', 'workflows', 'shared-db-watch.yml'), 'utf8');
+    // La variable d'environnement d'un hébergeur ne produit AUCUN commit : sans
+    // cron, une bascule attendrait le prochain push pour être vue.
+    assert.match(workflow, /schedule:/);
+    assert.match(workflow, /run: npm run check:shared-db:live/);
+    assert.match(workflow, /node-version-file: \.nvmrc/);
+  });
+
   it('la chaîne qualité exécute le garde-fou, et le script est appelable par son nom', () => {
     const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
     assert.match(pkg.scripts['check:shared-db'], /check-shared-db\.mjs/);
@@ -134,6 +177,49 @@ describe('le câblage : le badge et la chaîne qualité', () => {
       /check-shared-db\.mjs/,
       'un garde-fou absent de la chaîne ne garde rien',
     );
+  });
+
+  it('un site qui sert une AUTRE base fait échouer le contrôle (serveur local, pas de réseau)', async () => {
+    // Le contrôle du déploiement n'a de valeur que s'il peut échouer : un site
+    // qui sert la base de staging est exactement ce qu'on veut voir rouge.
+    const { createServer } = await import('node:http');
+    const { spawn } = await import('node:child_process');
+    const divergent = `u="https://${STAGING_REF}.supabase.co";`;
+    const page =
+      '<script type="module" src="/assets/index-ABC.js"></script>';
+    const server = createServer((req, res) => {
+      const path = (req.url || '/').split('?')[0];
+      if (path === '/assets/index-ABC.js') {
+        res.writeHead(200, { 'Content-Type': 'text/javascript' });
+        res.end(divergent);
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(page);
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+    const port = (server.address() as { port: number }).port;
+    try {
+      // `spawn` ASYNCHRONE, et pas `spawnSync` : un appel synchrone bloque la
+      // boucle d'événements du test, donc le serveur ne peut plus répondre et
+      // l'enfant attend indéfiniment — un interblocage qui a réellement duré
+      // 5 minutes ici avant d'être compris.
+      const run = await new Promise<{ code: number | null; out: string }>((resolve) => {
+        const child = spawn(
+          process.execPath,
+          [join(root, 'scripts', 'check-shared-db.mjs'), '--live', `http://127.0.0.1:${port}`],
+          { cwd: root },
+        );
+        let out = '';
+        child.stdout.on('data', (d) => (out += d));
+        child.stderr.on('data', (d) => (out += d));
+        child.on('close', (code) => resolve({ code, out }));
+      });
+      assert.equal(run.code, 1, `attendu 1, obtenu ${run.code}\n${run.out}`);
+      assert.match(run.out, /SERT une autre base/);
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
   });
 
   it('l’installeur est vérifié AVANT d’être empaqueté', () => {
