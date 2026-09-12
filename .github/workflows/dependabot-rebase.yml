@@ -19,8 +19,11 @@ name: Dependabot rebase
 #   Le PAT produit un push D'UTILISATEUR : `synchronize` part et la chaîne
 #   qualité rejoue réellement sur la PR. Le secret est donc
 #   `DEPENDABOT_REBASE_TOKEN`, dans Settings → Secrets and variables → ACTIONS
-#   (jamais « Dependabot secrets », réservés aux workflows déclenchés PAR
-#   Dependabot). Sans ce secret, le job avertit et sort en 0 — visible, pas rouge.
+#   (jamais « Dependabot secrets », réservés aux workflows déclenchés PAR# Dependabot). Sans ce secret, le job avertit et sort en 0 — visible, pas rouge.
+#
+# Le poser (ou le REMPLACER) sans `gh`, la recette et la preuve mesurée sont
+# dans README.md, section « PR Dependabot ». Le point qui coûte cher : un PAT
+# révoqué sans remplacement du secret laisse ce workflow vert et inerte.
 #
 # Deux déclencheurs, chacun pour une raison précise :
 #   • push sur `main` : c'est le moment où les checks des PR ouvertes deviennent
