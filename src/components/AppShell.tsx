@@ -415,6 +415,14 @@ onOpenPayroll={() => setActiveTab('payroll')}
           restart: t.updateRestartNow,
           download: t.updateDownloadNow,
           dismiss: t.updateDismiss,
+          forcedTitle: t.updateForcedTitle,
+          forcedMajor: t.updateForcedMajor,
+          forcedMinor: t.updateForcedMinor,
+          forcedAge: t.updateForcedAge,
+          forcedNote: t.updateForcedNote,
+          forcedFailed: t.updateForcedFailed,
+          forcedRetry: t.updateForcedRetry,
+          forcedContinue: t.updateForcedContinue,
         }}
       />
       <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
