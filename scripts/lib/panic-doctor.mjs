@@ -119,6 +119,141 @@ export function inspectHooks({
   return { hooksPath, huskyActive, hooks: entries, verdicts };
 }
 
+/* ─── The installation the doctor can also REPAIR (with confirmation) ────── */
+
+/** Where npm puts the project's executables — and where the pin is written. */
+export const BIN_SHIM_DIR = 'node_modules/.bin';
+
+/** The three entries the pin owns there (see ./bin-shims.mjs). */
+export const BIN_SHIM_NAMES = ['node', 'npm', 'npx'];
+
+/**
+ * The executable(s) a shim body launches, read from its text.
+ *
+ * Quoted paths first — both writers quote them (`with-pinned-node.mjs` through
+ * JSON.stringify, npm's own `.cmd` wrappers with `"`), and the quoted form is
+ * the only one that can survive a path with spaces. The bare form is a fallback
+ * for a hand-edited shim, not the expected case.
+ * @param {string} [body]
+ * @returns {string[]}
+ */
+export function shimTargetsOf(body = '') {
+  const quoted = [...String(body).matchAll(/"([^"]+)"/g)]
+    .map((m) => m[1])
+    .filter((p) => /(?:node(?:\.exe)?|npm-cli\.js|npx-cli\.js)$/i.test(p));
+  if (quoted.length > 0) return quoted;
+  const bare = String(body).match(/\S*(?:node(?:\.exe)?|npm-cli\.js|npx-cli\.js)\b/i);
+  return bare ? [bare[0]] : [];
+}
+
+/**
+ * Read-only check of the pin's entries in `node_modules/.bin`.
+ *
+ * WHY THIS IS IN THE DOCTOR: those three entries are how a shell resolves
+ * `node` for an npm script, and they can be deleted by anything that rewrites
+ * `.bin` (an install, a clean, another tool) — while every gate that depends on
+ * them still reports green, because the gates run their tools explicitly now
+ * (see ./chain-links.mjs). A missing entry is not a broken build; it is a
+ * loosened pin, which is exactly the class of state this doctor exists to make
+ * visible. Staleness is checked against the DISK, not against "the pinned
+ * major": the doctor never provisions a runtime, and it does not need to — an
+ * entry pointing at a binary that is gone is wrong under any pin.
+ *
+ * @param {{ shims?: Record<string, string>, dir?: string, exists?: (p: string) => boolean }} [options]
+ */
+export function inspectBinShims({ shims = {}, dir = BIN_SHIM_DIR, exists = () => false } = {}) {
+  const entries = BIN_SHIM_NAMES.map((name) => {
+    const body = typeof shims[name] === 'string' ? shims[name] : '';
+    const targets = shimTargetsOf(body);
+    return {
+      name,
+      present: body.trim().length > 0,
+      targets,
+      missingTargets: targets.filter((t) => !exists(t)),
+    };
+  });
+  const absent = entries.filter((e) => !e.present).map((e) => e.name);
+  const dead = entries.filter((e) => e.present && (e.targets.length === 0 || e.missingTargets.length > 0));
+
+  const verdicts = [];
+  if (absent.length > 0) {
+    verdicts.push({
+      level: 'warn',
+      text:
+        `${dir} : entrées du pin absentes (${absent.join(', ')}) — un script lancé par un shell peut donc ` +
+        'retomber sur le node de la machine. Remède : `npm run setup:node`.',
+    });
+  } else if (dead.length > 0) {
+    verdicts.push({
+      level: 'alarm',
+      text:
+        `${dir} : ${dead.length} entrée(s) du pin pointent vers un binaire absent (` +
+        `${dead.map((e) => `${e.name} → ${e.missingTargets[0] ?? 'cible illisible'}`).join(', ')}) — l’entrée a été ` +
+        'écrite pour un runtime qui n’est plus là. Remède : `npm run setup:node`.',
+    });
+  } else {
+    verdicts.push({
+      level: 'ok',
+      text: `${dir} : ${entries.length} entrées du pin en place, cibles présentes sur le disque.`,
+    });
+  }
+  return { dir, entries, absent, dead, verdicts };
+}
+
+/**
+ * The remedies the doctor NAMED, as runnable steps — the plan behind `--fix`.
+ *
+ * WHAT IS HERE: restoring the husky launchers (the file the team reviews is
+ * present but git runs the launcher, and `husky` rewrites it idempotently),
+ * restoring `core.hooksPath` when it points somewhere else, and writing the
+ * pin's entries back into `node_modules/.bin`. All three are mechanical, local,
+ * idempotent and reversible — the class of repair that should not need a human
+ * to remember a command.
+ *
+ * WHAT IS DELIBERATELY NOT: the sweep. Killing is a decision, not a repair: it
+ * cannot be undone, and a doctor that kills while diagnosing hides the state you
+ * came to see. The orphan verdicts keep naming their command, for a human to
+ * run. A missing TRACKED hook is not a remedy either — that file is reviewed
+ * code, so its absence is a change to make on purpose.
+ *
+ * Pure: diagnosis in, plan out (the CLI runs the steps and asks first).
+ * @param {object} [diagnosis]
+ * @returns {{ id: string, title: string, detail: string, cmd: string[] }[]}
+ */
+export function planRemedies(diagnosis = {}) {
+  const steps = [];
+  const hooks = diagnosis.hooks;
+  if (hooks) {
+    if (!hooks.huskyActive) {
+      steps.push({
+        id: 'hooks-path',
+        title: `Rétablir core.hooksPath = « ${HUSKY_HOOKS_PATH} »`,
+        detail: 'sans lui, git n’exécute aucun hook du dépôt : les commits passent sans la chaîne qualité.',
+        cmd: ['git', 'config', '--local', 'core.hooksPath', HUSKY_HOOKS_PATH],
+      });
+    }
+    const inert = hooks.hooks.filter((h) => h.present && !h.launcher).map((h) => h.name);
+    if (inert.length > 0) {
+      steps.push({
+        id: 'husky-launchers',
+        title: `Restaurer les lanceurs husky (${inert.join(', ')})`,
+        detail: `git exécute ${HUSKY_HOOKS_PATH}/<hook>, pas le fichier suivi : \`husky\` réécrit les lanceurs (idempotent).`,
+        cmd: ['node', 'scripts/with-pinned-node.mjs', '--bin', 'husky'],
+      });
+    }
+  }
+  const shims = diagnosis.binShims;
+  if (shims && (shims.absent.length > 0 || shims.dead.length > 0)) {
+    steps.push({
+      id: 'bin-shims',
+      title: `Réécrire les entrées du pin dans ${BIN_SHIM_DIR}`,
+      detail: 'les trois entrées node/npm/npx ramènent un shell sur le runtime épinglé ; le setup les réécrit.',
+      cmd: ['node', 'scripts/setup-node-runtime.mjs'],
+    });
+  }
+  return steps;
+}
+
 /** NODE_PRESSURE: above this, the fork table is a plausible suspect. */
 export const NODE_PRESSURE_THRESHOLD = 40;
 
@@ -216,13 +351,15 @@ export function shortCommand(cmd, { max = 70 } = {}) {
  * The whole analysis, pure: facts in, findings out. No I/O, no clock of its
  * own (the caller passes `nowMs`), so every branch below is asserted in tests.
  *
- * @param {{ processes?: object[], memory?: object, journal?: object[], hooks?: object, nowMs?: number }} [input]
+ * @param {{ processes?: object[], memory?: object, journal?: object[], hooks?: object,
+ *   binShims?: object, nowMs?: number }} [input]
  */
 export function diagnose({
   processes = [],
   memory = {},
   journal = [],
   hooks = undefined,
+  binShims = undefined,
   nowMs = Date.now(),
 } = {}) {
   const list = processes.filter((p) => p && Number.isInteger(p.pid) && p.pid > 0);
@@ -339,6 +476,7 @@ export function diagnose({
 
   return {
     hooks,
+    binShims,
     counts: {
       processes: list.length,
       node: nodes.length,
@@ -358,7 +496,9 @@ export function diagnose({
       .slice(0, 5)
       .map(withAge),
     journal: stats,
-    verdicts: hooks ? [...verdicts, ...hooks.verdicts] : verdicts,
+    // The installation halves speak LAST: they are the state of the guards
+    // themselves, which is what the machine-level findings above are for.
+    verdicts: [...verdicts, ...(hooks?.verdicts ?? []), ...(binShims?.verdicts ?? [])],
   };
 }
 

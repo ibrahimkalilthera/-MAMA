@@ -61,7 +61,7 @@ export const RULES = {
   'mock-empty': {
     label: 'mock vide (il n’enregistre rien)',
     remedy:
-      'Déclarez les exports réellement remplacés (`namedExports: { … }`), ou supprimez l’appel : ' +
+      'Déclarez les exports réellement remplacés (`mockModule(spec, { … })`), ou supprimez l’appel : ' +
       'un mock vide ne change aucun comportement.',
   },
   'platform-not-injected': {
@@ -275,25 +275,47 @@ export function importClosure(entryRel, ctx) {
   return keys;
 }
 
-/** `mock.module('<spec>')` registrations, with their line numbers. */
+/**
+ * Module-mock registrations, with their line numbers: the raw
+ * `mock.module('<spec>')` and the shared helper `mockModule('<spec>')` the
+ * suites go through (see tests/module-mock.ts — the option NAME depends on the
+ * runtime, so sites no longer name it themselves).
+ *
+ * The helper is in this vocabulary because a gate knows only what it can read:
+ * leaving it out made the whole analysis go blind at once — measured, the
+ * calibration test dropped to "seulement 0 mocks analysés" — and a gate that
+ * silently stops matching is the failure mode this file exists to prevent.
+ */
 export function mockedModules(stripped) {
   const out = [];
+  const patterns = [
+    /mock\.module\(\s*['"]([^'"]+)['"]/g,
+    /\bmockModule\(\s*['"]([^'"]+)['"]/g,
+  ];
   const lines = stripped.split('\n');
   lines.forEach((line, i) => {
-    const re = /mock\.module\(\s*['"]([^'"]+)['"]/g;
-    for (const m of line.matchAll(re)) out.push({ spec: m[1], line: i + 1 });
+    for (const re of patterns) {
+      for (const m of line.matchAll(re)) out.push({ spec: m[1], line: i + 1 });
+    }
   });
   return out;
 }
 
-/** Mocks that register nothing: `{}` or an empty `namedExports`/`exports`. */
+/**
+ * Mocks that register nothing: `{}`, an empty `namedExports`/`exports`, or the
+ * helper called with an empty object — the disguised form of the same thing.
+ */
 export function emptyMocks(stripped) {
   const out = [];
-  const re =
-    /mock\.module\(\s*['"]([^'"]+)['"]\s*,\s*(?:\{\s*\}|(?:defaultExport\s*:\s*undefined\s*,?\s*)?\{\s*(?:namedExports|exports)\s*:\s*\{\s*\}\s*,?\s*\})/g;
+  const patterns = [
+    /mock\.module\(\s*['"]([^'"]+)['"]\s*,\s*(?:\{\s*\}|(?:defaultExport\s*:\s*undefined\s*,?\s*)?\{\s*(?:namedExports|exports)\s*:\s*\{\s*\}\s*,?\s*\})/g,
+    /\bmockModule\(\s*['"]([^'"]+)['"]\s*,\s*\{\s*\}\s*\)/g,
+  ];
   const lines = stripped.split('\n');
   lines.forEach((line, i) => {
-    for (const m of line.matchAll(re)) out.push({ spec: m[1], line: i + 1 });
+    for (const re of patterns) {
+      for (const m of line.matchAll(re)) out.push({ spec: m[1], line: i + 1 });
+    }
   });
   return out;
 }

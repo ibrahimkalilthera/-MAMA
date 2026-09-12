@@ -13,6 +13,7 @@
 import { beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { mockModule } from './module-mock';
 
 // No test ever writes into the REAL purge/panic journal — and the protection
 // must not depend on a line a suite remembers to add: this file was never the
@@ -38,34 +39,30 @@ class FakeChild extends EventEmitter {
   }
 }
 
-// `namedExports` et non `exports` : sur Node 22 (le runtime de la CI) mocker un
-// module BUILTIN via `exports` seul casse l'interop ESM (« The requested module
-// 'node:child_process' does not provide an export named 'spawn' »), et Node 24
-// refuse les deux options ensemble.
-mock.module('node:child_process', {
-  namedExports: {
-    spawn: (_cmd: string, args: string[]) => {
-      spawnCalls.push(args);
-      const child = new FakeChild();
-      const next = plan.shift() ?? { mode: 'close', code: 0 };
-      if (next.mode === 'error') {
-        queueMicrotask(() => child.emit('error', new Error(next.message)));
-      } else {
-        queueMicrotask(() => {
-          if (next.stderr) child.stderr.emit('data', next.stderr);
-          if (next.stdout) child.stdout.emit('data', next.stdout);
-          child.emit('close', next.code);
-        });
-      }
-      return child;
-    },
-    // `where git.exe` used by resolveGit on Windows.
-    spawnSync: (_cmd: string, _args: string[]) => ({
-      status: 0,
-      stdout: 'C:\\Program Files\\Git\\cmd\\git.exe\n',
-      stderr: '',
-    }),
+// Mocker un module dépend du majeur qui exécute la suite (le nom de l’option a
+// changé pour de bon en 24.20/25.9) : le nom est choisi par tests/module-mock.ts.
+mockModule('node:child_process', {
+  spawn: (_cmd: string, args: string[]) => {
+    spawnCalls.push(args);
+    const child = new FakeChild();
+    const next = plan.shift() ?? { mode: 'close', code: 0 };
+    if (next.mode === 'error') {
+      queueMicrotask(() => child.emit('error', new Error(next.message)));
+    } else {
+      queueMicrotask(() => {
+        if (next.stderr) child.stderr.emit('data', next.stderr);
+        if (next.stdout) child.stdout.emit('data', next.stdout);
+        child.emit('close', next.code);
+      });
+    }
+    return child;
   },
+  // `where git.exe` used by resolveGit on Windows.
+  spawnSync: (_cmd: string, _args: string[]) => ({
+    status: 0,
+    stdout: 'C:\\Program Files\\Git\\cmd\\git.exe\n',
+    stderr: '',
+  }),
 });
 
 const {

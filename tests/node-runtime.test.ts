@@ -13,6 +13,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, rmSync, writeFileSync, mkdtempSync, mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -263,6 +264,51 @@ describe('node-runtime — câblage', () => {
     assert.match(scripts['lint:chain'], /^node scripts\/check-node-version\.mjs &&/);
     assert.match(scripts['lint:chain'], /stylelint/);
     assert.match(scripts['lint:chain'], /regenerate-full-setup\.mjs --check/);
+  });
+
+  it('les commandes du quotidien passent aussi par le lanceur (dev, build, preview)', () => {
+    // These are the commands a human types all day, and they were the LAST ones
+    // still reaching their tool through PATH: `dev` was `vite`, a package BIN,
+    // so it needed a mode of its own (`--bin`) rather than an npm script to
+    // hand over. A command left unwrapped here runs on whatever node the shell
+    // happens to have — silently, on the right major only by luck.
+    const daily = {
+      dev: /^node scripts\/with-pinned-node\.mjs --bin vite --port=3000 --host=0\.0\.0\.0$/,
+      'dev:staging': /--bin vite .*--mode staging$/,
+      build: /^node scripts\/with-pinned-node\.mjs --bin vite build$/,
+      'build:staging': /--bin vite build --mode staging$/,
+      'build:production': /--bin vite build --mode production$/,
+      preview: /^node scripts\/with-pinned-node\.mjs --bin vite preview$/,
+      'electron:ui': /--bin vite build --base=\.\/ --outDir electron-ui-dist$/,
+    };
+    for (const [name, expected] of Object.entries(daily)) {
+      assert.match(scripts[name], expected, `npm run ${name} doit épingler le runtime`);
+    }
+    // No command may reach vite (or any tool) by bare name: that is the PATH
+    // lookup the launcher removed.
+    for (const [name, script] of Object.entries(scripts)) {
+      assert.doesNotMatch(script, /(^|&&\s*)vite\s/, `npm run ${name} ne doit pas résoudre vite par PATH`);
+    }
+  });
+
+  it('le mode --bin exécute vraiment l’outil, sous le runtime épinglé', () => {
+    // The wiring above proves the scripts ASK for the pin. This runs it: an
+    // entry that exists but does not start (a missing dependency, a bad shim)
+    // still looks wired. `vite` is enough — it declares itself under `bin`, and
+    // printing its version proves the interpreter that reached it.
+    const run = spawnSync(
+      process.execPath,
+      ['scripts/with-pinned-node.mjs', '--bin', 'vite', '--version'],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(run.status, 0, `--bin vite doit sortir 0 (stderr : ${run.stderr})`);
+    assert.match(run.stdout, /vite\/\d+\.\d+\.\d+/, 'la sortie doit porter une version de vite');
+    const pinned = majorOf(readFileSync(join(root, '.nvmrc'), 'utf8').trim());
+    assert.match(
+      run.stdout,
+      new RegExp(`node-v${pinned}\\.`),
+      `vite doit avoir été exécuté par le majeur ${pinned}, pas par celui du shell`,
+    );
   });
 
   it('le provisionnement est explicite et le `prepare` ne casse pas un install hors ligne', () => {

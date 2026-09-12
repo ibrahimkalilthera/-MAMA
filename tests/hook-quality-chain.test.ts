@@ -13,6 +13,7 @@
 import { beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { mockModule } from './module-mock';
 
 // ── Mocked child_process state ───────────────────────────────────────────────
 type ClosePlan = { mode: 'close'; code: number; stderr?: string; stdout?: string };
@@ -30,40 +31,36 @@ class FakeChild extends EventEmitter {
   }
 }
 
-// `namedExports` et non `exports` : sur Node 22 (le runtime de la CI) mocker un
-// module BUILTIN via `exports` seul casse l'interop ESM (« The requested module
-// 'node:child_process' does not provide an export named 'spawn' »), et Node 24
-// refuse les deux options ensemble.
-mock.module('node:child_process', {
-  namedExports: {
-    spawn: (cmd: string, args: string[], opts: Record<string, unknown> = {}) => {
-      spawns.push({ cmd, args, opts });
-      const child = new FakeChild();
-      // The sweep (powershell) always succeeds and must not consume a plan
-      // entry — only the chain spawns are scripted.
-      const next: Plan =
-        cmd === 'powershell'
-          ? { mode: 'close', code: 0 }
-          : plan.shift() ?? { mode: 'close', code: 0 };
-      if (next.mode === 'error') {
-        queueMicrotask(() => child.emit('error', new Error(next.message)));
-      } else {
-        queueMicrotask(() => {
-          if (next.stderr) child.stderr.emit('data', next.stderr);
-          if (next.stdout) child.stdout.emit('data', next.stdout);
-          child.emit('close', next.code);
-        });
-      }
-      return child;
-    },
-    // Provided so the git-retry import (spawnSync for resolveGit) loads; the
-    // hook chain itself never calls it.
-    spawnSync: (_cmd: string, _args: string[]) => ({
-      status: 0,
-      stdout: '',
-      stderr: '',
-    }),
+// Mocker un module dépend du majeur qui exécute la suite (le nom de l’option a
+// changé pour de bon en 24.20/25.9) : le nom est choisi par tests/module-mock.ts.
+mockModule('node:child_process', {
+  spawn: (cmd: string, args: string[], opts: Record<string, unknown> = {}) => {
+    spawns.push({ cmd, args, opts });
+    const child = new FakeChild();
+    // The sweep (powershell) always succeeds and must not consume a plan
+    // entry — only the chain spawns are scripted.
+    const next: Plan =
+      cmd === 'powershell'
+        ? { mode: 'close', code: 0 }
+        : plan.shift() ?? { mode: 'close', code: 0 };
+    if (next.mode === 'error') {
+      queueMicrotask(() => child.emit('error', new Error(next.message)));
+    } else {
+      queueMicrotask(() => {
+        if (next.stderr) child.stderr.emit('data', next.stderr);
+        if (next.stdout) child.stdout.emit('data', next.stdout);
+        child.emit('close', next.code);
+      });
+    }
+    return child;
   },
+  // Provided so the git-retry import (spawnSync for resolveGit) loads; the
+  // hook chain itself never calls it.
+  spawnSync: (_cmd: string, _args: string[]) => ({
+    status: 0,
+    stdout: '',
+    stderr: '',
+  }),
 });
 
 const { runHookQualityChain } = await import('../scripts/hook-quality-chain.mjs');

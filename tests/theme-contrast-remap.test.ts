@@ -55,6 +55,7 @@ import {
   slateBgRemap,
   slateDarkSurfaces,
   whitenSurfaces,
+  judgeUnpaintedSurfaces,
   type LightTheme,
 } from './tailwind-pairs.ts';
 
@@ -259,6 +260,88 @@ describe('derived dark manifest: every co-occurring text/bg pair >= 4.5:1 in sla
         `${info.at[0]} (${info.theme}): text-${text} on bg-${bg} = ${ratio.toFixed(2)}:1 (< 4.5)`);
     });
   }
+});
+
+/**
+ * THE RULE: une surface que le thème ne peint pas en sombre garde sa propre
+ * couleur de texte.
+ *
+ * Les deux thèmes sombres repeignent les surfaces chacune à sa façon — slate
+ * par sa couche CSS `!important`, midnight par les variantes `dark:` — et une
+ * surface que ni l'une ni l'autre ne touche garde le fond du thème clair :
+ * feuilles d'impression, écran de connexion, intérieur du widget de chat,
+ * surlignage `<mark>`. Ces surfaces sont légitimes ; ce qui ne l'est pas est un
+ * texte CLAIR qui atterrit dessus, parce qu'aucun thème n'assombrira le fond
+ * au-dessous. C'est exactement la classe du chip blanc sur blanc, et elle était
+ * invisible aux autres verrous : `text-white` n'a pas de nuance chiffrée, donc
+ * ce n'était même pas un token des manifestes de co-occurrence.
+ *
+ * La règle est DÉRIVÉE, pas une liste : le fond résolu sous chaque thème sombre
+ * est la seul critère (une surface encore claire est une surface non repeinte),
+ * et le texte dessus doit passer AA 4.5:1. Un futur panneau clair au texte blanc
+ * échoue tout seul ; un panneau qui porte son propre texte passe sans que
+ * personne n'ait rien à déclarer.
+ */
+describe('surfaces non repeintes par le thème : leur texte garde sa propre couleur', () => {
+  const { checks, violations } = judgeUnpaintedSurfaces();
+  const site = (v: { file: string; line: number }) => `${v.file}:${v.line}`;
+
+  /**
+   * Exemptions documentées — le seul cas connu, et il n'est pas de cette
+   * famille : ce n'est pas un texte clair sur fond clair mais un texte déjà
+   * sombre, à 4.28:1 sur l'alerte `rose-50` de l'écran de connexion (surface
+   * fixe-claire par conception, cf. la liste `EXEMPT_LINES` plus bas, qui porte
+   * déjà 95 pour la même raison). Le corriger n'est pas du ressort de cette
+   * règle, et la liste est vérifiée : une excuse qui ne correspond plus échoue.
+   */
+  const EXEMPT = new Set(['components/Login.tsx:95']);
+
+  it('la règle juge vraiment des surfaces non repeintes (anti-vacuité)', () => {
+    // Sans ce plancher, un scanner devenu aveugle rendrait une liste de
+    // violations vide — donc un vert parfait sur rien.
+    assert.ok(checks >= 5, `attendu >= 5 jugements sur surface non repeinte, mesuré ${checks}`);
+  });
+
+  it('aucun texte clair sur une surface que le thème sombre n’a pas repeinte', () => {
+    assert.deepEqual(
+      violations
+        .filter((v) => !EXEMPT.has(site(v)))
+        .map(
+          (v) =>
+            `${site(v)} (${v.theme}) text-${v.text} on bg-${v.bg} = ${v.ratio.toFixed(2)}:1`,
+        ),
+      [],
+      'un texte clair sur une surface encore claire ne peut plus passer (aucun thème ne l’assombrira)',
+    );
+  });
+
+  it('chaque exemption est encore une violation (aucune excuse périmée)', () => {
+    for (const s of EXEMPT) {
+      assert.ok(violations.some((v) => site(v) === s), `${s} n’est plus en violation : retirez l’exemption`);
+    }
+  });
+
+  it('la règle MORD : un panneau clair au texte blanc est refusé, celui qui porte son texte passe', () => {
+    const FIXTURE = [
+      {
+        rel: 'Probe.tsx',
+        code: [
+          '<div className="bg-white text-white">blanc sur blanc</div>',
+          '<div className="bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100">repeint</div>',
+          '<div className="bg-white text-slate-900">panneau clair assumé</div>',
+        ].join('\n'),
+      },
+    ];
+    const probe = judgeUnpaintedSurfaces({ sources: FIXTURE });
+    // Deux jugements : la surface peinte en sombre par midnight n'est pas non
+    // repeinte, donc elle ne relève pas de cette règle (et pas d'un silence).
+    assert.equal(probe.checks, 2, 'la surface repeinte doit être écartée, pas seulement muette');
+    assert.deepEqual(
+      probe.violations.map((v) => `${v.line} ${v.theme} text-${v.text} on bg-${v.bg}`),
+      ['1 midnight text-white on bg-white'],
+    );
+    assert.ok(probe.violations[0].ratio < 4.5, 'le ratio mesuré doit être sous le seuil');
+  });
 });
 
 describe('midnight lock: light fills carry a dark: counterpart', () => {

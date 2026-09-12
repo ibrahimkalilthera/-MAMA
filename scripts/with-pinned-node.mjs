@@ -6,6 +6,14 @@
  *   node scripts/with-pinned-node.mjs <script.mjs> [args…]      # node <script>
  *   node scripts/with-pinned-node.mjs --node <script.mjs> …     # same, explicit
  *   node scripts/with-pinned-node.mjs --npm <script-name> …     # npm run <script>
+ *   node scripts/with-pinned-node.mjs --bin <command> [args…]   # a package's own bin
+ *
+ * `--bin` is what the daily commands use (`dev`, `build`, `preview`): they run
+ * `vite`, which is a package BIN and not a script, so there is no npm script to
+ * hand over — the entry is read from vite's own `bin` declaration and run by the
+ * pinned runtime (./lib/chain-links.mjs). Without this mode those commands were
+ * the last ones still resolving `vite` through PATH, i.e. the last ones able to
+ * run on whatever node the shell happened to have.
  *
  * Why: `.nvmrc` pins the runtime and the quality chain refuses to run on another
  * major — a correct guard, but one that used to leave a machine without a
@@ -21,7 +29,10 @@
  * Everything below an entry point inherits the pinned runtime, because the
  * quality chain spawns its steps through `process.execPath` (see
  * scripts/quality-chain.mjs) rather than through a PATH lookup — so pinning the
- * entry point is enough for it. The npm chain is the one exception: `npm run`
+ * entry point is enough for it. The daily commands (`dev`, `build`, `preview`)
+ * are pinned the same way, through `--bin`: they run vite's own entry under the
+ * pinned runtime instead of letting a shell resolve `vite` from PATH.
+ * The npm chain is the one remaining exception: `npm run`
  * resolves `node`, `eslint` and `tsc` through PATH, and the shims npm generates
  * in `node_modules/.bin` call `node`. That directory is therefore where the pin
  * is written — it is the one npm already puts FIRST for every script — instead
@@ -32,6 +43,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { resolveNpmCliJs } from './lib/npm-cli.mjs';
+import { resolveToolEntry } from './lib/chain-links.mjs';
 import { removeLegacyShimDir, writeBinShims } from './lib/bin-shims.mjs';
 import {
   cacheFileFor,
@@ -44,11 +56,17 @@ import {
 const root = resolvePath(dirname(fileURLToPath(import.meta.url)), '..');
 
 const argv = process.argv.slice(2);
-const mode = argv[0] === '--npm' ? 'npm' : 'node';
-const rest = mode === 'npm' ? argv.slice(1) : argv[0] === '--node' ? argv.slice(1) : argv;
+// `--npm` runs a package.json script, `--bin` runs an installed package's own
+// entry point (how a CLI like vite is reached without a shell), and the default
+// form runs a script file through the pinned node.
+const MODES = new Set(['--npm', '--bin', '--node']);
+const mode = argv[0] === '--npm' ? 'npm' : argv[0] === '--bin' ? 'bin' : 'node';
+const rest = MODES.has(argv[0]) ? argv.slice(1) : argv;
 
 if (rest.length === 0) {
-  console.error('Usage : node scripts/with-pinned-node.mjs [--npm <script> | --node] <cible> [args…]');
+  console.error(
+    'Usage : node scripts/with-pinned-node.mjs [--npm <script> | --bin <commande> | --node] <cible> [args…]',
+  );
   process.exit(2);
 }
 
@@ -87,10 +105,33 @@ if (runtime.source !== 'current') {
 
 const npmCliJs = resolveNpmCliJs(runtime.execPath);
 
-const [command, args] =
+/**
+ * The JavaScript entry a package installs for `tool`, read from its own `bin`
+ * declaration — the same one npm's `.bin` wrapper is generated from. A command
+ * with no installed entry is an ERROR here, never a PATH lookup: that fallback
+ * would hand `dev` back to whatever node the shell has, which is the whole
+ * failure this launcher exists to prevent.
+ */
+function binEntry(tool) {
+  const found = resolveToolEntry({ root, tool });
+  if (!found.entry) {
+    console.error(
+      `❌ aucune entrée installée pour « ${tool} » (chemins essayés : ${found.tried.join(', ')}). ` +
+        'Installez les dépendances, ou lancez la commande par npm.',
+    );
+    process.exit(1);
+  }
+  return found.entry;
+}
+
+const [command, args] = [
+  runtime.execPath,
   mode === 'npm'
-    ? [runtime.execPath, [npmCliJs, 'run', rest[0], ...rest.slice(1)]]
-    : [runtime.execPath, [join(root, rest[0]), ...rest.slice(1)]];
+    ? [npmCliJs, 'run', rest[0], ...rest.slice(1)]
+    : mode === 'bin'
+      ? [binEntry(rest[0]), ...rest.slice(1)]
+      : [join(root, rest[0]), ...rest.slice(1)],
+];
 
 // The pin is written where npm already looks (`node_modules/.bin`), so the
 // environment is left ALONE: no PATH edit, nothing prepended. Written on every

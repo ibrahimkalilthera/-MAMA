@@ -23,13 +23,14 @@
  * --experimental-test-module-mocks) so no real file is written and the
  * sheet data can be asserted.
  */
-import { describe, it, mock } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { act } from 'react';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { Staff, SalaryPayment } from '../src/app/types';
 import { installDomGlobals, stubAlert, renderHook } from './harness';
+import { mockModule } from './module-mock';
 
 // ── module mock: xlsx (registered BEFORE importing the hook) ─────────────────
 interface SheetRow {
@@ -39,22 +40,20 @@ const writeFileCalls: Array<{ fileName: string }> = [];
 let lastSheetRows: SheetRow[] = [];
 let lastSheetName = '';
 
-mock.module('xlsx', {
-  namedExports: {
-    utils: {
-      json_to_sheet: (rows: SheetRow[]) => {
-        lastSheetRows = rows;
-        return { '!ref': 'A1' };
-      },
-      book_new: () => ({ SheetNames: [], Sheets: {} }),
-      book_append_sheet: (wb: { SheetNames: string[] }, _ws: unknown, name: string) => {
-        lastSheetName = name;
-        wb.SheetNames.push(name);
-      },
+mockModule('xlsx', {
+  utils: {
+    json_to_sheet: (rows: SheetRow[]) => {
+      lastSheetRows = rows;
+      return { '!ref': 'A1' };
     },
-    writeFile: (_wb: unknown, fileName: string) => {
-      writeFileCalls.push({ fileName });
+    book_new: () => ({ SheetNames: [], Sheets: {} }),
+    book_append_sheet: (wb: { SheetNames: string[] }, _ws: unknown, name: string) => {
+      lastSheetName = name;
+      wb.SheetNames.push(name);
     },
+  },
+  writeFile: (_wb: unknown, fileName: string) => {
+    writeFileCalls.push({ fileName });
   },
 });
 
@@ -73,16 +72,14 @@ const pdfRectCalls: unknown[][] = [];
 // Stamp geometry recorded by the pdfStamp module mock below: (cx, cy, diameterMm).
 const stampGeometry: Array<{ cx: number; cy: number; diameterMm: number }> = [];
 
-mock.module('../src/lib/pdfStamp', {
-  namedExports: {
-    drawSchoolStamp: async (
-      _doc: unknown,
-      cx: number,
-      cy: number,
-      diameterMm: number,
-    ): Promise<void> => {
-      stampGeometry.push({ cx, cy, diameterMm });
-    },
+mockModule('../src/lib/pdfStamp', {
+  drawSchoolStamp: async (
+    _doc: unknown,
+    cx: number,
+    cy: number,
+    diameterMm: number,
+  ): Promise<void> => {
+    stampGeometry.push({ cx, cy, diameterMm });
   },
 });
 
@@ -90,12 +87,10 @@ mock.module('../src/lib/pdfStamp', {
 // captures the options so the routing (employee → fiche, no logo override)
 // can be asserted without running the real pdf-lib pipeline here.
 const ficheCalls: Array<{ staffMember: Staff; lang?: string; template?: unknown }> = [];
-mock.module('../src/lib/pdfPayrollFiche', {
-  namedExports: {
-    generateEmployeeFichePdf: async (options: { staffMember: Staff; lang?: string; template?: unknown }) => {
-      ficheCalls.push(options);
-      return { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), filename: 'Fiche_Paie_test_2026-09.pdf' };
-    },
+mockModule('../src/lib/pdfPayrollFiche', {
+  generateEmployeeFichePdf: async (options: { staffMember: Staff; lang?: string; template?: unknown }) => {
+    ficheCalls.push(options);
+    return { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), filename: 'Fiche_Paie_test_2026-09.pdf' };
   },
 });
 
@@ -105,12 +100,10 @@ mock.module('../src/lib/pdfPayrollFiche', {
 // The real rendering on the paper template is covered by
 // tests/pdf-technique.test.ts.
 const techniqueCalls: Array<{ staffMember: Staff; lang?: string; template?: unknown }> = [];
-mock.module('../src/lib/pdfPayrollTechnique', {
-  namedExports: {
-    generateTechniqueFichePdf: async (options: { staffMember: Staff; lang?: string; template?: unknown }) => {
-      techniqueCalls.push(options);
-      return { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), filename: 'Fiche_Technique_test_2026-09.pdf' };
-    },
+mockModule('../src/lib/pdfPayrollTechnique', {
+  generateTechniqueFichePdf: async (options: { staffMember: Staff; lang?: string; template?: unknown }) => {
+    techniqueCalls.push(options);
+    return { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), filename: 'Fiche_Technique_test_2026-09.pdf' };
   },
 });
 
@@ -118,14 +111,12 @@ mock.module('../src/lib/pdfPayrollTechnique', {
 // captures the options and the produced filename — the real pdf-lib overlay
 // on the paper template is covered by tests/pdf-bulletin.test.ts.
 const bulletinCalls: Array<{ staffMember: Staff; lang?: string; schoolLogo?: string | null; template?: unknown }> = [];
-mock.module('../src/lib/pdfPayrollBulletin', {
-  namedExports: {
-    generateAdminBulletinPdf: async (options: { staffMember: Staff; lang?: string; schoolLogo?: string | null; template?: unknown }): Promise<{ bytes: Uint8Array; filename: string }> => {
-      bulletinCalls.push(options);
-      pdfSaveCalls.push(`Bulletin_Paie_${options.staffMember.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_2026-09.pdf`);
-      pdfTextCalls.push('BULLETIN DE PAIE', '3,60', '3,06', '7 200 FCFA', '6 120 FCFA', '186 680 FCFA', options.staffMember.bankDetails ?? '');
-      return { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), filename: 'Bulletin_Paie_test_2026-09.pdf' };
-    },
+mockModule('../src/lib/pdfPayrollBulletin', {
+  generateAdminBulletinPdf: async (options: { staffMember: Staff; lang?: string; schoolLogo?: string | null; template?: unknown }): Promise<{ bytes: Uint8Array; filename: string }> => {
+    bulletinCalls.push(options);
+    pdfSaveCalls.push(`Bulletin_Paie_${options.staffMember.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_2026-09.pdf`);
+    pdfTextCalls.push('BULLETIN DE PAIE', '3,60', '3,06', '7 200 FCFA', '6 120 FCFA', '186 680 FCFA', options.staffMember.bankDetails ?? '');
+    return { bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]), filename: 'Bulletin_Paie_test_2026-09.pdf' };
   },
 });
 

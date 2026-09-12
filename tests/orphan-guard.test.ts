@@ -10,6 +10,7 @@
 import { beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { mockModule } from './module-mock';
 
 // ── Mocked child_process state ───────────────────────────────────────────────
 let spawnCalls: { cmd: string; args: string[]; opts: Record<string, unknown> }[] = [];
@@ -22,19 +23,15 @@ class FakeChild extends EventEmitter {
   }
 }
 
-// `namedExports` et non `exports` : sur Node 22 (le runtime de la CI) mocker un
-// module BUILTIN via `exports` seul casse l'interop ESM (« The requested module
-// 'node:child_process' does not provide an export named 'spawn' »), et Node 24
-// refuse les deux options ensemble.
-mock.module('node:child_process', {
-  namedExports: {
-    spawn: (cmd: string, args: string[], opts: Record<string, unknown> = {}) => {
-      spawnCalls.push({ cmd, args, opts });
-      return new FakeChild();
-    },
-    // git-retry.mjs (imported for the sweep) also pulls spawnSync.
-    spawnSync: () => ({ status: 0, stdout: '', stderr: '' }),
+// Mocker un module dépend du majeur qui exécute la suite (le nom de l’option a
+// changé pour de bon en 24.20/25.9) : le nom est choisi par tests/module-mock.ts.
+mockModule('node:child_process', {
+  spawn: (cmd: string, args: string[], opts: Record<string, unknown> = {}) => {
+    spawnCalls.push({ cmd, args, opts });
+    return new FakeChild();
   },
+  // git-retry.mjs (imported for the sweep) also pulls spawnSync.
+  spawnSync: () => ({ status: 0, stdout: '', stderr: '' }),
 });
 
 const { watchParentAndSweep, spawnOrphanGuard } =

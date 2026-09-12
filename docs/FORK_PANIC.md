@@ -70,6 +70,7 @@ panique sur 24 h**.
 | Purge par lignée (fin de chaîne) + garde détaché | `scripts/lib/orphan-node.mjs`, `scripts/lib/orphan-guard.mjs` | ce que **cette** exécution a créé, sur **tous** les chemins de sortie (fin, échec, `SIGINT`/`SIGTERM`, kill externe via le garde) | ce qui est né dans la dernière fenêtre de relevé du garde (≤ 10 s) |
 | Retry du spawn PowerShell | `scripts/lib/orphan-chrome.mjs` | un spawn powershell manqué qui aurait rendu un sweep **silencieusement inutile** | — |
 | Journal, rapport, docteur | `scripts/lib/orphan-node.mjs`, `scripts/sweep-report.mjs`, `scripts/panic-doctor.mjs` | mesurer : fréquence des panics, purges (zéros compris), état machine | ne répare **rien** (lecture seule, garanti par test) |
+| Résolution explicite des outils de la chaîne | `scripts/lib/chain-links.mjs` | les maillons de `lint:chain`, `test` et `build` : programme **absolu** (l'entrée `bin` du paquet installé, lue et non devinée) pour le node épinglé — aucun shell, aucun npm, donc aucun ordre de `PATH` à tenir | les **entrées** npm lancées avec un shell (`npm run lint`, `npm test`) et les shells interactifs : là c'est le `PATH` qui décide, et c'est `node_modules/.bin` qui porte le pin (`scripts/lib/bin-shims.mjs`) |
 | Chaîne spawn-only + watchdog | `scripts/quality-chain.mjs` | un run lent ne bloque ni ne sature la table de fork (kill d'arbre par étape, aucun shell) | n'aide pas si la chaîne est tuée de l'extérieur → garde détaché |
 
 ## 4. Décision
@@ -81,8 +82,25 @@ panique sur 24 h**.
 | Un commit/push vient d'échouer sur `fork:` | relancer (`npm run git:retry -- --sweep -- push origin main`) — le retry a déjà tenté |
 | Je soupçonne des orphelins maintenant | `npm run git:retry -- --sweep-all -- status` (élargi) |
 | Mes hooks tournent-ils vraiment ? | `npm run orphans:doctor` (ligne `hooks :`) |
+| Un garde-fou manque (lanceur husky, entrées du pin) | `npm run orphans:doctor -- --fix` — il nomme les remèdes, les applique un par un en demandant confirmation, et ne touche à rien d'autre |
 | La panique est active | §5 |
 | Comprendre *pourquoi* elle revient | `npm run orphans:report` + `npm run orphans:doctor`, puis §2 |
+
+## 4 bis. Ce que le docteur peut réparer, et ce qu'il ne réparera jamais
+
+`npm run orphans:doctor` imprime toujours le plan des remèdes **mécaniques** qu'il a
+constatés (et `--json` les expose en données). `--fix` les applique — un par un, en
+demandant confirmation (`--yes` pour un script) : **restaurer les lanceurs husky**
+(`husky` les réécrit dans `.husky/_`, idempotent), **rétablir `core.hooksPath`**,
+**réécrire les entrées du pin** dans `node_modules/.bin` (`npm run setup:node`).
+Ces trois-là sont locaux, idempotents et réversibles ; un hook **suivi** manquant
+n'est pas dans la liste, parce que ce fichier est du code relu — son absence est un
+changement à faire exprès.
+
+**Le sweep n'est pas un remède.** Tuer ne se défait pas, et un docteur qui soigne en
+diagnostiquant cache l'état qu'on venait voir : c'est pourquoi `--fix` est un second
+passage, *après* l'impression du diagnostic, et pourquoi les verdicts d'orphelins
+continuent de nommer leur propre commande (§4) au lieu de l'exécuter.
 
 ## 5. Récupération manuelle
 

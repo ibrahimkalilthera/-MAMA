@@ -12,30 +12,29 @@
  *      scholarship-adjusted balance and toasts;
  *   3. handlePrint calls window.print.
  */
-import { describe, it, mock } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { act } from 'react';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { Student, Staff, Expense, SalaryPayment } from '../src/app/types';
 import { installDomGlobals, renderHook } from './harness';
+import { mockModule } from './module-mock';
 
 // ── module mock: xlsx (registered BEFORE importing the hook) ────────────────
 interface SheetCapture { name: string; rows: Record<string, unknown>[]; }
 const workbookCalls: { filename: string; sheets: SheetCapture[] }[] = [];
 
-mock.module('xlsx', {
-  namedExports: {
-    utils: {
-      json_to_sheet: (rows: Record<string, unknown>[]) => rows,
-      book_new: () => ({ sheets: [] as SheetCapture[] }),
-      book_append_sheet: (wb: { sheets: SheetCapture[] }, ws: Record<string, unknown>[], name: string) => {
-        wb.sheets.push({ name, rows: ws });
-      },
+mockModule('xlsx', {
+  utils: {
+    json_to_sheet: (rows: Record<string, unknown>[]) => rows,
+    book_new: () => ({ sheets: [] as SheetCapture[] }),
+    book_append_sheet: (wb: { sheets: SheetCapture[] }, ws: Record<string, unknown>[], name: string) => {
+      wb.sheets.push({ name, rows: ws });
     },
-    writeFile: (wb: { sheets: SheetCapture[] }, filename: string) => {
-      workbookCalls.push({ filename, sheets: wb.sheets });
-    },
+  },
+  writeFile: (wb: { sheets: SheetCapture[] }, filename: string) => {
+    workbookCalls.push({ filename, sheets: wb.sheets });
   },
 });
 

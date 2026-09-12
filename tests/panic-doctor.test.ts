@@ -24,13 +24,17 @@ import {
   sweepOwnNodeOrphans,
 } from '../scripts/lib/orphan-node.mjs';
 import {
+  BIN_SHIM_DIR,
   NODE_PRESSURE_THRESHOLD,
   buildMachineSnapshotScript,
   describeAge,
   diagnose,
   formatDiagnosis,
+  inspectBinShims,
   inspectHooks,
   parseMachineSnapshot,
+  planRemedies,
+  shimTargetsOf,
   shortCommand,
 } from '../scripts/lib/panic-doctor.mjs';
 
@@ -284,6 +288,133 @@ describe('inspectHooks — un hook vert dans le diff peut être inerte', () => {
   });
 });
 
+describe('inspectBinShims — les entrées du pin, lues sans provisionner', () => {
+  const NODE = 'C:\\rt\\node.exe';
+  const NPM_CLI = 'C:\\rt\\node_modules\\npm\\bin\\npm-cli.js';
+  const CMD = `@echo off\r\n"${NODE}" %*\r\n`;
+  const posix = `#!/bin/sh\nexec "${NODE}" "$@"\n`;
+  const npmShim = `@echo off\r\n"${NODE}" "${NPM_CLI}" %*\r\n`;
+  const exists = (p: string) => [NODE, NPM_CLI].includes(p);
+
+  it('les trois entrées présentes et leurs cibles sur le disque → vert', () => {
+    const state = inspectBinShims({
+      shims: { node: CMD + posix, npm: npmShim, npx: npmShim },
+      exists,
+    });
+    assert.deepEqual(state.absent, []);
+    assert.deepEqual(state.dead, []);
+    assert.equal(state.verdicts[0].level, 'ok');
+    assert.match(state.verdicts[0].text, /3 entrées du pin/);
+  });
+
+  it('une entrée absente est un avertissement avec son remède, pas une erreur', () => {
+    const state = inspectBinShims({ shims: { node: CMD, npm: '', npx: posix }, exists });
+    assert.deepEqual(state.absent, ['npm']);
+    assert.equal(state.verdicts[0].level, 'warn');
+    assert.match(state.verdicts[0].text, /npm run setup:node/);
+  });
+
+  it('une entrée qui pointe vers un binaire disparu est une ALERTE (l’objet est nommé)', () => {
+    const state = inspectBinShims({
+      shims: { node: '@echo off\r\n"C:\\autre\\node.exe" %*\r\n', npm: npmShim, npx: npmShim },
+      exists,
+    });
+    assert.deepEqual(state.absent, []);
+    assert.equal(state.verdicts[0].level, 'alarm');
+    assert.match(state.verdicts[0].text, /node → C:\\autre\\node\.exe/);
+    assert.match(state.verdicts[0].text, /setup:node/);
+  });
+
+  it('une entrée vide ou illisible n’est jamais « en place »', () => {
+    const illegible = '#!/bin/sh\nexec commande_sans_chemin "$@"\n';
+    const state = inspectBinShims({
+      shims: { node: illegible, npm: illegible, npx: '' },
+      exists,
+    });
+    assert.equal(state.entries[0].present, true, 'le fichier existe');
+    assert.deepEqual(state.entries[0].targets, [], 'mais aucune cible n’y est lisible');
+    assert.deepEqual(state.absent, ['npx'], 'un corps vide est ABSENT, pas illisible');
+    assert.equal(state.verdicts[0].level, 'warn', 'l’absence passe avant l’illisible');
+    const state2 = inspectBinShims({ shims: { node: illegible, npm: illegible, npx: illegible }, exists });
+    assert.equal(state2.verdicts[0].level, 'alarm', 'aucune cible lisible n’est pas un vert');
+  });
+
+  it('la cible se lit dans les deux écritures de shim, et les deux chemins d’un npm', () => {
+    assert.deepEqual(shimTargetsOf(CMD), [NODE]);
+    assert.deepEqual(shimTargetsOf(posix), [NODE]);
+    assert.deepEqual(shimTargetsOf(npmShim), [NODE, NPM_CLI], 'npm lance node PUIS npm-cli.js');
+    assert.deepEqual(shimTargetsOf(''), [], 'un corps vide ne rend pas un chemin inventé');
+  });
+});
+
+describe('planRemedies — ce que --fix a le droit de toucher, et ce qu’il ne touchera jamais', () => {
+  /** Un état sain : trois entrées du pin pointant vers un runtime présent. */
+  const HEALTHY_SHIMS = inspectBinShims({
+    shims: {
+      node: '#!/bin/sh\nexec "/rt/node" "$@"\n',
+      npm: '#!/bin/sh\nexec "/rt/node" "/rt/npm-cli.js" "$@"\n',
+      npx: '#!/bin/sh\nexec "/rt/node" "/rt/npx-cli.js" "$@"\n',
+    },
+    exists: () => true,
+  });
+  const HOOK_BODY =
+    'AUDIT_CACHE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs';
+  const BOTH = { 'pre-commit': HOOK_BODY, 'pre-push': HOOK_BODY };
+  const LAUNCHERS = ['pre-commit', 'pre-push'];
+  const clean = diagnose({
+    processes: [],
+    hooks: inspectHooks({ hooksPath: '.husky/_', hooks: BOTH, launchers: LAUNCHERS }),
+    binShims: HEALTHY_SHIMS,
+  });
+
+  it('un état sain ne produit aucun remède', () => {
+    assert.deepEqual(planRemedies(clean), []);
+  });
+
+  it('un lanceur husky manquant produit le remède husky (et le nomme)', () => {
+    const steps = planRemedies(
+      diagnose({
+        hooks: inspectHooks({ hooksPath: '.husky/_', hooks: BOTH, launchers: ['pre-push'] }),
+      }),
+    );
+    assert.deepEqual(steps.map((s) => s.id), ['husky-launchers']);
+    assert.match(steps[0].title, /pre-commit/);
+    assert.deepEqual(steps[0].cmd, ['node', 'scripts/with-pinned-node.mjs', '--bin', 'husky']);
+  });
+
+  it('un hooksPath détourné produit la réécriture de la config git', () => {
+    const steps = planRemedies(
+      diagnose({
+        hooks: inspectHooks({ hooksPath: '/dev/null', hooks: BOTH, launchers: LAUNCHERS }),
+      }),
+    );
+    assert.deepEqual(steps.map((s) => s.id), ['hooks-path']);
+    assert.deepEqual(steps[0].cmd, ['git', 'config', '--local', 'core.hooksPath', '.husky/_']);
+  });
+
+  it('une entrée du pin absente produit la réécriture des shims', () => {
+    const steps = planRemedies(
+      diagnose({
+        binShims: inspectBinShims({
+          shims: { node: '#!/bin/sh\nexec "/rt/node" "$@"\n', npm: '', npx: '' },
+          exists: () => true,
+        }),
+      }),
+    );
+    assert.deepEqual(steps.map((s) => s.id), ['bin-shims']);
+    assert.deepEqual(steps[0].cmd, ['node', 'scripts/setup-node-runtime.mjs']);
+  });
+
+  it('le sweep n’est PAS un remède, même avec des orphelins de chaîne', () => {
+    // Tuer ne se défait pas, et un docteur qui soigne en diagnostiquant cache
+    // l’état qu’on venait voir : le sweep reste un geste explicite.
+    const steps = planRemedies(
+      diagnose({ processes: [proc({ pid: 4242, ppid: 999, cmd: 'node scripts/quality-chain.mjs lint' })] }),
+    );
+    assert.deepEqual(steps, []);
+  });
+});
+
 describe('formatDiagnosis', () => {
   it('imprime les orphelins avec pid, âge et parent disparu', () => {
     const report = diagnose({
@@ -344,6 +475,23 @@ describe('câblage — le docteur ne peut ni tuer, ni diverger du sweep', () => 
       seen: 0,
     });
     assert.equal(await snapshotDescendants({ platform: 'win32', rootPids: [] }), null, 'sans racine, rien à relever');
+  });
+
+  it('--fix est un SECOND passage, et il demande avant chaque remède', () => {
+    // L’ordre compte : le diagnostic est imprimé, PUIS les remèdes s’appliquent.
+    // Un docteur qui soigne en diagnostiquant cache l’état qu’on venait voir.
+    assert.match(doctorCli, /await applyRemedies\(remedies\)/);
+    assert.ok(
+      doctorCli.indexOf('formatDiagnosis(diagnosis') < doctorCli.indexOf('await applyRemedies(remedies)'),
+      'le diagnostic doit être imprimé avant toute réparation',
+    );
+    assert.match(doctorCli, /rl\.question\(/, 'chaque remède demande confirmation');
+    assert.match(doctorCli, /--fix demande une confirmation interactive, ou --yes/, 'hors TTY, refus explicite');
+    assert.match(doctorCli, /--json et --fix sont incompatibles/);
+    // Le plan est PUR (bibliothèque) et l’exécution seule vit dans le CLI :
+    // c’est ce qui rend « quels remèdes pour quel état » testable sans rien lancer.
+    assert.match(doctorLib, /export function planRemedies\(/);
+    assert.doesNotMatch(doctorLib, /spawnSync|execSync|spawn\(/, 'la bibliothèque de diagnostic n’exécute rien');
   });
 
   it('le CLI lit les lanceurs husky, pas seulement les fichiers suivis', () => {

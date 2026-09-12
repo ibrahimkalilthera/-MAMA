@@ -23,13 +23,14 @@
  * hook imports it statically so the mock must be registered before the hook
  * is imported.
  */
-import { describe, it, mock } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { act } from 'react';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { Student, User, Payment } from '../src/app/types';
 import { installDomGlobals, stubAlert, renderHook } from './harness';
+import { mockModule } from './module-mock';
 
 // ── module mock: receipt PDF (registered BEFORE importing the hook) ─────────
 interface ReceiptCall {
@@ -41,12 +42,10 @@ interface ReceiptCall {
 const pdfCalls: ReceiptCall[] = [];
 let pdfShouldThrow = false;
 
-mock.module('../src/lib/pdfReceipt', {
-  namedExports: {
-    generatePaymentReceiptPdf: async (opts: ReceiptCall): Promise<void> => {
-      pdfCalls.push(opts);
-      if (pdfShouldThrow) throw new Error('jsPDF unavailable in test');
-    },
+mockModule('../src/lib/pdfReceipt', {
+  generatePaymentReceiptPdf: async (opts: ReceiptCall): Promise<void> => {
+    pdfCalls.push(opts);
+    if (pdfShouldThrow) throw new Error('jsPDF unavailable in test');
   },
 });
 
@@ -54,12 +53,10 @@ mock.module('../src/lib/pdfReceipt', {
 // module load, before installDomGlobals). The DB persistence itself is
 // covered by calendar-notes-db.test.ts — here the hook just needs the module
 // to load, so it is mocked the same way as pdfReceipt.
-mock.module('../src/lib/calendarNotes', {
-  namedExports: {
-    fetchCalendarDayNotes: async () => [],
-    saveCalendarDayNote: async () => null,
-    deleteCalendarDayNote: async () => true,
-  },
+mockModule('../src/lib/calendarNotes', {
+  fetchCalendarDayNotes: async () => [],
+  saveCalendarDayNote: async () => null,
+  deleteCalendarDayNote: async () => true,
 });
 
 const { usePayments } = await import('../src/app/usePayments');

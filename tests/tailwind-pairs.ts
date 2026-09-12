@@ -192,15 +192,57 @@ export const extractLiterals = (code: string): LiteralOccurrence[] => {
 const TOKEN_RE = /\b(text|bg)-([a-z]+-\d{2,3}(?:\/\d+)?)\b/;
 const VARIANT_RE = /\b(?:hover|focus|active|group-hover|peer-[a-z]+|dark|print|md|lg|sm|xl):\s*$/;
 
+/**
+ * `bg-white`, `bg-white/10`, `bg-white/[0.06]` — with the alpha, when written.
+ *
+ * The word boundary sits on `white` itself, BEFORE the alpha group, not after
+ * it: `]` and a following space are both non-word characters, so anchoring at
+ * the end silently drops the alpha of the bracket spelling and reads a 6 % wash
+ * as an opaque white panel.
+ */
+const BARE_WHITE_RE = /\b(text|bg)-white\b(?:\/(\[[\d.]+\]|\d+))?/g;
+const DARK_BARE_WHITE_RE = /dark:(text|bg)-white\b(?:\/(\[[\d.]+\]|\d+))?/g;
+
+/**
+ * Tailwind accepts two alpha spellings. The bracket form is a FRACTION
+ * (`/[0.06]`), the bare form a percentage (`/10`); the resolved token keeps the
+ * percentage the colour math downstream already understands.
+ */
+const bareWhiteAlpha = (raw: string | undefined): string | null => {
+  if (raw === undefined) return null;
+  return raw.startsWith('[') ? String(Math.round(parseFloat(raw.slice(1)) * 100)) : raw;
+};
+
 export interface TokenHit {
   kind: 'text' | 'bg';
   token: string;
   dark: boolean;
 }
 
-/** Tokens co-occurring in one static chunk (variants stripped out). */
-export const chunkTokens = (chunk: string): TokenHit[] => {
+/**
+ * Tokens co-occurring in one static chunk (variants stripped out).
+ *
+ * `bareWhite` also picks up the digit-less `white` shade. The default scan
+ * leaves it out on purpose: `text-white` is the CORRECT text on a dark accent
+ * (`bg-emerald-600`), so a manifest that included it would fail every
+ * legitimate white CTA. It only carries meaning for the unpainted-surface rule
+ * below, which asks the opposite question — is this text still legible on a
+ * surface NO dark theme repaints?
+ */
+export const chunkTokens = (chunk: string, { bareWhite = false } = {}): TokenHit[] => {
   const hits: TokenHit[] = [];
+  // Bare `white` is variant-aware like the shaded tokens: `dark:bg-white` is
+  // not the resting surface. Its ALPHA matters even more than for the shaded
+  // shades: `bg-white/10` is a wash over the theme's card, while plain
+  // `bg-white` is an opaque white panel in every dark theme. That difference is
+  // the whole verdict of the unpainted-surface rule, so it is carried in the
+  // token (`white/10`) exactly as the scanned shade tokens carry theirs.
+  for (const m of bareWhite ? chunk.matchAll(BARE_WHITE_RE) : []) {
+    const before = chunk.slice(0, m.index ?? 0).trimEnd();
+    if (VARIANT_RE.test(before.split(/\s+/).pop() ?? '')) continue;
+    const alpha = bareWhiteAlpha(m[2]);
+    hits.push({ kind: m[1] as 'text' | 'bg', token: alpha ? `white/${alpha}` : 'white', dark: false });
+  }
   for (const m of chunk.matchAll(new RegExp(TOKEN_RE.source, 'g'))) {
     const before = chunk.slice(0, m.index ?? 0).trimEnd();
     const lastWord = before.split(/\s+/).pop() ?? '';
@@ -212,6 +254,10 @@ export const chunkTokens = (chunk: string): TokenHit[] => {
   // bg only exists on interaction and must not pair with resting text.
   for (const m of chunk.matchAll(/dark:(text|bg)-([a-z]+-\d{2,3}(?:\/\d+)?)\b/g)) {
     hits.push({ kind: m[1] as 'text' | 'bg', token: m[2], dark: true });
+  }
+  for (const m of bareWhite ? chunk.matchAll(DARK_BARE_WHITE_RE) : []) {
+    const alpha = bareWhiteAlpha(m[2]);
+    hits.push({ kind: m[1] as 'text' | 'bg', token: alpha ? `white/${alpha}` : 'white', dark: true });
   }
   return hits;
 };
@@ -515,6 +561,32 @@ export const resolveDark = (
 };
 
 /**
+ * Which tokens of a chunk are the ones ACTUALLY rendered under a dark theme.
+ *
+ *  - midnight: the dark: variant wins when present, else the base token (a
+ *    base token with no dark: counterpart is exactly what midnight renders —
+ *    the white-chip defect the locks exist to catch).
+ *  - slate: the !important remap layer beats dark: variants for the tokens it
+ *    repaints, so a remapped base token IS the rendered color; dark: variants
+ *    only carry the tokens that layer leaves alone. (Emitting both would flag
+ *    the dark: variant against the remapped wash — a false failure.)
+ *
+ * Shared by the co-occurrence scan and the unpainted-surface rule, so the two
+ * can never disagree about what a chunk renders.
+ */
+export const pickDarkTokens = (hits: TokenHit[], theme: DarkTheme): string[] => {
+  const darkV = hits.filter((h) => h.dark).map((h) => h.token);
+  const base = hits.filter((h) => !h.dark).map((h) => h.token);
+  if (theme === 'midnight') return darkV.length > 0 ? darkV : base;
+  const remapped = base.filter((t) => {
+    const [b] = t.split('/');
+    return slateTextRemap.has(t) || slateTextRemap.has(b) || slateBgRemap.has(t) || slateBgRemap.has(b);
+  });
+  const rest = base.filter((t) => !remapped.includes(t));
+  return [...remapped, ...(rest.length > 0 ? darkV : [])];
+};
+
+/**
  * Dark pair scan: every text/bg co-occurrence AS RENDERED in each dark
  * theme. Token selection per chunk:
  *  - slate:    the base token wins when the remap layer repaints it;
@@ -541,24 +613,8 @@ export const extractDarkColorPairs = (): DarkColorPair[] => {
           if (mode === 'slate-only' && theme !== 'slate') continue;
           if (mode === 'midnight-only' && theme !== 'midnight') continue;
           const surface = DARK_CARD[theme];
-          const pick = (hits: TokenHit[]): string[] => {
-            const darkV = hits.filter((h) => h.dark).map((h) => h.token);
-            const base = hits.filter((h) => !h.dark).map((h) => h.token);
-            if (theme === 'midnight') return darkV.length > 0 ? darkV : base;
-            // slate: the !important remap layer beats dark: variants for the
-            // tokens it repaints, so a remapped base token is THE rendered
-            // color; dark: variants only carry the tokens the layer leaves
-            // alone. (Emitting both would flag the dark: variant against the
-            // remapped wash — a false failure.)
-            const remapped = base.filter((t) => {
-              const [b] = t.split('/');
-              return slateTextRemap.has(t) || slateTextRemap.has(b) || slateBgRemap.has(t) || slateBgRemap.has(b);
-            });
-            const rest = base.filter((t) => !remapped.includes(t));
-            return [...remapped, ...(rest.length > 0 ? darkV : [])];
-          };
-          const ts = pick(texts);
-          const bs = pick(bgs);
+          const ts = pickDarkTokens(texts, theme);
+          const bs = pickDarkTokens(bgs, theme);
           for (const t of ts) {
             for (const b of bs) {
               // Resolve here so the test only asserts ratios; unknown tokens
@@ -586,3 +642,98 @@ export interface DarkColorPair {
   fg: string;
   bgHex: string;
 }
+
+/* ─── Unpainted surfaces: a surface no dark theme repaints keeps its text ── */
+
+/** Surface luminance at or above which a dark theme plainly did NOT repaint it. */
+export const UNPAINTED_LUM = 0.5;
+
+export interface UnpaintedViolation {
+  theme: DarkTheme;
+  file: string;
+  line: number;
+  text: string;
+  bg: string;
+  fg: string;
+  bgHex: string;
+  ratio: number;
+}
+
+/**
+ * THE RULE: a surface the theme does not paint dark keeps its own text color.
+ *
+ * The two dark themes repaint surfaces in two different ways — slate through
+ * its !important CSS layer, midnight through the `dark:` variants — and a
+ * surface that NEITHER touches keeps the light theme's fill: print sheets, the
+ * login marketing screen, the chat widget interior, the `<mark>` highlight.
+ * Those surfaces are legitimate; what is not legitimate is a LIGHT text landing
+ * on one of them, because no theme is going to darken the fill underneath it.
+ * That is the white-on-white chip class, and it is invisible to the other
+ * scans: `text-white` has no numeric shade, so it was not even a token in the
+ * co-occurrence manifests.
+ *
+ * The rule is DERIVED, not a list: walk every chunk AS RENDERED in each dark
+ * theme, keep the pairs whose resolved surface is still light (the theme left
+ * it alone — the fill is the criterion), and demand WCAG AA 4.5:1 from the text
+ * on it. A future light panel with white text fails here on its own; a panel
+ * that carries its own dark text passes without anyone declaring anything.
+ *
+ * Returns both halves of ONE walk: the judgements made (so the caller can
+ * assert the scan is not vacuous) and the violations, so a suite cannot report
+ * a green rule that examined nothing.
+ *
+ * `sources` injects the corpus (the repo by default). The rule must be provable
+ * to BITE without editing src/: a suite that only asserts "no violations in the
+ * tree today" would stay green if the rule stopped firing altogether.
+ */
+export const judgeUnpaintedSurfaces = ({
+  sources,
+}: { sources?: { rel: string; code: string }[] } = {}): {
+  checks: number;
+  violations: UnpaintedViolation[];
+} => {
+  const violations: UnpaintedViolation[] = [];
+  let checks = 0;
+  const inputs =
+    sources ?? walkTsx().map((f) => ({ rel: relSrc(f), code: readFileSync(f, 'utf8') }));
+  for (const { rel, code } of inputs) {
+    for (const lit of extractLiterals(code)) {
+      lit.chunks.forEach((chunk, i) => {
+        // The light branch of an isDark ternary renders only in light themes;
+        // a slate-only branch never renders under midnight and vice versa.
+        const mode = lit.darkFlags[i];
+        if (mode === 'light-branch') return;
+        const hits = chunkTokens(chunk, { bareWhite: true });
+        const texts = hits.filter((h) => h.kind === 'text');
+        const bgs = hits.filter((h) => h.kind === 'bg');
+        if (texts.length === 0 || bgs.length === 0) return;
+        for (const theme of DARK_THEMES) {
+          if (mode === 'slate-only' && theme !== 'slate') continue;
+          if (mode === 'midnight-only' && theme !== 'midnight') continue;
+          const surface = DARK_CARD[theme];
+          // Only surfaces this theme leaves LIGHT are unpainted; everything
+          // else was repainted, and its own rule (the co-occurrence manifest)
+          // already has jurisdiction over it.
+          const unpainted = pickDarkTokens(bgs, theme)
+            .map((token) => ({ token, hex: resolveDark(theme, 'bg', token, surface) }))
+            .filter((b): b is { token: string; hex: string } =>
+              b.hex !== undefined && lum(hexRgb(b.hex)) >= UNPAINTED_LUM,
+            );
+          if (unpainted.length === 0) continue;
+          for (const t of pickDarkTokens(texts, theme)) {
+            const fg = resolveDark(theme, 'text', t, surface);
+            if (fg === undefined) continue;
+            for (const b of unpainted) {
+              checks += 1;
+              const ratio = contrast(fg, b.hex);
+              if (ratio < 4.5) {
+                violations.push({ theme, file: rel, line: lit.line, text: t, bg: b.token, fg, bgHex: b.hex, ratio });
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+  return { checks, violations };
+};
