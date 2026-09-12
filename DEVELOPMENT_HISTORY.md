@@ -1,3 +1,15 @@
+## [2026-09-12] v1.0.2 : l'installeur ne contenait pas ce que le dépôt déclarait
+
+Demande : « reconstruis l'installeur Windows avec toutes les corrections récentes ». Le réflexe était de répondre « rien n'a bougé depuis le build » — la mesure a dit exactement l'inverse.
+
+**Le constat qui a l'air rassurant.** `git diff 498914f..HEAD -- electron src package.json package-lock.json` → **vide** : depuis la construction de 1.0.1, seuls `README.md` et ce fichier avaient changé. Une reconstruction aurait donc produit « la même chose », et un contrôle fondé sur l'arbre git aurait conclu « à jour ».
+
+**Ce que la mesure suivante a montré.** `node_modules` n'était **pas** le lockfile : `lucide-react` est déclaré et verrouillé en **1.43.0** (merge Dependabot #46) alors que le poste portait **1.41.0** — 14 paquets et un retrait d'écart, invisibles depuis `package.json`. Or Vite résout depuis `node_modules` : le **1.0.1 publié embarque donc 1.41.0**, c'est-à-dire une application qui **n'est pas** ce que `main` décrit. Ni le build, ni la chaîne qualité, ni la CI ne l'ont vu — la CI, elle, installe proprement (`npm ci`) et n'était donc jamais dans cet état. Un artefact qui ne correspond pas au dépôt est indétectable **de l'intérieur du dépôt** : seul un contrôle qui compare `node_modules` au lockfile avant d'empaqueter le dirait.
+
+**Remède** : `npm install lucide-react@1.43.0` → `node_modules` == lockfile (vérifié paquet par paquet sur les 10 dépendances de production : 10/10 alignées), `package.json`/`package-lock.json` **inchangés** — c'est le poste qui était en retard, pas le dépôt.
+
+**Pourquoi 1.0.2 et pas un 1.0.1 réécrit.** `electron-updater` compare des **versions**, pas des contenus : remplacer les octets d'un 1.0.1 déjà publié n'atteindrait **jamais** un poste déjà en 1.0.1 (même numéro = rien à proposer), et laisserait deux binaires différents sous le même numéro — le genre d'ambiguïté qui rend un « est-ce que tu as la bonne version ? » impossible à répondre. Une correction qui doit atteindre les postes monte d'un cran : **1.0.2**, rebuild, release publié.
+
 ## [2026-09-12] v1.0.1 publiée : le canal de mise à jour cesse d'être vide
 
 Demande : « publie la version 1.0.1 sur GitHub Releases pour que tous les postes installés reçoivent réellement la mise à jour ». Le mécanisme entier était déjà là et **prouvé** — `scripts/verify-updater.mjs` fait la chaîne complète (`checking → available → download-progress → downloaded`) sur l'exe empaqueté — et pourtant aucun poste ne pouvait rien recevoir : l'API des releases renvoyait **zéro**. La preuve tournait contre un flux fabriqué ; le flux réel était vide. C'est toute la distance entre « le code sait le faire » et « quelqu'un l'a fait ».
