@@ -336,6 +336,13 @@ describe('câblage — la convention est partagée, et l’audit lit le dépôt 
     assert.match(cli, /\/jobs\/\$\{job\.id\}\/logs/, 'la preuve vient du journal, pas du statut');
 
     const workflow = readFileSync(join(root, '.github', 'workflows', 'automation-audit.yml'), 'utf8');
+    // L'audit doit rejuger APRÈS le workflow qu'il juge : sur un push, les deux
+    // partent en parallèle, donc l'audit du push lit le run PRÉCÉDENT — mesuré
+    // sur `06b85be`, où il a rendu « tous ont agi » pour une automatisation qui
+    // venait de déclarer son inaction.
+    assert.match(workflow, /workflow_run:/, 'un push juge en parallèle : il faut aussi rejuger à la fin du workflow jugé');
+    assert.match(workflow, /workflows: \['Dependabot rebase'\]/);
+    assert.match(workflow, /types: \[completed\]/);
     assert.match(workflow, /actions: read/);
     assert.match(workflow, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
     assert.match(

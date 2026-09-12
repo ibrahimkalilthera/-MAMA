@@ -27,6 +27,16 @@ on:
   push:
     branches: [main]
 
+  # Juger APRÈS que l'automatisation jugée a parlé. Un push déclenche les deux
+  # workflows en parallèle, donc l'audit du push lit encore le run PRÉCÉDENT :
+  # mesuré sur `06b85be`, où l'audit a rendu « tous ont agi » alors que le run de
+  # ce même SHA déclarait `[inactif]`. Ce déclencheur ferme la fenêtre — il faut
+  # nommer le workflow ici, et c'est acceptable tant qu'un seul déclare son
+  # inaction ; un second s'ajoute à cette liste le jour où il le fait.
+  workflow_run:
+    workflows: ['Dependabot rebase']
+    types: [completed]
+
   schedule:
     # 06:41 UTC — après les crons des automatisations qu'il juge (05:17).
     - cron: '41 6 * * *'
