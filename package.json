@@ -12,6 +12,7 @@
     "preview": "node scripts/with-pinned-node.mjs --bin vite preview",
     "optimize:stamp": "node scripts/optimize-stamp.mjs",
     "check:perf": "node scripts/check-performance.mjs",
+    "check:automations": "node scripts/check-automations.mjs",
     "check:node-layout": "node scripts/verify-node-layout.mjs",
     "setup:node": "node scripts/setup-node-runtime.mjs",
     "shell": "node scripts/node-shell.mjs",

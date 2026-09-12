@@ -44,6 +44,7 @@
  */
 
 import { appendFileSync } from 'node:fs';
+import { inertAnnotation } from './lib/automation-evidence.mjs';
 
 const API = 'https://api.github.com';
 const DEFAULT_REPO = 'ibrahimkalilthera/-MAMA';
@@ -238,12 +239,17 @@ async function main() {
   const token = (process.env[TOKEN_ENV] || '').trim();
 
   if (!token) {
-    annotate(
-      'warning',
-      `Rebase automatique Désactivé : le secret DEPENDABOT_REBASE_TOKEN n'est pas posé. ` +
-        `Ajoutez un PAT (fine-grained : Contents + Pull requests read/write) dans ` +
-        `Settings → Secrets and variables → ACTIONS (jamais « Dependabot secrets ») pour l'activer.`,
-      'Dependabot rebase inactif',
+    // The `Inactif` annotation is a CONTRACT, not a message: `npm run
+    // check:automations` reads this workflow's last run and fails while it is
+    // present. That is how a green run that did nothing stops being invisible
+    // (see ./lib/automation-evidence.mjs) — reword the text freely, but keep it
+    // going through `inertAnnotation`, which is the single definition of it.
+    console.log(
+      inertAnnotation(
+        'Dependabot rebase — le secret DEPENDABOT_REBASE_TOKEN n’est pas posé, donc aucune PR n’a été ' +
+          'mise à jour. Ajoutez un PAT (fine-grained : Contents + Pull requests read/write) dans ' +
+          'Settings → Secrets and variables → ACTIONS (jamais « Dependabot secrets ») pour l’activer.',
+      ),
     );
     appendSummary(
       [

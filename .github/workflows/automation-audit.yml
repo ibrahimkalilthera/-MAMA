@@ -1,0 +1,68 @@
+name: Automation audit
+
+# « Ce workflow est vert : a-t-il AGI ? »
+#
+# Pourquoi ce workflow existe : le 12 septembre, `Dependabot rebase` était vert à
+# chaque push sur `main` depuis 22 runs sans avoir jamais rebasé quoi que ce
+# soit — son secret est absent, et son script sort en 0 « visible, pas rouge ».
+# Rien dans la liste des runs ne permettait de distinguer ça d'un run qui avait
+# mis trois PR à jour. Le même faux vert a frappé ce dépôt deux fois déjà (le
+# shim git installé mais jamais atteint, l'étape de contraste déclarée « non
+# applicable » alors qu'elle ne mesurait rien).
+#
+# La règle est donc écrite une fois (scripts/lib/automation-evidence.mjs) : une
+# automatisation qui ne peut pas agir le DIT, avec une annotation `Inactif`. Ce
+# job lit le dernier run terminé de CHAQUE workflow et échoue si elle est là.
+# Un journal illisible est un échec aussi : invérifiable n'est pas un vert.
+#
+# Deux déclencheurs, chacun pour une raison :
+#   • push sur `main` — le moment où un faux vert vient d'être fabriqué ;
+#   • cron quotidien — un secret retiré ou une permission perdue ne produit
+#     aucun push, donc sans ce filet le faux vert attendrait le prochain commit.
+#
+# Ce job ne bloque aucun déploiement : c'est un signal, pas une porte — le déployer
+# dépend de la chaîne qualité, pas de l'état d'un secret de maintenance.
+
+on:
+  push:
+    branches: [main]
+
+  schedule:
+    # 06:41 UTC — après les crons des automatisations qu'il juge (05:17).
+    - cron: '41 6 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: automation-audit
+  cancel-in-progress: false
+
+permissions:
+  # Lire les runs et télécharger leurs journaux. Aucune écriture n'est demandée :
+  # un audit qui pourrait modifier ce qu'il inspecte ne l'inspecte plus.
+  actions: read
+  contents: read
+
+jobs:
+  audit:
+    name: Vérifier que chaque automatisation a agi
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Comme les autres jobs : installer Node ne prouve pas le majeur
+      # réellement exécuté. Le script n'a aucune dépendance, donc pas de `npm ci`.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      - name: Auditer les automatisations
+        env:
+          # Le token est nécessaire : les journaux de runs ne sont pas publics,
+          # et l'audit refuse de rendre un vert qu'il n'a pas pu mesurer.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run check:automations
