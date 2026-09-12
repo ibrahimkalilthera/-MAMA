@@ -1,3 +1,23 @@
+## [2026-09-12] L'audit ne trouvait plus qu'un rouge — et il était VRAI
+
+Le texte encore collé dans la conversation datait d'avant les correctifs de l'audit (il montrait `Deploy (Vercel) failure`, `PDF E2E … journal illisible (logs 404)` et `Quality & performance guard failure`). Relancé contre l'état réel, `npm run check:automations` ne trouvait plus **qu'une** ligne rouge, toujours la même :
+
+```
+❌ Dependabot rebase  success  vert sans avoir agi : le secret DEPENDABOT_REBASE_TOKEN n'est pas posé
+```
+
+**Vérifié côté API, pas déduit** : les secrets Actions du dépôt étaient `SUPABASE_SERVICE_ROLE_KEY`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN`. Le seul rouge restant était donc **exact** — et c'est précisément ce que cet audit existe pour dire : un run vert qui n'a rien fait est un faux vert, et le taire aurait été la seule vraie régression possible ici.
+
+**Pourquoi aucun code ne pouvait le réparer.** Le dépôt l'avait déjà mesuré et écrit dans l'en-tête du workflow : une mise à jour faite avec le `GITHUB_TOKEN` ne déclenche **aucun** workflow (branche à jour, vérifications périmées — le bug même, mais invisible), et `@dependabot rebase` posté avec ce token est refusé depuis 2023 (« only users with push access can use that command »). Il faut donc un PAT, c'est-à-dire une **valeur** que seul le propriétaire peut fournir.
+
+**Ce qui a été fait** : le PAT a été scellé (`crypto_box_seal` libsodium — l'API GitHub refuse toute valeur en clair) et posé par `PUT /actions/secrets/DEPENDABOT_REBASE_TOKEN`. Il n'y a pas de CLI `gh` sur ce poste ; l'opération a demandé un paquet libsodium installé **hors du dépôt** (dossier temporaire), qui n'apparaît donc dans aucune dépendance du projet.
+
+**Preuve que l'automatisation agit maintenant, et pas seulement que le voyant est vert** : `workflow_dispatch` → le job a rebasé les **3 PR ouvertes** (#43, #44, #46) et leurs **6 vérifications** chacune ont rejoué sur les nouveaux sha, entre `08:19:28` et `08:19:32`, **toutes vertes** (dont le contraste de thèmes, qui ne demande plus aucun secret depuis l'injection de session de test). L'audit a suivi tout seul : `Dependabot rebase … preuve structurée : a agi`, `✅ Les 10 automatisations ont agi à leur dernier run`, sortie **0**.
+
+**La leçon de fond** : un audit peut avoir raison pendant 22 runs sans que personne ne puisse le satisfaire — la seule façon honnête de le faire passer au vert était de faire **agir** l'automatisation, pas d'adoucir le verdict. Le remède était écrit dans le message d'erreur depuis le début ; c'est le geste qui manquait, pas le diagnostic.
+
+**Et la règle qui reste**, maintenant écrite là où on la lira (README, en-tête du workflow) : remplacer le PAT, c'est **remplacer le secret**. Un PAT révoqué sans remplacement laisse ce workflow vert et inerte — la panne exacte que cette ligne rouge signalait.
+
 ## [2026-09-12] La chaîne qualité cesse de rejouer ce qu'un cache sait déjà — 46,6 s → 15,4 s
 
 Demande : « tu gaspilles mon temps, résous le problème de temps d'abord ». Ce qui a évité de deviner, c'est le runner de la chaîne lui-même (`node scripts/with-pinned-node.mjs --node scripts/quality-chain.mjs lint`), qui nomme chaque maillon avec sa durée : les **quatorze contrôles maison coûtent 100–850 ms chacun** (`check-css-selectors` 117 ms, `regenerate-full-setup` 102 ms, `check-css`/`emoji`/`i18n`/`date`/`line-budget` ~120 ms, `check-gate-sentinels` 750 ms), `stylelint` 1,1 s — et **deux maillons portaient 41 des 46 secondes** : `tsc --noEmit` **33,4 s**, `eslint .` **7,4 s**. Les deux rejouaient l'intégralité du projet à chaque exécution, et deux fois par changement : le saut « déjà vérifié » (`scripts/lib/chain-cache.mjs`) ne couvre par définition **pas** un arbre modifié — or c'est exactement le cas où l'on paie.
