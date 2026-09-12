@@ -32,6 +32,7 @@ import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CHROME =
@@ -107,8 +108,14 @@ const STAFF_SALARY = '120000';
 const VENDOR_AMOUNT = '45000';
 // Profile under the puppeteer_dev marker: the startup sweep then covers
 // orphans of THIS script too (an interrupted run leaves its Chrome behind).
+//
+// Le chemin était écrit en dur (`C:/Users/user/AppData/Local/Temp`) : sur le
+// runner Linux, ce n'est pas un chemin absolu, donc le profil de Chrome se
+// créait DANS le checkout au lieu du dossier temporaire. `tmpdir()` dit la même
+// chose sur les deux plateformes, et c'est ce que le marqueur `puppeteer_dev`
+// désigne (le sweep Windows cherche sous le dossier temporaire de l'OS).
 const PROFILE = join(
-  'C:/Users/user/AppData/Local/Temp',
+  tmpdir(),
   `puppeteer_dev-e2e-${FLAG_PROD ? 'prod' : 'stag'}-${TS}`
 );
 
@@ -116,12 +123,23 @@ const PROFILE = join(
 const cleanup = async (uidToDelete) => {
   try {
     const tasks = [
+      // Deux clés, parce que l'une des deux peut manquer : l'identifiant unique
+      // n'est rendu que pour une classe de 9e année, donc un élève de démo créé
+      // dans une classe personnalisée porte son identité dans son NOM. Nettoyer
+      // sur la seule clé `student_id` laissait l'élève en base — et le contrôle
+      // de virginité échouait alors sur un résidu que ce nettoyage avait manqué.
       api(`/students?select=id&student_id=like.${STUDENT_ID}`).then((r) => r.body || []),
+      api(`/students?select=id&name=like.${encodeURIComponent('BizTest %')}`).then((r) => r.body || []),
       api(`/parents?select=id&full_name=like.${encodeURIComponent('Parent E2E %')}`).then((r) => r.body || []),
       api(`/staff?select=id&name=like.${encodeURIComponent('Staff E2E %')}`).then((r) => r.body || []),
       api(`/vendor_expenses?select=id&vendor_name=like.${encodeURIComponent('Vendor E2E %')}`).then((r) => r.body || []),
     ];
-    const [studs, par, staffRows, vendors] = await Promise.all(tasks);
+    const [byId, byName, par, staffRows, vendors] = await Promise.all(tasks);
+    // Union par identifiant : les deux requêtes décrivent le MÊME élève de démo
+    // (l'une par identifiant unique, l'autre par nom), et nettoyer deux fois la
+    // même ligne n'est pas faux — mais oublier l'une des deux laissait un résidu
+    // en base, ce que le contrôle de virginité finissait par refuser.
+    const studs = [...new Map([...byId, ...byName].map((s) => [s.id, s])).values()];
     for (const s of studs) {
       await api(`/payments?student_id=eq.${s.id}`, { method: 'DELETE' });
       await api(`/students?id=eq.${s.id}`, { method: 'DELETE' });
@@ -246,29 +264,136 @@ try {
     await new Promise((r) => setTimeout(r, 1200));
     return ok;
   };
-  const setInput = async (placeholder, value) => {
-    await page.waitForSelector(`input[placeholder="${placeholder}"]`, { timeout: 8000 });
-    await page.click(`input[placeholder="${placeholder}"]`, { clickCount: 3 });
-    await page.type(`input[placeholder="${placeholder}"]`, value);
+  // ── Saisie par RACINE, jamais par placeholder exact ───────────────────────
+  // Les placeholders viennent des TRADUCTIONS (« ex. » en français, « e.g. » en
+  // anglais), donc les chercher par leur texte exact liait ce script à la langue
+  // de l'interface — et une couleur de traduction devenait un rouge de contrôle :
+  // mesuré, le run échouait sur « e.g. Mamadou Traoré » pendant que l'app servait
+  // « ex. Mamadou Traoré ». On cherche donc une racine présente dans les DEUX
+  // langues (un tableau = « l'un ou l'autre »), et le sélecteur désigne
+  // l'élément : c'est l'app qui décide de la langue, pas ce script.
+  const selectorFor = (stems) =>
+    (Array.isArray(stems) ? stems : [stems])
+      .map((s) => `input[placeholder*="${s}"]`)
+      .join(', ');
+  const setInput = async (stems, value) => {
+    const sel = selectorFor(stems);
+    await page.waitForSelector(sel, { timeout: 8000 });
+    await page.click(sel, { clickCount: 3 });
+    await page.type(sel, value);
   };
-  const setValue = async (placeholder, value) => {
-    await page.waitForSelector(`input[placeholder="${placeholder}"]`, { timeout: 8000 });
-    await page.evaluate(([ph, v]) => {
-      const i = [...document.querySelectorAll('input')].find((x) => x.placeholder === ph);
+  const setValue = async (stems, value) => {
+    const sel = selectorFor(stems);
+    await page.waitForSelector(sel, { timeout: 8000 });
+    await page.evaluate(([s, v]) => {
+      const i = document.querySelector(s);
       const set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
       set.call(i, v);
       i.dispatchEvent(new Event('input', { bubbles: true }));
       i.dispatchEvent(new Event('change', { bubbles: true }));
-    }, [placeholder, value]);
+    }, [sel, value]);
   };
-  const submitForm = async (anchorPlaceholder) => {
-    await page.evaluate((ph) => {
-      const anchor = [...document.querySelectorAll('input')].find((i) => i.placeholder === ph);
+  /**
+   * Remplit un champ SEULEMENT s'il est rendu.
+   *
+   * Certains champs sont conditionnels dans l'app (l'identifiant unique d'un
+   * élève n'existe que pour une classe de 9e année) : les attendre faisait
+   * échouer le cycle sur un champ que cette route ne peut pas rendre, alors que
+   * le cycle prouve autre chose. Ce qui doit rester exigé, c'est ce que la
+   * vérification en base affirme.
+   */
+  const fillIfPresent = async (stems, value, timeout = 2500) => {
+    try {
+      const sel = selectorFor(stems);
+      await page.waitForSelector(sel, { timeout });
+      await page.click(sel, { clickCount: 3 });
+      await page.type(sel, value);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const submitForm = async (stems) => {
+    await page.evaluate((s) => {
+      const anchor = document.querySelector(s);
       const form = anchor.closest('form');
       const btn = [...form.querySelectorAll('button')].find((b) => b.type === 'submit');
       btn.click();
-    }, anchorPlaceholder);
+    }, selectorFor(stems));
     await new Promise((r) => setTimeout(r, 3000));
+  };
+  /**
+   * Clique le premier élément cliquable dont le libellé porte une des racines.
+   *
+   * Même raison que pour les champs : les libellés viennent des traductions, donc
+   * un texte exact lie le script à une langue. On passe les DEUX formes — c'est
+   * l'app qui décide de la sienne.
+   */
+  const clickByStems = async (stems, timeout = 8000) => {
+    const roots = Array.isArray(stems) ? stems : [stems];
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      const hit = await page.evaluate((list) => {
+        const el = [...document.querySelectorAll('button, [role="tab"]')].find(
+          (b) => b.offsetParent && list.some((r) => (b.textContent || '').includes(r)),
+        );
+        if (!el) return false;
+        el.click();
+        return true;
+      }, roots);
+      if (hit) {
+        await new Promise((r) => setTimeout(r, 1200));
+        return true;
+      }
+      if (Date.now() > deadline) return false;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  };
+  /**
+   * Ouvre le modal DÉPENSE FOURNISSEUR — par sa SECTION, jamais par un libellé.
+   *
+   * Mesuré, et c'est le piège : la page Dépenses porte deux actions au libellé
+   * IDENTIQUE dans les deux langues (« Ajouter une Dépense » / « Add Expense »),
+   * l'une ouvrant `expenses`, l'autre `vendor_expenses`. Cliquer « au texte »
+   * ouvre donc le premier du DOM — la mauvaise table — et essayer les boutons à
+   * l'aveugle ne marche pas non plus : parmi les candidats il y a les onglets
+   * eux-mêmes, donc la boucle rebasculait sur l'autre onglet et défaisait ce
+   * qu'elle venait de faire (mesuré : 4 candidats, le dernier ouvrant le modal
+   * *général*).
+   *
+   * Le repère fiable est STRUCTUREL : la branche rendue porte un en-tête `<h3>`
+   * avec le libellé de SON onglet, et le bouton d'ajout est à côté. On bascule
+   * l'onglet, on attend que la branche soit rendue, puis on clique le bouton de
+   * cette section-là. Chaque échec possible est NOMMÉ — un `false` muet ne dit pas
+   * s'il manque l'onglet, la branche, le bouton ou le droit.
+   */
+  const openVendorExpenseModal = async () => {
+    const onTab = await clickByStems(['Fournisseurs & Services', 'Vendors & Services']);
+    if (!onTab) return 'onglet « fournisseurs » introuvable';
+    try {
+      await page.waitForFunction(
+        () => [...document.querySelectorAll('h3')].some((h) => /fournisseur|vendor/i.test(h.textContent || '')),
+        { timeout: 8000 },
+      );
+    } catch {
+      return 'l’onglet fournisseurs n’a pas été rendu (bascule refusée ?)';
+    }
+    const res = await page.evaluate(() => {
+      const h3 = [...document.querySelectorAll('h3')].find((h) => /fournisseur|vendor/i.test(h.textContent || ''));
+      const btn = [...h3.parentElement.querySelectorAll('button')].find((b) =>
+        /dépense|expense/i.test(b.textContent || ''),
+      );
+      if (!btn) return 'bouton d’ajout absent de la section fournisseurs';
+      btn.click();
+      return 'clicked';
+    });
+    if (res !== 'clicked') return res;
+    try {
+      await page.waitForSelector('#modal-title-vendor-expense-form', { timeout: 8000 });
+    } catch {
+      return 'le clic n’a pas ouvert le modal fournisseur';
+    }
+    return true;
   };
 
   await page.goto(URL, { waitUntil: 'networkidle2', timeout: 45000 });
@@ -304,7 +429,18 @@ try {
       check('Classe persistée en base', (cls.body || []).some((c) => c.code === CLASS_NAME), JSON.stringify(cls.body).slice(0, 80));
 
       await setInput('Ibrahim', STUDENT_NAME);
-      await setInput('MT-2026-001 (Optional)', STUDENT_ID);
+      // Le champ « identifiant unique » n'est rendu QUE pour une classe de
+      // 9e année (`isNinthGradeClass`) — or ce cycle crée une classe
+      // personnalisée ('other'). Il est donc OPTIONNEL ici, et l'identité de
+      // l'élève de démo est portée par son NOM (unique au run). L'attendre 8 s
+      // faisait échouer le cycle sur un rendu conditionnel que le script ne
+      // pouvait pas déclencher.
+      const hadIdField = await fillIfPresent(['MT-2026-001'], STUDENT_ID);
+      console.log(
+        hadIdField
+          ? '   ℹ️ champ identifiant unique rendu et rempli'
+          : '   ℹ️ champ identifiant unique non rendu (classe non-9e) — identité portée par le nom',
+      );
       await setInput('Djeneba', PARENT_NAME);
       await setInput('+223 70 00 00 00', '+223 70 00 01 01');
       await setValue('120000', TOTAL_DUE);
@@ -320,7 +456,7 @@ try {
       reqs.length = 0;
       await submitForm('Ibrahim');
       check('Requête POST /students émise', reqs.some((r) => r.includes('POST /rest/v1/students')), reqs.join(', ').slice(0, 100) || 'aucune');
-      const st = await api(`/students?select=id,name,student_id,total_due,amount_paid&student_id=eq.${STUDENT_ID}`);
+      const st = await api(`/students?select=id,name,student_id,total_due,amount_paid&name=eq.${encodeURIComponent(STUDENT_NAME)}`);
       const srow = (st.body || [])[0];
       check('Élève persisté en base', !!srow, srow ? `total_due=${srow.total_due} | amount_paid=${srow.amount_paid}` : 'absent');
 
@@ -357,11 +493,11 @@ try {
       await clickNav('Parents');
       await page.waitForFunction(() => document.body.innerText.includes('Annuaire des Parents'), { timeout: 10000 });
       await clickBtn('Ajouter Parent/Tuteur');
-      await setInput('e.g. Mamadou Traoré', PARENT_NAME);
+      await setInput('Mamadou Traoré', PARENT_NAME);
       await setInput('+223 70 00 00 00', '+223 70 00 01 02');
-      await setInput('e.g. Civil Engineer, Banker, Merchant...', 'Commerçant');
-      await setInput('e.g. Quartier Hippodrome, Bamako', 'Bamako');
-      await submitForm('e.g. Mamadou Traoré');
+      await setInput(['Ingénieur Civil', 'Civil Engineer'], 'Commerçant');
+      await setInput('Quartier Hippodrome', 'Bamako');
+      await submitForm('Mamadou Traoré');
       const par = await api(`/parents?select=full_name,phones,relationship&full_name=eq.${encodeURIComponent(PARENT_NAME)}`);
       const p = (par.body || [])[0];
       check('Parent persisté en base', !!p, p ? `${p.full_name} | ${p.phones[0]} | ${p.relationship}` : 'absent');
@@ -402,11 +538,15 @@ try {
       // VENDOR EXPENSE (dépense fournisseur — promotrice uniquement)
       await clickNav('Dépenses');
       await page.waitForFunction(() => document.body.innerText.includes('Dépenses'), { timeout: 10000 });
-      const vOpen = await clickBtn('Ajouter une Dépense');
-      check('Modal dépense fournisseur ouvert', vOpen);
-      await setInput('ex. SENELEC', VENDOR_NAME);
+      const vOpen = await openVendorExpenseModal();
+      check(
+        'Modal dépense fournisseur ouvert',
+        vOpen === true,
+        vOpen === true ? '' : String(vOpen),
+      );
+      await setInput('SENELEC', VENDOR_NAME);
       await setValue('50000', VENDOR_AMOUNT);
-      await submitForm('ex. SENELEC');
+      await submitForm('SENELEC');
       const ve = await api(`/vendor_expenses?select=vendor_name,amount,payment_status&vendor_name=eq.${encodeURIComponent(VENDOR_NAME)}`);
       const vrow = (ve.body || [])[0];
       check('Dépense fournisseur persistée en base', !!vrow, vrow ? `amount=${vrow.amount} | ${vrow.payment_status}` : 'absent');

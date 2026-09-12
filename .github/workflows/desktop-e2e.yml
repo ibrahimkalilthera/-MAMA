@@ -1,0 +1,116 @@
+name: Desktop E2E — application empaquetée
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POURQUOI CE WORKFLOW EXISTE
+#
+# `scripts/verify-desktop-app.mjs` est la SEULE preuve automatisée de
+# l'application EMPAQUETÉE : il construit un compte admin éphémère, lance le vrai
+# binaire (portable, profil isolé, session vierge), s'y connecte par l'interface
+# réelle, ouvre Paie/Salaires, clique « Télécharger Reçu PDF » sur un employé
+# temporaire et vérifie que le PDF arrive **sur le disque** (taille + signature
+# `%PDF-`) — puis supprime les deux lignes de démo.
+#
+# Le site déployé, lui, a le pixel-check PDF ; le bureau n'avait personne. Le
+# script publiait une preuve mesurée et aucun workflow ne l'exécutait, donc cette
+# preuve n'existait pas. Ce workflow est ce qui le fait tourner.
+#
+# Trigger : hebdomadaire + manuel. Aucun lien avec un déploiement, parce que ce
+# qui est prouvé n'est pas le site mais le BINAIRE : ce workflow reconstruit
+# l'application depuis l'arbre du commit qui le lance (`electron:dist`, sans
+# aucune publication) et prouve ce build-là. L'hebdomadaire couvre ce qu'aucun
+# push ne couvre — une dépendance Electron ou le comportement de la machine qui
+# dérive pendant que le code ne bouge pas.
+#
+# POURQUOI `electron:dist` ET PAS UN INSTALLEUR PUBLIÉ : prouver ce qu'un poste
+# reçoit vraiment demanderait d'installer le NSIS signé (ce que fait une
+# machine, pas un runner). Ici on prouve le portable du MÊME build, et le
+# workflow `Desktop release (Windows)` reste le seul à publier.
+#
+# Secrets requis (Settings → Secrets and variables → Actions) :
+#   SUPABASE_SERVICE_ROLE_KEY — clé service du projet Supabase (compte éphémère
+#     + employé temporaire, tous deux supprimés en fin de run). Passée via un
+#     `.env` généré dans le job, effacé avec le runner.
+#   VITE_SUPABASE_URL est PUBLIQUE (embarquée dans le bundle client).
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Dimanche 03:00 UTC — le lundi matin, la preuve de la semaine est là.
+    - cron: '0 3 * * 0'
+
+concurrency:
+  group: desktop-e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  packaged-app:
+    runs-on: windows-latest
+    # `npm ci` + build Vite + empaquetage Electron + signature locale + lancement
+    # réel du binaire : c'est le job le plus lourd du dépôt (le build local prend
+    # quelques minutes à lui seul), d'où un plafond large plutôt qu'un timeout
+    # qui rougirait sur une machine lente.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Le script lit `.env` ; l'URL Supabase est publique, seule la clé service
+      # est un secret. Le fichier est généré dans le job et jamais commité.
+      - name: Generate .env for the desktop proof (public URL + service-role secret)
+        shell: bash
+        run: |
+          cat > .env <<'EOF'
+          VITE_SUPABASE_URL=https://rpcjdohfxwukbqngbprw.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          EOF
+
+      # Le build, sans publication : `--publish never` est délibéré (c'est le
+      # publieur `scripts/publish-release.mjs` qui ouvre un release, jamais
+      # electron-builder). Contient aussi le garde-fou de base partagée sur
+      # `electron-ui-dist` et le gate local de cohérence du flux — donc un build
+      # incohérent échoue ici, avant qu'on prouve quoi que ce soit.
+      - name: Build de l'application empaquetée (sans publication)
+        run: npm run electron:dist
+
+      # Le binaire prouvé est celui de la version du paquet
+      # (`release/MamaTheraFinance-<version>-portable.exe`) : le script le
+      # DÉDUIT du package.json et échoue en le nommant si l'artefact attendu est
+      # absent — un dossier `release/` qui accumule les versions ne doit pas
+      # permettre de prouver un binaire d'une autre version.
+      - name: Preuve sur l'app empaquetée — connexion réelle et reçu PDF
+        # Mandat de preuve : l'étape qui exécute le script lui donne le droit de
+        # parler au nom de ce job. Ce qu'il publie est SA mesure — le PDF reçu
+        # (nom, taille, signature) et les deux lignes de démo supprimées.
+        env:
+          AUTOMATION_EVIDENCE: '1'
+        run: node scripts/verify-desktop-app.mjs
+
+      # Même garde finale que la chaîne PDF E2E : un run interrompu au milieu est
+      # exactement ce qui laisse un compte éphémère en base. `if: always()` pour
+      # qu'un échec de l'étape précédente ne la saute pas — la sauter est ce qui
+      # a déjà coûté un résidu découvert au run suivant.
+      - name: Vérification finale — aucun compte éphémère résiduel en base
+        if: always()
+        env:
+          AUTOMATION_EVIDENCE: '1'
+        run: node scripts/verify-ephemeral-cleanup.mjs
+
+      # Preuve publiée par l'étape NOMMÉE (lue dans les étapes du run par
+      # `npm run check:automations`), en DERNIER : elle affirme que la chaîne est
+      # allée au bout — build empaqueté de ce commit, connexion réelle, PDF reçu
+      # par le binaire, base nettoyée.
+      - name: Publier la preuve d’action — application empaquetée
+        if: success()
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "application empaquetée prouvée sur le runner : build de ce commit, connexion réelle dans le binaire, reçu PDF reçu sur le disque (mesure publiée par scripts/verify-desktop-app.mjs), base nettoyée"

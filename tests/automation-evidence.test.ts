@@ -403,6 +403,8 @@ describe('le dépôt — chaque automatisation promet une preuve, et la MESURE',
     ['scripts/verify-pdf-download.mjs', 'pdf-e2e.yml', 'verify-pdf-download.mjs'],
     ['scripts/check-automations.mjs', 'automation-audit.yml', 'check:automations'],
     ['scripts/check-release-coherence.mjs', 'release-channel-watch.yml', 'check:release:channel'],
+    ['scripts/e2e-business.mjs', 'business-e2e.yml', 'e2e-business.mjs'],
+    ['scripts/verify-desktop-app.mjs', 'desktop-e2e.yml', 'verify-desktop-app.mjs'],
   ];
 
   it('chaque producteur de la chaîne E2E publie un COMPTE, pas une phrase', () => {
@@ -422,16 +424,31 @@ describe('le dépôt — chaque automatisation promet une preuve, et la MESURE',
     }
   });
 
-  it('les scripts E2E hors CI sont PRÊTS à parler, mais restent muets sans mandat', () => {
-    // `e2e-business.mjs` et `verify-desktop-app.mjs` ne tournent dans aucun
-    // workflow : ils n'ont donc personne à qui parler, et c'est le mandat qui
-    // décide — pas le script. Leur publishEvidence est la substance déjà en
-    // place, pour le jour où une étape les mandatera ; aujourd'hui il se tait.
+  it('les deux scripts E2E qui étaient hors CI y tournent désormais, et publient leur mesure', () => {
+    // Ils existaient, fonctionnaient, et publiaient déjà une preuve MESURÉE — et
+    // aucun workflow ne les exécutait : leur preuve n'existait donc pour
+    // personne. Un contrôle que rien ne lance est un contrôle qui n'existe pas,
+    // et c'est exactement ce que ces deux fichiers ont cessé d'être.
     for (const script of ['scripts/e2e-business.mjs', 'scripts/verify-desktop-app.mjs']) {
       const src = readFileSync(join(root, script), 'utf8');
       assert.match(src, /publishEvidence\(\{/, `${script} doit pouvoir prouver ce qu’il a mesuré`);
       assert.match(src, /count: \S/, `${script} doit publier un compte mesuré, pas seulement une phrase`);
     }
+
+    // Le déclencheur, et pourquoi celui-là : les cycles métier prouvent l'app
+    // DÉPLOYÉE (donc après un deploy réussi, comme le pixel-check PDF), tandis
+    // que la preuve bureau porte sur un BINAIRE — elle reconstruit l'arbre et ne
+    // dépend d'aucun déploiement. Un workflow sans déclencheur qui l'atteint
+    // serait un script de plus que personne ne lance, avec une étape de preuve
+    // décorative.
+    const business = readFileSync(join(root, '.github', 'workflows', 'business-e2e.yml'), 'utf8');
+    assert.match(business, /workflow_run:\s*\r?\n\s*workflows: \["Deploy \(Vercel\)"\]/, 'les cycles métier suivent le déploiement');
+    assert.match(business, /run: node scripts\/e2e-business\.mjs --prod/, 'et visent l’app déployée');
+    const desktop = readFileSync(join(root, '.github', 'workflows', 'desktop-e2e.yml'), 'utf8');
+    assert.match(desktop, /\r?\n\s{2}schedule:/, 'la preuve bureau se rejoue sans qu’on y pense : une dérive de dépendance ne prévient pas');
+    assert.match(desktop, /run: npm run electron:dist/, 'elle reconstruit le binaire qu’elle prouve, sans publier');
+    assert.match(desktop, /runs-on: windows-latest/, 'un binaire Electron Windows se prouve sur Windows');
+    assert.doesNotMatch(desktop, /--publish always|release:publish/, 'ce workflow ne publie RIEN : il prouve');
     // Et le silence est celui du MODULE, pas une convention : hors mandat, il
     // n'imprime aucune annotation (le détail de la raison est testé plus haut).
     const calls: string[] = [];

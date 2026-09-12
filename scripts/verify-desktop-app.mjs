@@ -20,9 +20,33 @@ const SERVICE_KEY = get('SUPABASE_SERVICE_ROLE_KEY');
 const BASE = (get('VITE_SUPABASE_URL') || '').replace(/\/$/, '');
 const HDR = { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, 'Content-Type': 'application/json' };
 
-// Default: the packaged portable exe. Override with DESKTOP_EXE to prove the
-// same flow on the NSIS-INSTALLED app (installer smoke test) or any build.
-const EXE = process.env.DESKTOP_EXE || join(process.cwd(), 'release', 'MamaTheraFinance-1.0.0-portable.exe');
+// Default: the packaged portable exe **of this package's version**. Override
+// with DESKTOP_EXE to prove the same flow on the NSIS-INSTALLED app (installer
+// smoke test) or on any specific build.
+//
+// Le numéro était écrit en dur (« -1.0.0- »), et c'est un faux vert en
+// puissance : le dossier `release/` accumule les installeurs de toutes les
+// versions, donc le jour où une 1.0.0 y traînait encore, ce script prouvait
+// **un binaire d'une autre version** en croyant prouver la courante — et il ne
+// pouvait plus rien prouver du tout dès que la 1.0.0 était nettoyée. Le défaut
+// vient donc du paquet, et un binaire absent est un échec NOMMÉ, pas un
+// « lancement réussi » sur autre chose.
+const PACKAGE_VERSION = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')).version;
+const EXE =
+  process.env.DESKTOP_EXE ||
+  join(process.cwd(), 'release', `MamaTheraFinance-${PACKAGE_VERSION}-portable.exe`);
+if (!existsSync(EXE)) {
+  const seen = existsSync(join(process.cwd(), 'release'))
+    ? readdirSync(join(process.cwd(), 'release')).filter((f) => /-portable\.exe$/.test(f))
+    : [];
+  console.error(`❌ binaire à prouver introuvable : ${EXE}`);
+  console.error(
+    `   attendu : le portable de la version ${PACKAGE_VERSION} du paquet (celui que ce run doit prouver).`,
+  );
+  console.error(`   présents dans release/ : ${seen.length ? seen.join(', ') : '(aucun)'}`);
+  console.error('   → produis-le (`npm run electron:dist`), ou pose DESKTOP_EXE pour viser un autre binaire.');
+  process.exit(1);
+}
 const DL_DIR = join(tmpdir(), `electron-proof-dl-${Date.now()}`);
 // Electron userData dir (portable = same Roaming dir as the installed app) —
 // wiped before launch so every run proves the login from a clean state, and
@@ -259,7 +283,16 @@ try {
   const full = join(DL_DIR, pdfPath);
   const head = Buffer.from(readFileSync(full)).subarray(0, 5).toString();
   const ok = head === '%PDF-';
-  console.log(ok ? `✅ PDF TÉLÉCHARGÉ: ${pdfPath} (${statSync(full).size} octets, signature ${head})` : `❌ fichier non-PDF: ${head}`);
+  // La MESURE est prise ici, pas au moment de la publier.
+  //
+  // Payé une fois : ce script publiait `statSync(full).size` dans sa preuve,
+  // c'est-à-dire APRÈS avoir supprimé le dossier de téléchargement — donc la
+  // preuve détruisait sa propre mesure et finissait en `ENOENT` sur un run qui
+  // avait pourtant tout réussi (PDF de 102 383 octets, les deux lignes de démo
+  // supprimées). Un contrôle dont le nettoyage s'exécute avant la mesure ne peut
+  // pas être vert : la taille est donc lue au seul moment où le fichier existe.
+  const size = statSync(full).size;
+  console.log(ok ? `✅ PDF TÉLÉCHARGÉ: ${pdfPath} (${size} octets, signature ${head})` : `❌ fichier non-PDF: ${head}`);
 
   // ── cleanup ─────────────────────────────────────────────────────────────
   // Graceful close over CDP (terminates the app for real — disconnect() only
@@ -284,7 +317,7 @@ try {
     publishEvidence({
       acted: true,
       count: 2,
-      reason: `preuve bureau : PDF reçu de l'app empaquetée (${pdfPath}, ${statSync(full).size} octets, signature ${head}) et les 2 lignes de démo (employé + compte) supprimées`,
+      reason: `preuve bureau : PDF reçu de l'app empaquetée (${pdfPath}, ${size} octets, signature ${head}) et les 2 lignes de démo (employé + compte) supprimées`,
     });
   }
   console.log(ok ? '\nPROOF_OK' : '\nPROOF_FAIL');

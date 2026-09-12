@@ -1,0 +1,159 @@
+name: Business E2E — cycles métier après déploiement
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POURQUOI CE WORKFLOW EXISTE
+#
+# `scripts/e2e-business.mjs` pilote l'application DÉPLOYÉE à travers ses deux
+# cycles métier complets et vérifie la persistance dans la base :
+#   A. élève → création → paiement → `amount_paid` mis à jour (totaux) ;
+#   B. parent → employé → salaire → dépense fournisseur → chaque ligne + son
+#      montant vérifiés en base.
+#
+# Il existait, il fonctionnait, il publiait même une preuve mesurée — et aucun
+# workflow ne l'exécutait. Un contrôle que personne ne lance est un contrôle qui
+# n'existe pas : sa preuve restait vide de substance parce qu'elle n'était jamais
+# publiée. Ce workflow est ce qui le fait tourner.
+#
+# Trigger : à la FIN d'un déploiement Vercel réussi (comme le pixel-check PDF).
+# La preuve porte donc toujours sur le code fraîchement publié, jamais sur un
+# build intermédiaire ; un deploy rouge ou annulé → skip neutre, pas de rouge
+# parasite.
+#
+# CE QUE LE RUN ÉCRIT, ET POURQUOI CE N'EST PAS UN RISQUE NOUVEAU
+#   • les écritures portent des identifiants uniques et visiblement de test, et
+#     sont nettoyées au DÉMARRAGE comme à la FIN — le pixel-check PDF écrit et
+#     supprime déjà dans la même base, après chaque déploiement ;
+#   • le script ÉCHOUE si la base n'est pas revenue vierge (il compte les lignes
+#     des sept tables touchées et exige zéro) : un résidu est un rouge ici, pas
+#     une découverte au run suivant ;
+#   • la garde finale ci-dessous vérifie qu'aucun compte éphémère ne subsiste,
+#     `if: always()` — c'est justement quand la chaîne casse au milieu qu'un
+#     compte reste en base.
+#
+# Secrets requis (Settings → Secrets and variables → Actions) :
+#   SUPABASE_SERVICE_ROLE_KEY — clé service du projet Supabase (création,
+#     vérification et suppression des lignes de test). Jamais exposée : passée
+#     au script via un `.env` généré dans le job, effacé avec le runner.
+#   VITE_SUPABASE_URL est PUBLIQUE (embarquée dans le bundle client) et est
+#     donc écrite en clair, comme dans les autres workflows.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_run:
+    workflows: ["Deploy (Vercel)"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: business-e2e-${{ github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read # lire la conclusion du run deploy
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      proceed: ${{ steps.deploy-gate.outputs.proceed }}
+    steps:
+      - name: Gate — cycles métier seulement si le deploy a réussi
+        id: deploy-gate
+        uses: actions/github-script@v9
+        with:
+          script: |
+            core.setOutput('proceed', 'false');
+            if (context.eventName !== 'workflow_run') {
+              console.log('Manual dispatch — vérification manuelle contre la prod.');
+              core.setOutput('proceed', 'true');
+              return;
+            }
+            const run = context.payload.workflow_run;
+            console.log(`Deploy workflow concluded '${run.conclusion}' on ${run.head_sha}.`);
+            if (run.conclusion !== 'success') {
+              console.log(`Deploy non réussi (${run.conclusion}) — rien à prouver sur l'app déployée, skip neutre.`);
+              return;
+            }
+            core.setOutput('proceed', 'true');
+
+  e2e:
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    # Headroom : `npm ci` + Chrome piloté sur deux cycles métier complets
+    # (formulaires, attentes de persistance, vérifications en base). Le
+    # pixel-check PDF en consomme 20 min pour trois documents ; 25 min est le
+    # même ordre de grandeur.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Le script lit `.env` (VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY) ;
+      # l'URL est publique, seule la clé service est un secret. Le fichier est
+      # généré dans le job, n'est jamais commité (gitignored) et disparaît avec
+      # le runner.
+      - name: Generate .env for the E2E script (public URL + service-role secret)
+        run: |
+          cat > .env <<'EOF'
+          VITE_SUPABASE_URL=https://rpcjdohfxwukbqngbprw.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          EOF
+
+      # Un déploiement Vercel qui vient de finir n'est pas encore forcément
+      # joignable : la vérification porte sur l'app DÉPLOYÉE, donc on attend un
+      # HTTP 200 avant de piloter quoi que ce soit — sinon on prouverait un 404.
+      - name: Wait for the fresh deployment to be live
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://mama-thera-finance.vercel.app/ || true)
+            if [ "$code" = "200" ]; then echo "prod en ligne (HTTP 200, essai $i)"; exit 0; fi
+            echo "attente du déploiement… HTTP $code (essai $i/30)"
+            sleep 5
+          done
+          echo "prod pas en ligne après 150s — abandon" >&2
+          exit 1
+
+      - name: Cycles métier E2E — élève/paiement, parent/salaire/dépense
+        # Mandat de preuve : l'étape qui exécute le script lui donne le droit de
+        # parler au nom de ce job, et ce qu'il publie est SA mesure — le nombre
+        # de vérifications passées et l'état vierge de la base après nettoyage.
+        # Hors mandat, le script se tait (une suite de tests qui l'importe ne
+        # doit pas déposer une preuve dans le journal d'un autre job).
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+          AUTOMATION_EVIDENCE: '1'
+        run: node scripts/e2e-business.mjs --prod
+
+      # Garde finale anti-résidus, en DERNIER et toujours exécutée : un cycle
+      # métier interrompu au milieu est exactement le cas qui laisse un compte
+      # éphémère derrière lui. Elle publie sa propre mesure (enregistrements
+      # parcourus en base) sous le mandat de son étape.
+      - name: Vérification finale — aucun compte éphémère résiduel en base
+        if: always()
+        env:
+          AUTOMATION_EVIDENCE: '1'
+        run: node scripts/verify-ephemeral-cleanup.mjs
+
+      # Preuve publiée par l'étape NOMMÉE (lue dans les étapes du run par
+      # `npm run check:automations`), et publiée en DERNIER : elle affirme que la
+      # chaîne est allée au bout. La SUBSTANCE vient des scripts ci-dessus — cette
+      # étape ne fait que dire que l'enchaînement (attente du déploiement, deux
+      # cycles, garde finale) a bien eu lieu dans cet ordre.
+      - name: Publier la preuve d’action — cycles métier E2E
+        if: success()
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "cycles métier E2E allés au bout contre la prod déployée : élève → paiement → totaux, parent → salaire → dépense, base revenue vierge, aucun compte éphémère résiduel — la mesure est publiée par scripts/e2e-business.mjs"

@@ -1,3 +1,40 @@
+## [2026-09-13] Deux preuves E2E qui ne tournaient nulle part tournent, et se mesurent
+
+Demande : « fais tourner e2e-business.mjs et verify-desktop-app.mjs dans un workflow, pour qu'ils publient enfin leur mesure au lieu de la garder pour eux ».
+
+**Le défaut n'était pas dans les scripts : il était dans le fait que personne ne les lançait.** Tous deux publiaient déjà une preuve **mesurée** — le nombre de vérifications métier passées, le PDF reçu par le binaire — et aucun workflow ne les exécutait. Leur preuve n'existait donc pour personne, et l'audit des automatisations les voyait muets à juste titre : un contrôle que rien ne lance est un contrôle qui n'existe pas. Deux workflows, chacun avec le déclencheur qui correspond à ce qu'il prouve :
+
+```
+business-e2e.yml   fin d'un déploiement Vercel réussi (gate : un deploy rouge = skip neutre) + manuel
+                   les deux cycles métier complets contre l'app DÉPLOYÉE, virginité de la base exigée
+desktop-e2e.yml    hebdomadaire + manuel, windows-latest
+                   build de l'arbre (electron:dist, SANS publication) puis preuve sur le BINAIRE
+```
+
+**Les brancher a révélé trois vrais défauts — et c'est le meilleur argument pour les brancher.**
+
+1. **La preuve bureau détruisait sa propre mesure.** Le script supprimait le dossier de téléchargement, *puis* lisait `statSync(pdf).size` pour composer sa preuve : un run parfaitement réussi finissait en `ENOENT` (PDF de 102 382 octets, deux lignes de démo pourtant supprimées, `PROOF_OK` jamais atteint). La taille est lue maintenant au seul moment où le fichier existe — un contrôle dont le nettoyage s'exécute avant la mesure ne peut pas être vert.
+2. **La preuve pouvait porter sur un binaire d'une AUTRE version.** Le chemin par défaut contenait « `-1.0.0-` » en dur, or `release/` accumule les installeurs de toutes les versions : le jour où une 1.0.0 y traînait encore, la preuve aurait prouvé ce binaire-là — et plus rien du tout dès qu'il était nettoyé. Le défaut vient désormais du `package.json`, et un artefact absent est un **échec nommé** qui dit ce qu'il cherchait et ce qu'il a trouvé.
+3. **Les cycles métier échouaient 5/7 sur l'app réelle**, pour trois causes indépendantes, chacune **invisible sans exécution** :
+   - les **placeholders viennent des traductions** (`ex.` en français, `e.g.` en anglais) : les chercher par leur texte exact liait le contrôle à la langue de l'interface — le run échouait sur « e.g. Mamadou Traoré » pendant que l'app servait « ex. Mamadou Traoré ». On cherche une **racine** présente dans les deux langues, et c'est le sélecteur qui désigne l'élément ;
+   - le champ « identifiant unique » d'un élève n'est **rendu que pour une classe de 9e année** (`isNinthGradeClass`), alors que le cycle crée une classe personnalisée : l'attendre 8 s faisait échouer le cycle sur un rendu conditionnel que le script ne pouvait pas déclencher. Il est désormais optionnel, et l'identité de l'élève de démo est portée par son **nom** (unique au run) — ce qui a aussi corrigé le **nettoyage**, qui ne cherchait que par `student_id` et aurait laissé la ligne en base ;
+   - la page Dépenses porte **deux actions au libellé identique dans les deux langues** (« Ajouter une Dépense » / « Add Expense ») : l'une ouvre `expenses`, l'autre `vendor_expenses`. Cliquer « au texte » ouvrait la mauvaise, donc la vérification portait sur une table que le clic n'alimentait pas. Essayer les boutons candidats ne marchait pas non plus : les onglets eux-mêmes sont candidats, donc la boucle rebasculait sur l'autre onglet et défaisait ce qu'elle venait de faire (mesuré : 4 candidats, le dernier ouvrant le modal *général*). Le modal est maintenant ouvert **par sa section** — l'en-tête de la branche rendue porte le libellé de son onglet — et chaque échec possible est **nommé** (onglet, branche, bouton, droit) au lieu d'un `false` muet.
+
+**Mesuré sur le vrai monde, pas en unité :**
+
+```
+cycles métier   19/19 vérifications · base revenue vierge (7 tables à zéro) · exit 0
+                → preuve publiée : count 19 (élève→paiement→totaux, parent→salaire→dépense)
+preuve bureau   PDF reçu du portable : Fiche_Paie_PreuveBureau_29998_2026-09.pdf
+                102 382 octets · signature %PDF- · 2 lignes de démo supprimées → PROOF_OK
+                → preuve publiée : count 2
+suite complète  1320/1320 tests · npm run lint vert de bout en bout
+```
+
+**Le nettoyage a été resserré au passage.** `e2e-business.mjs` écrivait le chemin de son profil Chrome en dur (`C:/Users/user/AppData/Local/Temp`) — sur un runner Linux ce n'est pas un chemin absolu, donc le profil se créait **dans le checkout** ; `tmpdir()` dit la même chose sur les deux plateformes. Et le champ optionnel ci-dessus laissait l'élève de démo hors de portée du nettoyage : les deux clés (identifiant **et** nom) sont maintenant interrogées, en union.
+
+**Trois choses franchement.** Les cycles métier écrivent dans la base de **production** de l'école : c'est la seule cible à laquelle la CI sache s'authentifier (aucun secret de recette n'existe dans Actions), le script nettoie et **échoue si la base n'est pas vierge**, et le garde anti-résidus tourne `if: always()` — mais un secret `SUPABASE_SERVICE_ROLE_KEY_STAGING` les ferait tourner sur le projet de recette, qui est là pour ça. La preuve bureau porte sur le **portable du build**, pas sur l'installation NSIS : installer, SmartScreen et la reprise de mise à jour demandent encore une vraie machine. Et les **deux libellés identiques** de la page Dépenses ne sont pas qu'un problème de test : dans l'interface française, un comptable voit deux boutons nommés « Ajouter une Dépense » qui écrivent dans deux tables différentes — le contrôle les distingue par la section, l'utilisateur, lui, n'a que ses yeux.
+
 ## [2026-09-13] Le release est ouvert par le publieur, plus par electron-builder
 
 Demande : « remplace le brouillon puis promotion d'electron-builder par un publieur qui téléverse lui-même les octets vérifiés, pour que le piège des deux brouillons disparaisse par construction ».
