@@ -55,11 +55,54 @@ export async function retryWithBackoff<T>(
   throw lastError;
 }
 
+/**
+ * A rejected TOKEN, as opposed to a refused request.
+ *
+ * PostgREST answers `PGRST300` (« a JWT secret is missing from the
+ * configuration ») / `PGRST301` (« provided JWT couldn't be decoded ») when it
+ * cannot verify the token, and GoTrue says `JWT issued at future` when the
+ * machine that signed in has a clock ahead of the server. All three mean the
+ * same thing to the app: the token that went out is not usable *right now* — the
+ * client refreshes it in the background, and a clock-skewed PC gets a fresh one
+ * on the next attempt. That is why the login-screen banner used to appear once,
+ * in red, and vanish when the user pressed « Réessayer » (measured: the E2E
+ * scripts drive the packaged desktop app and had to click that button in a loop).
+ *
+ * A wrong key or a real permission refusal (`42501`) is NOT this: retrying it
+ * would only delay the same verdict.
+ *
+ * @param message the raw error text, as Supabase wrote it
+ * @returns true when the failure is a token that needs (and gets) a refresh
+ */
+export function isAuthTokenError(message: string): boolean {
+  const text = String(message ?? '');
+  // No "does it mention a token?" pre-filter: the wording that matters most,
+  // `PGRST301: JWSError JWSInvalidSignature`, names the token NOWHERE — it says
+  // JWS. That gate made the first version of this classifier answer `false` for
+  // the very case it was written for, which is exactly how the red banner would
+  // have survived the fix.
+  return (
+    // PostgREST: JWT secret missing / JWT undecodable / request without the key.
+    /PGRST30[0-2]/i.test(text) ||
+    // The JOSE/JWT family, including GoTrue's `JWT issued at future` and
+    // JSWS (a signature that does not verify, which is what a revoked secret or
+    // a half-refreshed token looks like from here).
+    /\bjwt\b|\bjws[a-z]*\b/i.test(text) ||
+    /\bissued at future\b/i.test(text) ||
+    // A bearer token that the server considers past its expiry.
+    /\b(?:token|jwt)\b[^.]{0,40}?\bexpired\b|\bexpired\b[^.]{0,40}?\b(?:token|jwt)\b/i.test(text)
+  );
+}
+
 function isRetryableError(error: unknown): boolean {
   if (!navigator.onLine) return true;
 
   if (error instanceof TypeError && error.message.includes('fetch')) return true;
   if (error instanceof TypeError && error.message.includes('network')) return true;
+
+  // A rejected token is transient by nature (see isAuthTokenError): retry is
+  // what turns the old one-shot red banner into a silent, successful load.
+  if (isAuthTokenError(error instanceof Error ? error.message : String(error ?? ''))) return true;
 
   // Supabase/PostgREST errors
   if (error && typeof error === 'object' && 'status' in error) {
@@ -129,6 +172,24 @@ export function formatSupabaseError(
   const msg = typeof error === 'string' ? error : (error.message || '');
   const code = typeof error === 'string' ? '' : (error.code || '');
   const status = typeof error === 'string' ? 0 : (error.status || 0);
+
+  // Token rejected FIRST: `jwt secret` / `JWT issued at future` is not a
+  // connectivity problem, and the network branch below would swallow it (its
+  // own wording is the generic « vérifiez votre connexion », which sends the
+  // user to the wrong remedy on a machine whose clock is simply off).
+  //
+  // Token rejected (JWT secret / undecodable JWT / clock skew) — the one case
+  // where the user can actually do something about it on the machine.
+  if (isAuthTokenError(msg)) {
+    return {
+      title: lang === 'en' ? 'Session Token Rejected' : 'Jeton de session refusé',
+      message:
+        lang === 'en'
+          ? `The server did not accept the session token. The retry is automatic; if it persists, check this PC's date and time — a clock that is off makes every freshly issued token look invalid. (${msg})`
+          : `Le serveur n'a pas accepté le jeton de session. La nouvelle tentative est automatique ; si cela persiste, vérifiez la date et l'heure de ce PC — une horloge décalée fait paraître invalide tout jeton fraîchement émis. (${msg})`,
+      isRetryable: true,
+    };
+  }
 
   // Network / connectivity errors
   if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed to fetch') || !navigator.onLine) {

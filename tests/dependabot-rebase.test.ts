@@ -13,9 +13,12 @@
 //      a bug that would look GREEN.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+
+import { INERT_MARK } from '../scripts/lib/automation-evidence.mjs';
 
 const { eligibility, isBehind, rebaseOutOfDatePrs } = await import('../scripts/rebase-dependabot-prs.mjs');
 
@@ -228,5 +231,39 @@ describe('câblage du workflow Dependabot rebase', () => {
   it('lance bien le script, et prouve le majeur Node exécuté', () => {
     assert.match(workflow, /node scripts\/rebase-dependabot-prs\.mjs/);
     assert.match(workflow, /node scripts\/check-node-version\.mjs/);
+  });
+});
+
+// Le module ci-dessus est importé par cette suite même : `main()` y tournait donc
+// à l'import, et sans token il IMPRIMAIT la déclaration d'inaction dans le
+// journal du job de tests. Or `npm run check:automations` relit ce journal pour
+// savoir si une automatisation a agi — il lisait donc la déclaration de
+// Dependabot dans le log de `Quality & performance guard` et déclarait CELUI-CI
+// « vert sans avoir agi ». Un audit qui fabrique lui-même sa preuve est pire
+// qu'inutile. Ces deux cas tiennent les deux moitiés du contrat : importer est
+// silencieux, exécuter déclare.
+describe('entrée — importer est silencieux, exécuter déclare', () => {
+  /** Le script tel qu'un shell le lancerait, sans token, hors de ce processus. */
+  const runNode = (args: string[]) =>
+    execFileSync(process.execPath, args, {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, REBASE_TOKEN: '' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+  it('importer le module n’imprime AUCUNE déclaration d’inaction', () => {
+    const out = runNode(['-e', "import('./scripts/rebase-dependabot-prs.mjs').then(() => {})"]);
+    assert.equal(
+      out.includes(INERT_MARK),
+      false,
+      `importer doit être inerte, or la marque a été imprimée : ${out.slice(0, 200)}`,
+    );
+  });
+
+  it('exécuté sans token, il déclare son inaction (la déclaration existe toujours)', () => {
+    const out = runNode(['scripts/rebase-dependabot-prs.mjs']);
+    assert.ok(out.includes(INERT_MARK), `sans token, l’inaction doit être déclarée : ${out.slice(0, 200)}`);
+    assert.match(out, /DEPENDABOT_REBASE_TOKEN/);
   });
 });

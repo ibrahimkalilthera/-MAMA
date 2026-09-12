@@ -10,7 +10,7 @@ import { mapExpenseRow, mapVendorExpenseRow, createTempId } from '../rowMappers'
 import { logAuditEvent } from '../auditLogger';
 
 export function createExpenseOps(ctx: SupabaseDataCtx) {
-  const { vendorExpenses, setExpenses, setVendorExpenses, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
+  const { vendorExpenses, expenses, setExpenses, setVendorExpenses, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
 
   const addExpense = async (exp: Omit<Expense, 'id'>): Promise<Expense | null> => {
     if (isOffline()) {
@@ -120,6 +120,27 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     return true;
   };
 
+  const deleteExpense = async (id: string): Promise<boolean> => {
+    if (isOffline()) {
+      setExpenses(prev => prev.filter(e => e.id !== id));
+      enqueueOffline('deleteExpense', { id });
+      notifySuccess('deleteExpense');
+      return true;
+    }
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    if (error) { console.error('deleteExpense error:', error.message); notifyError('deleteExpense', error.message); return false; }
+    const deleted = expenses.find(e => e.id === id);
+    void logAuditEvent({
+      action: 'DELETE_EXPENSE',
+      targetType: 'expense',
+      targetId: id,
+      details: deleted ? `${deleted.description} (${deleted.category}) — ${deleted.amount} FCFA` : id,
+    });
+    setExpenses(prev => prev.filter(e => e.id !== id));
+    notifySuccess('deleteExpense');
+    return true;
+  };
+
   const deleteVendorExpense = async (id: string): Promise<boolean> => {
     if (isOffline()) {
       setVendorExpenses(prev => prev.filter(v => v.id !== id));
@@ -141,5 +162,5 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     return true;
   };
 
-  return { addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense };
+  return { addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense };
 }

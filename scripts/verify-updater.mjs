@@ -92,31 +92,58 @@ try {
   }
 
   app = spawn(EXE, [`--user-data-dir=${USER_DATA}`], {
-    env: { ...process.env, UPDATER_FEED_URL: `http://127.0.0.1:${PORT}/`, UPDATER_LOG_FILE: LOG_FILE },
+    env: {
+      ...process.env,
+      UPDATER_FEED_URL: `http://127.0.0.1:${PORT}/`,
+      UPDATER_LOG_FILE: LOG_FILE,
+      // L'application reste OUVERTE quelques secondes de plus que l'intervalle :
+      // on prouve ainsi ce qui manquait aux postes d'école — une version
+      // publiée pendant que l'application tourne est revue, et non seulement
+      // cinq secondes après le démarrage. Sans ce réglage, il faudrait attendre
+      // les 30 minutes de production.
+      UPDATER_CHECK_INTERVAL_MS: '6000',
+      UPDATER_FOCUS_COOLDOWN_MS: '1',
+    },
     stdio: 'ignore',
   });
   console.log('🚀 exe empaqueté lancé (win-unpacked, profil isolé)…');
 
+  // `seen` garde l'ORDRE et les DOUBLONS : c'est le nombre de vérifications qui
+  // prouve la reprise périodique, donc on ne déduplique plus les événements.
   const seen = [];
   let downloaded = false;
   for (let i = 0; i < 90 && !downloaded; i++) {
     await wait(1000);
     if (!existsSync(LOG_FILE)) continue;
     const lines = readFileSync(LOG_FILE, 'utf8').split('\n').filter(Boolean);
-    for (const l of lines) {
-      const msg = l.replace(/^\S+\s+/, '');
-      if (!seen.includes(msg)) {
-        seen.push(msg);
-        console.log(`  [updater] ${msg}`);
-      }
+    const messages = lines.map((l) => l.replace(/^\S+\s+/, ''));
+    for (const msg of messages.slice(seen.length)) {
+      seen.push(msg);
+      console.log(`  [updater] ${msg}`);
     }
     downloaded = seen.some((m) => m.startsWith('update-downloaded'));
   }
 
+  // L'application est laissée ouverte ~15 s après le téléchargement pour
+  // observer AU MOINS une vérification supplémentaire : c'est la propriété qui
+  // manquait (« une version publiée pendant que l'app tourne doit être vue »).
+  await wait(15000);
+  if (existsSync(LOG_FILE)) {
+    const late = readFileSync(LOG_FILE, 'utf8').split('\n').filter(Boolean).map((l) => l.replace(/^\S+\s+/, ''));
+    for (const msg of late.slice(seen.length)) {
+      seen.push(msg);
+      console.log(`  [updater] ${msg}`);
+    }
+  }
+  const checks = seen.filter((m) => m.startsWith('checking-for-update')).length;
+  const rechecked = checks >= 2;
+  console.log(rechecked ? `✅ ${checks} vérifications pendant la MÊME session (reprise périodique)` : `❌ ${checks} vérification(s) — l'app ouverte ne revoit rien passer`);
+
   const ok = downloaded && seen.some((m) => m.startsWith('update-available')) &&
     seen.some((m) => m.startsWith('checking-for-update')) &&
-    seen.some((m) => m.startsWith('download-progress'));
-  console.log(ok ? `\n✅ chaîne complète vérifiée: checking → available ${FAKE_VERSION} → progress → downloaded` : '\n❌ chaîne incomplète');
+    seen.some((m) => m.startsWith('download-progress')) &&
+    rechecked;
+  console.log(ok ? `\n✅ chaîne complète vérifiée: checking → available ${FAKE_VERSION} → progress → downloaded (+ ${checks} vérifications)` : '\n❌ chaîne incomplète');
   console.log(ok ? 'PROOF_OK' : 'PROOF_FAIL');
   process.exitCode = ok ? 0 : 1;
 } catch (e) {
