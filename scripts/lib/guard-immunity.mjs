@@ -114,7 +114,7 @@ export const GUARD_INVENTORY = [
     input: 'logs',
     needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.STORED_FIELDS, IMMUNITY.SUBJECT_IDENTIFIED],
     via: 'automation-evidence.mjs',
-    exempt: { [IMMUNITY.PROSE_BLIND]: 'il ne lit pas de code source, il lit des journaux de runs' },
+    exempt: { [IMMUNITY.PROSE_BLIND]: 'il ne lit pas de code source, il lit les annotations d’un run' },
   },
   {
     check: 'check-audit.mjs',
