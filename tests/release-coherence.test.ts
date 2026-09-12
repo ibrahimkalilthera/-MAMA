@@ -25,12 +25,15 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 
+import { EVIDENCE_STEP_NAME } from '../scripts/lib/automation-evidence.mjs';
 import {
   assetsToPublish,
   compareLatest,
   compareRelease,
   nameCarriesVersion,
+  parseHoldsFile,
   parseLatestYml,
+  pickLatestPublished,
   publishDecision,
   releaseTag,
 } from '../scripts/lib/release-coherence.mjs';
@@ -424,5 +427,99 @@ describe('le câblage du contrôle', () => {
     const source = read('scripts/check-release-coherence.mjs');
     assert.match(source, /if \(MODE === 'local'\)[\s\S]*process\.exit\(0\)/, 'le mode local rend son verdict avant tout appel réseau');
     assert.match(source, /un dépôt qu'on ne peut pas interroger n'est pas un feu vert/, 'une panne de l’API est un échec, jamais un vert');
+  });
+});
+
+describe('le frein d’urgence, tel qu’un poste le lit', () => {
+  // Le frein est le SEUL mécanisme qui permet de retenir une version
+  // défectueuse avant qu’elle n’atteigne tout le monde. Sa panne est silencieuse
+  // par construction : un fichier illisible ne retient rien, la mise à jour reste
+  // seulement proposée, et personne ne l’apprend. D’où ces refus — un frein qui
+  // ne freine pas est pire qu’aucun frein, parce qu’on compte dessus.
+  const file = (holds: unknown[]) => JSON.stringify({ _doc: ['FREIN D’URGENCE'], holds });
+
+  it('accepte le frein au repos, et nomme les retenues', () => {
+    const empty = parseHoldsFile(file([]));
+    assert.equal(empty.ok, true);
+    assert.deepEqual(empty.holds, []);
+    const held = parseHoldsFile(file([{ version: '1.0.4', reason: 'plantage au démarrage' }]));
+    assert.equal(held.ok, true);
+    assert.deepEqual(held.holds, ['1.0.4']);
+    assert.deepEqual(held.entries, [{ version: '1.0.4', reason: 'plantage au démarrage' }]);
+  });
+
+  it('refuse un frein illisible — c’est la façon silencieuse de ne plus retenir', () => {
+    for (const broken of ['', '   ', 'pas du json', '[]', 'null', '{"_doc":["x"]}', '{"holds":"1.0.4"}']) {
+      const verdict = parseHoldsFile(broken);
+      assert.equal(verdict.ok, false, `« ${broken} » doit être refusé`);
+      assert.ok(verdict.problems.length > 0, `« ${broken} » doit dire POURQUOI`);
+    }
+  });
+
+  it('refuse une retenue qui ne nomme rien, ou qui nomme ce qui n’est pas un numéro', () => {
+    const noVersion = parseHoldsFile(file([{ reason: 'oublie la version' }]));
+    assert.equal(noVersion.ok, false);
+    assert.match(noVersion.problems.join(' '), /ne nomme AUCUNE version/);
+    const notAVersion = parseHoldsFile(file([{ version: 'dernière' }]));
+    assert.equal(notAVersion.ok, false);
+    assert.match(notAVersion.problems.join(' '), /jamais à un release/);
+    const notAnObject = parseHoldsFile(file(['1.0.4']));
+    assert.equal(notAnObject.ok, false);
+  });
+
+  it('NOMME un motif absent au lieu de le refuser : le frein tient quand même', () => {
+    const verdict = parseHoldsFile(file([{ version: '1.0.4' }]));
+    assert.equal(verdict.ok, true, 'un motif manquant n’empêche pas la retenue de mordre');
+    assert.deepEqual(verdict.holds, ['1.0.4']);
+    assert.match(verdict.warnings.join(' '), /sans motif/);
+  });
+
+  it('le frein du dépôt est lisible, et au repos', () => {
+    const verdict = parseHoldsFile(read('updates/holds.json'));
+    assert.equal(verdict.ok, true, verdict.problems.join(' · '));
+    assert.equal(verdict.entries.length, 0, 'au repos, aucune version n’est retenue');
+  });
+});
+
+describe('le canal tel que la CI doit le voir', () => {
+  const rel = (tag: string, draft: boolean, when: string, created = when) => ({
+    tag_name: tag,
+    draft,
+    published_at: when,
+    created_at: created,
+  });
+
+  it('prend le release PUBLIÉ le plus récent — un brouillon n’est vu par aucun poste', () => {
+    const picked = pickLatestPublished([
+      rel('v1.0.9', true, '2026-09-13T00:00:00Z'),
+      rel('v1.0.4', false, '2026-09-12T21:00:00Z'),
+      rel('v1.0.3', false, '2026-09-12T19:00:00Z'),
+    ]);
+    assert.equal(picked?.tag_name, 'v1.0.4');
+  });
+
+  it('rend null quand rien n’est publié — le canal est muet', () => {
+    assert.equal(pickLatestPublished([]), null);
+    assert.equal(pickLatestPublished([rel('v2.0.0', true, '2026-09-13T00:00:00Z')]), null);
+  });
+
+  it('le câblage : le canal est vérifié SANS jeton, et tous les jours', () => {
+    const pkg = JSON.parse(read('package.json'));
+    assert.equal(pkg.scripts['check:release:channel'], 'node scripts/check-release-coherence.mjs --channel');
+    const workflow = read('.github/workflows/release-channel-watch.yml');
+    assert.match(workflow, /npm run check:release:channel/, 'le workflow appelle le script par son nom');
+    assert.match(workflow, /\r?\n\s*schedule:/, 'un canal se casse sans commit : le cron est le vrai déclencheur');
+    assert.doesNotMatch(workflow, /secrets\./, 'aucun secret : le canal est lu comme un poste le lit');
+    assert.match(workflow, /AUTOMATION_EVIDENCE: '1'/);
+    assert.ok(workflow.includes(EVIDENCE_STEP_NAME), 'l’étape de preuve porte le nom que l’audit lit');
+    assert.match(workflow, /publish-automation-evidence\.mjs/);
+  });
+
+  it('le mode channel refuse le jeton de l’environnement, et lit le frein où un poste le lit', () => {
+    const source = read('scripts/check-release-coherence.mjs');
+    assert.match(source, /const useToken = MODE !== 'channel'/, 'un canal relu authentifié n’est pas prouvé pour un poste');
+    assert.match(source, /raw\.githubusercontent\.com\/\$\{repo\}\/\$\{branch\}\/updates\/holds\.json/);
+    assert.match(source, /const branch = args\.find/, '--branch permet de vérifier une branche, et de PROUVER le rouge');
+    assert.match(source, /canal cassé/, 'un canal cassé doit rendre un rouge nommé');
   });
 });

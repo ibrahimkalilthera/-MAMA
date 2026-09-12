@@ -402,6 +402,7 @@ describe('le dépôt — chaque automatisation promet une preuve, et la MESURE',
     ['scripts/verify-csp-guard.mjs', 'pdf-e2e.yml', 'verify-csp-guard.mjs'],
     ['scripts/verify-pdf-download.mjs', 'pdf-e2e.yml', 'verify-pdf-download.mjs'],
     ['scripts/check-automations.mjs', 'automation-audit.yml', 'check:automations'],
+    ['scripts/check-release-coherence.mjs', 'release-channel-watch.yml', 'check:release:channel'],
   ];
 
   it('chaque producteur de la chaîne E2E publie un COMPTE, pas une phrase', () => {

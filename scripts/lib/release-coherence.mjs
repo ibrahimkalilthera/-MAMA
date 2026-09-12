@@ -20,9 +20,17 @@
 // vérifier la cohérence, c'est recalculer ces octets — pas relire les mêmes
 // trois fichiers en espérant qu'ils se contredisent.
 //
+// Et parce que ces trois cas se réparent DIFFÉREMMENT, le module porte aussi le
+// verdict du CANAL tel qu'un poste le voit : quel release est le plus récent
+// parmi ceux qui sont publiés (`pickLatestPublished` — un brouillon est
+// invisible, donc « le plus récent » n'est pas « le plus récent tag »), et le
+// frein d'urgence est-il LISIBLE (`parseHoldsFile`) — un frein illisible ne
+// freine rien, en silence.
+//
 // Il est pur : les faits (contenu du yml, taille et empreinte des fichiers
-// présents, état du release distant) arrivent en paramètres. La partie qui lit
-// un disque ou un dépôt vit dans le CLI, et la décision se teste sans réseau.
+// présents, état du release distant, texte du frein) arrivent en paramètres. La
+// partie qui lit un disque, un dépôt ou une URL vit dans le CLI, et la décision
+// se teste sans réseau.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Le nom du tag d'un release, dérivé de la version — jamais écrit deux fois. */
@@ -307,6 +315,118 @@ export function assetsToPublish({ latest, dirNames = [] } = {}) {
     if (/-portable\.exe$/i.test(name) && nameCarriesVersion(name, latest.version)) push(name);
   }
   return wanted;
+}
+
+/**
+ * Ce qu'on a besoin de savoir d'un release pour décider lequel les postes voient.
+ * @typedef {{ tag_name?: string, draft?: boolean, published_at?: string, created_at?: string }} ReleaseLike
+ */
+
+/**
+ * Le release le plus récent que les POSTES peuvent réellement voir.
+ *
+ * « Le plus récent » n'est pas « le plus récent tag » : un brouillon est
+ * INVISIBLE pour `electron-updater`, donc un brouillon plus récent qu'un release
+ * publié ne change rien pour un poste — c'est même le cas normal d'une
+ * publication en cours. Le tri porte donc sur les releases PUBLIÉS, et sur la
+ * date de publication (celle que le poste voit), pas sur l'ordre de l'API.
+ *
+ * @param {ReleaseLike[]} [releases]
+ * @returns {ReleaseLike|null} null si aucun release n'est publié — le canal est muet
+ */
+export function pickLatestPublished(releases = []) {
+  const list = (Array.isArray(releases) ? releases : []).filter(
+    (r) => r && r.draft !== true && typeof r.tag_name === 'string' && r.tag_name,
+  );
+  if (!list.length) return null;
+  const when = (r) => {
+    const ms = Date.parse(String(r.published_at || r.created_at || ''));
+    return Number.isFinite(ms) ? ms : 0;
+  };
+  return list.slice().sort((a, b) => when(b) - when(a))[0];
+}
+
+/** Un numéro de version plausible — ce qu'une retenue doit nommer pour mordre. */
+const VERSION_LIKE = /^\d+(\.\d+)*$/;
+
+/**
+ * Lire le frein d'urgence (`updates/holds.json`) tel que le POSTE le lit.
+ *
+ * Le frein est le seul mécanisme qui permet de retenir une version défectueuse
+ * avant qu'elle n'atteigne tout le monde — et c'est un fichier que l'application
+ * interroge à CHAQUE vérification de mise à jour. Sa panne est donc
+ * silencieuse par construction : un fichier illisible ne retient rien, la mise
+ * à jour reste seulement PROPOSÉE, et personne ne l'apprend jusqu'au jour où
+ * quelqu'un compte sur le frein qui ne freine pas. C'est exactement la forme du
+ * faux vert que ce dépôt refuse — d'où ce verdict, séparé du reste du canal.
+ *
+ * Ce qui est REFUSÉ (sinon le frein est mort en silence) : un fichier absent ou
+ * vide, un JSON illisible, une racine qui n'est pas un objet, une liste `holds`
+ * absente, une entrée qui ne nomme aucune version — ou qui en nomme une qui ne
+ * peut correspondre à aucun release.
+ *
+ * Ce qui est seulement NOMMÉ : un motif absent (le frein retient quand même —
+ * « c'est le motif qui manque, pas le frein ») et une retenue en double.
+ *
+ * @param {unknown} text
+ * @returns {{ ok: boolean, holds: string[], entries: { version: string, reason: string }[],
+ *   problems: string[], warnings: string[] }}
+ */
+export function parseHoldsFile(text) {
+  const problems = [];
+  const warnings = [];
+  const empty = (why) => ({ ok: false, holds: [], entries: [], problems: [why], warnings });
+  const raw = String(text ?? '').trim();
+  if (!raw) {
+    return empty(
+      'frein illisible : fichier vide ou absent — le frein d’urgence ne retiendrait RIEN alors ' +
+        'qu’un poste croit le contraire',
+    );
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return empty('frein illisible : ce n’est pas du JSON — une version défectueuse ne pourrait pas être retenue');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return empty('frein illisible : la racine n’est pas un objet `{ holds: [...] }`');
+  }
+  if (!Array.isArray(parsed.holds)) {
+    return empty(
+      'frein illisible : la liste `holds` est absente — le fichier ne retiendrait rien, et le poste ' +
+        'le lirait comme « aucune retenue »',
+    );
+  }
+  const entries = [];
+  const seen = new Set();
+  for (const [index, entry] of parsed.holds.entries()) {
+    const where = `holds[${index}]`;
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      problems.push(`${where} n’est pas un objet « { version, reason } » — cette retenue est inerte`);
+      continue;
+    }
+    const version = String(entry.version ?? '').trim();
+    if (!version) {
+      problems.push(`${where} ne nomme AUCUNE version — une retenue qui ne nomme rien ne retient rien`);
+      continue;
+    }
+    if (!VERSION_LIKE.test(version)) {
+      problems.push(
+        `${where} nomme « ${version} », qui n’est pas un numéro de version — cette retenue ne ` +
+          'correspondra jamais à un release',
+      );
+      continue;
+    }
+    if (seen.has(version)) warnings.push(`« ${version} » est retenue deux fois — une seule suffit`);
+    seen.add(version);
+    const reason = String(entry.reason ?? '').trim();
+    if (!reason) {
+      warnings.push(`« ${version} » est retenue sans motif — le frein tient, mais personne ne saura pourquoi`);
+    }
+    entries.push({ version, reason });
+  }
+  return { ok: problems.length === 0, holds: entries.map((e) => e.version), entries, problems, warnings };
 }
 
 /**

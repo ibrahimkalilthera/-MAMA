@@ -1,0 +1,86 @@
+name: Release channel watch
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « Le canal de mise à jour est-il encore VIVANT ? »
+#
+# Les quatre autres modes de `check-release-coherence.mjs` parlent de LA version
+# du package.json — donc d'un build local. Aucun ne répond à la question qui se
+# pose le reste du temps : un poste qui démarre voit-il encore quelque chose ?
+#
+# Un canal cassé est SILENCIEUX par nature : un release supprimé, un latest.yml
+# illisible, un installeur disparu, un frein corrompu ne font rougir aucun job —
+# le dépôt reste vert et personne ne l'apprend avant qu'un poste ne réclame. Ce
+# workflow lit donc le canal TEL QU'UN POSTE LE LIT, sans jeton :
+#
+#   • le release PUBLIÉ le plus récent (un brouillon est invisible pour
+#     l'updater, donc « le plus récent » n'est pas « le plus récent tag ») ;
+#   • son latest.yml, et l'empreinte de l'installeur REHACHÉE depuis le dépôt
+#     public — la promesse d'octets, vérifiée là où le poste la lit ;
+#   • le frein d'urgence (`updates/holds.json`) à l'URL exacte qu'un poste
+#     interroge : un frein illisible ne retient rien, et c'est silencieux.
+#
+# Aucun secret n'est utilisé, et c'est délibéré : le contrôle ignore même le
+# jeton qui traînerait dans l'environnement. Un canal qu'on ne sait relire
+# qu'authentifié n'est pas prouvé pour un poste qui, lui, ne s'authentifie
+# jamais.
+#
+# Deux déclencheurs, pour la raison déjà retenue ailleurs dans ce dépôt : un
+# canal se casse SANS commit (release supprimé à la main, fichier écrasé côté
+# dépôt), donc le cron quotidien est le vrai filet ; le push, filtré, exerce le
+# contrôle quand c'est lui qui change.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    paths:
+      - 'scripts/check-release-coherence.mjs'
+      - 'scripts/lib/release-coherence.mjs'
+      - 'updates/holds.json'
+      - '.github/workflows/release-channel-watch.yml'
+
+  schedule:
+    # 05:40 UTC — après les crons de nuit, avant la journée de travail.
+    - cron: '40 5 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: release-channel-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  channel:
+    name: Vérifier le canal publié et le frein
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Installer Node ne prouve pas le majeur réellement exécuté dans ce job.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # Le script n'utilise que la bibliothèque standard (fetch global) : aucune
+      # dépendance à installer, donc pas de `npm ci` — rien qui puisse échouer
+      # avant la mesure.
+      - name: Le release publié le plus récent est-il livrable, et le frein lisible ?
+        # Mandat de preuve : le script publie lui-même ce qu'il a MESURÉ (le
+        # nombre d'artefacts vérifiés sur le release publié, et l'état du frein).
+        env:
+          AUTOMATION_EVIDENCE: '1'
+        run: npm run check:release:channel
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — canal de mise à jour
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "lecture du canal publié allée au bout (release le plus récent rehaché depuis le dépôt public, frein d’urgence lu à l’URL d’un poste, sans jeton) ; le compte mesuré est publié par scripts/check-release-coherence.mjs"

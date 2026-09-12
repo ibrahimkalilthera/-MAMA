@@ -1,3 +1,45 @@
+## [2026-09-13] Un canal de mise à jour cassé devient rouge — vérifié sans jeton
+
+Demande : « fais vérifier par la CI, sans jeton, que le release le plus récent est réellement livrable et que le frein est lisible, pour qu'un canal cassé devienne rouge ».
+
+**Le constat : les quatre modes existants parlent tous d'un build local.** `local`, `tag`, `draft` et `live` partent de la version du `package.json` — donc de l'arbre de travail, ou du release de CETTE version. Aucun ne répond à la question qui se pose le reste du temps : *un poste qui démarre voit-il encore quelque chose ?* Or un canal cassé est **silencieux par nature** — un release supprimé, un `latest.yml` illisible, un installeur disparu, un frein corrompu ne font rougir aucun job. Le dépôt reste vert, et personne ne l'apprend avant qu'un poste ne réclame.
+
+**Un mode `channel`, et il ne suppose RIEN du dossier local.** Il prend le release **publié** le plus récent — et « le plus récent » n'est pas « le plus récent tag » : un brouillon est invisible pour `electron-updater`, donc un brouillon plus récent ne change rien pour un poste. C'est le cas normal d'une publication en cours, donc il est **nommé** (`ℹ️ … est en BROUILLON plus récent`) sans être une faute. Puis il rehache depuis le dépôt public l'empreinte de l'installeur que ce release annonce, et il lit le frein d'urgence à l'URL exacte qu'un poste interroge.
+
+**Sans jeton, et pas « par chance ».** Le mode `channel` **refuse** le jeton de l'environnement (`const useToken = MODE !== 'channel'`) : sur un dépôt public, c'est ce qui rend la preuve rejouable par un cron, et sur un dépôt privé c'est `raw` qui refuse — ce qui est le bon verdict, parce qu'un canal qu'on ne sait relire qu'authentifié n'est pas prouvé pour un poste qui, lui, ne s'authentifie jamais. C'est aussi ce qui rend le workflow configurable **sans aucun secret** : il n'a rien à recevoir.
+
+**Le frein a droit à son verdict séparé, parce que sa panne est la plus silencieuse des trois.** `main.cjs` le lit à chaque vérification de mise à jour (`AbortSignal.timeout(4000)`, `Array.isArray(parsed.holds)`), et quand il est illisible il ne retient rien : la mise à jour reste *proposée*, et rien ne le dit. On s'aperçoit que le frein ne freine pas le jour où on compte sur lui. Les refus, donc — et chacun ferme une façon de mourir en silence :
+
+```
+refusé     vide ou absent · JSON illisible · racine qui n'est pas un objet
+           liste `holds` absente (le poste le lirait comme « aucune retenue »)
+           entrée sans version · version qui ne peut correspondre à aucun release
+nommé      motif absent (le frein TIENT quand même — « c'est le motif qui manque, pas le frein »)
+           retenue en double
+```
+
+**Et le rouge est prouvé sur le vrai réseau, pas seulement en unité.** `--branch=` surcharge la branche où le frein est lu (défaut `main`, celle que le poste interroge) : vérifier une branche de travail, et surtout **pouvoir démontrer le rouge**. Relevé en direct :
+
+```
+node scripts/check-release-coherence.mjs --channel
+🔎 canal — 4 release(s) dont 4 publié(s) (mode channel, sans jeton)
+   le plus récent publié : v1.0.4 (2026-09-12T21:25:16Z)
+✅ canal vivant : le release publié le plus récent est livrable, et le frein est lisible
+   MamaTheraFinance-1.0.4-setup.exe · 129030401 octet(s) · sha512 6Io0KzU78rObEfnc2l… (rehaché depuis le dépôt public)
+   frein https://raw.githubusercontent.com/ibrahimkalilthera/-MAMA/main/updates/holds.json · 0 retenue(s)
+
+node scripts/check-release-coherence.mjs --channel --branch=cette-branche-nexiste-pas
+❌ canal cassé — v1.0.4 ou le frein d’urgence est inutilisable
+   • frein injoignable (HTTP 404) sur …/updates/holds.json — un poste ne pourrait retenir AUCUNE version
+exit=1
+```
+
+**Le workflow est planifié, et il publie sa mesure.** `.github/workflows/release-channel-watch.yml` : cron quotidien (un canal se casse **sans commit** — release supprimé à la main, fichier écrasé côté dépôt), `workflow_dispatch`, et un push filtré sur le contrôle lui-même, `updates/holds.json` et l'inventaire. Pas de `npm ci` : le script n'utilise que la bibliothèque standard, donc rien ne peut échouer avant la mesure. Le compte publié est le nombre d'artefacts vérifiés sur le release, et la raison nomme le tag et l'état du frein.
+
+**Mesures** : **1275/1275** tests (dont `tests/release-coherence.test.ts` **38/38**, +9 cas : 5 sur le frein, 4 sur le canal) ; `npm run lint` **vert** ; `check:ci-commands` vert (11 workflows, 119 commandes, 0 recopie) ; `check:guard-immunity` 21/21 ; `check-gate-sentinels` 175 fichiers ; et le mode `channel` vert puis **rouge** sur le vrai réseau, comme ci-dessus.
+
+**Trois choses franchement.** Le workflow est **en avance sur son contrat** : déclaré dans `tests/automation-evidence.test.ts` et porteur de l'étape de preuve, il ne sera jugé par l'audit qu'après son premier run sur `main` — le temps d'un cycle de cron, il apparaîtra comme « inconnu de GitHub sur main » (nommé, non bloquant). Le contrôle vérifie que le canal est **livrable**, pas qu'un poste l'a **reçu** : la preuve de bout en bout côté poste reste `verify-updater.mjs` (sur binaire empaqueté) et l'installation réelle, qu'aucun cron ne peut faire à ma place. Et le frein est lu **sur la branche**, donc une retenue non poussée n'existe pas : la poser reste un commit — le workflow dit seulement si ce que les postes lisent est lisible.
+
 ## [2026-09-12] La 1.0.4 est publiée : la mise à jour obligatoire atteint vraiment les postes
 
 Demande : « publie une nouvelle version de l'application pour que la mise à jour obligatoire atteigne vraiment les postes installés, et vérifie le téléchargement depuis les postes via le flux GitHub Releases ».

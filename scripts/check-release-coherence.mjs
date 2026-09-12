@@ -7,6 +7,7 @@
  *   npm run check:release:tag      → le tag existe-t-il DÉJÀ ? (le refus d'avant-publication)
  *   npm run check:release:draft    → les octets téléversés tiennent-ils la promesse ?
  *   npm run check:release:live     → ce que les postes lisent est-il cohérent ?
+ *   npm run check:release:channel  → le CANAL tel qu'un poste le voit (sans jeton)
  *
  * ─── Pourquoi ce contrôle existe ────────────────────────────────────────────
  * Un poste se met à jour sur une PROMESSE D'OCTETS : `latest.yml` annonce une
@@ -31,6 +32,27 @@
  *   live   ce que les postes lisent n'est pas un brouillon, et l'installeur
  *          réellement servi répond à la promesse de `latest.yml`.
  *
+ * ─── Le mode `channel` : ce qu'un poste voit VRAIMENT, et sans jeton ─────────
+ * Les quatre modes ci-dessus parlent de LA version du `package.json` — donc d'un
+ * build local. Aucun ne répond à la question qu'un administrateur se pose le
+ * reste du temps : **le canal de mise à jour est-il encore vivant ?** Un canal
+ * cassé (release supprimé, latest.yml illisible, installeur disparu, frein
+ * corrompu) est silencieux par nature : le dépôt reste vert, et personne ne
+ * l'apprend avant qu'un poste ne réclame. D'où ce mode, qui ne suppose RIEN du
+ * dossier local : il prend le release publié le plus récent (un brouillon est
+ * invisible pour l'updater, donc « le plus récent » n'est pas « le plus récent
+ * tag »), il rehache depuis le dépôt PUBLIC ce que ce release annonce, et il lit
+ * le **frein d'urgence** (`updates/holds.json`) à l'URL exacte qu'un poste
+ * interroge. Tout se fait **sans jeton** : c'est ce qui le rend exécutable par
+ * un cron sur un dépôt public, et sur un dépôt privé c'est `raw` qui refuse —
+ * un canal qu'on ne peut pas relire de l'extérieur n'est pas prouvé.
+ *
+ *   node scripts/check-release-coherence.mjs --channel [--branch=<ref>]
+ *
+ * `--branch` change la branche où le frein est lu (défaut `main`, celle que le
+ * poste interroge). Il sert à vérifier une branche de travail, et à pouvoir
+ * PROUVER le rouge : une branche qui n'existe pas rend le frein injoignable.
+ *
  * Aucun mode ne « regarde » seulement : chacun rend un verdict nommé, et un
  * dépôt qu'on n'a pas pu interroger est un ÉCHEC, jamais un feu vert.
  */
@@ -39,24 +61,37 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 import {
   assetsToPublish,
   compareLatest,
   compareRelease,
+  parseHoldsFile,
   parseLatestYml,
+  pickLatestPublished,
   publishDecision,
   releaseTag,
 } from './lib/release-coherence.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
-const MODE = ['local', 'tag', 'draft', 'live'].find((m) => args.includes(`--${m}`)) || 'local';
+const MODE = ['local', 'tag', 'draft', 'live', 'channel'].find((m) => args.includes(`--${m}`)) || 'local';
 const dirArg = args.find((a) => a.startsWith('--dir='))?.slice('--dir='.length) || 'release';
 const releaseDir = join(root, dirArg);
+// La branche que le poste interroge pour le frein (`HOLD_BRANCH_DEFAULT` dans
+// electron/updater-policy.cjs). Surchargeable pour deux raisons : vérifier une
+// branche de travail avant de la fusionner, et pouvoir PROUVER le rouge (une
+// branche qui n'existe pas rend le frein injoignable).
+const branch = args.find((a) => a.startsWith('--branch='))?.slice('--branch='.length) || 'main';
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const version = pkg.version;
 const repo = pkg.repository?.url?.replace(/^.*github\.com[:/]/, '').replace(/\.git$/, '') || 'ibrahimkalilthera/-MAMA';
 const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
+// Le mode `channel` est la seule preuve qu'un CRON peut porter sur un dépôt
+// public : il refuse donc le jeton, même quand il y en a un dans
+// l'environnement. Un canal qu'on ne sait relire qu'authentifié n'est pas
+// prouvé pour un poste qui, lui, ne s'authentifie jamais.
+const useToken = MODE !== 'channel';
 
 const sha512Of = (bytes) => createHash('sha512').update(bytes).digest('base64');
 
@@ -117,12 +152,14 @@ const expectedFromLocal = local?.verdict.ok
   ? assetsToPublish({ latest: local.verdict.latest, dirNames: local.dirNames })
   : [];
 
+const auth = useToken && token ? { Authorization: `Bearer ${token}` } : {};
+
 const api = (path) =>
   fetch(`https://api.github.com/repos/${repo}${path}`, {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'release-coherence',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...auth,
     },
   });
 
@@ -132,7 +169,7 @@ async function readAsset(asset, { asText }) {
     headers: {
       Accept: 'application/octet-stream',
       'User-Agent': 'release-coherence',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...auth,
     },
     redirect: 'follow',
   });
@@ -173,23 +210,124 @@ if (MODE === 'tag') {
   process.exit(0);
 }
 
-const assets = (release?.assets || []).map((a) => ({ name: a.name, size: a.size }));
-const latestAsset = (release?.assets || []).find((a) => a.name === 'latest.yml');
-const remoteLatest = latestAsset ? await readAsset(latestAsset, { asText: true }) : null;
-const announced = remoteLatest?.text ? parseLatestYml(remoteLatest.text) : null;
-
-let installer = null;
-if (announced?.path) {
-  const asset = (release?.assets || []).find((a) => a.name === announced.path);
-  if (asset) {
-    const got = await readAsset(asset, { asText: false });
-    if (got.sha512) installer = { name: announced.path, size: got.size, sha512: got.sha512 };
+/**
+ * Les faits d'UN release distant : ses artefacts, son `latest.yml` (le petit
+ * fichier, lu en texte) et l'empreinte de l'installeur qu'il annonce (rehachée
+ * EN FLUX sur les octets servis).
+ */
+async function factsFor(rel) {
+  const assets = (rel?.assets || []).map((a) => ({ name: a.name, size: a.size }));
+  const latestAsset = (rel?.assets || []).find((a) => a.name === 'latest.yml');
+  const remoteLatest = latestAsset ? await readAsset(latestAsset, { asText: true }) : null;
+  const announced = remoteLatest?.text ? parseLatestYml(remoteLatest.text) : null;
+  let installer = null;
+  if (announced?.path) {
+    const asset = (rel?.assets || []).find((a) => a.name === announced.path);
+    if (asset) {
+      const got = await readAsset(asset, { asText: false });
+      if (got.sha512) installer = { name: announced.path, size: got.size, sha512: got.sha512 };
+    }
   }
+  return { assets, latestText: remoteLatest?.text ?? null, announced, installer };
 }
 
-const expected = expectedFromLocal.length
-  ? expectedFromLocal
-  : ['latest.yml', ...(announced?.path ? [announced.path, `${announced.path}.blockmap`] : [])];
+/** Ce qu'un release doit contenir, d'après son PROPRE `latest.yml`. */
+const expectedFor = (announced) =>
+  ['latest.yml', ...(announced?.path ? [announced.path, `${announced.path}.blockmap`] : [])];
+
+// ── Mode channel : le canal vivant, vu de l'extérieur et SANS jeton ───────────
+if (MODE === 'channel') {
+  const target = pickLatestPublished(releases);
+  if (!target) {
+    fail('aucun release PUBLIÉ — le canal est muet', [
+      `${releases.length} release(s) existent, aucun n’est promu (brouillons ou liste vide) : aucun poste ne lit quoi que ce soit`,
+    ]);
+  }
+  const targetTag = target.tag_name;
+  const targetVersion = String(targetTag).replace(/^v/, '');
+  const targetSameTag = releases.filter((r) => r.tag_name === targetTag);
+  const facts = await factsFor(target);
+  const expected = expectedFor(facts.announced);
+  const verdict = compareRelease({
+    mode: 'live',
+    version: targetVersion,
+    expected,
+    remote: {
+      count: targetSameTag.length,
+      isDraft: target.draft === true,
+      tag: targetTag,
+      assets: facts.assets,
+      latestText: facts.latestText,
+      announced: facts.announced,
+      installer: facts.installer,
+    },
+  });
+
+  // Le frein d'urgence, à l'URL exacte qu'un poste interroge à chaque
+  // vérification (`holdsUrlFrom`, branche `main`, dans electron/updater-policy.cjs).
+  const brakeUrl = `https://raw.githubusercontent.com/${repo}/${branch}/updates/holds.json`;
+  const brakeRes = await fetch(brakeUrl, {
+    headers: { 'User-Agent': 'release-coherence' },
+    redirect: 'follow',
+  });
+  const brake = brakeRes.ok
+    ? parseHoldsFile(await brakeRes.text())
+    : {
+        ok: false,
+        holds: [],
+        entries: [],
+        warnings: [],
+        problems: [
+          `frein injoignable (HTTP ${brakeRes.status}) sur ${brakeUrl} — un poste ne pourrait retenir AUCUNE version`,
+        ],
+      };
+
+  // Un brouillon plus récent n'est PAS une panne : c'est une publication en
+  // cours. Il est nommé, sinon « le plus récent » se lirait de travers.
+  const publishedWhen = Date.parse(String(target.published_at || target.created_at || ''));
+  const newerDrafts = releases.filter(
+    (r) => r.draft === true && Date.parse(String(r.created_at || '')) > publishedWhen,
+  );
+
+  console.log(
+    `🔎 canal — ${releases.length} release(s) dont ${releases.filter((r) => r.draft !== true).length} publié(s) ` +
+      `(mode channel, sans jeton${token ? ' — le jeton de l’environnement est délibérément ignoré' : ''})`,
+  );
+  console.log(`   le plus récent publié : ${targetTag} (${target.published_at || target.created_at})`);
+  for (const r of newerDrafts) {
+    console.log(`   ℹ️  ${r.tag_name} est en BROUILLON plus récent — invisible pour les postes tant qu’il n’est pas promu`);
+  }
+  if (!verdict.ok || brake.problems.length) {
+    fail(
+      `canal cassé — ${targetTag} ou le frein d’urgence est inutilisable`,
+      [...verdict.problems, ...brake.problems],
+      [...verdict.warnings, ...brake.warnings],
+    );
+  }
+  console.log('✅ canal vivant : le release publié le plus récent est livrable, et le frein est lisible');
+  if (facts.installer) {
+    console.log(
+      `   ${facts.installer.name} · ${facts.installer.size} octet(s) · sha512 ${facts.installer.sha512.slice(0, 24)}… (rehaché depuis le dépôt public)`,
+    );
+  }
+  console.log(
+    `   frein ${brakeUrl} · ${brake.entries.length} retenue(s)` +
+      (brake.holds.length ? ` : ${brake.holds.join(', ')}` : ' (aucune version retenue)'),
+  );
+  for (const w of brake.warnings) console.log(`   ⚠️  ${w}`);
+  publishEvidence({
+    acted: true,
+    count: expected.length,
+    reason:
+      `canal vérifié sans jeton : ${targetTag} publié et livrable (${facts.installer ? 'installeur rehaché depuis le dépôt public' : 'latest.yml relu'}), ` +
+      `frein lisible (${brake.entries.length} retenue(s)${brake.holds.length ? ` : ${brake.holds.join(', ')}` : ''})`,
+  });
+  process.exit(0);
+}
+
+const facts = await factsFor(release);
+const { assets, announced, installer } = facts;
+const expected = expectedFromLocal.length ? expectedFromLocal : expectedFor(announced);
 
 const verdict = compareRelease({
   mode: MODE,
@@ -201,7 +339,7 @@ const verdict = compareRelease({
     isDraft: release ? release.draft === true : undefined,
     tag: release?.tag_name,
     assets,
-    latestText: remoteLatest?.text ?? null,
+    latestText: facts.latestText,
     announced,
     installer,
   },
