@@ -150,6 +150,16 @@ Tous les postes — l'installeur Windows, le site déployé — doivent lire et 
 
 **Et l'installation le dit elle-même** : une base illisible ou divergente affiche un badge rouge « Base non partagée » — y compris en production, contrairement aux badges d'environnement. L'état dangereux est celui où chacun voit ses propres données en croyant voir celles des autres ; il ne doit jamais être silencieux.
 
+## Mise à jour automatique des postes installés
+
+Une version publiée doit atteindre **tous** ceux qui ont installé le setup, sans qu'ils aient à y penser. L'auto-update utilise le flux GitHub Releases (`electron-builder` publie `latest.yml` à côté de l'installeur) et **vérifie à trois moments** : au démarrage, **toutes les 30 min** (une application d'école reste ouverte toute la journée — c'est ce qui manquait), et **au retour sur la fenêtre**, avec 10 min d'espacement minimal.
+
+**« Plus tard » reporte, il ne refuse pas** : la question revient 15 min après, et la version est déjà téléchargée. Une fois prête, l'interface l'annonce en permanence (bandeau « redémarrer ») — une boîte de dialogue fermée ne revient pas, un bandeau reste. Le processus principal pousse son état au renderer ; le pont `preload` expose seulement lire / s'abonner / installer.
+
+**La version portable** ne peut pas s'auto-installer (`electron-updater` exige l'installeur NSIS) : elle vérifie quand même et reçoit un **lien vers la page des versions** — ne rien pouvoir faire n'excuse pas de ne rien dire.
+
+Preuve : `node scripts/verify-updater.mjs` (à rejouer après `npm run electron:dist`) sert un flux local, lance l'exe empaqueté et exige la chaîne `checking → available → progress → downloaded` **plus au moins deux vérifications dans la même session**. Le rythme est réglable pour la preuve : `UPDATER_CHECK_INTERVAL_MS`, `UPDATER_FOCUS_COOLDOWN_MS`, plus `UPDATER_FEED_URL` et `UPDATER_LOG_FILE` (mode preuve, sans boîte de dialogue).
+
 ## Version bureau (Windows)
 
 L'application est aussi empaquetée en **application de bureau Windows** (shell Electron) :

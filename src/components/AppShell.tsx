@@ -17,6 +17,7 @@ import type { AppModalsProps } from './AppModals';
 import type { User } from '../app/types';
 import { formatSupabaseError } from '../lib/networkUtils';
 import { database } from '../lib/sharedDatabase';
+import { UpdateBanner } from './UpdateBanner';
 import type { AppEnv } from '../lib/networkUtils';
 import type { ImportCategory } from '../lib/excelImporter';
 import type { useToast } from '../lib/useToast';
@@ -403,6 +404,19 @@ onOpenPayroll={() => setActiveTab('payroll')}
         t={t}
       />
       <EnvBadge env={appEnv} database={database} />
+      {/* Bandeau de mise à jour du poste installé : ne s'affiche que dans
+          l'application de bureau, où `window.desktop.updates` existe. */}
+      <UpdateBanner
+        labels={{
+          available: t.updateAvailable,
+          downloading: t.updateDownloading,
+          ready: t.updateReady,
+          readyManual: t.updateReadyManual,
+          restart: t.updateRestartNow,
+          download: t.updateDownloadNow,
+          dismiss: t.updateDismiss,
+        }}
+      />
       <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
 
       {/* --- Global Confirmation Dialog --- */}
