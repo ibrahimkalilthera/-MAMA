@@ -1,3 +1,24 @@
+## [2026-09-12] La preuve d'auto-update joue une passe par seuil — et c'est la DATE qui compte
+
+Demande : « rejoue `scripts/verify-updater.mjs` après un réempaquetage, et étends-le pour prouver sur l'exe réel qu'une mise à jour au-delà du seuil se présente bien comme obligatoire ». Rejouée d'abord sur les artefacts 1.0.2 : la chaîne passait, et l'obligation était prouvable… **pour une seule des trois règles**.
+
+**Ce que le script ne savait pas montrer.** `updater-policy.cjs` force l'installation pour trois raisons distinctes — une majeure de retard, deux mineures, ou une publication vieille de 45 jours toujours pas installée — et le script n'avait qu'**un** scénario, réglable à la main (`UPDATER_FAKE_VERSION=2.0.0`), qui ne couvrait que la majeure. Or la règle qui attrape le cas réel d'un poste d'école est celle de la **date** : une « petite » version publiée un jour où personne n'était devant le poste, jamais installée depuis. Elle ne se prouve qu'en servant une date **ancienne** avec une version de la **même** majeure — c'est-à-dire en isolant la règle, pas en la noyant sous une autre.
+
+**Quatre passes, une règle chacune.** Le script joue par défaut `patch` (correctif récent → **ne doit pas** être obligatoire), `age` (même majeure, publié il y a 46 j → obligatoire par la date), `minor` (deux mineures → obligatoire), `major` (une majeure → obligatoire). L'assertion ne porte plus sur le **drapeau** mais sur le **motif annoncé** : trois règles peuvent forcer, donc une politique qui forcerait tout le temps passerait pour verte partout si l'on ne lisait que « OBLIGATOIRE oui/non ». Et les seuils (45 jours, 2 mineures, 1 majeure) sont **importés de `electron/updater-policy.cjs`** au lieu d'être recopiés : une preuve qui recopie une constante finit par prouver une règle que le code a quittée. `UPDATER_PASSES=age,major` restreint le run pour la mise au point.
+
+**Ce que le réempaquetage a changé dans la mesure.** Le cache partagé d'electron-updater est invalidé **avant chaque passe** (le flux sert les mêmes octets pour toute version annoncée, donc un payload déjà là « téléchargerait » sans `download-progress` — une chaîne incomplète), et l'app est laissée 2 s à mourir entre deux passes pour que Windows relâche ses handles.
+
+**Relevé sur l'exe empaqueté 1.0.2 — `PROOF_OK`, 4/4** :
+
+```
+patch  1.0.3  → « n'impose RIEN »                      (3 vérifications)
+age    1.0.3  → OBLIGATOIRE (version publiée il y a 46 jour(s), toujours pas installée)
+minor  1.2.0  → OBLIGATOIRE (2 version(s) mineure(s) de retard)
+major  2.0.0  → OBLIGATOIRE (1 version(s) majeure(s) de retard)
+```
+
+Chaque passe exige la chaîne entière (`checking → available → progress → downloaded`) **et** la reprise périodique (≥ 2 vérifications dans la même session). **1151/1151** tests, `npm run lint` vert.
+
 ## [2026-09-12] v1.0.2 : l'installeur ne contenait pas ce que le dépôt déclarait
 
 Demande : « reconstruis l'installeur Windows avec toutes les corrections récentes ». Le réflexe était de répondre « rien n'a bougé depuis le build » — la mesure a dit exactement l'inverse.
