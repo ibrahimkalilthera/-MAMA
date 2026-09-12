@@ -168,6 +168,10 @@ Tous les postes — l'installeur Windows, le site déployé — doivent lire et 
 
 Une version publiée doit atteindre **tous** ceux qui ont installé le setup, sans qu'ils aient à y penser. L'auto-update utilise le flux GitHub Releases (`electron-builder` publie `latest.yml` à côté de l'installeur) et **vérifie à trois moments** : au démarrage, **toutes les 30 min** (une application d'école reste ouverte toute la journée — c'est ce qui manquait), et **au retour sur la fenêtre**, avec 10 min d'espacement minimal.
 
+**Le canal est ouvert depuis la v1.0.1** — et c'est ce que la preuve locale ne pouvait pas dire : le mécanisme était vert alors qu'**aucun release n'existait**, donc chaque poste interrogeait un flux vide. Vérifié comme l'application le lit, sans authentification : `releases.atom` → `releases/download/v1.0.1/latest.yml` (identique au fichier construit, octet pour octet) → installeur, dont le **sha512 recalculé est celui inscrit dans `latest.yml`**.
+
+⚠️ `electron-builder --publish always` crée le release en **brouillon** — et **une fois par cible** (NSIS puis portable), donc il peut en créer deux. Un brouillon est invisible pour `electron-updater` (`No published versions on GitHub`) : **publier le release fait partie de la mise à jour**, sinon la version n'existe pour personne.
+
 **« Plus tard » reporte, il ne refuse pas** : la question revient 15 min après, et la version est déjà téléchargée. Une fois prête, l'interface l'annonce en permanence (bandeau « redémarrer ») — une boîte de dialogue fermée ne revient pas, un bandeau reste. Le processus principal pousse son état au renderer ; le pont `preload` expose seulement lire / s'abonner / installer / relancer.
 
 **Au-delà du seuil, la mise à jour n'est plus une question.** Atteindre tout le monde ne suffit pas : « Plus tard » accordé indéfiniment laisse un poste des mois sur la même version **sans que personne n'ait jamais décidé de ne pas la faire**. Trois seuils (`electron/updater-policy.cjs`, pur donc testé comme une décision) rendent l'installation **obligatoire** : une version **majeure** de retard, **deux mineures** dans la même majeure, ou une version **publiée depuis 45 jours** et toujours pas installée — ce dernier attrape le cas le plus courant, la « petite » version sortie un jour où personne n'était devant le poste. Là, le retard est **décidé par le processus principal** et poussé à l'interface, qui le montre **sans pouvoir le fermer** : écran plein, pas de croix, pas de « plus tard » dans la boîte de dialogue (ni d'échappement par Échap), relance **toutes les minutes** au lieu d'un quart d'heure.
@@ -208,6 +212,8 @@ node scripts/verify-desktop-app.mjs
 
 ```bash
 npm run electron:release  # electron:ui + electron-builder --win --publish always (GH_TOKEN requis)
+# → release créé en BROUILLON : le publier (Releases → Publish release) est ce qui rend
+#   la version visible pour electron-updater ; un brouillon ne met à jour personne.
 ```
 
 **Signature de code Windows** : le build signe automatiquement **tous** les artefacts (exe win-unpacked, `elevate.exe`, installeur NSIS + son désinstalleur, portable) dès que les variables standard sont définies : `CSC_LINK` (chemin/URL du `.pfx`) + `CSC_KEY_PASSWORD`. En CI, `.github/workflows/desktop-release.yml` (workflow_dispatch) restaure le certificat depuis les secrets `CSC_PFX_B64` + `CSC_KEY_PASSWORD`, signe et publie le GitHub Release (canal updater). ⚠️ SmartScreen n'est levé qu'avec un certificat d'une autorité de confiance (**OV/EV**) — un certificat auto-signé ne change rien à SmartScreen. Marche à suivre complète (achat, export `.pfx`, secrets CI) : [`docs/CODE_SIGNING.md`](docs/CODE_SIGNING.md).
