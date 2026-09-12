@@ -1,3 +1,111 @@
+## [2026-09-12] La 1.0.4 est publiée : la mise à jour obligatoire atteint vraiment les postes
+
+Demande : « publie une nouvelle version de l'application pour que la mise à jour obligatoire atteigne vraiment les postes installés, et vérifie le téléchargement depuis les postes via le flux GitHub Releases ».
+
+**Publier n'est pas téléverser, c'est rendre lisible.** `electron-updater` ne voit qu'une chose : un release **non brouillon** portant un `latest.yml` dont il sait lire l'URL et l'empreinte. Le tag `v1.0.4` existait déjà en brouillon — donc, du point de vue d'un poste, il n'existait pas. La promotion (`draft=false`) est le seul geste qui change ça, et c'est celui qui a été fait après que le contenu a été **consolidé**.
+
+**Le piège des deux brouillons s'est reproduit, à l'identique.** Une publication par cible fait naître **deux** brouillons pour un même tag : l'un portait le `blockmap`, l'autre `latest.yml` et les deux exe. Aucun outil ne les rassemble, et un poste qui ne lirait que l'un des deux ne verrait pas la mise à jour. Ils ont été fusionnés à la main (blockmap téléversé dans le brouillon complet, l'autre supprimé) — le mode `--draft` du contrôle le **nomme** (« deux releases pour un même tag ») mais ne le répare pas : c'est le dernier pas de cette chaîne qui n'est pas outillé, et il est dit comme tel.
+
+**La preuve, prise du côté du poste et non du dossier local** :
+
+```
+latest.yml publié       361 octets, IDENTIQUE au construit (octet pour octet), version 1.0.4
+installeur sans jeton   HTTP 206, magic « MZ », content-range …/129 030 401 octets
+empreinte publiée       rehachée depuis le dépôt public (jamais relue en local) : 6Io0KzU78rObEfnc2lj5TLpG…
+flux Atom               v1.0.4 en tête, draft=false, 4 actifs (latest.yml, exe, blockmap, portable)
+```
+
+Et sur le **binaire empaqueté**, les six passes d'`verify-updater.mjs` repassent (`PROOF_OK`) — dont la passe `blocked`, qui est la nouveauté de cette version : un poste que la porte bloque **écrit son journal** au lieu de rester muet.
+
+**Mesures** : `npm run check:release` vert sur les octets 1.0.4 reconstruits, `npm run check:release:live` vert sur ce que les postes lisent réellement, `verify-updater.mjs` 6/6 `PROOF_OK`.
+
+**Trois choses franchement.** La consolidation des deux brouillons reste une main humaine sur l'API — le contrôle la rend visible, pas automatique. La version du paquet (1.0.3 → 1.0.4) doit être **dans main**, sinon le prochain build depuis main repart en 1.0.3 et la porte du tag le refuse (« le tag existe déjà ») — c'est précisément pour ça qu'elle est committée avec la publication. Et un poste **éteint** au moment de la publication ne verra l'obligation qu'à son prochain démarrage : la mise à jour est obligatoire, pas instantanée.
+
+## [2026-09-12] La chaîne E2E retente sans doubler partout, et publie ses propres mesures
+
+Demande : « étends la reprise sans doublon et le canal de preuve mesurée au reste de la chaîne E2E (garde CSP, scripts e2e-*) au lieu de ne couvrir que le pixel-check PDF ».
+
+**Le constat, mesuré script par script** : `verify-pdf-download.mjs` était le SEUL à porter les deux moitiés (reprise des coupures + règle du rejeu sondé, et une preuve mesurée). Les autres en avaient une et pas l'autre :
+
+```
+verify-csp-guard.mjs      écriture rejouable ✓ mais AUCUN transport retenté, aucune preuve mesurée
+e2e-business.mjs          écriture rejouable ✓ mais son api() ne retentait rien
+verify-desktop-app.mjs    2 écritures rejouables ✓ mais des nettoyages avalés et muets
+verify-ephemeral-cleanup.mjs preuve mesurée ✓ et transport déjà retenté
+```
+
+**La séparation `rawApi` / `api` EST le contrat, et c'est la seule façon de ne pas se contredire.** Retenter depuis la couche de transport une écriture qui passe par `replayableWrite` **doublerait** la ligne que la sonde sert à ne pas créer : la reprise interne reposterait sans sonder d'abord. Les deux briques sont donc nommées séparément — `rawApi` ne retente rien et ne sert qu'aux écritures et à leurs sondes, `api` retente les coupures de passerelle (429/502/503/504, erreurs de transport) et sert les lectures et les mutations. C'est exactement la forme déjà retenue dans `verify-pdf-download.mjs` ; elle est maintenant la même partout, avec la même raison écrite à côté.
+
+**Et une panne de nettoyage ne s'avale plus.** `verify-desktop-app.mjs` supprimait ses deux lignes de démo avec `catch(() => {})` : un échec ne laissait ni trace ni verdict, et la ligne restait en base pour le prochain run. Les deux suppressions passent par `deleteOrGone` : retentées (un DELETE est idempotent), **nommées**, un `404` compté comme « déjà absent » — ce que le nettoyage demande exactement — et un échec rendu visible au lieu d'être absorbé.
+
+**Le canal de preuve mesurée, maillon par maillon.** Trois producteurs publient désormais pour `pdf-e2e.yml`, sous le mandat posé par leur étape :
+
+```
+garde CSP        7/7 pages principales parcourues en session réelle, 0 violation, compte = pages visitées
+pixel-check      une preuve PAR INVOCATION (--mode auto, --mode recu-parent), compte = vérifications passées
+anti-résidus     enregistrements parcourus en base (comptes auth + profils), déjà en place
+```
+
+Chaque mesure vient du script qui l'a comptée — jamais d'une phrase du YAML. L'étape « Publier la preuve d'action » **reste** pour ce qu'aucun script ne peut mesurer : que la chaîne **entière** soit allée au bout (l'étape d'en-têtes est écrite en YAML, sans script à elle) et l'**ordre** des gardes. Et deux scripts E2E de plus (`e2e-business.mjs`, `verify-desktop-app.mjs`) publient déjà leur compte, mais **se taisent** : aucun workflow ne les exécute, or c'est le **mandat** de l'étape qui fait parler un producteur — un test le verrouille, pour que la substance soit déjà là le jour où une étape les mandatera.
+
+**Deux tests plutôt que deux intentions.** `tests/automation-evidence.test.ts` exige que chaque producteur de la chaîne publie un **compte** (`count:`), pas seulement `acted: true` — une preuve sans rien à compter vaut pour un script qui a tout mesuré comme pour un script qui n'a rien regardé, et c'est exactement le défaut que ce canal existe pour fermer. Et `tests/e2e-writes.test.ts` refuse qu'une **écriture rejouable passe par la brique qui retente** : il nomme, dans chaque script, l'aide dont le corps appelle `withTransientRetry` (`api`, `deleteOrGone`) et vérifie qu'aucune écriture ne l'appelle — la forme qui doublerait la ligne, et celle qu'il suffirait d'écrire par distraction pour défaire tout le travail ci-dessus.
+
+**Mesures** : **1265/1265** tests (+2) ; `npm run lint` **vert** ; les deux scripts migrés restent conformes au garde-fou des écritures (`check:e2e-writes` → 6 scripts, 11 créations traçables) ; et `pdf-e2e.yml` gagne **9 lignes** exactement (les trois mandats et leurs raisons) — pas un octet de la chaîne de vérification n'a bougé.
+
+**Trois choses franchement.** La reprise n'a **pas** été étendue à `verify-anon-rls.mjs` : ses écritures sont déjà rejouables et sondées, mais sa couche de transport est **injectée** (`fetchImpl`) et testée en unité — y ajouter des attentes réelles ferait payer aux tests un délai qui n'a rien à y faire ; la coupure y reste donc traitée comme *inconclusive* (skip), pas comme un rouge, ce qui était déjà son contrat. Les deux scripts sans workflow publient dans le vide : c'est le prix de la règle « c'est le mandat qui fait parler », et l'alternative (les exécuter depuis un job) demanderait un runner avec Chrome et l'application empaquetée. Enfin la preuve de la garde CSP porte `count = pages visitées` : une page qu'un libellé a changé rend la garde **plus faible** sans rougir — le compte publié le dit (`6/7`), mais rien ne l'empêche encore de tourner ; c'est le prochain angle à fermer de ce côté.
+
+## [2026-09-12] Une écriture de démo doit pouvoir être retrouvée
+
+Demande : « ajoute un garde-fou qui refuse toute écriture de démo E2E non nettoyable — identité non unique, absence de clé de réconciliation — pour qu'un résidu ne puisse plus être la conséquence d'une reprise ».
+
+**Le raisonnement tient en une phrase : une ligne qu'on ne sait pas retrouver est une ligne qu'on ne sait pas supprimer.** Le 504 du gateway est tombé **après** avoir appliqué un POST — le rejeu, qui est le travail de `withTransientRetry`, a donc créé son risque propre : un **doublon**. Bénin là où une contrainte d'unicité l'interdit ; or il n'y en a aucune, et le schéma est formel : `public.staff` n'a rien d'unique sur `email`, `public.students` n'a d'unique que `student_id` (NULL sur les lignes de démo). Le nettoyage supprime par l'**id rendu par la tentative gagnante**, donc la ligne de la tentative perdue n'aurait **jamais eu de nom** — et la garde anti-résidus ne surveille que les comptes éphémères, elle n'aurait rien vu. Un résidu qu'aucun contrôle ne connaît est pire qu'un résidu : il est silencieux.
+
+**Le contrat, et il est étroit** — pour chaque création des `scripts/` qui touchent la base partagée :
+
+```
+rejouable      passer par l'enrobage qui SONDE avant de rejouer (replayableWrite, insertOnce…)
+jeton          la ligne porte ce qui la rattache à SON run (${TS}, ephemeralEmail(), randomUUID())
+clé            une REQUÊTE la retrouve — `=eq.…` en REST, `?email=` en GoTrue — jamais l'id rendu
+```
+
+La clé est le point qui compte : c'est la seule qui vaille quand la réponse s'est perdue (le rejeu n'a alors plus d'id), et la seule capable de retrouver un doublon.
+
+**Trois indirections résolues au lieu d'être tolérées.** Un contrôle qui lit un fichier tel qu'il est écrit se trompe sur du code correct, et c'est le pire des deux péchés — un faux rouge apprend à éteindre le contrôle. Le code réel met le jeton et la clé à UN cran du POST, donc :
+
+```
+le JETON est cherché par SYMBOLE   `const PROBE_NAME = \`RLS ${TS}\`` EST un jeton, et une ligne qui le CITE
+                                   en porte un — la CITATION, pas la déclaration : la ligne qui définit `TS`
+                                   n'est pas une ligne estampillée
+la CLÉ d'une AIDE se vérifie      `insertOnce(table, row, find)` vit dans verify-pdf-download.mjs : ses quatre
+chez TOUS ses appelants            appels fournissent la clé, et un seul oubli rend l'aide incapable de
+                                   retrouver sa ligne — c'est l'APPELANT FAUTIF qui est nommé
+l'ENROBAGE se lit sur les appels    comptage de parenthèses jusqu'à la fin de l'instruction : une aide écrite
+qui ENCADRENT le site              trente lignes plus haut ne couvre rien
+```
+
+Et la prose n'est pas du code : tout se lit dans la version **blanchie des commentaires** (`scripts/lib/source-text.mjs`), donc la phrase qui explique `email=eq.…` ne fait pas passer un POST qui ne l'écrit nulle part — la règle que ce dépôt a payée trois fois.
+
+**Les exemptions sont bornées dans les deux sens, et il n'y en a qu'une.** Les trois **sondes de refus** de `verify-anon-rls.mjs` sont des POST que la RLS *doit* refuser : une sonde qui passe est une brèche du garde-fou, et le run rougit — rien à réconcilier, rien laissé en base. Le compte est donc **écrit** dans l'exemption, et vérifié de part et d'autre : un site de plus (« migrez, ou élargissez en le justifiant ») **et** un site de moins (« une exemption qui ne correspond plus au réel doit être abaissée, sinon elle autorise un retour en arrière silencieux ») font échouer le contrôle — une exemption muette ou nommant un script disparu aussi.
+
+**Quatre écritures réelles ont été migrées avec le contrôle** : le compte jetable de `e2e-business.mjs`, celui de `verify-csp-guard.mjs`, le compte **et** la ligne d'employé de `verify-desktop-app.mjs` (sondés par email et par nom — le nom porte déjà le jeton du run, c'est lui que la purge de démarrage cherche), et les quatre de `verify-anon-rls.mjs`, dont le **nom de sonde porte désormais le sien** (`CI Probe — anon RLS ${TS}` : un nom fixe faisait ressembler deux exécutions — ou un rejeu — à la même ligne, et le nettoyage, qui supprime par l'id rendu, n'aurait connu que la dernière). Là où le doublon a été payé, la sonde retrouve la ligne et la réutilise : le run continue au lieu de mourir avant de connaître son uid.
+
+**Trois faux verts attrapés par la suite du contrôle, et c'est la partie qui compte.** Le contrôle est né avec ses propres angles morts, tous trouvés par les cas écrits pour lui — pas par une relecture :
+
+```
+un `const TS = Date.now()` dans l'en-tête      estampillait à lui seul TOUTES les écritures
+               du fichier                     situées en dessous → un `Date.now()` nu n'est plus un jeton
+`${supabaseBase}` comptait comme un jeton      il construit une URL, pas une identité de run → une
+                                              interpolation ne vaut que si le symbole interpolé en est un
+la fin d'une instruction se lisait en          donc jamais pour du code INDENTÉ : une aide définie
+COLONNE 0                                      soixante lignes plus haut passait pour l'enrobage du site
+```
+
+Les trois menaient au même endroit : **vert sans rien vérifier**. C'est ce qui a décidé la forme des tests — ils jouent ces cas sur les scripts **réels** du dépôt (`verify-pdf-download.mjs`, `verify-anon-rls.mjs`, `verify-desktop-app.mjs`, `verify-csp-guard.mjs`, `e2e-business.mjs`), pas seulement sur des cas inventés : c'est la conformité réelle qui passe par l'indirection, et un cas synthétique ne l'aurait pas protégée.
+
+**Mesures** : `npm run check:e2e-writes` → **6 scripts, 11 créations toutes traçables, 45 mutations** ; **1262/1262** tests (+22 pour ce contrôle) ; `npm run lint` **vert** de bout en bout ; et le contrôle s'est **déclaré** dans l'inventaire d'immunité (`scripts/lib/guard-immunity.mjs` : `input: source`, `non-vacuous` — un scan vide sort en 2 — et `prose-blind` par le module partagé), les 21 contrôles du dépôt restant tous prouvés.
+
+**Trois choses franchement.** C'est un contrôle de **texte** : il attrape une écriture brute non déclarée, il ne prouve pas que la ligne est nettoyée — la preuve de nettoyage appartient au garde anti-résidus et à l'exécution. Les **mutations** (PATCH/DELETE/PUT) ne sont pas jugées : rejouer une mutation ne duplique pas de ligne, elles sont seulement comptées pour que l'inventaire reste lisible. Et la lecture des appels encadrants s'arrête à la première fin d'instruction : un enrobage **en ligne** dont le corps contient une instruction AVANT l'écriture serait lu comme non enrobé — un faux rouge, jamais un faux vert, et le message nomme la bonne ligne ; aucun script du dépôt n'a cette forme aujourd'hui.
+
 ## [2026-09-12] Un flux de mise à jour incohérent ne peut plus partir
 
 Demande : « ajoute un contrôle qui refuse de publier si latest.yml, l'installeur et la version du paquet ne portent pas la même version et le même sha512, pour qu'aucun poste ne reçoive un flux incohérent ».

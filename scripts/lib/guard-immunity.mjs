@@ -141,6 +141,15 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-e2e-writes.mjs',
+    input: 'source',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // Ce contrôle lit des SCRIPTS et juge du texte : sa non-vacuité (aucun
+    // fichier lu ⇒ sortie 2) et sa cécité à la prose (commentaires blanchis)
+    // vivent dans le module qui juge, et elles y sont NOMMÉES.
+    via: 'e2e-writes.mjs',
+  },
+  {
     check: 'check-release-coherence.mjs',
     input: 'artifact+network+config',
     needs: [IMMUNITY.NON_VACUOUS],

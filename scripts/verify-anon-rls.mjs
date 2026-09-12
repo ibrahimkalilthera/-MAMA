@@ -58,8 +58,13 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
+import { replayableWrite } from './lib/transient-http.mjs';
 
-export const PROBE_NAME = 'CI Probe — anon RLS';
+// Le nom sonde porte le jeton de SON run : c'est lui qui rend la ligne
+// retrouvable. Un nom fixe aurait fait ressembler deux exécutions (ou un rejeu
+// après une réponse perdue) à la même ligne, et le nettoyage — qui supprime par
+// l'id rendu — n'aurait jamais connu que la dernière.
+export const PROBE_NAME = `CI Probe — anon RLS ${Date.now().toString().slice(-6)}`;
 const HACKED_NAME = `${PROBE_NAME} (hacked)`;
 
 // 401 (permission denied) et 403 (policy RLS) sont le refus anon attendu.
@@ -67,6 +72,20 @@ const HACKED_NAME = `${PROBE_NAME} (hacked)`;
 // une erreur de contrainte ne survient qu'APRÈS le passage d'une policy
 // d'insert (ou l'exécution d'une fonction), donc un 400 prouve un accès.
 const RLS_REFUSAL = (res) => res.status === 401 || res.status === 403;
+
+/**
+ * Une réponse reconstituée depuis une SONDE.
+ *
+ * Le rejeu d'une écriture rend, quand la sonde a trouvé la ligne, ce qu'elle a
+ * lu — et l'appelant continue exactement comme si sa requête avait répondu :
+ * `readBody` lit `.text()`, les vérifications lisent `.status` et `.ok`. Cette
+ * forme est celle du `fetch` du dépôt, donc rien d'autre ne change.
+ */
+const probedResponse = (payload, status = 200) => ({
+  status,
+  ok: true,
+  text: async () => JSON.stringify(payload),
+});
 
 const readBody = async (res) => {
   try {
@@ -141,6 +160,30 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   const api = makeApi(base, safeFetch);
   const authApi = makeAuthApi(base, safeFetch);
 
+  /**
+   * Crée un utilisateur auth via service_role, sans jamais en créer deux.
+   *
+   * Un 504 tombe souvent APRÈS la création : rejouer à l'aveugle rendrait un 422
+   * et le run mourrait AVANT de connaître l'uid — donc sans rien à supprimer, et
+   * le compte resterait en base. La sonde relit le compte par son email (unique
+   * côté GoTrue) et le réutilise ; la clé de réconciliation est donc l'EMAIL, et
+   * `label` ne sert qu'au journal.
+   */
+  const createAuthUser = (email, label) => replayableWrite(
+    () => authApi('admin/users', serviceKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'probe-pass-123', email_confirm: true }),
+    }),
+    async () => {
+      const probe = await authApi(`admin/users?email=${encodeURIComponent(email)}`, serviceKey);
+      const found = probe.ok ? (await readBody(probe))?.users?.[0] : null;
+      if (found?.id) console.log(`  ↻ utilisateur ${label} : déjà créé — réutilisé`);
+      return found?.id ? probedResponse(found) : null;
+    },
+    { label: `POST /auth/v1/admin/users (${label}) — `, log: (m) => console.log(`  ↻ ${m}`) },
+  );
+
   const finish = () => {
     if (transportError) {
       console.log(`⚠ backend injoignable en cours de route (${transportError.message}) — vérification RLS SKIPPÉE, pas une brèche.`);
@@ -166,11 +209,24 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   check(tables.length > 0, `${tables.length} tables publiques découvertes dans les migrations`);
 
   // 1. Seed d'une ligne métier via service_role.
-  const seed = await api('students', serviceKey, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Prefer: REP },
-    body: JSON.stringify({ name: PROBE_NAME }),
-  });
+  const seed = await replayableWrite(
+    () => api('students', serviceKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Prefer: REP },
+      body: JSON.stringify({ name: PROBE_NAME }),
+    }),
+    // `students` n'a d'unique que `student_id`, NULL ici : un POST rejoué
+    // après une réponse perdue créerait une SECONDE ligne, et le nettoyage
+    // (qui supprime par l'id rendu) n'aurait jamais connu la première. La
+    // sonde retrouve la ligne par le nom de sonde, qui porte le jeton du run.
+    async () => {
+      const probe = await api(`students?select=*&name=eq.${encodeURIComponent(PROBE_NAME)}&limit=1`, serviceKey);
+      const row = probe.ok ? (await readBody(probe))[0] : null;
+      if (row?.id) console.log('  ↻ ligne de sonde : déjà présente — réutilisée');
+      return row?.id ? probedResponse([row]) : null;
+    },
+    { label: 'POST /rest/v1/students (sonde RLS) — ', log: (m) => console.log(`  ↻ ${m}`) },
+  );
   // Sans Prefer: return=representation, PostgREST répond 201 avec un corps
   // VIDE (return=minimal) — le header est requis pour récupérer l'id seedé.
   const seedBody = seed.ok ? await readBody(seed) : null;
@@ -249,11 +305,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   // cette ligne (FK vers auth.users), PATCH/DELETE anon seraient vides — le
   // même piège 204 que pour students.
   const probeEmail = ephemeralEmail('ci-probe', 'example.test');
-  const adminCreate = await authApi('admin/users', serviceKey, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: probeEmail, password: 'probe-pass-123', email_confirm: true }),
-  });
+  const adminCreate = await createAuthUser(probeEmail, 'utilisateur A');
   const createdUser = adminCreate.ok ? await readBody(adminCreate) : null;
   check(adminCreate.ok && createdUser?.id != null, `création utilisateur auth via service_role (${adminCreate.status})`);
   if (!createdUser?.id) return finish();
@@ -317,11 +369,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   // 14. Deuxième utilisateur : prouver qu'un utilisateur authentifié ne voit
   // que SON profil exige au moins 2 lignes en base.
   const secondEmail = ephemeralEmail('ci-probe-b', 'example.test');
-  const adminCreateB = await authApi('admin/users', serviceKey, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: secondEmail, password: 'probe-pass-123', email_confirm: true }),
-  });
+  const adminCreateB = await createAuthUser(secondEmail, 'utilisateur B');
   const userB = adminCreateB.ok ? await readBody(adminCreateB) : null;
   check(adminCreateB.ok && userB?.id != null, `création deuxième utilisateur auth (${adminCreateB.status})`);
   if (!userB?.id) return finish();
@@ -406,11 +454,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   // 18. Créer un utilisateur C puis promouvoir son profil en 'admin' (via
   // service_role — la RLS est contournée, mais le rôle est posé en base).
   const adminEmail = ephemeralEmail('ci-probe-admin', 'example.test');
-  const adminCreateC = await authApi('admin/users', serviceKey, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: adminEmail, password: 'probe-pass-123', email_confirm: true }),
-  });
+  const adminCreateC = await createAuthUser(adminEmail, 'utilisateur admin');
   const userC = adminCreateC.ok ? await readBody(adminCreateC) : null;
   check(adminCreateC.ok && userC?.id != null, `création utilisateur admin (${adminCreateC.status})`);
   if (!userC?.id) return finish();

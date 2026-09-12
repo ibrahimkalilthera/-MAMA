@@ -184,13 +184,21 @@ jobs:
       # .env (service-role) et Chrome que les pixel-checks ; le compte est
       # supprimé en fin de run, même en échec.
       - name: CSP guard — aucune violation en navigation
+        # Mandat de preuve : cette garde publie SES mesures (pages principales
+        # parcourues en session réelle, violations détectées) au lieu d'une
+        # phrase de workflow. Sans mandat posé par l'étape, elle se tait.
         env:
           CHROME_PATH: /usr/bin/google-chrome
+          AUTOMATION_EVIDENCE: '1'
         run: node scripts/verify-csp-guard.mjs
 
       - name: PDF pixel-check E2E — paie (mode auto, contre la prod)
+        # Mandat de preuve : chaque invocation publie SA mesure (le nombre de
+        # vérifications passées sur le document produit) — deux runs du même
+        # script publient donc deux preuves, et l'audit les additionne.
         env:
           CHROME_PATH: /usr/bin/google-chrome
+          AUTOMATION_EVIDENCE: '1'
         run: node scripts/verify-pdf-download.mjs --mode auto
 
       # Deuxième flux, page Élèves : le reçu des parents (formulaire papier
@@ -199,6 +207,7 @@ jobs:
       - name: PDF pixel-check E2E — reçu parent (mode recu-parent, contre la prod)
         env:
           CHROME_PATH: /usr/bin/google-chrome
+          AUTOMATION_EVIDENCE: '1'
         run: node scripts/verify-pdf-download.mjs --mode recu-parent
 
       # Garde finale anti-résidus : chaque script E2E (garde CSP, pixel-checks
@@ -227,6 +236,14 @@ jobs:
       # `npm run check:automations`), et publiée en DERNIER : elle affirme que la
       # chaîne est allée au bout — en-têtes, CSP, deux pixel-checks et le
       # nettoyage des comptes éphémères.
+      #
+      # La SUBSTANCE, elle, ne vient plus d'ici : chaque script de la chaîne
+      # publie désormais SA mesure sous mandat — la garde CSP ses pages
+      # parcourues et ses violations, chaque pixel-check ses vérifications sur le
+      # document produit, le nettoyage final ses enregistrements parcourus. Cette
+      # étape reste pour ce qu'AUCUN script ne peut mesurer : le fait que la
+      # chaîne entière soit allée au bout (l'étape d'en-têtes, écrite en YAML sans
+      # script à elle, et l'ORDRE des gardes).
       - name: Publier la preuve d’action — chaîne PDF E2E
         run: >-
           node scripts/publish-automation-evidence.mjs --acted

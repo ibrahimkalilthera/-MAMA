@@ -399,8 +399,47 @@ describe('le dépôt — chaque automatisation promet une preuve, et la MESURE',
     ['scripts/verify-anon-rls.mjs', 'prod-anon-rls.yml', 'verify-anon-rls.mjs'],
     ['scripts/verify-anon-rls.mjs', 'supabase-migrations.yml', 'verify-anon-rls.mjs'],
     ['scripts/verify-ephemeral-cleanup.mjs', 'pdf-e2e.yml', 'verify-ephemeral-cleanup.mjs'],
+    ['scripts/verify-csp-guard.mjs', 'pdf-e2e.yml', 'verify-csp-guard.mjs'],
+    ['scripts/verify-pdf-download.mjs', 'pdf-e2e.yml', 'verify-pdf-download.mjs'],
     ['scripts/check-automations.mjs', 'automation-audit.yml', 'check:automations'],
   ];
+
+  it('chaque producteur de la chaîne E2E publie un COMPTE, pas une phrase', () => {
+    // Le défaut que ce canal existe pour fermer : une preuve « j'ai agi » sans
+    // rien à compter vaut pour un script qui a tout mesuré comme pour un script
+    // qui n'a rien regardé. Les trois producteurs de la chaîne PDF E2E publient
+    // donc une mesure — pages parcourues, vérifications passées, enregistrements
+    // parcourus en base.
+    for (const script of [
+      'scripts/verify-csp-guard.mjs',
+      'scripts/verify-pdf-download.mjs',
+      'scripts/verify-ephemeral-cleanup.mjs',
+    ]) {
+      const src = readFileSync(join(root, script), 'utf8');
+      assert.match(src, /publishEvidence\(\{[\s\S]*?count:/, `${script} doit publier un compte mesuré`);
+      assert.match(src, /acted: true/, `${script} doit déclarer son action`);
+    }
+  });
+
+  it('les scripts E2E hors CI sont PRÊTS à parler, mais restent muets sans mandat', () => {
+    // `e2e-business.mjs` et `verify-desktop-app.mjs` ne tournent dans aucun
+    // workflow : ils n'ont donc personne à qui parler, et c'est le mandat qui
+    // décide — pas le script. Leur publishEvidence est la substance déjà en
+    // place, pour le jour où une étape les mandatera ; aujourd'hui il se tait.
+    for (const script of ['scripts/e2e-business.mjs', 'scripts/verify-desktop-app.mjs']) {
+      const src = readFileSync(join(root, script), 'utf8');
+      assert.match(src, /publishEvidence\(\{/, `${script} doit pouvoir prouver ce qu’il a mesuré`);
+      assert.match(src, /count: \S/, `${script} doit publier un compte mesuré, pas seulement une phrase`);
+    }
+    // Et le silence est celui du MODULE, pas une convention : hors mandat, il
+    // n'imprime aucune annotation (le détail de la raison est testé plus haut).
+    const calls: string[] = [];
+    publishEvidence(
+      { acted: true, count: 1, reason: 'mesure de test' },
+      { env: {}, out: (line) => calls.push(line) },
+    );
+    assert.equal(calls.some((line) => line.includes('::')), false, 'sans mandat, aucune annotation ne part');
+  });
 
   it('chaque automatisation qui a un script publie sa propre mesure, sous le mandat de son étape', () => {
     // C'est la substance : une phrase écrite dans le YAML vaudrait pour un script

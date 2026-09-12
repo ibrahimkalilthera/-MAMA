@@ -74,6 +74,7 @@ import { dirname, join } from 'node:path';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 
@@ -948,4 +949,16 @@ try {
 
 const failed = checks.filter((c) => !c.ok);
 console.log(`\n${failed.length === 0 ? '✅' : '❌'} ${checks.length - failed.length}/${checks.length} vérifications OK`);
+if (failed.length === 0) {
+  // La preuve vient d'ici, pas d'une phrase du workflow : ce que ce pixel-check a
+  // RÉELLEMENT mesuré, c'est le nombre de vérifications passées sur le mode
+  // demandé (page rasterisée, zones de données, centrages). Deux invocations de
+  // ce script tournent dans le même job — chacune publie SA mesure, et le mandat
+  // est posé par l'étape qui l'exécute (`AUTOMATION_EVIDENCE: '1'`).
+  publishEvidence({
+    acted: true,
+    count: checks.length,
+    reason: `pixel-check PDF « ${MODE} » : ${checks.length} vérification(s) passée(s) sur le document produit (${URL})`,
+  });
+}
 process.exit(failed.length === 0 ? 0 : 1);

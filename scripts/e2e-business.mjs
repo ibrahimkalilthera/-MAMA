@@ -28,6 +28,8 @@ import puppeteer from 'puppeteer-core';
 import { readFileSync, rmSync, existsSync } from 'node:fs';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
+import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -59,11 +61,29 @@ const base = env.VITE_SUPABASE_URL.replace(/\/$/, '');
 const sr = env.SUPABASE_SERVICE_ROLE_KEY;
 const HDR = { apikey: sr, Authorization: 'Bearer ' + sr, 'Content-Type': 'application/json' };
 
-const api = async (path, opts = {}) => {
+// Deux briques, et la séparation EST le contrat — la même que dans le
+// pixel-check PDF et la garde CSP :
+//   • `rawApi` ne retente rien : c'est la brique des ÉCRITURES, dont la reprise
+//     passe par `replayableWrite` (sonde d'abord). Retenter une écriture depuis
+//     ici doublerait la ligne que la sonde sert à ne pas créer.
+//   • `api` retente les coupures de passerelle (429/502/503/504, erreurs de
+//     transport), borné et journalisé : un gateway lent n'est pas un verdict sur
+//     l'application. Un 4xx n'est jamais retenté — c'est une réponse.
+const rawApi = async (path, opts = {}) => {
   const r = await fetch(`${base}/rest/v1${path}`, { headers: HDR, ...opts });
   const t = await r.text();
-  return { status: r.status, body: t ? JSON.parse(t) : null };
+  try {
+    return { status: r.status, body: t ? JSON.parse(t) : null };
+  } catch {
+    // Un corps non-JSON (page HTML d'une passerelle) ne doit pas devenir une
+    // erreur de SYNTAXE : c'est le statut qui compte.
+    return { status: r.status, body: { _nonJson: t.slice(0, 200) } };
+  }
 };
+
+const api = (path, opts = {}) => withTransientRetry(() => rawApi(path, opts), {
+  label: `${opts.method || 'GET'} /rest/v1${path} — `, log: (m) => console.log(`  ↻ ${m}`),
+});
 
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -114,7 +134,13 @@ const cleanup = async (uidToDelete) => {
     for (const v of vendors) await api(`/vendor_expenses?id=eq.${v.id}`, { method: 'DELETE' });
     await api(`/custom_classes?code=eq.${CLASS_NAME}`, { method: 'DELETE' });
     if (uidToDelete) {
-      await fetch(`${base}/auth/v1/admin/users/${uidToDelete}`, { method: 'DELETE', headers: HDR });
+      // Suppression IDEMPOTENTE : un 404 veut dire « déjà parti », ce que ce
+      // nettoyage demande exactement ; une coupure de passerelle, elle, ne doit
+      // pas laisser le compte en base (c'est le résidu signale au run suivant).
+      await withTransientRetry(async () => {
+        const r = await fetch(`${base}/auth/v1/admin/users/${uidToDelete}`, { method: 'DELETE', headers: HDR });
+        return { status: r.status };
+      }, { label: `DELETE /auth/v1/admin/users/${uidToDelete} — `, log: (m) => console.log(`  ↻ ${m}`) });
     }
   } catch (e) {
     console.log('cleanup:', e.message);
@@ -146,16 +172,32 @@ if (!existsSync(CHROME)) {
 // ── 1. Create jetable user; elevate to admin so vendor expense / isPromoter ─
 let uid = null;
 {
-  const r = await fetch(`${base}/auth/v1/admin/users`, {
-    method: 'POST', headers: HDR, body: JSON.stringify({ email: EMAIL, password: PASS, email_confirm: true }),
-  });
-  const b = await r.json();
-  if (r.ok) { uid = b.id; check('Compte jetable créé', true); }
-  else if (b.code === 'user_already_exists') {
-    const list = await (await fetch(`${base}/auth/v1/admin/users?email=${EMAIL}`, { headers: HDR })).json();
-    uid = list.users?.[0]?.id;
+  // Une réponse PERDUE (504 du gateway) ne doit pas laisser le compte en base :
+  // sans uid, le nettoyage n'a RIEN à supprimer. L'email est unique côté GoTrue,
+  // donc la sonde le retrouve — le rejeu réutilise le compte au lieu d'en créer
+  // un second, et l'uid reste connu de la suite du run.
+  const created = await replayableWrite(
+    async () => {
+      const r = await fetch(`${base}/auth/v1/admin/users`, {
+        method: 'POST', headers: HDR, body: JSON.stringify({ email: EMAIL, password: PASS, email_confirm: true }),
+      });
+      return { status: r.status, body: await r.json() };
+    },
+    async () => {
+      const list = await (await fetch(`${base}/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`, { headers: HDR })).json();
+      const found = list.users?.[0];
+      return found?.id ? { status: 200, body: found } : null;
+    },
+    { label: 'POST /auth/v1/admin/users — ', log: (m) => console.log(`  ↻ ${m}`) },
+  );
+  if (created.body?.id) {
+    uid = created.body.id;
+    check('Compte jetable créé', true);
+  } else if (created.body?.code === 'user_already_exists') {
+    const list = await (await fetch(`${base}/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`, { headers: HDR })).json();
+    uid = list.users?.[0]?.id ?? null;
     check('Compte jetable déjà existant (réutilisé)', true);
-  } else check('Compte jetable créé', false, b.msg || r.status);
+  } else check('Compte jetable créé', false, created.body?.msg || created.status);
   await new Promise((res) => setTimeout(res, 2000)); // wait for profile trigger
   const up = await api(`/user_profiles?id=eq.${uid}`, { method: 'PATCH', body: JSON.stringify({ role: 'admin' }) });
   check('Profil promu admin (isPromoter / dépense fournisseur)', up.status === 204 || up.status === 200, `status ${up.status}`);
@@ -398,4 +440,16 @@ try {
 
 const failed = results.filter((r) => !r.ok);
 console.log(`\n=== RÉSULTAT : ${results.length - failed.length}/${results.length} OK ===`);
+if (failed.length === 0) {
+  // La preuve vient d'ici, pas d'une phrase du workflow : ce que ce run a
+  // RÉELLEMENT mesuré, c'est le nombre de vérifications passées sur les deux
+  // cycles métier (élève → paiement → totaux ; parent → salaire → dépense) et
+  // l'état vierge de la base après nettoyage. Le mandat est posé par l'étape qui
+  // l'exécute (`AUTOMATION_EVIDENCE: '1'`) ; hors mandat, il se tait.
+  publishEvidence({
+    acted: true,
+    count: results.length,
+    reason: `cycles métier E2E : ${results.length} vérification(s) passée(s) (élève→paiement→totaux, parent→salaire→dépense) et base revenue vierge après nettoyage`,
+  });
+}
 process.exit(failed.length ? 1 : 0);

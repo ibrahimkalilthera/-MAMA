@@ -32,6 +32,8 @@ import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
+import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const parseEnv = (p) => {
@@ -64,18 +66,53 @@ const EMAIL = ephemeralEmail('verify-csp');
 const PASS = 'Audit-Pass-2026!';
 let ephemeralUid = null;
 
-const api = async (path, opts = {}) => {
+// Deux briques, et la séparation EST le contrat — la même que dans le
+// pixel-check PDF, parce que les deux chaînes ont payé le même 504 :
+//   • `rawApi` ne retente rien : c'est la brique des ÉCRITURES, dont la reprise
+//     passe par `replayableWrite` (sonde d'abord). Retenter une écriture depuis
+//     ici doublerait la ligne que la sonde sert justement à ne pas créer.
+//   • `api` retente les coupures de passerelle (429/502/503/504, erreurs de
+//     transport), borné et journalisé : un gateway lent n'est pas un verdict sur
+//     l'application. Un 4xx, lui, n'est jamais retenté — c'est une réponse.
+const rawApi = async (path, opts = {}) => {
   const r = await fetch(`${supabaseBase}${path}`, { headers: HDR, ...opts });
   const t = await r.text();
-  return { status: r.status, body: t ? JSON.parse(t) : null };
+  try {
+    return { status: r.status, body: t ? JSON.parse(t) : null };
+  } catch {
+    // Un corps non-JSON (page HTML d'une passerelle) ne doit pas devenir une
+    // erreur de SYNTAXE : c'est le statut qui compte, et un `JSON.parse` qui jette
+    // masquerait le 504 derrière un « Unexpected token ».
+    return { status: r.status, body: { _nonJson: t.slice(0, 200) } };
+  }
 };
+
+const api = (path, opts = {}) => withTransientRetry(() => rawApi(path, opts), {
+  label: `${opts.method || 'GET'} ${path} — `, log: (m) => console.log(`  ↻ ${m}`),
+});
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function createAccount() {
-  const r = await api('/auth/v1/admin/users', {
-    method: 'POST',
-    body: JSON.stringify({ email: EMAIL, password: PASS, email_confirm: true }),
-  });
+  // Un 504 tombe souvent APRÈS que le compte a été créé : sans uid, le
+  // nettoyage n'aurait RIEN à supprimer et le compte resterait en base — le
+  // résidu que le garde anti-résidus signale au run SUIVANT. La sonde le
+  // retrouve par son email (unique côté GoTrue), donc le rejeu est sûr.
+  const r = await replayableWrite(
+    () => rawApi('/auth/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({ email: EMAIL, password: PASS, email_confirm: true }),
+    }),
+    async () => {
+      const probe = await rawApi(`/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`);
+      const found = Array.isArray(probe.body?.users) ? probe.body.users[0] : null;
+      if (found?.id) {
+        console.log('  ↻ compte éphémère : déjà créé — réutilisé');
+        return { status: 200, body: { id: found.id } };
+      }
+      return null;
+    },
+    { label: 'POST /auth/v1/admin/users — ', log: (m) => console.log(`  ↻ ${m}`) },
+  );
   if (!r.body?.id) throw new Error(`création du compte échouée (${r.status})`);
   ephemeralUid = r.body.id;
   await api(`/rest/v1/user_profiles?id=eq.${ephemeralUid}`, {
@@ -100,6 +137,21 @@ async function cleanup() {
 const CSP_RE = /Content Security Policy|violates the following|Refused to (load|execute|connect|frame|apply|send|evaluate|run)|blocked by Content Security Policy/i;
 const violations = [];
 const seen = new Set();
+
+// Les pages principales, chacune exerçant script-src, style-src, connect-src,
+// font-src et img-src (graphiques, cachets, notifications…). Déclarées ICI, et
+// non dans le bloc qui les visite : la preuve publiée à la fin du run doit
+// pouvoir dire combien d'entre elles ont réellement été ouvertes.
+const PAGES = [
+  ['Tableau de bord', /tableau de bord|dashboard/i],
+  ['Paie', /paie|salaires|payroll/i],
+  ['Dépenses', /d[eé]penses|expenses/i],
+  ['Élèves', /[eé]l[eè]ves|students/i],
+  ['Parents', /parents/i],
+  ['Calendrier', /calendrier|calendar/i],
+  ['Archives', /archives/i],
+];
+let visited = 0;
 const pushViolation = (where, text) => {
   const key = where + '|' + text.slice(0, 120);
   if (seen.has(key)) return;
@@ -183,16 +235,6 @@ const failMsg = (m) => { console.error('  ❌ ' + m); fail = true; };
     // 3. Navigate every main page (admin account → full sidebar). Each visit
     //    exercises script-src, style-src, connect-src, font-src and img-src
     //    (charts, stamps, notifications…).
-    const PAGES = [
-      ['Tableau de bord', /tableau de bord|dashboard/i],
-      ['Paie', /paie|salaires|payroll/i],
-      ['Dépenses', /d[eé]penses|expenses/i],
-      ['Élèves', /[eé]l[eè]ves|students/i],
-      ['Parents', /parents/i],
-      ['Calendrier', /calendrier|calendar/i],
-      ['Archives', /archives/i],
-    ];
-    let visited = 0;
     for (const [label, re] of PAGES) {
       let clicked = false;
       for (let attempt = 0; attempt < 4 && !clicked; attempt++) {
@@ -234,5 +276,16 @@ const failMsg = (m) => { console.error('  ❌ ' + m); fail = true; };
     await cleanup();
   }
   if (fail || violations.length > 0) process.exit(1);
+  // La preuve vient d'ici, pas d'une phrase du workflow : ce que cette garde a
+  // RÉELLEMENT mesuré, c'est le nombre de pages parcourues et l'absence de
+  // violation sur chacune. Le mandat est posé par l'étape qui l'exécute
+  // (`AUTOMATION_EVIDENCE: '1'`) ; hors mandat, elle se tait.
+  publishEvidence({
+    acted: true,
+    count: visited > 0 ? visited : null,
+    reason:
+      `garde CSP : ${visited}/${PAGES.length} page(s) principale(s) parcourue(s) en session réelle, ` +
+      `${violations.length} violation(s) détectée(s), en-têtes de sécurité présents`,
+  });
   process.exit(0);
 })();

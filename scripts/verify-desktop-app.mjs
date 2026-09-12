@@ -11,6 +11,8 @@ import { spawn } from 'node:child_process';
 import puppeteer from 'puppeteer-core';
 import { ephemeralEmail } from '../scripts/lib/ephemeral-accounts.mjs';
 import { sweepOrphanElectron } from './lib/orphan-chrome.mjs';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
+import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 
 const envFile = readFileSync('.env', 'utf8');
 const get = (k) => (envFile.match(new RegExp(`^${k}=(.*)$`, 'm')) || [])[1]?.replace(/^["']|["']$/g, '');
@@ -32,11 +34,47 @@ const PORT = 9400 + Math.floor(Math.random() * 400); // unique per run — no st
 const PASS = 'Audit-Pass-2026!';
 const staffName = `PreuveBureau ${Date.now().toString().slice(-5)}`;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Une réponse sous la forme `{ status, body }` — celle que le rejeu sain exige.
+ *
+ * Les écritures ci-dessous passent par `replayableWrite` : une coupure de
+ * passerelle est retentée, mais la reprise commence par une SONDE, sinon un
+ * POST déjà appliqué doublerait sa ligne. Une ligne de démo non retrouvée est
+ * une ligne qui reste en base : le nom de l'employé porte son run, l'email du
+ * compte est unique, et ce sont les deux clés que les sondes interrogent.
+ */
+const raw = async (path, init = {}) => {
+  const r = await fetch(`${BASE}${path}`, { headers: HDR, ...init });
+  const text = await r.text();
+  try {
+    return { status: r.status, body: text ? JSON.parse(text) : null };
+  } catch {
+    return { status: r.status, body: null };
+  }
+};
 const wipeUserData = () => {
   for (let i = 0; i < 5; i++) {
     try { rmSync(USER_DATA, { recursive: true, force: true }); return; } catch { /* verrou transitoire */ }
     wait(800);
   }
+};
+
+/**
+ * Une suppression IDEMPOTENTE, retentée : un 404 veut dire « déjà parti », ce que
+ * ce nettoyage demande exactement — et une coupure de passerelle ne doit pas
+ * laisser une ligne de démo en base (c'est le résidu découvert au run suivant).
+ * Les deux suppressions ci-dessous portaient un `catch(() => {})` : l'échec était
+ * donc avalé, sans trace et sans preuve que la ligne est partie.
+ */
+const deleteOrGone = async (path, label) => {
+  const result = await withTransientRetry(async () => {
+    const r = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: HDR });
+    return { status: r.status };
+  }, { label, log: (m) => console.log(`  ↻ ${m}`) });
+  const gone = result.status === 204 || result.status === 200 || result.status === 404;
+  console.log(`${gone ? '🧹' : '⚠️'} ${label} (HTTP ${result.status}${result.status === 404 ? ' — déjà absent' : ''})`);
+  return gone;
 };
 
 let uid = null;
@@ -53,18 +91,27 @@ try {
     return lr.ok ? (await lr.json()).map((r) => r.id) : [];
   })();
   for (const id of leftovers) {
-    await fetch(`${BASE}/rest/v1/staff?id=eq.${id}`, { method: 'DELETE', headers: HDR }).catch(() => {});
+    // Retentée et NOMMÉE : un `catch(() => {})` avalait l'échec, donc une ligne
+    // résiduelle pouvait survivre à ce que le script croyait avoir purgé.
+    await deleteOrGone(`/rest/v1/staff?id=eq.${id}`, `résidu PreuveBureau purgé (${id.slice(0, 8)}…)`).catch(() => {});
   }
   if (leftovers.length) console.log(`🧹 ${leftovers.length} employé(s) résiduel(s) PreuveBureau purgé(s)`);
 
   // ── 1. ephemeral admin account + profile → admin ────────────────────────
   const email = ephemeralEmail('verify-desktop');
-  const r = await fetch(`${BASE}/auth/v1/admin/users`, {
-    method: 'POST', headers: HDR, body: JSON.stringify({ email, password: PASS, email_confirm: true }),
-  });
-  const b = await r.json();
-  if (!r.ok) throw new Error(`création compte: ${b.msg || r.status}`);
-  uid = b.id;
+  const created = await replayableWrite(
+    () => raw('/auth/v1/admin/users', {
+      method: 'POST', body: JSON.stringify({ email, password: PASS, email_confirm: true }),
+    }),
+    async () => {
+      const probe = await raw(`/auth/v1/admin/users?email=${encodeURIComponent(email)}`);
+      const found = Array.isArray(probe.body?.users) ? probe.body.users[0] : null;
+      return found?.id ? { status: 200, body: { id: found.id } } : null;
+    },
+    { label: 'POST /auth/v1/admin/users — ', log: (m) => console.log(`  ↻ ${m}`) },
+  );
+  if (!created.body?.id) throw new Error(`création compte: ${created.body?.msg || created.status}`);
+  uid = created.body.id;
   console.log('✅ compte éphémère', email);
   await wait(2500);
   const up = await fetch(`${BASE}/rest/v1/user_profiles?id=eq.${uid}`, {
@@ -73,13 +120,21 @@ try {
   console.log(up.status < 300 ? '✅ profil promu admin' : `⚠️ promotion profil HTTP ${up.status}`);
 
   // ── 2. one temporary staff row (for the fiche PDF) ──────────────────────
-  const sr = await fetch(`${BASE}/rest/v1/staff`, {
-    method: 'POST', headers: { ...HDR, Prefer: 'return=representation' },
-    body: JSON.stringify({ name: staffName, position: 'Enseignant', salary: 150000, email: 'preuve@mamathera.org' }),
-  });
-  const srText = await sr.text();
-  if (!sr.ok) throw new Error(`insert staff: ${sr.status} ${srText.slice(0, 120)}`);
-  staffId = JSON.parse(srText)[0].id;
+  const sr = await replayableWrite(
+    () => raw('/rest/v1/staff', {
+      method: 'POST', headers: { ...HDR, Prefer: 'return=representation' },
+      body: JSON.stringify({ name: staffName, position: 'Enseignant', salary: 150000, email: 'preuve@mamathera.org' }),
+    }),
+    async () => {
+      const probe = await raw(`/rest/v1/staff?select=*&name=eq.${encodeURIComponent(staffName)}&limit=1`);
+      const row = Array.isArray(probe.body) ? probe.body[0] : null;
+      if (row?.id) console.log('  ↻ employé temporaire : la ligne était déjà là — réutilisée');
+      return row?.id ? { status: 201, body: [row] } : null;
+    },
+    { label: 'POST /rest/v1/staff — ', log: (m) => console.log(`  ↻ ${m}`) },
+  );
+  if (!sr.body?.[0]?.id) throw new Error(`insert staff: ${sr.status} ${JSON.stringify(sr.body ?? null).slice(0, 120)}`);
+  staffId = sr.body[0].id;
   console.log('✅ employé temporaire', staffName, staffId);
 
   // ── 3. launch the packaged exe with CDP + auto download dir ─────────────
@@ -215,13 +270,25 @@ try {
   await Promise.race([browser.close().catch(() => {}), wait(5000)]);
   app.kill();
   await sweepOrphanElectron();
-  await fetch(`${BASE}/rest/v1/staff?id=eq.${staffId}`, { method: 'DELETE', headers: HDR });
-  await fetch(`${BASE}/auth/v1/admin/users/${uid}`, { method: 'DELETE', headers: HDR });
+  const cleaned =
+    (await deleteOrGone(`/rest/v1/staff?id=eq.${staffId}`, 'employé temporaire supprimé')) &&
+    (await deleteOrGone(`/auth/v1/admin/users/${uid}`, 'compte éphémère supprimé'));
   rmSync(DL_DIR, { recursive: true, force: true });
   wipeUserData();
-  console.log('🧹 employé temporaire + compte éphémère supprimés');
+  if (ok && cleaned) {
+    // La preuve vient d'ici, pas d'une phrase du workflow : ce que cette preuve a
+    // RÉELLEMENT mesuré, c'est le PDF téléchargé par l'application EMPAQUETÉE (sa
+    // taille et sa signature), et le fait que les deux lignes de démo ont bien
+    // quitté la base. Le mandat est posé par l'étape qui l'exécute
+    // (`AUTOMATION_EVIDENCE: '1'`) ; hors mandat, il se tait.
+    publishEvidence({
+      acted: true,
+      count: 2,
+      reason: `preuve bureau : PDF reçu de l'app empaquetée (${pdfPath}, ${statSync(full).size} octets, signature ${head}) et les 2 lignes de démo (employé + compte) supprimées`,
+    });
+  }
   console.log(ok ? '\nPROOF_OK' : '\nPROOF_FAIL');
-  process.exit(ok ? 0 : 1);
+  process.exit(ok && cleaned ? 0 : 1);
 } catch (e) {
   console.error('❌', e.message);
   // Same hygiene as the success path: close the CDP browser and kill our app
@@ -230,8 +297,14 @@ try {
   try { browser && await Promise.race([browser.close().catch(() => {}), wait(5000)]); } catch { /* ignore */ }
   try { app && app.kill(); } catch { /* ignore */ }
   await sweepOrphanElectron();
-  if (staffId) await fetch(`${BASE}/rest/v1/staff?id=eq.${staffId}`, { method: 'DELETE', headers: HDR }).catch(() => {});
-  if (uid) await fetch(`${BASE}/auth/v1/admin/users/${uid}`, { method: 'DELETE', headers: HDR }).catch(() => {});
+  try {
+    if (staffId) await deleteOrGone(`/rest/v1/staff?id=eq.${staffId}`, 'employé temporaire supprimé (après échec)');
+    if (uid) await deleteOrGone(`/auth/v1/admin/users/${uid}`, 'compte éphémère supprimé (après échec)');
+  } catch (cleanupError) {
+    // Le nettoyage ne doit pas masquer la panne d'origine : on la nomme, et le
+    // run reste rouge de toute façon.
+    console.error('⚠️ nettoyage partiel :', cleanupError.message);
+  }
   rmSync(DL_DIR, { recursive: true, force: true });
   wipeUserData();
   process.exit(1);
