@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { EVIDENCE_PREFIX, INERT_MARK } from '../scripts/lib/automation-evidence.mjs';
+import { EVIDENCE_PREFIX } from '../scripts/lib/automation-evidence.mjs';
 import {
   DEFINITIONS,
   GATE_SENTINELS,
@@ -39,10 +39,10 @@ const PRINT = ['console', '.', 'log'].join('');
 describe('la règle — qui a le droit d’imprimer une sentinelle', () => {
   it('une suite qui imprime une sentinelle est un constat, avec fichier et ligne', () => {
     const text = [
-      "import { evidenceLine } from '../scripts/lib/automation-evidence.mjs';",
+      "import { evidenceAnnotation } from '../scripts/lib/automation-evidence.mjs';",
       '',
       "it('x', () => {",
-      `  ${PRINT}(evidenceLine({ workflow: 'dependabot-rebase.yml', acted: false }));`,
+      `  ${PRINT}(evidenceAnnotation({ workflow: 'dependabot-rebase.yml', acted: false }));`,
       '});',
       '',
     ].join('\n');
@@ -55,14 +55,14 @@ describe('la règle — qui a le droit d’imprimer une sentinelle', () => {
 
   it('l’automatisation dont c’est la voix garde le droit de parler', () => {
     const { findings } = inspectSentinelPrinters({
-      files: [{ file: 'scripts/rebase-dependabot-prs.mjs', text: `${PRINT}(evidenceLine(X));\n` }],
+      files: [{ file: 'scripts/rebase-dependabot-prs.mjs', text: `${PRINT}(evidenceAnnotation(X));\n` }],
     });
     assert.deepEqual(findings, [], 'l’émetteur est déclaré : sa sortie EST la déclaration');
   });
 
-  it('le fichier qui DÉFINIT les marques est exempté (il les nomme, il ne les imprime pas)', () => {
+  it('le fichier qui DÉFINIT la preuve est exempté (il la nomme, il ne l’imprime pas)', () => {
     const { findings } = inspectSentinelPrinters({
-      files: [{ file: DEFINITIONS, text: `${PRINT}('${INERT_MARK}');\n` }],
+      files: [{ file: DEFINITIONS, text: `${PRINT}(evidenceAnnotation(X));\n` }],
     });
     assert.deepEqual(findings, []);
   });
@@ -72,11 +72,14 @@ describe('la règle — qui a le droit d’imprimer une sentinelle', () => {
     assert.deepEqual(inspectSentinelPrinters({ files: [{ file: 'scripts/x.mjs', text }] }).findings, []);
   });
 
-  it('la sentinelle textuelle héritée est surveillée comme la structurée', () => {
-    const text = `${PRINT}('[inactif] le secret est absent');\n`;
+  it('la sentinelle est bien celle du canal STRUCTURÉ — il n’en reste qu’une', () => {
+    // Le transport par journal est mort : sa marque textuelle n’existe plus, donc
+    // la surveillance porte sur le seul sentier qui reste (l’annotation).
+    const text = `${PRINT}('${EVIDENCE_PREFIX}' + JSON.stringify(x));\n`;
     const { findings } = inspectSentinelPrinters({ files: [{ file: 'tests/y.test.ts', text }] });
     assert.equal(findings.length, 1);
-    assert.equal(findings[0].token, INERT_MARK);
+    assert.equal(findings[0].token, EVIDENCE_PREFIX);
+    assert.equal(GATE_SENTINELS.length, 1, 'deux entrées pour un canal, c’est une à retirer');
   });
 
   it('un commentaire qui CITE l’impression n’en est pas une (le run réel a mordu sur sa propre prose)', () => {
@@ -103,7 +106,7 @@ describe('l’inventaire — il n’existe qu’une fois, et il est lu', () => {
   it('les sentinelles viennent des constantes partagées, jamais recopiées', () => {
     assert.deepEqual(
       GATE_SENTINELS.map((s) => s.token).sort(),
-      [EVIDENCE_PREFIX, INERT_MARK].sort(),
+      [EVIDENCE_PREFIX].sort(),
       'un marqueur renommé doit être surveillé sans qu’on y pense',
     );
     for (const sentinel of GATE_SENTINELS) {
@@ -118,10 +121,8 @@ describe('l’inventaire — il n’existe qu’une fois, et il est lu', () => {
 
   it('le producteur déclare bien la sentinelle qu’il émet, et une seule fois', () => {
     const producer = readFileSync(join(root, 'scripts', 'rebase-dependabot-prs.mjs'), 'utf8');
-    assert.match(producer, /evidenceLine\(\{ workflow: WORKFLOW_FILE/, 'la preuve structurée est signée');
-    assert.match(producer, /inertAnnotation\(inertReason\)/, 'et l’annotation vient du helper partagé');
-    // Le canal structuré et la marque textuelle décrivent le MÊME état : deux
-    // textes différents pour la même inaction finiraient par diverger.
+    assert.match(producer, /evidenceAnnotation\(\{ workflow: WORKFLOW_FILE, acted: false/, 'la preuve d’inaction est signée');
+    assert.match(producer, /evidenceAnnotation\(\{\s*workflow: WORKFLOW_FILE,\s*acted: true/, 'et celle d’action aussi');
     assert.match(producer, /const inertReason =/, 'la raison est écrite une fois et partagée');
   });
 

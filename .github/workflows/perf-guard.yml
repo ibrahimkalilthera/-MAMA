@@ -106,6 +106,15 @@ jobs:
           AUDIT_CACHE: '1'
         run: node scripts/check-audit.mjs
 
+      # La preuve vient EN DERNIER, et c'est le fond : elle affirme « j'ai agi »,
+      # donc elle se publie quand le travail est fait. Un run dont une étape
+      # échoue reste rouge (verdict `failed`, déjà signalé) et n'a pas de preuve à
+      # donner — en publier une plus tôt mentirait.
+      - name: Publier la preuve d’action — chaîne qualité (lint, tests, audit)
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "chaîne qualité verte : lint, tests et audit gate exécutés sur ce commit"
+
   # Le layout npm n'est pas une opinion : Windows installe npm dans
   # `<prefix>/node_modules/npm`, les installations Unix (dont setup-node) dans
   # `<prefix>/lib/node_modules/npm`. Une machine ne peut prouver que le sien —
