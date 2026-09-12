@@ -44,6 +44,7 @@
  */
 
 import { appendFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { inertAnnotation } from './lib/automation-evidence.mjs';
 
 const API = 'https://api.github.com';
@@ -318,4 +319,17 @@ async function main() {
   for (const f of failures) annotate('warning', `#${f.number} : ${f.detail}`, 'Dependabot rebase');
 }
 
-main().catch((err) => fail(err?.message ?? String(err)));
+// ── Entrée ──────────────────────────────────────────────────────────────────
+// `main()` n'est lancé que si CE fichier est le programme : l'importer doit être
+// inerte. C'est le contrat habituel du dépôt, mais ici il est mesurable, et il a
+// fallu le payer : `tests/dependabot-rebase.test.ts` importe ce module pour
+// tester la boucle de décision, sans token — donc `main()` imprimait la
+// déclaration d'inaction dans le journal du job de tests, que
+// `npm run check:automations` relit. L'audit fabriquait ainsi lui-même la preuve
+// mensongère qu'il cherchait : `Quality & performance guard` était déclaré
+// « vert sans avoir agi » alors que ce n'est pas cette automatisation-ci qui
+// parlait. Un test doit pouvoir parler d'une automatisation sans la dénoncer.
+const invokedDirectly =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) main().catch((err) => fail(err?.message ?? String(err)));

@@ -65,15 +65,34 @@ export const inertAnnotation = (scope) =>
   `::warning title=${INERT_TITLE}::${INERT_MARK} ${scope}`;
 
 /**
- * Every inert marker in a workflow log — the scope of each one, in order.
+ * Ce qu'un runner écrit quand il INTERCEPTE une commande de workflow : le
+ * niveau, puis le message. C'est la seule forme sous laquelle une annotation
+ * émise survit dans le journal.
+ */
+const STORED_ANNOTATION = /##\[[a-z]+\]$/;
+
+/**
+ * Every inert marker a workflow DECLARED in its log — the scope of each one, in
+ * order.
  *
  * The log GitHub stores is prefixed per line (timestamp, step name), so the
  * marker is searched anywhere in a line rather than anchored; and a multiline
  * message keeps its first line, which is the one that names what is missing.
  *
- * The mark — not the annotation title — is what is searched: see INERT_MARK.
- * `##[warning][inactif] …` is the shape the runner stores, which is why this
- * reads the message rather than the command that produced it.
+ * The mark — not the annotation title — is what is searched (see INERT_MARK),
+ * AND it only counts when the runner STORED it, i.e. right after `##[warning]`.
+ * That second condition was paid for by a real false positive: the marker is
+ * plain text in a log, so anything that merely PRINTS the string is
+ * indistinguishable from an automation declaring its own inaction. Measured on
+ * this repo: `npm test` imports the Dependabot script, whose former top-level
+ * `main()` printed the annotation without a token — so every job that ran the
+ * suite declared `Dependabot rebase` inert, and the audit reported `Quality &
+ * performance guard` as "green without having acted" on the strength of a test
+ * fixture. The emitter was fixed at the source; requiring the stored form is
+ * what makes the class impossible: an emitted command is REWRITTEN by the
+ * runner into `##[warning]message` (that is the same measurement that moved the
+ * mark out of the annotation title), while a string that only contains the
+ * command stays exactly as printed.
  *
  * @param {string} [log] the job log as downloaded
  * @returns {string[]}
@@ -82,9 +101,10 @@ export function inertMarkers(log = '') {
   const text = String(log ?? '');
   const out = [];
   for (const line of text.split(/\r?\n/)) {
-    const at = line.indexOf(INERT_MARK);
-    if (at === -1) continue;
-    out.push(line.slice(at + INERT_MARK.length).trim());
+    for (let at = line.indexOf(INERT_MARK); at !== -1; at = line.indexOf(INERT_MARK, at + 1)) {
+      if (!STORED_ANNOTATION.test(line.slice(0, at))) continue;
+      out.push(line.slice(at + INERT_MARK.length).trim());
+    }
   }
   return out;
 }

@@ -36,11 +36,20 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const NOW = Date.parse('2026-09-12T12:00:00.000Z');
 const daysAgo = (days: number) => new Date(NOW - days * 24 * 60 * 60 * 1000).toISOString();
 
+/**
+ * Le journal tel que le runner le STOCKE : il intercepte la commande
+ * `::warning title=…::message` et n'en garde que `##[warning]message` — le titre
+ * est perdu. Un journal de test qui garderait la commande brute ne serait plus
+ * le journal réel, et c'est exactement l'écart qui a coûté un faux positif
+ * (voir le commentaire de `inertMarkers`).
+ */
+const stored = (annotation: string) => `##[warning]${annotation.split('::').slice(2).join('::')}`;
+
 /** A realistic log line: GitHub prefixes every line with a timestamp. */
 const logWith = (annotation: string) =>
   [
     `2026-09-12T02:01:25.0000000Z ⏳ node scripts/rebase-dependabot-prs.mjs — tentative 1/3`,
-    `2026-09-12T02:01:26.0000000Z ${annotation}`,
+    `2026-09-12T02:01:26.0000000Z ${stored(annotation)}`,
   ].join('\n');
 
 describe('la convention : une automatisation qui ne peut pas agir le DIT', () => {
@@ -68,8 +77,10 @@ describe('la convention : une automatisation qui ne peut pas agir le DIT', () =>
     // marque ci-dessous est donc celle que le helper compose, avec le reste de
     // la ligne copié du journal. Cette ligne EST le cas de non-régression.
     const realLine =
-      '2026-09-12T03:14:20.3564667Z ##[warning][inactif] Dependabot rebase — le secret ' +
-      'DEPENDABOT_REBASE_TOKEN n’est pas posé, donc aucune PR n’a été mise à jour.';
+      '2026-09-12T03:14:20.3564667Z ##[warning]' +
+      INERT_MARK +
+      ' Dependabot rebase — le secret DEPENDABOT_REBASE_TOKEN n’est pas posé, donc aucune PR n’a été ' +
+      'mise à jour.';
     const found = inertMarkers(realLine);
     assert.equal(found.length, 1);
     assert.match(found[0], /DEPENDABOT_REBASE_TOKEN n’est pas posé/);
@@ -92,6 +103,33 @@ describe('la convention : une automatisation qui ne peut pas agir le DIT', () =>
   it('deux marqueurs sont tous les deux relevés (le premier est nommé)', () => {
     const log = logWith(inertAnnotation('premier')) + '\n' + logWith(inertAnnotation('second'));
     assert.deepEqual(inertMarkers(log), ['premier', 'second']);
+  });
+
+  it('une copie IMPRIMÉE de la commande n’est pas une déclaration', () => {
+    // Mesuré le 2026-09-12 sur le journal du job de tests de `perf-guard.yml` :
+    // `npm test` importait le script Dependabot, dont le `main()` de haut niveau
+    // imprimait l’annotation sans token — donc la marque se retrouvait, en clair,
+    // dans le journal d’un job qui n’a rien à voir avec cette automatisation.
+    // L’audit en a conclu que `Quality & performance guard` était « vert sans
+    // avoir agi » : il fabriquait lui-même sa preuve. Le runner RÉÉCRIT une
+    // commande émise en `##[warning]message` (c’est la mesure qui a sorti la
+    // marque du titre) ; une chaîne qui CONTIENT la commande, elle, reste telle
+    // qu’imprimée. Donc seule la forme stockée déclare. Cette ligne est le cas
+    // de non-régression, copiée du journal réel.
+    const printed =
+      '2026-09-12T06:23:55.2329703Z # ::warning title=Inactif::' +
+      INERT_MARK +
+      ' Dependabot rebase — le secret DEPENDABOT_REBASE_TOKEN n’est pas posé.';
+    assert.deepEqual(inertMarkers(printed), [], 'une copie imprimée ne doit pas dénoncer une automatisation');
+    const v = lastRunVerdict({
+      name: 'Quality & performance guard',
+      run: { conclusion: 'success', created_at: daysAgo(0) },
+      log: printed,
+      nowMs: NOW,
+    });
+    assert.equal(v.verdict, 'acted', 'un job qui PARLE de la marque n’a pas déclaré son inaction');
+    // Et la même marque, réellement stockée, déclare toujours.
+    assert.equal(inertMarkers(logWith(inertAnnotation('secret absent'))).length, 1);
   });
 
   it('un log sans marqueur n’en invente aucun — y compris s’il parle d’« inactif » en prose', () => {
