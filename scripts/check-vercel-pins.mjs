@@ -29,6 +29,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, appendFileSync } from
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 
 const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const SPAWN_OPTS = { shell: process.platform === 'win32' };
@@ -38,6 +39,9 @@ const LABEL = 'vercel-pins';
 const ISSUE_TITLE = 'Vercel CLI: the pins fix is available — bump tools/ (vercel/vercel#11543)';
 const API = 'https://api.github.com';
 const UPSTREAM_ISSUE = 'https://github.com/vercel/vercel/issues/11543';
+
+/** Ce que la veille publiera sur elle-même : mesuré dans le corps ci-dessous. */
+let outcome = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const info = (msg) => console.log('• ' + msg);
@@ -281,6 +285,12 @@ if (process.env.PROBE_VERSION) {
       : `up to date — vercel@${latest} == pinned ${pinned}; tools/ audits ${currentCount}`;
   info(verdict);
 
+  // Le verdict est MESURÉ ici (version épinglée, arbre de la dernière release,
+  // audit de tools/) : c'est donc la preuve que cette automatisation publiera,
+  // au lieu d'une phrase écrite dans le workflow qui vaudrait pour n'importe
+  // quel état de l'arbre.
+  outcome = { acted: true, reason: verdict };
+
   const report = buildBody({ checkedAt, pinned, latest, currentCount, latestCount, fixAvailable, prs: [] });
   writeSummary(
     ['## Vercel pins watch', '', '```', verdict, '```', '', 'Full report is written to the tracking issue when a fix is available.'].join('\n'),
@@ -288,6 +298,10 @@ if (process.env.PROBE_VERSION) {
 
   if (!TOKEN) {
     info('no GITHUB_TOKEN — dry run: issue state untouched');
+    // L'audit a eu lieu, le suivi d'issue non : le dire plutôt que de publier
+    // une action qui n'a pas eu lieu (le suivi EST ce que cet automatisme fait
+    // entre deux veilles).
+    outcome = { acted: false, reason: `aucun GITHUB_TOKEN : audit fait (${verdict}) mais le suivi d'issue n'a pas pu être géré` };
     return;
   }
 
@@ -323,4 +337,8 @@ if (process.env.PROBE_VERSION) {
   }
 
   info('no fix available yet — no tracking issue needed; CI summary carries the status');
-})().catch((err) => fail(err && err.message ? err.message : String(err)));
+})()
+  .then(() => {
+    if (outcome) publishEvidence(outcome);
+  })
+  .catch((err) => fail(err && err.message ? err.message : String(err)));

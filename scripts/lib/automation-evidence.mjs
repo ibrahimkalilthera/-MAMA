@@ -59,15 +59,15 @@
  */
 export const EVIDENCE_TITLE = 'Automation evidence';
 
-/**
- * Le préfixe du payload, dans le MESSAGE de l'annotation.
- *
- * Conservé (et défini une seule fois) parce que c'est lui qui rend la preuve
- * lisible dans l'interface Actions *et* reconnaissable par un lecteur : le
- * message porte un JSON qui nomme son sujet, donc une preuve ne peut plus être
- * confondue avec la phrase de quelqu'un d'autre.
- */
-export const EVIDENCE_PREFIX = 'AUTOMATION-EVIDENCE ';
+// LA MARQUE TEXTUELLE A ÉTÉ RETIRÉE (2026-09-12) — et c'est la fin d'une
+// migration, pas un nettoyage cosmétique. `AUTOMATION-EVIDENCE ` restait dans le
+// MESSAGE parce que le canal précédent était un JOURNAL : il fallait y
+// reconnaître sa ligne. Le canal est désormais STRUCTURÉ — le titre sélectionne,
+// le message EST le payload — donc la marque n'avait plus qu'un effet : rendre
+// croyable une ligne IMPRIMÉE. C'est précisément le défaut qui a fait accuser le
+// mauvais workflow (une suite de tests imprimait la déclaration de Dependabot,
+// qui se lisait comme une déclaration). Plus de marque, plus rien à imiter :
+// une preuve se lit dans le champ STOCKÉ, jamais dans ce qui y ressemble.
 
 /**
  * Le nom de l'étape qui publie la preuve, dans chaque workflow.
@@ -90,7 +90,7 @@ export const EVIDENCE_STEP_NAME = 'Publier la preuve d’action';
 export function evidencePayload({ workflow, acted, reason = '', count = null }) {
   const payload = { workflow, acted, reason };
   if (Number.isInteger(count)) payload.count = count;
-  return EVIDENCE_PREFIX + JSON.stringify(payload);
+  return JSON.stringify(payload);
 }
 
 /**
@@ -125,8 +125,13 @@ export function evidenceFromAnnotations(annotations = []) {
   for (const annotation of Array.isArray(annotations) ? annotations : []) {
     if (annotation?.title !== EVIDENCE_TITLE) continue;
     const message = String(annotation.message ?? '');
-    const at = message.indexOf(EVIDENCE_PREFIX);
-    const raw = (at === -1 ? message : message.slice(at + EVIDENCE_PREFIX.length)).trim();
+    // Le message EST le JSON. La découpe aux accolades est une TOLÉRANCE envers
+    // la mise en forme du runner (qui stocke le message tel quel), pas une marque
+    // à écrire : il n'y a plus un seul caractère à imiter pour se faire passer
+    // pour une preuve — il faut un vrai payload, avec un vrai sujet.
+    const at = message.indexOf('{');
+    const end = message.lastIndexOf('}');
+    const raw = at === -1 || end <= at ? message.trim() : message.slice(at, end + 1);
     try {
       const parsed = JSON.parse(raw);
       out.push({

@@ -104,6 +104,10 @@ jobs:
       - name: Audit gate (production clean + total within baseline 0)
         env:
           AUDIT_CACHE: '1'
+          # Mandat de preuve : ce script publie lui-même ce qu'il a mesuré (les
+          # deux chiffres de l'audit npm). Sans ce mandat il reste muet — une
+          # suite de tests qui l'exécuterait ne parlerait donc pas au nom du job.
+          AUTOMATION_EVIDENCE: '1'
         run: node scripts/check-audit.mjs
 
       # La preuve vient EN DERNIER, et c'est le fond : elle affirme « j'ai agi »,
@@ -113,7 +117,7 @@ jobs:
       - name: Publier la preuve d’action — chaîne qualité (lint, tests, audit)
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "chaîne qualité verte : lint, tests et audit gate exécutés sur ce commit"
+          --reason "chaîne qualité allée au bout pour ce commit : lint (npm run lint), tests (npm test) et gate d’audit — le détail mesuré du gate est publié par scripts/check-audit.mjs"
 
   # Le layout npm n'est pas une opinion : Windows installe npm dans
   # `<prefix>/node_modules/npm`, les installations Unix (dont setup-node) dans
