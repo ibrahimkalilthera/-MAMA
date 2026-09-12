@@ -32,6 +32,9 @@ const {
   shouldPrompt,
   updatePressure,
   updateAction,
+  holdsUrlFrom,
+  holdDecision,
+  updateGate,
 } = require('../electron/updater-policy.cjs') as {
   CHECK_INTERVAL_MS: number;
   FOCUS_COOLDOWN_MS: number;
@@ -52,6 +55,19 @@ const {
     detail: string;
   };
   updateAction: (i?: Record<string, unknown>) => { action: string; detail: string };
+  holdsUrlFrom: (i?: Record<string, unknown>) => string | null;
+  holdDecision: (i?: Record<string, unknown>) => {
+    held: boolean;
+    verified: boolean;
+    reason: string | null;
+    detail: string;
+  };
+  updateGate: (i?: Record<string, unknown>) => {
+    deliverable: boolean;
+    forced: boolean;
+    held: boolean;
+    detail: string;
+  };
 };
 
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
@@ -298,5 +314,107 @@ describe('le câblage : les trois étages se répondent', () => {
       assert.match(fr, new RegExp(`${key}:`), `${key} manque en français`);
       assert.match(en, new RegExp(`${key}:`), `${key} manque en anglais`);
     }
+  });
+});
+
+// ── Frein d'urgence ─────────────────────────────────────────────────────────
+// La porte du retard force l'installation au-delà des seuils — c'est voulu, et
+// c'est dangereux le jour où la version publiée est défectueuse : sans frein,
+// toute l'école est contrainte d'installer la panne. Le frein est une liste de
+// versions retenues, publiée HORS du release (donc modifiable après coup, sans
+// toucher à la version fautive) et relue à chaque vérification.
+describe('frein d’urgence : une version retenue n’est ni imposée ni installée', () => {
+  const forcedByAge = () => updatePressure({
+    currentVersion: '1.0.2',
+    availableVersion: '1.0.3',
+    releaseDate: new Date(NOW - 60 * 86400000).toISOString(),
+    nowMs: NOW,
+  });
+  const holds = (version: string, reason?: string) => [{ version, ...(reason === undefined ? {} : { reason }) }];
+
+  it('une version retenue est retenue, avec son motif', () => {
+    const v = holdDecision({ version: '1.0.4', holds: holds('1.0.4', 'plantage au démarrage'), readOk: true });
+    assert.equal(v.held, true);
+    assert.equal(v.verified, true);
+    assert.match(v.detail, /plantage au démarrage/);
+  });
+
+  it('le frein ne frappe que la version qu’il nomme', () => {
+    const v = holdDecision({ version: '1.0.5', holds: holds('1.0.4', 'x'), readOk: true });
+    assert.equal(v.held, false);
+    assert.equal(v.verified, true);
+    assert.match(v.detail, /aucune retenue/);
+  });
+
+  it('un motif absent ne rend pas le frein inerte', () => {
+    const v = holdDecision({ version: '1.0.4', holds: holds('1.0.4'), readOk: true });
+    assert.equal(v.held, true, 'la version reste retenue : c’est le motif qui manque');
+    assert.equal(v.reason, 'version retenue (motif non renseigné)');
+  });
+
+  it('une retenue bat le forçage, même au-delà d’un seuil', () => {
+    const pressure = forcedByAge();
+    assert.equal(pressure.forced, true, 'sans frein, cette version serait imposée');
+    const gated = updateGate({ pressure, hold: holdDecision({ version: '1.0.3', holds: holds('1.0.3', 'régression de paie'), readOk: true }) });
+    assert.equal(gated.forced, false, 'le frein doit battre l’obligation');
+    assert.equal(gated.deliverable, false, 'rien ne doit être livré');
+    assert.equal(gated.held, true);
+    assert.match(gated.detail, /régression de paie/);
+  });
+
+  it('une liste illisible ne force RIEN mais propose toujours', () => {
+    const gated = updateGate({ pressure: forcedByAge(), hold: holdDecision({ version: '1.0.3', readOk: false }) });
+    assert.equal(gated.forced, false, 'on ne contraint personne sur une supposition');
+    assert.equal(gated.deliverable, true, 'l’utilisateur garde la mise à jour');
+    assert.equal(gated.held, false, 'illisible n’est pas retenu : ce sont deux états distincts');
+    assert.match(gated.detail, /proposée, jamais imposée/);
+  });
+
+  it('sans verdict de frein du tout, la porte laisse passer la pression', () => {
+    const gated = updateGate({ pressure: { forced: true } });
+    assert.equal(gated.forced, true);
+    assert.equal(gated.deliverable, true);
+    assert.match(gated.detail, /retenues non lues/);
+  });
+
+  it('l’URL des retenues vient de app-update.yml, jamais recopiée', () => {
+    assert.equal(
+      holdsUrlFrom({ appUpdateYml: "owner: ibrahimkalilthera\nrepo: '-MAMA'\nprovider: github\n" }),
+      'https://raw.githubusercontent.com/ibrahimkalilthera/-MAMA/main/updates/holds.json',
+    );
+    // Sans owner/repo, l'URL est indéterminable : l'appelant en déduit « aucune
+    // obligation », jamais un forçage.
+    assert.equal(holdsUrlFrom({ appUpdateYml: 'provider: github\n' }), null);
+    // Mode preuve : le frein se joue contre un serveur local, sans rien publier.
+    assert.equal(
+      holdsUrlFrom({ feedOverride: 'http://127.0.0.1:9450/', appUpdateYml: '' }),
+      'http://127.0.0.1:9450/updates/holds.json',
+    );
+  });
+
+  it('le fichier de retenues existe, est valide, et vide au repos', () => {
+    const file = JSON.parse(read('updates/holds.json')) as { holds: unknown[]; _doc: string[] };
+    assert.ok(Array.isArray(file.holds), 'le frein doit avoir sa liste');
+    assert.equal(file.holds.length, 0, 'au repos, aucune version n’est retenue');
+    assert.match(file._doc.join(' '), /Retenir une version/, 'le mode d’emploi doit être dans le fichier');
+    assert.match(file._doc.join(' '), /Retirer le release/, 'le geste qui vaut pour tous les postes doit y être');
+  });
+
+  it('le frein est câblé sur CHAQUE chemin qui mène à l’installation', () => {
+    const main = read('electron/main.cjs');
+    // Décidé dans le processus principal, avant l'annonce.
+    assert.match(main, /updateGate\(\{ pressure, hold \}\)/);
+    assert.match(main, /heldVersion = i\.version/);
+    assert.match(main, /update-retenue/);
+    assert.match(main, /obligation écartée/);
+    // Une obligation écartée par un frein illisible se dit.
+    assert.match(main, /retenues illisibles/);
+    // Installation à la fermeture, rappel déjà programmé, bouton d'installation :
+    // trois chemins, et le frein doit tenir sur les trois.
+    assert.match(main, /autoInstallOnAppQuit = false/);
+    assert.match(main, /prompt refusé/);
+    assert.match(main, /installation refusée/);
+    // L'interface n'affiche rien pour une version retenue, et son type l'admet.
+    assert.match(read('src/components/UpdateBanner.tsx'), /\| 'held'/);
   });
 });

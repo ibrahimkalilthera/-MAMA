@@ -90,6 +90,7 @@ function setupAutoUpdater(win) {
   const { autoUpdater } = require('electron-updater');
   const {
     shouldCheck, shouldPrompt, updateAction, updatePressure,
+    holdsUrlFrom, holdDecision, updateGate,
     CHECK_INTERVAL_MS, FOCUS_COOLDOWN_MS, RE_PROMPT_MS, FORCED_RE_PROMPT_MS,
   } = require('./updater-policy.cjs');
   const logFile = process.env.UPDATER_LOG_FILE;
@@ -102,6 +103,47 @@ function setupAutoUpdater(win) {
   // Stale-cache guard: runs before the first check. A leftover sentinel means
   // the previous install did not complete — purge the cache, never re-serve it.
   try { purgeStaleUpdaterCache(log); } catch (e) { log(`purge-cache échec ${(e && e.message) || e}`); }
+
+  // ─── Frein d'urgence : une version retenue n'est pas livrée ────────────────
+  // Une version défectueuse publiée ne doit pas être imposée à toute l'école.
+  // Retirer le release est le premier geste (il vaut même pour les postes dont
+  // la version installée ne connaît pas ce frein) ; la liste de retenues est la
+  // seconde, et elle agit PENDANT que le release est encore là. Elle vit hors du
+  // release (un fichier du dépôt) : on peut donc retenir une version après
+  // l'avoir publiée.
+  const holdsUrl = holdsUrlFrom({
+    // Un mode preuve peut pointer le frein ailleurs (serveur local) sans rien publier.
+    feedOverride: process.env.UPDATER_HOLD_URL || process.env.UPDATER_FEED_URL || null,
+    appUpdateYml: (() => {
+      try {
+        return fs.readFileSync(path.join(process.resourcesPath, 'app-update.yml'), 'utf8');
+      } catch { return null; }
+    })(),
+  });
+  log(`retenues ${holdsUrl || 'URL indéterminable — aucune obligation ne sera imposée'}`);
+  /** La version que ce poste refuse d'installer (retenue ET lue). */
+  let heldVersion = null;
+
+  /**
+   * Lire le frein pour une version donnée.
+   *
+   * Un fichier présent mais illisible (pas de liste) compte comme ILLISIBLE :
+   * un frein vidé par accident qui répondrait « aucune retenue » rendrait le
+   * geste d'urgence inopérant au moment précis où on en a besoin.
+   */
+  async function readHold(version) {
+    if (!holdsUrl) return holdDecision({ version, readOk: false });
+    try {
+      const res = await fetch(holdsUrl, { signal: AbortSignal.timeout(4000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const parsed = await res.json();
+      if (!parsed || !Array.isArray(parsed.holds)) throw new Error('liste absente');
+      return holdDecision({ version, holds: parsed.holds, readOk: true });
+    } catch (e) {
+      log(`retenues illisibles ${(e && e.message) || e}`);
+      return holdDecision({ version, readOk: false });
+    }
+  }
 
   if (process.env.UPDATER_FEED_URL) {
     autoUpdater.setFeedURL({ provider: 'generic', url: process.env.UPDATER_FEED_URL });
@@ -154,9 +196,27 @@ function setupAutoUpdater(win) {
     broadcast({ status: 'checking' });
     log('checking-for-update');
   });
-  autoUpdater.on('update-available', (i) => {
-    broadcast({ ...pressureState(i), status: 'available', version: i.version });
-    log(`update-available ${i.version}${pressure.forced ? ` — OBLIGATOIRE (${pressure.detail})` : ''}`);
+  autoUpdater.on('update-available', async (i) => {
+    // Le frein se lit AVANT d'annoncer : une version retenue ne doit ni être
+    // proposée, ni imposée, ni installée.
+    const hold = await readHold(i.version);
+    const patch = pressureState(i);
+    const gate = updateGate({ pressure, hold });
+    if (!gate.deliverable) {
+      heldVersion = i.version;
+      // Rien de ce qui est déjà téléchargé ne doit s'installer : le frein couvre
+      // aussi le « installation à la fermeture » d'electron-updater.
+      autoUpdater.autoInstallOnAppQuit = false;
+      broadcast({ ...patch, forced: false, status: 'held', version: i.version });
+      log(`update-retenue ${i.version} — ${gate.detail}`);
+      return;
+    }
+    // Une obligation écartée par le frein doit se VOIR dans le journal : sinon
+    // un poste qui était « forçable » resterait immobile sans que personne ne
+    // sache pourquoi.
+    if (!gate.forced && pressure.forced) log(`obligation écartée — ${gate.detail}`);
+    broadcast({ ...patch, forced: gate.forced, status: 'available', version: i.version });
+    log(`update-available ${i.version}${gate.forced ? ` — OBLIGATOIRE (${pressure.detail})` : ''}`);
   });
   autoUpdater.on('update-not-available', () => {
     broadcast({ status: 'current', version: app.getVersion() });
@@ -171,6 +231,13 @@ function setupAutoUpdater(win) {
     log(`download-progress ${Math.round(p.percent)}%`);
   });
   autoUpdater.on('update-downloaded', async (i) => {
+    if (heldVersion === i.version) {
+      // Le seul chemin qui restait ouvert : une version retenue s'installe
+      // encore si on la laisse partir à la fermeture. Le frein le ferme ici.
+      autoUpdater.autoInstallOnAppQuit = false;
+      log(`update-downloaded ${i.version} — INSTALLATION REFUSÉE (version retenue)`);
+      return;
+    }
     broadcast({ ...pressureState(i), status: 'downloaded', version: i.version });
     log(`update-downloaded ${i.version}${pressure.forced ? ` — OBLIGATOIRE (${pressure.detail})` : ''}`);
     if (process.env.UPDATER_LOG_FILE) return; // proof mode — E2E reads the log
@@ -181,6 +248,13 @@ function setupAutoUpdater(win) {
    * Pose la question — et la repose. « Plus tard » reporte, il ne refuse pas.
    */
   async function askToInstall(info) {
+    // Une version retenue ne se demande pas, même depuis un rappel déjà
+    // programmé : le frein doit tenir sur TOUS les chemins qui mènent à
+    // l'installation, pas seulement sur celui qu'on vient d'écrire.
+    if (heldVersion === info.version) {
+      log(`prompt refusé — ${info.version} est retenue`);
+      return;
+    }
     // Une obligation ne se reporte pas : on relance tout de suite, et la
     // boîte de dialogue n'offre plus « Plus tard ».
     const forced = pressure.forced;
@@ -268,6 +342,9 @@ function setupAutoUpdater(win) {
       return state;
     });
     ipcMain.handle('updates:install', async () => {
+      if (heldVersion && heldVersion === state.version) {
+        return { ok: false, reason: `version ${heldVersion} retenue — installation refusée` };
+      }
       // Le portable n'a jamais « rien de téléchargé » : sa seule action possible
       // est la page de téléchargement, et l'y renvoyer est le geste attendu —
       // surtout quand la mise à jour est obligatoire et qu'il n'a rien d'autre.

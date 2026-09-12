@@ -32,6 +32,17 @@
 //                                                pas installée »
 //   minor  deux mineures de retard             → obligatoire, motif « mineure(s) »
 //   major  une majeure de retard               → obligatoire, motif « majeure(s) »
+//   hold   version RETENUE qui serait sinon obligatoire (même version et même
+//          date que « age », avec une ligne de retenue dans le frein)
+//                                              → AUCUNE obligation, et
+//                                                `update-retenue <v>` au journal
+//
+// La passe `hold` est celle du frein d'urgence : elle sert un `updates/holds.json`
+// (le fichier du dépôt, servi par le même flux) qui retient la version annoncée,
+// et exige que l'obligation tombe. Comme les autres, elle ne vaut que sur un
+// binaire empaqueté APRÈS le frein : sur un exe antérieur, ce script la dit
+// rouge — la propriété n'est pas vraie de ce binaire-là, et le taire serait
+// exactement le vert creux que le dépôt refuse.
 //
 // L'assertion ne porte pas seulement sur « OBLIGATOIRE oui/non » mais sur le
 // MOTIF annoncé : sans ça, une règle qui forcerait tout le temps passerait pour
@@ -119,6 +130,18 @@ const SCENARIOS = LOCAL ? [
     because: 'mineure(s) de retard',
   },
   {
+    id: 'hold',
+    title: `version RETENUE qui serait obligatoire (${LOCAL.major}.${LOCAL.minor}.${LOCAL.patch + 1}, publiée il y a ${FORCED_RELEASE_AGE_DAYS + 1} jours)`,
+    version: `${LOCAL.major}.${LOCAL.minor}.${LOCAL.patch + 1}`,
+    releaseDate: ageDate(FORCED_RELEASE_AGE_DAYS + 1),
+    // Même version et même date que la passe « age » — qui force. La SEULE
+    // différence est la ligne de retenue : si l'obligation tombe quand même, le
+    // frein a échoué, et c'est la seule chose que cette passe mesure.
+    held: true,
+    forced: false,
+    chainRequired: false,
+  },
+  {
     id: 'major',
     title: `${FORCED_MAJOR_BEHIND} majeure de retard (${LOCAL.major + FORCED_MAJOR_BEHIND}.0.0)`,
     version: `${LOCAL.major + FORCED_MAJOR_BEHIND}.0.0`,
@@ -145,6 +168,8 @@ const sha512 = createHash('sha512').update(exeBytes).digest('base64');
 
 /** Le `latest.yml` servi : il change à chaque passe, c'est là que vit la règle. */
 let feedYml = '';
+/** Le frein servi (`updates/holds.json`) : vide, sauf pour la passe « hold ». */
+let feedHolds = JSON.stringify({ holds: [] });
 let servedSetup = 0;
 
 const server = createServer((req, res) => {
@@ -152,7 +177,12 @@ const server = createServer((req, res) => {
   if (path === '/latest.yml') {
     res.writeHead(200, { 'Content-Type': 'text/yaml' });
     res.end(feedYml);
-    console.log('  [feed] GET /latest.yml');
+    console.log('  [feed] GET /latest.yml');    } else if (path.endsWith('holds.json')) {
+    // Le frein vit HORS du release : c'est ce qui permet de retenir une version
+    // publiée. Il est servi ici par le même flux, comme le poste le lit en vrai.
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(feedHolds);
+    console.log(`  [feed] GET ${path} → ${JSON.parse(feedHolds).holds.length} retenue(s)`);
   } else if (path.endsWith('-setup.exe')) {
     servedSetup += 1;
     res.writeHead(200, { 'Content-Length': exeBytes.length });
@@ -235,6 +265,9 @@ async function runScenario(scenario) {
   console.log(`    poste en ${CURRENT_VERSION}, flux annonçant ${scenario.version} (publié le ${scenario.releaseDate.slice(0, 10)})`);
 
   feedYml = feedFor(scenario);
+  feedHolds = JSON.stringify({
+    holds: scenario.held ? [{ version: scenario.version, reason: 'frein d’urgence — version défectueuse retenue' }] : [],
+  });
   await invalidateUpdaterCache();
 
   let app = null;
@@ -279,12 +312,17 @@ async function runScenario(scenario) {
 
   const checks = seen.filter((m) => m.startsWith('checking-for-update')).length;
   const rechecked = checks >= 2;
+  const chainRequired = scenario.chainRequired !== false;
   const chain = downloaded &&
     seen.some((m) => m.startsWith('update-available')) &&
     seen.some((m) => m.startsWith('checking-for-update')) &&
     seen.some((m) => m.startsWith('download-progress'));
   const announced = seen.find((m) => m.startsWith('update-available') && m.includes('OBLIGATOIRE')) || null;
   const announcesForced = announced !== null;
+  // Le frein agit AVANT l'annonce : la trace attendue est sa propre ligne, pas
+  // une absence (une absence peut venir de dix autres causes).
+  const heldLine = seen.find((m) => m.startsWith(`update-retenue ${scenario.version}`)) || null;
+  const refusal = seen.find((m) => m.startsWith('update-downloaded') && m.includes('INSTALLATION REFUSÉE')) || null;
 
   // Le MOTIF fait partie de la preuve : trois règles peuvent forcer, et une règle
   // qui forcerait toujours passerait pour verte si on ne lisait que le drapeau.
@@ -293,12 +331,22 @@ async function runScenario(scenario) {
   const reasonRight = scenario.forced
     ? Boolean(announced && announced.includes(scenario.because))
     : !announcesForced;
+  // Une version retenue : rien d'imposé, et la retenue DITE. Si elle a été
+  // téléchargée avant la décision, l'installation doit être refusée — le cache
+  // ne doit pas devenir une porte dérobée.
+  const holdRight = Boolean(heldLine) && !announcesForced && (!downloaded || Boolean(refusal));
 
-  const ok = chain && rechecked && reasonRight && servedSetup > 0;
+  const ok = (chainRequired ? chain && rechecked : checks >= 1) &&
+    (scenario.held ? holdRight : reasonRight) && servedSetup > 0;
   console.log(rechecked
     ? `✅ ${checks} vérifications pendant la MÊME session (reprise périodique)`
     : `❌ ${checks} vérification(s) — l'app ouverte ne revoit rien passer`);
-  if (scenario.forced) {
+  if (scenario.held) {
+    console.log(holdRight
+      ? `✅ l'exe empaqueté retient la version, et n'impose RIEN : ${heldLine}`
+      : `❌ frein inopérant — ligne de retenue=${Boolean(heldLine)}, obligation annoncée=${announcesForced}${announced ? ` (${announced})` : ''}${downloaded && !refusal ? ', installation non refusée' : ''}`);
+    if (refusal) console.log(`✅ installation refusée après téléchargement : ${refusal}`);
+  } else if (scenario.forced) {
     console.log(ok
       ? `✅ l'exe empaqueté annonce l'obligation, avec le bon motif : ${announced}`
       : `❌ obligation attendue (motif « ${scenario.because} ») — annoncée=${announcesForced}${announced ? `, motif lu : ${announced}` : ''}`);
@@ -307,7 +355,11 @@ async function runScenario(scenario) {
       ? `✅ l'exe empaqueté n'impose RIEN — ${scenario.detail}`
       : `❌ obligation annoncée pour un correctif récent : ${announced}`);
   }
-  console.log(`${chain ? '✅' : '❌'} chaîne ${chain ? 'complète' : 'incomplète'} pour ${scenario.version} (checking → available → progress → downloaded)`);
+  if (chainRequired) {
+    console.log(`${chain ? '✅' : '❌'} chaîne ${chain ? 'complète' : 'incomplète'} pour ${scenario.version} (checking → available → progress → downloaded)`);
+  } else {
+    console.log(`${checks >= 1 ? '✅' : '❌'} ${checks} vérification(s) — une version retenue ne se télécharge pas pour être installée`);
+  }
 
   rmSync(logFile, { recursive: true, force: true });
   rmSync(userData, { recursive: true, force: true });

@@ -224,6 +224,108 @@ function updateAction({ isPortable = false } = {}) {
     : { action: 'restart', detail: 'version installée : redémarrage pour appliquer' };
 }
 
+/**
+ * ─── Frein d'urgence : retenir une version ─────────────────────────────────
+ *
+ * Une version défectueuse publiée ne doit pas être IMPOSÉE à toute une école.
+ * Retirer le release est le premier geste — et le seul qui vaille même pour les
+ * postes dont la version installée ne connaît pas ce frein — mais il n'est pas
+ * toujours possible tout de suite, et tant que le release est là, la porte du
+ * retard continue de forcer. D'où cette seconde moitié, plus fine : une **liste
+ * de versions retenues**, publiée SÉPARÉMENT du release (donc modifiable APRÈS
+ * coup, sans toucher à la version fautive), relue à chaque vérification.
+ *
+ * Deux décisions distinctes, et chacune a sa raison :
+ *   • une version retenue n'est ni proposée, ni imposée, ni installée — y
+ *     compris si elle a déjà été téléchargée, sinon le frein ne freinerait que
+ *     l'affichage ;
+ *   • une liste ILLISIBLE ne force RIEN, mais continue de proposer. On ne
+ *     contraint pas un utilisateur sur une supposition : c'est la même
+ *     asymétrie que pour une version illisible. Perdre le forçage se répare ;
+ *     bloquer un poste sur une supposition ne se répare pas.
+ *
+ * Et un frein qui ne se lit pas doit se VOIR : `detail` dit lequel des deux
+ * états on a obtenu, et l'appelant le journalise — un frein redevenu vert et
+ * vide serait pire que pas de frein.
+ */
+
+/** Le fichier de retenues, à sa place dans le dépôt. */
+const HOLD_FILE = 'updates/holds.json';
+
+/** Branche lue par défaut (raw.githubusercontent : un simple commit publie le frein). */
+const HOLD_BRANCH_DEFAULT = 'main';
+
+/**
+ * D'où lire les retenues.
+ *
+ * Le propriétaire et le dépôt ne sont pas recopiés ici : ils viennent de
+ * `app-update.yml`, le fichier qu'electron-builder écrit à l'empaquetage — donc
+ * de la MÊME source que le flux de mise à jour. Un mode preuve peut tout
+ * remplacer (`UPDATER_HOLD_URL`/`UPDATER_FEED_URL`), ce qui permet de jouer le
+ * frein sans publier quoi que ce soit.
+ *
+ * @param {{ feedOverride?: unknown, branch?: unknown, appUpdateYml?: unknown }} input
+ * @returns {string|null} l'URL, ou `null` quand elle est indéterminable — état
+ *   de droit, pas une erreur : on ne forcera simplement rien.
+ */
+function holdsUrlFrom({ feedOverride = null, branch = HOLD_BRANCH_DEFAULT, appUpdateYml = null } = {}) {
+  const override = String(feedOverride ?? '').trim();
+  if (override) {
+    try {
+      return new URL(HOLD_FILE, override.endsWith('/') ? override : `${override}/`).href;
+    } catch { /* URL invalide : illisible, jamais devinée */ }
+  }
+  const text = String(appUpdateYml ?? '');
+  const owner = /^owner:\s*['"]?([^'"\r\n]+?)['"]?\s*$/m.exec(text)?.[1];
+  const repo = /^repo:\s*['"]?([^'"\r\n]+?)['"]?\s*$/m.exec(text)?.[1];
+  if (!owner || !repo) return null;
+  const head = String(branch ?? '').trim() || HOLD_BRANCH_DEFAULT;
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${head}/${HOLD_FILE}`;
+}
+
+/**
+ * Cette version annoncée est-elle retenue ?
+ *
+ * @param {{ version?: unknown, holds?: unknown, readOk?: boolean }} input
+ * @returns {{ held: boolean, verified: boolean, reason: string|null, detail: string }}
+ */
+function holdDecision({ version = null, holds = null, readOk = true } = {}) {
+  if (!readOk) {
+    return {
+      held: false,
+      verified: false,
+      reason: null,
+      detail: 'liste de retenues illisible — mise à jour proposée, jamais imposée',
+    };
+  }
+  const wanted = String(version ?? '').trim();
+  const list = Array.isArray(holds) ? holds : [];
+  const hit = wanted ? list.find((h) => String((h && h.version) ?? '').trim() === wanted) : null;
+  if (!hit) {
+    return { held: false, verified: true, reason: null, detail: 'aucune retenue pour cette version' };
+  }
+  // Un motif absent ne rend pas la retenue inopérante : la version reste
+  // retenue, et c'est le motif qui manque — l'inverse ferait d'une ligne mal
+  // remplie un frein inerte, exactement au moment où on en a besoin.
+  const reason = String((hit && hit.reason) ?? '').trim() || 'version retenue (motif non renseigné)';
+  return { held: true, verified: true, reason, detail: `version retenue : ${reason}` };
+}
+
+/**
+ * La porte de LIVRAISON : ce qu'un poste a le droit de faire de la version
+ * annoncée. Une retenue bat toujours le forçage — c'est tout l'objet du frein.
+ *
+ * @param {{ pressure?: { forced?: boolean }|null, hold?: { held?: boolean, verified?: boolean, detail?: string }|null }} input
+ * @returns {{ deliverable: boolean, forced: boolean, held: boolean, detail: string }}
+ */
+function updateGate({ pressure = null, hold = null } = {}) {
+  const late = Boolean(pressure && pressure.forced);
+  if (!hold) return { deliverable: true, forced: late, held: false, detail: 'retenues non lues' };
+  if (hold.held) return { deliverable: false, forced: false, held: true, detail: hold.detail };
+  if (hold.verified !== true) return { deliverable: true, forced: false, held: false, detail: hold.detail };
+  return { deliverable: true, forced: late, held: false, detail: hold.detail };
+}
+
 module.exports = {
   CHECK_INTERVAL_MS,
   FOCUS_COOLDOWN_MS,
@@ -232,9 +334,14 @@ module.exports = {
   FORCED_MINOR_BEHIND,
   FORCED_RELEASE_AGE_DAYS,
   FORCED_RE_PROMPT_MS,
+  HOLD_FILE,
+  HOLD_BRANCH_DEFAULT,
   parseVersion,
   shouldCheck,
   shouldPrompt,
   updatePressure,
   updateAction,
+  holdsUrlFrom,
+  holdDecision,
+  updateGate,
 };

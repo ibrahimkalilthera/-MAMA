@@ -176,6 +176,13 @@ Une version publiée doit atteindre **tous** ceux qui ont installé le setup, sa
 
 **Au-delà du seuil, la mise à jour n'est plus une question.** Atteindre tout le monde ne suffit pas : « Plus tard » accordé indéfiniment laisse un poste des mois sur la même version **sans que personne n'ait jamais décidé de ne pas la faire**. Trois seuils (`electron/updater-policy.cjs`, pur donc testé comme une décision) rendent l'installation **obligatoire** : une version **majeure** de retard, **deux mineures** dans la même majeure, ou une version **publiée depuis 45 jours** et toujours pas installée — ce dernier attrape le cas le plus courant, la « petite » version sortie un jour où personne n'était devant le poste. Là, le retard est **décidé par le processus principal** et poussé à l'interface, qui le montre **sans pouvoir le fermer** : écran plein, pas de croix, pas de « plus tard » dans la boîte de dialogue (ni d'échappement par Échap), relance **toutes les minutes** au lieu d'un quart d'heure.
 
+**Frein d'urgence : une version retenue n'est ni proposée, ni imposée, ni installée.** Une porte qui force est indispensable — et dangereuse le jour où la version publiée est défectueuse. Deux leviers, et ils ne couvrent pas la même chose :
+
+- **Retirer le release** (supprimer le release et son tag) : le geste qui vaut pour **tous** les postes, y compris ceux dont la version installée ne lit pas le frein — `electron-updater` ne voit plus cette version dans le flux. C'est le premier geste.
+- **Publier une retenue** dans [`updates/holds.json`](updates/holds.json) (`{"version": "1.0.4", "reason": "…"}`), un fichier **hors du release** donc modifiable **après** publication : le poste cesse de proposer *et* cesse d'imposer, sans attendre que le release soit retiré. Lu à chaque vérification, depuis `app-update.yml` (le propriétaire et le dépôt ne sont pas recopiés ailleurs).
+
+Trois propriétés, chacune testée : une retenue **bat le forçage** ; une liste **illisible ne force RIEN** mais continue de **proposer** (on ne contraint pas un utilisateur sur une supposition — même asymétrie que pour une version illisible) ; et le frein tient sur **tous** les chemins qui mènent à l'installation — l'annonce, le rappel déjà programmé, le bouton, et l'« installation à la fermeture » d'`electron-updater`. ⚠️ Un frein n'agit que sur les postes dont la version installée **contient ce frein** : il faut donc l'avoir livré **avant** d'en avoir besoin.
+
 **La preuve est faite sur le binaire livré, pas seulement en unité** : `node scripts/verify-updater.mjs` sert un flux local à l'exe empaqueté, et joue **une passe par règle** — parce qu'un seul scénario ne peut en prouver qu'une, et que la règle qui attrape les postes d'école est celle de la **date** :
 
 ```

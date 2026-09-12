@@ -33,7 +33,14 @@ import { Download, RefreshCw, ShieldAlert, X } from 'lucide-react';
  */
 
 interface UpdateState {
-  status?: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'current' | 'error';
+  /**
+   * `held` = version retenue (frein d'urgence, `electron/updater-policy.cjs`) :
+   * le processus principal a décidé de ne pas la livrer. L'interface ne montre
+   * RIEN — ce n'est pas une panne à signaler à l'utilisateur, c'est une décision
+   * qui ne lui appartient pas —, mais l'état existe pour qu'un bandeau ne
+   * s'affiche jamais par accident sur une version qu'on refuse d'installer.
+   */
+  status?: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'current' | 'error' | 'held';
   version?: string | null;
   currentVersion?: string | null;
   action?: 'restart' | 'open-download';
