@@ -16,6 +16,7 @@ import type { MainViewsProps } from '../app/mainViewsProps';
 import type { AppModalsProps } from './AppModals';
 import type { User } from '../app/types';
 import { formatSupabaseError } from '../lib/networkUtils';
+import { database } from '../lib/sharedDatabase';
 import type { AppEnv } from '../lib/networkUtils';
 import type { ImportCategory } from '../lib/excelImporter';
 import type { useToast } from '../lib/useToast';
@@ -401,7 +402,7 @@ onOpenPayroll={() => setActiveTab('payroll')}
         onSync={syncOfflineQueue}
         t={t}
       />
-      <EnvBadge env={appEnv} />
+      <EnvBadge env={appEnv} database={database} />
       <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
 
       {/* --- Global Confirmation Dialog --- */}

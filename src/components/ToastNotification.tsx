@@ -175,20 +175,45 @@ export function OfflineBanner({ lang = 'en', pendingCount = 0, isSyncing = false
 
 interface EnvBadgeProps {
   env: string;
+  /**
+   * The database this install is wired to. Omitted ⇒ no second badge at all,
+   * so the normal case stays as quiet as it is today; the badge exists only for
+   * the state that must not be silent (see `diverges` in
+   * scripts/lib/shared-project.mjs).
+   */
+  database?: { ref: string | null; isShared: boolean; diverges: boolean };
 }
 
-export function EnvBadge({ env }: EnvBadgeProps) {
-  // Only show in non-production environments
-  if (env === 'production') return null;
+export function EnvBadge({ env, database }: EnvBadgeProps) {
+  // A wrong database is shown in EVERY environment, production included: an
+  // install whose users see their own data instead of the school's is not a
+  // cosmetic problem, and no other surface would say it out loud.
+  const diverged =
+    database && !database.isShared && database.diverges ? (
+      <div
+        className="fixed top-2 left-2 z-[9997] bg-red-700 text-white text-[10px] font-black tracking-widest px-2.5 py-1 rounded-full shadow-lg uppercase pointer-events-none"
+        title={`Base de données non partagée (${database.ref ?? 'ref inconnue'}) — les autres installations ne verront pas ces données.`}
+      >
+        Base non partagée
+      </div>
+    ) : null;
 
-  // Solid accent fills: white text needs ≥ 4.5:1, so the 500-level fills
-  // (blue-500 3.7:1, amber-500 2.2:1) are too light — use 700-level.
-  const label = env === 'staging' ? 'STAGING' : 'DEV';
-  const color = env === 'staging' ? 'bg-amber-700' : 'bg-blue-700';
+  // Only show in non-production environments
+  const envBadge =
+    env === 'production' ? null : (
+      // Solid accent fills: white text needs ≥ 4.5:1, so the 500-level fills
+      // (blue-500 3.7:1, amber-500 2.2:1) are too light — use 700-level.
+      <div
+        className={`fixed top-2 ${diverged ? 'left-40' : 'left-2'} z-[9997] ${env === 'staging' ? 'bg-amber-700' : 'bg-blue-700'} text-white text-[10px] font-black tracking-widest px-2.5 py-1 rounded-full shadow-lg uppercase pointer-events-none`}
+      >
+        {env === 'staging' ? 'STAGING' : 'DEV'}
+      </div>
+    );
 
   return (
-    <div className={`fixed top-2 left-2 z-[9997] ${color} text-white text-[10px] font-black tracking-widest px-2.5 py-1 rounded-full shadow-lg uppercase pointer-events-none`}>
-      {label}
-    </div>
+    <>
+      {diverged}
+      {envBadge}
+    </>
   );
 }

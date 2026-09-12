@@ -138,6 +138,16 @@ C'est ce même secret manquant qui a rendu nécessaire le workflow `automation-a
 
 **Conséquence assumée** : tant que `DEPENDABOT_REBASE_TOKEN` n'est pas posé, ce job est **rouge** — il nomme l'automatisation morte qui était verte depuis 22 runs. En local : `GITHUB_TOKEN=… npm run check:automations` (les journaux de runs ne sont pas publics, donc sans token le script sort en **2** au lieu de rendre un vert qu'il n'a pas mesuré).
 
+## Une seule base de données pour tout le monde
+
+Tous les postes — l'installeur Windows, le site déployé — doivent lire et écrire la **même** base Supabase : un paiement saisi au bureau doit apparaître sur le portable du directeur. Ça n'était vérifié nulle part : la ref `rpcjdohfxwukbqngbprw` était écrite dans 16 endroits dispersés (`vercel.json`, quatre workflows, six scripts, l'historique) et **jamais dans l'application**, tandis que `.env` n'est pas commité (donc c'est ce que la machine de build avait sous la main) et que `.env.staging` nomme un autre projet. Deux installations pouvaient donc viser deux bases, chacune croyant voir les données des autres.
+
+**La base partagée est nommée une fois** : `scripts/lib/shared-project.mjs` (importé par l'application *et* par les contrôles, donc pas deux définitions qui s'accordent aujourd'hui et divergent demain). Elle déclare aussi la **seule** dérive autorisée — staging, avec un jeu de données de test, à condition de déclarer `VITE_APP_ENV=staging` pour ne jamais se présenter comme la production.
+
+**`npm run check:shared-db`** lit deux choses, parce que ce ne sont pas les mêmes vérités : les **fichiers d'environnement** (ce que le prochain build lira — là où une dérive se prépare) et l'**artefact construit** avec `--dist` (ce qui est réellement embarqué dans le JavaScript livré — là où une dérive se prouve). Un `.env` juste et un paquet faux (mode oublié, variable injectée par la plateforme, cache) ne se distinguent que par la lecture du paquet. Le garde-fou tourne dans la chaîne qualité **et** dans `electron:dist` / `electron:release` **avant** l'empaquetage. Un artefact sans aucune URL Supabase est un échec, pas un vert : une application qui ne joint aucune base ne sert personne.
+
+**Et l'installation le dit elle-même** : une base illisible ou divergente affiche un badge rouge « Base non partagée » — y compris en production, contrairement aux badges d'environnement. L'état dangereux est celui où chacun voit ses propres données en croyant voir celles des autres ; il ne doit jamais être silencieux.
+
 ## Version bureau (Windows)
 
 L'application est aussi empaquetée en **application de bureau Windows** (shell Electron) :
