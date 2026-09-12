@@ -194,6 +194,9 @@ const { results, ko, ok } = auditAutomations({
     absent,
     log,
     logsUnavailable,
+    // Le sujet de la preuve : la ligne structurée n'est comptée que si elle
+    // nomme ce workflow-là (voir EVIDENCE_PREFIX).
+    workflow: workflow.file,
   })),
 });
 
@@ -203,6 +206,12 @@ for (const [i, r] of results.entries()) {
   const ran = evidenceRow.run ? `${evidenceRow.run.conclusion} ${String(evidenceRow.run.created_at).slice(0, 10)}` : '—';
   console.log(`${VERDICT_ICON[r.verdict] ?? '•'} ${r.name.padEnd(38)} ${ran.padEnd(21)} ${r.reason}`);
   if (evidenceRow.error) console.log(`     (${evidenceRow.error})`);
+  // Une preuve qui parle d'un AUTRE workflow n'est jamais comptée, mais elle
+  // n'est pas escamotée non plus : c'est le fait qui a fait accuser le mauvais
+  // workflow le 2026-09-12, et le nommer rend l'audit jugeable à son tour.
+  if (r.foreign?.length) {
+    console.log(`     ↪ ${r.foreign.length} preuve(s) d'un autre workflow ignorée(s) ici : ${r.foreign.join(', ')}`);
+  }
 }
 
 // Un `pending` n'est ni un échec ni un blanc-seing : le rapport le nomme, et le

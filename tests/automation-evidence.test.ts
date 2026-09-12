@@ -22,10 +22,13 @@ import { fileURLToPath } from 'node:url';
 
 import {
   DORMANT_ALLOWANCE_DAYS,
+  EVIDENCE_PREFIX,
   INERT_MARK,
   INERT_TITLE,
   LOG_GRACE_MS,
   auditAutomations,
+  evidenceLine,
+  evidenceRecords,
   inertAnnotation,
   inertMarkers,
   lastRunVerdict,
@@ -294,6 +297,89 @@ describe('les verdicts — le seul qui passe est « a agi »', () => {
   });
 });
 
+describe('la preuve structurée — elle porte son sujet', () => {
+  const green = { conclusion: 'success', created_at: daysAgo(0) };
+  const dependabot = 'dependabot-rebase.yml';
+
+  it('une preuve qui nomme CE workflow compte, et son motif est celui qu’elle porte', () => {
+    const log = evidenceLine({ workflow: dependabot, acted: false, reason: 'le secret n’est pas posé' });
+    const v = lastRunVerdict({ file: dependabot, workflow: dependabot, run: green, log, nowMs: NOW });
+    assert.equal(v.verdict, 'inert');
+    assert.equal(v.ko, true);
+    assert.match(v.reason, /le secret n’est pas posé/);
+  });
+
+  it('une preuve qui parle d’un AUTRE workflow est ignorée, et NOMMÉE (l’incident, en entier)', () => {
+    // Le cas mesuré : `npm test` imprimait la déclaration de Dependabot dans le
+    // journal du job de tests de `perf-guard.yml`, et l'audit accusait
+    // `Quality & performance guard`. La ligne porte maintenant son sujet : elle
+    // ne peut plus être comptée ailleurs — et le rapport la cite, sinon on ne
+    // saurait pas qu'un journal parle d'autre chose que de lui-même.
+    const log = [
+      '2026-09-12T06:23:55.2329703Z # ' +
+        evidenceLine({ workflow: dependabot, acted: false, reason: 'le secret n’est pas posé' }),
+    ].join('\n');
+    const v = lastRunVerdict({
+      file: 'perf-guard.yml',
+      workflow: 'perf-guard.yml',
+      run: green,
+      log,
+      nowMs: NOW,
+    });
+    assert.equal(v.verdict, 'acted', 'un journal qui PARLE d’une autre automatisation ne la dénonce pas ici');
+    assert.deepEqual(v.foreign, [dependabot]);
+  });
+
+  it('la preuve structurée l’emporte sur une marque textuelle (le canal remplace le mot)', () => {
+    const log = [
+      logWith(inertAnnotation('copie textuelle héritée')),
+      '2026-09-12T06:23:56.0000000Z ' +
+        evidenceLine({ workflow: dependabot, acted: true, reason: '3 PR remises à jour' }),
+    ].join('\n');
+    const v = lastRunVerdict({ file: dependabot, workflow: dependabot, run: green, log, nowMs: NOW });
+    assert.equal(v.verdict, 'acted', 'quand le workflow déclare son état, la copie textuelle ne décide plus');
+  });
+
+  it('un producteur pas encore migré reste un échec (la marque textuelle n’est pas oubliée)', () => {
+    const v = lastRunVerdict({
+      file: dependabot,
+      workflow: dependabot,
+      run: green,
+      log: logWith(inertAnnotation('secret absent')),
+      nowMs: NOW,
+    });
+    assert.equal(v.verdict, 'inert');
+    assert.match(v.reason, /à migrer/);
+  });
+
+  it('une ligne de preuve illisible est un ÉCHEC : on ne peut pas savoir de qui elle parle', () => {
+    const log = `${EVIDENCE_PREFIX}{oups`;
+    const v = lastRunVerdict({ file: dependabot, workflow: dependabot, run: green, log, nowMs: NOW });
+    assert.equal(v.verdict, 'unreadable');
+    assert.equal(v.ko, true);
+    assert.match(v.reason, /illisible/);
+  });
+
+  it('evidenceRecords lit un sujet par ligne, et rend le JSON invalide sans jeter', () => {
+    const log = [
+      evidenceLine({ workflow: 'a.yml', acted: true, reason: 'ok' }),
+      evidenceLine({ workflow: 'b.yml', acted: false, reason: 'non' }),
+      `${EVIDENCE_PREFIX}pas du json`,
+      'rien du tout',
+    ].join('\n');
+    const records = evidenceRecords(log);
+    assert.equal(records.length, 3);
+    assert.deepEqual(
+      records.map((r) => [r.workflow, r.acted]),
+      [
+        ['a.yml', true],
+        ['b.yml', false],
+        [null, null],
+      ],
+    );
+  });
+});
+
 describe('auditAutomations — un audit qui n’examine rien n’est pas un vert', () => {
   it('aucun workflow → échec explicite', () => {
     const { ok, ko, results } = auditAutomations({ workflows: [], nowMs: NOW });
@@ -387,26 +473,47 @@ describe('parseWorkflowFile — lire les fichiers, CRLF compris', () => {
 describe('câblage — la convention est partagée, et l’audit lit le dépôt réel', () => {
   it('le producteur passe par le helper partagé (sinon la détection peut dériver en silence)', () => {
     const producer = readFileSync(join(root, 'scripts', 'rebase-dependabot-prs.mjs'), 'utf8');
-    assert.match(producer, /import \{ inertAnnotation \} from '\.\/lib\/automation-evidence\.mjs'/);
+    assert.match(
+      producer,
+      /import \{[^}]*inertAnnotation[^}]*\} from '\.\/lib\/automation-evidence\.mjs'/,
+      'la marque vient du helper partagé, jamais d’une écriture locale',
+    );
     assert.match(producer, /console\.log\(\s*inertAnnotation\(/, 'l’annotation est ÉMISE sur stdout, là où le log la garde');
     assert.doesNotMatch(producer, /title=Dependabot rebase inactif/, 'plus aucun titre maison : un seul vocabulaire');
   });
 
-  it('le titre du marqueur n’existe qu’à UN endroit du dépôt', () => {
+  it('le marqueur est DÉFINI à un seul endroit — et les lecteurs l’importent', () => {
     // Le marqueur est COMPOSÉ à partir de la constante (aucun fichier ne contient
     // `title=Inactif::` en clair, et c'est mieux ainsi) : la propriété à tenir est
-    // donc « un seul fichier nomme la constante » — un second serait une seconde
-    // définition, et un renommage à moitié ferait disparaître la détection sans
-    // qu'aucun test ne rougisse.
+    // « un seul fichier le DÉFINIT » — un second serait une seconde définition, et
+    // un renommage à moitié ferait disparaître la détection sans qu'aucun test ne
+    // rougisse.
+    //
+    // Nommer la constante n'est pas la définir : `gate-sentinels.mjs` la lit pour
+    // surveiller qui a le droit de l'imprimer. Compter les LECTEURS (ce que faisait
+    // ce test) interdisait un lecteur légitime, et ne disait rien de la propriété
+    // visée — c'est la déclaration qu'il faut compter, et l'import qu'il faut
+    // exiger des autres.
     const files = [
       ...readdirSync(join(root, 'scripts')).filter((f) => /\.mjs$/.test(f)).map((f) => join(root, 'scripts', f)),
       ...readdirSync(join(root, 'scripts', 'lib')).filter((f) => /\.mjs$/.test(f)).map((f) => join(root, 'scripts', 'lib', f)),
     ];
-    const naming = files.filter((f) => {
+    const defining = files.filter((f) =>
+      /(?:export\s+)?const\s+(?:INERT_TITLE|INERT_MARK)\s*=/.test(readFileSync(f, 'utf8')),
+    );
+    assert.deepEqual(defining.map((f) => f.split(/[\\/]/).pop()), ['automation-evidence.mjs']);
+    const readers = files.filter((f) => {
       const text = readFileSync(f, 'utf8');
-      return text.includes('INERT_TITLE') || text.includes('INERT_MARK');
+      return (text.includes('INERT_TITLE') || text.includes('INERT_MARK')) && !defining.includes(f);
     });
-    assert.deepEqual(naming.map((f) => f.split(/[\\/]/).pop()), ['automation-evidence.mjs']);
+    assert.ok(readers.length > 0, 'au moins un lecteur (§ gate-sentinels) : sinon la constante ne sert à rien');
+    for (const reader of readers) {
+      assert.match(
+        readFileSync(reader, 'utf8'),
+        /from '\.\/automation-evidence\.mjs'|from '\.\.\/lib\/automation-evidence\.mjs'/,
+        `${reader} doit IMPORTER la marque, jamais la recomposer`,
+      );
+    }
     assert.equal(INERT_TITLE, 'Inactif');
     assert.equal(INERT_MARK, '[inactif]');
     // Et le PRODUCTEUR ne compose pas la marque lui-même : il passe par le
@@ -428,6 +535,16 @@ describe('câblage — la convention est partagée, et l’audit lit le dépôt 
       parsed.every((w) => w.name && w.name !== w.file),
       'chaque workflow doit porter un nom : c’est lui qui apparaît dans le rapport',
     );
+  });
+
+  it('le CLI attribue la preuve au workflow qu’il lit, et nomme les preuves étrangères', () => {
+    const cli = readFileSync(join(root, 'scripts', 'check-automations.mjs'), 'utf8');
+    assert.match(cli, /workflow: workflow\.file/, 'chaque verdict juge le journal qu’il vient de lire, par son nom');
+    assert.match(cli, /r\.foreign/, 'une preuve étrangère est citée, jamais escamotée');
+    const producer = readFileSync(join(root, 'scripts', 'rebase-dependabot-prs.mjs'), 'utf8');
+    assert.match(producer, /evidenceLine\(\{ workflow: WORKFLOW_FILE/, 'le producteur signe sa preuve');
+    assert.match(producer, /const WORKFLOW_FILE = 'dependabot-rebase\.yml'/, 'avec le nom du fichier de workflow');
+    assert.match(producer, /acted: true/, 'un run qui a agi le déclare aussi : la preuve est un canal, pas une alarme');
   });
 
   it('le token est obligatoire, et déclaré en CI', () => {

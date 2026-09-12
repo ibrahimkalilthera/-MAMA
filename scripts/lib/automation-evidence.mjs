@@ -55,6 +55,37 @@ export const INERT_TITLE = 'Inactif';
 export const INERT_MARK = '[inactif]';
 
 /**
+ * Le canal de preuve STRUCTURÉ : une ligne JSON, préfixée, qui nomme le workflow
+ * dont elle parle.
+ *
+ * Mesuré : le 2026-09-12, l'audit a déclaré `Quality & performance guard` « vert
+ * sans avoir agi » avec le motif de `Dependabot rebase`. La marque textuelle
+ * n'était pas émise par ce workflow : `npm test` importait le script Dependabot,
+ * dont le `main()` imprimait l'annotation dans le journal du job de tests — que
+ * l'audit relit. Un mot dans un journal ne dit pas QUI parle.
+ *
+ * Donc la preuve porte son sujet. L'audit ne compte une déclaration que si le
+ * `workflow` de la ligne est celui du journal qu'il est en train de lire ; une
+ * ligne étrangère est IGNORÉE et NOMMÉE. C'est la différence entre « quelqu'un a
+ * écrit [inactif] ici » et « dependabot-rebase.yml déclare qu'il n'a pas pu
+ * agir » — et la seconde seule est un fait.
+ *
+ * La ligne est volontairement un préfixe nu, pas une commande `::…::` : le
+ * runner ne la réécrit pas, ce qu'elle porte reste exactement ce que le script a
+ * écrit.
+ */
+export const EVIDENCE_PREFIX = 'AUTOMATION-EVIDENCE ';
+
+/**
+ * La ligne de preuve, composée à UN endroit (producteur et audit partagent la
+ * définition, comme pour la marque).
+ * @param {{ workflow: string, acted: boolean, reason?: string }} input
+ * @returns {string}
+ */
+export const evidenceLine = ({ workflow, acted, reason = '' }) =>
+  EVIDENCE_PREFIX + JSON.stringify({ workflow, acted, reason });
+
+/**
  * The exact annotation an automation emits when it cannot act. ONE definition:
  * the producer (../rebase-dependabot-prs.mjs) and the audit both use it, so a
  * reworded message can never silently stop being detected.
@@ -97,6 +128,39 @@ const STORED_ANNOTATION = /##\[[a-z]+\]$/;
  * @param {string} [log] the job log as downloaded
  * @returns {string[]}
  */
+/**
+ * Les lignes de preuve structurée d'un journal, dans l'ordre.
+ *
+ * Trois issues, et la troisième est un ÉCHEC : une ligne au préfixe connu mais
+ * au JSON illisible ne peut pas dire de qui elle parle, donc elle ne peut pas
+ * être ignorée — « je n'ai pas pu lire la preuve » n'est pas « il n'y a pas de
+ * preuve » (c'est la règle qui a déjà coûté un faux vert dans ce dépôt).
+ *
+ * @param {string} [log]
+ * @returns {{ workflow: string|null, acted: boolean|null, reason: string, raw: string }[]}
+ */
+export function evidenceRecords(log = '') {
+  const text = String(log ?? '');
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    const at = line.indexOf(EVIDENCE_PREFIX);
+    if (at === -1) continue;
+    const raw = line.slice(at + EVIDENCE_PREFIX.length).trim();
+    try {
+      const parsed = JSON.parse(raw);
+      out.push({
+        workflow: typeof parsed?.workflow === 'string' ? parsed.workflow : null,
+        acted: typeof parsed?.acted === 'boolean' ? parsed.acted : null,
+        reason: typeof parsed?.reason === 'string' ? parsed.reason : '',
+        raw,
+      });
+    } catch {
+      out.push({ workflow: null, acted: null, reason: 'ligne de preuve illisible (JSON invalide)', raw });
+    }
+  }
+  return out;
+}
+
 export function inertMarkers(log = '') {
   const text = String(log ?? '');
   const out = [];
@@ -175,9 +239,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * @param {{ file?: string, name?: string, hasSchedule?: boolean,
  *   run?: { conclusion?: string, created_at?: string } | null,
  *   anyRun?: { status?: string, created_at?: string } | null, absent?: boolean,
- *   log?: string | null, logsUnavailable?: boolean, nowMs?: number,
- *   allowanceDays?: number, logGraceMs?: number }} input
- * @returns {{ file: string, name: string, verdict: string, ko: boolean, reason: string }}
+ *   log?: string | null, logsUnavailable?: boolean, workflow?: string,
+ *   nowMs?: number, allowanceDays?: number, logGraceMs?: number }} input
+ * @returns {{ file: string, name: string, verdict: string, ko: boolean, reason: string, foreign?: string[] }}
  */
 export function lastRunVerdict({
   file = '',
@@ -188,6 +252,7 @@ export function lastRunVerdict({
   absent = false,
   log = null,
   logsUnavailable = false,
+  workflow = '',
   nowMs = Date.now(),
   allowanceDays = DORMANT_ALLOWANCE_DAYS,
   logGraceMs = LOG_GRACE_MS,
@@ -273,17 +338,67 @@ export function lastRunVerdict({
     };
   }
 
+  // 1. La preuve STRUCTURÉE, et seulement si elle parle de CE workflow : c'est
+  //    la ligne qui porte son sujet, donc une copie imprimée ailleurs ne peut
+  //    plus faire accuser le mauvais (l'incident du 2026-09-12, en entier).
+  const records = evidenceRecords(log);
+  const unreadable = records.filter((r) => r.acted === null);
+  if (unreadable.length > 0) {
+    // Un préfixe connu au contenu illisible ne peut pas dire de qui il parle :
+    // il ne peut donc pas être ignoré (invérifiable n'est pas un vert).
+    return {
+      ...base,
+      verdict: 'unreadable',
+      ko: true,
+      reason: `preuve structurée illisible — ${unreadable[0].reason}`,
+    };
+  }
+
+  const subject = workflow || file;
+  const foreign = [
+    ...new Set(records.filter((r) => r.workflow !== subject).map((r) => r.workflow ?? '(sans nom)')),
+  ];
+  const mine = records.filter((r) => r.workflow === subject);
+  if (mine.length > 0) {
+    const unacted = mine.filter((r) => r.acted === false);
+    return unacted.length > 0
+      ? {
+          ...base,
+          verdict: 'inert',
+          ko: true,
+          reason: `vert sans avoir agi : ${unacted[0].reason}`,
+          foreign,
+        }
+      : {
+          ...base,
+          verdict: 'acted',
+          ko: false,
+          reason: 'preuve structurée : a agi',
+          foreign,
+        };
+  }
+
+  // 2. Repli sur la marque textuelle, pour un automatisme pas encore migré. Elle
+  //    reste un échec — l'ignorer rendrait vert, pour un run, une automatisation
+  //    qui vient de déclarer son inaction.
   const markers = inertMarkers(log);
   if (markers.length > 0) {
     return {
       ...base,
       verdict: 'inert',
       ko: true,
-      reason: `vert sans avoir agi : ${markers[0]}${markers.length > 1 ? ` (+${markers.length - 1})` : ''}`,
+      reason: `vert sans avoir agi (marque textuelle, à migrer vers le canal structuré) : ${markers[0]}${markers.length > 1 ? ` (+${markers.length - 1})` : ''}`,
+      foreign,
     };
   }
 
-  return { ...base, verdict: 'acted', ko: false, reason: 'vert et n’a jamais déclaré ne pas avoir pu agir' };
+  return {
+    ...base,
+    verdict: 'acted',
+    ko: false,
+    reason: 'vert et n’a jamais déclaré ne pas avoir pu agir',
+    foreign,
+  };
 }
 
 /**

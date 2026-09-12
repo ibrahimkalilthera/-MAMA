@@ -45,7 +45,7 @@
 
 import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { inertAnnotation } from './lib/automation-evidence.mjs';
+import { evidenceLine, inertAnnotation } from './lib/automation-evidence.mjs';
 
 const API = 'https://api.github.com';
 const DEFAULT_REPO = 'ibrahimkalilthera/-MAMA';
@@ -54,6 +54,13 @@ const BOT_LOGIN = 'dependabot[bot]';
 const BRANCH_PREFIX = 'dependabot/';
 /** Le workflow passe le secret ici ; jamais de repli sur GITHUB_TOKEN (voir l'en-tête). */
 const TOKEN_ENV = 'REBASE_TOKEN';
+/**
+ * Le sujet déclaré dans la preuve structurée : le fichier de workflow qui porte
+ * ce script. L'audit ne compte une preuve que si elle nomme le journal qu'il lit
+ * — sans quoi une copie imprimée ailleurs (par une suite de tests, mesuré le
+ * 2026-09-12) ferait accuser un workflow qui n'a rien dit.
+ */
+const WORKFLOW_FILE = 'dependabot-rebase.yml';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -247,13 +254,16 @@ async function main() {
     // going through `inertAnnotation`, which is the single definition of the
     // mark, and keep it on STDOUT: the runner stores stdout, and it drops an
     // annotation's title.
-    console.log(
-      inertAnnotation(
-        'Dependabot rebase — le secret DEPENDABOT_REBASE_TOKEN n’est pas posé, donc aucune PR n’a été ' +
-          'mise à jour. Ajoutez un PAT (fine-grained : Contents + Pull requests read/write) dans ' +
-          'Settings → Secrets and variables → ACTIONS (jamais « Dependabot secrets ») pour l’activer.',
-      ),
-    );
+    const inertReason =
+      'Dependabot rebase — le secret DEPENDABOT_REBASE_TOKEN n’est pas posé, donc aucune PR n’a été ' +
+      'mise à jour. Ajoutez un PAT (fine-grained : Contents + Pull requests read/write) dans ' +
+      'Settings → Secrets and variables → ACTIONS (jamais « Dependabot secrets ») pour l’activer.';
+    console.log(inertAnnotation(inertReason));
+    // La même déclaration, STRUCTURÉE et signée : l'annotation reste pour l'UI
+    // des Actions, la ligne ci-dessous est ce que l'audit lit — et son `workflow`
+    // garantit qu'elle ne peut pas être confondue avec une copie imprimée
+    // ailleurs dans un journal.
+    console.log(evidenceLine({ workflow: WORKFLOW_FILE, acted: false, reason: inertReason }));
     appendSummary(
       [
         '## Dependabot rebase — inactif',
@@ -314,6 +324,17 @@ async function main() {
       '',
       '_Un `rebase` (ou `dependabot`) est un push d’utilisateur : `synchronize` part et la chaîne qualité rejoue sur la PR._',
     ].join('\n'),
+  );
+
+  // Un run qui a AGI le déclare aussi, au même format : la preuve devient un
+  // canal, pas un signal d'alarme. Un audit qui ne lit que les déclarations
+  // d'échec ne saurait pas distinguer « a agi » de « n'a rien dit ».
+  console.log(
+    evidenceLine({
+      workflow: WORKFLOW_FILE,
+      acted: true,
+      reason: `${rebased.length} PR remise(s) à jour sur ${results.length} examinée(s)`,
+    }),
   );
 
   for (const f of failures) annotate('warning', `#${f.number} : ${f.detail}`, 'Dependabot rebase');
