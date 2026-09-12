@@ -272,6 +272,7 @@ export interface MainViewsProps {
   handleAddTodo: (e: FormEvent) => Promise<void>;
   handleDeleteClass: (c: ManagedClass) => Promise<void>;
   handleDeleteParent: (parentId: string) => Promise<void>;
+  handleDeleteExpense: (id: string) => Promise<void>;
   handleDeleteVendorExpense: (id: string) => Promise<void>;
   handleExportAllData: () => Promise<void>;
   handleExportParentLedgerPdf: (parent: Parent) => Promise<void>;

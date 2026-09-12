@@ -309,6 +309,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     staff,
     parents,
     vendorExpenses,
+    expenses,
     setParents, setStudents, setStaff, setSalaryPayments,
     setExpenses, setVendorExpenses, setTodos, setCustomClasses,
     notifySuccess, notifyError, isOffline, enqueueOffline, updateQueueCount,
@@ -319,7 +320,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   const { addStudent, updateStudent, deleteStudent, batchPromoteStudents } = createStudentOps(ctx);
   const { addPayment, addSalaryPayment } = createPaymentOps(ctx);
   const { addStaff, updateStaff, deleteStaff } = createStaffOps(ctx);
-  const { addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense } = createExpenseOps(ctx);
+  const { addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense } = createExpenseOps(ctx);
   const { addTodo, updateTodo, deleteTodo } = createTodoOps(ctx);
 
   // ── Batch Import (Smart Excel Ingestion) ─────────────────────────────────
@@ -366,7 +367,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     addPayment,
     addStaff, updateStaff, deleteStaff,
     addSalaryPayment,
-    addExpense,
+    addExpense, deleteExpense,
     addVendorExpense, updateVendorExpense, deleteVendorExpense,
     addTodo, updateTodo, deleteTodo,
     batchPromoteStudents,

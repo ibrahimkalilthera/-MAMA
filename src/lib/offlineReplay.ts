@@ -144,6 +144,9 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       academic_year: item.payload.academicYear || null,
     });
     if (!error) success = true;
+  } else if (item.type === 'deleteExpense') {
+    const { error } = await db.from('expenses').delete().eq('id', item.payload.id);
+    if (!error) success = true;
   } else if (item.type === 'addVendorExpense') {
     const { error } = await db.from('vendor_expenses').insert({
       vendor_name: item.payload.vendorName,
@@ -275,6 +278,8 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
       return { action: 'RECORD_PAYMENT', targetType: 'payment', targetId: item.payload.studentId, details: `Payment of ${item.payload.payment.amount} FCFA recorded (Receipt: ${item.payload.payment.receiptNumber || 'N/A'})${tag}` };
     case 'addExpense':
       return { action: 'ADD_EXPENSE', targetType: 'expense', targetId: null, details: `${item.payload.description} (${item.payload.category}) — ${item.payload.amount} FCFA${tag}` };
+    case 'deleteExpense':
+      return { action: 'DELETE_EXPENSE', targetType: 'expense', targetId: item.payload.id, details: `suppression dépense${tag}` };
     case 'addVendorExpense':
       return { action: 'ADD_VENDOR_EXPENSE', targetType: 'vendor_expense', targetId: null, details: `${item.payload.vendorName} — ${item.payload.category} — ${item.payload.amount} FCFA${tag}` };
     case 'updateVendorExpense':

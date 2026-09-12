@@ -497,6 +497,7 @@ export const fr = {
     passwordResetEmailSent: "E-mail de réinitialisation envoyé à {email}",
     generalExpensesReport: "RAPPORT DES DÉPENSES GÉNÉRALES & CHARGES D'EXPLOITATION — {year}",
     deleteExpenseConfirm: "Êtes-vous sûr de vouloir supprimer cette dépense pour \"{vendor}\" ?",
+    deleteExpenseGeneralConfirm: "Êtes-vous sûr de vouloir supprimer définitivement la dépense \"{desc}\" ? Cette action est irréversible.",
     cumulativePaymentsSum: "Cumul total de tous les paiements effectués par {name} pour l'ensemble des enfants rattachés",
     deleteStaffConfirm: "Êtes-vous sûr de vouloir supprimer l'employé(e) \"{name}\" ?",
     deleteStudentConfirm: "Êtes-vous sûr de vouloir supprimer l'élève \"{name}\" ? Cela supprimera également ses reçus et paiements.",

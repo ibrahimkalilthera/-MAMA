@@ -41,6 +41,7 @@ export interface UseExpensesDeps {
   isGeneralManager: boolean;
   currentUser: User | null;
   addExpense: (exp: Omit<Expense, 'id'>) => Promise<Expense | null>;
+  deleteExpense: (id: string) => Promise<boolean>;
   addVendorExpense: (ve: Omit<VendorExpense, 'id'>) => Promise<VendorExpense | null>;
   updateVendorExpense: (id: string, updates: Partial<VendorExpense>) => Promise<boolean>;
   deleteVendorExpense: (id: string) => Promise<boolean>;
@@ -69,7 +70,7 @@ const emptyVendorExpenseForm = (): VendorExpenseForm => ({
   beneficiaryStudentGrade: '',
 });
 
-export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser, addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast, toastError
+export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser, addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast, toastError
   } = deps;
   // Finance admins (promoter/admin, dev, general manager) share the vendor
   // create/delete powers; only the promoter keeps the amount/vendorName edit
@@ -196,6 +197,18 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
     setShowVendorExpenseModal(true);
   };
 
+  const handleDeleteExpense = async (id: string) => {
+    if (lockedYears.includes(selectedYear)) {
+      toastError(t.thisAcademicYearIsLocked);
+      return;
+    }
+    if (!isFinanceAdmin) {
+      toastError(t.onlyThePromoterCanDeleteExpenses);
+      return;
+    }
+    if (await deleteExpense(id)) showToast();
+  };
+
   const handleDeleteVendorExpense = async (id: string) => {
     if (lockedYears.includes(selectedYear)) {
       toastError(t.thisAcademicYearIsLocked);
@@ -237,6 +250,7 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
     ticketStudent, setTicketStudent,
     expenseCategoryList,
     handleExpenseSubmit,
+    handleDeleteExpense,
     handleVendorExpenseSubmit,
     handleEditVendorExpense,
     handleDeleteVendorExpense,
