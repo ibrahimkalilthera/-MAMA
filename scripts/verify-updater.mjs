@@ -91,7 +91,12 @@ const {
 } = require('../electron/updater-policy.cjs');
 // Le journal local est lu par le MODULE qui l'écrit dans l'application : une
 // preuve qui reparserait le fichier à sa façon prouverait son propre parseur.
-const { readEntries: readJournal, JOURNAL_FILE } = require('../electron/update-journal.cjs');
+const {
+  readEntries: readJournal,
+  pendingReports: pendingJournal,
+  entryKey: journalEntryKey,
+  JOURNAL_FILE,
+} = require('../electron/update-journal.cjs');
 
 // Le nom de l'installeur PORTE la version (electron-builder : ${version}) : la
 // lire dans package.json plutôt que l'écrire ici. Une montée de version a déjà
@@ -379,11 +384,19 @@ async function runScenario(scenario) {
   // dans le journal local du poste. Le log de preuve est un artefact du test ;
   // le journal, lui, existe aussi sur le poste d'un client.
   const blockedLine = seen.find((m) => m.startsWith('poste bloqué (download)')) || null;
-  const journalEntries = scenario.brokenDownload
-    ? readJournal(join(userData, JOURNAL_FILE), { limit: 10 })
-    : [];
+  const journalFile = join(userData, JOURNAL_FILE);
+  const journalEntries = scenario.brokenDownload ? readJournal(journalFile, { limit: 10 }) : [];
   const journalEntry = journalEntries.find((e) => e.code === 'download') || null;
-  const blockedRight = Boolean(blockedLine) && Boolean(journalEntry);
+  // Et l'entrée doit être EN FILE — c'est la propriété de CETTE version. Un poste
+  // bloqué devant personne n'a aucune session, donc rien ne peut partir à cet
+  // instant : le journal doit pouvoir ATTENDRE (`reportedAt` nul), et la file le
+  // trouve. Sans cette exigence, la passe prouverait qu'un fait est inscrit sans
+  // prouver qu'il remontera un jour — c'est-à-dire la moitié qui manquait.
+  const queued = journalEntry
+    ? pendingJournal(journalFile, { limit: 10 }).find((e) => e.key === journalEntryKey(journalEntry)) || null
+    : null;
+  const queuedRight = Boolean(queued) && journalEntry?.reportedAt === null;
+  const blockedRight = Boolean(blockedLine) && Boolean(journalEntry) && queuedRight;
 
   // Le MOTIF fait partie de la preuve : trois règles peuvent forcer, et une règle
   // qui forcerait toujours passerait pour verte si on ne lisait que le drapeau.
@@ -422,6 +435,9 @@ async function runScenario(scenario) {
       : `❌ poste bloqué MUET — ligne de signalement=${Boolean(blockedLine)}, entrée dans ${JOURNAL_FILE}=${journalEntry ? 'oui' : 'non'} (${journalEntries.length} entrée(s))`);
     if (journalEntry) {
       console.log(`✅ entrée écrite dans le journal du poste : ${journalEntry.code} · ${journalEntry.station} · ${journalEntry.detail}`);
+      console.log(queuedRight
+        ? `✅ et elle est EN FILE : remontée au prochain démarrage connecté (reportedAt nul, ${queued.occurrences} occurrence(s), clé ${queued.key})`
+        : `❌ entrée NON en file — reportedAt=${JSON.stringify(journalEntry.reportedAt)}, ${pendingJournal(journalFile, { limit: 10 }).length} en attente : ce blocage ne remonterait jamais`);
     }
   } else if (scenario.forced) {
     console.log(ok

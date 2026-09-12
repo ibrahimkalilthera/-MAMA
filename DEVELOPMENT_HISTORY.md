@@ -1,3 +1,44 @@
+## [2026-09-13] La 1.0.5 est publiée : le signalement des postes bloqués existe sur le parc
+
+Demande : « publie une 1.0.4 pour que le signalement des postes bloqués existe réellement sur le parc installé, et vérifie le flux comme l'application le lit ».
+
+**Il n'y a pas de 1.0.4 à publier : elle EXISTE déjà.** Le release `v1.0.4` est en ligne depuis la veille (`draft=false`, 4 actifs), et le binaire installé ne contient pas le travail qui a suivi — ni la file d'attente du journal, ni le contrôle du canal. Or reconstruire sous le même numéro n'atteindrait **aucun poste** : un poste compare des numéros, donc un même numéro qui change de contenu ne se voit pas changer. Le contrôle le dit lui-même, et il le dit AVANT tout téléversement :
+
+```
+❌ publication refusée pour v1.0.4
+   • le tag v1.0.4 existe déjà — un même numéro ne peut pas changer de contenu :
+     aucun poste ne verrait la différence. Montez la version.     exit=1
+```
+
+**D'où une 1.0.5, et la vérification suit le chemin d'un poste — sans aucun jeton.**
+
+```
+local    ✅ 1.0.5 (paquet) = 1.0.5 (latest.yml) · 129 032 765 octet(s) · sha512 recalculé
+brouillon ⛔ refusé au premier passage : « 2 releases portent le tag v1.0.5 — les artefacts
+         sont répartis entre eux » + les trois artefacts manquants dans le release jugé
+         (le piège des deux brouillons, reproduit à l'identique) → consolidé en un seul
+brouillon ✅ 1 release, les octets téléversés répondent à latest.yml → promotion autorisée
+live     ✅ 129 032 764 octet(s) · sha512 NkYrxEn5V07pVXm5SLPmwnnH… rehaché du dépôt public
+channel  ✅ canal vivant : v1.0.5 livrable, frein lisible (0 retenue) — et le jeton de
+         l'environnement est délibérément IGNORÉ
+REST     ✅ latest.yml publié identique au construit (361 octets, octet pour octet)
+         ✅ installeur sans jeton : HTTP 206 · magic « MZ » · …/129 032 764
+```
+
+**Et le nouveau code est prouvé PRÉSENT dans l'artefact, pas supposé.** D'abord dans l'asar empaqueté (`updates:pending-reports`, `updates:mark-reported`, `update-journal.jsonl`, l'action « remonté depuis le journal du poste »), puis — ce qui compte — sur le **binaire lancé** : la passe `blocked` d'`verify-updater.mjs` a été renforcée, et elle exige désormais **deux** choses au lieu d'une. Sans la seconde, elle prouvait qu'un fait est *inscrit* sans prouver qu'il *remontera un jour* — c'est-à-dire exactement la moitié qui manquait :
+
+```
+[updater] poste bloqué (download) — Cannot download "…-2.0.0-setup.exe", status 404
+✅ entrée écrite dans le journal du poste : download · DESKTOP-D7O1SEG · Cannot download …
+✅ et elle est EN FILE : remontée au prochain démarrage connecté
+   (reportedAt nul, 1 occurrence(s), clé download||1.0.5)
+PROOF_OK
+```
+
+**Ce que le refus d'avance a coûté, et c'est zéro.** Le gate du tag a parlé avant le premier octet téléversé : aucune version publiée n'a été abîmée, et `v1.0.4` reste ce que les postes lisent jusqu'à ce qu'ils prennent la 1.0.5. Les deux brouillons, eux, ont été **nommés par le contrôle** avant d'être réparés — la consolidation reste une main humaine sur l'API (le dernier pas non outillé de cette chaîne), mais elle n'est plus silencieuse : sans le gate, promouvoir le mauvais brouillon aurait publié un release **sans `latest.yml`**, c'est-à-dire une mise à jour que personne ne voit.
+
+**Trois choses franchement.** La 1.0.4 **reste en ligne** et n'est pas retirée : elle n'est plus la plus récente, donc les postes passent directement de leur version à la 1.0.5 (le mode `channel` le confirme : 5 releases publiés, le plus récent en tête). Le binaire 1.0.5 est **signé** (signtool a signé l'exe, `elevate.exe`, le désinstalleur, l'installeur et le portable) — mais sans certificat d'une autorité de confiance, SmartScreen reste méfiant : c'est un réglage, pas du code. Enfin la preuve que la mise à jour a été **reçue** par un poste réel (une installation, pas une lecture de flux) reste à faire à la main : aucun cron ne peut lancer un installeur sur une machine d'école.
+
 ## [2026-09-13] Un blocage remonte au prochain démarrage connecté : le journal devient une file
 
 Demande : « fais remonter les blocages au prochain démarrage connecté : mets les entrées du journal local en file d'attente et envoie-les dès qu'un utilisateur est authentifié ».
