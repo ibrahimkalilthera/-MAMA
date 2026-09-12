@@ -210,6 +210,12 @@ jobs:
       # supprimé le profil avec le compte). Réutilise le même .env que les
       # pixel-checks ; lecture seule, ne supprime rien.
       - name: Vérification finale — aucun compte éphémère résiduel en base
+        # `if: always()` : un pixel-check en échec ne doit pas EMPÊCHER la
+        # vérification des résidus — c'est justement quand la chaîne casse au
+        # milieu qu'un compte éphémère reste en base. Mesuré le 2026-09-12 : un
+        # 504 sur la suppression du compte éphémère, garde sautée (l'étape
+        # précédente avait échoué), résidu découvert seulement au run suivant.
+        if: always()
         # Mandat de preuve : c'est la seule étape de cette chaîne qui MESURE l'état
         # final du monde (comptes et profils réellement parcourus en base) — elle
         # publie donc ce qu'elle a compté, au lieu d'une phrase de workflow.

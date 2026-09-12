@@ -74,6 +74,7 @@ import { dirname, join } from 'node:path';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -162,11 +163,63 @@ const check = (name, ok, detail = '') => {
   console.log(`  ${ok ? '✅' : '❌'} ${name}${detail ? ' — ' + detail : ''}`);
 };
 
-const api = async (path, opts = {}) => {
+/**
+ * Le corps d'une réponse non-JSON (page HTML d'une passerelle, 504 en texte)
+ * ne doit pas devenir une erreur de SYNTAXE : c'est le statut qui compte, et un
+ * `JSON.parse` qui jette masquerait le 504 derrière un « Unexpected token ».
+ */
+const parseBody = (text) => {
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return { _nonJson: text.slice(0, 200) }; }
+};
+
+// Un 504 du gateway n'est PAS un verdict sur l'application (mesuré le
+// 2026-09-12 : deux runs rouges pour un gateway lent, application intacte, et un
+// compte éphémère resté en base parce que sa suppression avait pris le même
+// 504). Les coupures passagères sont donc retentées — borné, journalisé — et un
+// 4xx (refus, conflit) n'est jamais retenté : c'est une réponse, pas un hoquet.
+//
+// Sur une ÉCRITURE, une reprise n'est pas sûre par nature : un 504 tombe souvent
+// APRÈS que la requête a été appliquée. Les deux écritures non idempotentes de ce
+// script sondent donc avant de rejouer — `rawApi` est la brique sans reprise, et
+// `insertOnce` la version qui ne double pas. Un aller-retour de sonde à chaque
+// essai serait du gaspillage, donc le PREMIER essai ne sonde jamais.
+const rawApi = async (path, opts = {}) => {
   const r = await fetch(`${supabaseBase}${path}`, { headers: HDR, ...opts });
   const t = await r.text();
-  return { status: r.status, body: t ? JSON.parse(t) : null };
+  return { status: r.status, body: parseBody(t) };
 };
+
+const api = (path, opts = {}) => withTransientRetry(() => rawApi(path, opts), {
+  label: `${opts.method || 'GET'} ${path} — `, log: (m) => console.log(`  ↻ ${m}`),
+});
+
+/**
+ * Insertion de démo qui peut être REJOUÉE sans doubler la ligne.
+ *
+ * `public.staff` n'a AUCUNE contrainte sur `email`, et `public.students` n'a
+ * d'unique que `student_id` (NULL sur ces lignes de démo) : un POST rejoué après
+ * un 504 déjà appliqué créerait une deuxième ligne. Le nettoyage supprime par
+ * l'id rendu par la tentative gagnante, donc la première resterait en base pour
+ * toujours — un résidu de démo que la garde anti-résidus ne surveille pas, elle
+ * qui ne connaît que les comptes éphémères.
+ */
+const insertOnce = (table, row, find) => replayableWrite(
+  () => rawApi(`/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { ...HDR, Prefer: 'return=representation' },
+    body: JSON.stringify(row),
+  }),
+  async () => {
+    const probe = await rawApi(`/rest/v1/${table}?select=*&${find}&limit=1`);
+    if (probe.status === 200 && Array.isArray(probe.body) && probe.body[0]) {
+      console.log(`  ↻ ${table} : la ligne était déjà là — réutilisée, pas de doublon`);
+      return { status: 201, body: probe.body };
+    }
+    return null;
+  },
+  { label: `POST /rest/v1/${table} — `, log: (m) => console.log(`  ↻ ${m}`) },
+);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ── Cleanup ──────────────────────────────────────────────────────────────────
@@ -207,10 +260,27 @@ async function cleanup() {
 
 // ── 1. Account + data ────────────────────────────────────────────────────────
 async function createAccount() {
-  const r = await api('/auth/v1/admin/users', {
-    method: 'POST',
-    body: JSON.stringify({ email: EMAIL, password: PASS, email_confirm: true }),
-  });
+  const r = await replayableWrite(
+    () => rawApi('/auth/v1/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({ email: EMAIL, password: PASS, email_confirm: true }),
+    }),
+    async () => {
+      // L'email du compte est UNIQUE : rejouer à l'aveugle rendrait un 422, le
+      // run mourrait AVANT d'avoir l'uid — donc le nettoyage n'aurait aucun id à
+      // supprimer, et le compte resterait en base. On réutilise celui qui est là.
+      // (Même parade que scripts/e2e-business.mjs, qui gère déjà
+      // `user_already_exists` en relisant le compte par son email.)
+      const probe = await rawApi(`/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`);
+      const found = Array.isArray(probe.body?.users) ? probe.body.users[0] : null;
+      if (found?.id) {
+        console.log('  ↻ compte éphémère : déjà créé — réutilisé');
+        return { status: 200, body: { id: found.id } };
+      }
+      return null;
+    },
+    { label: 'POST /auth/v1/admin/users — ', log: (m) => console.log(`  ↻ ${m}`) },
+  );
   if (!r.body?.id) throw new Error(`création du compte échouée (${r.status})`);
   ephemeralUid = r.body.id;
   // promote to admin so Settings/nav are fully available (reliable navigation)
@@ -261,11 +331,7 @@ async function resolveTarget() {
       communication_allowance: 10000,
       housing_allowance: 0,
     };
-    const ins = await api('/rest/v1/staff', {
-      method: 'POST',
-      headers: { ...HDR, Prefer: 'return=representation' },
-      body: JSON.stringify(demo),
-    });
+    const ins = await insertOnce('staff', demo, `email=eq.${encodeURIComponent(demo.email)}`);
     if (!ins.body?.[0]?.id) throw new Error(`insertion employé de démo échouée (${ins.status})`);
     demoMemberId = ins.body[0].id;
     return { member: ins.body[0], mode: 'fiche' };
@@ -297,11 +363,7 @@ async function resolveTarget() {
       communication_allowance: 10000,
       housing_allowance: 0,
     };
-    const ins = await api('/rest/v1/staff', {
-      method: 'POST',
-      headers: { ...HDR, Prefer: 'return=representation' },
-      body: JSON.stringify(demo),
-    });
+    const ins = await insertOnce('staff', demo, `email=eq.${encodeURIComponent(demo.email)}`);
     if (!ins.body?.[0]?.id) throw new Error(`insertion membre de démo échouée (${ins.status})`);
     demoMemberId = ins.body[0].id;
     return { member: ins.body[0], mode: 'bulletin' };
@@ -340,11 +402,7 @@ async function resolveTarget() {
       amount_paid: 25000,
       status: 'Active',
     };
-    const ins = await api('/rest/v1/students', {
-      method: 'POST',
-      headers: { ...HDR, Prefer: 'return=representation' },
-      body: JSON.stringify(demo),
-    });
+    const ins = await insertOnce('students', demo, `name=eq.${encodeURIComponent(demo.name)}`);
     if (!ins.body?.[0]?.id) throw new Error(`insertion élève de démo échouée (${ins.status})`);
     demoStudentId = ins.body[0].id;
     const p = {
@@ -354,11 +412,7 @@ async function resolveTarget() {
       academic_year: '2026-2027',
       receipt_number: `REC-E2E-${TS}`,
     };
-    const pin = await api('/rest/v1/payments', {
-      method: 'POST',
-      headers: { ...HDR, Prefer: 'return=representation' },
-      body: JSON.stringify(p),
-    });
+    const pin = await insertOnce('payments', p, `receipt_number=eq.${encodeURIComponent(p.receipt_number)}`);
     if (!pin.body?.[0]?.id) throw new Error(`insertion paiement de démo échouée (${pin.status})`);
     demoPaymentId = pin.body[0].id;
     return {

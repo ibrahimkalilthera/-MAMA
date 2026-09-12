@@ -29,6 +29,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EPHEMERAL_PATTERNS } from './lib/ephemeral-accounts.mjs';
+import { withTransientRetry } from './lib/transient-http.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -59,11 +60,22 @@ const HDR = { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, 'Cont
 // single source of truth imported by every E2E script AND this guard, so a
 // new script cannot silently create an account that escapes the gate.
 
-const api = async (path) => {
-  const r = await fetch(`${supabaseBase}${path}`, { headers: HDR });
-  const t = await r.text();
-  return { status: r.status, body: t ? JSON.parse(t) : null };
+/** Le corps non-JSON (page HTML d'une passerelle) reste un statut, pas une erreur de syntaxe. */
+const parseBody = (text) => {
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return { _nonJson: text.slice(0, 200) }; }
 };
+
+// Même règle que les scripts E2E (scripts/lib/transient-http.mjs) : une coupure
+// de passerelle (504) n'est pas un verdict. Ici elle compte DOUBLE — mesuré le
+// 2026-09-12 : c'est une suppression qui a pris un 504, donc le résidu est resté
+// en base ; une détection seule n'aurait rien purgé, et une purge qui renonce au
+// premier hoquet laisse le résidu exactement là où il était.
+const api = (path, opts = {}) => withTransientRetry(async () => {
+  const r = await fetch(`${supabaseBase}${path}`, { headers: HDR, ...opts });
+  const t = await r.text();
+  return { status: r.status, body: parseBody(t) };
+}, { label: `${opts.method || 'GET'} ${path} — `, log: (m) => console.log(`  ↻ ${m}`) });
 
 // --cleanup-only : purge mode. Deletes every residue found instead of only
 // reporting them, then exits 0 when the base is clean. This is an EXPLICIT
@@ -103,26 +115,31 @@ if (leftoverProfiles.length) {
 }
 
 // ── 3. Purge mode (--cleanup-only) ─────────────────────────────────────────
+// Un 404 a DEUX causes, et une seule est un échec : le compte n'était déjà plus
+// là (une reprise a réussi après un 504 — le but est atteint) ou l'id a disparu
+// entre la lecture et la suppression. Dans les deux cas, « plus rien en base »
+// est exactement ce que ce mode demande : refuser ici ferait ROUGIR une purge
+// qui a fait son travail, et une alerte fausse est pire que pas d'alerte.
+const deleted = (status) => status === 204 || status === 200 || status === 404;
+
 if (CLEANUP_ONLY) {
   let ok = true;
   // Delete the accounts; ON DELETE CASCADE removes their user_profiles row.
   for (const u of leftoverUsers) {
-    const del = await fetch(`${supabaseBase}/auth/v1/admin/users/${u.id}`, {
-      method: 'DELETE', headers: HDR,
-    });
-    const fine = del.status === 204 || del.status === 200;
-    console.log(`${fine ? '🧹' : '❌'} compte supprimé ${u.email} (HTTP ${del.status})`);
+    const del = await api(`/auth/v1/admin/users/${u.id}`, { method: 'DELETE' });
+    const fine = deleted(del.status);
+    const what = del.status === 404 ? 'déjà absent' : 'supprimé';
+    console.log(`${fine ? '🧹' : '❌'} compte ${what} ${u.email} (HTTP ${del.status})`);
     ok = ok && fine;
   }
   // Orphan profiles (no matching auth user left — cascade already gone) can
   // only be removed here.
   const orphanProfiles = leftoverProfiles.filter((p) => !leftoverUsers.some((u) => u.id === p.id));
   for (const p of orphanProfiles) {
-    const del = await fetch(`${supabaseBase}/rest/v1/user_profiles?id=eq.${p.id}`, {
-      method: 'DELETE', headers: HDR,
-    });
-    const fine = del.status === 204 || del.status === 200;
-    console.log(`${fine ? '🧹' : '❌'} profil orphelin supprimé ${p.email} (HTTP ${del.status})`);
+    const del = await api(`/rest/v1/user_profiles?id=eq.${p.id}`, { method: 'DELETE' });
+    const fine = deleted(del.status);
+    const what = del.status === 404 ? 'déjà absent' : 'supprimé';
+    console.log(`${fine ? '🧹' : '❌'} profil orphelin ${what} ${p.email} (HTTP ${del.status})`);
     ok = ok && fine;
   }
   if (!ok) {
