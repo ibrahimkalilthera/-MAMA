@@ -20,11 +20,13 @@
  * Usage: node scripts/check-line-budget.mjs   (wired into `npm run lint`)
  */
 import fs from 'node:fs';
-import path from 'node:path';
+
+import { CODE_EXTS, assertScanned, listFiles } from './lib/source-text.mjs';
 
 const BUDGET = 700;
-const ROOT = 'src';
-const EXT = /\.(ts|tsx|css)$/;
+// La racine est surchargeable pour que le refus de vacuité soit prouvable sur
+// une arborescence fabriquée (une racine vide doit ÉCHOUER, pas féliciter).
+const ROOT = process.env.CHECK_LINE_BUDGET_ROOT || 'src';
 
 // Grandfathered mid-split files. The reason names the split that retires the
 // entry; delete the entry in that same split's commit (the gate fails on a
@@ -41,20 +43,9 @@ function countLines(src) {
   return parts.length;
 }
 
-/** Recursively list src/ files matching EXT, as forward-slash src-relative paths. */
-function scanFiles(dir) {
-  const out = [];
-  const walk = (d) => {
-    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-      if (e.isDirectory()) walk(path.join(d, e.name));
-      else if (EXT.test(e.name)) out.push(path.join(d, e.name).replace(/\\/g, '/'));
-    }
-  };
-  walk(dir);
-  return out.sort();
-}
-
-const files = scanFiles(ROOT); // already src/-prefixed, forward slashes
+const files = listFiles(ROOT, { ext: CODE_EXTS }); // déjà préfixés par la racine
+// 0 fichier lu ⇒ le budget n'a rien protégé : échec, pas un vert.
+assertScanned(files, { what: 'fichier .ts/.tsx/.css', root: ROOT });
 const over = [];
 const stale = [];
 const allowed = [];
@@ -97,4 +88,4 @@ for (const { rel, lines } of allowed) {
   console.log(`⏳ ${rel} — ${lines} lignes (grandfathered : ${ALLOWLIST[rel].split(';')[0]})`);
 }
 const suffix = allowed.length ? `, ${allowed.length} grandfathered` : '';
-console.log(`✅ ${files.length} fichier(s) src/ sous le budget de ${BUDGET} lignes${suffix}.`);
+console.log(`✅ ${files.length} fichier(s) ${ROOT}/ sous le budget de ${BUDGET} lignes${suffix}.`);

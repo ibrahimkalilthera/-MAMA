@@ -25,6 +25,14 @@ import { RULES, analyzeRepo } from './lib/test-integrity.mjs';
 
 const { findings, suites, mocks, declaredSkips } = analyzeRepo();
 
+// Aucune suite analysée ⇒ rien n'a été prouvé. Ce contrôle a réellement imprimé
+// « ✅ 0 suites » une fois : le dossier renommé ou le filtre cassé suffit, et le
+// vert était exactement ce qu'un run vert-néant produit.
+if (suites === 0) {
+  console.error('❌ Rien à vérifier : 0 suite de tests analysée — un audit vide n’est pas un audit.');
+  process.exit(2);
+}
+
 if (findings.length > 0) {
   console.error(`❌ Suites de tests neutralisées (${findings.length}) :`);
   for (const finding of findings) {
