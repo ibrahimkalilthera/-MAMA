@@ -2,7 +2,17 @@
 # electron-builder.yml — packaging MamaTheraFinance for Windows.
 #
 #   npm run electron:ui      → vite build --base=./ --outDir electron-ui-dist
-#   npm run electron:dist    → electron:ui + electron-builder --win (local)
+#   npm run electron:dist    → electron:runtime + electron:ui + electron-builder --win
+#                              (local)
+#
+# `electron:runtime` n'est pas une formalité : electron-builder exige
+# `node_modules/electron/dist`, que le postinstall d'electron télécharge — et
+# une installation PROPRE sur un runner ne l'a pas (mesuré : `npm ci` sur
+# windows-latest, 700 paquets, puis « The specified electronDist does not
+# exist »). En local la question ne se pose pas, le binaire est déjà là ; c'est
+# donc le chemin CI qui révèle le manque, et il le fait ici, avant le build
+# plutôt qu'au milieu du packaging. L'installation est idempotente (4 s quand
+# le binaire est déjà en cache).
 #   npm run electron:release → electron:ui + gate local + `--publish never`
 #                              puis npm run release:publish (téléverse lui-même
 #                              les octets vérifiés, requires GH_TOKEN)
