@@ -261,3 +261,12 @@ jobs:
 
       - name: Deploy to production (prebuilt)
         run: tools/node_modules/.bin/vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      # La preuve est publiée par l'étape NOMMÉE, après le déploiement réussi :
+      # c'est ce nom que `npm run check:automations` lit dans les étapes du run
+      # pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — déploiement Vercel
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "paquet construit déployé en production (prebuilt) après la porte qualité et la porte migrations"

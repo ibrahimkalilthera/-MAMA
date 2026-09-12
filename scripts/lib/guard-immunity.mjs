@@ -25,8 +25,9 @@
  *   • `prose-blind`  → le contrôle blanchit la prose par la couche partagée
  *                      (`scripts/lib/source-text.mjs`), ou déclare son propre
  *                      blanchiment avec sa raison ;
- *   • `stored-form`  → le contrôle exige la forme STOCKÉE d'une annotation
- *                      (`##[warning]`), pas la chaîne imprimée ;
+ *   • `stored-fields` → le contrôle lit des CHAMPS stockés (les annotations
+ *                      d'un run, rendues par l'API), jamais le texte d'un
+ *                      journal ;
  *   • `subject-identified` → la preuve porte le nom de son émetteur.
  */
 
@@ -36,7 +37,7 @@ import { existsSync, readFileSync } from 'node:fs';
 export const IMMUNITY = {
   NON_VACUOUS: 'non-vacuous',
   PROSE_BLIND: 'prose-blind',
-  STORED_FORM: 'stored-form',
+  STORED_FIELDS: 'stored-fields',
   SUBJECT_IDENTIFIED: 'subject-identified',
 };
 
@@ -111,7 +112,7 @@ export const GUARD_INVENTORY = [
   {
     check: 'check-automations.mjs',
     input: 'logs',
-    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.STORED_FORM, IMMUNITY.SUBJECT_IDENTIFIED],
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.STORED_FIELDS, IMMUNITY.SUBJECT_IDENTIFIED],
     via: 'automation-evidence.mjs',
     exempt: { [IMMUNITY.PROSE_BLIND]: 'il ne lit pas de code source, il lit des journaux de runs' },
   },
@@ -155,7 +156,10 @@ const PROOF = {
   [IMMUNITY.NON_VACUOUS]:
     /assertScanned\(|process\.exit\(2\)|!files\.length|files\.length === 0|COMPONENTS\.length === 0|scanned\.\w+\s*(?:===|>)\s*0/,
   [IMMUNITY.PROSE_BLIND]: /source-text\.mjs|maskProse|maskComments|readMasked|stripComments|maskTemplateLiterals|blankComments/,
-  [IMMUNITY.STORED_FORM]: /##\[warning\]|STORED_ANNOTATION|storedAnnotation/,
+  // La preuve est un APPEL, pas une phrase : une mention dans un commentaire ne
+  // doit pas suffire à certifier l'immunité (c'est le défaut que ce dépôt
+  // pourchasse — de la prose lue comme du code).
+  [IMMUNITY.STORED_FIELDS]: /evidenceFromAnnotations\(|evidenceAnnotation\(/,
   [IMMUNITY.SUBJECT_IDENTIFIED]: /EVIDENCE_PREFIX|"workflow"|'workflow'/,
 };
 

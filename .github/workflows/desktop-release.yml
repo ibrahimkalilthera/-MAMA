@@ -58,3 +58,12 @@ jobs:
             echo "→ aucun certificat : build non signé (electron:dist, pas de publication)"
             npm run electron:dist
           fi
+
+      # Preuve publiée par l'étape NOMMÉE (lue dans les étapes du run par
+      # `npm run check:automations`). Le compte est celui des artefacts construits :
+      # setup.exe, portable.exe et leurs blockmaps — l'installeur n'est pas un
+      # effet de bord, c'est ce que ce job existe pour produire.
+      - name: Publier la preuve d’action — installeur Windows
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted --count 2
+          --reason "installeur Windows construit (setup.exe + portable.exe, blockmaps et latest.yml) et publié si le certificat est présent"

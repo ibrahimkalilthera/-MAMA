@@ -72,3 +72,10 @@ jobs:
           . /tmp/supabase.env
           set +a
           node scripts/verify-anon-rls.mjs
+
+      # Preuve publiée par l'étape NOMMÉE : `npm run check:automations` lit ce nom
+      # dans les étapes du run pour savoir si une preuve était attendue.
+      - name: Publier la preuve d’action — migrations et RLS (pile locale)
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "migrations appliquées sur la pile locale, lectures et écritures anon vérifiées"

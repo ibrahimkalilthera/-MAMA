@@ -12,165 +12,154 @@
 // already (the git shim installed but never on PATH, the contrast step declared
 // "non applicable" while measuring nothing) — so the rule is written once here:
 //
-//   an automation that cannot do its job SAYS SO, with an `[inactif]` marker in
-//   its log, and the audit reads every workflow's last real run looking for it.
+//   an automation PUBLISHES a proof of what it did, and the audit reads that
+//   proof — never the text of a log.
 //
-// A NOTE ON WHERE THE MARKER LIVES
-// -------------------------------
-// Not in the annotation title. The runner stores `##[warning]message` and drops
-// the title, so a title-only contract looked correct, tested green, and would
-// have missed the very run it exists for (see INERT_MARK).
+// POURQUOI UNE ANNOTATION, ET PLUS DES JOURNAUX
+// --------------------------------------------
+// La preuve a d'abord voyagé dans le JOURNAL (une ligne préfixée, ou une marque
+// `[inactif]` stockée par le runner). Ce transport marchait, et il a coûté trois
+// défauts mesurés, tous de la même famille — lire du texte n'est pas lire un
+// fait :
 //
-// WHY AN ANNOTATION, AND NOT A PER-WORKFLOW TABLE
-// -----------------------------------------------
-// "Did it act?" is not decidable from the outside: `Aucune PR en retard` is a
-// successful run, `aucun token` is an inert one, and no generic heuristic
-// separates them. What the automation knows — and nobody else can guess — is
-// whether it was able to work. So the evidence is DECLARED at the point of
-// inaction (shared helper, so producer and checker cannot drift), and the audit
-// only has to look. A table maintained beside the code would be a second
-// definition of each workflow's behaviour, wrong the day one changes.
+//   • le runner RÉÉCRIT ce qui traverse son journal (le titre disparaît, il ne
+//     reste qu'un niveau et le message) : un contrat posé dans le titre a été
+//     vert, testé, et aveugle sur le run même qu'il visait ;
+//   • n'importe quoi qui IMPRIME la marque se fait passer pour l'automatisation :
+//     `npm test` importait le script Dependabot, dont le `main()` imprimait la
+//     déclaration d'inaction dans le journal du job de tests, et l'audit a
+//     accusé `Quality & performance guard` avec le motif de Dependabot ;
+//   • GitHub n'archive un journal qu'APRÈS avoir marqué le run terminé : l'audit
+//     — déclenché par le même push que ce qu'il juge — lisait `logs 404` sur des
+//     runs verts qui venaient de finir, d'où une fenêtre de grâce, des
+//     tentatives, un verdict `pending`… de la mécanique pour contourner un
+//     support fait pour être recopié.
 //
-// The audit is deliberately narrow: it judges the LAST completed run on `main`,
-// and it treats "I could not read the log" as a FAILURE, never as a pass — an
-// audit that cannot read its evidence is exactly the false green it hunts.
+// Les ANNOTATIONS d'un run sont, elles, des champs structurés (`title`,
+// `message`, `annotation_level`) que le runner STOCKE au moment où le job se
+// termine : rien à recopier, rien à réécrire, disponibles tout de suite, et le
+// sujet est forcé à la source (le producteur ne peut déclarer que le workflow
+// qui tourne — voir publish-automation-evidence.mjs). L'audit ne lit donc plus
+// un seul octet de journal.
+//
+// ET LE CONTRAT SE VOIT DANS LE RUN LUI-MÊME
+// ------------------------------------------
+// Une preuve absente n'a pas le même sens selon que le run l'avait promise ou
+// non : les runs antérieurs à ce canal ne pouvaient rien publier. Plutôt qu'une
+// fenêtre de tolérance devinée, l'audit lit les ÉTAPES du job (l'API les rend) :
+// si l'étape de preuve existait dans la révision du run et n'a pas abouti, c'est
+// un échec ; si elle n'existait pas, le run est jugé `legacy` — nommé, non
+// bloquant, et le contrat s'applique de lui-même au run suivant.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The annotation title that means "I ran, and I could not do my job". */
-export const INERT_TITLE = 'Inactif';
-
 /**
- * The marker that actually travels in the LOG, and the reason it is not the
- * title.
- *
- * Measured, not assumed: the runner intercepts `::warning title=…::message` and
- * stores `##[warning]message` — the title never reaches the log the audit reads
- * (run 34669815903 of `dependabot-rebase.yml`, green, declared inert, and
- * invisible to a title-based check for exactly that reason). A marker that only
- * exists in the title is a marker no audit can find, which is worse than no
- * marker at all: it makes a dead automation look verified. So the marker lives
- * in the MESSAGE, where GitHub provably keeps it, and the title stays for the
- * Actions UI (which does render it).
+ * Le titre de l'annotation qui porte la preuve. Sélecteur stable : l'audit ne
+ * compte que les annotations qui portent ce titre, donc un avertissement
+ * ordinaire d'un job (lint, Node déprécié…) ne devient jamais une preuve.
  */
-export const INERT_MARK = '[inactif]';
+export const EVIDENCE_TITLE = 'Automation evidence';
 
 /**
- * Le canal de preuve STRUCTURÉ : une ligne JSON, préfixée, qui nomme le workflow
- * dont elle parle.
+ * Le préfixe du payload, dans le MESSAGE de l'annotation.
  *
- * Mesuré : le 2026-09-12, l'audit a déclaré `Quality & performance guard` « vert
- * sans avoir agi » avec le motif de `Dependabot rebase`. La marque textuelle
- * n'était pas émise par ce workflow : `npm test` importait le script Dependabot,
- * dont le `main()` imprimait l'annotation dans le journal du job de tests — que
- * l'audit relit. Un mot dans un journal ne dit pas QUI parle.
- *
- * Donc la preuve porte son sujet. L'audit ne compte une déclaration que si le
- * `workflow` de la ligne est celui du journal qu'il est en train de lire ; une
- * ligne étrangère est IGNORÉE et NOMMÉE. C'est la différence entre « quelqu'un a
- * écrit [inactif] ici » et « dependabot-rebase.yml déclare qu'il n'a pas pu
- * agir » — et la seconde seule est un fait.
- *
- * La ligne est volontairement un préfixe nu, pas une commande `::…::` : le
- * runner ne la réécrit pas, ce qu'elle porte reste exactement ce que le script a
- * écrit.
+ * Conservé (et défini une seule fois) parce que c'est lui qui rend la preuve
+ * lisible dans l'interface Actions *et* reconnaissable par un lecteur : le
+ * message porte un JSON qui nomme son sujet, donc une preuve ne peut plus être
+ * confondue avec la phrase de quelqu'un d'autre.
  */
 export const EVIDENCE_PREFIX = 'AUTOMATION-EVIDENCE ';
 
 /**
- * La ligne de preuve, composée à UN endroit (producteur et audit partagent la
- * définition, comme pour la marque).
- * @param {{ workflow: string, acted: boolean, reason?: string }} input
+ * Le nom de l'étape qui publie la preuve, dans chaque workflow.
+ *
+ * C'est un CONTRAT, pas une décoration : l'audit reconnaît à ce nom si le run
+ * avait promis une preuve (les étapes d'un job sont rendues par l'API). Un
+ * workflow qui la publie sans employer ce nom serait jugé « antérieur au
+ * contrat » — donc jamais exigé, ce qui est exactement le trou que ce module
+ * ferme.
+ */
+export const EVIDENCE_STEP_NAME = 'Publier la preuve d’action';
+
+/**
+ * Le payload d'une preuve, composé à UN endroit (producteur et audit partagent
+ * la définition : un message reformulé ne peut pas cesser silencieusement d'être
+ * reconnu).
+ * @param {{ workflow: string, acted: boolean, reason?: string, count?: number|null }} input
  * @returns {string}
  */
-export const evidenceLine = ({ workflow, acted, reason = '' }) =>
-  EVIDENCE_PREFIX + JSON.stringify({ workflow, acted, reason });
+export function evidencePayload({ workflow, acted, reason = '', count = null }) {
+  const payload = { workflow, acted, reason };
+  if (Number.isInteger(count)) payload.count = count;
+  return EVIDENCE_PREFIX + JSON.stringify(payload);
+}
 
 /**
- * The exact annotation an automation emits when it cannot act. ONE definition:
- * the producer (../rebase-dependabot-prs.mjs) and the audit both use it, so a
- * reworded message can never silently stop being detected.
- * @param {string} scope what could not run, in human words
+ * La commande d'annotation qu'un job imprime — c'est ELLE que le runner stocke
+ * en champs structurés.
+ *
+ * `notice` quand l'automatisation a agi, `warning` quand elle déclare ne pas
+ * avoir pu : le niveau est pour l'humain qui survole l'onglet Actions (une
+ * inaction doit se voir), le verdict de l'audit vient du payload, jamais de la
+ * couleur.
+ * @param {{ workflow: string, acted: boolean, reason?: string, count?: number|null }} input
  * @returns {string}
  */
-export const inertAnnotation = (scope) =>
-  `::warning title=${INERT_TITLE}::${INERT_MARK} ${scope}`;
+export function evidenceAnnotation(input) {
+  const level = input?.acted ? 'notice' : 'warning';
+  return `::${level} title=${EVIDENCE_TITLE}::${evidencePayload(input)}`;
+}
 
 /**
- * Ce qu'un runner écrit quand il INTERCEPTE une commande de workflow : le
- * niveau, puis le message. C'est la seule forme sous laquelle une annotation
- * émise survit dans le journal.
- */
-const STORED_ANNOTATION = /##\[[a-z]+\]$/;
-
-/**
- * Every inert marker a workflow DECLARED in its log — the scope of each one, in
- * order.
+ * Les preuves publiées par un run, lues dans ses ANNOTATIONS.
  *
- * The log GitHub stores is prefixed per line (timestamp, step name), so the
- * marker is searched anywhere in a line rather than anchored; and a multiline
- * message keeps its first line, which is the one that names what is missing.
- *
- * The mark — not the annotation title — is what is searched (see INERT_MARK),
- * AND it only counts when the runner STORED it, i.e. right after `##[warning]`.
- * That second condition was paid for by a real false positive: the marker is
- * plain text in a log, so anything that merely PRINTS the string is
- * indistinguishable from an automation declaring its own inaction. Measured on
- * this repo: `npm test` imports the Dependabot script, whose former top-level
- * `main()` printed the annotation without a token — so every job that ran the
- * suite declared `Dependabot rebase` inert, and the audit reported `Quality &
- * performance guard` as "green without having acted" on the strength of a test
- * fixture. The emitter was fixed at the source; requiring the stored form is
- * what makes the class impossible: an emitted command is REWRITTEN by the
- * runner into `##[warning]message` (that is the same measurement that moved the
- * mark out of the annotation title), while a string that only contains the
- * command stays exactly as printed.
- *
- * @param {string} [log] the job log as downloaded
- * @returns {string[]}
- */
-/**
- * Les lignes de preuve structurée d'un journal, dans l'ordre.
- *
- * Trois issues, et la troisième est un ÉCHEC : une ligne au préfixe connu mais
- * au JSON illisible ne peut pas dire de qui elle parle, donc elle ne peut pas
+ * Trois issues, et la troisième est un ÉCHEC : une annotation au bon titre mais
+ * au message illisible ne peut pas dire de qui elle parle, donc elle ne peut pas
  * être ignorée — « je n'ai pas pu lire la preuve » n'est pas « il n'y a pas de
- * preuve » (c'est la règle qui a déjà coûté un faux vert dans ce dépôt).
+ * preuve » (règle déjà payée une fois dans ce dépôt).
  *
- * @param {string} [log]
- * @returns {{ workflow: string|null, acted: boolean|null, reason: string, raw: string }[]}
+ * @param {{ title?: string, message?: string }[]} [annotations]
+ * @returns {{ workflow: string|null, acted: boolean|null, reason: string, count: number|null, raw: string }[]}
  */
-export function evidenceRecords(log = '') {
-  const text = String(log ?? '');
+export function evidenceFromAnnotations(annotations = []) {
   const out = [];
-  for (const line of text.split(/\r?\n/)) {
-    const at = line.indexOf(EVIDENCE_PREFIX);
-    if (at === -1) continue;
-    const raw = line.slice(at + EVIDENCE_PREFIX.length).trim();
+  for (const annotation of Array.isArray(annotations) ? annotations : []) {
+    if (annotation?.title !== EVIDENCE_TITLE) continue;
+    const message = String(annotation.message ?? '');
+    const at = message.indexOf(EVIDENCE_PREFIX);
+    const raw = (at === -1 ? message : message.slice(at + EVIDENCE_PREFIX.length)).trim();
     try {
       const parsed = JSON.parse(raw);
       out.push({
         workflow: typeof parsed?.workflow === 'string' ? parsed.workflow : null,
         acted: typeof parsed?.acted === 'boolean' ? parsed.acted : null,
         reason: typeof parsed?.reason === 'string' ? parsed.reason : '',
+        count: Number.isInteger(parsed?.count) ? parsed.count : null,
         raw,
       });
     } catch {
-      out.push({ workflow: null, acted: null, reason: 'ligne de preuve illisible (JSON invalide)', raw });
+      out.push({ workflow: null, acted: null, reason: 'preuve illisible (JSON invalide)', count: null, raw });
     }
   }
   return out;
 }
 
-export function inertMarkers(log = '') {
-  const text = String(log ?? '');
-  const out = [];
-  for (const line of text.split(/\r?\n/)) {
-    for (let at = line.indexOf(INERT_MARK); at !== -1; at = line.indexOf(INERT_MARK, at + 1)) {
-      if (!STORED_ANNOTATION.test(line.slice(0, at))) continue;
-      out.push(line.slice(at + INERT_MARK.length).trim());
-    }
-  }
-  return out;
+/**
+ * Le sujet d'une preuve, tel qu'un producteur doit le déclarer : le fichier de
+ * workflow qui tourne.
+ *
+ * Mesuré à la source plutôt que deviné : `GITHUB_WORKFLOW_REF` a la forme
+ * `owner/repo/.github/workflows/x.yml@refs/heads/main`. Le suffixe de révision
+ * est retiré, donc la preuve nomme un FICHIER — la même clé que celle sous
+ * laquelle l'audit range le workflow.
+ * @param {string} [ref]
+ * @returns {string|null}
+ */
+export function workflowFileFromRef(ref = '') {
+  const text = String(ref ?? '').trim();
+  if (!text) return null;
+  const withoutRevision = text.split('@')[0];
+  const file = withoutRevision.split('/').filter(Boolean).pop();
+  return file && /\.ya?ml$/.test(file) ? file : null;
 }
 
 /**
@@ -182,26 +171,17 @@ export function inertMarkers(log = '') {
 export const DORMANT_ALLOWANCE_DAYS = 8;
 
 /**
- * Combien de temps on accepte qu'un journal ne soit PAS ENCORE publié.
+ * La fenêtre pendant laquelle « aucune preuve » ne dit encore rien.
  *
- * Mesuré le 2026-09-12 : l'audit se déclenche sur le même push que les
- * workflows qu'il juge, et il a lu `logs 404` pour `PDF E2E` et `Deploy` —
- * quelques secondes plus tard, les mêmes journaux répondaient 200. GitHub
- * archive le journal APRÈS avoir marqué le run terminé : pendant cette fenêtre,
- * un 404 ne dit rien du contenu, il dit que la plateforme n'a pas encore
- * publié.
- *
- * Donc on distingue deux cas, et c'est la seule façon de ne pas produire de
- * faux rouge : un 404 sur un run RÉCENT est `pending` (⏳, pas un échec) ; le
- * même 404 au-delà de ce délai est `unreadable` (❌) — un journal qui manque
- * encore une demi-heure après coup est un vrai problème, pas une course.
- * Un rouge permanent pour une course de plateforme entraînerait exactement ce
- * que ce dépôt combat ailleurs : des gens qui apprennent à ignorer le rouge.
+ * Beaucoup plus courte que celle des journaux, et pour une raison mécanique :
+ * une annotation est stockée avec la conclusion du job, pas archivée après coup
+ * (c'est le transport précédent qui avait besoin de 15 min). Il reste une
+ * course possible — l'audit se déclenche sur le même push que les workflows
+ * qu'il juge, et un run peut être marqué terminé juste avant que ses
+ * annotations soient lisibles. Un run younger que ça est `pending` (⏳, nommé,
+ * non bloquant) ; au-delà, l'absence de preuve est un constat.
  */
-export const LOG_GRACE_MS = 15 * 60 * 1000;
-
-/** Combien de fois on retente un journal 404 avant de conclure (espacé de 3 s). */
-export const LOG_FETCH_ATTEMPTS = 3;
+export const EVIDENCE_GRACE_MS = 3 * 60 * 1000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -209,15 +189,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * The verdict for ONE workflow.
  *
  * Verdicts, and why each is what it is:
- *   - `acted`     — the last completed run is green and never declared itself
- *                   unable to work. This is the only passing verdict.
- *   - `inert`     — it declared it (KO: a green run that did nothing).
- *   - `unreadable`— a run exists but its log could not be read (KO: unverifiable
- *                   is not the same as fine) — au-delà de la fenêtre de
- *                   publication des journaux.
- *   - `pending`   — journal pas ENCORE publié par la plateforme (404 sur un run
- *                   récent). Ni vert ni rouge, et jamais silencieux : le
- *                   rapport le nomme. Voir LOG_GRACE_MS.
+ *   - `acted`     — le dernier run terminé est vert et a PUBLIÉ une preuve
+ *                   disant qu'il a agi. C'est le seul verdict passant.
+ *   - `inert`     — il a publié une preuve disant qu'il n'a pas pu agir (KO).
+ *   - `unproven`  — vert, l'étape de preuve existait dans ce run, et rien n'a
+ *                   été publié (KO : un run qui ne prouve rien est le faux vert
+ *                   que cet audit pourchasse).
+ *   - `legacy`    — vert, et ce run n'avait AUCUNE étape de preuve : antérieur au
+ *                   contrat. Non bloquant, nommé — le contrat s'applique au run
+ *                   suivant.
+ *   - `unreadable`— un run existe mais ses jobs/annotations n'ont pas pu être
+ *                   lus (KO : invérifiable n'est pas un vert).
+ *   - `pending`   — run terminé il y a quelques secondes, preuve pas encore
+ *                   lisible (voir EVIDENCE_GRACE_MS). Ni vert ni rouge.
  *   - `failed`    — the run is red. Already loud, so it is reported and does not
  *                   add a second alarm; what this audit exists for is the quiet
  *                   failure mode.
@@ -234,13 +218,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *                   where EVERY workflow is absent is a KO of its own: that is
  *                   what a token without `actions: read` looks like.
  *
- * Pure: run, anyRun, log and clock are injected.
+ * Pure: run, anyRun, annotations and clock are injected.
  *
  * @param {{ file?: string, name?: string, hasSchedule?: boolean,
  *   run?: { conclusion?: string, created_at?: string } | null,
  *   anyRun?: { status?: string, created_at?: string } | null, absent?: boolean,
- *   log?: string | null, logsUnavailable?: boolean, workflow?: string,
- *   nowMs?: number, allowanceDays?: number, logGraceMs?: number }} input
+ *   annotations?: object[] | null, annotationsUnavailable?: boolean,
+ *   promised?: boolean, workflow?: string,
+ *   nowMs?: number, allowanceDays?: number, evidenceGraceMs?: number }} input
  * @returns {{ file: string, name: string, verdict: string, ko: boolean, reason: string, foreign?: string[] }}
  */
 export function lastRunVerdict({
@@ -250,12 +235,13 @@ export function lastRunVerdict({
   run = null,
   anyRun = null,
   absent = false,
-  log = null,
-  logsUnavailable = false,
+  annotations = null,
+  annotationsUnavailable = false,
+  promised = false,
   workflow = '',
   nowMs = Date.now(),
   allowanceDays = DORMANT_ALLOWANCE_DAYS,
-  logGraceMs = LOG_GRACE_MS,
+  evidenceGraceMs = EVIDENCE_GRACE_MS,
 } = {}) {
   const label = name || file;
   const base = { file, name: label };
@@ -299,6 +285,8 @@ export function lastRunVerdict({
 
   const ageMs = nowMs - Date.parse(String(run.created_at ?? ''));
   const ageDays = Number.isFinite(ageMs) ? Math.floor(ageMs / DAY_MS) : null;
+  const young = evidenceGraceMs > 0 && (!Number.isFinite(ageMs) || ageMs <= evidenceGraceMs);
+
   if (hasSchedule && ageDays !== null && ageDays > allowanceDays) {
     return {
       ...base,
@@ -312,45 +300,33 @@ export function lastRunVerdict({
     return { ...base, verdict: 'failed', ko: false, reason: `dernier run ${run.conclusion} — déjà visible` };
   }
 
-  if (typeof log !== 'string' || log.trim().length === 0) {
-    // Un journal 404 sur un run RÉCENT n'est pas une preuve de faux vert :
-    // GitHub n'a pas encore publié le fichier (voir LOG_GRACE_MS). Sur un run
-    // plus ancien, le même 404 devient un vrai constat.
-    //
-    // L'âge se compare en MILLISECONDES, pas en jours entiers : la fenêtre fait
-    // 15 min, donc `Math.floor(ageMs / jour)` l'arrondissait à 0 et rendait
-    // TOUT run du jour « jeune » — la borne n'existait plus, et un journal
-    // disparu définitivement serait resté `pending` pour toujours.
-    const young = logGraceMs > 0 && (!Number.isFinite(ageMs) || ageMs <= logGraceMs);
-    if (logsUnavailable && young) {
-      return {
-        ...base,
-        verdict: 'pending',
-        ko: false,
-        reason: 'run terminé récemment — journal pas encore publié par la plateforme (rien à en déduire)',
-      };
-    }
-    return {
-      ...base,
-      verdict: 'unreadable',
-      ko: true,
-      reason: 'run vert, mais journal illisible — invérifiable n’est pas un vert',
-    };
+  if (annotationsUnavailable || !Array.isArray(annotations)) {
+    return young
+      ? {
+          ...base,
+          verdict: 'pending',
+          ko: false,
+          reason: 'run terminé à l’instant — preuve pas encore lisible (rien à en déduire)',
+        }
+      : {
+          ...base,
+          verdict: 'unreadable',
+          ko: true,
+          reason: 'run vert, mais ses annotations sont illisibles — invérifiable n’est pas un vert',
+        };
   }
 
-  // 1. La preuve STRUCTURÉE, et seulement si elle parle de CE workflow : c'est
-  //    la ligne qui porte son sujet, donc une copie imprimée ailleurs ne peut
-  //    plus faire accuser le mauvais (l'incident du 2026-09-12, en entier).
-  const records = evidenceRecords(log);
+  // 1. La preuve, et seulement si elle parle de CE workflow : elle porte son
+  //    sujet, donc une preuve déposée au nom d'un autre ne peut plus faire
+  //    accuser le mauvais (l'incident du 2026-09-12, en entier).
+  const records = evidenceFromAnnotations(annotations);
   const unreadable = records.filter((r) => r.acted === null);
   if (unreadable.length > 0) {
-    // Un préfixe connu au contenu illisible ne peut pas dire de qui il parle :
-    // il ne peut donc pas être ignoré (invérifiable n'est pas un vert).
     return {
       ...base,
       verdict: 'unreadable',
       ko: true,
-      reason: `preuve structurée illisible — ${unreadable[0].reason}`,
+      reason: `preuve illisible — ${unreadable[0].reason}`,
     };
   }
 
@@ -361,42 +337,55 @@ export function lastRunVerdict({
   const mine = records.filter((r) => r.workflow === subject);
   if (mine.length > 0) {
     const unacted = mine.filter((r) => r.acted === false);
-    return unacted.length > 0
-      ? {
-          ...base,
-          verdict: 'inert',
-          ko: true,
-          reason: `vert sans avoir agi : ${unacted[0].reason}`,
-          foreign,
-        }
-      : {
-          ...base,
-          verdict: 'acted',
-          ko: false,
-          reason: 'preuve structurée : a agi',
-          foreign,
-        };
-  }
-
-  // 2. Repli sur la marque textuelle, pour un automatisme pas encore migré. Elle
-  //    reste un échec — l'ignorer rendrait vert, pour un run, une automatisation
-  //    qui vient de déclarer son inaction.
-  const markers = inertMarkers(log);
-  if (markers.length > 0) {
+    if (unacted.length > 0) {
+      return {
+        ...base,
+        verdict: 'inert',
+        ko: true,
+        reason: `vert sans avoir agi : ${unacted[0].reason}`,
+        foreign,
+      };
+    }
+    const first = mine[0];
+    const extra = mine.length > 1 ? ` (+${mine.length - 1} preuve(s))` : '';
+    const counted = Number.isInteger(first.count) ? ` — ${first.count} mesuré(s)` : '';
     return {
       ...base,
-      verdict: 'inert',
-      ko: true,
-      reason: `vert sans avoir agi (marque textuelle, à migrer vers le canal structuré) : ${markers[0]}${markers.length > 1 ? ` (+${markers.length - 1})` : ''}`,
+      verdict: 'acted',
+      ko: false,
+      reason: `a agi : ${first.reason || 'preuve publiée'}${counted}${extra}`,
+      foreign,
+    };
+  }
+
+  // 2. Aucune preuve, et le RUN dit s'il en attendait une : ses étapes sont
+  //    rendues par l'API, donc « ce run avait l'étape et elle n'a rien publié »
+  //    se lit sans rien deviner. Pas d'étape ⇒ run antérieur au contrat.
+  if (!promised) {
+    return {
+      ...base,
+      verdict: 'legacy',
+      ko: false,
+      reason: 'run antérieur au contrat de preuve (aucune étape de preuve dans ce run) — jugé sur sa seule conclusion',
+      foreign,
+    };
+  }
+
+  if (young) {
+    return {
+      ...base,
+      verdict: 'pending',
+      ko: false,
+      reason: 'run terminé à l’instant — preuve pas encore lisible (rien à en déduire)',
       foreign,
     };
   }
 
   return {
     ...base,
-    verdict: 'acted',
-    ko: false,
-    reason: 'vert et n’a jamais déclaré ne pas avoir pu agir',
+    verdict: 'unproven',
+    ko: true,
+    reason: 'run vert qui n’a publié aucune preuve — un run qui ne prouve rien est un faux vert',
     foreign,
   };
 }
@@ -453,12 +442,14 @@ export function auditAutomations({ workflows = [], nowMs = Date.now(), allowance
 export const VERDICT_ICON = {
   acted: '✅',
   inert: '❌',
+  unproven: '❌',
   unreadable: '❌',
   dormant: '❌',
   failed: '⚠️ ',
   pending: '⏳',
   running: '⏳',
   absent: '➖',
+  legacy: '➖',
   idle: '➖',
   empty: '❌',
 };
@@ -478,4 +469,86 @@ export function parseWorkflowFile(text = '', { file = '' } = {}) {
   const name = nameLine ? nameLine.replace(/^name:\s*/, '').trim() : file;
   const hasSchedule = lines.some((l) => /^\s{2}schedule:\s*$/.test(l) || /^\s{2}schedule:\s*\S/.test(l));
   return { file, name, hasSchedule };
+}
+
+/**
+ * Ce run avait-il promis une preuve ? Lu sur ses ÉTAPES (l'API les rend), pas
+ * sur la révision : c'est la même requête que celle des annotations, et ça ne
+ * peut pas mentir sur ce que ce run-là devait faire.
+ * @param {{ name?: string }[]} [steps]
+ * @returns {boolean}
+ */
+export function promisedEvidence(steps = []) {
+  return (Array.isArray(steps) ? steps : []).some((s) =>
+    String(s?.name ?? '').startsWith(EVIDENCE_STEP_NAME),
+  );
+}
+
+/**
+ * Les arguments du producteur, validés — PUR, donc testable sans lancer un
+ * processus (et sans payer 10 s de fork par cas, ce que la version subprocess de
+ * cette suite coûtait réellement sur Windows).
+ *
+ * Ce que chaque refus existe pour empêcher :
+ *   • un SUJET qui n'est pas le workflow en train de tourner (`--workflow`
+ *     contredit `GITHUB_WORKFLOW_REF`) — une preuve ne parle que de son sujet ;
+ *   • une raison VIDE — « j'ai agi » sans dire quoi n'est pas une preuve ;
+ *   • `--acted --count 0` — une preuve d'action sur zéro chose se contredit ;
+ *   • les deux états à la fois, ou aucun.
+ *
+ * @param {{ argv?: string[], env?: Record<string, string | undefined> }} [input]
+ * @returns {{ ok: true, workflow: string, acted: boolean, reason: string, count: number|null }
+ *   | { ok: false, error: string }}
+ */
+export function parseEvidenceArgs({ argv = [], env = {} } = {}) {
+  const has = (flag) => argv.includes(flag);
+  const valueOf = (name) => {
+    for (let i = 0; i < argv.length; i += 1) {
+      const arg = argv[i];
+      if (arg === name) return argv[i + 1] ?? '';
+      if (arg.startsWith(`${name}=`)) return arg.slice(name.length + 1);
+    }
+    return null;
+  };
+
+  const acted = has('--acted');
+  const inert = has('--inert');
+  if (acted === inert) return { ok: false, error: 'il faut exactement un des deux états : `--acted` ou `--inert`.' };
+
+  const reason = String(valueOf('--reason') ?? '').replace(/\s+/g, ' ').trim();
+  if (reason.length < 3) {
+    return {
+      ok: false,
+      error:
+        '`--reason` est obligatoire : une preuve qui ne dit pas ce qui a été fait (ou ce qui a manqué) ne prouve rien.',
+    };
+  }
+
+  const running = workflowFileFromRef(env.GITHUB_WORKFLOW_REF || '');
+  const declared = String(valueOf('--workflow') ?? '').trim();
+  if (running && declared && running !== declared) {
+    return { ok: false, error: `le workflow qui tourne est ${running}, pas ${declared} — une preuve ne parle que de son sujet.` };
+  }
+  const workflow = running || declared;
+  if (!workflow) {
+    return {
+      ok: false,
+      error:
+        'sujet introuvable : `GITHUB_WORKFLOW_REF` est absent (exécution hors runner) et `--workflow` n’a pas été fourni.',
+    };
+  }
+
+  const rawCount = valueOf('--count');
+  let count = null;
+  if (rawCount !== null) {
+    count = Number(rawCount);
+    if (!Number.isInteger(count) || count < 0) {
+      return { ok: false, error: `\`--count\` doit être un entier positif ou nul (reçu « ${rawCount} »).` };
+    }
+    if (acted && count === 0) {
+      return { ok: false, error: '`--acted --count 0` se contredit : sans objet à compter, n’imprimez pas `--count`.' };
+    }
+  }
+
+  return { ok: true, workflow, acted, reason, count };
 }

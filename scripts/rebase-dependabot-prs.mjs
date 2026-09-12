@@ -45,7 +45,7 @@
 
 import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { evidenceLine, inertAnnotation } from './lib/automation-evidence.mjs';
+import { evidenceAnnotation, workflowFileFromRef } from './lib/automation-evidence.mjs';
 
 const API = 'https://api.github.com';
 const DEFAULT_REPO = 'ibrahimkalilthera/-MAMA';
@@ -55,12 +55,13 @@ const BRANCH_PREFIX = 'dependabot/';
 /** Le workflow passe le secret ici ; jamais de repli sur GITHUB_TOKEN (voir l'en-tête). */
 const TOKEN_ENV = 'REBASE_TOKEN';
 /**
- * Le sujet déclaré dans la preuve structurée : le fichier de workflow qui porte
- * ce script. L'audit ne compte une preuve que si elle nomme le journal qu'il lit
- * — sans quoi une copie imprimée ailleurs (par une suite de tests, mesuré le
- * 2026-09-12) ferait accuser un workflow qui n'a rien dit.
+ * Le sujet déclaré dans la preuve : le fichier de workflow qui porte ce script.
+ * L'audit ne compte une preuve que si elle nomme CE workflow — sans quoi une
+ * copie imprimée ailleurs (par une suite de tests, mesuré le 2026-09-12) ferait
+ * accuser un workflow qui n'a rien dit. Le runner impose le sujet quand il est là
+ * (`GITHUB_WORKFLOW_REF`) ; le repli sert aux exécutions locales.
  */
-const WORKFLOW_FILE = 'dependabot-rebase.yml';
+const WORKFLOW_FILE = workflowFileFromRef(process.env.GITHUB_WORKFLOW_REF || '') || 'dependabot-rebase.yml';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -247,23 +248,17 @@ async function main() {
   const token = (process.env[TOKEN_ENV] || '').trim();
 
   if (!token) {
-    // The `[inactif]` mark is a CONTRACT, not a message: `npm run
-    // check:automations` reads this workflow's last run and fails while it is
-    // present. That is how a green run that did nothing stops being invisible
-    // (see ./lib/automation-evidence.mjs) — reword the text freely, but keep it
-    // going through `inertAnnotation`, which is the single definition of the
-    // mark, and keep it on STDOUT: the runner stores stdout, and it drops an
-    // annotation's title.
+    // La preuve d'inaction est un CONTRAT, pas un message : `npm run
+    // check:automations` lit les annotations de ce workflow et échoue tant qu'elle
+    // est là. C'est ainsi qu'un run vert qui n'a rien fait cesse d'être invisible
+    // (voir ./lib/automation-evidence.mjs) — le texte se reformule librement, mais
+    // il passe par `evidenceAnnotation`, la seule définition du canal, et il
+    // reste sur STDOUT (c'est ce que le runner stocke).
     const inertReason =
       'Dependabot rebase — le secret DEPENDABOT_REBASE_TOKEN n’est pas posé, donc aucune PR n’a été ' +
       'mise à jour. Ajoutez un PAT (fine-grained : Contents + Pull requests read/write) dans ' +
       'Settings → Secrets and variables → ACTIONS (jamais « Dependabot secrets ») pour l’activer.';
-    console.log(inertAnnotation(inertReason));
-    // La même déclaration, STRUCTURÉE et signée : l'annotation reste pour l'UI
-    // des Actions, la ligne ci-dessous est ce que l'audit lit — et son `workflow`
-    // garantit qu'elle ne peut pas être confondue avec une copie imprimée
-    // ailleurs dans un journal.
-    console.log(evidenceLine({ workflow: WORKFLOW_FILE, acted: false, reason: inertReason }));
+    console.log(evidenceAnnotation({ workflow: WORKFLOW_FILE, acted: false, reason: inertReason }));
     appendSummary(
       [
         '## Dependabot rebase — inactif',
@@ -330,10 +325,11 @@ async function main() {
   // canal, pas un signal d'alarme. Un audit qui ne lit que les déclarations
   // d'échec ne saurait pas distinguer « a agi » de « n'a rien dit ».
   console.log(
-    evidenceLine({
+    evidenceAnnotation({
       workflow: WORKFLOW_FILE,
       acted: true,
       reason: `${rebased.length} PR remise(s) à jour sur ${results.length} examinée(s)`,
+      count: results.length,
     }),
   );
 
