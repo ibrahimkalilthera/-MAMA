@@ -243,12 +243,24 @@ describe('câblage du workflow Dependabot rebase', () => {
 // qu'inutile. Ces deux cas tiennent les deux moitiés du contrat : importer est
 // silencieux, exécuter déclare.
 describe('entrée — importer est silencieux, exécuter déclare', () => {
-  /** Le script tel qu'un shell le lancerait, sans token, hors de ce processus. */
+  /**
+   * Le script tel qu'un shell le lancerait, sans token, hors de ce processus.
+   *
+   * `GITHUB_WORKFLOW_REF` porte volontairement le nom d'un AUTRE workflow : c'est
+   * l'état réel du runner, où la suite de `perf-guard.yml` lance ce script dans un
+   * job dont l'environnement annonce `perf-guard.yml`. Le script doit publier SA
+   * preuve, pas celle du workflow qui l'a lancé — mesuré : la première version
+   * prenait son sujet dans l'environnement et signait `perf-guard.yml`.
+   */
   const runNode = (args: string[]) =>
     execFileSync(process.execPath, args, {
       cwd: root,
       encoding: 'utf8',
-      env: { ...process.env, REBASE_TOKEN: '' },
+      env: {
+        ...process.env,
+        REBASE_TOKEN: '',
+        GITHUB_WORKFLOW_REF: 'ibrahimkalilthera/-MAMA/.github/workflows/perf-guard.yml@refs/heads/main',
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
