@@ -107,6 +107,56 @@ describe('test-integrity — mocks', () => {
     );
   });
 
+  // Depuis que les suites passent par `tests/module-mock.ts` (le nom de l'option
+  // dépend du majeur qui exécute la suite), le gate doit lire AUSSI la forme du
+  // helper : sinon il cesse de voir les 21 mocks du dépôt d'un coup — le mode de
+  // défaillance qu'il existe pour empêcher, et que la calibration a attrapé en
+  // annonçant « 0 mocks analysés ».
+  it('lit la forme du helper : un `mockModule` orphelin est signalé', () => {
+    withFixture(
+      {
+        'scripts/thing.mjs': SUT_PLAIN,
+        'tests/x.test.ts':
+          `import { it } from 'node:test';\n` +
+          `import { mockModule } from './module-mock';\n${OK}` +
+          `mockModule('node:child_process', { spawn: () => null });\n` +
+          `const { thing } = await import('../scripts/thing.mjs');\n` +
+          `it('works', () => { assert.equal(thing(), 'a/b'); });\n`,
+      },
+      (rules) => assert.deepEqual(rules, ['mock-orphan']),
+    );
+  });
+
+  it('lit la forme du helper : `mockModule(spec, {})` est un mock vide', () => {
+    withFixture(
+      {
+        'scripts/thing.mjs': `import { readFileSync } from 'node:fs';\nexport const thing = () => !!readFileSync;\n`,
+        'tests/x.test.ts':
+          `import { it } from 'node:test';\n` +
+          `import { mockModule } from './module-mock';\n${OK}` +
+          `mockModule('node:fs', {});\n` +
+          `const { thing } = await import('../scripts/thing.mjs');\n` +
+          `it('works', () => { assert.equal(thing(), true); });\n`,
+      },
+      (rules) => assert.deepEqual(rules, ['mock-empty']),
+    );
+  });
+
+  it('et accepte la même forme quand le module testé charge bien le module mocké', () => {
+    withFixture(
+      {
+        'scripts/thing.mjs': `import { spawn } from 'node:child_process';\nexport const thing = () => !!spawn;\n`,
+        'tests/x.test.ts':
+          `import { it } from 'node:test';\n` +
+          `import { mockModule } from './module-mock';\n${OK}` +
+          `mockModule('node:child_process', { spawn: () => null });\n` +
+          `const { thing } = await import('../scripts/thing.mjs');\n` +
+          `it('works', () => { assert.equal(thing(), false); });\n`,
+      },
+      (rules) => assert.deepEqual(rules, []),
+    );
+  });
+
   it('un mock désactivé en commentaire n’est jamais un constat', () => {
     withFixture(
       {

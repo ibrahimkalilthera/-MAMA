@@ -19,6 +19,7 @@ import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { AuthState, UserProfile } from '../src/lib/useAuth';
 import { installDomGlobals, renderHook } from './harness';
+import { mockModule } from './module-mock';
 
 const t = translations.fr as TranslationDict;
 
@@ -40,10 +41,8 @@ let authFixture: AuthState = {
   setUserPassword: async () => ({ success: true }),
 };
 
-mock.module('../src/lib/useAuth', {
-  namedExports: {
-    useAuth: () => authFixture,
-  },
+mockModule('../src/lib/useAuth', {
+  useAuth: () => authFixture,
 });
 
 const { useAuthWelcome } = await import('../src/app/useAuthWelcome');

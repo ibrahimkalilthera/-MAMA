@@ -13,6 +13,7 @@
 import { beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { mockModule } from './module-mock';
 
 // ── Mocked fs/os state ───────────────────────────────────────────────────────
 const tmpPath = 'C:/fake/temp';
@@ -24,30 +25,24 @@ const failCounts = new Map<string, number>();
 /** paths that always fail (locked forever). */
 const alwaysFail = new Set<string>();
 
-// `namedExports` et non `exports` : sur Node 22 (le runtime de la CI) mocker un
-// module BUILTIN via `exports` seul casse l'interop ESM (« The requested module
-// 'node:fs' does not provide an export named 'readdirSync' »), et Node 24
-// refuse les deux options ensemble.
-mock.module('node:os', {
-  namedExports: {
-    tmpdir: () => tmpPath,
-  },
+// Mocker un module dépend du majeur qui exécute la suite (le nom de l’option a
+// changé pour de bon en 24.20/25.9) : le nom est choisi par tests/module-mock.ts.
+mockModule('node:os', {
+  tmpdir: () => tmpPath,
 });
-mock.module('node:fs', {
-  namedExports: {
-    readdirSync: () => {
-      if (readdirThrows) throw new Error('EACCES');
-      return entries;
-    },
-    rmSync: (p: string) => {
-      if (alwaysFail.has(p)) throw new Error('EBUSY: répertoire verrouillé');
-      const fails = failCounts.get(p) ?? 0;
-      if (fails > 0) {
-        failCounts.set(p, fails - 1);
-        throw new Error('EBUSY: verrou transitoire');
-      }
-      removed.push(p);
-    },
+mockModule('node:fs', {
+  readdirSync: () => {
+    if (readdirThrows) throw new Error('EACCES');
+    return entries;
+  },
+  rmSync: (p: string) => {
+    if (alwaysFail.has(p)) throw new Error('EBUSY: répertoire verrouillé');
+    const fails = failCounts.get(p) ?? 0;
+    if (fails > 0) {
+      failCounts.set(p, fails - 1);
+      throw new Error('EBUSY: verrou transitoire');
+    }
+    removed.push(p);
   },
 });
 

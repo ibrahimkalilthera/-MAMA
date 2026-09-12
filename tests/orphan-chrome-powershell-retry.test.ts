@@ -13,6 +13,7 @@
 import { beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { mockModule } from './module-mock';
 
 // ── Mocked child_process state ───────────────────────────────────────────────
 /** Per-spawn behavior: 'error' → emit error, else emit close with `out`. */
@@ -28,36 +29,30 @@ class FakeChild extends EventEmitter {
   }
 }
 
-// `namedExports` et non `exports` : sur Node 22 (le runtime de la CI) mocker un
-// module BUILTIN via `exports` seul casse l'interop ESM (« The requested module
-// 'node:child_process' does not provide an export named 'spawn' »), et Node 24
-// refuse les deux options ensemble.
-mock.module('node:child_process', {
-  namedExports: {
-    spawn: () => {
-      spawnCount++;
-      const child = new FakeChild();
-      const next = plan.shift() ?? { mode: 'ok', out: '0' };
-      if (next.mode === 'error') {
-        queueMicrotask(() => child.emit('error', new Error('uv_spawn: EUNKNOWN')));
-      } else {
-        queueMicrotask(() => {
-          child.stdout.emit('data', next.out ?? '0');
-          child.emit('close', 0);
-        });
-      }
-      return child;
-    },
+// Mocker un module dépend du majeur qui exécute la suite (le nom de l’option a
+// changé pour de bon en 24.20/25.9) : le nom est choisi par tests/module-mock.ts.
+mockModule('node:child_process', {
+  spawn: () => {
+    spawnCount++;
+    const child = new FakeChild();
+    const next = plan.shift() ?? { mode: 'ok', out: '0' };
+    if (next.mode === 'error') {
+      queueMicrotask(() => child.emit('error', new Error('uv_spawn: EUNKNOWN')));
+    } else {
+      queueMicrotask(() => {
+        child.stdout.emit('data', next.out ?? '0');
+        child.emit('close', 0);
+      });
+    }
+    return child;
   },
 });
-mock.module('node:os', {
-  namedExports: { tmpdir: () => 'C:/fake/temp' },
+mockModule('node:os', {
+  tmpdir: () => 'C:/fake/temp',
 });
-mock.module('node:fs', {
-  namedExports: {
-    readdirSync: () => [],
-    rmSync: () => {},
-  },
+mockModule('node:fs', {
+  readdirSync: () => [],
+  rmSync: () => {},
 });
 
 const { sweepOrphanPuppeteer, sweepOrphanElectron } =

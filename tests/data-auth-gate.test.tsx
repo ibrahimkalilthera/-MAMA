@@ -13,10 +13,11 @@
  * fetch chain is observable (per-table `.from()` calls) and the auth events
  * are scriptable.
  */
-import { describe, it, mock, beforeEach } from 'node:test';
+import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { act } from 'react';
 import { installDomGlobals, renderHook } from './harness';
+import { mockModule } from './module-mock';
 
 installDomGlobals();
 
@@ -49,8 +50,8 @@ const fakeSupabase = {
   rpc: async () => ({ data: null, error: null }),
 };
 
-mock.module('../src/lib/supabaseClient', {
-  namedExports: { supabase: fakeSupabase },
+mockModule('../src/lib/supabaseClient', {
+  supabase: fakeSupabase,
 });
 
 const { useSupabaseData } = await import('../src/lib/useSupabaseData');
