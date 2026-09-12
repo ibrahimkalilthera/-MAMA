@@ -1,0 +1,60 @@
+name: Shared database watch
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « Le site déployé sert-il bien la base partagée ? »
+#
+# Les contrôles locaux lisent ce que le DÉPÔT produit (fichiers d'environnement,
+# paquet construit avant empaquetage). Aucun ne peut voir la variable
+# d'environnement posée dans le tableau de bord de l'hébergeur : elle n'existe
+# nulle part ici, donc aucun fichier ne peut la contredire. Ce workflow lit le
+# site RÉELLEMENT servi — page, puis les modules qu'elle charge — et vérifie la
+# ref Supabase qui s'y trouve. C'est la seule lecture qui attrape une bascule
+# faite côté plateforme, qui enverrait silencieusement tous les navigateurs vers
+# une autre base.
+#
+# Deux déclencheurs, pour la même raison que l'audit des automatisations : le
+# push (le moment où un paquet neuf vient d'être déployé) et un cron quotidien
+# (une bascule dans le tableau de bord ne produit aucun commit, donc sans ce
+# filet le contrôle attendrait le prochain push).
+#
+# Ce job ne bloque aucun déploiement : c'est un signal, pas une porte.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+
+  schedule:
+    # 07:12 UTC — après le déploiement Vercel du push quotidien.
+    - cron: '12 7 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: shared-db-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Vérifier la base servie par le site déployé
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Comme les autres jobs : installer Node ne prouve pas le majeur exécuté.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # Le script n'utilise que la bibliothèque standard (fetch global) : aucune
+      # dépendance à installer, donc pas de `npm ci` — et rien qui puisse échouer
+      # avant la mesure.
+      - name: Lire le site déployé et sa base
+        run: npm run check:shared-db:live

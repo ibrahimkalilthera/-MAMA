@@ -12,12 +12,15 @@
 // renderer only talks to Supabase over HTTPS; navigation is locked to the
 // app surface and external links open in the system browser.
 // ─────────────────────────────────────────────────────────────────────────────
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 
 const FALLBACK_URL = 'https://mama-thera-finance.vercel.app/';
+// Où atterrit un poste qui ne peut pas s'auto-installer (portable) : le lien
+// doit être celui des versions, pas une page d'accueil où rien ne se télécharge.
+const RELEASES_URL = 'https://github.com/ibrahimkalilthera/-MAMA/releases/latest';
 const isDev = !app.isPackaged;
 // electron-builder sets PORTABLE_EXECUTABLE_FILE only for the portable target:
 // auto-update installs via the NSIS installer, so it is disabled on portable.
@@ -84,11 +87,11 @@ function setupAutoUpdater(win) {
     console.log('[updater] dev — auto-update désactivé');
     return;
   }
-  if (isPortable) {
-    console.log('[updater] portable — auto-update désactivé (NSIS requis)');
-    return;
-  }
   const { autoUpdater } = require('electron-updater');
+  const {
+    shouldCheck, shouldPrompt, updateAction,
+    CHECK_INTERVAL_MS, FOCUS_COOLDOWN_MS, RE_PROMPT_MS,
+  } = require('./updater-policy.cjs');
   const logFile = process.env.UPDATER_LOG_FILE;
   const log = (msg) => {
     console.log(`[updater] ${msg}`);
@@ -103,19 +106,85 @@ function setupAutoUpdater(win) {
   if (process.env.UPDATER_FEED_URL) {
     autoUpdater.setFeedURL({ provider: 'generic', url: process.env.UPDATER_FEED_URL });
   }
-  autoUpdater.autoDownload = true;
-  autoUpdater.on('checking-for-update', () => log('checking-for-update'));
-  autoUpdater.on('update-available', (i) => log(`update-available ${i.version}`));
-  autoUpdater.on('update-not-available', () => log('update-not-available'));
-  autoUpdater.on('error', (e) => log(`error ${(e && e.message) || e}`));
-  autoUpdater.on('download-progress', (p) => log(`download-progress ${Math.round(p.percent)}%`));
+  // Le portable ne peut pas s'auto-installer (electron-updater exige l'installeur
+  // NSIS) : il VÉRIFIE quand même et reçoit un lien. Rester muet serait pire que
+  // ne rien pouvoir faire — l'utilisateur ne saurait jamais qu'une version existe.
+  const action = updateAction({ isPortable });
+  autoUpdater.autoDownload = !isPortable;
+
+  // État poussé à l'interface : le bandeau du renderer lit cet objet. `diverges`
+  // n'existe pas ici, mais l'état d'une mise à jour, lui, doit se voir même si
+  // l'utilisateur a fermé la boîte de dialogue.
+  let state = { status: 'idle', version: null, portable: isPortable, action: action.action, detail: action.detail };
+  const broadcast = (patch) => {
+    state = { ...state, ...patch };
+    try {
+      if (!win.isDestroyed()) win.webContents.send('updates:state', state);
+    } catch { /* fenêtre fermée pendant une mise à jour : sans conséquence */ }
+  };
+
+  let lastCheckAt = null;
+  let lastPromptAt = null;
+
+  autoUpdater.on('checking-for-update', () => {
+    lastCheckAt = Date.now();
+    broadcast({ status: 'checking' });
+    log('checking-for-update');
+  });
+  autoUpdater.on('update-available', (i) => {
+    broadcast({ status: 'available', version: i.version });
+    log(`update-available ${i.version}`);
+  });
+  autoUpdater.on('update-not-available', () => {
+    broadcast({ status: 'current', version: app.getVersion() });
+    log('update-not-available');
+  });
+  autoUpdater.on('error', (e) => {
+    broadcast({ status: 'error', detail: (e && e.message) || String(e) });
+    log(`error ${(e && e.message) || e}`);
+  });
+  autoUpdater.on('download-progress', (p) => {
+    broadcast({ status: 'downloading', percent: Math.round(p.percent) });
+    log(`download-progress ${Math.round(p.percent)}%`);
+  });
   autoUpdater.on('update-downloaded', async (i) => {
+    broadcast({ status: 'downloaded', version: i.version });
     log(`update-downloaded ${i.version}`);
     if (process.env.UPDATER_LOG_FILE) return; // proof mode — E2E reads the log
+    await askToInstall(i);
+  });
+
+  /**
+   * Pose la question — et la repose. « Plus tard » reporte, il ne refuse pas.
+   */
+  async function askToInstall(info) {
+    const verdict = shouldPrompt({ downloaded: true, lastPromptAt, nowMs: Date.now(), rePromptMs: RE_PROMPT_MS });
+    if (!verdict.prompt) {
+      // Le report court encore : on programme le prochain rappel au lieu de
+      // l'abandonner, sinon la version téléchargée serait gardée pour soi.
+      const waitMs = Math.max(1000, RE_PROMPT_MS - (Date.now() - (lastPromptAt || Date.now())));
+      setTimeout(() => { void askToInstall(info); }, waitMs).unref?.();
+      return;
+    }
+    lastPromptAt = Date.now();
+    log(`prompt ${verdict.reason}`);
+    if (isPortable) {
+      const { response } = await dialog.showMessageBox(win, {
+        type: 'info',
+        title: 'Mise à jour disponible',
+        message: `La version ${info.version} est disponible.`,
+        detail: action.detail,
+        buttons: ['Ouvrir la page de téléchargement', 'Plus tard'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (response === 0) shell.openExternal(RELEASES_URL);
+      return;
+    }
     const { response } = await dialog.showMessageBox(win, {
       type: 'info',
       title: 'Mise à jour disponible',
-      message: `La version ${i.version} est prête à être installée.`,
+      message: `La version ${info.version} est prête à être installée.`,
       detail: 'Redémarrer maintenant pour appliquer la mise à jour ?',
       buttons: ['Redémarrer maintenant', 'Plus tard'],
       defaultId: 0,
@@ -126,11 +195,51 @@ function setupAutoUpdater(win) {
       // version, purgeStaleUpdaterCache() wipes the shared cache on next start.
       try { fs.writeFileSync(installPendingFlag(), `${new Date().toISOString()}\n`); } catch { /* best-effort */ }
       autoUpdater.quitAndInstall();
+    } else {
+      // Report : on repropose plus tard sans attendre un redémarrage.
+      setTimeout(() => { void askToInstall(info); }, RE_PROMPT_MS).unref?.();
     }
-  });
+  }
+
+  // Le rythme est réglable : l'E2E abaisse l'intervalle pour prouver qu'une app
+  // OUVERTE revoit passer les versions — sinon il faudrait attendre 30 min.
+  const intervalMs = Number(process.env.UPDATER_CHECK_INTERVAL_MS || CHECK_INTERVAL_MS);
+  const focusCooldownMs = Number(process.env.UPDATER_FOCUS_COOLDOWN_MS || FOCUS_COOLDOWN_MS);
+  const checkNow = () => {
+    const verdict = shouldCheck({ kind: 'interval', lastCheckAt, nowMs: Date.now(), checkIntervalMs: intervalMs, focusCooldownMs });
+    if (!verdict.check) return;
+    log(`check interval — ${verdict.reason}`);
+    autoUpdater.checkForUpdates().catch((e) => log(`check-failed ${(e && e.message) || e}`));
+  };
+  const focusNow = () => {
+    const verdict = shouldCheck({ kind: 'focus', lastCheckAt, nowMs: Date.now(), checkIntervalMs: intervalMs, focusCooldownMs });
+    if (!verdict.check) return;
+    log(`check focus — ${verdict.reason}`);
+    autoUpdater.checkForUpdates().catch((e) => log(`check-failed ${(e && e.message) || e}`));
+  };
+
+  try { win.on('focus', focusNow); } catch { /* fenêtre déjà détruite */ }
+  setInterval(checkNow, intervalMs).unref?.();
   setTimeout(() => {
+    const verdict = shouldCheck({ kind: 'startup', lastCheckAt, nowMs: Date.now() });
+    log(`check startup — ${verdict.reason}`);
     autoUpdater.checkForUpdates().catch((e) => log(`check-failed ${(e && e.message) || e}`));
   }, 5000);
+
+  // L'interface peut aussi demander elle-même l'état (bandeau monté après coup).
+  try {
+    ipcMain.handle('updates:get-state', () => state);
+    ipcMain.handle('updates:install', async () => {
+      if (state.status !== 'downloaded') return { ok: false, reason: 'aucune mise à jour prête' };
+      if (isPortable) {
+        shell.openExternal(RELEASES_URL);
+        return { ok: true, action: 'open-download' };
+      }
+      try { fs.writeFileSync(installPendingFlag(), `${new Date().toISOString()}\n`); } catch { /* best-effort */ }
+      autoUpdater.quitAndInstall();
+      return { ok: true, action: 'restart' };
+    });
+  } catch { /* canaux déjà enregistrés (rechargement) */ }
 }
 
 

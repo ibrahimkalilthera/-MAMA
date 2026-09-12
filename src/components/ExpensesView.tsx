@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMainViews } from '../app/mainViewsContext';
-import type { VendorExpense } from '../lib/useSupabaseData';
+import type { VendorExpense, Expense } from '../lib/useSupabaseData';
 import { sameYearMonth } from '../lib/dateWindows';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -9,7 +9,8 @@ const GENERAL_EXPENSE_CATEGORIES = ['Supplies', 'Utilities', 'Maintenance', 'Oth
 
 export function ExpensesView() {
   const [confirmDeleteVendor, setConfirmDeleteVendor] = useState<VendorExpense | null>(null);
-  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, currentMonth, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, generalExpenseCategoryFilter, generalExpenseSearch, getGradeDisplay, handleDeleteVendorExpense, handlePrint, isPromoter, isGeneralManager, lang, selectedYear, setEditingVendorExpense, setExpenseForm, setGeneralExpenseCategoryFilter, setGeneralExpenseSearch, setShowExpenseModal, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorExpensesTab, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorExpensesTab, vendorSearch, vendorStatusFilter } = useMainViews();
+  const [confirmDeleteExpense, setConfirmDeleteExpense] = useState<Expense | null>(null);
+  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, currentMonth, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, generalExpenseCategoryFilter, generalExpenseSearch, getGradeDisplay, handleDeleteExpense, handleDeleteVendorExpense, handlePrint, isPromoter, isGeneralManager, lang, selectedYear, setEditingVendorExpense, setExpenseForm, setGeneralExpenseCategoryFilter, setGeneralExpenseSearch, setShowExpenseModal, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorExpensesTab, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorExpensesTab, vendorSearch, vendorStatusFilter } = useMainViews();
   // Vendor create/delete are finance-admin powers (promoter/admin + Gestionnaire
   // Principal) — mirrors the isFinanceAdmin gate in useExpenses.
   const canManageVendors = isPromoter || isGeneralManager;
@@ -160,12 +161,13 @@ export function ExpensesView() {
                                   <th className="px-8 py-6">{t.category}</th>
                                   <th className="px-8 py-6">{t.description}</th>
                                   <th className="px-8 py-6 text-right">{t.amount}</th>
+                                  {canManageVendors && <th className="px-4 py-6 no-print" aria-label={t.deleteExpense} />}
                                 </tr>
                               </thead>
                               <tbody className={`divide-y ${currentTheme.border}`}>
                                 {filteredGeneral.length === 0 ? (
                                   <tr>
-                                    <td colSpan={4} className="px-8 py-16 text-center text-slate-400 italic">
+                                    <td colSpan={canManageVendors ? 5 : 4} className="px-8 py-16 text-center text-slate-400 italic">
                                       {t.noExpensesFoundMatchingTheSelectedFilter}
                                     </td>
                                   </tr>
@@ -185,6 +187,19 @@ export function ExpensesView() {
                                     <td className="px-8 py-6 text-right">
                                       <span className="text-sm font-black text-emerald-600">{formatCurrency(e.amount)}</span>
                                     </td>
+                                    {canManageVendors && (
+                                      <td className="px-4 py-6 no-print">
+                                        <div className="flex justify-end">
+                                          <button
+                                            onClick={() => setConfirmDeleteExpense(e)}
+                                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                            title={t.deleteExpense}
+                                          >
+                                            <Trash2 size={16} />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    )}
                                   </tr>
                                 ))}
                               </tbody>
@@ -521,6 +536,22 @@ export function ExpensesView() {
               )}
             </div>
           </div>
+
+        <ConfirmDialog
+          open={!!confirmDeleteExpense}
+          title={t.deleteExpense}
+          message={(t.deleteExpenseGeneralConfirm || t.deleteExpenseConfirm).replace('{desc}', confirmDeleteExpense?.description || '')}
+          confirmLabel={t.deleteExpense}
+          cancelLabel={t.cancel}
+          onConfirm={() => {
+            if (confirmDeleteExpense) {
+              handleDeleteExpense(confirmDeleteExpense.id);
+            }
+            setConfirmDeleteExpense(null);
+          }}
+          onCancel={() => setConfirmDeleteExpense(null)}
+          currentTheme={currentTheme}
+        />
 
         <ConfirmDialog
           open={!!confirmDeleteVendor}

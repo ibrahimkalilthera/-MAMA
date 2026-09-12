@@ -137,6 +137,7 @@ const {
     addVendorExpense,
     updateVendorExpense,
     deleteVendorExpense,
+    deleteExpense,
     addTodo: addTodoItem,
     updateTodo: updateTodoItem,
     deleteTodo: deleteTodoItem,
@@ -239,7 +240,7 @@ const {
   // extracted to src/app/useExpenses.ts.
   const expensesData = useExpenses({
     t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser,
-    addExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense,
+    addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense,
     showToast,
     toastError: (msg) => toast.error(msg),
   });
@@ -259,6 +260,7 @@ const {
     editingVendorExpense, setEditingVendorExpense,
     ticketStudent, setTicketStudent,
     expenseCategoryList,
+    handleDeleteExpense,
     handleExpenseSubmit,
     handleVendorExpenseSubmit,
     handleEditVendorExpense,

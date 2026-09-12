@@ -58,6 +58,37 @@ c'est **où la pression se voit** et **ce qui la retire**. Le journal
 (`npm run orphans:report`) est le décompte officiel : au dernier relevé, **aucune
 panique sur 24 h**.
 
+## 2 bis. Pourquoi un commit est LENT — et pourquoi il échouait (mesuré)
+
+Deux défauts distincts, tous deux corrigés le 2026-09-12, et aucun n'était
+« la panique » :
+
+**1. La chaîne tournait deux fois pour rien.** `node_modules/.cache/chain-timings.json`,
+20 relevés : **75–87 s** par passage (lint ≈ 43 s, tests ≈ 32 s, audit ≈ 0,1 s en
+cache / 30 s sinon). Or elle s'exécutait au `pre-commit` **et** au `pre-push`, sur
+exactement le même contenu — celui que le commit vient de figer — soit ≈ 2 min 40
+d'attente par push sans revérifier un octet. Elle est maintenant **adressée par
+contenu** (`scripts/lib/chain-cache.mjs`) : l'arbre indexé (`git write-tree`) et
+les maillons vérifiés sont enregistrés au vert, et un passage sur le même arbre
+propre, même majeur Node, dans les 24 h est **sauté** avec un message explicite.
+`QUALITY_FORCE=1` rejoue ; un contenu neuf, une copie de travail modifiée, un
+maillon jamais vérifié ou un majeur Node différent **rejouent toujours** — et un
+échec n'enregistre jamais de vert.
+
+**2. Le watchdog du hook était écrasé par défaut.** `parseArgs` rend un `opts`
+dont `timeoutMs` vaut 300 s, et le hook le transmettait **inconditionnellement**,
+remplaçant silencieusement son propre watchdog de 25 min. Un run légitime sur une
+machine chargée (mesuré : 87 s au repos, plusieurs minutes quand un build tourne
+en parallèle) était donc **tué en vol**, relancé, et pouvait finir en
+`husky - pre-commit script failed (code 127)` + `command not found in PATH` —
+une panne d'**environnement** rapportée comme une panne de code. Seul un
+`--timeout-ms` **demandé** écrase désormais la valeur par défaut.
+
+**Ce qui reste coûteux, et pourquoi on ne le parallélise pas** : la chaîne mesure
+elle-même le gain d'une parallélisation (`lint` + `audit` = 30,8 s) et le refuse —
+au prix de 2 `node.exe` de plus en concurrence, c'est-à-dire **exactement la
+pression de la table de fork** que ce runbook documente.
+
 ## 3. Quel mécanisme couvre quoi
 
 | Mécanisme | Fichier | Couvre | Ne couvre pas |

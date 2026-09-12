@@ -10,6 +10,7 @@ import type { Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Tod
 export type OfflineActionType =
   | 'addPayment'
   | 'addExpense'
+  | 'deleteExpense'
   | 'addVendorExpense'
   | 'updateVendorExpense'
   | 'deleteVendorExpense'
@@ -31,6 +32,7 @@ export type OfflineActionType =
 export type OfflinePayload =
   | { type: 'addPayment'; payload: { studentId: string; payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string } } }
   | { type: 'addExpense'; payload: Omit<Expense, 'id'> }
+  | { type: 'deleteExpense'; payload: { id: string } }
   | { type: 'addVendorExpense'; payload: Omit<VendorExpense, 'id'> }
   | { type: 'updateVendorExpense'; payload: { id: string; updates: Partial<VendorExpense> } }
   | { type: 'deleteVendorExpense'; payload: { id: string } }

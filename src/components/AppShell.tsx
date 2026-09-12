@@ -15,6 +15,9 @@ import { AlertTriangle } from 'lucide-react';
 import type { MainViewsProps } from '../app/mainViewsProps';
 import type { AppModalsProps } from './AppModals';
 import type { User } from '../app/types';
+import { formatSupabaseError } from '../lib/networkUtils';
+import { database } from '../lib/sharedDatabase';
+import { UpdateBanner } from './UpdateBanner';
 import type { AppEnv } from '../lib/networkUtils';
 import type { ImportCategory } from '../lib/excelImporter';
 import type { useToast } from '../lib/useToast';
@@ -143,7 +146,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
         <div className={`min-h-screen ${currentTheme.bg} flex font-sans ${currentTheme.text} transition-colors duration-300 theme-${theme} ${currentTheme.isDark ? 'dark ' : ''}${ticketStudent ? 'no-print-ticket' : ''}`}>
           {supabaseError && (
             <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white text-center py-2 text-xs font-semibold flex items-center justify-center gap-3">
-              <span className="flex items-center gap-1.5"><AlertTriangle size={14} className="flex-shrink-0" /> {t.databaseConnectionIssue}: {supabaseError}</span>
+              <span className="flex items-center gap-1.5"><AlertTriangle size={14} className="flex-shrink-0" /> {t.databaseConnectionIssue}: {formatSupabaseError(supabaseError, lang).message}</span>
               <button
                 onClick={() => fetchAll()}
                 className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors"
@@ -400,7 +403,20 @@ onOpenPayroll={() => setActiveTab('payroll')}
         onSync={syncOfflineQueue}
         t={t}
       />
-      <EnvBadge env={appEnv} />
+      <EnvBadge env={appEnv} database={database} />
+      {/* Bandeau de mise à jour du poste installé : ne s'affiche que dans
+          l'application de bureau, où `window.desktop.updates` existe. */}
+      <UpdateBanner
+        labels={{
+          available: t.updateAvailable,
+          downloading: t.updateDownloading,
+          ready: t.updateReady,
+          readyManual: t.updateReadyManual,
+          restart: t.updateRestartNow,
+          download: t.updateDownloadNow,
+          dismiss: t.updateDismiss,
+        }}
+      />
       <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
 
       {/* --- Global Confirmation Dialog --- */}
