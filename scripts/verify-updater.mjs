@@ -31,7 +31,13 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { sweepOrphanElectron } from './lib/orphan-chrome.mjs';
 
-const SETUP = join(process.cwd(), 'release', 'MamaTheraFinance-1.0.0-setup.exe');
+// Le nom de l'installeur PORTE la version (electron-builder : ${version}) : la
+// lire dans package.json plutôt que l'écrire ici. Une montée de version a déjà
+// rendu ce script muet (« artefacts manquants » sur une chaîne intacte), et une
+// preuve qui échoue pour un numéro recopié n'apprend rien sur l'auto-update.
+const CURRENT_VERSION = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')).version;
+
+const SETUP = join(process.cwd(), 'release', `MamaTheraFinance-${CURRENT_VERSION}-setup.exe`);
 const EXE = join(process.cwd(), 'release', 'win-unpacked', 'MamaTheraFinance.exe');
 const PORT = 9450 + Math.floor(Math.random() * 100);
 const TMP = tmpdir();
@@ -39,8 +45,20 @@ const LOG_FILE = join(TMP, `updater-proof-${Date.now()}.log`);
 const USER_DATA = join(TMP, `electron-proof-ud-updater-${Date.now()}`);
 // electron-updater's shared download cache (app-update.yml → updaterCacheDirName).
 const UPDATER_CACHE = join(process.env.LOCALAPPDATA || join(tmpdir(), 'AppData', 'Local'), 'mama-thera-finance-updater');
-const FAKE_VERSION = process.env.UPDATER_FAKE_VERSION || '1.0.1';
-const CURRENT_VERSION = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')).version;
+/**
+ * La version que le flux de test annonce : la PATCH suivante du paquet.
+ *
+ * Dérivée, et non écrite « 1.0.1 » en dur : le cas courant à prouver est « une
+ * version publiée pendant que l'application tourne est vue », et une constante
+ * recopiée finit par annoncer la version DÉJÀ installée — le flux ne trouverait
+ * alors rien à télécharger et le script conclurait à une chaîne incomplète.
+ */
+const NEXT_PATCH_VERSION = (() => {
+  const [major, minor, patch] = String(CURRENT_VERSION).split('.').map(Number);
+  const bumpable = Number.isFinite(major) && Number.isFinite(minor);
+  return bumpable ? `${major}.${minor}.${(Number.isFinite(patch) ? patch : 0) + 1}` : '1.0.1';
+})();
+const FAKE_VERSION = process.env.UPDATER_FAKE_VERSION || NEXT_PATCH_VERSION;
 /** Une majeure d'écart suffit à rendre l'installation obligatoire (updater-policy.cjs). */
 const EXPECT_FORCED = Number(FAKE_VERSION.split('.')[0]) > Number(String(CURRENT_VERSION).split('.')[0]);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -95,7 +113,7 @@ try {
   if (sweptE) console.log(`🧹 ${sweptE} processus Electron orphelin(s) purgé(s)`);
 
   // Purge electron-updater's shared download cache: a previous successful run
-  // leaves MamaTheraFinance-1.0.1-setup.exe there, so the app would "download"
+  // leaves the current version's setup.exe there, so the app would "download"
   // from cache (sha512-validated) with no download-progress event — an
   // incomplete chain. Forcing a real download proves the full path.
   //
