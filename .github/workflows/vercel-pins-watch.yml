@@ -50,6 +50,9 @@ jobs:
       - name: Audit tools/, probe the latest vercel tree, manage the tracking issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Mandat de preuve : la veille publie son verdict MESURÉ (version
+          # épinglée, audit de tools/, arbre de la dernière release).
+          AUTOMATION_EVIDENCE: '1'
         run: node scripts/check-vercel-pins.mjs
 
       # La preuve est publiée par une ÉTAPE NOMMÉE (`Publier la preuve d’action`),
@@ -60,4 +63,4 @@ jobs:
       - name: Publier la preuve d’action — veille des épingles Vercel
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "arbre tools/ audité et dernière release sondée (verdict et issue imprimés ci-dessus)"
+          --reason "veille allée au bout ; le verdict mesuré (épinglé, audit de tools/, dernière release) est publié par scripts/check-vercel-pins.mjs"

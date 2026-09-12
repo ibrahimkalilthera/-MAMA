@@ -210,6 +210,11 @@ jobs:
       # supprimé le profil avec le compte). Réutilise le même .env que les
       # pixel-checks ; lecture seule, ne supprime rien.
       - name: Vérification finale — aucun compte éphémère résiduel en base
+        # Mandat de preuve : c'est la seule étape de cette chaîne qui MESURE l'état
+        # final du monde (comptes et profils réellement parcourus en base) — elle
+        # publie donc ce qu'elle a compté, au lieu d'une phrase de workflow.
+        env:
+          AUTOMATION_EVIDENCE: '1'
         run: node scripts/verify-ephemeral-cleanup.mjs
 
       # Preuve publiée par l'étape NOMMÉE (lue dans les étapes du run par
@@ -219,4 +224,4 @@ jobs:
       - name: Publier la preuve d’action — chaîne PDF E2E
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "chaîne PDF E2E complète : en-têtes de sécurité, garde CSP, pixel-checks paie et reçu parent, nettoyage des comptes éphémères"
+          --reason "chaîne PDF E2E allée au bout : en-têtes de sécurité, garde CSP, pixel-checks paie et reçu parent, nettoyage des comptes éphémères — la mesure en base est publiée par scripts/verify-ephemeral-cleanup.mjs"

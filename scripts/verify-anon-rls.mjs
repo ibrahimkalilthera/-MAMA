@@ -57,6 +57,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 
 export const PROBE_NAME = 'CI Probe — anon RLS';
 const HACKED_NAME = `${PROBE_NAME} (hacked)`;
@@ -78,9 +79,15 @@ const readBody = async (res) => {
 
 const makeCheck = () => {
   const failures = [];
+  // Compteur VIVANT (un objet partagé, pas une valeur recopiée au moment du
+  // destructuring) : les `finish()` peuvent donc le lire d'où qu'ils partent, et
+  // la preuve publiée porte le nombre de vérifications RÉELLEMENT exécutées.
+  const state = { total: 0 };
   return {
     failures,
+    state,
     check: (cond, label) => {
+      state.total += 1;
       console.log(`${cond ? '✓' : '✖'} ${label}`);
       if (!cond) failures.push(label);
     },
@@ -116,7 +123,7 @@ const makeAuthApi = (base, fetchImpl) => (path, key, init = {}) =>
  * @param {string[]} opts.tables
  */
 export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fetch, tables }) {
-  const { failures, check } = makeCheck();
+  const { failures, check, state } = makeCheck();
 
   // Garde de transport : un fetch rejeté (backend absent, Docker down, blip
   // réseau) ne doit NI crasher le garde-fou NI se lire comme une brèche — il
@@ -137,9 +144,9 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   const finish = () => {
     if (transportError) {
       console.log(`⚠ backend injoignable en cours de route (${transportError.message}) — vérification RLS SKIPPÉE, pas une brèche.`);
-      return { ok: false, failures, skipped: true };
+      return { ok: false, failures, skipped: true, checks: state.total };
     }
-    return { ok: failures.length === 0, failures, skipped: false };
+    return { ok: failures.length === 0, failures, skipped: false, checks: state.total };
   };
 
   // 0. Backend joignable ? TOUTE réponse HTTP le prouve (même 404/500) — seul
@@ -149,7 +156,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   });
   if (ping.status === 0) {
     console.log(`⚠ backend Supabase injoignable (${transportError?.message ?? 'réseau'}) — vérification RLS SKIPPÉE, pas une brèche. Relancez une fois le backend démarré.`);
-    return { ok: false, failures, skipped: true };
+    return { ok: false, failures, skipped: true, checks: state.total };
   }
   console.log(`✓ backend Supabase joignable (HTTP ${ping.status})`);
 
@@ -497,7 +504,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
  * @param {string[]} opts.tables
  */
 export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, tables }) {
-  const { failures, check } = makeCheck();
+  const { failures, check, state } = makeCheck();
 
   // Même garde de transport que verifyAnonRls : backend absent ou panne en
   // cours de route → INCONCLUSIF (skipped), jamais une brèche, jamais un crash.
@@ -516,9 +523,9 @@ export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, table
   const finish = () => {
     if (transportError) {
       console.log(`⚠ backend injoignable en cours de route (${transportError.message}) — vérification RLS SKIPPÉE, pas une brèche.`);
-      return { ok: false, failures, skipped: true };
+      return { ok: false, failures, skipped: true, checks: state.total };
     }
-    return { ok: failures.length === 0, failures, skipped: false };
+    return { ok: failures.length === 0, failures, skipped: false, checks: state.total };
   };
 
   // 0. Base distante joignable ? Toute réponse HTTP suffit ; un rejet réseau
@@ -528,7 +535,7 @@ export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, table
   });
   if (ping.status === 0) {
     console.log(`⚠ base distante injoignable (${transportError?.message ?? 'réseau'}) — vérification RLS SKIPPÉE, pas une brèche.`);
-    return { ok: false, failures, skipped: true };
+    return { ok: false, failures, skipped: true, checks: state.total };
   }
   console.log(`✓ base distante joignable (HTTP ${ping.status})`);
 
@@ -642,7 +649,7 @@ if (isMain) {
       console.error('Mode --remote : une clé service_role est présente dans l\'environnement — jamais de service_role contre la base distante.');
       process.exit(2);
     }
-    const { ok, failures, skipped } = await verifyAnonRemote({ base, anonKey, tables });
+    const { ok, failures, skipped, checks } = await verifyAnonRemote({ base, anonKey, tables });
     if (skipped) {
       console.error('\n⚠ Vérification RLS SKIPPÉE — base distante injoignable (ce n\'est PAS une brèche). Exit 0, à relancer.');
       process.exitCode = 0;
@@ -651,6 +658,13 @@ if (isMain) {
       process.exit(1);
     } else {
       console.log('\nBase distante : aucune lecture ni écriture anon possible (métier + auth).');
+      // La substance, publiée par le contrôle lui-même : le nombre de sondes
+      // RÉELLEMENT exécutées contre la base distante — pas une phrase de workflow.
+      publishEvidence({
+        acted: true,
+        count: checks > 0 ? checks : null,
+        reason: `sondes anon exécutées contre la base distante : ${checks} vérification(s), aucune lecture ni écriture anon (métier + auth)`,
+      });
     }
   } else {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SERVICE_ROLE_KEY;
@@ -691,7 +705,7 @@ if (isMain) {
         }
       }
     }
-    const { ok, failures, skipped } = result;
+    const { ok, failures, skipped, checks } = result;
     if (skipped) {
       console.error('\n⚠ Vérification RLS SKIPPÉE — backend local injoignable (ce n\'est PAS une brèche). Exit 0, à relancer quand supabase est démarré.');
       process.exitCode = 0;
@@ -700,6 +714,13 @@ if (isMain) {
       process.exit(1);
     } else {
       console.log('\nMétier et auth (user_profiles, RPC mot de passe) : anon refusé après migrations.');
+      // La substance, publiée par le contrôle lui-même : les vérifications
+      // RÉELLEMENT exécutées sur la pile locale après migration.
+      publishEvidence({
+        acted: true,
+        count: checks > 0 ? checks : null,
+        reason: `migrations appliquées sur la pile locale : ${checks} vérification(s) anon exécutée(s), lectures et écritures refusées`,
+      });
     }
   }
 }
