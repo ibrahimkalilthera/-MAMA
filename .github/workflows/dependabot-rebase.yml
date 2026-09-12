@@ -1,0 +1,78 @@
+name: Dependabot rebase
+
+# Garde les PR Dependabot à jour avec `main`, pour qu'elles ne restent jamais
+# avec des vérifications périmées.
+#
+# Pourquoi ce workflow existe : GitHub n'offre AUCUNE option « rebaser
+# automatiquement quand la base change » (dependabot-core#2224, toujours
+# ouverte), et le seul rebasage automatique de Dependabot concerne les CONFLITS,
+# pas l'obsolescence — ses PR « out-of-date with the base branch » gardent donc
+# des checks qui ont tourné sur un état de `main` qui n'existe plus.
+#
+# POURQUOI UN PAT ET PAS LE GITHUB_TOKEN — c'est le point à ne jamais « simplifier » :
+#   • une mise à jour faite avec le GITHUB_TOKEN ne déclenche AUCUN workflow
+#     (« events triggered by the GITHUB_TOKEN … will not create a new workflow
+#     run ») : la branche serait à jour et les checks toujours périmés — le bug
+#     même que ce workflow supprime, mais invisible ;
+#   • commenter `@dependabot rebase` avec le GITHUB_TOKEN est refusé depuis 2023
+#     (« Sorry, only users with push access can use that command »).
+#   Le PAT produit un push D'UTILISATEUR : `synchronize` part et la chaîne
+#   qualité rejoue réellement sur la PR. Le secret est donc
+#   `DEPENDABOT_REBASE_TOKEN`, dans Settings → Secrets and variables → ACTIONS
+#   (jamais « Dependabot secrets », réservés aux workflows déclenchés PAR
+#   Dependabot). Sans ce secret, le job avertit et sort en 0 — visible, pas rouge.
+#
+# Deux déclencheurs, chacun pour une raison précise :
+#   • push sur `main` : c'est le moment où les checks des PR ouvertes deviennent
+#     périmés ;
+#   • cron quotidien : une PR ouverte APRÈS le dernier push naît en retard (le
+#     push est déjà passé quand Dependabot la crée) — sans ce filet, elle
+#     attendrait le prochain push, c'est-à-dire personne ne sait quand.
+#
+# Ne touche que les branches `dependabot/*` de CE dépôt : une PR de fork est
+# ignorée (le PAT ne peut pas y écrire, et ce n'est pas à nous).
+
+on:
+  push:
+    branches: [main]
+
+  schedule:
+    # 05:17 UTC — hors des heures pleines, après les pushes habituels.
+    - cron: '17 5 * * *'
+
+  workflow_dispatch:
+
+# Série unique : deux exécutions simultanées mettraient la même branche à jour
+# deux fois (la seconde échouant sur le sha attendu). On ne l'annule pas, en
+# revanche : un run interrompu au milieu de la liste laisserait des PR de côté.
+concurrency:
+  group: dependabot-rebase
+  cancel-in-progress: false
+
+# GITHUB_TOKEN en lecture seule, et il ne sert QU'À rien : les écritures passent
+# par le PAT. Déclarer le minimum rend visible que ce job n'a aucun besoin du
+# GITHUB_TOKEN pour agir — donc qu'on ne peut pas le « réparer » en l'élargissant.
+permissions:
+  contents: read
+
+jobs:
+  rebase:
+    name: Mettre à jour les PR Dependabot en retard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Idem pour les autres jobs : installer Node ne prouve pas le majeur
+      # réellement exécuté. Le script n'a aucune dépendance, donc pas de `npm ci`.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      - name: Rebader les PR Dependabot en retard
+        env:
+          REBASE_TOKEN: ${{ secrets.DEPENDABOT_REBASE_TOKEN }}
+        run: node scripts/rebase-dependabot-prs.mjs

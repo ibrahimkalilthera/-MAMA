@@ -138,12 +138,30 @@
 .theme-midnight .text-blue-700 {
   color: #93C5FD !important;
 }
+/* Papier "note collante" (`bg-[#FEF9C3]` — StudentDetailsModal,
+   CalendarDayModal) : délibérément CLAIR dans tous les thèmes, ce n'est pas une
+   carte thémée. La règle globale `input/textarea` ci-dessus peignait quand même
+   ses contrôles en #F9FAFB → texte blanc sur papier jaune, 1.03:1. Trouvé par
+   l'audit de contraste dès que les fixtures Élèves ont réellement rendu des
+   lignes (l'année des fixtures vidait le tableau et la surface était déclarée
+   "non applicable"). Même principe que les listes de titres : une surface que
+   le thème ne peint PAS en sombre garde sa propre couleur de texte. */
+.theme-midnight [class*="FEF9C3"] :is(input, textarea, select) {
+  color: #713F12 !important;
+}
 .theme-midnight .text-emerald-500,
 .theme-midnight .text-emerald-600 {
   color: #34D399 !important;
 }
 .theme-midnight .text-emerald-700 {
   color: #6EE7B7 !important;
+}
+/* Même angle mort que slate : la variante `.text-emerald-500/50` (tâche
+   terminée) n'était pas remappée, donc du vert à 50 % mesurait 2.69:1 sur le
+   panneau sombre — mesuré par l'audit de contraste ; aucun thème sombre ne la
+   couvrait. Neutre plutôt que vert : une tâche faite doit paraître éteinte. */
+.theme-midnight .text-emerald-500\/50 {
+  color: #CBD5E1 !important;
 }
 .theme-midnight .text-purple-400,
 .theme-midnight .text-purple-600,

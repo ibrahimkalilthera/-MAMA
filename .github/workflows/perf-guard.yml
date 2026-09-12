@@ -3,9 +3,11 @@ name: Quality & performance guard
 # Porte de qualité unique à chaque push sur main — remplace les deux anciens
 # workflows security-audit.yml (audit npm) et perf-guard.yml (Lighthouse) :
 #
-#   Job `quality`   : gate ESLint SANS WARNING (eslint --max-warnings 0 — le
-#                     moindre warning, même bénin, échoue le push), puis tsc
-#                     strict + câblage des props + gate des casts interdits,
+#   Job `quality`   : `npm run lint` — LA chaîne du poste, telle quelle, pas un
+#                     sous-ensemble recopié (ESLint 0 warning, tsc strict,
+#                     props/casts, gardes du harnais de tests, stylelint, CSS,
+#                     emoji, i18n, dates Windows, budget de lignes, snapshot SQL ;
+#                     le gate de version Node est le premier maillon), puis
 #                     tests (node:test), puis le gate d'audit
 #                     (scripts/check-audit.mjs) en deux volets :
 #                       1. Aucune vulnérabilité de PRODUCTION (les dépendances
@@ -61,17 +63,25 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: ESLint — zero-warning gate (any warning fails the push)
-        run: npx eslint . --max-warnings 0
-
-      - name: Typecheck strict + props wiring + forbidden casts
-        run: npx tsc --noEmit && node scripts/check-component-props.mjs && node scripts/check-forbidden-any.mjs
+      # UNE commande : exactement celle du hook pre-commit. Elle commence par le
+      # gate de version Node (donc la parité .nvmrc/engines/runtime est prouvée
+      # ici aussi) et enchaîne ESLint 0 warning, tsc strict, props/casts, gardes
+      # du harnais, stylelint, sélecteurs CSS, emoji, i18n, dates Windows, budget
+      # de lignes et snapshot SQL.
+      #
+      # Recopier un sous-ensemble est précisément comment les deux chaînes ont
+      # divergé : ce job lançait `npx eslint .` + `npx tsc` + deux gardes et
+      # sautait silencieusement les six autres — dont stylelint et le harnais de
+      # tests, c'est-à-dire la moitié des filets. Un gate qui n'est pas exécuté
+      # ici ne protège rien ici.
+      - name: Lint — la chaîne du poste telle quelle (npm run lint)
+        run: npm run lint
 
       - name: Tests
         run: npm test
@@ -96,6 +106,43 @@ jobs:
           AUDIT_CACHE: '1'
         run: node scripts/check-audit.mjs
 
+  # Le layout npm n'est pas une opinion : Windows installe npm dans
+  # `<prefix>/node_modules/npm`, les installations Unix (dont setup-node) dans
+  # `<prefix>/lib/node_modules/npm`. Une machine ne peut prouver que le sien —
+  # d'où une MATRICE, et non un test qui fabrique une arborescence : un arbre
+  # inventé prouve la liste des candidats, jamais ce que le runner a réellement
+  # installé. C'est exactement ce trou qui a produit un vert local et un rouge
+  # ubuntu (la résolution ne cherchait que le layout Windows), et c'est aussi
+  # pourquoi ce job existe séparément : il ne demande AUCUNE dépendance, donc il
+  # tourne sur les deux OS en une minute.
+  node-layouts:
+    name: Layout npm réel (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Une OS par layout : ubuntu prouve lib/node_modules, windows node_modules.
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Idem que les autres jobs : installer Node ne prouve pas le majeur
+      # réellement exécuté, et la résolution ci-dessous dépend justement de
+      # l'installation du runner.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # Pas de `npm ci` : le script est sans dépendance, et ce qu'on vérifie est
+      # justement l'installation de Node/npm fournie par le runner — pas la
+      # nôtre. `npm run` fonctionne sans node_modules installés.
+      - name: Résolution npm/node réelle de la plateforme
+        run: npm run check:node-layout
+
   lighthouse:
     runs-on: ubuntu-latest
     # Headroom calibrée sur les durées observées (56s à 917s selon le runner
@@ -108,8 +155,15 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
+
+      # setup-node lit `.nvmrc`, mais son succès ne prouve pas dans le log que le
+      # majeur RÉELLEMENT exécuté est celui épinglé (ni qu'engines est d'accord).
+      # Ce gate — le même que celui en tête de `npm run lint` — le vérifie et
+      # l'affiche, job par job : c'est la preuve côté runner.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
 
       - name: Install dependencies
         run: npm ci
@@ -147,8 +201,12 @@ jobs:
   # l'écran pour qu'une régression de contraste y soit attrapée dès le push).
   # Toute paire texte/fond mesurée < 3:1 échoue le job — la même mesure qui a
   # chassé les textes blancs sur blancs, désormais automatisée et CI-gated.
-  # Le compte de login est créé éphémère par le script lui-même (service-role
-  # lu dans .env) et supprimé en fin de run — plus aucun secret fixe requis.
+  # AUCUN secret : l'audit tourne sur un backend de fixtures servi dans le
+  # navigateur (scripts/lib/audit-fixtures.mjs) — la session de test est mintée
+  # par l'interception du grant mot de passe, sans compte à créer ni à
+  # supprimer, et sans écrire une ligne en base. Le gate mesure donc sur un push
+  # comme sur une PR Dependabot ou une PR de fork, avec exactement les mêmes
+  # données à chaque run.
   theme-contrast:
     name: Contraste thèmes (WCAG >= 3:1)
     runs-on: ubuntu-latest
@@ -158,30 +216,32 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
+
+      # setup-node lit `.nvmrc`, mais son succès ne prouve pas dans le log que le
+      # majeur RÉELLEMENT exécuté est celui épinglé (ni qu'engines est d'accord).
+      # Ce gate — le même que celui en tête de `npm run lint` — le vérifie et
+      # l'affiche, job par job : c'est la preuve côté runner.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Provide public env vars for the build (anon key = client key, non secret)
-        run: |
-          cat > .env <<'EOF'
-          VITE_SUPABASE_URL=https://rpcjdohfxwukbqngbprw.supabase.co
-          VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
-          VITE_APP_ENV=production
-          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          EOF
+      # Aucun env de build ici : en mode fixtures, l'audit injecte lui-même une
+      # URL factice et une clé bidon dans le build (process.env, prioritaire sur
+      # tout fichier .env) — il n'y a donc rien à préparer ni à cacher, et aucun
+      # bundle audité ne peut viser la vraie base.
 
-      # Le compte de login n'est plus un secret fixe : le script crée lui-même
-      # un compte admin éphémère via le service-role (lu dans .env), le
-      # supprime en fin de run (finally) — comme les pixel-checks PDF. La CI
-      # reste fonctionnelle même si la base est purgée.
       - name: Theme contrast audit (6 thèmes x 8 overlays, échoue < 3:1)
         env:
           AUDIT_URL: http://127.0.0.1:4173/
           CHROME_PATH: /usr/bin/google-chrome
-        run: node scripts/theme-contrast-audit.mjs
+        # Par son nom, jamais recopiée : `check:contrast` EST cette commande,
+        # et une copie diverge en silence — c'est exactement ce que refuse
+        # scripts/check-ci-commands.mjs (ce garde a trouvé cette ligne).
+        run: npm run check:contrast
 
   # Warning-only: the isolated deploy CLI (tools/) keeps its dev-only pins on
   # purpose — they must stay visible without ever blocking deploys, because
@@ -200,7 +260,12 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc
+
+      # Idem : le gate de parité tourne ici aussi pour que le job warning-only
+      # ne soit pas le seul à pouvoir mentir sur sa version de Node.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
 
       - name: Audit tools/ from its lockfile (report only — never fails)
         run: node scripts/report-tools-audit.mjs

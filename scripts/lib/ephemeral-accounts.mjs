@@ -3,8 +3,10 @@
 // Supabase auth accounts used by the E2E / audit scripts.
 //
 // Every script that creates an ephemeral admin (verify-pdf-download,
-// verify-csp-guard, theme-contrast-audit, e2e-business, verify-anon-rls) MUST
-// build its email with ephemeralEmail(). The CI guard
+// verify-csp-guard, verify-desktop-app, e2e-business, verify-anon-rls) MUST
+// build its email with ephemeralEmail(). The theme contrast audit is no longer
+// one of them: it drives a fixture backend instead of an account
+// (scripts/lib/audit-fixtures.mjs). The CI guard
 // scripts/verify-ephemeral-cleanup.mjs imports EPHEMERAL_PATTERNS from here
 // and fails the run if any matching account survives a script's finally.
 //
@@ -21,7 +23,7 @@
 export const EPHEMERAL_PATTERNS = [
   /^verify-/i, // verify-pdf-download / verify-csp-guard → verify-*@audit.local
   /^e2e-/i, // e2e-business → e2e-*@mamathera.org
-  /audit-/i, // theme-contrast-audit → contrast-audit-*@mamathera.org
+  /audit-/i, // any *-audit-*@… account (the contrast audit no longer emits one)
   /^ci-probe-/i, // verify-anon-rls → ci-probe-*@example.test
   /@audit\.local$/i, // reserved mailbox domain for audit accounts
   /@example\.test$/i, // reserved TLD for probe accounts
