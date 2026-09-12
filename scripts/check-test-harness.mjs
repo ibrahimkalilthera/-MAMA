@@ -38,6 +38,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { assertScanned } from './lib/source-text.mjs';
+
 const TESTS_DIR = 'tests';
 const EXEMPT = new Set(['harness.ts']);
 
@@ -76,6 +78,10 @@ const files = fs
   .readdirSync(TESTS_DIR)
   .filter((f) => /\.test\.(ts|tsx)$/.test(f) && !EXEMPT.has(f))
   .sort();
+
+// Aucun fichier de test lu ⇒ aucune suite auditée : échec, pas un vert. Un
+// dossier renommé aurait fait dire « ✅ 0 suite » à ce contrôle.
+assertScanned(files, { what: 'suite .test.ts/.test.tsx', root: TESTS_DIR });
 
 for (const file of files) {
   const stripped = stripComments(fs.readFileSync(path.join(TESTS_DIR, file), 'utf8'));

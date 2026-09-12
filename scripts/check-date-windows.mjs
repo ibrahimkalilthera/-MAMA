@@ -10,18 +10,13 @@
 // Non-comparison uses (setMonth arithmetic, padStart formatting, initial
 // state, getMonth() + 1 labels) are intentionally allowed.
 import fs from 'node:fs';
-import path from 'node:path';
 
-const ROOT = 'src';
+import { SOURCE_EXTS, assertScanned, listFiles, maskProse } from './lib/source-text.mjs';
 
-/** Recursively list src/ files ending in .ts/.tsx (sorted for stable output). */
-function tsFiles(dir) {
-  return fs
-    .readdirSync(dir, { withFileTypes: true, recursive: true })
-    .filter((e) => e.isFile() && /\.tsx?$/.test(e.name))
-    .map((e) => path.join(e.parentPath ?? e.path, e.name))
-    .sort();
-}
+// La racine est surchargeable pour que la propriété soit PROUVABLE sur une
+// arborescence fabriquée : sans ce point d'entrée, le seul moyen de tester ce
+// contrôle serait de casser le vrai dépôt — donc personne ne le testerait.
+const ROOT = process.env.CHECK_DATE_WINDOWS_ROOT || 'src';
 
 // A comparison touching getMonth: === !== > >= < <= (also <= index etc.)
 const COMPARE = /\.getMonth\(\)\s*(===|!==|>=|<=|>|<)/;
@@ -29,12 +24,16 @@ const COMPARE = /\.getMonth\(\)\s*(===|!==|>=|<=|>|<)/;
 const PAIRED = /(\.getFullYear\(\)|sameYearMonth\(|inAcademicYear\(|academicYearOf\(|currentYearMonth\()/;
 
 const violations = [];
-const files = tsFiles(ROOT);
+const files = listFiles(ROOT, { ext: SOURCE_EXTS });
+// Un scan vide n'est pas un vert : 0 fichier lu ⇒ sortie 2, avec la racine.
+assertScanned(files, { what: 'fichier .ts/.tsx', root: ROOT });
 for (const file of files) {
-  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  // Prose blanche par le scanner partagé : un commentaire qui CITE
+  // `.getMonth() ===` n'est pas une comparaison, et l'ancien filtre
+  // (`trimmed.startsWith('//')`) laissait passer les commentaires en fin de
+  // ligne — ceux-là mêmes qui documentent le piège.
+  const lines = maskProse(fs.readFileSync(file, 'utf8')).split(/\r?\n/);
   lines.forEach((line, i) => {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) return; // comments
     if (COMPARE.test(line) && !PAIRED.test(line)) {
       violations.push(`${file}:${i + 1}  —  .getMonth() comparison without year  →  ${line.trim().slice(0, 120)}`);
     }
@@ -46,4 +45,4 @@ if (violations.length > 0) {
   for (const v of violations) console.error(`  ${v}`);
   process.exit(1);
 }
-console.log(`✅ aucune comparaison .getMonth() sans année — ${files.length} fichier(s) scanné(s)`);
+console.log(`✅ aucune comparaison .getMonth() sans année — ${files.length} fichier(s) scanné(s) (prose blanchie)`);

@@ -33,6 +33,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { maskComments } from './source-text.mjs';
+
 const SCAN_DIRS = ['tests', 'src', 'scripts'];
 const PROJECT_FILE = /\.(ts|tsx|mjs|js|cjs)$/;
 const SUITE_FILE = /\.test\.(ts|tsx)$/;
@@ -473,8 +475,27 @@ export function analyzeRepo({ root = process.cwd() } = {}) {
     // comments (the declaration markers live in one) but blanks template-literals
     // so a fixture cannot declare a skip; `screened` has neither comments nor
     // literal content, and is what every rule actually judges.
+    //
+    // Both go through the SHARED scanner (scripts/lib/source-text.mjs), and that
+    // is load-bearing rather than cosmetic: stripping comments with a regexp
+    // reads `'https://…'` as a comment (the `//` is INSIDE the literal) and
+    // deletes the code that follows it on the line — a rule would then judge
+    // neither the string nor the code. The scanner knows which is which, and it
+    // keeps every offset, so findings still print the right line.
+    // Deux nuances mesurées sur ce gate, et aucune n'est cosmétique :
+    //   • les règles LISENT les spécifieurs (`mock.module('node:fs')`) : blanchir
+    //     toutes les chaînes leur donne des mocks vidés de leur cible — 34 faux
+    //     « mock sans effet » au premier essai ;
+    //   • les fixtures de sa PROPRE suite contiennent des backticks *dans* un
+    //     gabarit, ce qui fait basculer n'importe quel scanner (les backticks ne
+    //     s'imbriquent pas) : c'est le masquage gabarit historique qui est
+    //     verrouillé par ses tests, et il reste donc en place.
+    // Ce qui change ici, c'est le COMMENTAIRE : il est blanchi par le scanner
+    // partagé au lieu d'être retiré par une expression régulière — celle-ci voit
+    // le `//` de `'https://…'` comme un commentaire et supprime le code qui suit
+    // sur la même ligne.
     const decl = maskTemplateLiterals(readSrc(suite));
-    const screened = maskTemplateLiterals(stripComments(readSrc(suite)));
+    const screened = maskTemplateLiterals(maskComments(readSrc(suite)));
     mocks += mockedModules(screened).length;
     const declared = new Set();
     for (const [marker, kind] of [

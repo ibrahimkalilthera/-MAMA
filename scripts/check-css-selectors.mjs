@@ -30,9 +30,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { assertScanned } from './lib/source-text.mjs';
 import { readThemeCss, themeCssFiles } from './lib/theme-css.mjs';
 
-const ROOTS = ['src'];
+const ROOTS = process.env.CHECK_CSS_ROOTS ? process.env.CHECK_CSS_ROOTS.split(',') : ['src'];
 
 /** Structural tags shared by app chrome and overlays. */
 const BARE_TAGS = new Set(['aside', 'header', 'footer', 'nav', 'main']);
@@ -59,9 +60,11 @@ function cssFiles(dir) {
 }
 
 const violations = [];
+let scanned = 0;
 for (const root of ROOTS) {
   if (!fs.existsSync(root)) continue;
   for (const file of cssFiles(root)) {
+    scanned += 1;
     const stripped = stripComments(fs.readFileSync(file, 'utf8'));
     const lines = stripped.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
@@ -252,6 +255,10 @@ if (missingFromScope.length > 0) {
     ' :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600)` to the scoped rule)'
   );
 }
+
+// 0 feuille lue ⇒ aucune règle n'a été vérifiée : c'est un échec, pas un vert.
+// (Le corpus de thèmes a son propre garde ; celui-ci protège la lecture CSS.)
+assertScanned({ length: scanned }, { what: 'feuille .css', root: ROOTS.join(', ') });
 
 if (guardViolations.length > 0) {
   console.error('❌ White-text regression guards failed:');

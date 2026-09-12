@@ -14,6 +14,20 @@
  *   • this file is scanned by plain text, so it survives any future ESLint
  *     config reshuffle that accidentally narrows the rule's file scope.
  *
+ * TWO PROPERTIES THIS SCAN MUST KEEP, and neither is decorative:
+ *
+ *   1. **prose is not code.** A doc comment explaining the ban, an example in a
+ *      string, a message that says « as any » — none of those is a violation, and
+ *      a raw line regexp would flag them. A gate that cries wolf on its own
+ *      documentation gets muted, and a muted gate is absent. Prose is blanked by
+ *      the shared scanner (`scripts/lib/source-text.mjs`), which keeps line
+ *      numbers exact.
+ *   2. **reading nothing is not passing.** The scan used to print
+ *      « ✅ … — 0 fichier(s) scanné(s) » when `src/` moved or the filter changed:
+ *      a green with nothing behind it. `assertScanned` fails instead (exit 2).
+ *      The root is overridable (`CHECK_FORBIDDEN_ANY_ROOT`) precisely so a suite
+ *      can prove both properties on a fixture instead of on the real tree.
+ *
  * Scope is src/ per the project's policy (tests are covered by the same ESLint
  * rules; other explicit-any forms like `Array<any>` are caught by no-explicit-any).
  * Case-sensitive on purpose: `as Any` would be a legitimate custom type.
@@ -22,9 +36,10 @@
  * it is enforced by the husky pre-commit hook and the CI `quality` job.
  */
 import fs from 'node:fs';
-import path from 'node:path';
 
-const ROOT = 'src';
+import { SOURCE_EXTS, assertScanned, listFiles, maskProse } from './lib/source-text.mjs';
+
+const ROOT = process.env.CHECK_FORBIDDEN_ANY_ROOT || 'src';
 const PATTERNS = [
   { re: /\bas\s+any\b/, label: '`as any`' },
   { re: /@ts-ignore/, label: '`@ts-ignore`' },
@@ -32,19 +47,13 @@ const PATTERNS = [
   { re: /@ts-nocheck/, label: '`@ts-nocheck`' },
 ];
 
-/** Recursively list src/ files ending in .ts/.tsx (sorted for stable output). */
-function tsFiles(dir) {
-  return fs
-    .readdirSync(dir, { withFileTypes: true, recursive: true })
-    .filter((e) => e.isFile() && /\.tsx?$/.test(e.name))
-    .map((e) => path.join(e.parentPath ?? e.path, e.name))
-    .sort();
-}
-
 const violations = [];
-const files = tsFiles(ROOT);
+const files = listFiles(ROOT, { ext: SOURCE_EXTS });
+assertScanned(files, { what: 'fichier .ts/.tsx', root: ROOT });
+
 for (const file of files) {
-  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  const code = maskProse(fs.readFileSync(file, 'utf8'));
+  const lines = code.split(/\r?\n/);
   lines.forEach((line, i) => {
     for (const { re, label } of PATTERNS) {
       if (re.test(line)) violations.push(`${file}:${i + 1}  —  ${label}  →  ${line.trim().slice(0, 100)}`);
@@ -61,4 +70,4 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log(`✅ src/ sans \`as any\`, \`@ts-ignore\`, \`@ts-expect-error\`, \`@ts-nocheck\` — ${files.length} fichier(s) scanné(s)`);
+console.log(`✅ ${ROOT}/ sans \`as any\`, \`@ts-ignore\`, \`@ts-expect-error\`, \`@ts-nocheck\` — ${files.length} fichier(s) scanné(s) (prose blanchie)`);
