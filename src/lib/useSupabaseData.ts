@@ -16,7 +16,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import type { DbRow } from './database.types';
-import { retryWithBackoff } from './networkUtils';
+import { isAuthTokenError, retryWithBackoff } from './networkUtils';
 import {
   enqueueOfflineAction,
   getOfflineQueue,
@@ -255,7 +255,15 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
         })));
       }, {
         maxRetries: 3,
-        onRetry: (attempt) => {
+        onRetry: (attempt, error) => {
+          // A token rejection (PGRST300/301, « JWT issued at future ») is not a
+          // data problem: the token that went out is unusable *right now*.
+          // Refreshing it here — instead of waiting for the next background
+          // cycle — is what makes the retry go out with a usable one, so the
+          // user never sees the red banner that used to require « Réessayer ».
+          if (isAuthTokenError(error instanceof Error ? error.message : String(error ?? ''))) {
+            void supabase.auth.refreshSession().catch(() => {});
+          }
           console.warn(`[MAMA THERA] Retrying data fetch (attempt ${attempt})...`);
           callbacksRef.current?.onRetry?.(attempt);
         },
