@@ -8,46 +8,41 @@
  * tourné vert à chaque push sur `main` pendant 22 runs sans jamais rien rebaser,
  * parce que son secret est absent et que son script sort en 0 « visible, pas
  * rouge ». Rien dans la liste des runs ne permettait de distinguer ça d'un run
- * qui avait réellement mis trois PR à jour. La convention (une automatisation qui
- * ne peut pas agir le DIT, avec une annotation `Inactif`) et les règles de
- * verdict vivent dans scripts/lib/automation-evidence.mjs ; ce fichier ne fait
- * que lire GitHub et imprimer.
+ * qui avait réellement mis trois PR à jour. Le contrat (chaque automatisation
+ * PUBLIE une preuve structurée) et les règles de verdict vivent dans
+ * scripts/lib/automation-evidence.mjs ; ce fichier ne fait que lire GitHub et
+ * imprimer.
  *
  * Ce qu'il juge, exactement : pour CHAQUE workflow du dépôt, le dernier run
- * TERMINÉ sur `main`, et le journal de ses jobs. Vert + aucune annotation
- * `Inactif` = a agi. Impossible de lire le journal = échec (invérifiable n'est
- * pas un vert). Planifié sans run récent = échec (un cron qui ne part pas est en
- * panne). Rouge = signalé sans doubler l'alerte : ce que cet audit cherche est
- * la panne SILENCIEUSE.
+ * TERMINÉ sur `main`, les ÉTAPES de ses jobs et leurs ANNOTATIONS. Aucun journal
+ * n'est téléchargé ni lu — la preuve est un couple de champs structurés
+ * (`title`, `message`) que le runner stocke, pas une ligne de texte recopiée.
+ * Les trois défauts du transport par journal (titre perdu à la réécriture,
+ * marque imprimée par n'importe qui, archivage après coup) disparaissent avec
+ * lui, et l'audit y gagne de ne plus dépendre d'une fenêtre de publication.
  *
- * UNE SEULE EXCEPTION À « invérifiable = échec » : la course de publication.
- * GitHub marque un run terminé AVANT d'archiver ses journaux, donc l'audit —
- * déclenché par le même push que les workflows qu'il juge — lisait `logs 404`
- * pour des runs verts qui venaient de finir, et les comptait comme un faux vert.
- * Un 404 est donc retenté quelques fois (LOG_FETCH_ATTEMPTS), et s'il persiste
- * sur un run RÉCENT il devient `pending` (⏳, nommé, non bloquant) ; au-delà de
- * LOG_GRACE_MS le même 404 redevient l'échec qu'il est. La fenêtre est mesurée,
- * pas devinée : les mêmes journaux répondaient 200 quelques secondes plus tard.
- *
- * Le token est OBLIGATOIRE : les journaux ne sont pas publics. Sans lui, le
- * script sort en 2 avec la raison — il ne rend jamais un vert qu'il n'a pas
- * mesuré.
+ * Le token est OBLIGATOIRE : les runs d'un dépôt privé ne sont pas publics (et
+ * sans `actions: read` la liste revient vide, ce qui ressemble à un dépôt sans
+ * workflow). Sans lui, le script sort en 2 avec la raison — il ne rend jamais un
+ * vert qu'il n'a pas mesuré.
  *
  * Env :
- *   GITHUB_TOKEN | GH_TOKEN | REBASE_TOKEN   lecture des runs et des journaux
+ *   GITHUB_TOKEN | GH_TOKEN | REBASE_TOKEN   lecture des runs, jobs, annotations
  *   GITHUB_REPOSITORY                        `owner/repo` (fourni par Actions)
- *   AUTOMATION_AUDIT_JOBS                    nombre de jobs dont on lit le
- *                                            journal, par workflow (défaut 4)
+ *   AUTOMATION_AUDIT_JOBS                    nombre de jobs dont on lit les
+ *                                            annotations, par workflow (défaut 8)
+ *   AUTOMATION_AUDIT_PUBLISH=0               ne publie pas la preuve de l'audit
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve as resolvePath } from 'node:path';
 import {
-  LOG_FETCH_ATTEMPTS,
+  EVIDENCE_STEP_NAME,
   VERDICT_ICON,
   auditAutomations,
   parseWorkflowFile,
+  promisedEvidence,
 } from './lib/automation-evidence.mjs';
 
 const API = 'https://api.github.com';
@@ -57,11 +52,11 @@ const WORKFLOW_DIR = join(ROOT, '.github', 'workflows');
 
 const token = (process.env.GITHUB_TOKEN || process.env.GH_TOKEN || process.env.REBASE_TOKEN || '').trim();
 const repo = process.env.GITHUB_REPOSITORY || DEFAULT_REPO;
-const maxJobs = Number(process.env.AUTOMATION_AUDIT_JOBS ?? 4);
+const maxJobs = Number(process.env.AUTOMATION_AUDIT_JOBS ?? 8);
 
 if (!token) {
   console.error(
-    '❌ Audit impossible : aucun token. Les journaux de runs ne sont pas publics, donc « je n’ai pas ' +
+    '❌ Audit impossible : aucun token. Les runs ne sont pas publics, donc « je n’ai pas ' +
       'pu regarder » ne doit jamais devenir un vert. En local : GITHUB_TOKEN=… npm run check:automations.',
   );
   process.exit(2);
@@ -74,41 +69,14 @@ const headers = {
 };
 
 /** One API call that never throws: a status and a body, or the reason why not. */
-async function api(path, { raw = false } = {}) {
+async function api(path) {
   try {
     const res = await fetch(API + path, { headers, redirect: 'follow' });
     if (!res.ok) return { ok: false, status: res.status, message: res.statusText };
-    return { ok: true, status: res.status, data: raw ? await res.text() : await res.json() };
+    return { ok: true, status: res.status, data: await res.json() };
   } catch (error) {
     return { ok: false, status: 0, message: error?.message ?? String(error) };
   }
-}
-
-/** Combien de temps on laisse à la plateforme entre deux tentatives de journal. */
-const LOG_RETRY_DELAY_MS = 3000;
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Le journal d'un job, retenté tant que GitHub répond « pas encore là ».
- *
- * Mesuré le 2026-09-12 sur ce dépôt : un run vert terminé depuis quelques
- * secondes répond `logs 404`, puis 200. Retenter un 404 est donc légitime ;
- * retenter un 403 ou un 500 ne le serait pas (le droit et la panne ne dépendent
- * pas de notre patience), et on rend la main tout de suite dans ces cas.
- *
- * @param {number} jobId
- * @returns {Promise<{ ok: boolean, status: number, data?: string, message?: string }>}
- */
-async function fetchJobLog(jobId) {
-  let last = { ok: false, status: 0 };
-  for (let attempt = 1; attempt <= LOG_FETCH_ATTEMPTS; attempt += 1) {
-    last = await api(`/repos/${repo}/actions/jobs/${jobId}/logs`, { raw: true });
-    if (last.ok) return last;
-    if (last.status !== 404) return last;
-    if (attempt < LOG_FETCH_ATTEMPTS) await sleep(LOG_RETRY_DELAY_MS);
-  }
-  return last;
 }
 
 /** Every workflow of the repository, as the files describe them. */
@@ -120,9 +88,29 @@ function readWorkflows() {
 }
 
 /**
- * The last completed run of a workflow on the default branch, and the logs of
- * its first jobs. A log that cannot be read comes back as `null`, which the
- * verdict reads as `unreadable` — never as an absence of markers.
+ * Les annotations des check runs d'un job.
+ *
+ * `check_run_url` est rendu par l'API des jobs : c'est la clé du stockage, et
+ * elle évite de deviner un identifiant. Un job sans check run (annulé avant
+ * démarrage) n'a rien à lire — il est traité comme lu, avec zéro annotation :
+ * c'est le contrat qui tranchera, pas nous.
+ * @param {{ check_run_url?: string }} job
+ */
+async function annotationsOf(job) {
+  const url = String(job?.check_run_url ?? '');
+  const id = url.split('/').filter(Boolean).pop();
+  if (!id) return { ok: true, data: [] };
+  const listed = await api(`/repos/${repo}/check-runs/${id}/annotations?per_page=100`);
+  if (!listed.ok) return listed;
+  return { ok: true, data: listed.data ?? [] };
+}
+
+/**
+ * Le dernier run terminé d'un workflow, ses étapes et ses annotations.
+ *
+ * Un run ROUGE n'a pas besoin de ses annotations : le verdict « déjà visible »
+ * tombe avant. La lecture reste donc concentrée sur ce que cet audit cherche —
+ * la panne silencieuse d'un run vert.
  */
 async function evidenceFor(workflow) {
   // One call, five runs, no status filter: the LAST COMPLETED one is the
@@ -139,43 +127,45 @@ async function evidenceFor(workflow) {
       run: null,
       anyRun: null,
       absent,
-      log: null,
+      annotations: null,
       error: absent ? null : `runs ${listed.status}${listed.message ? ' — ' + listed.message : ''}`,
     };
   }
   const runs = listed.data?.workflow_runs ?? [];
   const run = runs.find((r) => r.status === 'completed') ?? null;
   const anyRun = runs[0] ?? null;
-  if (!run) return { workflow, run: null, anyRun, log: null, error: null };
+  if (!run) return { workflow, run: null, anyRun, annotations: null, error: null };
 
-  // Un run ROUGE n'a pas besoin de son journal : le verdict « déjà visible »
-  // tombe avant, et lire le journal d'un run rouge ne servait qu'à afficher un
-  // `(logs 404)` trompeur à côté d'un échec déjà annoncé.
   if (run.conclusion && run.conclusion !== 'success') {
-    return { workflow, run, anyRun, log: null, logsUnavailable: false, error: null };
+    return { workflow, run, anyRun, annotations: null, error: null };
   }
 
-  const jobs = await api(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=${Math.max(1, maxJobs)}`);
-  if (!jobs.ok) return { workflow, run, anyRun, log: null, logsUnavailable: false, error: `jobs ${jobs.status}` };
+  const jobs = await api(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`);
+  if (!jobs.ok) {
+    return { workflow, run, anyRun, annotations: null, annotationsUnavailable: true, error: `jobs ${jobs.status}` };
+  }
 
-  const parts = [];
-  for (const job of (jobs.data?.jobs ?? []).slice(0, maxJobs)) {
-    const log = await fetchJobLog(job.id);
-    // 404 = la plateforme n'a pas encore archivé le fichier (voir LOG_GRACE_MS) ;
-    // les autres statuts sont des échecs de lecture sans excuse.
-    if (!log.ok) {
+  const all = jobs.data?.jobs ?? [];
+  // Le contrat se lit sur les ÉTAPES de CE run : une étape de preuve qui existait
+  // et n'a pas abouti est un manquement du run, pas une tolérance de migration.
+  const promised = all.some((job) => promisedEvidence(job.steps));
+  const annotations = [];
+  for (const job of all.slice(0, maxJobs)) {
+    const read = await annotationsOf(job);
+    if (!read.ok) {
       return {
         workflow,
         run,
         anyRun,
-        log: null,
-        logsUnavailable: log.status === 404,
-        error: `logs ${log.status}`,
+        promised,
+        annotations: null,
+        annotationsUnavailable: true,
+        error: `annotations ${read.status}`,
       };
     }
-    parts.push(log.data);
+    annotations.push(...(read.data ?? []));
   }
-  return { workflow, run, anyRun, log: parts.join('\n'), logsUnavailable: false, error: null };
+  return { workflow, run, anyRun, promised, annotations, error: null };
 }
 
 const workflows = readWorkflows();
@@ -185,22 +175,25 @@ for (const workflow of workflows) {
 }
 
 const { results, ko, ok } = auditAutomations({
-  workflows: evidence.map(({ workflow, run, anyRun, absent, log, logsUnavailable }) => ({
+  workflows: evidence.map(({ workflow, run, anyRun, absent, annotations, annotationsUnavailable, promised }) => ({
     file: workflow.file,
     name: workflow.name,
     hasSchedule: workflow.hasSchedule,
     run,
     anyRun,
     absent,
-    log,
-    logsUnavailable,
-    // Le sujet de la preuve : la ligne structurée n'est comptée que si elle
-    // nomme ce workflow-là (voir EVIDENCE_PREFIX).
+    annotations: annotations ?? null,
+    annotationsUnavailable: Boolean(annotationsUnavailable),
+    // Le run promettait-il une preuve ? On le lit sur SES étapes (voir
+    // EVIDENCE_STEP_NAME) : un run antérieur au contrat ne pouvait rien publier,
+    // et le juger comme un manquement serait un faux rouge de plus.
+    promised: Boolean(promised),
     workflow: workflow.file,
   })),
 });
 
-console.log(`🔎 Audit des automatisations — ${repo}, dernier run terminé sur main (${results.length} workflow(s))\n`);
+console.log(`🔎 Audit des automatisations — ${repo}, dernier run terminé sur main (${results.length} workflow(s))`);
+console.log(`   preuve lue dans les annotations stockées (« ${EVIDENCE_STEP_NAME} »), jamais dans un journal\n`);
 for (const [i, r] of results.entries()) {
   const evidenceRow = evidence[i];
   const ran = evidenceRow.run ? `${evidenceRow.run.conclusion} ${String(evidenceRow.run.created_at).slice(0, 10)}` : '—';
@@ -215,17 +208,34 @@ for (const [i, r] of results.entries()) {
 }
 
 // Un `pending` n'est ni un échec ni un blanc-seing : le rapport le nomme, et le
-// résumé ne peut pas prétendre que TOUT a été vérifié quand un journal manque
+// résumé ne peut pas prétendre que TOUT a été vérifié quand une preuve manque
 // encore (ce dépôt a déjà payé un silence pris pour un vert).
 const pending = results.filter((r) => r.verdict === 'pending');
-const pendingNote = pending.length ? ` — ${pending.length} journal(aux) pas encore publié(s), rien à en déduire` : '';
+const pendingNote = pending.length ? `, ${pending.length} preuve(s) pas encore lisibles` : '';
+// Le résumé dit ce qui a été LU, pas ce qu'on espère : une preuve publiée et un
+// run antérieur au contrat ne sont pas la même chose, et les confondre serait
+// exactement le vert de complaisance que cet audit existe pour empêcher.
+const published = results.filter((r) => r.verdict === 'acted').length;
+const legacy = results.filter((r) => r.verdict === 'legacy').length;
+const idle = results.filter((r) => r.verdict === 'idle' || r.verdict === 'absent').length;
 
 console.log(
   ok
-    ? `\n✅ Les ${results.length} automatisations ont agi à leur dernier run${pendingNote}.`
+    ? `\n✅ Aucune automatisation inerte — ${published} preuve(s) publiée(s)` +
+      (legacy
+        ? `, ${legacy} run(s) antérieur(s) au contrat de preuve (jugés sur leur seule conclusion — le contrat s’applique au prochain)`
+        : '') +
+      (idle ? `, ${idle} sans run à juger` : '') +
+      `${pendingNote}.`
     : `\n❌ ${ko.length} automatisation(s) n’ont pas agi — un run vert qui ne fait rien est un faux vert :`,
 );
 for (const r of ko) console.log(`   • ${r.name || r.file} : ${r.reason}`);
 if (!ok && pending.length) console.log(`   ⏳ hors verdict : ${pending.map((r) => r.name || r.file).join(', ')}`);
 
+// L'audit publie sa propre preuve comme tout le monde : par l'étape NOMMÉE du
+// workflow (`Publier la preuve d’action` → scripts/publish-automation-evidence.mjs),
+// pas depuis ce script. Un producteur qui publierait hors de l'étape qu'il
+// déclare rendrait le contrat invérifiable : l'audit lit les étapes du run pour
+// savoir si une preuve était attendue, et c'est cette lecture qui remplace la
+// fenêtre de tolérance qu'on devinait auparavant.
 process.exit(ok ? 0 : 1);

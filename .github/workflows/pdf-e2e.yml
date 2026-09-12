@@ -211,3 +211,12 @@ jobs:
       # pixel-checks ; lecture seule, ne supprime rien.
       - name: Vérification finale — aucun compte éphémère résiduel en base
         run: node scripts/verify-ephemeral-cleanup.mjs
+
+      # Preuve publiée par l'étape NOMMÉE (lue dans les étapes du run par
+      # `npm run check:automations`), et publiée en DERNIER : elle affirme que la
+      # chaîne est allée au bout — en-têtes, CSP, deux pixel-checks et le
+      # nettoyage des comptes éphémères.
+      - name: Publier la preuve d’action — chaîne PDF E2E
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "chaîne PDF E2E complète : en-têtes de sécurité, garde CSP, pixel-checks paie et reçu parent, nettoyage des comptes éphémères"

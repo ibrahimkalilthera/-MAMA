@@ -10,10 +10,14 @@ name: Automation audit
 # shim git installé mais jamais atteint, l'étape de contraste déclarée « non
 # applicable » alors qu'elle ne mesurait rien).
 #
-# La règle est donc écrite une fois (scripts/lib/automation-evidence.mjs) : une
-# automatisation qui ne peut pas agir le DIT, avec une annotation `Inactif`. Ce
-# job lit le dernier run terminé de CHAQUE workflow et échoue si elle est là.
-# Un journal illisible est un échec aussi : invérifiable n'est pas un vert.
+# La règle est écrite une fois (scripts/lib/automation-evidence.mjs) : chaque
+# automatisation PUBLIE une preuve d'action, lue dans les ANNOTATIONS stockées de
+# son run — plus jamais dans le texte d'un journal. Ce job lit le dernier run
+# terminé de CHAQUE workflow et échoue quand la preuve manque ou déclare une
+# inaction. Une preuve illisible est un échec aussi : invérifiable n'est pas un
+# vert. Une preuve absente n'a de sens que si le run en attendait une : l'audit
+# lit les ÉTAPES du run pour le savoir, donc un run antérieur au contrat est
+# `legacy` (nommé, non bloquant) au lieu d'être un faux rouge.
 #
 # Deux déclencheurs, chacun pour une raison :
 #   • push sur `main` — le moment où un faux vert vient d'être fabriqué ;
@@ -48,9 +52,12 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  # Lire les runs et télécharger leurs journaux. Aucune écriture n'est demandée :
-  # un audit qui pourrait modifier ce qu'il inspecte ne l'inspecte plus.
+  # `actions: read` pour les runs et leurs étapes, `checks: read` pour les
+  # annotations qui portent la preuve (ce sont des champs stockés, pas du texte de
+  # journal). Aucune écriture n'est demandée : un audit qui pourrait modifier ce
+  # qu'il inspecte ne l'inspecte plus.
   actions: read
+  checks: read
   contents: read
 
 jobs:
@@ -72,7 +79,16 @@ jobs:
 
       - name: Auditer les automatisations
         env:
-          # Le token est nécessaire : les journaux de runs ne sont pas publics,
-          # et l'audit refuse de rendre un vert qu'il n'a pas pu mesurer.
+          # Le token est nécessaire : les runs ne sont pas publics, et l'audit
+          # refuse de rendre un vert qu'il n'a pas pu mesurer.
           GITHUB_TOKEN: ${{ github.token }}
         run: npm run check:automations
+
+      # L'audit n'est pas exempté de la règle qu'il impose : il publie sa propre
+      # preuve, par la même étape nommée que tous les autres workflows. C'est ce
+      # nom qui dit à l'audit, au run suivant, qu'une preuve était ATTENDUE ici
+      # (un run sans cette étape est jugé antérieur au contrat, pas fautif).
+      - name: Publier la preuve d’action — audit des automatisations
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "audit exécuté : verdict et comptes imprimés ci-dessus"

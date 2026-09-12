@@ -51,3 +51,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/check-vercel-pins.mjs
+
+      # La preuve est publiée par une ÉTAPE NOMMÉE (`Publier la preuve d’action`),
+      # parce que c'est à ce nom — lu dans les étapes du run par
+      # `npm run check:automations` — que se reconnaît un workflow qui avait
+      # promis une preuve. Sans elle, ce workflow serait jugé « antérieur au
+      # contrat » et rien n'exigerait jamais qu'il déclare quoi que ce soit.
+      - name: Publier la preuve d’action — veille des épingles Vercel
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "arbre tools/ audité et dernière release sondée (verdict et issue imprimés ci-dessus)"

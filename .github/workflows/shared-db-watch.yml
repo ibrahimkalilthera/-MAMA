@@ -58,3 +58,11 @@ jobs:
       # avant la mesure.
       - name: Lire le site déployé et sa base
         run: npm run check:shared-db:live
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — base servie par le site
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "site déployé lu : page et modules suivis, base partagée vérifiée"

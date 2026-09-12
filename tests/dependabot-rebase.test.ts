@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { INERT_MARK } from '../scripts/lib/automation-evidence.mjs';
+import { evidenceFromAnnotations, EVIDENCE_TITLE } from '../scripts/lib/automation-evidence.mjs';
 
 const { eligibility, isBehind, rebaseOutOfDatePrs } = await import('../scripts/rebase-dependabot-prs.mjs');
 
@@ -252,18 +252,33 @@ describe('entrée — importer est silencieux, exécuter déclare', () => {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
+  /** Les preuves que la sortie d'un processus contient, relues comme l'audit le fait. */
+  const proofsIn = (out: string) =>
+    evidenceFromAnnotations(
+      out
+        .split(/\r?\n/)
+        .filter((line) => line.includes('::') && line.includes('title='))
+        .map((line) => ({
+          title: EVIDENCE_TITLE,
+          message: line.slice(line.indexOf('::', 8) + 2),
+        })),
+    );
+
   it('importer le module n’imprime AUCUNE déclaration d’inaction', () => {
     const out = runNode(['-e', "import('./scripts/rebase-dependabot-prs.mjs').then(() => {})"]);
-    assert.equal(
-      out.includes(INERT_MARK),
-      false,
-      `importer doit être inerte, or la marque a été imprimée : ${out.slice(0, 200)}`,
+    assert.deepEqual(
+      proofsIn(out),
+      [],
+      `importer doit être inerte, or une preuve a été publiée : ${out.slice(0, 200)}`,
     );
   });
 
-  it('exécuté sans token, il déclare son inaction (la déclaration existe toujours)', () => {
+  it('exécuté sans token, il publie sa propre inaction (la déclaration existe toujours)', () => {
     const out = runNode(['scripts/rebase-dependabot-prs.mjs']);
-    assert.ok(out.includes(INERT_MARK), `sans token, l’inaction doit être déclarée : ${out.slice(0, 200)}`);
+    const proofs = proofsIn(out);
+    assert.equal(proofs.length, 1, `sans token, l’inaction doit être publiée : ${out.slice(0, 200)}`);
+    assert.equal(proofs[0].acted, false);
+    assert.equal(proofs[0].workflow, 'dependabot-rebase.yml');
     assert.match(out, /DEPENDABOT_REBASE_TOKEN/);
   });
 });
