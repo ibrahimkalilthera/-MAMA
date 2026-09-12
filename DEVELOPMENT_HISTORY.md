@@ -10,6 +10,17 @@ Demande : « ajoute un frein d'urgence à la mise à jour obligatoire : un moyen
 
 **Ce que le frein ne peut pas faire, dit franchement** : il n'agit que sur les postes dont la version installée **contient** ce code. Les parc installés aujourd'hui ne le lisent pas — pour eux, le seul levier reste le retrait du release, qui vaut pour tout le monde. Un frein s'installe avant d'en avoir besoin.
 
+**Livré, et prouvé sur le binaire.** La 1.0.3 a été empaquetée et publiée (tag `cd3c246`), et `scripts/verify-updater.mjs` gagne une cinquième passe `hold` : **la même version et la même date que la passe `age`** — qui, elle, force — avec la **seule** ligne de retenue en plus. Si l'obligation tombe quand même, le frein a échoué ; c'est la seule chose que cette passe mesure, et elle vaut donc plus que les quatre autres. Relevé sur l'exe empaqueté, **`PROOF_OK` 5/5** :
+
+```
+patch  1.0.4  → n'impose rien          age   1.0.4 (46 j) → OBLIGATOIRE (... toujours pas installée)
+minor  1.2.0  → OBLIGATOIRE (...mineure(s))   major 2.0.0 → OBLIGATOIRE (...majeure(s))
+hold   1.0.4 (46 j) → update-retenue 1.0.4 — version retenue : frein d'urgence — version défectueuse retenue
+                    → update-downloaded 1.0.4 — INSTALLATION REFUSÉE (version retenue)
+```
+
+Le passage par `release/` a aussi montré une dépendance du script qu'il fallait dire : la passe sert maintenant `updates/holds.json` par le **même flux local** — sans lui, le frein serait *illisible*, et l'illisible ne forçant rien, les quatre passes de seuil ne prouveraient plus rien (elles seraient vertes pour la mauvaise raison). Et le frein publié est **lisible par un poste** (HTTP 200 sans jeton, zéro retenue au repos) : un frein qui répondrait « aucune retenue » sur un fichier cassé serait pire que pas de frein, d'où le traitement distinct de *vide* et *illisible*.
+
 **Preuves** : `tests/updater-policy.test.ts` (+9 cas : retenue avec motif, frein qui ne frappe que la version nommée, motif absent qui ne rend pas le frein inerte, retenue qui **bat** un forçage au-delà du seuil, liste illisible qui ne force rien sans bloquer la mise à jour, compatibilité sans frein lu, URL déduite de `app-update.yml` et mode preuve, fichier de retenues valide et vide au repos, et câblage des **quatre** chemins d'installation) — **32/32** dans le fichier, suite complète et chaîne qualité vertes. Statut des libellés : le bandeau n'affiche **rien** pour une version retenue (ce n'est pas une panne à signaler, c'est une décision qui n'appartient pas à l'utilisateur), et le type d'état l'admet explicitement.
 
 ## [2026-09-12] La preuve d'auto-update joue une passe par seuil — et c'est la DATE qui compte

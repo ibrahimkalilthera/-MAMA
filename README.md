@@ -181,15 +181,16 @@ Une version publiée doit atteindre **tous** ceux qui ont installé le setup, sa
 - **Retirer le release** (supprimer le release et son tag) : le geste qui vaut pour **tous** les postes, y compris ceux dont la version installée ne lit pas le frein — `electron-updater` ne voit plus cette version dans le flux. C'est le premier geste.
 - **Publier une retenue** dans [`updates/holds.json`](updates/holds.json) (`{"version": "1.0.4", "reason": "…"}`), un fichier **hors du release** donc modifiable **après** publication : le poste cesse de proposer *et* cesse d'imposer, sans attendre que le release soit retiré. Lu à chaque vérification, depuis `app-update.yml` (le propriétaire et le dépôt ne sont pas recopiés ailleurs).
 
-Trois propriétés, chacune testée : une retenue **bat le forçage** ; une liste **illisible ne force RIEN** mais continue de **proposer** (on ne contraint pas un utilisateur sur une supposition — même asymétrie que pour une version illisible) ; et le frein tient sur **tous** les chemins qui mènent à l'installation — l'annonce, le rappel déjà programmé, le bouton, et l'« installation à la fermeture » d'`electron-updater`. ⚠️ Un frein n'agit que sur les postes dont la version installée **contient ce frein** : il faut donc l'avoir livré **avant** d'en avoir besoin.
+Trois propriétés, chacune testée : une retenue **bat le forçage** ; une liste **illisible ne force RIEN** mais continue de **proposer** (on ne contraint pas un utilisateur sur une supposition — même asymétrie que pour une version illisible) ; et le frein tient sur **tous** les chemins qui mènent à l'installation — l'annonce, le rappel déjà programmé, le bouton, et l'« installation à la fermeture » d'`electron-updater`. ⚠️ Conséquence assumée de la deuxième : un poste qui **ne peut pas lire** la liste (réseau du site) n'impose plus rien — le prix du « on ne force pas sur une supposition », et il se voit au journal (`retenues illisibles …`). ⚠️ Et un frein n'agit que sur les postes dont la version installée **contient ce frein** : livré en **1.0.3**, il ne protège pas les parc plus anciens, pour lesquels seul le retrait du release fonctionne.
 
 **La preuve est faite sur le binaire livré, pas seulement en unité** : `node scripts/verify-updater.mjs` sert un flux local à l'exe empaqueté, et joue **une passe par règle** — parce qu'un seul scénario ne peut en prouver qu'une, et que la règle qui attrape les postes d'école est celle de la **date** :
 
 ```
 patch  même majeure, correctif récent       → NE DOIT PAS être obligatoire
-a ge   même majeure, publié il y a > 45 j   → OBLIGATOIRE (… toujours pas installée)
+age    même majeure, publié il y a > 45 j   → OBLIGATOIRE (… toujours pas installée)
 minor  deux mineures de retard              → OBLIGATOIRE (2 version(s) mineure(s) de retard)
 major  une majeure de retard                → OBLIGATOIRE (1 version(s) majeure(s) de retard)
+hold   LA MÊME que « age », mais retenue    → AUCUNE obligation + installation refusée
 ```
 
 L'exigence ne porte pas seulement sur « obligatoire oui/non » mais sur le **motif annoncé** : sans lui, une règle qui forcerait tout le temps passerait pour verte dans les trois passes obligatoires. Les seuils (45 jours, 2 mineures, 1 majeure) sont **lus dans `electron/updater-policy.cjs`**, jamais recopiés — une preuve qui recopie un seuil finit par prouver une règle que le code a quittée. Chaque passe exige en plus un **téléchargement réel** (`download-progress`, cache invalidé entre les passes) et **au moins deux vérifications dans la même session** : mesuré, `check focus` ouvre le bal, `check startup` est refusé comme trop rapproché, puis l'intervalle redéclenche. `UPDATER_PASSES=age,major` restreint le run.
