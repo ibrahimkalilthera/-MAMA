@@ -312,6 +312,76 @@ function holdDecision({ version = null, holds = null, readOk = true } = {}) {
 }
 
 /**
+ * ─── Un poste bloqué doit le DIRE ────────────────────────────────────────
+ *
+ * La porte empêchait un poste de continuer ; elle ne l'aidait pas à se faire
+ * connaître. Mesuré sur ce qui existait : les échecs d'un poste forcé partaient
+ * dans `console.log`, c'est-à-dire nulle part pour qui n'ouvre pas les outils
+ * de développement — donc un poste d'école pouvait rester des semaines derrière
+ * la porte sans que personne ne sache ni qu'il l'était, ni pourquoi.
+ *
+ * Ce module est le bon endroit pour décider QUAND un poste est bloqué, parce
+ * que c'est la même décision que le forçage : elle est pure, elle se teste, et
+ * elle n'a pas à être recopiée dans le processus principal. Ce qu'il ne fait
+ * pas : choisir le canal (fichier local, journal d'audit). Un poste bloqué n'a
+ * peut-être aucune session — le canal ne peut donc pas être décidé ici.
+ *
+ * Trois causes, et il n'y en a pas d'autre :
+ *   • **`install`** — une installation a été tentée et le poste est revenu sur
+ *     la même version. C'est le pire des trois, parce que c'est un échec
+ *     SILENCIEUX : l'utilisateur a cliqué « Redémarrer maintenant », a redémarré,
+ *     et rien n'a changé. Signalé même hors obligation — une installation qui
+ *     n'aboutit pas est un fait, pas une opinion sur le retard ;
+ *   • **`manual`** — la porte est fermée et ce poste ne peut structurellement
+ *     pas la satisfaire (version portable : `electron-updater` exige l'installeur
+ *     NSIS). Le forcer serait le bloquer pour toujours ; le signaler est la
+ *     seule chose honnête à faire, parce qu'il faut une main humaine ;
+ *   • **`download`** — obligatoire, et le téléchargement a échoué : le poste ne
+ *     peut plus avancer seul, et il attend sur une porte fermée.
+ *
+ * Et une quatrième chose, qui n'est PAS bloquée : un poste obligé qui
+ * télécharge, qui a téléchargé, ou qui attend une confirmation. Le signaler
+ * noierait le vrai cas sous le bruit de la progression normale.
+ *
+ * @param {{ forced?: boolean, status?: string|null, detail?: string|null,
+ *   isPortable?: boolean, installPending?: boolean }} input
+ * @returns {{ blocked: boolean, code: 'install' | 'manual' | 'download' | 'none', detail: string }}
+ */
+function gateFailure({
+  forced = false,
+  status = null,
+  detail = null,
+  isPortable = false,
+  installPending = false,
+} = {}) {
+  if (installPending) {
+    return {
+      blocked: true,
+      code: 'install',
+      detail: 'installation précédente non aboutie — ce poste est revenu sur la même version',
+    };
+  }
+  if (!forced) {
+    return { blocked: false, code: 'none', detail: 'mise à jour non obligatoire — rien à signaler' };
+  }
+  if (isPortable) {
+    return {
+      blocked: true,
+      code: 'manual',
+      detail: 'version portable : l’installation automatique exige l’installeur NSIS — un poste portable ne peut pas satisfaire la porte tout seul',
+    };
+  }
+  if (status === 'error') {
+    return {
+      blocked: true,
+      code: 'download',
+      detail: String(detail ?? '').trim() || 'téléchargement en échec (aucun détail fourni)',
+    };
+  }
+  return { blocked: false, code: 'none', detail: 'le poste peut encore avancer seul' };
+}
+
+/**
  * La porte de LIVRAISON : ce qu'un poste a le droit de faire de la version
  * annoncée. Une retenue bat toujours le forçage — c'est tout l'objet du frein.
  *
@@ -344,4 +414,5 @@ module.exports = {
   holdsUrlFrom,
   holdDecision,
   updateGate,
+  gateFailure,
 };

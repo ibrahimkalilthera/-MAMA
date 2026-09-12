@@ -36,7 +36,22 @@
 //          date que « age », avec une ligne de retenue dans le frein)
 //                                              → AUCUNE obligation, et
 //                                                `update-retenue <v>` au journal
+//   blocked version OBLIGATOIRE dont le téléchargement ÉCHOUE (l'installeur
+//          n'est pas servi : 404)
+//                                              → `poste bloqué (download)` au
+//                                                journal, ET une entrée écrite
+//                                                dans le journal local du poste
+//                                                (`update-journal.jsonl`) :
+//                                                c'est la seule trace qu'un
+//                                                administrateur peut lire sans
+//                                                session, et elle était muette
 //
+// La passe `blocked` est celle du signalement : un poste bloqué par la porte ne
+// doit pas rester silencieux (le cas mesuré : l'échec partait dans la console du
+// processus principal, donc nulle part). Elle est la SEULE qui lit un fichier
+// écrit par l'application — le journal local — et pas seulement son log de
+// preuve, parce que c'est ce fichier-là qui existe sur le poste d'un client.
+
 // La passe `hold` est celle du frein d'urgence : elle sert un `updates/holds.json`
 // (le fichier du dépôt, servi par le même flux) qui retient la version annoncée,
 // et exige que l'obligation tombe. Comme les autres, elle ne vaut que sur un
@@ -51,7 +66,7 @@
 // sinon la preuve suivrait une valeur que le code a quittée.
 //
 // `UPDATER_PASSES=age,major` restreint le run (mise au point) ; sans variable,
-// les quatre passes tournent.
+// les six passes tournent.
 //
 // Exit 0 + PROOF_OK = l'exe empaqueté vérifie, trouve, télécharge et valide une
 // mise à jour, et annonce l'obligation EXACTEMENT quand la politique la décide,
@@ -74,6 +89,9 @@ const {
   FORCED_MINOR_BEHIND,
   FORCED_RELEASE_AGE_DAYS,
 } = require('../electron/updater-policy.cjs');
+// Le journal local est lu par le MODULE qui l'écrit dans l'application : une
+// preuve qui reparserait le fichier à sa façon prouverait son propre parseur.
+const { readEntries: readJournal, JOURNAL_FILE } = require('../electron/update-journal.cjs');
 
 // Le nom de l'installeur PORTE la version (electron-builder : ${version}) : la
 // lire dans package.json plutôt que l'écrire ici. Une montée de version a déjà
@@ -149,6 +167,20 @@ const SCENARIOS = LOCAL ? [
     forced: true,
     because: 'majeure(s) de retard',
   },
+  {
+    id: 'blocked',
+    title: `OBLIGATOIRE (${LOCAL.major + FORCED_MAJOR_BEHIND}.0.0) dont le téléchargement échoue`,
+    version: `${LOCAL.major + FORCED_MAJOR_BEHIND}.0.0`,
+    releaseDate: ageDate(0),
+    forced: true,
+    because: 'majeure(s) de retard',
+    // Le flux ANNONCE la version mais ne sert pas l'installeur : c'est le cas
+    // réel d'un poste dont le téléchargement échoue (réseau filtré, proxy, coupure).
+    brokenDownload: true,
+    // Une chaîne « checking → progress → downloaded » ne peut pas se terminer
+    // ici : c'est justement parce qu'elle casse que le poste est bloqué.
+    chainRequired: false,
+  },
 ] : [];
 
 const wanted = (process.env.UPDATER_PASSES || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -170,6 +202,8 @@ const sha512 = createHash('sha512').update(exeBytes).digest('base64');
 let feedYml = '';
 /** Le frein servi (`updates/holds.json`) : vide, sauf pour la passe « hold ». */
 let feedHolds = JSON.stringify({ holds: [] });
+/** La passe courante rend-elle l'installeur introuvable (poste bloqué) ? */
+let feedBroken = false;
 let servedSetup = 0;
 
 const server = createServer((req, res) => {
@@ -184,6 +218,14 @@ const server = createServer((req, res) => {
     res.end(feedHolds);
     console.log(`  [feed] GET ${path} → ${JSON.parse(feedHolds).holds.length} retenue(s)`);
   } else if (path.endsWith('-setup.exe')) {
+    // Une passe peut vouloir un téléchargement IMPOSSIBLE : c'est ainsi qu'un
+    // poste obligé se retrouve bloqué, et c'est ce blocage qu'on prouve.
+    if (feedBroken) {
+      res.writeHead(404);
+      res.end();
+      console.log(`  [feed] GET ${path} → 404 (téléchargement impossible, voulu par la passe)`);
+      return;
+    }
     servedSetup += 1;
     res.writeHead(200, { 'Content-Length': exeBytes.length });
     res.end(exeBytes);
@@ -268,12 +310,18 @@ async function runScenario(scenario) {
   feedHolds = JSON.stringify({
     holds: scenario.held ? [{ version: scenario.version, reason: 'frein d’urgence — version défectueuse retenue' }] : [],
   });
+  feedBroken = scenario.brokenDownload === true;
   await invalidateUpdaterCache();
 
   let app = null;
   // Déclaré AVANT le `try` : le verdict se lit après le `finally` (une variable
   // déclarée dedans serait hors portée au moment de juger la passe).
   let downloaded = false;
+  // La passe « blocked » n'a rien à télécharger : sa trace est le SIGNALEMENT.
+  // Attendre `update-downloaded` y ferait 90 s de surplace, et l'attente
+  // masquerait le succès derrière un délai au lieu de le constater.
+  const stopOn = scenario.brokenDownload ? 'poste bloqué' : 'update-downloaded';
+  let stopped = false;
   const seen = [];
   try {
     app = spawn(EXE, [`--user-data-dir=${userData}`], {
@@ -293,17 +341,21 @@ async function runScenario(scenario) {
     });
     console.log('🚀 exe empaqueté lancé (win-unpacked, profil isolé)…');
 
-    for (let i = 0; i < 90 && !downloaded; i++) {
+    for (let i = 0; i < 90 && !stopped; i++) {
       await wait(1000);
       readLog(logFile, seen);
       downloaded = seen.some((m) => m.startsWith('update-downloaded'));
+      stopped = seen.some((m) => m.startsWith(stopOn));
     }
 
     // L'application est laissée ouverte ~15 s après le téléchargement pour
     // observer AU MOINS une vérification supplémentaire : c'est la propriété qui
     // manquait (« une version publiée pendant que l'app tourne doit être vue »).
-    await wait(15000);
-    readLog(logFile, seen);
+    // Pas sur une passe sans téléchargement : son verdict est déjà tombé.
+    if (!scenario.brokenDownload) {
+      await wait(15000);
+      readLog(logFile, seen);
+    }
   } finally {
     try { app && app.kill(); } catch { /* ignore */ }
     // Laisse partir les handles de l'app avant la prochaine invalidation de cache.
@@ -323,6 +375,15 @@ async function runScenario(scenario) {
   // une absence (une absence peut venir de dix autres causes).
   const heldLine = seen.find((m) => m.startsWith(`update-retenue ${scenario.version}`)) || null;
   const refusal = seen.find((m) => m.startsWith('update-downloaded') && m.includes('INSTALLATION REFUSÉE')) || null;
+  // Le blocage signalé, et — ce qui compte le plus — l'entrée RÉELLEMENT écrite
+  // dans le journal local du poste. Le log de preuve est un artefact du test ;
+  // le journal, lui, existe aussi sur le poste d'un client.
+  const blockedLine = seen.find((m) => m.startsWith('poste bloqué (download)')) || null;
+  const journalEntries = scenario.brokenDownload
+    ? readJournal(join(userData, JOURNAL_FILE), { limit: 10 })
+    : [];
+  const journalEntry = journalEntries.find((e) => e.code === 'download') || null;
+  const blockedRight = Boolean(blockedLine) && Boolean(journalEntry);
 
   // Le MOTIF fait partie de la preuve : trois règles peuvent forcer, et une règle
   // qui forcerait toujours passerait pour verte si on ne lisait que le drapeau.
@@ -337,15 +398,31 @@ async function runScenario(scenario) {
   const holdRight = Boolean(heldLine) && !announcesForced && (!downloaded || Boolean(refusal));
 
   const ok = (chainRequired ? chain && rechecked : checks >= 1) &&
-    (scenario.held ? holdRight : reasonRight) && servedSetup > 0;
-  console.log(rechecked
-    ? `✅ ${checks} vérifications pendant la MÊME session (reprise périodique)`
-    : `❌ ${checks} vérification(s) — l'app ouverte ne revoit rien passer`);
+    (scenario.held ? holdRight : scenario.brokenDownload ? blockedRight : reasonRight) &&
+    // Un téléchargement refusé n'est pas un flux vide : la passe bloquée ne sert
+    // aucun octet d'installeur, et exiger un service réussi l'aurait rendue
+    // contradictoire.
+    (scenario.brokenDownload || servedSetup > 0);
+  // Ce contrôle ne concerne que les passes où la chaîne doit aller au bout :
+  // une passe qui s'arrête sur son propre verdict (retenue, blocage) n'a pas à
+  // reprocher à l'app de n'avoir vérifié qu'une fois — c'est le but.
+  if (chainRequired) {
+    console.log(rechecked
+      ? `✅ ${checks} vérifications pendant la MÊME session (reprise périodique)`
+      : `❌ ${checks} vérification(s) — l'app ouverte ne revoit rien passer`);
+  }
   if (scenario.held) {
     console.log(holdRight
       ? `✅ l'exe empaqueté retient la version, et n'impose RIEN : ${heldLine}`
       : `❌ frein inopérant — ligne de retenue=${Boolean(heldLine)}, obligation annoncée=${announcesForced}${announced ? ` (${announced})` : ''}${downloaded && !refusal ? ', installation non refusée' : ''}`);
     if (refusal) console.log(`✅ installation refusée après téléchargement : ${refusal}`);
+  } else if (scenario.brokenDownload) {
+    console.log(blockedRight
+      ? `✅ le poste bloqué s'est signalé : ${blockedLine} — journal local ${journalEntries.length} entrée(s)`
+      : `❌ poste bloqué MUET — ligne de signalement=${Boolean(blockedLine)}, entrée dans ${JOURNAL_FILE}=${journalEntry ? 'oui' : 'non'} (${journalEntries.length} entrée(s))`);
+    if (journalEntry) {
+      console.log(`✅ entrée écrite dans le journal du poste : ${journalEntry.code} · ${journalEntry.station} · ${journalEntry.detail}`);
+    }
   } else if (scenario.forced) {
     console.log(ok
       ? `✅ l'exe empaqueté annonce l'obligation, avec le bon motif : ${announced}`
@@ -357,6 +434,8 @@ async function runScenario(scenario) {
   }
   if (chainRequired) {
     console.log(`${chain ? '✅' : '❌'} chaîne ${chain ? 'complète' : 'incomplète'} pour ${scenario.version} (checking → available → progress → downloaded)`);
+  } else if (scenario.brokenDownload) {
+    console.log(`${checks >= 1 ? '✅' : '❌'} ${checks} vérification(s) — le téléchargement a échoué, et c'est la panne prouvée ici`);
   } else {
     console.log(`${checks >= 1 ? '✅' : '❌'} ${checks} vérification(s) — une version retenue ne se télécharge pas pour être installée`);
   }

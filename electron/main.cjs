@@ -16,6 +16,7 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const { appendEntry, readEntries, journalPath } = require('./update-journal.cjs');
 
 const FALLBACK_URL = 'https://mama-thera-finance.vercel.app/';
 // Où atterrit un poste qui ne peut pas s'auto-installer (portable) : le lien
@@ -58,19 +59,24 @@ function staleCacheVersion() {
 
 function purgeStaleUpdaterCache(log) {
   const flag = installPendingFlag();
-  if (!fs.existsSync(flag)) return; // no attempted install → cache stays (e.g. "Later")
+  if (!fs.existsSync(flag)) return { attempted: false, cachedVersion: null }; // no attempted install → cache stays (e.g. "Later")
   fs.rmSync(flag, { force: true });
   const dir = updaterCacheDir();
+  const cachedVersion = staleCacheVersion();
   if (!fs.existsSync(dir)) {
     log('installation précédente non aboutie — cache updater absent');
-    return;
+    return { attempted: true, cachedVersion };
   }
-  const cachedVersion = staleCacheVersion();
   fs.rmSync(dir, { recursive: true, force: true });
   const outcome = cachedVersion && cachedVersion !== app.getVersion()
     ? 'installation précédente non aboutie'
     : 'mise à jour appliquée (cache inutile)';
   log(`cache electron-updater purgé (${outcome})`);
+  // Le verdict est RENDU, pas seulement journalisé : une installation tentée et
+  // revenue sur la même version est le cas le plus silencieux d'un poste bloqué
+  // (l'utilisateur a cliqué « Redémarrer maintenant », il a redémarré, rien n'a
+  // changé) et c'est l'appelant qui sait quoi en faire.
+  return { attempted: true, cachedVersion };
 }
 
 // ── Auto-update (electron-updater, GitHub releases) ─────────────────────────
@@ -90,7 +96,7 @@ function setupAutoUpdater(win) {
   const { autoUpdater } = require('electron-updater');
   const {
     shouldCheck, shouldPrompt, updateAction, updatePressure,
-    holdsUrlFrom, holdDecision, updateGate,
+    holdsUrlFrom, holdDecision, updateGate, gateFailure,
     CHECK_INTERVAL_MS, FOCUS_COOLDOWN_MS, RE_PROMPT_MS, FORCED_RE_PROMPT_MS,
   } = require('./updater-policy.cjs');
   const logFile = process.env.UPDATER_LOG_FILE;
@@ -102,7 +108,8 @@ function setupAutoUpdater(win) {
   };
   // Stale-cache guard: runs before the first check. A leftover sentinel means
   // the previous install did not complete — purge the cache, never re-serve it.
-  try { purgeStaleUpdaterCache(log); } catch (e) { log(`purge-cache échec ${(e && e.message) || e}`); }
+  let lastInstall = { attempted: false, cachedVersion: null };
+  try { lastInstall = purgeStaleUpdaterCache(log) || lastInstall; } catch (e) { log(`purge-cache échec ${(e && e.message) || e}`); }
 
   // ─── Frein d'urgence : une version retenue n'est pas livrée ────────────────
   // Une version défectueuse publiée ne doit pas être imposée à toute l'école.
@@ -165,6 +172,54 @@ function setupAutoUpdater(win) {
     } catch { /* fenêtre fermée pendant une mise à jour : sans conséquence */ }
   };
 
+  // ─── Un poste bloqué doit le DIRE ─────────────────────────────────────────
+  // La porte ferme le poste ; elle ne le faisait pas parler : ses échecs
+  // partaient dans `console.log`, c'est-à-dire nulle part pour qui n'ouvre pas
+  // les outils de développement. Le journal local est la moitié qui marche
+  // TOUJOURS (aucune session, aucun réseau — voir electron/update-journal.cjs) ;
+  // l'envoi au journal d'audit est l'autre moitié, et elle part de l'interface,
+  // où l'utilisateur connecté existe.
+  const journalFile = journalPath({ userDataDir: app.getPath('userData') });
+  const station = os.hostname();
+  /** Le dernier état de blocage connu, ou null — poussé à l'interface. */
+  let blocked = null;
+
+  /**
+   * Inscrire l'état du poste, s'il est bloqué — décidé par la politique, pas ici.
+   * @param {{ forced?: boolean, status?: string|null, detail?: string|null,
+   *   isPortable?: boolean, installPending?: boolean, version?: string|null }} input
+   */
+  function reportBlocked(input) {
+    const verdict = gateFailure({ ...input, isPortable: isPortable || input.isPortable === true });
+    if (!verdict.blocked) return verdict;
+    const written = appendEntry(journalFile, {
+      code: verdict.code,
+      version: input.version ?? null,
+      currentVersion: app.getVersion(),
+      station,
+      detail: verdict.detail,
+    });
+    blocked = {
+      code: verdict.code,
+      detail: verdict.detail,
+      station,
+      journal: journalFile,
+      // « inscrit » et « pas pu écrire » sont deux états : un poste bloqué qu'on
+      // n'a pas pu journaliser doit le dire, sinon le geste d'ouverture du
+      // journal ne mènerait à rien.
+      recorded: written,
+    };
+    log(`poste bloqué (${verdict.code})${written ? '' : ' — journal NON ÉCRIT'} — ${verdict.detail}`);
+    broadcast({ blocked });
+    return verdict;
+  }
+
+  // Une installation tentée et revenue sur la même version est le cas le plus
+  // silencieux des trois : on l'inscrit avant même la première vérification.
+  if (lastInstall.attempted && lastInstall.cachedVersion && lastInstall.cachedVersion !== app.getVersion()) {
+    reportBlocked({ installPending: true, version: lastInstall.cachedVersion });
+  }
+
   let lastCheckAt = null;
   let lastPromptAt = null;
   // Le retard de CE poste, recalculé dès qu'une version est annoncée. Il vit à
@@ -217,14 +272,23 @@ function setupAutoUpdater(win) {
     if (!gate.forced && pressure.forced) log(`obligation écartée — ${gate.detail}`);
     broadcast({ ...patch, forced: gate.forced, status: 'available', version: i.version });
     log(`update-available ${i.version}${gate.forced ? ` — OBLIGATOIRE (${pressure.detail})` : ''}`);
+    // Le portable ne pourra JAMAIS satisfaire la porte (electron-updater exige
+    // l'installeur NSIS) : obligé et portable, c'est un blocage par construction,
+    // et il faut une main humaine — donc on le dit tout de suite.
+    reportBlocked({ forced: gate.forced, version: i.version });
   });
   autoUpdater.on('update-not-available', () => {
     broadcast({ status: 'current', version: app.getVersion() });
     log('update-not-available');
   });
   autoUpdater.on('error', (e) => {
-    broadcast({ status: 'error', detail: (e && e.message) || String(e) });
-    log(`error ${(e && e.message) || e}`);
+    const detail = (e && e.message) || String(e);
+    broadcast({ status: 'error', detail });
+    log(`error ${detail}`);
+    // Un échec de téléchargement sur un poste OBLIGÉ ferme la porte : il part au
+    // journal avec son motif, au lieu de laisser quelqu'un devant un écran qui
+    // dit seulement « téléchargement ».
+    reportBlocked({ forced: pressure.forced, status: 'error', detail });
   });
   autoUpdater.on('download-progress', (p) => {
     broadcast({ status: 'downloading', percent: Math.round(p.percent) });
@@ -340,6 +404,28 @@ function setupAutoUpdater(win) {
     ipcMain.handle('updates:check-now', async () => {
       await autoUpdater.checkForUpdates().catch((e) => log(`check-failed ${(e && e.message) || e}`));
       return state;
+    });
+    // Le journal du poste, lisible par un humain devant la machine : c'est le
+    // seul canal qui existe quand le poste n'a aucune session.
+    ipcMain.handle('updates:journal', () => ({
+      path: journalFile,
+      station,
+      entries: readEntries(journalFile, { limit: 20 }),
+    }));
+    ipcMain.handle('updates:open-journal', () => {
+      // Le fichier peut ne pas exister (aucun blocage) : le créer rend le geste
+      // utile au lieu d'échouer sans rien dire.
+      try {
+        if (!fs.existsSync(journalFile)) {
+          fs.mkdirSync(path.dirname(journalFile), { recursive: true });
+          fs.writeFileSync(journalFile, '');
+        }
+        shell.showItemInFolder(journalFile);
+      } catch (e) {
+        log(`ouverture du journal échouée ${(e && e.message) || e}`);
+        return { ok: false, path: journalFile };
+      }
+      return { ok: true, path: journalFile };
     });
     ipcMain.handle('updates:install', async () => {
       if (heldVersion && heldVersion === state.version) {

@@ -18,6 +18,7 @@ import type { User } from '../app/types';
 import { formatSupabaseError } from '../lib/networkUtils';
 import { database } from '../lib/sharedDatabase';
 import { UpdateBanner } from './UpdateBanner';
+import { reportBlockedStation } from '../lib/desktopUpdateReport';
 import type { AppEnv } from '../lib/networkUtils';
 import type { ImportCategory } from '../lib/excelImporter';
 import type { useToast } from '../lib/useToast';
@@ -407,6 +408,10 @@ onOpenPayroll={() => setActiveTab('payroll')}
       {/* Bandeau de mise à jour du poste installé : ne s'affiche que dans
           l'application de bureau, où `window.desktop.updates` existe. */}
       <UpdateBanner
+        // Le signalement part d'ici, pas du bandeau : c'est ce niveau qui sait
+        // qu'un poste bloqué doit être inscrit au journal d'audit quand une
+        // session existe. Le bandeau reçoit le résultat et l'affiche.
+        onReport={(state) => reportBlockedStation(state)}
         labels={{
           available: t.updateAvailable,
           downloading: t.updateDownloading,
@@ -423,6 +428,12 @@ onOpenPayroll={() => setActiveTab('payroll')}
           forcedFailed: t.updateForcedFailed,
           forcedRetry: t.updateForcedRetry,
           forcedContinue: t.updateForcedContinue,
+          blockedTitle: t.updateBlockedTitle,
+          blockedDetail: t.updateBlockedDetail,
+          blockedReportPending: t.updateBlockedReportPending,
+          blockedReportSent: t.updateBlockedReportSent,
+          blockedReportLocal: t.updateBlockedReportLocal,
+          blockedJournal: t.updateBlockedJournal,
         }}
       />
       <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />

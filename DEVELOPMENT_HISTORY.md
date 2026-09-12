@@ -1,3 +1,40 @@
+## [2026-09-12] Un poste bloqué par la porte se signale enfin
+
+Demande : « fais en sorte qu'un poste bloqué par la porte puisse signaler l'échec à l'administrateur (journal ouvert ou envoi au journal d'audit) au lieu de rester silencieux ».
+
+**Le silence était mesurable, et il était total.** La porte du retard empêchait un poste de continuer, mais ses échecs partaient dans `console.log` du processus principal — et le `log()` d'updater n'écrivait un fichier que sous `UPDATER_LOG_FILE`, c'est-à-dire **en mode preuve seulement**. En production, un poste bloqué ne produisait donc **aucune trace** : ni fichier, ni ligne visible, ni ligne en base. L'administrateur n'apprenait un poste bloqué qu'en se déplaçant jusqu'à lui.
+
+**La décision appartient à la politique, pas au processus principal.** `gateFailure` a été ajoutée à `electron/updater-policy.cjs` : pure, testée, et **le bon endroit** parce que c'est la même question que le forçage. Trois causes, et elles ne se confondent pas — une quatrième chose n'en est pas une :
+
+```
+install   une installation tentée, revenue sur la MÊME version  → signalé MÊME hors obligation
+manual    obligatoire ET portable : la porte est insatisfaisable par construction
+          (electron-updater exige l'installeur NSIS)
+download  obligatoire ET téléchargement en échec                → attend devant une porte fermée
+—         obligatoire ET en progrès (checking/available/downloading/downloaded) → RIEN
+```
+
+`install` est le pire des trois, et c'est pour ça qu'il prime : c'est un échec **silencieux par nature** — l'utilisateur a cliqué « Redémarrer maintenant », a redémarré, et rien n'a changé. Le signaler ne demande pas de savoir si la mise à jour était obligatoire : une installation qui n'aboutit pas est un **fait**. Et la progression normale, elle, n'est pas signalée du tout : un poste obligé qui télécharge est un poste qui avance, et le noyer dans le bruit serait perdre le vrai cas.
+
+**Deux canaux, parce que l'un des deux peut manquer.** `electron/update-journal.cjs` écrit un journal **local** (`update-journal.jsonl`, dans `userData`) : aucune session, aucun réseau, donc il marche sur un poste bloqué **avant toute connexion** — c'est la première moitié, et c'est aussi la seule qui existe dans ce cas. Borné à 200 entrées (une école garde son poste des années ; ce sont les plus récentes qui comptent), il ne jette **jamais** (disque plein ⇒ `false`, et la mise à jour continue : un journal ne décide pas de la porte), et il est **lisible à la main** — une ligne = un objet JSON, et une ligne coupée en pleine écriture est ignorée à la lecture au lieu de rendre tout l'historique illisible.
+
+**L'autre moitié est l'envoi au journal d'audit**, depuis l'interface (seule à connaître la session) via `src/lib/desktopUpdateReport.ts`. Trois propriétés, chacune payée par un défaut précis : le rapport **part tout seul** (attendre un clic, c'est rester muet tant que personne n'est devant l'écran), **une fois par blocage** (`blockId` = code + version : la vérification revient toutes les 30 min, et remplir le journal d'audit de la même panne le rendrait illisible — mais une version **plus récente** est une information neuve, donc elle repart), et un envoi impossible **le dit** : l'écran affiche le chemin du journal local au lieu d'un « signalé » sans fondement. Le rapport **nomme le poste** (la première question de l'administrateur), la version visée, et **recopie le motif** de la politique au lieu de le résumer.
+
+**La porte s'ouvre aussi sur un blocage sans obligation.** Un échec d'installation n'a pas de retard à annoncer : l'écran de la porte s'affiche donc pour lui aussi, avec le remède qui correspond (`Relancer` — la version est peut-être déjà là — au lieu d'installer à l'aveugle), et un bouton **« Ouvrir le journal du poste »** pour la personne devant la machine (le fichier est créé s'il n'existe pas : un cul-de-sac ne serait pas un remède).
+
+**Preuves.** `tests/update-journal.test.ts` (11 cas : round-trip, borne à 200 avec les récentes conservées, ligne tronquée ignorée, écriture impossible ⇒ `false` sans jeter, champs bornés, création du dossier, lecture bornée, et le module importable sans electron) · `tests/gate-report.test.ts` (17 cas : les six décisions de `gateFailure`, la composition du rapport, l'identité d'un blocage, et le câblage vérifié **dans les fichiers** — un signalement juste que personne n'appelle ne signale rien) · `tests/update-banner.test.tsx` (+4 : le signalement part sans clic, il ne part **qu'une fois** même quand l'état revient, un envoi impossible s'affiche comme tel, et une installation non aboutie ouvre la porte sans obligation). `tsc`, eslint, l10n (1099 clés) et les gardes passent.
+
+**Et la preuve est faite sur le binaire empaqueté** : `scripts/verify-updater.mjs` a une **sixième passe**, `blocked`, qui sert un `latest.yml` annonçant une 2.0.0 obligatoire et répond **404** sur l'installeur. Relevé sur l'exe reconstruit, les six passes vertes :
+
+```
+blocked  ✅ poste bloqué (download) — Cannot download "…MamaTheraFinance-2.0.0-setup.exe", status 404…
+         ✅ entrée écrite dans le journal du poste : download · DESKTOP-D7O1SEG · …
+         ✅ 1 vérification(s) — le téléchargement a échoué, et c'est la panne prouvée ici
+PROOF_OK
+```
+
+Cette passe est la seule qui lit un **fichier écrit par l'application** (le journal du poste) et pas seulement son log de preuve : c'est ce fichier-là qui existe chez un client. Au passage, la construction `--dir` ne produit pas `app-update.yml` — la première mesure était donc un `ENOENT` (le vrai échec d'un poste mal empaqueté), la seconde, après une construction complète, le **404 injecté** : les deux sont des `download`, et c'est le code qui est prouvé, pas la cause.
+
 ## [2026-09-12] Un 504 n'est pas un verdict — mais un résidu, si
 
 Question posée : « est-ce normal que le pixel-check PDF soit cassé sur une erreur 504 ? ». La réponse tient en deux moitiés, et la seconde n'était pas normale du tout.

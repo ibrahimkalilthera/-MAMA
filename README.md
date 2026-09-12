@@ -190,11 +190,15 @@ Trois propriétés, chacune testée : une retenue **bat le forçage** ; une list
 **La preuve est faite sur le binaire livré, pas seulement en unité** : `node scripts/verify-updater.mjs` sert un flux local à l'exe empaqueté, et joue **une passe par règle** — parce qu'un seul scénario ne peut en prouver qu'une, et que la règle qui attrape les postes d'école est celle de la **date** :
 
 ```
-patch  même majeure, correctif récent       → NE DOIT PAS être obligatoire
-age    même majeure, publié il y a > 45 j   → OBLIGATOIRE (… toujours pas installée)
-minor  deux mineures de retard              → OBLIGATOIRE (2 version(s) mineure(s) de retard)
-major  une majeure de retard                → OBLIGATOIRE (1 version(s) majeure(s) de retard)
-hold   LA MÊME que « age », mais retenue    → AUCUNE obligation + installation refusée
+patch   même majeure, correctif récent      → NE DOIT PAS être obligatoire
+age     même majeure, publié il y a > 45 j  → OBLIGATOIRE (… toujours pas installée)
+minor   deux mineures de retard             → OBLIGATOIRE (2 version(s) mineure(s) de retard)
+major   une majeure de retard               → OBLIGATOIRE (1 version(s) majeure(s) de retard)
+hold    LA MÊME que « age », mais retenue   → AUCUNE obligation + installation refusée
+blocked LA MÊME que « major », téléchargement en échec (404 servi)
+                                            → `poste bloqué (download)` au
+                                              journal, ET une entrée écrite dans
+                                              `update-journal.jsonl` sur le poste
 ```
 
 L'exigence ne porte pas seulement sur « obligatoire oui/non » mais sur le **motif annoncé** : sans lui, une règle qui forcerait tout le temps passerait pour verte dans les trois passes obligatoires. Les seuils (45 jours, 2 mineures, 1 majeure) sont **lus dans `electron/updater-policy.cjs`**, jamais recopiés — une preuve qui recopie un seuil finit par prouver une règle que le code a quittée. Chaque passe exige en plus un **téléchargement réel** (`download-progress`, cache invalidé entre les passes) et **au moins deux vérifications dans la même session** : mesuré, `check focus` ouvre le bal, `check startup` est refusé comme trop rapproché, puis l'intervalle redéclenche. `UPDATER_PASSES=age,major` restreint le run.
@@ -203,7 +207,17 @@ L'exigence ne porte pas seulement sur « obligatoire oui/non » mais sur le **mo
 
 **La version portable** ne peut pas s'auto-installer (`electron-updater` exige l'installeur NSIS) : elle vérifie quand même et reçoit un **lien vers la page des versions** — ne rien pouvoir faire n'excuse pas de ne rien dire.
 
-Preuve : `node scripts/verify-updater.mjs` (à rejouer après `npm run electron:dist`) sert un flux local, lance l'exe empaqueté et exige la chaîne `checking → available → progress → downloaded` **plus au moins deux vérifications dans la même session**, sur **les quatre passes** de la politique (correctif récent, correctif périmé, deux mineures, une majeure) — chacune avec le **motif** que la règle doit avoir produit. Le rythme est réglable pour la preuve : `UPDATER_CHECK_INTERVAL_MS`, `UPDATER_FOCUS_COOLDOWN_MS`, plus `UPDATER_FEED_URL` et `UPDATER_LOG_FILE` (mode preuve, sans boîte de dialogue), et `UPDATER_PASSES` pour ne jouer qu'une partie des passes.
+**Et une porte fermée ne doit pas être un silence.** Un poste bloqué le disait à personne : ses échecs partaient dans `console.log` du processus principal — donc nulle part pour qui n'ouvre pas les outils de développement, et **personne** ne les ouvre sur un poste empaqueté. Un poste d'école pouvait donc rester des semaines derrière la porte sans que l'administrateur sache ni qu'il l'était ni pourquoi. `electron/updater-policy.cjs` décide désormais **quand** un poste est bloqué (`gateFailure`, pur donc testé), et trois causes seulement — parce que les confondre noierait le vrai cas sous le bruit de la progression normale :
+
+- **`install`** — une installation a été tentée et le poste est **revenu sur la même version**. Le plus silencieux des trois : l'utilisateur a cliqué « Redémarrer maintenant », il a redémarré, rien n'a changé. Signalé **même hors obligation** — une installation qui n'aboutit pas est un fait, pas une opinion sur le retard ;
+- **`manual`** — la porte est fermée et ce poste ne peut **structurellement** pas la satisfaire (version portable : `electron-updater` exige l'installeur NSIS). Il ne faut pas le forcer, il faut une main humaine ;
+- **`download`** — obligatoire, et le téléchargement a échoué : le poste attend devant une porte fermée qu'il ne peut pas ouvrir seul.
+
+Ce qui s'annonce, c'est un **fait daté** : l'état bloqué, le retard, le poste, la version visée — et ce qui va être fait (savoir si le poste a été mis à jour ou non).
+
+**Deux canaux, parce que l'un des deux peut manquer.** Le **journal local** (`update-journal.jsonl`, dans `userData`) ne dépend d'aucune session ni d'aucun réseau : il est donc la première moitié, et **le seul canal qui existe sur un poste bloqué avant toute connexion**. Il est **borné** (200 entrées, les plus récentes), **jamais fatal** (disque plein ⇒ `false`, la mise à jour continue) et **lisible à la main** — une ligne = un objet JSON, et une ligne coupée par une coupure de courant est ignorée à la lecture au lieu de rendre le fichier illisible. L'**envoi au journal d'audit** est la seconde : il exige une session, et c'est ce qui fait que l'administrateur n'a pas à visiter chaque machine. Le rapport **nomme le poste** (première question : « lequel ? »), la version visée et le **motif recopié** de la politique — jamais un résumé. Il part **tout seul**, sans qu'on clique (attendre un clic, c'est rester muet tant que personne n'est devant l'écran), **une fois par blocage** (la vérification revient toutes les 30 min, et remplir le journal d'audit de la même panne le rendrait illisible), et un envoi impossible **le dit** : l'écran affiche le chemin du journal local plutôt qu'un « signalé » qui ne repose sur rien. Un bouton, **« Ouvrir le journal du poste »**, est là pour la personne devant la machine (le fichier est créé s'il n'existe pas — un cul-de-sac ne serait pas un remède).
+
+Preuve : `node scripts/verify-updater.mjs` (à rejouer après `npm run electron:dist`) sert un flux local, lance l'exe empaqueté et exige la chaîne `checking → available → progress → downloaded` **plus au moins deux vérifications dans la même session**, sur **les six passes** — chacune avec le **motif** que la règle doit avoir produit, et la passe `blocked` **lit le journal écrit par l'application** (pas son log de preuve) : c'est ce fichier-là qui existe chez un client. Le rythme est réglable pour la preuve : `UPDATER_CHECK_INTERVAL_MS`, `UPDATER_FOCUS_COOLDOWN_MS`, plus `UPDATER_FEED_URL` et `UPDATER_LOG_FILE` (mode preuve, sans boîte de dialogue), et `UPDATER_PASSES` pour ne jouer qu'une partie des passes.
 
 ## Version bureau (Windows)
 

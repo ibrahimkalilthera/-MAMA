@@ -21,6 +21,14 @@
  *     a retry button, and the valve disappears as soon as the version is ready;
  *   • not forced → the ordinary banner, cross included, exactly as before.
  *
+ * Et une porte fermée ne doit pas être un SILENCE : un poste bloqué se signale.
+ * Ce que la seconde moitié de cette suite protège, dans les deux sens : le
+ * signalement part TOUT SEUL (attendre un clic, c'est rester muet tant que
+ * personne n'est devant l'écran), il ne part qu'UNE fois par blocage (la
+ * vérification revient toutes les 30 min, et un journal d'audit rempli de la
+ * même panne cesse d'être lu), et un envoi impossible le DIT au lieu d'afficher
+ * « signalé » pour toujours.
+ *
  * Pure suite: happy-dom (installDomGlobals), react-dom/client, no mocks.
  */
 import { describe, it } from 'node:test';
@@ -29,7 +37,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { UpdateBanner } from '../src/components/UpdateBanner';
-import type { UpdateLabels } from '../src/components/UpdateBanner';
+import type { UpdateLabels, UpdateState } from '../src/components/UpdateBanner';
 import { installDomGlobals } from './harness';
 
 installDomGlobals();
@@ -50,54 +58,102 @@ const LABELS: UpdateLabels = {
   forcedFailed: 'échec {detail}',
   forcedRetry: 'Relancer',
   forcedContinue: 'Continuer sans mettre à jour',
+  blockedTitle: 'Poste bloqué',
+  blockedDetail: 'Raison inscrite au journal : {detail}',
+  blockedReportPending: 'Signalement en cours…',
+  blockedReportSent: 'Signalé à l’administrateur',
+  blockedReportLocal: 'Pas de connexion : journal du poste ({path})',
+  blockedJournal: 'Ouvrir le journal du poste',
 };
 
-interface FakeState {
-  status?: string;
-  version?: string | null;
-  currentVersion?: string | null;
-  action?: 'restart' | 'open-download';
-  percent?: number;
-  detail?: string;
-  forced?: boolean;
-  forcedCode?: string;
-  behindMajor?: number | null;
-  behindMinor?: number | null;
-  releaseAgeDays?: number | null;
+// L'état du faux pont est EXACTEMENT celui du composant : un faux pont qui
+// accepterait plus large que le vrai ne prouverait rien sur ce que l'application
+// reçoit réellement.
+type FakeState = UpdateState;
+
+interface ReportCall {
+  state: FakeState;
+  sent: boolean;
 }
 
 /** A fake desktop bridge, built the way the preload exposes the real one. */
-function installBridge(state: FakeState): { retried: () => number; installed: () => number } {
+function installBridge(state: FakeState): {
+  retried: () => number;
+  installed: () => number;
+  opened: () => number;
+  push: (next: FakeState) => void;
+} {
   let retries = 0;
   let installs = 0;
+  let opened = 0;
+  const listeners: Array<(s: FakeState) => void> = [];
   Object.defineProperty(globalThis, 'desktop', {
     value: {
       updates: {
         getState: async () => state,
-        onState: () => () => {},
+        // Le pont réel pousse les changements d'état : la suite doit pouvoir le
+        // faire aussi, sinon la règle « un seul signalement par blocage » ne se
+        // vérifierait qu'en relançant l'application.
+        onState: (cb: (s: FakeState) => void) => {
+          listeners.push(cb);
+          return () => {};
+        },
         install: async () => { installs += 1; },
         retry: async () => { retries += 1; },
+        openJournal: async () => { opened += 1; return { ok: true, path: state.blocked?.journal }; },
       },
     },
     configurable: true,
     writable: true,
   });
-  return { retried: () => retries, installed: () => installs };
+  return {
+    retried: () => retries,
+    installed: () => installs,
+    opened: () => opened,
+    push: (next: FakeState) => { state = next; for (const cb of listeners) cb(next); },
+  };
 }
 
-async function mount(state: FakeState): Promise<{ root: Root; container: HTMLElement }> {
+/**
+ * Le rapport du bandeau : compté, et son verdict choisi par le test.
+ *
+ * La fonction rendue est passée DÉTACHÉE au composant (comme le fait le vrai
+ * pont) : elle ne peut donc pas dépendre d'un `this`, et le compteur vit dans
+ * la fermeture.
+ */
+function reportRecorder(sent: boolean): { calls: ReportCall[]; onReport: (s: FakeState) => Promise<{ sent: boolean; detail: string }> } {
+  const calls: ReportCall[] = [];
+  return {
+    calls,
+    onReport: async (state: FakeState) => {
+      calls.push({ state, sent });
+      return { sent, detail: 'poste PC-TEST · version 1.0.0 → 2.0.0' };
+    },
+  };
+}
+
+async function mount(
+  state: FakeState,
+  options: { onReport?: (s: FakeState) => Promise<{ sent: boolean; detail: string }> } = {},
+): Promise<{ root: Root; container: HTMLElement }> {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
+  const props = { labels: LABELS, ...(options.onReport ? { onReport: options.onReport } : {}) };
   await act(async () => {
-    root.render(createElement(UpdateBanner, { labels: LABELS }));
+    root.render(createElement(UpdateBanner, props));
   });
   // The state arrives through a promise (getState()): one more turn so the
   // assertion sees what the user sees, not the empty first paint.
-  await act(async () => {
-    await Promise.resolve();
-  });
+  await flush();
   return { root, container };
+}
+
+/** Laisse tourner les promesses (getState, puis l'envoi du signalement). */
+async function flush(): Promise<void> {
+  await act(async () => {
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  });
 }
 
 const unmount = (root: Root, container: HTMLElement) => {
@@ -245,6 +301,114 @@ describe('la porte du retard — obligatoire veut dire obligatoire', () => {
     Object.defineProperty(globalThis, 'desktop', { value: undefined, configurable: true, writable: true });
     const { root, container } = await mount({ status: 'downloaded', forced: true, version: '9.0.0' });
     assert.equal(container.textContent, '', 'le web se met à jour tout seul : rien à imposer');
+
+    unmount(root, container);
+  });
+});
+
+describe('un poste bloqué se signale au lieu de rester muet', () => {
+  const blockedState = (over: Partial<FakeState> = {}): FakeState => ({
+    status: 'error',
+    version: '2.0.0',
+    currentVersion: '1.0.0',
+    detail: 'réseau injoignable',
+    forced: true,
+    forcedCode: 'major',
+    behindMajor: 1,
+    blocked: {
+      code: 'download',
+      detail: 'téléchargement en échec (réseau injoignable)',
+      station: 'PC-TEST',
+      journal: 'C:/userData/update-journal.jsonl',
+      recorded: true,
+    },
+    ...over,
+  });
+
+  it('le blocage s’annonce, et le signalement part SANS qu’on clique', async () => {
+    const recorder = reportRecorder(true);
+    const state = blockedState();
+    installBridge(state);
+    const { root, container } = await mount(state, { onReport: recorder.onReport });
+
+    const gate = gateOf(container);
+    assert.ok(gate, 'un poste bloqué par la porte doit se voir');
+    assert.match(textOf(gate), /téléchargement en échec/, 'la cause du blocage est nommée');
+    assert.match(textOf(gate), /Raison inscrite au journal : téléchargement en échec/, 'et elle est recopiée telle quelle, pas résumée');
+    assert.equal(
+      container.querySelector('[data-update-report]')?.getAttribute('data-update-report'),
+      'sent',
+      'l’administrateur a été prévenu sans qu’on ait à cliquer',
+    );
+    assert.equal(recorder.calls.length, 1, 'un signalement, pas zéro');
+    assert.equal(recorder.calls[0].state.version, '2.0.0', 'le rapport porte la version visée');
+
+    unmount(root, container);
+  });
+
+  it('le même blocage n’est signalé QU’UNE fois, même si l’état revient toutes les 30 min', async () => {
+    const recorder = reportRecorder(true);
+    const state = blockedState();
+    const bridge = installBridge(state);
+    const { root, container } = await mount(state, { onReport: recorder.onReport });
+    assert.equal(recorder.calls.length, 1);
+
+    await act(async () => { bridge.push({ ...state }); });
+    await flush();
+    assert.equal(recorder.calls.length, 1, 'la même panne ne remplit pas le journal d’audit à chaque vérification');
+
+    await act(async () => {
+      bridge.push({ ...state, version: '2.1.0', blocked: { ...state.blocked!, detail: 'nouvelle version, même échec' } });
+    });
+    await flush();
+    assert.equal(recorder.calls.length, 2, 'un blocage sur une version PLUS RÉCENTE est une information neuve');
+
+    unmount(root, container);
+  });
+
+  it('un envoi impossible le DIT, et le journal du poste reste à portée', async () => {
+    const recorder = reportRecorder(false);
+    const state = blockedState();
+    const bridge = installBridge(state);
+    const { root, container } = await mount(state, { onReport: recorder.onReport });
+
+    const report = container.querySelector('[data-update-report]');
+    assert.equal(report?.getAttribute('data-update-report'), 'local', 'pas de session ⇒ pas de « signalé » affiché');
+    assert.match(textOf(report), /update-journal\.jsonl/, 'et le fichier où le blocage a été inscrit est nommé');
+
+    const journal = buttonSaying(container, 'Ouvrir le journal');
+    assert.ok(journal, 'le seul canal qui reste quand il n’y a pas de session');
+    act(() => (journal as HTMLButtonElement).click());
+    assert.equal(bridge.opened(), 1, 'le bouton ouvre vraiment le journal');
+
+    unmount(root, container);
+  });
+
+  it('une installation qui n’a pas abouti ouvre la porte MÊME sans obligation en cours', async () => {
+    const recorder = reportRecorder(true);
+    const state: FakeState = {
+      status: 'idle',
+      version: null,
+      currentVersion: '1.0.0',
+      forced: false,
+      forcedCode: 'none',
+      blocked: {
+        code: 'install',
+        detail: 'installation précédente non aboutie — ce poste est revenu sur la même version',
+        station: 'PC-TEST',
+        journal: 'C:/userData/update-journal.jsonl',
+        recorded: true,
+      },
+      action: 'restart',
+    };
+    installBridge(state);
+    const { root, container } = await mount(state, { onReport: recorder.onReport });
+
+    const gate = gateOf(container);
+    assert.ok(gate, 'un échec d’installation est un fait, pas une opinion sur le retard');
+    assert.match(textOf(gate), /installation précédente non aboutie/);
+    assert.ok(buttonSaying(container, 'Relancer'), 'le remède est de revérifier, pas de réinstaller à l’aveugle');
+    assert.equal(recorder.calls.length, 1, 'et il part au journal d’audit');
 
     unmount(root, container);
   });

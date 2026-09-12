@@ -50,5 +50,20 @@ contextBridge.exposeInMainWorld('desktop', {
      * et sans arguments, comme les trois autres : aucune surface générique.
      */
     retry: () => ipcRenderer.invoke('updates:check-now'),
+    /**
+     * Le journal local du poste : les blocages inscrits sur CETTE machine.
+     *
+     * Exposé pour une raison précise : quand le poste est bloqué et qu'aucune
+     * session n'existe, l'envoi au journal d'audit est impossible — le journal
+     * local est alors le SEUL canal, et il faut pouvoir le lire à l'écran pour
+     * le recopier. Lecture seule, bornée à 20 entrées.
+     */
+    journal: () => ipcRenderer.invoke('updates:journal'),
+    /**
+     * Ouvrir le journal dans l'explorateur (le fichier est créé s'il n'existe
+     * pas encore) : un administrateur devant le poste doit pouvoir le récupérer
+     * sans ligne de commande, et un fichier introuvable serait un cul-de-sac.
+     */
+    openJournal: () => ipcRenderer.invoke('updates:open-journal'),
   },
 });
