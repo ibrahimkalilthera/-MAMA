@@ -50,8 +50,11 @@ function readFiles() {
 
 const files = readFiles();
 if (!files.length) {
-  console.error('❌ aucun fichier lu dans tests/ et scripts/ — ce contrôle ne peut rien prouver.');
-  process.exit(1);
+  // Sortie 2 et non 1 : ce n'est pas une violation trouvée, c'est une
+  // vérification impossible — et un contrôle muet sur zéro fichier ressemble
+  // exactement à un contrôle vert.
+  console.error('❌ Rien à vérifier : aucun fichier lu dans tests/ et scripts/ — ce contrôle ne peut rien prouver.');
+  process.exit(2);
 }
 
 const result = inspectSentinelPrinters({ files });
