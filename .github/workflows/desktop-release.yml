@@ -60,10 +60,18 @@ jobs:
           fi
 
       # Preuve publiée par l'étape NOMMÉE (lue dans les étapes du run par
-      # `npm run check:automations`). Le compte est celui des artefacts construits :
-      # setup.exe, portable.exe et leurs blockmaps — l'installeur n'est pas un
-      # effet de bord, c'est ce que ce job existe pour produire.
+      # `npm run check:automations`). Le compte n'est pas une hypothèse : il est lu
+      # sur le DISQUE — l'installeur n'est pas un effet de bord, c'est ce que ce job
+      # existe pour produire, et un build qui n'a rien sorti doit le dire (preuve
+      # d'inaction + run rouge) plutôt que publier un « 2 » écrit d'avance.
       - name: Publier la preuve d’action — installeur Windows
-        run: >-
-          node scripts/publish-automation-evidence.mjs --acted --count 2
-          --reason "installeur Windows construit (setup.exe + portable.exe, blockmaps et latest.yml) et publié si le certificat est présent"
+        shell: bash
+        run: |
+          COUNT=$(ls release/*.exe 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$COUNT" -lt 2 ]; then
+            node scripts/publish-automation-evidence.mjs --inert \
+              --reason "aucun installeur dans release/ ($COUNT fichier .exe) — le build n'a rien produit"
+            exit 1
+          fi
+          node scripts/publish-automation-evidence.mjs --acted --count "$COUNT" \
+            --reason "artefacts Windows présents dans release/ : $COUNT fichier(s) .exe (setup + portable, blockmaps et latest.yml), publiés si le certificat est présent"

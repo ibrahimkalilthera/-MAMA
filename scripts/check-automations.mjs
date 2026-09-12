@@ -44,6 +44,7 @@ import {
   parseWorkflowFile,
   promisedEvidence,
 } from './lib/automation-evidence.mjs';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 
 const API = 'https://api.github.com';
 const DEFAULT_REPO = 'ibrahimkalilthera/-MAMA';
@@ -62,6 +63,10 @@ if (!token) {
   process.exit(2);
 }
 
+// `User-Agent` n'est pas décoratif, et c'est une mesure : l'API des annotations
+// répond 200 avec une liste VIDE quand cette en-tête manque — un audit qui croit
+// alors n'avoir lu aucune preuve condamne tous les runs pourvus d'une étape de
+// preuve. Le nom est donc load-bearing, au même titre que le token.
 const headers = {
   'User-Agent': 'automation-audit',
   Accept: 'application/vnd.github+json',
@@ -232,10 +237,19 @@ console.log(
 for (const r of ko) console.log(`   • ${r.name || r.file} : ${r.reason}`);
 if (!ok && pending.length) console.log(`   ⏳ hors verdict : ${pending.map((r) => r.name || r.file).join(', ')}`);
 
-// L'audit publie sa propre preuve comme tout le monde : par l'étape NOMMÉE du
-// workflow (`Publier la preuve d’action` → scripts/publish-automation-evidence.mjs),
-// pas depuis ce script. Un producteur qui publierait hors de l'étape qu'il
-// déclare rendrait le contrat invérifiable : l'audit lit les étapes du run pour
-// savoir si une preuve était attendue, et c'est cette lecture qui remplace la
-// fenêtre de tolérance qu'on devinait auparavant.
+// L'audit publie sa propre preuve comme tout le monde : la SUBSTANCE vient d'ici
+// (combien de workflows jugés, combien de preuves publiées — les chiffres que
+// lui seul a), la COMPLÉTION vient de l'étape NOMMÉE du workflow
+// (`Publier la preuve d’action` → scripts/publish-automation-evidence.mjs), qui
+// reste le repère lu dans les étapes du run pour savoir si une preuve était
+// attendue. Un run rouge ne publie rien : le verdict `failed` dit déjà tout.
+if (ok) {
+  publishEvidence({
+    acted: true,
+    count: results.length,
+    reason: `${results.length} workflow(s) jugé(s) sur leur dernier run terminé : ${published} preuve(s) d’action publiée(s)${
+      legacy ? `, ${legacy} run(s) antérieur(s) au contrat` : ''
+    }`,
+  });
+}
 process.exit(ok ? 0 : 1);

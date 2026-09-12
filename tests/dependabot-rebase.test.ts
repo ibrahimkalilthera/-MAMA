@@ -252,14 +252,21 @@ describe('entrée — importer est silencieux, exécuter déclare', () => {
    * preuve, pas celle du workflow qui l'a lancé — mesuré : la première version
    * prenait son sujet dans l'environnement et signait `perf-guard.yml`.
    */
-  const runNode = (args: string[]) =>
+  const runNode = (args: string[], env: Record<string, string> = {}) =>
     execFileSync(process.execPath, args, {
       cwd: root,
       encoding: 'utf8',
       env: {
         ...process.env,
         REBASE_TOKEN: '',
+        // Le MANDAT que l'étape du workflow pose (`AUTOMATION_EVIDENCE: '1'`) :
+        // sans lui le script se tait, même exécuté — c'est la règle qui empêche
+        // une suite de tests de déposer une preuve au nom du job qui la fait
+        // tourner. Posé ici, il rend les cas ci-dessous plus exigeants : le
+        // script a le droit de parler et ne parle pas quand il ne doit pas.
+        AUTOMATION_EVIDENCE: '1',
         GITHUB_WORKFLOW_REF: 'ibrahimkalilthera/-MAMA/.github/workflows/perf-guard.yml@refs/heads/main',
+        ...env,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -292,5 +299,14 @@ describe('entrée — importer est silencieux, exécuter déclare', () => {
     assert.equal(proofs[0].acted, false);
     assert.equal(proofs[0].workflow, 'dependabot-rebase.yml');
     assert.match(out, /DEPENDABOT_REBASE_TOKEN/);
+  });
+
+  it('sans le mandat de l’étape, il se tait et le dit', () => {
+    // Ce que le mandat empêche, en une ligne : un script exécuté par autre chose
+    // qu'une automatisation (une suite de tests, un lancement à la main) qui
+    // dépose une preuve dans un run où elle n'a rien à faire.
+    const out = runNode(['scripts/rebase-dependabot-prs.mjs'], { AUTOMATION_EVIDENCE: '' });
+    assert.deepEqual(proofsIn(out), [], 'aucune preuve sans mandat');
+    assert.match(out, /preuve non publiée : AUTOMATION_EVIDENCE=1 n’est pas posé/);
   });
 });

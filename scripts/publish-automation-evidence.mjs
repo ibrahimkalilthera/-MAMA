@@ -5,12 +5,19 @@
  *   node scripts/publish-automation-evidence.mjs --acted  --reason "3 PR remises à jour" --count 3
  *   node scripts/publish-automation-evidence.mjs --inert  --reason "secret DEPENDABOT_REBASE_TOKEN absent"
  *
- * C'est l'UNIQUE façon de publier une preuve, et c'est un choix : le module qui
- * porte le contrat (scripts/lib/automation-evidence.mjs) compose l'annotation, ce
- * script la valide et l'imprime, et l'audit relit l'annotation STOCKÉE. Un
+ * C'est la façon de publier une preuve quand l'automatisation n'a PAS de script à
+ * elle — le déploiement Vercel, l'empaquetage Windows — c'est-à-dire quand la
+ * seule chose mesurable est que la commande tierce est allée au bout. Le module
+ * qui porte le contrat (scripts/lib/automation-evidence.mjs) compose l'annotation,
+ * ce script la valide et l'imprime, et l'audit relit l'annotation STOCKÉE : un
  * producteur qui fabriquerait la commande à la main pourrait en changer le titre,
- * le préfixe ou le sens sans que rien ne le voie — le genre de dérive que ce
- * dépôt a déjà payée trois fois.
+ * le niveau ou le sens sans que rien ne le voie.
+ *
+ * Une automatisation qui a du code à elle ne passe PAS par ici : elle publie
+ * elle-même ses chiffres, par scripts/lib/evidence-publisher.mjs, depuis le script
+ * qui les a mesurés — et seulement si l'étape qui l'exécute lui en a donné le
+ * mandat (`AUTOMATION_EVIDENCE: '1'`). Le partage est net : ce CLI prouve qu'une
+ * commande est allée au bout, les scripts prouvent ce qu'ils ont mesuré.
  *
  * CE QUE LE SCRIPT REFUSE, ET POURQUOI CHAQUE REFUS EXISTE
  * -------------------------------------------------------

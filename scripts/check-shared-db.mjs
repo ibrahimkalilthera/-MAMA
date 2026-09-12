@@ -60,6 +60,7 @@ import {
   projectRefOf,
   supabaseRefsIn,
 } from './lib/shared-project.mjs';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 
 // Racine surchargeable : les tests doivent pouvoir fabriquer un checkout SANS
 // fichier d'environnement (c'est le cas du runner CI) et vérifier le verdict.
@@ -204,6 +205,10 @@ for (const dir of distDirs) {
  */
 const liveFlag = process.argv.indexOf('--live');
 const liveTargets = liveFlag !== -1 ? [process.argv[liveFlag + 1]].filter(Boolean) : [];
+// Ce que la lecture du SITE a réellement suivi : la preuve d'automatisation de
+// `shared-db-watch` portera ce nombre, mesuré ici — la seule lecture qui attrape
+// une variable d'environnement changée dans le tableau de bord de l'hébergeur.
+let liveModules = 0;
 
 /**
  * Télécharge une ressource en texte, avec un plafond de taille : un bundle
@@ -279,6 +284,7 @@ for (const target of liveTargets) {
   }
   console.log(`✅ ${target} sert la base partagée (${assets.size} module(s) lus)`);
   readable += 1;
+  liveModules += assets.size;
 }
 
 /** ── Verdict ────────────────────────────────────────────────────────────── */
@@ -319,3 +325,14 @@ if (readable === 0) {
 }
 
 console.log(`\n✅ Tout ce qui est livrable pointe vers la base partagée (${SHARED_PROJECT_REF}).`);
+
+// La substance de cette automatisation, publiée par elle : combien de modules du
+// site déployé ont été suivis pour retrouver la base qu'il sert. Publier ici (et
+// non dans le YAML) est la différence entre une mesure et une affirmation.
+if (liveTargets.length > 0) {
+  publishEvidence({
+    acted: true,
+    count: liveModules > 0 ? liveModules : null,
+    reason: `${liveTargets.length} cible(s) déployée(s) lue(s) : ${liveModules} module(s) suivi(s), base partagée ${SHARED_PROJECT_REF}`,
+  });
+}

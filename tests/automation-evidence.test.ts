@@ -20,8 +20,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { publishEvidence } from '../scripts/lib/evidence-publisher.mjs';
 import {
-  EVIDENCE_PREFIX,
   EVIDENCE_STEP_NAME,
   EVIDENCE_TITLE,
   auditAutomations,
@@ -58,7 +58,13 @@ describe('le canal — une preuve publiée, jamais un journal relu', () => {
     const inert = evidenceAnnotation({ workflow: WORKFLOW, acted: false, reason: 'secret absent' });
     assert.match(acted, new RegExp(`^::notice title=${EVIDENCE_TITLE}::`));
     assert.match(inert, new RegExp(`^::warning title=${EVIDENCE_TITLE}::`));
-    assert.ok(acted.includes(EVIDENCE_PREFIX));
+    // Le message EST le payload : plus de marque à imiter, donc plus rien qui
+    // ressemble à une preuve sans en être une (la marque a été retirée le
+    // 2026-09-12, à la fin de la migration vers le canal structuré).
+    assert.equal(
+      acted.split('::').slice(2).join('::'),
+      evidencePayload({ workflow: WORKFLOW, acted: true, reason: 'chaîne verte' }),
+    );
     assert.equal(
       evidenceFromAnnotations([{ title: EVIDENCE_TITLE, message: acted.split('::').pop() ?? '' }])[0]
         .acted,
@@ -176,10 +182,15 @@ describe('les verdicts', () => {
 
   it('le module ne lit plus de journal : le transport a changé, pas seulement l’habitude', () => {
     // Un contrat se vérifie à la source : tant qu'un lecteur de journal existe,
-    // quelqu'un finira par s'en servir. La ligne imprimée ci-dessous est celle
-    // qu'un canal-journal aurait comptée — elle n'est plus lue par personne.
+    // quelqu'un finira par s'en servir. La ligne imprimée ci-dessous ressemble à
+    // ce qu'un canal-journal aurait compté — elle n'est plus lue par personne,
+    // parce que ce n'est pas une annotation (le TITRE sélectionne, pas le texte).
     const printed = `2026-09-12T06:23:55Z ${evidencePayload({ workflow: WORKFLOW, acted: false, reason: 'copie imprimée' })}`;
-    assert.ok(printed.includes(EVIDENCE_PREFIX), 'la ligne rappelle bien l’ancien canal');
+    assert.deepEqual(
+      evidenceFromAnnotations([{ title: 'Node.js 20 actions are deprecated', message: printed }]),
+      [],
+      'une ligne de journal au bon payload n’est pas une preuve',
+    );
     const source = readFileSync(join(root, 'scripts', 'lib', 'automation-evidence.mjs'), 'utf8');
     for (const gone of ['/logs', 'logsUnavailable', 'LOG_GRACE_MS', 'evidenceRecords(', 'inertMarkers(', '##[warning]']) {
       assert.equal(source.includes(gone), false, `le module ne doit plus contenir « ${gone} »`);
@@ -342,11 +353,17 @@ describe('le producteur — le vrai CLI, de bout en bout', () => {
   // UN seul lancement réel : ce qu'il faut prouver, c'est que la sortie du
   // processus est relisible par l'audit. Chaque fork coûte ~10 s sur ce poste,
   // donc les refus se testent plus haut, en process.
+  //
+  // Et le sujet est un fichier INEXISTANT (`probe-e2e.yml`), volontairement : le
+  // runner stocke l'annotation que ce test imprime, donc un vrai nom de workflow
+  // ferait déposer une preuve par la suite de tests dans le run qui l'exécute —
+  // exactement le défaut de 2026-09-12. Un sujet qui n'existe pas ne peut
+  // accuser personne (l'audit le compterait comme preuve étrangère).
   it('ce qu’il imprime se relit comme la preuve que l’audit attend (aller-retour)', () => {
     const out = execFileSync(process.execPath, ['scripts/publish-automation-evidence.mjs', '--acted', '--reason', 'chaîne qualité verte', '--count', '3'], {
       cwd: root,
       encoding: 'utf8',
-      env: { ...process.env, GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/perf-guard.yml@refs/heads/main' },
+      env: { ...process.env, GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/probe-e2e.yml@refs/heads/main' },
     });
     const command = out.trim().split('\n').pop() ?? '';
     assert.match(command, /^::notice title=/);
@@ -355,7 +372,7 @@ describe('le producteur — le vrai CLI, de bout en bout', () => {
     assert.equal(records.length, 1, 'la sortie du producteur doit être une preuve lisible');
     assert.deepEqual(
       { workflow: records[0].workflow, acted: records[0].acted, count: records[0].count },
-      { workflow: 'perf-guard.yml', acted: true, count: 3 },
+      { workflow: 'probe-e2e.yml', acted: true, count: 3 },
     );
   });
 
@@ -366,14 +383,50 @@ describe('le producteur — le vrai CLI, de bout en bout', () => {
       {
         cwd: root,
         encoding: 'utf8',
-        env: { ...process.env, GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/dependabot-rebase.yml@refs/heads/main' },
+        env: { ...process.env, GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/probe-e2e.yml@refs/heads/main' },
       },
     );
     assert.match(out.trim().split('\n').pop() ?? '', /^::warning title=/);
   });
 });
 
-describe('le dépôt — chaque automatisation promet une preuve', () => {
+describe('le dépôt — chaque automatisation promet une preuve, et la MESURE', () => {
+  const producers: [string, string, string][] = [
+    ['scripts/check-audit.mjs', 'perf-guard.yml', 'check-audit.mjs'],
+    ['scripts/rebase-dependabot-prs.mjs', 'dependabot-rebase.yml', 'rebase-dependabot-prs.mjs'],
+    ['scripts/check-vercel-pins.mjs', 'vercel-pins-watch.yml', 'check-vercel-pins.mjs'],
+    ['scripts/check-shared-db.mjs', 'shared-db-watch.yml', 'check:shared-db:live'],
+    ['scripts/verify-anon-rls.mjs', 'prod-anon-rls.yml', 'verify-anon-rls.mjs'],
+    ['scripts/verify-anon-rls.mjs', 'supabase-migrations.yml', 'verify-anon-rls.mjs'],
+    ['scripts/verify-ephemeral-cleanup.mjs', 'pdf-e2e.yml', 'verify-ephemeral-cleanup.mjs'],
+    ['scripts/check-automations.mjs', 'automation-audit.yml', 'check:automations'],
+  ];
+
+  it('chaque automatisation qui a un script publie sa propre mesure, sous le mandat de son étape', () => {
+    // C'est la substance : une phrase écrite dans le YAML vaudrait pour un script
+    // qui a tout mesuré comme pour un script qui n'a rien regardé. Deux
+    // conditions, donc — le script publie, ET l'étape qui l'exécute lui en donne
+    // le droit (sinon une suite de tests le ferait parler au nom du job).
+    for (const [script, workflow, runNeedle] of producers) {
+      const src = readFileSync(join(root, script), 'utf8');
+      assert.match(src, /publishEvidence\(/, `${script} doit publier ce qu’il a mesuré`);
+      const yml = readFileSync(join(root, '.github', 'workflows', workflow), 'utf8');
+      assert.match(yml, /AUTOMATION_EVIDENCE: '1'/, `${workflow} doit mandater ${script}`);
+      assert.ok(yml.includes(runNeedle), `${workflow} doit bien exécuter ${script}`);
+    }
+  });
+
+  it('un producteur sans mandat ne parle pas : la preuve ne se dépose pas toute seule', () => {
+    const calls: string[] = [];
+    const quiet = publishEvidence({ acted: true, reason: 'mesure' }, {
+      env: { GITHUB_WORKFLOW_REF: 'o/r/.github/workflows/perf-guard.yml@refs/heads/main' },
+      out: (line) => calls.push(line),
+    });
+    assert.equal(quiet.published, false);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].includes('::'), false, 'rien qui ressemble à une annotation');
+  });
+
   it('chaque workflow porte l’étape nommée, sinon il échapperait au contrat', () => {
     const files = readdirSync(join(root, '.github', 'workflows')).filter((f) => /\.ya?ml$/.test(f));
     assert.ok(files.length >= 10, `attendu au moins 10 workflows, lu ${files.length}`);
@@ -386,6 +439,15 @@ describe('le dépôt — chaque automatisation promet une preuve', () => {
       );
       assert.match(text, /publish-automation-evidence\.mjs/, `${file} doit appeler le producteur`);
     }
+  });
+
+  it('l’audit envoie son User-Agent : sans lui, l’API rend un vide silencieux', () => {
+    // Mesuré : `check-runs/:id/annotations` répond 200 avec `[]` quand l'en-tête
+    // User-Agent manque. L'audit croirait alors n'avoir lu aucune preuve — et
+    // condamnerait tous les runs qui en publient une. C'est le pire des échecs :
+    // pas une erreur, une lecture vide prise pour un constat.
+    const audit = readFileSync(join(root, 'scripts', 'check-automations.mjs'), 'utf8');
+    assert.match(audit, /'User-Agent':\s*'[^']+'/);
   });
 
   it('l’audit connaît le nom du workflow qu’il juge, et sa cadence', () => {

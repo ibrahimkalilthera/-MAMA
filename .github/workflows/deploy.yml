@@ -269,4 +269,4 @@ jobs:
       - name: Publier la preuve d’action — déploiement Vercel
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "paquet construit déployé en production (prebuilt) après la porte qualité et la porte migrations"
+          --reason "vercel deploy --prebuilt --prod a rendu 0 pour ce commit, après ses trois portes amont vertes (qualité, migrations, anon RLS) ; le site déployé est relu par shared-db-watch"

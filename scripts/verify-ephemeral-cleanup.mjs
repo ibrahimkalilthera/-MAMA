@@ -29,6 +29,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EPHEMERAL_PATTERNS } from './lib/ephemeral-accounts.mjs';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const isEphemeral = (email) => EPHEMERAL_PATTERNS.some((re) => re.test(email || ''));
@@ -89,6 +90,10 @@ if (leftoverUsers.length) {
 //    also means a broken cleanup.
 const profiles = await api('/rest/v1/user_profiles?select=id,email&limit=1000');
 const leftoverProfiles = (profiles.body || []).filter((p) => isEphemeral(p.email));
+// Ce que ce contrôle a RÉELLEMENT parcouru : la preuve d'automatisation qui
+// porte ce nombre vient d'ici, pas d'une phrase écrite dans le workflow —
+// « j'ai agi » sans rien à compter serait une preuve vide.
+const scanned = (users.body?.users || []).length + (profiles.body || []).length;
 if (leftoverProfiles.length) {
   console.error(`❌ ${leftoverProfiles.length} profil(s) éphémère(s) résiduel(s) dans public.user_profiles :`);
   for (const p of leftoverProfiles) console.error(`   ${p.email} | ${p.id}`);
@@ -134,4 +139,12 @@ if (fail) {
   process.exit(1);
 }
 console.log('\n✅ Base propre — tous les comptes éphémères ont été supprimés par leurs scripts.');
+publishEvidence({
+  acted: true,
+  // Zéro enregistrement parcouru = rien à prouver : on n'imprime pas de compte,
+  // parce qu'une preuve d'action sur zéro chose se contredit (voir
+  // parseEvidenceArgs).
+  count: scanned > 0 ? scanned : null,
+  reason: `base propre : ${scanned} enregistrement(s) parcouru(s) (comptes auth + profils), aucun compte éphémère résiduel`,
+});
 process.exit(0);
