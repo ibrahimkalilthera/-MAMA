@@ -1,3 +1,21 @@
+## [2026-09-12] Le serveur de dev dit quel runtime le sert, et prévient pour l'autre majeur
+
+Le pin était devenu structurel — `dev`, `build` et `preview` passent par le lanceur et exécutent vite sous le runtime épinglé — mais **silencieux** : le lanceur ne parle que lorsqu'il a dû basculer (`runtime.source !== 'current'`), donc un départ correctement épinglé et un départ accidentellement correct se ressemblaient exactement. C'est le pire des deux mondes pour un écart de majeur : il ne casse jamais au démarrage, il casse plus loin — dans un `build` de CI, dans un lockfile installé par un autre runtime, dans une API `node:` qui n'existe que dans l'un des deux.
+
+**Le bandeau s'affiche là où le serveur naît** : un plugin Vite (`devRuntimeBanner`, `scripts/lib/runtime-banner.mjs`, branché dans `vite.config.ts`) sur `configureServer`, donc au-dessus du bloc `ready` de Vite et sur **tous** les chemins de démarrage — `npm run dev`, un `vite` lancé directement, ou la tâche d'un éditeur, qui sont précisément les cas où le pin peut être contourné. Mesuré en vrai sur ce poste :
+
+```
+🟢 dev : Node 22.23.2 — majeur 22 attendu (`.nvmrc`) · …\node_modules\node\bin\node.exe
+⚠️  autre Node dans l'environnement : v24.20.0 (C:\Program Files\nodejs\node.exe) — un shell de ce terminal
+   peut l'utiliser ; les entrées du projet, non (elles passent par le lanceur épinglé).
+```
+
+**La deuxième ligne est la moitié utile** : ce que le processus *utilise* est vérifiable, mais ce que son environnement *contient* ne l'était pas. Un `where node` (ou `which -a`) donne les candidats, chacun est interrogé (`--version`), et seuls les majeurs **différents du pin** sont nommés — bornés à trois. Les chemins sous un `node_modules` sont écartés sans même être sondés : c'est là que vivent les entrées du pin (`node_modules/.bin/node`) et le runtime provisionné (`npm-cache/_npx/…`), donc signaler « un autre majeur » à leur sujet serait signaler le pin lui-même.
+
+**Rien ici ne peut casser un `npm run dev`** : `.nvmrc` illisible donne une ligne qui le dit (jamais un majeur inventé), un `where` absent donne une liste vide, un node qui ne répond pas ne prétend rien, un logger qui jette est absorbé. Le bandeau est **pur** (versions en entrée, lignes en sortie) avec le seul vrai I/O injecté (`runVersion`), donc les règles de filtrage sont testées comme des décisions — et le cas d'intégration appelle le plugin pour de vrai, sur la racine du dépôt. Ce test a d'ailleurs refusé de mentir dès son premier jet : exécuté sur le Node 24 du poste, il a vu la ligne d'avertissement alors qu'il attendait le vert — il vérifie donc maintenant la vérité **dans les deux cas** (sous le pin : une ligne verte, pas d'avertissement ; hors pin : l'avertissement, les deux majeurs, le remède), et il exige en plus que chaque chemin « autre Node » imprimé soit réellement listé par `where` et porte réellement un autre majeur, pour que le bandeau ne puisse pas inventer un fantôme.
+
+**Prouvé à l'exécution** : `vite --port=3101` lancé par le lanceur, la sortie ci-dessus imprimée au-dessus de `VITE v8.2.2 ready in 2126 ms`, puis le serveur arrêté (port libéré, aucun `node.exe` restant — le nettoyage se vérifie, pas seulement le démarrage). Portée assumée : `preview` n'a pas de bandeau, la demande portait sur le serveur de **dev** ; `build` n'en a pas non plus, il ne sert personne à l'écoute.
+
 ## [2026-09-12] Le docteur panique sait aussi réparer : `--fix` applique ses propres remèdes, un par un
 
 Le docteur nommait ses remèdes en prose depuis sa première version (« Restaurez-le avec `npx husky` », « Remède : `npm run setup:node` ») et devait, lui, rester en lecture seule — un docteur qui soigne en diagnostiquant cache l'état qu'on venait voir. Les deux tiennent maintenant ensemble par un **second passage** : `--fix` s'exécute *après* l'impression du diagnostic, jamais à sa place.
