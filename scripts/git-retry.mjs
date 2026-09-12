@@ -522,7 +522,14 @@ export function parseArgs(argv) {
       const num = parseInt(val ?? '', 10);
       if (m[1] === 'attempts') opts.attempts = Math.max(1, Number.isFinite(num) ? num : 1);
       else if (m[1] === 'wait-ms') opts.waitMs = Math.max(0, Number.isFinite(num) ? num : 0);
-      else opts.timeoutMs = Math.max(0, Number.isFinite(num) ? num : 0);
+      else {
+        opts.timeoutMs = Math.max(0, Number.isFinite(num) ? num : 0);
+        // Whether the user actually ASKED for it matters: a caller that passes
+        // `opts.timeoutMs` unconditionally replaces its own default with the
+        // CLI's, which is how the hooks' 25-minute watchdog silently became
+        // 300 s and legit runs were killed mid-flight.
+        opts.timeoutMsExplicit = true;
+      }
       i += m[2] ? 1 : 2;
       continue;
     }

@@ -298,6 +298,7 @@ function makeProps(overrides: Partial<MainViewsProps> = {}): MainViewsProps {
     handleAddTodo: asyncNoop,
     handleDeleteClass: asyncNoop,
     handleDeleteParent: asyncNoop,
+    handleDeleteExpense: asyncNoop,
     handleDeleteVendorExpense: asyncNoop,
   handleExportAllData: asyncNoop,
   handleExportParentLedgerPdf: asyncNoop,
