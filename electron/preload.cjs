@@ -40,5 +40,15 @@ contextBridge.exposeInMainWorld('desktop', {
     },
     /** Demande l'installation (redémarrage) ou ouvre la page de téléchargement. */
     install: () => ipcRenderer.invoke('updates:install'),
+    /**
+     * Relancer une vérification / un téléchargement.
+     *
+     * Existe pour un seul cas, et il compte : une mise à jour OBLIGATOIRE dont
+     * le téléchargement a échoué. Sans ce canal, le remède affiché à l'écran
+     * serait d'attendre l'intervalle suivant (30 min) — c'est-à-dire, du point
+     * de vue de l'utilisateur bloqué devant son poste, aucun remède. Canal nommé
+     * et sans arguments, comme les trois autres : aucune surface générique.
+     */
+    retry: () => ipcRenderer.invoke('updates:check-now'),
   },
 });
