@@ -79,3 +79,13 @@ jobs:
         env:
           REBASE_TOKEN: ${{ secrets.DEPENDABOT_REBASE_TOKEN }}
         run: node scripts/rebase-dependabot-prs.mjs
+
+      # Deux preuves, et chacune dit une chose différente : le script publie la
+      # SUBSTANCE (combien de PR remises à jour, ou le secret manquant — lui seul
+      # le sait), et cette étape publiée par le CLI dit que le job est allé
+      # jusqu'au bout. L'audit les lit toutes : la moindre déclaration d'inaction
+      # l'emporte sur la plus flatteuse.
+      - name: Publier la preuve d’action — Dependabot rebase
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "rebase Dependabot exécuté ; le détail (PR remises à jour ou secret manquant) est publié par le script"

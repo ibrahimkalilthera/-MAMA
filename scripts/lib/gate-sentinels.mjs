@@ -28,7 +28,7 @@
 
 import ts from 'typescript';
 
-import { EVIDENCE_PREFIX, INERT_MARK } from './automation-evidence.mjs';
+import { EVIDENCE_PREFIX } from './automation-evidence.mjs';
 
 /**
  * Remplace le CONTENU des commentaires par des espaces, en gardant les sauts de
@@ -77,18 +77,18 @@ const PRINTING = /console\s*\.\s*[a-z]+|process\s*\.\s*(?:stdout|stderr)\s*\.\s*
  */
 export const GATE_SENTINELS = [
   {
-    token: INERT_MARK,
-    composer: 'inertAnnotation',
-    emitters: ['scripts/rebase-dependabot-prs.mjs'],
-    readBy: 'scripts/check-automations.mjs',
-    what: 'la déclaration d’inaction d’une automatisation',
-  },
-  {
     token: EVIDENCE_PREFIX,
-    composer: 'evidenceLine',
-    emitters: ['scripts/rebase-dependabot-prs.mjs'],
+    composer: 'evidenceAnnotation',
+    // Trois imprimeurs, et chacun a une raison : le producteur qui agit (le
+    // rebase Dependabot), l'audit qui publie sa propre preuve (il ne s'exempte
+    // pas de la règle qu'il impose), et le CLI que tous les workflows appellent.
+    emitters: [
+      'scripts/rebase-dependabot-prs.mjs',
+      'scripts/check-automations.mjs',
+      'scripts/publish-automation-evidence.mjs',
+    ],
     readBy: 'scripts/check-automations.mjs',
-    what: 'la preuve structurée et signée d’un run',
+    what: 'la preuve d’action d’une automatisation (canal structuré)',
   },
 ];
 
