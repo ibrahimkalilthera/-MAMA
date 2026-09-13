@@ -163,6 +163,19 @@ export const GUARD_INVENTORY = [
       [IMMUNITY.PROSE_BLIND]: 'il lit un fichier de données (latest.yml) et des octets d’installeur, jamais du code source',
     },
   },
+  {
+    check: 'check-public-origin.mjs',
+    input: 'config+network',
+    needs: [],
+    // L'origine lue EST le sujet : il n'y a pas de corpus de fichiers à trouver,
+    // et l'absence de réponse n'est pas un silence — `originVerdict`
+    // (scripts/lib/public-origin.mjs) refuse de conclure sur un statut inconnu,
+    // sur un 200 qui ne sert pas l'application, et sur une coquille sans aucun
+    // module. Un domaine mort est le cas mesuré.
+    exempt: {
+      [IMMUNITY.NON_VACUOUS]: 'il interroge une origine publique ; l’absence de réponse EST le verdict (nommée par le module), il n’y a pas de corpus à lire',
+    },
+  },
 ];
 
 /**

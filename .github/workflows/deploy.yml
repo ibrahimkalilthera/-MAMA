@@ -262,6 +262,17 @@ jobs:
       - name: Deploy to production (prebuilt)
         run: tools/node_modules/.bin/vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
 
+      # Un déploiement qui rend 0 ne dit pas qu'une origine RÉPOND : le 13/09, un
+      # domaine du projet servait `HTTP 404 DEPLOYMENT_NOT_FOUND` pendant que ce
+      # job était vert. Ce pas relit l'origine que l'APPLICATION EMBARQUE (le
+      # repli d'un poste, `electron/public-origin.cjs`) : elle doit répondre 200,
+      # servir la coquille de l'app, et ses modules doivent se télécharger. Il
+      # tourne ici — et pas dans la chaîne locale — parce qu'un commit ne doit pas
+      # dépendre du réseau, alors qu'un déploiement qui ne livre personne ne doit
+      # jamais être vert.
+      - name: L’origine publique que le poste embarque répond vraiment
+        run: npm run check:public-origin
+
       # La preuve est publiée par l'étape NOMMÉE, après le déploiement réussi :
       # c'est ce nom que `npm run check:automations` lit dans les étapes du run
       # pour savoir si une preuve était attendue (voir
@@ -269,4 +280,4 @@ jobs:
       - name: Publier la preuve d’action — déploiement Vercel
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "vercel deploy --prebuilt --prod a rendu 0 pour ce commit, après ses trois portes amont vertes (qualité, migrations, anon RLS) ; le site déployé est relu par shared-db-watch"
+          --reason "vercel deploy --prebuilt --prod a rendu 0 pour ce commit, après ses trois portes amont vertes (qualité, migrations, anon RLS), ET l'origine publique que le poste embarque a été relue ici (200, coquille servie, modules téléchargeables) — un domaine mort n'aurait pas passé ce pas ; le site déployé est relu par shared-db-watch"

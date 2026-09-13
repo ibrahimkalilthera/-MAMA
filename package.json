@@ -13,6 +13,7 @@
     "optimize:stamp": "node scripts/optimize-stamp.mjs",
     "check:perf": "node scripts/check-performance.mjs",
     "check:shared-db": "node scripts/check-shared-db.mjs",
+    "check:public-origin": "node scripts/check-public-origin.mjs",
     "check:shared-db:live": "node scripts/check-shared-db.mjs --live https://mama-thera-finance.vercel.app",
     "check:automations": "node scripts/check-automations.mjs",
     "check:import-effects": "node scripts/check-import-effects.mjs",

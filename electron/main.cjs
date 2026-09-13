@@ -18,7 +18,11 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { appendEntry, readEntries, journalPath, pendingReports, markReported } = require('./update-journal.cjs');
 
-const FALLBACK_URL = 'https://mama-thera-finance.vercel.app/';
+// L'origine publique vit dans UN SEUL fichier (`public-origin.cjs`), lu ici par le
+// poste et par `scripts/check-public-origin.mjs` : deux écritures de la même URL
+// peuvent s'accorder aujourd'hui et diverger le jour où l'une bouge — et c'est
+// l'une des deux qui déciderait ce qu'un poste affiche.
+const { PUBLIC_ORIGIN: FALLBACK_URL } = require('./public-origin.cjs');
 // Où atterrit un poste qui ne peut pas s'auto-installer (portable) : le lien
 // doit être celui des versions, pas une page d'accueil où rien ne se télécharge.
 const RELEASES_URL = 'https://github.com/ibrahimkalilthera/-MAMA/releases/latest';
