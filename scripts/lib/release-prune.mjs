@@ -423,19 +423,28 @@ export function attributeVolume(entries = [], buckets = []) {
  * Le dossier et les actes passent donc par ici, et par ici seulement : un
  * troisième site qui recopierait la ligne rouvrirait les deux erreurs à la fois.
  *
+ * Et le dossier est TOUJOURS écrit, y compris celui par défaut. Il a existé une
+ * forme courte (`npm run release:prune -- --yes`) qui se taisait sur `release/`,
+ * au motif que c'est la ligne que la documentation montre : elle faisait dépendre
+ * la correction d'une convention de lecture (« quand il n'y a pas de `--dir`, le
+ * dossier est le défaut »), donc le jour où un défaut changerait à un seul
+ * endroit, le rappel viserait un dossier sans le nommer. Une ligne longue se lit
+ * et se vérifie ; une ligne courte se devine.
+ *
  * @param {Iterable<string>} [kinds] les actes présents dans le plan
- *   (`digest` | `stale` | `unpublished`) — `--yes` est toujours là, il EST l'acte
- * @param {{ dir?: string }} [options] le dossier visé ; `release` est le défaut
- *   et se tait, parce que c'est la ligne que la documentation montre
+ *   (`digest` | `stale` | `unpublished` | `unpacked`) — `--yes` est toujours là,
+ *   il EST l'acte
+ * @param {{ dir?: string }} [options] le dossier visé, TOUJOURS écrit ; vide ou
+ *   absent, c'est le défaut du CLI (`DEFAULT_RELEASE_DIR`)
  * @returns {string} la ligne exacte à recopier
  */
 /**
  * Le dossier d'atelier par défaut, écrit UNE fois.
  *
- * `pruneCommand` se tait quand le dossier est celui-là (c'est la ligne que la
- * documentation montre), donc si une entrée décidait d'un autre défaut toute
- * seule, le rappel se tairait sur un dossier qu'il ne vise pas — la panne
- * exactement, revenue par la porte du silence plutôt que par celle du texte.
+ * C'est le défaut du CLI, celui du contrôle de cohérence et celui du publieur, et
+ * il est maintenant aussi le dossier qu'un rappel écrit noir sur blanc : trois
+ * entrées qui le relisaient chacune de leur côté pouvaient diverger, et le rappel
+ * se serait tu sur un dossier qu'il ne vise pas.
  */
 export const DEFAULT_RELEASE_DIR = 'release';
 
@@ -445,8 +454,8 @@ export function pruneCommand(kinds = [], { dir = DEFAULT_RELEASE_DIR } = {}) {
   if (acts.has('stale')) flags.push('--stale');
   if (acts.has('unpublished')) flags.push('--unpublished');
   if (acts.has('unpacked')) flags.push('--unpacked');
-  const target = dir && dir !== DEFAULT_RELEASE_DIR ? ` --dir=${dir}` : '';
-  return `npm run release:prune --${target} ${flags.join(' ')}`;
+  const target = String(dir ?? '').trim() || DEFAULT_RELEASE_DIR;
+  return `npm run release:prune -- --dir=${target} ${flags.join(' ')}`;
 }
 
 /**

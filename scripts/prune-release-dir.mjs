@@ -10,7 +10,10 @@
  *     (sa forme PROUVÉE — `electron:build` publie un manifeste d'arborescence, et
  *     une arborescence décrite par un manifeste PUBLIÉ de la version ANTÉRIEURE
  *     part sur le seul `--yes`, parce qu'une empreinte l'autorise)
- *   npm run release:prune -- --dir=release-test
+ *   npm run release:prune -- --dir=release-test   (le dossier par défaut s'écrit
+ *     aussi : les rappels de ce script nomment TOUJOURS leur dossier, pour qu'une
+ *     ligne recopiée ne puisse pas désigner un autre endroit que celui qu'on
+ *     vient de lire)
  *   npm run release:prune -- --check      → OBJECTE (exit 1) si l'atelier détient
  *     des octets que le canal sert déjà ; ne supprime jamais rien
  *   npm run release:prune -- --channel=fixture.json   (le canal depuis un fichier,

@@ -1,3 +1,13 @@
+## [2026-09-13] Le rappel d'atelier écrit TOUJOURS son dossier — `release/` compris
+
+Demande : « Un choix explicite que je signale : `--dir=release` reste silencieux dans le rappel, parce que c'est la ligne que la documentation montre ; si tu préfères que le dossier soit toujours écrit, c'est une ligne à changer. »
+
+**La ligne est changée, et la convention de lecture disparaît avec elle.** `pruneCommand` écrivait `--dir=` seulement pour un dossier NON par défaut : la correction dépendait donc d'une règle tacite (« quand il n'y a pas de `--dir`, le dossier est le défaut, c'est-à-dire `release/` »). Or c'est précisément ce genre de convention qui a produit les deux pannes déjà payées ici — un rappel qui perdait son dossier, et un avertissement qui nommait `release/` en dur pendant qu'il lisait un autre dossier. Un défaut changé à un seul endroit suffisait à ce que la ligne s'écrive et désigne deux endroits. Le dossier passe donc par le même chemin que les drapeaux, et il est **toujours** écrit : `npm run release:prune -- --dir=release --yes --unpacked` sur le dossier réel. Une ligne longue se lit et se vérifie ; une ligne courte se devine.
+
+**Ce que ça ne change pas** : la constante exportée `DEFAULT_RELEASE_DIR` reste le défaut du CLI, du contrôle de cohérence et du publieur — c'est elle qui remplit le `--dir` quand l'appelant n'en donne pas (y compris vide ou en blanc, pour qu'un `--dir=` nu ne fasse pas échouer le CLI sur un dossier que personne ne nomme).
+
+**Mesures** : `release-prune.test.ts` **38/38** (les cinq attentes de rappel portent désormais le dossier explicite, et un cas verrouille qu'aucune ligne n'omet le dossier ni n'écrit un `--dir=` vide), `prune-cli.test.ts` **25/25**, et sur le dossier réel le rappel lit maintenant `npm run release:prune -- --dir=release --yes --unpacked`.
+
 ## [2026-09-13] Les dossiers de sortie ont une empreinte — `win-unpacked` cesse d'être une décision de 507 Mo
 
 Demande : « Donne aux dossiers de sortie une empreinte de contenu (manifeste de digests) pour que `win-unpacked` devienne condamnable par une preuve au lieu de rester une décision humaine de 507 Mo. »

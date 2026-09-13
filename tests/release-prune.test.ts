@@ -407,7 +407,7 @@ describe('le rappel du plan applique VRAIMENT ce plan', () => {
       published: [release('1.0.5', [held(setup('1.0.5'), 'octets-du-canal')])],
     });
     assert.match(plan.remove[0].reason, /le canal sert DÉJÀ 1\.0\.5/, 'le motif est bien celui de la reconstruction locale');
-    assert.equal(pruneCommand(acts(plan)), 'npm run release:prune -- --yes --stale');
+    assert.equal(pruneCommand(acts(plan)), 'npm run release:prune -- --dir=release --yes --stale');
   });
 
   it('un plan de builds jamais livrés redemande --unpublished', () => {
@@ -418,7 +418,7 @@ describe('le rappel du plan applique VRAIMENT ce plan', () => {
       published: [release('1.0.1', [held(setup('1.0.1'), 'x')])],
     });
     assert.equal(plan.remove[0].kind, 'unpublished');
-    assert.equal(pruneCommand(acts(plan)), 'npm run release:prune -- --yes --unpublished');
+    assert.equal(pruneCommand(acts(plan)), 'npm run release:prune -- --dir=release --yes --unpublished');
   });
 
   it('un plan mixte demande LES DEUX drapeaux — un seul oubli laisserait la moitié en place', () => {
@@ -437,11 +437,11 @@ describe('le rappel du plan applique VRAIMENT ce plan', () => {
       ],
     });
     assert.deepEqual([...new Set(plan.remove.map((r) => r.kind))].sort(), ['digest', 'stale', 'unpublished']);
-    assert.equal(pruneCommand(acts(plan)), 'npm run release:prune -- --yes --stale --unpublished');
+    assert.equal(pruneCommand(acts(plan)), 'npm run release:prune -- --dir=release --yes --stale --unpublished');
   });
 
   it('un plan vide ne propose que l’acte nu : rien à autoriser, rien à ajouter', () => {
-    assert.equal(pruneCommand([]), 'npm run release:prune -- --yes');
+    assert.equal(pruneCommand([]), 'npm run release:prune -- --dir=release --yes');
   });
 
   it('la commande PORTE le dossier — sans quoi un plan de sonde proposait d’agir sur release/', () => {
@@ -465,19 +465,25 @@ describe('le rappel du plan applique VRAIMENT ce plan', () => {
     );
   });
 
-  it('le dossier par DÉFAUT se tait : la ligne de la documentation reste la sienne', () => {
-    assert.equal(pruneCommand(['digest'], { dir: DEFAULT_RELEASE_DIR }), 'npm run release:prune -- --yes');
-    assert.equal(pruneCommand(['digest']), 'npm run release:prune -- --yes');
-    // Le silence ne vaut QUE pour ce dossier-là : c'est ce qui le distingue du
-    // silence fautif d'avant (un dossier inconnu qui ne se nommait pas).
+  it('le dossier est TOUJOURS écrit — le défaut compris', () => {
+    // La forme courte (`-- --yes`) a existé : elle se taisait sur `release/`, au
+    // motif que c'est la ligne de la documentation. Une convention de lecture
+    // (quand il n'y a pas de `--dir`, c'est le défaut) est ce qui a déjà coûté
+    // deux fois ici : une ligne longue se lit, une ligne courte se devine.
+    assert.equal(pruneCommand(['digest'], { dir: DEFAULT_RELEASE_DIR }), 'npm run release:prune -- --dir=release --yes');
+    assert.equal(pruneCommand(['digest']), 'npm run release:prune -- --dir=release --yes');
+    assert.equal(pruneCommand(['digest'], { dir: '' }), 'npm run release:prune -- --dir=release --yes');
     assert.match(pruneCommand(['digest'], { dir: `${DEFAULT_RELEASE_DIR}-test` }), /--dir=release-test/);
+    // Et le dossier écrit n'est jamais vide : un `--dir=` nu ferait échouer le
+    // CLI sur un dossier qu'aucun rappel ne nomme.
+    assert.doesNotMatch(pruneCommand(['digest'], { dir: '  ' }), /--dir= +/);
   });
 
   it('le nom du dossier par défaut n’existe qu’à UN endroit', () => {
-    // `pruneCommand` se tait quand le dossier est le défaut : si une entrée
-    // décidait d'un autre défaut toute seule, le rappel se tairait sur un dossier
-    // qu'il ne vise pas. La panne reviendrait donc par le silence, et c'est pour
-    // ça que les trois entrées importent la constante au lieu de l'écrire.
+    // Le défaut est écrit par le CLI, lu par le contrôle de cohérence et par le
+    // publieur, et il apparaît maintenant dans chaque rappel : quatre écritures
+    // indépendantes finiraient par désigner deux dossiers. Les trois entrées
+    // importent donc la constante au lieu de l'écrire.
     for (const entry of ['scripts/prune-release-dir.mjs', 'scripts/check-release-coherence.mjs', 'scripts/publish-release.mjs']) {
       const source = read(entry);
       assert.match(source, /DEFAULT_RELEASE_DIR/, `${entry} doit lire le défaut, pas le redire`);
