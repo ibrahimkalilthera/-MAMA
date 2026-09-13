@@ -11,7 +11,7 @@ desktop-e2e.yml    hebdomadaire + manuel, windows-latest
                    build de l'arbre (electron:dist, SANS publication) puis preuve sur le BINAIRE
 ```
 
-**Les brancher a révélé trois vrais défauts — et c'est le meilleur argument pour les brancher.**
+**Les brancher a révélé quatre vrais défauts — et c'est le meilleur argument pour les brancher.**
 
 1. **La preuve bureau détruisait sa propre mesure.** Le script supprimait le dossier de téléchargement, *puis* lisait `statSync(pdf).size` pour composer sa preuve : un run parfaitement réussi finissait en `ENOENT` (PDF de 102 382 octets, deux lignes de démo pourtant supprimées, `PROOF_OK` jamais atteint). La taille est lue maintenant au seul moment où le fichier existe — un contrôle dont le nettoyage s'exécute avant la mesure ne peut pas être vert.
 2. **La preuve pouvait porter sur un binaire d'une AUTRE version.** Le chemin par défaut contenait « `-1.0.0-` » en dur, or `release/` accumule les installeurs de toutes les versions : le jour où une 1.0.0 y traînait encore, la preuve aurait prouvé ce binaire-là — et plus rien du tout dès qu'il était nettoyé. Le défaut vient désormais du `package.json`, et un artefact absent est un **échec nommé** qui dit ce qu'il cherchait et ce qu'il a trouvé.
@@ -23,13 +23,19 @@ desktop-e2e.yml    hebdomadaire + manuel, windows-latest
 **Mesuré sur le vrai monde, pas en unité :**
 
 ```
-cycles métier   19/19 vérifications · base revenue vierge (7 tables à zéro) · exit 0
+cycles métier   19/19 vérifications · aucune ligne de démo résiduelle après nettoyage (4 lignes de ce run vérifiées disparues + 5 préfixes à zéro) · exit 0
                 → preuve publiée : count 19 (élève→paiement→totaux, parent→salaire→dépense)
 preuve bureau   PDF reçu du portable : Fiche_Paie_PreuveBureau_29998_2026-09.pdf
                 102 382 octets · signature %PDF- · 2 lignes de démo supprimées → PROOF_OK
                 → preuve publiée : count 2
 suite complète  1320/1320 tests · npm run lint vert de bout en bout
 ```
+
+4. **Le contrôle de résidu ne pouvait pas survivre aux données réelles.** Il comptait **toutes** les lignes des sept tables et exigeait zéro : vrai tant que la base ne contient que des données de démonstration (c'est le cas aujourd'hui — 0 partout), faux **le jour où l'école saisit son premier élève**. Un contrôle qui rougit sur les données de l'école serait débranché le jour même, donc il ne prouvait rien d'utile. Il retient désormais les **identifiants** des lignes que le run crée (élève, paiement, parent, employé, salaire, dépense) et vérifie **leur** disparition, plus cinq requêtes par préfixe pour les traces d'un run interrompu — un contrôle qui ne peut pas lire une table se déclare encore en échec (`-1` n'est pas `0`), ce qui a d'ailleurs attrapé un `%` brut non encodé dans l'une des cinq.
+
+**Deux workflows qui écrivent la même base ne peuvent pas se juger en même temps.** Le premier run de `business-e2e.yml` a conclu **18/19** : tout était vert, et le seul rouge venait du **compte éphémère en cours** du pixel-check PDF, lancé par le même déploiement — vu comme un résidu, et attribué au mauvais script. Le contrôle de résidu, lui, comptait une ligne de démo de son voisin. Les deux workflows partagent donc le **même groupe de concurrence** (`prod-e2e-…`) : ils se mettent en file au lieu de se juger mutuellement. Un contrôle de résidu qui regarde la base entière ne peut rien affirmer d'autre que *ce que lui a laissé* — et quand deux écrivains travaillent en parallèle, il ne peut même pas affirmer ça.
+
+**Et le binaire Electron manquait sur un runner propre.** `electron-builder` exige `node_modules/electron/dist`, que le postinstall d'electron télécharge — or un `npm ci` sur un runner ne l'a pas (mesuré : windows-latest, 700 paquets, puis « The specified electronDist does not exist »). Le défaut était **latent dans le workflow de publication aussi**, qui n'a jamais tourné : sa première vraie publication aurait échoué là. `npm run electron:runtime` (le programme d'installation du paquet) précède donc le build, dans `electron:build` — donc pour les deux workflows et pour la machine, avec une seule définition. Idempotent : 1 s quand le binaire est en cache.
 
 **Le nettoyage a été resserré au passage.** `e2e-business.mjs` écrivait le chemin de son profil Chrome en dur (`C:/Users/user/AppData/Local/Temp`) — sur un runner Linux ce n'est pas un chemin absolu, donc le profil se créait **dans le checkout** ; `tmpdir()` dit la même chose sur les deux plateformes. Et le champ optionnel ci-dessus laissait l'élève de démo hors de portée du nettoyage : les deux clés (identifiant **et** nom) sont maintenant interrogées, en union.
 

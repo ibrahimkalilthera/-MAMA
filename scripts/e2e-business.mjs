@@ -87,6 +87,15 @@ const api = (path, opts = {}) => withTransientRetry(() => rawApi(path, opts), {
 });
 
 const results = [];
+// Les lignes que CE run crée, par identifiant.
+//
+// Sans elles, le seul contrôle de résidu possible était « les sept tables sont
+// vides » — vrai tant que la base ne contient que des données de démonstration,
+// faux le jour où l'école saisit son premier élève. Un contrôle qui rougit sur
+// les données réelles finit débranché, donc il ne prouve rien d'utile. Retenir
+// les identifiants permet d'affirmer la seule chose qui compte : CE run n'a rien
+// laissé derrière lui.
+const created = { studentId: null, parentId: null, staffId: null, vendorId: null };
 const check = (name, ok, detail = '') => {
   results.push({ name, ok });
   console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ' — ' + detail : ''}`);
@@ -458,6 +467,7 @@ try {
       check('Requête POST /students émise', reqs.some((r) => r.includes('POST /rest/v1/students')), reqs.join(', ').slice(0, 100) || 'aucune');
       const st = await api(`/students?select=id,name,student_id,total_due,amount_paid&name=eq.${encodeURIComponent(STUDENT_NAME)}`);
       const srow = (st.body || [])[0];
+      created.studentId = srow?.id ?? null;
       check('Élève persisté en base', !!srow, srow ? `total_due=${srow.total_due} | amount_paid=${srow.amount_paid}` : 'absent');
 
       // record payment
@@ -500,6 +510,7 @@ try {
       await submitForm('Mamadou Traoré');
       const par = await api(`/parents?select=full_name,phones,relationship&full_name=eq.${encodeURIComponent(PARENT_NAME)}`);
       const p = (par.body || [])[0];
+      created.parentId = p?.id ?? null;
       check('Parent persisté en base', !!p, p ? `${p.full_name} | ${p.phones[0]} | ${p.relationship}` : 'absent');
 
       // STAFF
@@ -514,6 +525,7 @@ try {
       await submitForm('Jane Doe');
       const stf = await api(`/staff?select=id,name,position,salary&name=eq.${encodeURIComponent(STAFF_NAME)}`);
       const srow = (stf.body || [])[0];
+      created.staffId = srow?.id ?? null;
       check('Employé persisté en base', !!srow, srow ? `${srow.name} | ${srow.position} | salary=${srow.salary}` : 'absent');
 
       // SALARY — staff pre-fills the balance; submit directly
@@ -528,9 +540,16 @@ try {
           const btn = form ? [...form.querySelectorAll('button')].find((b) => b.type === 'submit') : null;
           if (btn) btn.click();
         });
-        await new Promise((r) => setTimeout(r, 3000));
-        const sal = await api(`/salary_payments?select=staff_id,amount,date&staff_id=eq.${srow.id}`);
-        const salRow = (sal.body || [])[0];
+        // POLL plutôt que dormir 3 s : une écriture suivie d'un rafraîchissement
+        // peut prendre plus longtemps sur une machine lente, et un délai fixe qui
+        // perd son pari est indiscernable d'un « salaire absent » (mesuré : le
+        // même run passait 3 fois et échouait la 4ᵉ).
+        let salRow = null;
+        for (let i = 0; i < 10 && !salRow; i += 1) {
+          await new Promise((r) => setTimeout(r, 1000));
+          const sal = await api(`/salary_payments?select=staff_id,amount,date&staff_id=eq.${srow.id}`);
+          salRow = (sal.body || [])[0] ?? null;
+        }
         check('Salaire persisté en base (salary_payments)', !!salRow, salRow ? `amount=${salRow.amount} | date=${salRow.date}` : 'absent');
         if (salRow) check('Montant salaire = 120000', salRow.amount === 120000, String(salRow.amount));
       }
@@ -549,6 +568,7 @@ try {
       await submitForm('SENELEC');
       const ve = await api(`/vendor_expenses?select=vendor_name,amount,payment_status&vendor_name=eq.${encodeURIComponent(VENDOR_NAME)}`);
       const vrow = (ve.body || [])[0];
+      created.vendorId = vrow?.id ?? null;
       check('Dépense fournisseur persistée en base', !!vrow, vrow ? `amount=${vrow.amount} | ${vrow.payment_status}` : 'absent');
       if (vrow) check('Montant dépense = 45000', vrow.amount === 45000, String(vrow.amount));
     } catch (e) {
@@ -559,15 +579,49 @@ try {
   // ── Cleanup (mandatory) ─────────────────────────────────────────────────────
   console.log('\n── Nettoyage ──');
   await cleanup(uid);
-  // verify the base is back to virgin
-  const t = ['students', 'payments', 'parents', 'staff', 'salary_payments', 'vendor_expenses', 'custom_classes'];
-  const counts = {};
-  for (const table of t) {
-    const r = await api(`/${table}?select=id&limit=1000`);
-    counts[table] = Array.isArray(r.body) ? r.body.length : -1;
+  // ── Rien de CE run ne doit rester ─────────────────────────────────────────
+  // Par identifiant d'abord (ce que ce run a créé), puis par PRÉFIXE (les
+  // traces d'un run précédent interrompu, que le cleanup de démarrage purge).
+  // Le préfixe reste utile : il attrape ce qu'un run mort avant ce contrôle a
+  // laissé, là où la liste d'identifiants ne peut plus rien nommer.
+  const leftovers = [];
+  const idChecks = [
+    ['élève', created.studentId && `/students?select=id&id=eq.${created.studentId}`],
+    ['paiement(s) de l’élève', created.studentId && `/payments?select=id&student_id=eq.${created.studentId}`],
+    ['parent', created.parentId && `/parents?select=id&id=eq.${created.parentId}`],
+    ['employé', created.staffId && `/staff?select=id&id=eq.${created.staffId}`],
+    ['salaire(s) de l’employé', created.staffId && `/salary_payments?select=id&staff_id=eq.${created.staffId}`],
+    ['dépense fournisseur', created.vendorId && `/vendor_expenses?select=id&id=eq.${created.vendorId}`],
+  ].filter(([, path]) => Boolean(path));
+  for (const [label, path] of idChecks) {
+    const r = await api(path);
+    if (!Array.isArray(r.body)) leftovers.push(`${label} (illisible, HTTP ${r.status})`);
+    else if (r.body.length) leftovers.push(label);
   }
-  const virgin = Object.values(counts).every((n) => n === 0);
-  check('Base revenue à l\'état vierge après cleanup', virgin, JSON.stringify(counts));
+  const prefixChecks = [
+    ['élève(s)', `/students?select=id&name=like.${encodeURIComponent('BizTest %')}`],
+    ['parent(s)', `/parents?select=id&full_name=like.${encodeURIComponent('Parent E2E %')}`],
+    ['employé(s)', `/staff?select=id&name=like.${encodeURIComponent('Staff E2E %')}`],
+    ['dépense(s) fournisseur', `/vendor_expenses?select=id&vendor_name=like.${encodeURIComponent('Vendor E2E %')}`],
+    // Encodé comme les autres : un `%` brut dans une URL est un caractère
+    // d'échappement, donc la requête revenait illisible — et un contrôle qui ne
+    // peut pas lire ne peut pas se déclarer propre (mesuré : « classe(s) : -1 »).
+    ['classe(s)', `/custom_classes?select=id&code=like.${encodeURIComponent('E2E-CLASS-%')}`],
+  ];
+  for (const [label, path] of prefixChecks) {
+    const r = await api(path);
+    const n = Array.isArray(r.body) ? r.body.length : -1;
+    // -1 (illisible) n'est pas 0 : un contrôle qui ne peut pas lire ne peut pas
+    // se déclarer propre.
+    if (n !== 0) leftovers.push(`${label} : ${n}`);
+  }
+  check(
+    'Aucune ligne de démo résiduelle après cleanup',
+    leftovers.length === 0,
+    leftovers.length
+      ? leftovers.join(', ')
+      : `${idChecks.length} ligne(s) de ce run vérifiée(s) disparue(s) + ${prefixChecks.length} préfixe(s) à zéro`,
+  );
 
   console.log('\n=== ERREURS CONSOLE / PAGE ===');
   console.log(logs.length ? logs.join('\n') : 'aucune');
@@ -589,7 +643,7 @@ if (failed.length === 0) {
   publishEvidence({
     acted: true,
     count: results.length,
-    reason: `cycles métier E2E : ${results.length} vérification(s) passée(s) (élève→paiement→totaux, parent→salaire→dépense) et base revenue vierge après nettoyage`,
+    reason: `cycles métier E2E : ${results.length} vérification(s) passée(s) (élève→paiement→totaux, parent→salaire→dépense) et aucune ligne de démo résiduelle après nettoyage`,
   });
 }
 process.exit(failed.length ? 1 : 0);

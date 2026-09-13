@@ -46,7 +46,13 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: business-e2e-${{ github.event.workflow_run.head_sha || github.ref }}
+  # MÊME groupe que `pdf-e2e.yml`, délibérément : les deux chaînes écrivent dans
+  # la même base de production et chacune juge les résidus de l'autre. Mesuré le
+  # 2026-09-13 — le premier run de ce workflow, déclenché par le même déploiement
+  # que le pixel-check PDF, a compté 18/19 : tout était vert, et le seul rouge
+  # venait du **compte éphémère en cours** de l'autre workflow, vu comme un
+  # résidu. Un groupe partagé met les deux en file au lieu de les faire se juger.
+  group: prod-e2e-${{ github.event.workflow_run.head_sha || github.ref }}
   cancel-in-progress: false
 
 permissions:

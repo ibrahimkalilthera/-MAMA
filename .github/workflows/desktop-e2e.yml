@@ -64,13 +64,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Le script lit `.env` ; l'URL Supabase est publique, seule la clé service
+      # Le script lit `.env` — et le BUILD aussi : `electron:ui` compile l'app avec
+      # ces valeurs, donc `VITE_SUPABASE_ANON_KEY` manquante ne donne pas une app
+      # dégradée mais une app qui REFUSE de démarrer (« Configuration manquante /
+      # Missing configuration », mesuré sur le runner). L'URL et la clé anon sont
+      # PUBLIQUES (embarquées dans le bundle servi à chaque navigateur, protégées
+      # par RLS) et figurent déjà dans les autres workflows ; seule la clé service
       # est un secret. Le fichier est généré dans le job et jamais commité.
       - name: Generate .env for the desktop proof (public URL + service-role secret)
         shell: bash
         run: |
           cat > .env <<'EOF'
           VITE_SUPABASE_URL=https://rpcjdohfxwukbqngbprw.supabase.co
+          VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
           SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           EOF
 

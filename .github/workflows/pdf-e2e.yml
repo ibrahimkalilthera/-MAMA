@@ -72,7 +72,14 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: pdf-e2e-${{ github.event.workflow_run.head_sha || github.ref }}
+  # MÊME groupe que `business-e2e.yml`, délibérément : les deux écrivent dans la
+  # MÊME base de production (comptes éphémères, lignes de démo) et chacun juge les
+  # résidus de l'autre. Mesuré le 2026-09-13 : lancés côte à côte par le même
+  # déploiement, le garde anti-résidus a vu le compte éphémère EN COURS de l'autre
+  # workflow, l'a appelé un résidu — un faux rouge qui accusait le mauvais script —
+  # et le contrôle de résidu a compté une ligne de démo de son voisin. Un groupe
+  # partagé les met en file au lieu de les faire se juger mutuellement.
+  group: prod-e2e-${{ github.event.workflow_run.head_sha || github.ref }}
   cancel-in-progress: false
 
 permissions:
