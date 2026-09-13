@@ -1,3 +1,17 @@
+## [2026-09-13] Le contexte des vues sort du fichier de test — pour qu'une autre suite puisse rendre une vue AVEC des données
+
+Demande : « Rends les vues testables avec de vraies données en sortant le contexte figé du harnais de rendu, pour que le regroupement des incidents et l'export CSV soient exercés plutôt qu'assertés sur la source. »
+
+**Les deux cas demandés étaient déjà exercés** (rendus avec de VRAIS rapports produits par le module de remontée : deux postes, une panne → une ligne ; dépliage annoncé ; CSV regroupé = en-tête + 1, dégroupé = en-tête + 2). Ce qui restait, c'est ce qui l'avait rendu impossible si longtemps : le contexte vivait **dans** `tests/views-render.test.tsx`, en ~400 lignes de littéral.
+
+**Deux conséquences, et la seconde ne se voyait pas.** La première : aucune autre suite ne pouvait rendre une vue avec des données — le harnais n'était pas importable, donc « tester une vue » voulait dire « copier 400 lignes » ou « asserter sur la source ». La seconde : ce fichier était le SEUL propriétaire du contexte, donc un cas qui oubliait de peupler une collection mesurait un contexte vide sans que rien ne le dise — et c'est exactement ainsi que le regroupement d'incidents et l'export CSV ont vécu un an en vert sans jamais tourner.
+
+**Sorti tel quel, aucune ligne réécrite** : `tests/views-harness.tsx` (397 lignes, un seul métier — le contexte dont une vue a besoin pour être rendue) et `tests/views-render.test.tsx` ramené à **332 lignes** (686 avant : les tests et ce qui sert à les exercer — composants, DOM, traductions attendues). Les imports du fichier de test ont été taillés à ce qu'il utilise : 20 imports de types et d'icônes ne servaient plus qu'au contexte déplacé.
+
+**Ce qui n'est PAS prétendu** : aucune autre suite ne l'importe encore. Le changement n'est pas « une suite de plus l'utilise », c'est qu'elle le PEUT — et que les deux cas qui comptent passent par lui, avec leurs données en paramètre au lieu d'un littéral partagé.
+
+**Mesures** : `tsc --noEmit` propre, `eslint --max-warnings 0` propre sur les deux fichiers, `check-test-harness.mjs` vert (aucune installation happy-dom réintroduite en ligne), et `views-render.test.tsx` **18/18** — inchangé, ce qui est le point d'un déplacement.
+
 ## [2026-09-13] Le volume de l'atelier devient une addition — et ce qui n'entrait dans aucune case est nommé
 
 Demande : « Fais nommer par release:prune les dossiers qu'il ne juge pas (dont win-unpacked, 508 Mo), pour qu'un volume invisible au plan ne puisse plus échapper à la décision. »
@@ -2371,3 +2385,4 @@ graph TD
 - **DashboardView** : le bloc de bannières `missedMonths` est supprimé (les bannières de fenêtre de paie isOverdue/isOpen restent, statut transitoire du mois courant). Le memo `notifications` a été déplacé après `missedMonths` (TDZ) et `MONTH_KEYS` sorti au niveau module (deps).
 - **Tests** : dashboard +1 (pas d'alerte sans staff ; une alerte `payroll` par mois manqué, id année+mois, sans studentId, message localisé) ; panneau +1 (alerte de paie listée, clic → marquée lue sans ouvrir de profil).
 - Chaîne complète verte : lint 0 warning (tsc strict + guards + stylelint), l10n ✓, **273/273 tests**, build ✓.
+
