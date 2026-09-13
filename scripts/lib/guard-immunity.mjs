@@ -176,6 +176,24 @@ export const GUARD_INVENTORY = [
       [IMMUNITY.NON_VACUOUS]: 'il interroge une origine publique ; l’absence de réponse EST le verdict (nommée par le module), il n’y a pas de corpus à lire',
     },
   },
+  {
+    check: 'check-updater-trust.mjs',
+    input: 'artifact+contract+signature',
+    needs: [],
+    // Le sujet lu EST le binaire publié : il n’y a pas de corpus à parcourir.
+    // Trois absences sont des REFUS (exit 1), jamais un vert — pas de contrat
+    // embarqué, pas d’installeur, ou une plateforme qui ne peut pas mesurer
+    // (`Get-AuthenticodeSignature` est un geste Windows). Et le verdict qui
+    // décide est PUR : `updaterTrustVerdict` (scripts/lib/updater-trust.mjs)
+    // refuse une promesse vide, une promesse sans signature lue, un signataire
+    // de test, et une chaîne non approuvée — mesuré sur les octets du canal le
+    // 2026-09-13, dont le contrat portait « Mama Thera Finance (test) ».
+    via: 'updater-trust.mjs',
+    exempt: {
+      [IMMUNITY.NON_VACUOUS]: 'il lit le contrat embarqué dans un binaire et la signature Windows de ce binaire ; sans l’un ou l’autre il refuse de conclure (exit 1), il n’y a pas de corpus à parcourir',
+      [IMMUNITY.PROSE_BLIND]: 'il lit un fichier de données (app-update.yml) et la sortie d’un cmdlet Windows, jamais du code source',
+    },
+  },
 ];
 
 /**

@@ -13,7 +13,16 @@
 # de code (secrets) et publie un GitHub Release — le canal electron-updater
 # (setup.exe + portable + latest.yml dans le même release). Sans secret
 # CSC_PFX_B64, le build reste non signé (SmartScreen « éditeur inconnu ») — le
-# workflow avertit et ne publie pas.
+# workflow avertit et ne publie pas. Un build non signé n'est PAS une
+# publication : ce dépôt ne pose pas dans le parc une app que Windows ne peut pas
+# identifier, et c'est le publieur qui porte la règle miroir —
+# `npm run check:updater-trust` (appelé par `release:publish` AVANT la première
+# requête) refuse tout contrat promettant un signataire non approuvé, donc un
+# certificat de TEST ne peut plus atteindre le canal depuis quelque machine que
+# ce soit. Mesuré le 2026-09-13 : l'installeur publié portait
+# `publisherName: [ "Mama Thera Finance (test)" ]` et une racine non approuvée —
+# chaque poste équipé refusait À JAMAIS toutes les mises à jour
+# (ERR_UPDATER_INVALID_SIGNATURE), un parc figé sous un workflow vert.
 #
 # `workflow_dispatch` reste, pour une reprise explicite (le certificat vient
 # d'être posé, un build a été corrigé) : la voie normale n'en a plus besoin.
@@ -40,6 +49,8 @@
 # le gate n'ouvre ce job que s'il y a un release à faire, donc un build non signé
 # est une publication qui n'a pas eu lieu — le run le déclare en INACTION et
 # rougit, au lieu de rester vert en décrivant des artefacts que personne ne reçoit.
+# Et faire disparaître l'avertissement de Windows passe par les mêmes secrets :
+# seul un certificat approuvé (OV/EV, ou Azure Trusted Signing) lève SmartScreen.
 # ─────────────────────────────────────────────────────────────────────────────
 name: Desktop release (Windows)
 
@@ -148,6 +159,17 @@ jobs:
           EOF
           grep -c . .env
 
+      # ── LE point de signature, et le seul ─────────────────────────────────
+      # Aujourd'hui : un certificat `.pfx` restauré depuis les secrets. Deux
+      # voies existent, et elles se remplacent ici, pas ailleurs :
+      #   • certificat OV/EV acheté → `CSC_PFX_B64` + `CSC_KEY_PASSWORD` ;
+      #   • signature OSS gratuite (SignPath Foundation, certificats EV) → le
+      #     connecteur GitHub de SignPath, qui remplace cette étape et rend les
+      #     octets SIGNÉS avant `npm run release:publish`.
+      # Marche à suivre et prérequis mesurés : docs/CODE_SIGNING.md §1 bis.
+      # Dans les deux cas, `npm run check:updater-trust` juge ensuite le contrat
+      # embarqué AVANT la première requête et refuse un signataire que Windows
+      # ne peut pas approuver — c'est ce refus qui rend cette étape sûre.
       - name: Restore code-signing certificate
         shell: bash
         env:

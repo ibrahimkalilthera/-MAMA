@@ -290,6 +290,35 @@ function runGate(flag, { withoutToken = false, label, attempts = 1, delayMs = 40
   }
 }
 
+/**
+ * Le contrat de confiance du parc envers SA PROCHAINE mise à jour.
+ *
+ * MESURÉ le 2026-09-13 : l'installeur publié portait un `app-update.yml`
+ * promettant « Mama Thera Finance (test) » et une chaîne de certificats non
+ * approuvée. Comme le poste n'accepte qu'une signature `Valid` au nom promis, il
+ * refusait À JAMAIS toutes les versions suivantes — un parc figé, publié sous un
+ * workflow vert. Ce refus tombe donc AVANT toute écriture : une fois un octet
+ * téléversé et promu, aucune correction locale ne rattrape les postes équipés.
+ */
+function assertUpdaterTrust() {
+  console.log('\n── le parc pourra-t-il encaisser sa prochaine mise à jour ? ──');
+  try {
+    const stdout = execFileSync(
+      process.execPath,
+      ['scripts/check-updater-trust.mjs', `--dir=${dirArg}`],
+      { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    process.stdout.write(String(stdout ?? ''));
+  } catch (error) {
+    process.stdout.write(String(error?.stdout ?? ''));
+    process.stderr.write(String(error?.stderr ?? ''));
+    fail('publication refusée — la signature embarquée figerait le parc', [
+      'un poste n’accepte que la signature qu’il a promise : corrigez ce que le contrôle nomme ci-dessus',
+      'sans certificat de confiance, publiez un build NON signé (aucun `publisherName` embarqué) — il se met à jour, au prix du « éditeur inconnu » de Windows',
+    ]);
+  }
+}
+
 // ── 1. Ce qu'on a le droit de publier ────────────────────────────────────────
 const latestFile = join(releaseDir, 'latest.yml');
 if (!existsSync(latestFile)) {
@@ -297,6 +326,10 @@ if (!existsSync(latestFile)) {
     'Lance `npm run electron:build` (ou `npm run electron:release`) d’abord.',
   ]);
 }
+// Le contrat de mise à jour se juge AVANT tout accès au canal : rien de ce qui
+// figerait un parc ne doit atteindre une requête, même en lecture.
+assertUpdaterTrust();
+
 const latestText = readFileSync(latestFile, 'utf8');
 const latest = parseLatestYml(latestText);
 if (!latest) fail('latest.yml illisible — le flux ne peut pas être vérifié', ['version ou `path` absente']);
