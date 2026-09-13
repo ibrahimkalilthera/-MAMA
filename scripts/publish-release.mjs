@@ -54,13 +54,15 @@ import { runGateAttempts } from './lib/gate-runner.mjs';
 import { expectedArtifacts } from './lib/release-compare.mjs';
 import { parseLatestYml } from './lib/latest-yml.mjs';
 import { releaseTag } from './lib/release-version.mjs';
+import { DEFAULT_RELEASE_DIR } from './lib/release-prune.mjs';
 import { publicationPlan } from './lib/release-publish.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const PROMOTE = args.includes('--promote');
 const DRY = args.includes('--dry-run');
-const dirArg = args.find((a) => a.startsWith('--dir='))?.slice('--dir='.length) || 'release';
+const dirArg =
+  args.find((a) => a.startsWith('--dir='))?.slice('--dir='.length) || DEFAULT_RELEASE_DIR;
 const releaseDir = join(root, dirArg);
 const gateScript = 'scripts/check-release-coherence.mjs';
 

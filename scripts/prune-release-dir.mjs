@@ -78,6 +78,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  DEFAULT_RELEASE_DIR,
   artifactVersion,
   formatBytes,
   noRemovalMessage,
@@ -87,7 +88,8 @@ import {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
-const dirArg = args.find((a) => a.startsWith('--dir='))?.slice('--dir='.length) || 'release';
+const dirArg =
+  args.find((a) => a.startsWith('--dir='))?.slice('--dir='.length) || DEFAULT_RELEASE_DIR;
 const releaseDir = join(root, dirArg);
 const apply = args.includes('--yes');
 // Les reconstructions d'un numéro déjà publié : mêmes octets jamais livrés, et

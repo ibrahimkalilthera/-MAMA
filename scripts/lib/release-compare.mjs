@@ -14,9 +14,14 @@ import { releaseTag } from './release-version.mjs';
 /**
  * Comparer le flux local, les artefacts du dossier, et la version du paquet.
  *
+ * Le dossier est un PARAMÈTRE (`dir`), pas une constante : ce contrôle accepte
+ * `--dir=`, donc un avertissement qui écrirait `release/` d'avance nommerait un
+ * dossier qu'il n'a pas lu. Le nom vient de celui qui a lu le dossier, et d'un
+ * seul côté.
+ *
  * @param {{ latestText: unknown, packageVersion: string,
  *   assets?: Map<string, { size: number, sha512: string }>, dirNames?: string[],
- *   expectBlockmap?: boolean }} input
+ *   expectBlockmap?: boolean, dir?: string }} input
  * @returns {{ ok: boolean, problems: string[], warnings: string[], latest: object|null }}
  */
 
@@ -26,6 +31,7 @@ export function compareLatest({
   assets = new Map(),
   dirNames = [],
   expectBlockmap = true,
+  dir = 'release',
 } = {}) {
   const problems = [];
   const warnings = [];
@@ -87,12 +93,20 @@ export function compareLatest({
   // Les autres versions présentes dans le dossier ne sont PAS une erreur (le
   // dossier accumule) — mais c'est exactement là qu'on prend le mauvais fichier,
   // donc elles sont nommées au lieu d'être tues.
+  //
+  // Le dossier est nommé par celui qui l'a LU (`dir`), jamais écrit ici : la
+  // version précédente disait `release/` en dur alors que le contrôle accepte
+  // `--dir=` — mesuré sur `release-probe/`, il annonçait donc des fichiers
+  // présents dans un dossier dont il ne parlait pas, et un lecteur pressé
+  // cherchait au mauvais endroit. C'est la même faute que le rappel de
+  // `release:prune` qui perdait son `--dir`, dans le seul autre producteur de
+  // ces lignes.
   const leftovers = dirNames.filter(
     (name) => /\.exe$/i.test(name) && !nameCarriesVersion(name, latest.version),
   );
   if (leftovers.length) {
     warnings.push(
-      `${leftovers.length} installeur(s) d'une AUTRE version traînent dans release/ (${leftovers.join(', ')}) — ` +
+      `${leftovers.length} installeur(s) d'une AUTRE version traînent dans ${dir}/ (${leftovers.join(', ')}) — ` +
         'ils ne sont pas annoncés par latest.yml, donc ne les publiez pas',
     );
   }

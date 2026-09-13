@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 
 import {
+  DEFAULT_RELEASE_DIR,
   artifactVersion,
   formatBytes,
   noRemovalMessage,
@@ -396,8 +397,24 @@ describe('le rappel du plan applique VRAIMENT ce plan', () => {
   });
 
   it('le dossier par DÉFAUT se tait : la ligne de la documentation reste la sienne', () => {
-    assert.equal(pruneCommand(['digest'], { dir: 'release' }), 'npm run release:prune -- --yes');
+    assert.equal(pruneCommand(['digest'], { dir: DEFAULT_RELEASE_DIR }), 'npm run release:prune -- --yes');
     assert.equal(pruneCommand(['digest']), 'npm run release:prune -- --yes');
+    // Le silence ne vaut QUE pour ce dossier-là : c'est ce qui le distingue du
+    // silence fautif d'avant (un dossier inconnu qui ne se nommait pas).
+    assert.match(pruneCommand(['digest'], { dir: `${DEFAULT_RELEASE_DIR}-test` }), /--dir=release-test/);
+  });
+
+  it('le nom du dossier par défaut n’existe qu’à UN endroit', () => {
+    // `pruneCommand` se tait quand le dossier est le défaut : si une entrée
+    // décidait d'un autre défaut toute seule, le rappel se tairait sur un dossier
+    // qu'il ne vise pas. La panne reviendrait donc par le silence, et c'est pour
+    // ça que les trois entrées importent la constante au lieu de l'écrire.
+    for (const entry of ['scripts/prune-release-dir.mjs', 'scripts/check-release-coherence.mjs', 'scripts/publish-release.mjs']) {
+      const source = read(entry);
+      assert.match(source, /DEFAULT_RELEASE_DIR/, `${entry} doit lire le défaut, pas le redire`);
+      assert.doesNotMatch(source, /\|\| 'release'/, `${entry} ne doit plus écrire le nom du dossier`);
+    }
+    assert.equal(DEFAULT_RELEASE_DIR, 'release');
   });
 
   it('aucune commande n’est écrite en dur dans le CLI : un seul site peut la produire', () => {

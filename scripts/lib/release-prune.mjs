@@ -328,13 +328,23 @@ export function prunePlan({
  *   et se tait, parce que c'est la ligne que la documentation montre
  * @returns {string} la ligne exacte à recopier
  */
-export function pruneCommand(kinds = [], { dir = 'release' } = {}) {
+/**
+ * Le dossier d'atelier par défaut, écrit UNE fois.
+ *
+ * `pruneCommand` se tait quand le dossier est celui-là (c'est la ligne que la
+ * documentation montre), donc si une entrée décidait d'un autre défaut toute
+ * seule, le rappel se tairait sur un dossier qu'il ne vise pas — la panne
+ * exactement, revenue par la porte du silence plutôt que par celle du texte.
+ */
+export const DEFAULT_RELEASE_DIR = 'release';
+
+export function pruneCommand(kinds = [], { dir = DEFAULT_RELEASE_DIR } = {}) {
   const acts = new Set(kinds);
   const flags = ['--yes'];
   if (acts.has('stale')) flags.push('--stale');
   if (acts.has('unpublished')) flags.push('--unpublished');
   if (acts.has('unpacked')) flags.push('--unpacked');
-  const target = dir && dir !== 'release' ? ` --dir=${dir}` : '';
+  const target = dir && dir !== DEFAULT_RELEASE_DIR ? ` --dir=${dir}` : '';
   return `npm run release:prune --${target} ${flags.join(' ')}`;
 }
 

@@ -185,6 +185,24 @@ describe('le dossier local contre le paquet et ses octets', () => {
     assert.equal(verdict.warnings.length, 1);
     assert.match(verdict.warnings[0], /1\.0\.3-setup\.exe.*1\.0\.2-portable\.exe/);
     assert.match(verdict.warnings[0], /ne les publiez pas/);
+    assert.match(verdict.warnings[0], /dans release\//, 'sans `dir`, le dossier par défaut est nommé');
+  });
+
+  it('l’avertissement nomme le dossier qui a été LU, jamais `release/` d’avance', () => {
+    const dir = coherentDir();
+    const verdict = compareLatest({
+      latestText: dir.latestText,
+      packageVersion: PACKAGE,
+      assets: dir.assets,
+      dirNames: [...dir.dirNames, 'MamaTheraFinance-1.0.3-setup.exe'],
+      dir: 'release-probe',
+    });
+    assert.match(verdict.warnings[0], /dans release-probe\//);
+    assert.doesNotMatch(
+      verdict.warnings.join('\n'),
+      /dans release\//,
+      'annoncer `release/` pour un dossier qu’on n’a pas lu envoie le lecteur au mauvais endroit',
+    );
   });
 
   it('un latest.yml illisible est un refus, jamais un vert par défaut', () => {

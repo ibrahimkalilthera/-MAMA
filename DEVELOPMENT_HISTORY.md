@@ -1,3 +1,22 @@
+## [2026-09-13] Le dossier du rappel vient d'une seule source — et la seconde qui le nommait mentait
+
+Demande : « Fais porter le dossier au rappel de release:prune, depuis une seule source, pour qu'un plan sur un autre dossier ne propose plus d'agir sur release/. »
+
+**Le rappel le portait déjà** (`pruneCommand(plan)` déduit les drapeaux *et* `--dir` du plan, depuis le tour où le défaut avait été trouvé) — vérifié plutôt que supposé, en montrant le plan d'un dossier de sonde :
+
+```
+ℹ️  1 artefact(s) d'une version JAMAIS publiée…
+   npm run release:prune -- --dir=tmp-recall-probe/atelier --yes --unpublished
+```
+
+**Mais une SECONDE main nommait le dossier, et elle se trompait.** Le contrôle de cohérence accepte `--dir=`, lit ce dossier-là, et son avertissement sur les installeurs d'autres versions disait `release/` **en dur** : lancé sur `release-probe/`, il annonçait donc des fichiers « dans release/ » — un dossier qu'il n'avait pas lu — pendant que l'en-tête d'échec, deux lignes plus haut, nommait correctement `dirArg`. Deux lignes du même rapport désignant deux endroits, et la fausse était celle qu'un lecteur pressé suit. C'est exactement la faute du rappel qui perdait son `--dir`, dans le seul autre producteur de ces lignes : le dossier devient un **paramètre** (`compareLatest({ dir })`) que le lecteur du dossier renseigne.
+
+**Et la dernière façon de contourner « une seule source » était le nom du défaut lui-même.** `pruneCommand` se tait quand le dossier est celui par défaut (c'est la ligne que la documentation montre) : si une entrée avait décidé d'un autre défaut toute seule, le rappel se serait tu sur un dossier qu'il ne vise pas — la panne revenue par la porte du **silence** au lieu de celle du texte. Le défaut est donc une constante exportée (`DEFAULT_RELEASE_DIR`), importée par les trois entrées (CLI d'atelier, contrôle de cohérence, publieur) au lieu d'être réécrite trois fois.
+
+**Ce qui verrouille les trois :** le dossier de sonde est **nommé** et jamais confondu avec le défaut, le silence sur le défaut ne vaut **que** pour lui (`release-test` est nommé), et un cas vérifie que les trois entrées **importent** la constante au lieu d'écrire leur propre `|| 'release'`.
+
+**Mesures** : `release-prune` + `release-coherence` + `prune-cli` = **106/106**, `tsc --noEmit` propre. Preuve sur le dossier réel : le plan d'un atelier de sonde annonce `--dir=tmp-recall-probe/atelier` (ligne copiée telle quelle, elle agit sur le dossier lu), et l'atelier réel reste vert avec ses actes habituels.
+
 ## [2026-09-13] Le contrôle de l'atelier tourne là où le dossier existe — pas dans un cron qui ne verrait rien
 
 Demande : « Fais tourner release:prune automatiquement (chaîne qualité et/ou workflow planifié) et rends rouge la présence d'octets que le canal détient déjà. »

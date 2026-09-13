@@ -68,13 +68,15 @@ import { fileURLToPath } from 'node:url';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { parseHoldsFile, parseLatestYml } from './lib/latest-yml.mjs';
 import { assetsToPublish, compareLatest, compareRelease, publishDecision } from './lib/release-compare.mjs';
+import { DEFAULT_RELEASE_DIR } from './lib/release-prune.mjs';
 import { deliveryReach, pickLatestPublished } from './lib/release-reach.mjs';
 import { releaseTag } from './lib/release-version.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const MODE = ['local', 'tag', 'draft', 'live', 'channel', 'needed'].find((m) => args.includes(`--${m}`)) || 'local';
-const dirArg = args.find((a) => a.startsWith('--dir='))?.slice('--dir='.length) || 'release';
+const dirArg =
+  args.find((a) => a.startsWith('--dir='))?.slice('--dir='.length) || DEFAULT_RELEASE_DIR;
 const releaseDir = join(root, dirArg);
 // La branche que le poste interroge pour le frein (`HOLD_BRANCH_DEFAULT` dans
 // electron/updater-policy.cjs). Surchargeable pour deux raisons : vérifier une
@@ -115,7 +117,16 @@ function localFacts() {
     const bytes = readFileSync(file);
     assets.set(name, { size: bytes.length, sha512: sha512Of(bytes) });
   }
-  return { latestText, dirNames, assets, verdict: compareLatest({ latestText, packageVersion: version, assets, dirNames }) };
+  return { latestText, dirNames, assets,      verdict: compareLatest({
+        latestText,
+        packageVersion: version,
+        assets,
+        dirNames,
+        // Le dossier lu, tel qu'il doit être nommé dans les avertissements :
+        // sans ça, un contrôle lancé sur `--dir=release-probe` parlait de
+        // `release/`, et deux lignes du même rapport désignaient deux dossiers.
+        dir: dirArg,
+      }) };
 }
 
 // ── Mode local ────────────────────────────────────────────────────────────────
