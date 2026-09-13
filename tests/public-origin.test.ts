@@ -145,4 +145,32 @@ describe('le câblage : une définition, et une relecture là où le poste est l
     const pkg = JSON.parse(read('package.json'));
     assert.equal(pkg.scripts['check:public-origin'], 'node scripts/check-public-origin.mjs');
   });
+
+  it('une bascule côté hébergeur ne produit aucun commit : un cron quotidien relit l’origine', () => {
+    const workflow = read('.github/workflows/public-origin-watch.yml');
+    // Sans cron, le contrôle ne tournerait qu'aux déploiements — donc jamais
+    // dans le cas qui l'a fait naître : un domaine remappé, un projet dont le
+    // déploiement de production est supprimé, un certificat expiré. Aucun de ces
+    // gestes ne commit rien, donc aucun ne réveille un contrôle déclenché par un
+    // push.
+    assert.match(workflow, /cron: '\S+ \S+ \S+ \S+ \S+'/, 'la veille porte un cron');
+    assert.match(workflow, /AUTOMATION_EVIDENCE: '1'/, 'et elle mandate la preuve de son contrôle');
+    const check = workflow.indexOf('npm run check:public-origin');
+    const evidence = workflow.indexOf('publish-automation-evidence.mjs');
+    assert.ok(check > 0, 'elle lance le MÊME contrôle que le déploiement, par son nom de script');
+    assert.ok(evidence > check, 'et la preuve « j’ai agi » ne part pas avant que l’origine ait répondu');
+    // L'adresse embarquée doit être dans le filtre de push : la changer est le
+    // seul commit capable de rendre l'origine injoignable en silence.
+    assert.match(workflow, /electron\/public-origin\.cjs/);
+  });
+
+  it('la preuve du contrôle est une MESURE publiée par lui, pas une phrase du YAML', () => {
+    // Le canal de preuve est parfait et la substance peut manquer : une étape
+    // YAML identique qu'un script se soit trompé d'origine ou n'ait rien sondé,
+    // tant que les étapes d'avant ne rougissent pas. Ce que le contrôle a LU — le
+    // statut, le nombre de modules réellement téléchargés — doit venir de lui.
+    const script = read('scripts/check-public-origin.mjs');
+    assert.match(script, /publishEvidence\(\{/, 'le contrôle publie sa preuve');
+    assert.match(script, /count: probes\.length/, 'et le compte vient des sondes réelles, pas d’un littéral');
+  });
 });

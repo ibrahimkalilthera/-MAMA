@@ -1,0 +1,108 @@
+name: Public origin watch
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « L'origine que CHAQUE poste embarque répond-elle encore ? »
+#
+# `deploy.yml` relit déjà cette origine, mais seulement APRÈS un déploiement, et
+# c'est la moitié du problème. Une origine publique se casse aussi — et surtout —
+# SANS commit : un domaine remappé, un projet Vercel dont le déploiement de
+# production est supprimé, un réglage d'hébergeur basculé dans le tableau de bord,
+# un certificat qui expire. Aucun de ces gestes ne produit de commit, donc aucun
+# ne peut réveiller un contrôle déclenché par un push. Le 13/09, c'est exactement
+# ce qui est arrivé à un domaine du projet : `HTTP 404 DEPLOYMENT_NOT_FOUND`
+# pendant que le job de déploiement restait vert — et personne ne l'aurait su
+# avant qu'un utilisateur ne le dise.
+#
+# Cette origine n'est pas décorative : c'est le REPLI du poste (`electron/main.cjs`
+# bascule dessus quand l'interface locale ne démarre pas, l'adresse venant de
+# `electron/public-origin.cjs`). Si elle ne répond plus, un poste dont le
+# `file://` échoue n'a plus rien à charger — et un poste installé qui ne démarre
+# pas est un incident de parc, pas un incident de site.
+#
+# Le contrôle est le MÊME que celui du déploiement (`npm run check:public-origin`,
+# une seule définition, partagée avec le poste) : trois refus, parce qu'ils se
+# réparent séparément — l'origine répond (DNS, TLS, statut), elle sert
+# l'APPLICATION (la coquille `#root`, pas une page d'erreur servie en 200, le faux
+# vert le plus trompeur parce qu'il a le bon code), et ses MODULES se téléchargent
+# (une coquille dont le bundle répond 404 est un écran blanc, le même défaut un
+# cran plus loin).
+#
+# Trois déclencheurs : le cron quotidien est le vrai filet (une bascule
+# d'hébergeur ne produit aucun commit) ; le push filtré exerce le contrôle quand
+# c'est LUI qui change ; `workflow_dispatch` sert à le relire pendant qu'on
+# répare. Ce job ne bloque aucun déploiement : c'est un signal, pas une porte.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    paths:
+      # L'adresse elle-même : la changer sans que rien ne la relise serait le
+      # seul cas où un commit peut rendre l'origine injoignable en silence.
+      - 'electron/public-origin.cjs'
+      - 'scripts/check-public-origin.mjs'
+      - 'scripts/lib/public-origin.mjs'
+      # Le module qui extrait les modules référencés par la page : un filtre qui
+      # nommerait un fichier disparu ne déclencherait plus rien, donc le contrôle
+      # ne serait plus exercé par le push qui le change.
+      - 'scripts/lib/shared-project.mjs'
+      - '.github/workflows/public-origin-watch.yml'
+
+  schedule:
+    # 06:35 UTC — après le déploiement de nuit, avant la journée de travail.
+    - cron: '35 6 * * *'
+
+  # Permet de relire une AUTRE origine à la main — un aperçu de déploiement, ou
+  # une origine qu'on est en train de réparer. Le contrôle porte déjà ce drapeau
+  # (`--url=`), donc l'exposer ne crée aucune seconde définition : c'est aussi le
+  # moyen de montrer que la veille MORD, en la lançant sur une origine morte.
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Origine à relire (vide = celle que le poste embarque)'
+        required: false
+        default: ''
+
+concurrency:
+  group: public-origin-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  origin:
+    name: Vérifier l'origine publique que le poste embarque
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Comme les autres jobs : installer Node ne prouve pas le majeur exécuté.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # Le script n'utilise que la bibliothèque standard (fetch global) : aucune
+      # dépendance à installer, donc pas de `npm ci` — rien qui puisse échouer
+      # avant la mesure.
+      - name: L’origine publique répond-elle, et sert-elle l’application ?
+        # Mandat de preuve : le contrôle publie lui-même ce qu'il a MESURÉ (statut,
+        # taille de la coquille, nombre de modules réellement téléchargés) — sans
+        # lui, la preuve ne serait qu'une phrase écrite dans ce fichier.
+        env:
+          AUTOMATION_EVIDENCE: '1'
+        # Sans saisie (le cron, le push), on relit l'origine du POSTE, la seule
+        # qui compte pour un parc installé — le filet quotidien ne doit pas
+        # pouvoir juger autre chose que ce que l'installeur embarque.
+        run: npm run check:public-origin${{ inputs.url != '' && format(' -- --url={0}', inputs.url) || '' }}
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — origine publique du poste
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "origine publique relue à l’adresse qu’un poste embarque (electron/public-origin.cjs), sans jeton : le détail mesuré (statut, taille de la coquille, modules réellement téléchargés) est publié par scripts/check-public-origin.mjs — une bascule de réglage côté hébergeur devient rouge ici sans attendre le prochain déploiement"

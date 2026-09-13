@@ -18,6 +18,7 @@
  * branche de refus est assertée sans site en ligne.
  */
 import { createRequire } from 'node:module';
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { originVerdict } from './lib/public-origin.mjs';
 
 const require = createRequire(import.meta.url);
@@ -82,5 +83,19 @@ if (!verdict.ok) {
   for (const w of verdict.warnings) console.error(`   ⚠️  ${w}`);
   process.exit(1);
 }
+// La substance, publiée par le contrôle lui-même : ce n'est pas le YAML qui
+// affirme « j'ai agi », c'est cette lecture-ci qui dit ce qu'elle a MESURÉ —
+// l'origine relue, le statut, et le nombre de modules réellement téléchargés.
+// Sans mandat (une exécution à la main, ou la chaîne locale), le producteur se
+// taît : il ne parle qu'au nom du job qui le mandate.
+publishEvidence({
+  acted: true,
+  count: probes.length,
+  reason:
+    `origine publique relue à l'adresse qu'un poste embarque : HTTP ${page.status}, ` +
+    `coquille servie (${String(page.body).length} octet(s)), ${probes.length} module(s) réellement téléchargé(s) ` +
+    `(${probes.map((p) => `${p.url.replace(url, '')}=HTTP ${p.status}`).join(', ')})`,
+});
+
 console.log("✅ l'origine répond, sert l'application, et ses modules se téléchargent — un poste qui bascule dessus a quelque chose à charger");
 for (const w of verdict.warnings) console.log(`   ⚠️  ${w}`);
