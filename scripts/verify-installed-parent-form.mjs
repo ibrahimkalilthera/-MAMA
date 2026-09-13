@@ -33,7 +33,7 @@
  * exactement comme un poste le relit.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, writeSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -160,13 +160,23 @@ async function channelFacts() {
 async function downloadAndVerify(installer) {
   const res = await fetch(installer.url, { headers: { 'User-Agent': UA }, redirect: 'follow' });
   if (!res.ok) return { error: `l'installeur annoncé est injoignable (HTTP ${res.status})` };
+  // Le dossier doit exister AVANT d'écrire : la première version de ce script
+  // téléchargeait 129 Mo et mourait sur un `ENOENT` de son propre dossier —
+  // mesuré sur le premier run du runner, pas en relecture.
+  mkdirSync(WORK, { recursive: true });
+  // Écrit en flux (129 Mo ne tiennent pas deux fois en mémoire pour rien) et
+  // haché chemin faisant, donc rien n'est relu après coup.
   const hash = createHash('sha512');
-  const chunks = [];
+  const fd = openSync(SETUP, 'w');
   let size = 0;
-  for await (const chunk of res.body) {
-    hash.update(chunk);
-    chunks.push(chunk);
-    size += chunk.length;
+  try {
+    for await (const chunk of res.body) {
+      hash.update(chunk);
+      writeSync(fd, chunk);
+      size += chunk.length;
+    }
+  } finally {
+    closeSync(fd);
   }
   const sha512 = hash.digest('base64');
   if (installer.size !== null && installer.size !== size) {
@@ -177,7 +187,6 @@ async function downloadAndVerify(installer) {
       error: `sha512 servi ${sha512.slice(0, 12)}… ≠ sha512 annoncé ${installer.sha512.slice(0, 12)}… pour ${installer.name}`,
     };
   }
-  writeFileSync(SETUP, Buffer.concat(chunks));
   return { size, sha512 };
 }
 
@@ -208,6 +217,15 @@ try {
   const dl = await downloadAndVerify(installer);
   if (dl.error) await fail('les octets servis par le canal ne répondent pas à la promesse du flux', [dl.error]);
   console.log(`   ✅ téléchargé et rehaché : ${dl.size} octet(s), sha512 ${dl.sha512.slice(0, 12)}… — identiques au flux`);
+
+  // S'arrêter ici sert quand l'INSTALLATION casse : la moitié « canal » se prouve
+  // alors seule, au lieu d'être accusée avec elle. Aucune écriture en base n'a eu
+  // lieu à ce stade, donc rien à nettoyer d'autre que le dossier de travail.
+  if (process.argv.includes('--download-only')) {
+    console.log('⏹  arrêt demandé après la vérification du flux (--download-only)');
+    await cleanup();
+    process.exit(0);
+  }
 
   installed = installSilently();
   if (installed.error) await fail('l’installeur publié n’a pas produit d’application installée', [installed.error]);

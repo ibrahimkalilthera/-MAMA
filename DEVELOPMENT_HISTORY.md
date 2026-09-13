@@ -14,7 +14,11 @@ Demande : « Fais lancer par le runner l'installeur réellement publié sur le c
 
 **Le workflow ne publie pas une seconde preuve d'action** : la preuve d'action du job reste portée par l'unique étape nommée (l'audit des automatisations lit les étapes du run), dont la raison dit maintenant les **deux** objets prouvés — le build de ce commit et l'installeur du canal. Et le commentaire d'en-tête du workflow qui affirmait « prouver ce qu'un poste reçoit vraiment demanderait d'installer le NSIS signé, ce que fait une machine, pas un runner » a été corrigé : c'est faux, un runner sait le faire, et ce qu'il ne peut pas juger est la **signature** — cette preuve-là n'en dépend pas.
 
-Preuve locale du chemin canal, sans jeton : `/releases/latest → v1.0.8`, cinq actifs, et l'installeur résolu est `MamaTheraFinance-1.0.8-setup.exe` (129 081 184 octets, `sha512 b0BUIDaeiLnp…`) — les mêmes octets que ceux que les postes lisent. Mesures : **18/18** sur les deux suites neuves (10 cas pour le contrat de la fiche, 8 pour la résolution de l'installeur), `tsc --noEmit` et `npm run lint` verts.
+Preuve locale du chemin canal, sans jeton : `/releases/latest → v1.0.8`, cinq actifs, et l'installeur résolu est `MamaTheraFinance-1.0.8-setup.exe` (129 081 184 octets, `sha512 b0BUIDaeiLnp…`) — les mêmes octets que ceux que les postes lisent.
+
+**Premier run du runner : la moitié canal a parlé, la moitié install a trouvé un vrai défaut.** Le run a lu le canal correctement (`tête publiée v1.0.8`, `129081184 octet(s) · sha512 b0BUIDaeiLnp… annoncés par le flux`) puis est mort en `ENOENT … \mama-installed-…\setup.exe` : le dossier de travail était créé par l'INSTALLEUR, mais on écrit le `setup.exe` AVANT de l'installer. Un défaut de trois lignes qu'aucune relecture n'avait vu et qu'un run a nommé en trente secondes — la raison exacte pour laquelle cette preuve devait exister. Corrigé (`mkdirSync` avant l'écriture) et le téléchargement écrit désormais **en flux** (129 Mo ne tiennent pas deux fois en mémoire pour rien), hachés chemin faisant. Une option `--download-only` permet de prouver la moitié « canal » seule quand l'installation casse, pour ne pas l'accuser avec elle.
+
+Mesures : **18/18** sur les deux suites neuves (10 cas pour le contrat de la fiche, 8 pour la résolution de l'installeur), `tsc --noEmit` et `npm run lint` verts.
 
 ## [2026-09-13] Un déploiement vert ne dit pas qu'une origine répond
 
