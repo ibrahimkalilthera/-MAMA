@@ -1,3 +1,13 @@
+## [2026-09-13] L'adresse d'un parent n'est plus obligatoire
+
+Demande : « l'adresse du parent est obligatoire présentement si on veut ajouter un parent, enlève cette obligation »
+
+**Ce n'était pas la logique d'enregistrement.** `handleParentSubmit` tolère déjà l'absence (`address: parentForm.address.trim() || 'N/A'`, exactement comme la profession) : le refus venait de deux mots dans le formulaire — l'attribut `required` du navigateur et l'astérisque du libellé (`ParentFormModal.tsx`) — donc la soumission était bloquée **avant** d'atteindre le code de sauvegarde, et le blocage se lisait comme une règle métier alors qu'il n'était qu'un attribut.
+
+**Le retrait est CIBLÉ, et deux cas le verrouillent.** `tests/parent-form-modal.test.tsx` (rendu happy-dom réel, comme `staff-form-modal.test.tsx`) vérifie que le champ adresse n'est plus `required` **et** que son libellé ne porte plus d'astérisque — puis, dans le même souffle, que le **nom** et le **téléphone principal** le restent. Le second cas est là pour que « enlever une obligation » ne devienne pas « n'en garder aucune » au prochain passage. Les champs sont repérés par leur **placeholder** traduit, jamais par leur rang : l'ordre du formulaire peut changer sans rendre ce cas faux.
+
+**Mesures** : `tests/parent-form-modal.test.tsx` **2/2**, `tsc --noEmit` propre, `eslint --max-warnings 0` propre sur le composant, `npm run lint` vert (21 contrôles), suite complète **1462/1462** au moment de la mesure.
+
 ## [2026-09-13] Les valeurs par défaut des vues sont DÉRIVÉES du contrat de props
 
 Demande : « Dérive les valeurs par défaut de `makeMainViewsProps` du contrat de props (au lieu de ~200 lignes de noop recopiés) pour qu'une prop nouvelle n'exige plus d'éditer le harnais à la main. »

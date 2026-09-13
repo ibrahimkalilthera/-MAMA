@@ -412,10 +412,9 @@ export function ParentFormModal(props: ParentFormModalProps) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.address} *</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.address}</label>
             <input
               type="text"
-              required
               value={parentForm.address}
               onChange={(e) => setParentForm({ ...parentForm, address: e.target.value })}
               placeholder={t.eGQuartierHippodromeBamako}
