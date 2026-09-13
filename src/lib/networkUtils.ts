@@ -269,10 +269,34 @@ export function formatSupabaseError(
 
 export type AppEnv = 'development' | 'staging' | 'production';
 
-export function getAppEnv(): AppEnv {
-  const env = (import.meta.env.VITE_APP_ENV || 'development') as string;
-  if (env === 'staging' || env === 'production') return env;
+/**
+ * L'environnement d'un build, déduit du MODE que Vite a réellement compilé.
+ *
+ * MESURÉ le 2026-09-13 sur l'installeur publié : l'application Windows livrée
+ * se déclarait `development` (`function Ge(){return`development`}` dans son
+ * bundle). La cause n'est pas un choix mais un fichier : `.env.production` est
+ * gitignoré, donc le build du runner ne l'a pas, donc
+ * `import.meta.env.VITE_APP_ENV` valait `undefined` et le repli répondait
+ * `development`. Conséquence visible : la pastille bleue « DEV » dans l'app
+ * installée chez l'école — un build de PRODUCTION qui se présente comme un
+ * environnement de test, et aucun contrôle ne pouvait le voir (la base, elle,
+ * était bien la bonne).
+ *
+ * `MODE` est posé par Vite lui-même — `vite build` → `production`,
+ * `--mode staging` → `staging`, `vite dev` → `development` — donc il est
+ * toujours présent, et un build de production ne peut plus se déclarer autre
+ * chose, même sans aucun fichier `.env`. `VITE_APP_ENV` reste PRIORITAIRE :
+ * c'est le seul moyen d'être explicite là où le mode ne suffit pas (un build
+ * `production` servi comme pré-version, par exemple).
+ */
+export function appEnvFrom(viteEnv: { VITE_APP_ENV?: string; MODE?: string } | undefined): AppEnv {
+  const raw = viteEnv?.VITE_APP_ENV || viteEnv?.MODE || '';
+  if (raw === 'staging' || raw === 'production') return raw;
   return 'development';
+}
+
+export function getAppEnv(): AppEnv {
+  return appEnvFrom(import.meta.env);
 }
 
 export function isProduction(): boolean {
