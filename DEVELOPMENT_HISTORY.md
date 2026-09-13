@@ -1,3 +1,13 @@
+## [2026-09-13] La publication quitte ce poste : certificat posé dans les secrets, 1.0.8 construite et signée par le RUNNER
+
+Demande : « Pose les deux secrets de signature et publie la prochaine version depuis le runner, certificat compris, pour que plus aucune release ne dépende de ce poste. »
+
+**Les deux secrets sont posés, et la façon compte.** `CSC_PFX_B64` (le `.pfx` encodé en base64, 3 808 caractères) et `CSC_KEY_PASSWORD` ont été écrits par l'API GitHub — scellés avec la clé publique du dépôt (libsodium sealed box), jamais en clair : HTTP **201** pour les deux, et la liste des secrets les montre aux côtés des autres (`DEPENDABOT_REBASE_TOKEN`, `SUPABASE_SERVICE_ROLE_KEY`, `VERCEL_*`). Le certificat est celui construit ce matin pour la preuve locale (`CN=Mama Thera Finance (test)`, auto-signé, C=ML/O=Complexe Scolaire Mama Thera) : il **signe** réellement les binaires, donc le job de publication passe par la voie signée au lieu de la branche « aucun certificat » — mais Windows ne le reconnaît pas comme une autorité, donc SmartScreen dira toujours « éditeur inconnu » tant qu'un vrai certificat OV n'est pas acheté. C'est la chaîne qui est prouvée ici, pas la confiance de l'éditeur.
+
+**Un trou qui aurait atteint tout le parc.** Le job de publication ne fabriquait la configuration du build nulle part : `electron:ui` compile l'app avec `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, et sans elles l'app empaquetée ne démarre pas (« Configuration Supabase manquante » — mesuré par ailleurs sur le runner). Le workflow de preuve bureau générait déjà ce `.env` ; il est désormais généré **avant le build de publication** avec les mêmes littéraux publics (l'URL et la clé anon sont embarquées dans le bundle servi à chaque navigateur et protégées par RLS ; seule la clé service est un secret, et ce job n'en a pas besoin). Un installeur publié qui ne démarre pas n'atteindrait pas un job de CI mais **chaque poste** — c'était la seule publication du dépôt dans ce cas.
+
+**Et la version monte parce que c'est la seule façon de prouver la chaîne.** 1.0.7 est publiée : `check:release:tag` refuse un numéro déjà pris (« republier n'atteint aucun poste »), donc il n'existe qu'une manière de faire tourner build + signature + téléversement + promotion + relecture sur le runner : publier un numéro **inédit**. Le numéro monte à **1.0.8**, et le job ouvre parce que le gate `check:release:needed` répond « oui » — ce que mon poste faisait jusqu'ici.
+
 ## [2026-09-13] Le fichier que les postes LISENT était hors du sort du contrôle
 
 Demande : « Étends la comparaison d'octets à latest.yml, dont le nom ne porte aucun numéro, pour qu'une divergence du fichier que les postes lisent soit attrapée elle aussi. »
