@@ -231,9 +231,15 @@ function sleepMs(ms) {
 /**
  * Le gate du dépôt, tel quel — c'est LUI qui décide, jamais ce script.
  *
- * `withoutToken` pour la relecture finale : le flux publié doit être vérifiable
- * à la façon d'un poste, donc sans autorisation. Le gate du brouillon, lui,
- * tourne avec le jeton (il lit des annotations d'API qui restent privées).
+ * L'autorisation n'est plus retirée à l'ENVIRONNEMENT pour la relecture finale :
+ * c'est le gate qui décide, PAR MODE, quels octets il relit sans jeton. Mesuré
+ * le 2026-09-13 : en vidant `GH_TOKEN` ici, la liste des actifs partait sur le
+ * quota d'API anonyme des runners, prenait un HTTP 403 six fois de suite, et
+ * faisait rougir un run dont la publication était réussie — pendant que le canal
+ * était parfaitement sain. L'anonymat de la preuve est désormais une propriété
+ * du mode « vu d'un poste » (`byteAuth` dans le gate), pas une propriété de
+ * l'environnement : un jeton présent ne peut plus la dégrader, et un jeton absent
+ * ne peut plus l'exiger.
  *
  * `attempts` existe pour un défaut MESURÉ : juste après la promotion, la liste
  * **publique** des releases n'est pas encore à jour — le gate relu sans jeton a
@@ -253,11 +259,11 @@ function sleepMs(ms) {
  * un succès silencieux n'apprend rien, exactement comme un échec silencieux.
  *
  * @param {string} flag
- * @param {{ withoutToken?: boolean, label?: string, attempts?: number, delayMs?: number }} [options]
+ * @param {{ label?: string, attempts?: number, delayMs?: number }} [options]
  */
-function runGate(flag, { withoutToken = false, label, attempts = 1, delayMs = 4000 } = {}) {
+function runGate(flag, { label, attempts = 1, delayMs = 4000 } = {}) {
   console.log(`\n── ${label || flag} ──`);
-  const env = withoutToken ? { ...process.env, GH_TOKEN: '', GITHUB_TOKEN: '' } : process.env;
+  const env = process.env;
   const outcome = runGateAttempts({
     attempts,
     delayMs,
@@ -503,9 +509,8 @@ const promoted = await api(`/releases/${target.id}`, {
 console.log(`\n🚀 promu : ${promoted?.tag_name} est publié (${promoted?.published_at}) — c’est le seul geste qui rend une version lisible par l’updater`);
 
 runGate('--live', {
-  withoutToken: true,
   attempts: 6,
-  label: 'flux publié, relu SANS jeton — comme le fait un poste',
+  label: 'flux publié, relu comme un poste (octets sans jeton, liste via l’API)',
 });
 runGate('--channel', {
   attempts: 6,

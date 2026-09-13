@@ -350,11 +350,23 @@ describe('le câblage du publieur', () => {
     assert.match(source, /process\.env\.GH_TOKEN \|\| process\.env\.GITHUB_TOKEN/, 'le jeton vient de l’environnement, jamais d’un fichier');
   });
 
-  it('la preuve finale est SANS jeton : un canal relu authentifié ne prouve rien pour un poste', () => {
+  it('la preuve finale est SANS jeton — et c’est le GATE qui le garantit, pas l’environnement', () => {
+    // Ce cas exigeait `withoutToken: true` : le publieur vidait `GH_TOKEN` pour
+    // que la relecture soit anonyme. MESURÉ le 2026-09-13, sur le runner : ce
+    // vidage faisait aussi partir la LISTE DES ACTIFS sur le quota d'API anonyme
+    // (partagé par l'IP du runner), qui a rendu six HTTP 403 — un rouge pour un
+    // quota, sur un canal sain. L'anonymat est donc devenu une propriété du MODE
+    // dans le gate (`byteAuth`), pas une propriété de l'environnement.
     const source = read('scripts/publish-release.mjs');
-    assert.match(source, /withoutToken: true/, 'le flux publié est relu sans autorisation');
-    assert.match(source, /GH_TOKEN: '', GITHUB_TOKEN: ''/, 'et le jeton est réellement retiré de l’environnement du gate');
+    assert.match(source, /runGate\('--live'/, 'le flux publié est relu après la promotion');
+    assert.doesNotMatch(
+      source,
+      /GH_TOKEN: '', GITHUB_TOKEN: ''/,
+      'le publieur ne décide plus de l’autorisation de la preuve : il ne peut plus la dégrader ni la rendre dépendante d’un jeton',
+    );
     assert.match(source, /runGate\('--channel'/, 'le canal vivant et le frein sont vérifiés dans le même geste que la promotion');
+    const gate = read('scripts/check-release-coherence.mjs');
+    assert.match(gate, /const byteAuth = MODE === 'live' \|\| MODE === 'channel' \? \{\} : auth;/, 'les octets sont sans jeton par construction');
   });
 
   it('la consolidation RÉUNIT avant de supprimer : aucun octet unique ne part avec son brouillon', () => {

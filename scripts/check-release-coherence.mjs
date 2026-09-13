@@ -95,7 +95,12 @@ const useToken = MODE !== 'channel';
 
 const sha512Of = (bytes) => createHash('sha512').update(bytes).digest('base64');
 
-const fail = (title, problems, warnings = []) => {
+// `problems` est optionnel POUR UNE RAISON MESURÉE : le 2026-09-13, le chemin de
+// refus « GitHub injoignable » a appelé `fail` sans liste, et le refus a planté
+// (`TypeError: problems is not iterable`) au lieu de nommer la cause — un refus
+// qui plante ne dit rien, et il a fait rougir un run dont la publication était
+// réussie. Un verdict se rend toujours, même quand il n'a rien à détailler.
+const fail = (title, problems = [], warnings = []) => {
   console.error(`\n❌ ${title}`);
   for (const p of problems) console.error(`   • ${p}`);
   for (const w of warnings) console.error(`   ⚠️  ${w}`);
@@ -162,6 +167,25 @@ const expectedFromLocal = local?.verdict.ok
   : [];
 
 const auth = useToken && token ? { Authorization: `Bearer ${token}` } : {};
+
+// ── Deux autorisations, et pas une : la LISTE et les OCTETS ──────────────────
+// La liste des actifs vient de l'API (`api.github.com`), dont le quota sans
+// jeton est partagé par l'adresse IP des runners ; les OCTETS viennent de
+// `github.com`, là où un poste les lit vraiment.
+//
+// MESURÉ le 2026-09-13, sur un canal parfaitement sain : le gate relu « sans
+// jeton » a reçu six fois un HTTP 403 d'API, et a conclu « GitHub injoignable »
+// — donc un run rouge pour un défaut de QUOTA, sur une publication réussie.
+// Un poste n'interroge jamais cette API (il lit le flux et l'installeur) : les
+// octets sont donc relus SANS autorisation, et c'est maintenant une règle du
+// mode, pas un effet de l'environnement — un jeton présent ne peut plus rendre
+// la preuve du poste dépendante d'un jeton.
+const byteAuth = MODE === 'live' || MODE === 'channel' ? {} : auth;
+if (byteAuth !== auth) {
+  console.log(
+    '   🔓 octets du canal relus SANS autorisation (c’est ce qu’un poste fait) — la liste des actifs, elle, passe par l’API, avec son quota',
+  );
+}
 
 const api = (path) =>
   fetch(`https://api.github.com/repos/${repo}${path}`, {
@@ -233,7 +257,7 @@ async function readAsset(asset, { asText }) {
       headers: {
         Accept: 'application/octet-stream',
         'User-Agent': 'release-coherence',
-        ...auth,
+        ...byteAuth,
       },
       redirect: 'follow',
     });
@@ -304,7 +328,13 @@ function reportFeed(verdict) {
 
 const listRes = await api('/releases?per_page=100');
 if (!listRes.ok) {
-  fail(`GitHub injoignable (HTTP ${listRes.status}) — un dépôt qu'on ne peut pas interroger n'est pas un feu vert`);
+  fail(`GitHub injoignable (HTTP ${listRes.status}) — un dépôt qu'on ne peut pas interroger n'est pas un feu vert`, [
+    listRes.status === 403
+      ? 'un 403 sur l’API sans jeton est le QUOTA PARTAGÉ des runners, pas un défaut du canal : relancez avec un jeton ' +
+        '(GH_TOKEN) — les octets du canal, eux, restent relus sans lui'
+      : 'l’API a refusé ou n’a pas répondu : le canal n’a donc pas été jugé, et « pas jugé » n’est pas vert',
+    'la liste des actifs est la seule partie qui exige l’API ; le flux et l’installeur d’un poste sont sur github.com et se vérifient sans compte',
+  ]);
 }
 const releases = await listRes.json();
 const sameTag = releases.filter((r) => r.tag_name === releaseTag(version));

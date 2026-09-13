@@ -1,3 +1,17 @@
+## [2026-09-13] La 1.0.10 est publiée par le runner — et sa PREUVE a rougi sur un canal sain
+
+Demande : « monte en 1.0.10 et laisse le runner publier ».
+
+**La publication a réussi, entièrement sur le runner.** Le journal du job dit les deux choses qui comptent, mesurées : `→ certificat présent dans les secrets, signature ÉTEINTE (variable de dépôt SIGNING_ENABLED absente ou ≠ true) : build NON signé, publication autorisée` — la règle nouvelle a donc tenu —, puis brouillon téléversé, gate du brouillon vert, `🚀 promu : v1.0.10 est publié (2026-09-13T19:14:45Z)`. Le canal porte cinq actifs, et le contrat embarqué est resté vide de promesse (`check:updater-trust` passe **avant** la première requête, donc la 1.0.10 est la première version **construite, jugée, publiée et promue sans qu'aucune machine locale n'intervienne**).
+
+**Puis le job est devenu rouge, et le canal n'y était pour rien.** La relecture finale — celle qui doit prouver ce qu'un poste lit — a reçu **six fois** un HTTP 403, et a conclu « GitHub injoignable ». Cause mesurée : la **liste des actifs** vient de `api.github.com`, dont le quota **sans jeton** est partagé par l'adresse IP d'un runner (60 req/h) ; or un poste n'appelle jamais cette API — il lit le flux et l'installeur sur `github.com`. La preuve « comme un poste » dépendait donc d'un quota qu'un poste ne dépense pas, et l'anonymat de la relecture dépendait de l'**environnement** (`GH_TOKEN` vidé par le publieur) au lieu d'être une propriété du mode.
+
+**Second défaut, dans le chemin de refus lui-même** : `fail('GitHub injoignable…')` était appelé sans liste, et `for (const p of problems)` a levé `TypeError: problems is not iterable` (`check-release-coherence.mjs:100`, depuis la ligne 307). Un refus qui plante ne nomme rien — exactement ce que ce dépôt refuse partout ailleurs.
+
+**Corrigé aux deux endroits, et prouvé sur le canal réel.** `fail` prend une liste par défaut ; les octets des modes « vus d'un poste » sont relus **sans autorisation par construction** (`byteAuth`, décidé par le mode, pas par l'environnement) tandis que la liste des actifs passe par l'API **avec son quota** ; un 403 d'API est nommé pour ce qu'il est (quota partagé) au lieu d'accuser le canal ; et le publieur ne vide plus `GH_TOKEN` — il n'en a plus besoin pour que la preuve soit anonyme. Rejoué sur le vrai canal : `🔓 octets du canal relus SANS autorisation (c'est ce qu'un poste fait) — la liste des actifs, elle, passe par l'API, avec son quota`, `✅ flux publié cohérent`, `MamaTheraFinance-1.0.10-setup.exe · 129041008 octet(s) · sha512 v+dc757OiA2qAnToTNGeMCuk… — taille et sha512 conformes à ce que le flux annonce`. 76/76 sur la suite du contrôle.
+
+**Ce qui reste rouge, et pourquoi je ne le maquille pas** : le run `34776911404` porte toujours son échec, et c'est **honnête** — la preuve a échoué, même si la livraison avait réussi. Ce que la correction retire, c'est la cause : le prochain run de publication ne peut plus confondre un quota d'API avec un canal cassé, ni planter en refusant.
+
 ## [2026-09-13] Les postes gelés se débloquent SANS réinstallation — la doc disait le contraire
 
 Demande : « trouve un moyen de débloquer sans réinstallation manuelle les postes déjà en 1.0.6–1.0.8, dont le contrat exige un signataire que plus personne ne peut approuver ».

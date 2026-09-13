@@ -750,6 +750,33 @@ describe('le câblage du contrôle', () => {
     );
   });
 
+  it('la preuve « comme un poste » ne dépend plus du quota d’API de l’environnement', () => {
+    // DEUX défauts mesurés le 2026-09-13, sur le runner, sur un canal SAIN :
+    // la relecture « sans jeton » a reçu six HTTP 403 (quota d'API anonyme,
+    // partagé entre runners) et a conclu « GitHub injoignable » — un rouge pour
+    // un quota, sur une publication réussie —, puis le chemin de refus a planté
+    // (`problems is not iterable`) au lieu de nommer la cause.
+    const gate = read('scripts/check-release-coherence.mjs');
+    const publisher = read('scripts/publish-release.mjs');
+    assert.match(
+      gate,
+      /const fail = \(title, problems = \[\], warnings = \[\]\) => \{/,
+      'un refus nomme toujours, même sans liste à détailler',
+    );
+    assert.match(
+      gate,
+      /const byteAuth = MODE === 'live' \|\| MODE === 'channel' \? \{\} : auth;/,
+      'les octets sont sans jeton PAR CONSTRUCTION dans les modes « vus d’un poste »',
+    );
+    assert.match(gate, /\.\.\.byteAuth,/, 'et c’est cette autorisation-là que la lecture d’octets emploie');
+    assert.match(gate, /QUOTA PARTAGÉ/, 'un 403 d’API est nommé pour ce qu’il est, il n’accuse pas le canal');
+    assert.doesNotMatch(
+      publisher,
+      /withoutToken/,
+      'le publieur ne fait plus dépendre l’anonymat de la preuve de l’environnement',
+    );
+  });
+
   it('le gate s’exécute sans jeton et sans réseau en mode local', () => {
     const source = read('scripts/check-release-coherence.mjs');
     assert.match(source, /if \(MODE === 'local'\)[\s\S]*process\.exit\(0\)/, 'le mode local rend son verdict avant tout appel réseau');
