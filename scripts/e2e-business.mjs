@@ -29,6 +29,7 @@ import { readFileSync, rmSync, existsSync } from 'node:fs';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
+import { firstRow, readUntil } from './lib/read-after-submit.mjs';
 import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -85,6 +86,33 @@ const rawApi = async (path, opts = {}) => {
 const api = (path, opts = {}) => withTransientRetry(() => rawApi(path, opts), {
   label: `${opts.method || 'GET'} /rest/v1${path} — `, log: (m) => console.log(`  ↻ ${m}`),
 });
+
+/**
+ * Lire en base ce qu'un ENVOI DE FORMULAIRE vient d'écrire, en POLLANT.
+ *
+ * Audit du 2026-09-13 : ce script lisait la base une seule fois, 2–3 s après
+ * l'envoi, à SEPT endroits — et deux situations très différentes se lisaient
+ * pareil : « pas encore visible » et « jamais écrit ». Le run rouge accusait
+ * donc l'application d'un retard. Le salaire avait déjà sa boucle (avec le
+ * commentaire qui dit pourquoi), la dépense fournisseur a reçu la sienne après
+ * avoir rougi de la même façon ; les cinq autres passent maintenant par la
+ * MÊME brique (`scripts/lib/read-after-submit.mjs`), avec la cadence partagée.
+ *
+ * `isReady` porte le jugement — on n'attend pas « une ligne », on attend l'ÉTAT
+ * attendu (un solde qui doit valoir 50 000, un statut qui doit devenir `unpaid`).
+ */
+const readAfterSubmit = async (label, path, isReady, opts = {}) => {
+  const r = await readUntil({
+    read: () => api(path),
+    isReady: (body) => isReady(body?.body ?? body),
+    sleep: (ms) => new Promise((res) => setTimeout(res, ms)),
+    ...opts,
+  });
+  // Une reprise d'attente SE DIT : « la base a rattrapé en 7 lectures » ne
+  // raconte pas la même chose qu'un run instantané.
+  if (r.reads > 1) console.log(`  ↻ ${label} : la base a rattrapé en ${r.reads} lecture(s)`);
+  return r;
+};
 
 const results = [];
 // Les lignes que CE run crée, par identifiant.
@@ -434,8 +462,12 @@ try {
       await setValue('ex. 1ère D ou Garderie', CLASS_NAME);
       await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('Créer la classe')); b && b.click(); });
       await new Promise((r) => setTimeout(r, 2500));
-      const cls = await api(`/custom_classes?select=code,name_fr&code=eq.${CLASS_NAME}`);
-      check('Classe persistée en base', (cls.body || []).some((c) => c.code === CLASS_NAME), JSON.stringify(cls.body).slice(0, 80));
+      const cls = await readAfterSubmit(
+        'Classe persistée en base',
+        `/custom_classes?select=code,name_fr&code=eq.${CLASS_NAME}`,
+        (body) => (Array.isArray(body) ? body.find((c) => c.code === CLASS_NAME) ?? null : null),
+      );
+      check('Classe persistée en base', !!cls.value, cls.value ? `code=${cls.value.code}` : `absente après ${cls.reads} lecture(s)`);
 
       await setInput('Ibrahim', STUDENT_NAME);
       // Le champ « identifiant unique » n'est rendu QUE pour une classe de
@@ -465,10 +497,14 @@ try {
       reqs.length = 0;
       await submitForm('Ibrahim');
       check('Requête POST /students émise', reqs.some((r) => r.includes('POST /rest/v1/students')), reqs.join(', ').slice(0, 100) || 'aucune');
-      const st = await api(`/students?select=id,name,student_id,total_due,amount_paid&name=eq.${encodeURIComponent(STUDENT_NAME)}`);
-      const srow = (st.body || [])[0];
+      const st = await readAfterSubmit(
+        'Élève persisté en base',
+        `/students?select=id,name,student_id,total_due,amount_paid&name=eq.${encodeURIComponent(STUDENT_NAME)}`,
+        firstRow,
+      );
+      const srow = st.value;
       created.studentId = srow?.id ?? null;
-      check('Élève persisté en base', !!srow, srow ? `total_due=${srow.total_due} | amount_paid=${srow.amount_paid}` : 'absent');
+      check('Élève persisté en base', !!srow, srow ? `total_due=${srow.total_due} | amount_paid=${srow.amount_paid}` : `absent après ${st.reads} lecture(s)`);
 
       // record payment
       if (srow) {
@@ -486,9 +522,20 @@ try {
         reqs.length = 0;
         await submitForm('10 000');
         check('Requête paiement émise (payments / students)', reqs.some((r) => /POST \/rest\/v1\/payments|PATCH \/rest\/v1\/students/.test(r)), reqs.join(', ').slice(0, 100) || 'aucune');
-        const upd = await api(`/students?select=amount_paid,total_due&id=eq.${srow.id}`);
-        const u = (upd.body || [])[0];
-        check('Solde mis à jour : amount_paid = 50000', u?.amount_paid === 50000, u ? `amount_paid=${u.amount_paid} / total_due=${u.total_due}` : 'élève introuvable');
+        const upd = await readAfterSubmit(
+          'Solde mis à jour',
+          `/students?select=amount_paid,total_due&id=eq.${srow.id}`,
+          // On n'attend pas « la ligne » (elle existe déjà, on vient de la lire)
+          // mais l'ÉTAT attendu : une lecture qui rend l'élève avec son ancien
+          // solde n'est pas un succès, et l'ancien code concluait « élève
+          // introuvable » — une accusation qui nommait la mauvaise cause.
+          (body) => {
+            const row = firstRow(body);
+            return row?.amount_paid === 50000 ? row : null;
+          },
+        );
+        const u = upd.value;
+        check('Mise à jour du solde : amount_paid = 50000', u?.amount_paid === 50000, u ? `amount_paid=${u.amount_paid} / total_due=${u.total_due}` : `solde non mis à jour après ${upd.reads} lecture(s)`);
       }
     } catch (e) {
       check('Cycle A (élève → paiement)', false, String(e).slice(0, 150));
@@ -508,10 +555,18 @@ try {
       await setInput(['Ingénieur Civil', 'Civil Engineer'], 'Commerçant');
       await setInput('Quartier Hippodrome', 'Bamako');
       await submitForm('Mamadou Traoré');
-      const par = await api(`/parents?select=full_name,phones,relationship&full_name=eq.${encodeURIComponent(PARENT_NAME)}`);
-      const p = (par.body || [])[0];
+      // `id` est LU (il ne l'était pas) : sans lui, l'identifiant du parent de
+      // démo restait `null`, donc le contrôle de résidu PAR IDENTIFIANT était
+      // silencieusement écarté — un contrôle qui ne peut pas nommer ce qu'il
+      // cherche ne peut pas le retrouver (même défaut que la dépense fournisseur).
+      const par = await readAfterSubmit(
+        'Parent persisté en base',
+        `/parents?select=id,full_name,phones,relationship&full_name=eq.${encodeURIComponent(PARENT_NAME)}`,
+        firstRow,
+      );
+      const p = par.value;
       created.parentId = p?.id ?? null;
-      check('Parent persisté en base', !!p, p ? `${p.full_name} | ${p.phones[0]} | ${p.relationship}` : 'absent');
+      check('Parent persisté en base', !!p, p ? `${p.full_name} | ${p.phones[0]} | ${p.relationship}` : `absent après ${par.reads} lecture(s)`);
 
       // STAFF
       await clickNav('Paie/Salaires');
@@ -523,10 +578,14 @@ try {
       await setInput('jane.doe@school.com', `staff${TS}@e2e.org`);
       await setValue('150 000', STAFF_SALARY);
       await submitForm('Jane Doe');
-      const stf = await api(`/staff?select=id,name,position,salary&name=eq.${encodeURIComponent(STAFF_NAME)}`);
-      const srow = (stf.body || [])[0];
+      const stf = await readAfterSubmit(
+        'Employé persisté en base',
+        `/staff?select=id,name,position,salary&name=eq.${encodeURIComponent(STAFF_NAME)}`,
+        firstRow,
+      );
+      const srow = stf.value;
       created.staffId = srow?.id ?? null;
-      check('Employé persisté en base', !!srow, srow ? `${srow.name} | ${srow.position} | salary=${srow.salary}` : 'absent');
+      check('Employé persisté en base', !!srow, srow ? `${srow.name} | ${srow.position} | salary=${srow.salary}` : `absent après ${stf.reads} lecture(s)`);
 
       // SALARY — staff pre-fills the balance; submit directly
       if (srow) {
@@ -543,14 +602,16 @@ try {
         // POLL plutôt que dormir 3 s : une écriture suivie d'un rafraîchissement
         // peut prendre plus longtemps sur une machine lente, et un délai fixe qui
         // perd son pari est indiscernable d'un « salaire absent » (mesuré : le
-        // même run passait 3 fois et échouait la 4ᵉ).
-        let salRow = null;
-        for (let i = 0; i < 10 && !salRow; i += 1) {
-          await new Promise((r) => setTimeout(r, 1000));
-          const sal = await api(`/salary_payments?select=staff_id,amount,date&staff_id=eq.${srow.id}`);
-          salRow = (sal.body || [])[0] ?? null;
-        }
-        check('Salaire persisté en base (salary_payments)', !!salRow, salRow ? `amount=${salRow.amount} | date=${salRow.date}` : 'absent');
+        // même run passait 3 fois et échouait la 4ᵉ). C'est le cas qui a fait
+        // naître la brique partagée — et il l'utilise maintenant comme les autres,
+        // avec un premier essai IMMÉDIAT au lieu d'un premier sommeil de 1 s.
+        const sal = await readAfterSubmit(
+          'Salaire persisté en base',
+          `/salary_payments?select=staff_id,amount,date&staff_id=eq.${srow.id}`,
+          firstRow,
+        );
+        const salRow = sal.value;
+        check('Salaire persisté en base (salary_payments)', !!salRow, salRow ? `amount=${salRow.amount} | date=${salRow.date}` : `absent après ${sal.reads} lecture(s)`);
         if (salRow) check('Montant salaire = 120000', salRow.amount === 120000, String(salRow.amount));
       }
 
@@ -576,18 +637,13 @@ try {
       // transport a lâché avant que l'écriture parte ». Un hoquet réseau jugé
       // comme un verdict sur l'application, exactement ce que le contrôle
       // anti-résidus reproche ailleurs à ce dépôt.
-      const readVendor = async () => {
-        // `id` est LU (il ne l'était pas) : sans lui le contrôle de résidu par
-        // identifiant était silencieusement sauté, puisque le chemin n'était
-        // jamais construit — un contrôle qui ne peut pas nommer ce qu'il cherche
-        // ne peut pas le retrouver.
-        const ve = await api(
-          `/vendor_expenses?select=id,vendor_name,amount,payment_status&vendor_name=eq.${encodeURIComponent(VENDOR_NAME)}`,
-        );
-        return (ve.body || [])[0] ?? null;
-      };
-      let vrow = null;
-      for (let pass = 1; pass <= 2 && !vrow; pass += 1) {
+      // `id` est LU (il ne l'était pas) : sans lui le contrôle de résidu par
+      // identifiant était silencieusement sauté, puisque le chemin n'était
+      // jamais construit — un contrôle qui ne peut pas nommer ce qu'il cherche
+      // ne peut pas le retrouver.
+      const VENDOR_PATH = `/vendor_expenses?select=id,vendor_name,amount,payment_status&vendor_name=eq.${encodeURIComponent(VENDOR_NAME)}`;
+      let vread = { value: null, reads: 0 };
+      for (let pass = 1; pass <= 2 && !vread.value; pass += 1) {
         if (pass > 1) {
           const transport = logs.slice(logMark).find((l) => /Failed to fetch|NetworkError|fetch failed/i.test(l));
           logs.push(
@@ -602,13 +658,16 @@ try {
           // supposer.
           await submitForm('SENELEC');
         }
-        for (let i = 0; i < 6 && !vrow; i += 1) {
-          await new Promise((r) => setTimeout(r, 1000));
-          vrow = await readVendor();
-        }
+        vread = await readAfterSubmit(
+          'Dépense fournisseur persistée en base',
+          VENDOR_PATH,
+          firstRow,
+          { attempts: 6 },
+        );
       }
+      const vrow = vread.value;
       created.vendorId = vrow?.id ?? null;
-      check('Dépense fournisseur persistée en base', !!vrow, vrow ? `amount=${vrow.amount} | ${vrow.payment_status}` : 'absent');
+      check('Dépense fournisseur persistée en base', !!vrow, vrow ? `amount=${vrow.amount} | ${vrow.payment_status}` : `absente après ${vread.reads} lecture(s)`);
       if (vrow) check('Montant dépense = 45000', vrow.amount === 45000, String(vrow.amount));
     } catch (e) {
       check('Cycle B (parent / salaire / dépense)', false, String(e).slice(0, 150));

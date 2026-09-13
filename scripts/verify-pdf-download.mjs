@@ -75,6 +75,7 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
+import { firstRow, readUntil } from './lib/read-after-submit.mjs';
 import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 
@@ -515,17 +516,25 @@ async function createTechniqueMember(page, name, email) {
   if (filled !== 'ok') throw new Error(`remplissage du formulaire: ${filled}`);
   console.log(`✅ formulaire technique rempli et soumis (${name}, ${salary} + ${travel + comm} indemnités)`);
 
-  // Resolve the created member id via the API (for cleanup) — wait for the
-  // app's insert to land.
-  for (let i = 0; i < 20; i++) {
-    await wait(500);
-    const { body } = await api(`/rest/v1/staff?select=id&email=eq.${email}`);
-    if (Array.isArray(body) && body[0]?.id) {
-      techniqueMemberId = body[0].id;
-      return { id: body[0].id, name, email, position: 'Membre du Centre Technique', salary };
-    }
+  // Resolve the created member id via the API (for cleanup) — on ATTEND que
+  // l'insertion de l'application soit visible, au lieu de dormir PUIS de lire en
+  // boucle : la brique partagée (`scripts/lib/read-after-submit.mjs`) fait la
+  // première lecture TOUT DE SUITE (le cas courant, l'insertion est déjà là) et
+  // n'attend que si elle manque. L'`id` sert au NETTOYAGE : un membre de démo
+  // sans identifiant ne serait jamais supprimé, donc ce n'est pas un détail.
+  const found = await readUntil({
+    read: () => api(`/rest/v1/staff?select=id&email=eq.${email}`),
+    isReady: (r) => firstRow(r?.body)?.id ?? null,
+    attempts: 20,
+    intervalMs: 500,
+    sleep: wait,
+  });
+  if (!found.value) {
+    throw new Error(`membre technique créé mais id introuvable via l’API après ${found.reads} lecture(s)`);
   }
-  throw new Error('membre technique créé mais id introuvable via l\u2019API');
+  if (found.reads > 1) console.log(`  ↻ membre technique retrouvé en ${found.reads} lecture(s)`);
+  techniqueMemberId = found.value;
+  return { id: found.value, name, email, position: 'Membre du Centre Technique', salary };
 }
 
 /**
