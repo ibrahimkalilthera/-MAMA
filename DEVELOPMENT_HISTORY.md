@@ -1,3 +1,17 @@
+## [2026-09-13] Le contrôle de l'atelier tourne là où le dossier existe — pas dans un cron qui ne verrait rien
+
+Demande : « Fais tourner release:prune automatiquement (chaîne qualité et/ou workflow planifié) et rends rouge la présence d'octets que le canal détient déjà. »
+
+**La chaîne qualité le lance déjà** (maillon `workshop`, commit précédent), et le hook aussi — donc « automatiquement » est vrai sur toute machine où `release/` existe, c'est-à-dire là où la question se pose.
+
+**Reste la moitié « workflow », et le choix de l'endroit est le fond du sujet.** Un cron sur un runner ordinaire serait un **faux vert** : `release/` n'y est pas, et l'atelier répond alors `atelier non applicable — release/ n'existe pas ici (rien à juger)`. C'est honnête, mais un contrôle qui ne juge rien **à chaque exécution** est exactement le vert-et-inerte que ce dépôt refuse de laisser passer pour une couverture. Le seul job de CI où le dossier **existe** est `desktop-release.yml` : le build vient d'y écrire, et c'est le moment précis où le piège se referme — un installeur d'une version **déjà publiée** resté dans l'atelier est le fichier qu'un humain reprendra à la main, et le canal en sert déjà les octets, donc la preuve existe et le contrôle peut la dire.
+
+Le pas y est donc ajouté, **strict** (aucune dérogation : un job qui publie ne peut pas déclarer l'atelier propre sans avoir lu le canal) et **après** le build — le juger avant ne regarderait que les restes de la veille et jamais ce que ce build vient d'écrire. Les artefacts de la version en cours sont conservés (c'est la sortie du build, les contrôles locaux la lisent) : ce sont les restes des **autres** numéros que ce pas repère.
+
+**Un test le verrouille dans le sens utile**, pas seulement par présence : le pas existe, il ne porte **aucune** dérogation hors ligne, et son index suit celui du build dans le fichier — donc « le contrôle tourne » ne peut pas vieillir en « le contrôle tourne trop tôt ».
+
+**Mesures** : `prune-cli.test.ts` 15/15 (+1), `check-ci-commands.mjs` vert (146 commandes CI, zéro recopie — le pas est appelé par son entrée npm), et le pas lancé tel quel sur le dossier réel : `exit 0` — l'atelier est propre, 507 Mo de sortie de build nommés, aucune décision humaine imposée.
+
 ## [2026-09-13] L'atelier `release/` ne peut plus regrossir en silence — et les vues se prouvent en se rendant
 
 Demande : « fais en sorte de resoudre tous sa pour que tout aille a 10/10 » — la liste d'un audit à quatre dimensions sur le fil `release/`.

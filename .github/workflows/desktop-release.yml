@@ -185,6 +185,25 @@ jobs:
             npm run electron:dist
           fi
 
+      # LE SEUL runner où `release/` existe. C'est ce qui décide de la place de ce
+      # contrôle : sur un runner ordinaire le dossier n'est pas là, et l'atelier
+      # répond honnêtement « non applicable — rien à juger » (vert qui s'explique,
+      # donc cron inutile : il serait vert sans rien regarder). Ici, le build vient
+      # d'écrire dedans, et c'est le moment où le piège se referme : un installeur
+      # d'une version DÉJÀ publiée qui traîne dans le dossier est exactement le
+      # fichier qu'un humain reprendra à la main, et le canal en sert déjà les
+      # octets — la preuve existe, donc le contrôle peut la dire.
+      #
+      # Strict, sans dérogation : un job de publication ne peut pas déclarer
+      # l'atelier propre s'il n'a pas pu lire le canal. Les artefacts de la version
+      # en cours sont CONSERVÉS (c'est la sortie du build, les contrôles locaux la
+      # lisent) — ce sont les restes des autres numéros que ce pas repère.
+      - name: L’atelier de sortie ne garde rien que le canal sert déjà
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run check:release:workshop
+
       # Preuve publiée par l'étape NOMMÉE (lue dans les étapes du run par
       # `npm run check:automations`). Le compte n'est pas une hypothèse : il est lu
       # sur le DISQUE — l'installeur n'est pas un effet de bord, c'est ce que ce job

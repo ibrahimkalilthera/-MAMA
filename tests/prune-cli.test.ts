@@ -242,6 +242,21 @@ describe('le câblage, vérifié là où il compte', () => {
     assert.ok(existsSync(CLI));
   });
 
+  it('le job de PUBLICATION le lance, et strictement — c’est le seul runner où release/ existe', () => {
+    const workflow = readFileSync(join(ROOT, '.github', 'workflows', 'desktop-release.yml'), 'utf8');
+    assert.match(workflow, /run: npm run check:release:workshop/, 'le pas existe');
+    assert.doesNotMatch(
+      workflow,
+      /WORKSHOP_SOFT_OFFLINE/,
+      'un job de publication ne peut pas déclarer l’atelier propre sans avoir lu le canal',
+    );
+    // L’ordre est le fond du sujet : juger AVANT le build ne regarderait que les
+    // restes de la veille, et jamais ce que ce build vient d’écrire.
+    const build = workflow.indexOf('id: build');
+    const workshop = workflow.indexOf('run: npm run check:release:workshop');
+    assert.ok(build >= 0 && workshop > build, 'le contrôle suit le build, il ne le précède pas');
+  });
+
   it('aucun rappel de commande n’est écrit en dur dans le CLI', () => {
     const source = readFileSync(CLI, 'utf8');
     const literals = source.match(/['`][^'`\n]*npm run release:prune[^'`\n]*['`]/g) ?? [];
