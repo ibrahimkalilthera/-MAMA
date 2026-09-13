@@ -50,6 +50,7 @@ import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
+import { runGateAttempts } from './lib/gate-runner.mjs';
 import { expectedArtifacts, parseLatestYml, releaseTag } from './lib/release-coherence.mjs';
 import { publicationPlan } from './lib/release-publish.mjs';
 
@@ -238,33 +239,50 @@ function sleepMs(ms) {
  * dernière tentative est un ÉCHEC — « je n'ai pas pu lire » n'est pas « c'est
  * bon ».
  *
+ * Et le verdict est TOUJOURS affiché, y compris quand ça passe du premier coup.
+ * Le contraire a été mesuré pendant la publication de la 1.0.6 : la boucle
+ * gardait le texte des tentatives « intermédiaires » dans un tube en réservant
+ * `inherit` à la dernière — sauf que le succès du premier essai EST une
+ * tentative intermédiaire, donc la promotion affichait « ── flux publié, relu
+ * SANS jeton ── » suivi du vide, sur un gate vert. Le texte de la tentative qui
+ * conclut est capturé puis écrit ici (`runGateAttempts` ne peut pas l'oublier) :
+ * un succès silencieux n'apprend rien, exactement comme un échec silencieux.
+ *
  * @param {string} flag
  * @param {{ withoutToken?: boolean, label?: string, attempts?: number, delayMs?: number }} [options]
  */
 function runGate(flag, { withoutToken = false, label, attempts = 1, delayMs = 4000 } = {}) {
   console.log(`\n── ${label || flag} ──`);
   const env = withoutToken ? { ...process.env, GH_TOKEN: '', GITHUB_TOKEN: '' } : process.env;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const last = attempt === attempts;
-    try {
-      execFileSync(process.execPath, [gateScript, flag, `--dir=${dirArg}`], {
-        cwd: root,
-        // La dernière tentative parle en clair : c'est son verdict qu'on lit.
-        // Les précédentes sont conservées hors écran, sinon une reprise
-        // noierait la sortie utile sous ses propres messages d'attente.
-        stdio: last ? ['ignore', 'inherit', 'inherit'] : ['ignore', 'pipe', 'pipe'],
-        env,
-      });
-      return;
-    } catch {
-      if (last) {
-        fail(`le gate a refusé (${flag}) — RIEN n’a été promu`, [
-          'corrigez ce que le gate nomme ci-dessus, puis relancez : ce script est idempotent.',
-        ]);
+  const outcome = runGateAttempts({
+    attempts,
+    delayMs,
+    sleep: sleepMs,
+    run: () => {
+      try {
+        const stdout = execFileSync(process.execPath, [gateScript, flag, `--dir=${dirArg}`], {
+          cwd: root,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env,
+        });
+        return { ok: true, output: String(stdout ?? '') };
+      } catch (error) {
+        // Le gate a échoué : ses problèmes sont sur la sortie d’erreur, ses
+        // vérifications sur la sortie standard. Les deux sont montrées — un
+        // refus sans son motif serait un refus qu’on ne peut pas réparer.
+        return { ok: false, output: `${error?.stdout ?? ''}${error?.stderr ?? ''}` };
       }
-      console.log(`   ⏳ pas encore lisible (tentative ${attempt}/${attempts}) — on réessaie dans ${Math.round(delayMs / 1000)} s`);
-      sleepMs(delayMs);
-    }
+    },
+    onRetry: (attempt, total, waitMs) => {
+      console.log(`   ⏳ pas encore lisible (tentative ${attempt}/${total}) — on réessaie dans ${Math.round(waitMs / 1000)} s`);
+    },
+  });
+  process.stdout.write(outcome.output);
+  if (!outcome.ok) {
+    fail(`le gate a refusé (${flag}) — RIEN n’a été promu`, [
+      'corrigez ce que le gate nomme ci-dessus, puis relancez : ce script est idempotent.',
+    ]);
   }
 }
 
@@ -433,7 +451,18 @@ if (!PROMOTE) {
 }
 
 // ── 5. La promotion, puis la preuve SANS jeton ───────────────────────────────
-const promoted = await api(`/releases/${target.id}`, { method: 'PATCH', body: { draft: false } });
+// La promotion dit les DEUX drapeaux, et ce n'est pas du zèle : l'API de GitHub
+// remplace la ressource, donc un `prerelease` absent de la requête repart à
+// `false`. MESURÉ le 2026-09-13 : un brouillon marqué pré-version avant promotion
+// est redevenu une publication STABLE au moment du `draft: false`, c'est-à-dire
+// que le seul geste censé le rendre visible l'a aussi rendu visible pour TOUT LE
+// MONDE — et une version plus basse que la tête fait alors sortir du chemin
+// toutes les populations déjà installées (le contrôle du canal l'a refusé dans la
+// seconde). Le drapeau est donc repris de l'état lu, jamais supposé.
+const promoted = await api(`/releases/${target.id}`, {
+  method: 'PATCH',
+  body: { draft: false, prerelease: target?.prerelease === true },
+});
 console.log(`\n🚀 promu : ${promoted?.tag_name} est publié (${promoted?.published_at}) — c’est le seul geste qui rend une version lisible par l’updater`);
 
 runGate('--live', {

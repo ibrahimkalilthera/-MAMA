@@ -29,6 +29,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 
+import { runGateAttempts } from '../scripts/lib/gate-runner.mjs';
 import {
   assetMatchesLocal,
   pickConsolidationTarget,
@@ -373,12 +374,55 @@ describe('le câblage du publieur', () => {
     assert.match(source, /taille inconnue[^']*octets tronqués/, 'une taille inconnue refuse, elle ne devine pas');
   });
 
+  it('le verdict d’un gate est TOUJOURS rendu — même quand il passe du premier coup', () => {
+    // Le défaut mesuré pendant la publication de la 1.0.6 : la promotion
+    // affichait l’en-tête du gate du flux publié suivi du vide, sur un gate vert.
+    // Un succès silencieux n’apprend rien, exactement comme un échec silencieux.
+    const first = runGateAttempts({ attempts: 6, run: () => ({ ok: true, output: '✅ flux publié cohérent\n' }) });
+    assert.equal(first.ok, true);
+    assert.equal(first.output, '✅ flux publié cohérent\n', 'le texte de la tentative qui conclut est rendu');
+    assert.equal(first.retried, 0, 'aucune reprise n’a été nécessaire');
+
+    let calls = 0;
+    const retried = runGateAttempts({
+      attempts: 6,
+      delayMs: 0,
+      run: () => (++calls < 3 ? { ok: false, output: 'pas encore visible\n' } : { ok: true, output: '✅ canal vivant\n' }),
+      sleep: () => {},
+    });
+    assert.equal(retried.ok, true);
+    assert.equal(retried.output, '✅ canal vivant\n', 'c’est le verdict FINAL qui est rendu, pas les échecs transitoires');
+    assert.equal(retried.retried, 2);
+
+    const failed = runGateAttempts({ attempts: 3, delayMs: 0, run: () => ({ ok: false, output: '❌ brouillon incohérent\n' }) });
+    assert.equal(failed.ok, false);
+    assert.equal(failed.output, '❌ brouillon incohérent\n', 'un refus est rendu avec son motif, sinon il n’est pas réparable');
+    assert.equal(failed.attempts, 3);
+  });
+
+  it('le publieur écrit le verdict rendu — il ne peut pas le jeter', () => {
+    const source = read('scripts/publish-release.mjs');
+    assert.match(source, /import \{ runGateAttempts \} from '\.\/lib\/gate-runner\.mjs'/);
+    assert.match(source, /const outcome = runGateAttempts\(\{/, 'la boucle vit dans le module testable');
+    assert.match(source, /process\.stdout\.write\(outcome\.output\)/, 'et le verdict est écrit, pas seulement calculé');
+    assert.doesNotMatch(source, /stdio: last \?/, 'plus d’essai « intermédiaire » dont le texte part dans un tube');
+  });
+
   it('le brouillon est un SAS : sa vérification précède la promotion', () => {
     const source = read('scripts/publish-release.mjs');
     const draftGate = source.indexOf("runGate('--draft'");
     const promote = source.indexOf('draft: false');
     assert.ok(draftGate > 0 && promote > draftGate, 'un gate rouge laisse le release en brouillon, donc invisible');
     assert.match(source, /if \(!PROMOTE\)[\s\S]*?process\.exit\(0\)/, 'publier et promouvoir sont deux gestes distincts');
+  });
+
+  it('la promotion dit les DEUX drapeaux : un brouillon pré-version ne devient pas stable', () => {
+    // Mesuré le 2026-09-13 : l’API remplace la ressource, donc un `prerelease`
+    // absent de la requête repart à `false` — et le geste qui devait rendre une
+    // pré-version visible l’a rendue visible pour tout le monde, tête du canal
+    // comprise.
+    const source = read('scripts/publish-release.mjs');
+    assert.match(source, /body: \{ draft: false, prerelease: target\?\.prerelease === true \}/, 'le drapeau est repris de l’état lu, jamais supposé');
   });
 
   it('une propagation d’API est reprise, jamais ignorée', () => {

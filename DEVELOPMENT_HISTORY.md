@@ -1,3 +1,67 @@
+## [2026-09-13] La 1.0.6 est publiée de bout en bout — et la promotion ne cache plus son verdict
+
+Demande : « publie une 1.0.6 de bout en bout avec le nouveau publieur (certificat compris) pour prouver l'enchaînement réel, puis vérifie le flux comme un poste le lit ».
+
+**Le certificat n'existait pas, et ça se dit.** Aucun `.pfx` dans le dépôt, aucune variable `CSC_LINK`/`CSC_KEY_PASSWORD` sur le poste, aucun certificat de signature dans le magasin Windows, et `CSC_PFX_B64` n'est pas parmi les secrets du dépôt — `docs/CODE_SIGNING.md` explique pourquoi : un certificat reconnu par SmartScreen s'achète (OV, 200–400 USD/an), un auto-signé ne lève rien. Décision prise avec l'utilisateur : **certificat auto-signé de test**, généré avec `openssl` (EKU Code Signing, un an, hors du dépôt) — l'enchaînement est prouvé, pas l'éditeur. Au passage, `.gitignore` ne protégeait **pas** les `.pfx` alors que le document l'affirmait depuis le début : un `git add` large aurait pu committer une clé privée. Corrigé (`*.pfx`, `*.p12`, `code-sign.*`).
+
+**Publier localement, c'est ce qui rend le canal vert tout de suite.** La chaîne automatique ne peut pas publier sans les secrets de signature : elle construit alors **sans publier** et le déclare en inaction (run rouge, c'est son contrat depuis le 2026-09-13). Publier d'abord avec le publieur local — comme la 1.0.4 et la 1.0.5 — puis pousser le bump fait que le gate automatique trouve « déjà publié » : le job de publication est **sauté**, le run reste vert, et l'audit le nomme « run sans objet ».
+
+```
+build    electron-builder + signtool : les 4 artefacts signés
+         (portable, setup, exe win-unpacked, elevate.exe) — Get-AuthenticodeSignature :
+         Status=UnknownError (racine non approuvée, attendu pour un auto-signé),
+         SignerCertificate = CN=Mama Thera Finance (test)
+local    ✅ 1.0.6 (paquet) = 1.0.6 (latest.yml) · 129 080 968 octet(s) · sha512 recalculé
+plan     create — 0 release pour ce tag → UN brouillon, 4 actifs téléversés
+brouillon ✅ les octets téléversés répondent à latest.yml → promotion autorisée
+promotion 🚀 v1.0.6 publiée (2026-09-13T02:21:26Z)
+poste    1. tête lue : /releases/latest → v1.0.6 (Accept: application/json, sans jeton)
+         2. latest.yml servi = construit, OCTET POUR OCTET
+         3. installeur sans jeton : HTTP 206 · magic « MZ » · 129 080 968 = annoncé
+         4. politique du poste : 1.0.1, 1.0.3 et 1.0.5 → 1.0.6 PROPOSÉE ;
+            et OBLIGATOIRE 45 jours plus tard si personne ne l'a prise
+```
+
+**Deux défauts trouvés en publiant, et c'est le meilleur argument pour publier pour de vrai.**
+
+**Le premier rendait la preuve muette.** La promotion affichait `── flux publié, relu SANS jeton ──` **suivi du vide**, alors que le gate venait de conclure vert. La boucle de reprise réservait l'affichage à la « dernière » tentative et gardait les précédentes dans un tube — sauf que le succès du premier coup EST une tentative intermédiaire, donc son verdict partait dans le tube et personne ne l'imprimait. Un succès silencieux n'apprend rien, exactement comme un échec silencieux, et c'est le run de CI qui l'exécute. Le verdict passe maintenant par `scripts/lib/gate-runner.mjs` (pur : l'exécution et l'attente sont injectées) : on ne montre que la tentative qui conclut, mais on la montre **toujours**. Prouvé sur le chemin réel — un fixture rejoué en pré-version a affiché les deux verdicts que la veille il taisait.
+
+**Le second a déplacé la tête du canal, et le contrôle neuf l'a attrapé.** Le fixture (0.0.9) avait été marqué pré-version **avant** promotion, pour ne pas exposer les postes : l'API de GitHub **remplace** la ressource, donc un `prerelease` absent du `PATCH {draft:false}` repart à `false` — le seul geste censé rendre la pré-version visible l'a rendue visible **pour tout le monde**, y compris comme tête du canal. Le promote dit désormais les deux drapeaux (`prerelease` repris de l'état lu). Et le contrôle du chemin des versions — livré le matin même — a refusé la promotion en nommant les six populations sorties du chemin (« un poste resté en 1.0.5 ne recevrait plus rien : le canal nomme « 0.0.9 » »). Nettoyage : release supprimé, étiquette supprimée, fixture retiré, `package.json` restauré ; la tête est revenue à `v1.0.6` (avec un délai de propagation mesuré : `/releases/latest` a continué de nommer le tag supprimé pendant ~2 minutes avant de se corriger).
+
+**Trois choses franchement.** La 1.0.6 est signée par un certificat **auto-signé** : Windows affichera « éditeur inconnu », exactement comme avant — SmartScreen ne bougera qu'avec un certificat d'une autorité de confiance, et c'est un achat, pas du code. Ensuite la version a été **construite depuis l'arbre local** (le bump est poussé juste après) parce que le build de CI ne peut pas signer sans le secret : le contenu livré est celui du commit poussé, mais la provenance du binaire est cette machine, et c'est dit. Enfin `1.0.6` → `1.0.x` est un écart de **patch** : les postes la reçoivent en **proposition**, pas en obligation — l'obligation ne tombe qu'au bout de 45 jours pour qui ne l'a pas prise (le seuil de date de la politique).
+
+**Mesures** : la suite complète **1363/1363** (+2 sur le verdict des gates, +1 sur les drapeaux de promotion), `npm run lint` vert, `check:release:live` et `check:release:channel` verts **sans jeton** sur la 1.0.6 publiée (6 versions publiées, toutes rattachées à la tête).
+
+## [2026-09-13] Vingt postes bloqués par le même 404 font UN incident, plus vingt lignes
+
+Demande : « regroupe côté administrateur les remontées de plusieurs postes bloqués par la même panne en un seul incident, au lieu d'une ligne par machine ».
+
+**Chaque remontée était juste, et l'ensemble était illisible.** Le journal d'audit reçoit une ligne par POSTE bloqué — c'est exact, et c'est même la raison d'être d'un journal append-only. Mais la question que l'administrateur se pose devant une école entière n'est pas « quel poste ? » : c'est **« qu'est-ce qui est cassé, et combien de machines ça touche ? »**. Vingt postes bloqués par le même 404 donnaient vingt lignes identiques à la station près, donc un motif noyé dans vingt répétitions — et un signalement qu'on ne lit plus ne signale rien. Le dépôt avait déjà payé cette forme deux fois (la même panne inscrite des dizaines de fois par un poste, réglée par la déduplication de la file ; puis les preuves d'automatisation gonflées de leur propre bruit).
+
+**Le regroupement est une LECTURE, et c'est la seule qui tienne.** On ne réécrit pas une preuve : le journal reste append-only, et `src/lib/blockedIncidents.ts` (pur, donc testé sans base ni DOM) lit les entrées et rend des **incidents**. L'onglet Journal d'audit affiche **une ligne par cause** — nombre de postes, la liste, la première et la dernière fois vues, le total des butées — et un dépliage redonne **les remontées brutes, machine par machine** : rien n'est caché, seulement rangé. Le mode est un bouton (désactivable), le regroupement est actif par défaut parce que c'est la question qui se pose en premier, et l'export CSV **suit la vue** — sinon le tableur aurait redonné exactement les vingt lignes qu'on venait de regrouper.
+
+**Ce qui définit « la même panne » — et ce qui refuse d'être fondu.**
+
+```
+code + version VISÉE + motif        une cause réelle → un incident
+  · la version installée n'en fait pas partie : 1.0.3→2.0.0 et 1.0.4→2.0.0
+    bloqués par le même 404, c'est une panne, pas deux ;
+  · deux motifs différents sous le même code NE se fondent PAS : c'est
+    exactement le raccourci qui ferait disparaître une panne derrière l'autre ;
+  · une entrée ILLISIBLE reste une ligne à part — on ne devine pas une panne
+    à partir d'un texte qu'on n'a pas su lire, et la fondre la ferait disparaître.
+```
+
+L'identité choisie est celle que la politique et la file du poste utilisaient déjà (`entryKey` du journal local, `blockId` de la remontée) : code et version visée. Ce qui s'ajoute ici est le **motif**, qui est précisément ce que la clé du poste n'avait pas besoin de distinguer (un poste ne se compare qu'à lui-même) et ce dont un parc a besoin pour ne pas confondre deux causes. Seule la casse et les espaces blancs sont normalisés : masquer aussi les nombres ferait tomber un 404 et un 500 dans le même incident — le mauvais sens de l'erreur.
+
+**Un signalement en direct et une remontée tardive de la même panne se rejoignent** (le canal d'arrivée ne fait pas une panne différente), et les `occurrences` s'additionnent : « bloqué 40 fois » ne se lit toujours pas « une fois ». La version visée fait partie de la clé, donc un poste qui bute sur une version **plus récente** produit un incident neuf — la file du poste prend déjà cette peine, la vue ne la défait pas.
+
+**Les cas passent par le PRODUCTEUR, pas par une copie du format.** Les remontées sont composées par `blockedAuditEntry` / `journalAuditEntry`, et les tests les font passer par ces fonctions avant de les relire : si le format change, le lecteur casse dans la suite au lieu de mal regrouper en silence. C'est le même principe que la sonde d'API du publieur, appliqué à un format de texte.
+
+**Deux choses franchement.** Le format lu est du TEXTE (`details`), donc l'analyse peut rater un motif qui contiendrait lui-même un de ses marqueurs — c'est borné, documenté et couvert par un test (le motif ne « mange » ni le chemin du journal ni « bloqué N fois »), mais un champ structuré dans l'entrée d'audit serait plus solide, et c'est le pas suivant naturel. Ensuite je n'ai pas VU la vue dans un navigateur : la logique de regroupement est testée et la vue est vérifiée par assertions sur sa source (le projet n'a pas de harnais de rendu), donc la disposition elle-même reste à regarder d'un œil humain.
+
+**Mesures** : 15 cas neufs (`tests/blocked-incidents.test.ts`), **1360/1360** au total, `npm run lint` vert (21 contrôles inventoriés, dont le garde d'i18n JSX et la parité des libellés fr/en).
+
 ## [2026-09-13] Le canal dit ce que reçoit CHAQUE version publiée — et demande la tête à l'endpoint du poste
 
 Demande : « fais dire au canal si un poste resté sur chaque ancienne version publiée recevrait bien la plus récente, au lieu de ne juger que la tête du flux ».

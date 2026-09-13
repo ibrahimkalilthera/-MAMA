@@ -21,4 +21,12 @@ supabase/.temp/
 
 # Build/paquetage desktop (Electron)
 electron-ui-dist/
+# Certificats de signature de code : jamais dans le dépôt (docs/CODE_SIGNING.md).
+# Le document l'affirmait depuis le début ; le fichier ne le tenait pas — un
+# `.pfx` posé là pour un build local aurait pu être committé par un `git add`
+# large, et un certificat de signature dans l'historique ne se retire pas.
+*.pfx
+*.p12
+code-sign.*
+
 release/
