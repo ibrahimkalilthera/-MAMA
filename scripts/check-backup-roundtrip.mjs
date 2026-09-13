@@ -36,7 +36,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { BACKUP_TABLES, BUSINESS_TABLES, tablesAreSound } from './lib/db-tables.mjs';
+import { BACKUP_TABLES, BUSINESS_TABLES, restorableRows, tablesAreSound } from './lib/db-tables.mjs';
 import { contentFingerprint, decryptPayload, payloadFingerprint, verifyManifest } from './lib/backup-manifest.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { SHARED_PROJECT_REF, projectRefOf } from './lib/shared-project.mjs';
@@ -106,14 +106,11 @@ export function judgeRoundtrip({
   for (const [name, tableRows] of Object.entries(backup)) {
     const list = Array.isArray(tableRows) ? tableRows : [];
     const spec = specs.get(name) ?? { name, pk: 'id' };
-    // La même règle que la restauration, écrite ICI et pas empruntée : une ligne
-    // n'est restaurable que si son compte de référence existe dans la cible.
-    const restorable = spec.authRef
-      ? list.filter((row) => {
-          const ref = spec.authRef === 'id' ? row?.id : row?.[spec.authRef];
-          return ref == null || ids.has(ref);
-        })
-      : list;
+    // La règle vient de l'inventaire — le MÊME exemplaire que celui qui écrit.
+    // Le jugement reste indépendant (il recompte lui-même, il ne croit aucune
+    // promesse), mais il ne peut pas se tromper d'une autre manière que la
+    // restauration sur ce qu'une cible peut accueillir.
+    const restorable = restorableRows(spec, list, ids);
     const present = target[name];
     const skipped = list.length - restorable.length;
     if (present !== restorable.length) {

@@ -46,6 +46,34 @@ export const BUSINESS_TABLES = BACKUP_TABLES.filter((t) =>
 );
 
 /**
+ * Les lignes qu'une cible peut RÉELLEMENT recevoir.
+ *
+ * Une ligne qui référence un compte `auth.users` ne peut revenir que si ce
+ * compte existe déjà dans la cible — les empreintes bcrypt ne voyagent pas par
+ * l'API REST (voir docs/BACKUP.md). La règle vit ici, en UN exemplaire, parce
+ * qu'elle sert à deux endroits qui doivent tomber d'accord : la restauration, qui
+ * écrit, et les recomptages, qui jugent. Leur divergence s'est déjà payée : le
+ * 2026-09-13, la restauration écartait correctement les profils sans compte puis
+ * annonçait « non restaurés », tandis que son propre recomptage les réclamait
+ * (`user_profiles: 0 < 4`) — un échec sur une restauration correcte, c'est-à-dire
+ * un rouge qui apprend à ignorer un contrôle.
+ *
+ * @param {{ authRef?: string }} table
+ * @param {object[]} rows
+ * @param {Set<string>|string[]} [authIds] comptes présents dans la cible
+ * @returns {object[]} les lignes restaurables, dans leur ordre
+ */
+export function restorableRows(table, rows, authIds = new Set()) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!table?.authRef) return list;
+  const ids = authIds instanceof Set ? authIds : new Set(authIds ?? []);
+  return list.filter((row) => {
+    const ref = table.authRef === 'id' ? row?.id : row?.[table.authRef];
+    return ref == null || ids.has(ref);
+  });
+}
+
+/**
  * Vrai si la liste est utilisable (non vide, sans doublon, avec clé primaire).
  *
  * @param {{ name: string, pk: string }[]} [tables] la liste à juger ; par défaut

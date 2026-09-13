@@ -35,7 +35,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-import { BACKUP_TABLES } from './lib/db-tables.mjs';
+import { BACKUP_TABLES, restorableRows } from './lib/db-tables.mjs';
 import { SHARED_PROJECT_REF, projectRefOf } from './lib/shared-project.mjs';
 import { contentFingerprint, decryptPayload, payloadFingerprint, verifyManifest } from './lib/backup-manifest.mjs';
 import { replayableWrite } from './lib/transient-http.mjs';
@@ -211,14 +211,11 @@ let skippedForAuth = 0;
 for (const table of BACKUP_TABLES) {
   const rows = parsed?.tables?.[table.name] ?? [];
   if (!rows.length) continue;
-  const usable = rows.filter((row) => {
-    if (!table.authRef) return true;
-    const ref = table.authRef === 'id' ? row.id : row[table.authRef];
-    if (ref == null) return true;
-    if (authUsers.has(ref)) return true;
-    skippedForAuth += 1;
-    return false;
-  });
+  // La règle vient de l'inventaire (`restorableRows`) : l'écriture et le
+  // recomptage en dessous lisent le MÊME exemplaire, donc ils ne peuvent plus
+  // diverger sur ce qu'une cible peut accueillir.
+  const usable = restorableRows(table, rows, authUsers);
+  skippedForAuth += rows.length - usable.length;
   if (DRY_RUN) {
     console.log(`   · ${table.name.padEnd(16)} ${usable.length} ligne(s) seraient écrites`);
     continue;
@@ -270,7 +267,9 @@ if (DRY_RUN) {
 // ── 5. Recompter : une restauration qui n'a pas restauré est rouge ───────────
 const mismatches = [];
 for (const table of BACKUP_TABLES) {
-  const expected = parsed?.tables?.[table.name]?.length ?? 0;
+  // Le MÊME ensemble qu'à l'écriture : une ligne que la cible ne peut pas
+  // accueillir (compte `auth.users` absent) ne peut pas non plus manquer.
+  const expected = restorableRows(table, parsed?.tables?.[table.name] ?? [], authUsers).length;
   if (!expected) continue;
   const actual = await countOf(table.name);
   if (actual !== null && actual < expected) mismatches.push(`${table.name}: ${actual} < ${expected}`);
