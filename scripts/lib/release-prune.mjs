@@ -30,7 +30,10 @@
 //     taille seule n'identifie pas des octets ;
 //   • une empreinte qui DIFFÈRE n'est pas une suppression mais un ROUGE : des
 //     octets locaux sous un numéro publié qui ne sont pas ceux du canal, c'est
-//     précisément le piège « un même numéro ne se voit pas changer ».
+//     précisément le piège « un même numéro ne se voit pas changer ». Et ce
+//     rouge vaut AUSSI pour le numéro en cours — la version qu'on construit
+//     n'était jamais comparée, alors qu'un fichier portant le nom d'un actif du
+//     canal sous d'autres octets promet aux postes ce qu'il ne contient pas.
 //
 // Le module est pur : les faits (noms, tailles, empreintes locales, état du
 // canal) arrivent en paramètres, et la décision se teste sans disque ni réseau.
@@ -129,7 +132,7 @@ export function artifactVersion(name) {
  * @returns {{ remove: { name: string, version: string, kind: 'digest'|'stale'|'unpublished', reason: string }[],
  *   keep: { name: string, version?: string, reason: string }[],
  *   ignored: { name: string, reason: string }[],
- *   divergences: { name: string, version: string, reason: string }[],
+ *   divergences: { name: string, version: string, act: 'stale'|null, reason: string }[],
  *   unpublishedCandidates: { name: string, version: string }[],
  *   loose: { name: string, size: number, kind: 'unpacked'|'dir', reason: string }[],
  *   bytesFreed: number }}
@@ -244,9 +247,40 @@ export function prunePlan({
 
     // La sortie du build courant reste, même quand le canal la détient déjà :
     // c'est elle que les contrôles locaux lisent (`check:release`, la preuve
-    // bureau, le rejeu de mise à jour). C'est aussi la seule entrée qui n'a pas
-    // besoin d'empreinte, donc le CLI ne hache pas ces octets.
+    // bureau, le rejeu de mise à jour). C'est aussi la seule entrée dont
+    // l'empreinte ne décidait RIEN — donc le CLI ne hache pas ces octets.
+    //
+    // Elle décide d'une chose, et c'est celle qui a échappé à ce contrôle : quand
+    // le canal publie DÉJÀ ce numéro sous ce nom-là, un fichier local qui porte
+    // le nom de l'actif avec d'autres octets n'est pas « la sortie du build » —
+    // c'est une divergence, et c'est la plus dangereuse des deux formes : le nom
+    // du canal promet aux postes des octets que ce fichier-là ne contient pas. Le
+    // sens inverse (mêmes octets que le canal) reste une CONSERVATION, parce que
+    // c'est le build que les preuves locales lisent — même règle qu'avant.
     if (version === String(currentVersion)) {
+      const release = channel.get(version);
+      const asset = release
+        ? (Array.isArray(release.assets) ? release.assets : []).find((a) => String(a?.name ?? '') === name)
+        : null;
+      const mismatch = asset ? assetsDiffer(asset, file) : null;
+      if (mismatch) {
+        divergences.push({
+          name,
+          version,
+          // Aucun drapeau ne l'enlève : `--stale` traite un numéro DÉJÀ servi que
+          // ces octets-ci ne peuvent plus atteindre, alors qu'ici le numéro est
+          // celui qu'on construit. Le remède est de restaurer les octets du
+          // canal, ou de prendre un numéro NEUF — pas de ranger un dossier.
+          act: null,
+          reason: `${mismatch} — et c’est le numéro EN COURS (${version}), déjà publié : ce fichier-ci n’est pas ce que les postes lisent`,
+        });
+        keep.push({
+          name,
+          version,
+          reason: `${mismatch} — le numéro est celui du build en cours, donc il n’est pas un reste à ranger : c’est une divergence, et elle ne s’efface ni par \`--stale\` ni par \`--unpublished\``,
+        });
+        continue;
+      }
       keep.push({
         name,
         version,
@@ -321,12 +355,8 @@ export function prunePlan({
       continue;
     }
 
-    const sameSize = Number(asset.size) === Number(file.size);
-    const sameDigest = digest === `sha256:${String(file.sha256 ?? '')}`;
-    if (!sameSize || !sameDigest) {
-      const mismatch =
-        `le canal dit d’AUTRES octets pour « ${name} » (taille ${asset.size} vs ${file.size}, ` +
-        `empreinte ${digest.slice('sha256:'.length, 'sha256:'.length + 12)}… vs ${String(file.sha256 ?? '').slice(0, 12)}…)`;
+    const mismatch = assetsDiffer(asset, file);
+    if (mismatch) {
       if (stale) {
         remove.push({
           name,
@@ -340,7 +370,7 @@ export function prunePlan({
       } else {
         keep.push({ name, version, reason: `${mismatch} — un même numéro ne se voit pas changer, donc ne republiez pas celui-ci` });
       }
-      divergences.push({ name, version, reason: mismatch });
+      divergences.push({ name, version, act: 'stale', reason: mismatch });
       continue;
     }
 
@@ -480,6 +510,34 @@ export function noRemovalMessage(fileCount = 0) {
   return Number(fileCount) === 0
     ? '✅ rien à décider — le dossier est vide.'
     : '✅ rien à supprimer — aucun fichier ne remplit une condition de départ.';
+}
+
+/**
+ * Ce qui, dans deux jeux d'octets, fait qu'un actif du canal n'est PAS le
+ * fichier local — la phrase, écrite UNE fois.
+ *
+ * Deux branches la disent maintenant (une autre version, et la version en
+ * cours), et deux copies de cette phrase finiraient par ne plus mesurer la même
+ * chose : c'est exactement le défaut que cette famille de règles poursuit.
+ *
+ * `null` veut dire « je ne peux pas comparer », pas « c'est pareil » : sans
+ * empreinte côté canal, une taille seule n'identifie pas des octets, donc on ne
+ * crie pas.
+ *
+ * @param {{ name?: string, size?: number, digest?: string|null }} asset l'actif déclaré par le canal
+ * @param {{ name: string, size?: number, sha256?: string|null }} file le fichier du disque
+ * @returns {string|null} la phrase, ou `null` si les octets concordent (ou ne se comparent pas)
+ */
+function assetsDiffer(asset, file) {
+  const digest = String(asset?.digest ?? '');
+  if (!digest) return null;
+  const sameSize = Number(asset.size) === Number(file.size);
+  const sameDigest = digest === `sha256:${String(file.sha256 ?? '')}`;
+  if (sameSize && sameDigest) return null;
+  return (
+    `le canal dit d’AUTRES octets pour « ${file.name} » (taille ${asset.size} vs ${file.size}, ` +
+    `empreinte ${digest.slice('sha256:'.length, 'sha256:'.length + 12)}… vs ${String(file.sha256 ?? '').slice(0, 12)}…)`
+  );
 }
 
 /**

@@ -134,6 +134,50 @@ describe('ce qui autorise une suppression est une preuve, pas une date', () => {
     assert.equal(plan.divergences.length, 1);
   });
 
+  it('la version EN COURS est comparée elle aussi : le nom du canal sous d’autres octets est un rouge', () => {
+    // Cette branche sortait AVANT la comparaison (« la version en cours ne peut
+    // pas partir, donc son empreinte ne décide rien ») — vrai pour le rangement,
+    // faux pour la comparaison. Mesuré le 13/09 : un `release/` reconstruit
+    // détenait un `MamaTheraFinance-1.0.6-setup.exe` qui n’était pas celui du
+    // canal, et le contrôle répondait « atelier propre ».
+    const plan = prunePlan({
+      currentVersion: '1.0.6',
+      local: [local(setup('1.0.6'), 'octets-reconstruits')],
+      published: [release('1.0.6', [held(setup('1.0.6'), 'octets-du-canal')])],
+    });
+    assert.deepEqual(plan.remove, [], 'aucun drapeau ne range ce dossier : ce n’est pas un reste');
+    assert.equal(plan.divergences.length, 1);
+    assert.equal(plan.divergences[0].act, null, 'et aucun acte ne l’enlève — le remède est ailleurs');
+    assert.match(plan.divergences[0].reason, /numéro EN COURS/);
+    assert.match(plan.keep[0].reason, /ni par `--stale` ni par `--unpublished`/);
+  });
+
+  it('la version en cours qui porte les MÊMES octets que le canal reste une conservation', () => {
+    // Publier puis garder sa propre sortie de build n’est pas une divergence :
+    // c’est elle que les preuves locales lisent (preuve bureau, rejeu de mise à
+    // jour). Le rouge est réservé aux octets qui DIFFÈRENT.
+    const plan = prunePlan({
+      currentVersion: '1.0.6',
+      local: [local(setup('1.0.6'), 'octets-du-canal')],
+      published: [release('1.0.6', [held(setup('1.0.6'), 'octets-du-canal')])],
+    });
+    assert.deepEqual(plan.divergences, []);
+    assert.deepEqual(plan.remove, []);
+    assert.match(plan.keep[0].reason, /version en cours de construction/);
+  });
+
+  it('sans empreinte locale (version en cours pas encore publiée), il n’accuse personne', () => {
+    // Le CLI ne hache cette version-là que si le canal la publie déjà sous ce
+    // nom : `sha256: null` veut donc dire « pas comparé », et pas « différents ».
+    const plan = prunePlan({
+      currentVersion: '1.0.7',
+      local: [{ name: setup('1.0.7'), size: 1000, sha256: null }],
+      published: [release('1.0.6', [held(setup('1.0.6'), 'octets-du-canal')])],
+    });
+    assert.deepEqual(plan.divergences, []);
+    assert.match(plan.keep[0].reason, /version en cours de construction/);
+  });
+
   it('une taille qui diffère suffit à refuser, même avec l’empreinte annoncée', () => {
     const plan = prunePlan({
       currentVersion: '1.0.6',

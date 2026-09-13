@@ -204,7 +204,7 @@ describe('release:prune --yes — l’acte, et seulement lui', () => {
 
     const sans = runCli([`--dir=${dir}`, `--channel=${channel}`, '--yes']);
     assert.equal(sans.code, 1, 'un même numéro aux autres octets est un refus, pas un ménage');
-    assert.match(sans.err, /portent un numéro PUBLIÉ avec d'AUTRES octets/);
+    assert.match(sans.err, /portent le NOM d'un actif PUBLIÉ avec d'AUTRES octets/);
     assert.deepEqual(listed(dir), ['MamaTheraFinance-1.0.5-setup.exe'], 'et rien n’a été supprimé');
 
     const avec = runCli([`--dir=${dir}`, `--channel=${channel}`, '--yes', '--stale']);
@@ -225,6 +225,76 @@ describe('release:prune --check — l’objection automatique', () => {
     assert.match(err, /reprendre le mauvais fichier à la main/);
     assert.match(err, /L'acte qui les enlève/, 'et il dit l’acte exact');
     assert.deepEqual(listed(dir), ['MamaTheraFinance-1.0.4-setup.exe'], 'l’objection ne supprime rien');
+  });
+
+  it('OBJECTE (exit 1) quand un fichier porte le NOM d’un actif du canal sous d’AUTRES octets', () => {
+    // Le cas mesuré le 13/09 : un `release/` reconstruit détenait un
+    // `MamaTheraFinance-1.0.6-setup.exe` qui n’était pas celui du canal, et ce
+    // mode répondait « atelier propre ». Le fichier promettait au poste ce qu’il
+    // ne contenait pas, et rien ne l’objectait.
+    const dir = atelier('check-divergence', { [`MamaTheraFinance-${CURRENT}-setup.exe`]: 'octets-reconstruits' });
+    const channel = canal('check-divergence', [
+      { tag: `v${CURRENT}`, assets: [{ name: `MamaTheraFinance-${CURRENT}-setup.exe`, bytes: 'octets-du-canal' }] },
+    ]);
+
+    const { code, err } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 1, 'le nom du canal sous d’autres octets est un ROUGE, pas une décision');
+    assert.match(err, /portent le NOM d’un actif du canal avec d’AUTRES octets/);
+    assert.match(err, /numéro EN COURS/, 'et il dit que c’est celui qu’on construit');
+    assert.match(err, /numéro NEUF/, 'les deux remèdes sont nommés');
+    assert.doesNotMatch(err, /release:prune -- --dir=\S+ --yes --stale\b/, 'aucun drapeau ne range ce dossier-là');
+    assert.deepEqual(listed(dir), [`MamaTheraFinance-${CURRENT}-setup.exe`], 'l’objection ne supprime rien');
+  });
+
+  it('OBJECTE aussi sur un AUTRE numéro, et là il nomme l’acte qui l’enlève', () => {
+    // Même fait, autre numéro, autre remède : ces octets-ci ne peuvent plus
+    // atteindre personne (le numéro est pris), donc `--stale` les range. Un rouge
+    // qui ne dirait pas lequel des deux cas il regarde enverrait au mauvais acte.
+    const dir = atelier('check-divergence-stale', { 'MamaTheraFinance-1.0.5-setup.exe': 'octets-reconstruits' });
+    const channel = canal('check-divergence-stale', [
+      { tag: 'v1.0.5', assets: [{ name: 'MamaTheraFinance-1.0.5-setup.exe', bytes: 'octets-du-canal' }] },
+    ]);
+
+    const { code, err } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 1);
+    assert.match(err, /portent le NOM d’un actif du canal avec d’AUTRES octets/);
+    assert.match(err, /--yes --stale/, 'le remède de CE cas est nommé');
+    assert.doesNotMatch(err, /numéro EN COURS/, 'et il ne se présente pas comme la version qu’on construit');
+    assert.deepEqual(listed(dir), ['MamaTheraFinance-1.0.5-setup.exe'], 'l’objection ne supprime rien');
+  });
+
+  it('mais la version en cours aux MÊMES octets que le canal reste propre', () => {
+    // Publier puis garder sa propre sortie de build n'est pas une objection :
+    // c'est la sortie du build, et les preuves locales la lisent. Sans ce cas,
+    // la règle précédente pourrait devenir un rouge permanent après chaque
+    // publication — et un contrôle toujours rouge ne se lit plus.
+    const dir = atelier('check-courant-identique', { [`MamaTheraFinance-${CURRENT}-setup.exe`]: 'octets-du-canal' });
+    const channel = canal('check-courant-identique', [
+      { tag: `v${CURRENT}`, assets: [{ name: `MamaTheraFinance-${CURRENT}-setup.exe`, bytes: 'octets-du-canal' }] },
+    ]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 0);
+    assert.match(out, /atelier propre/);
+  });
+
+  it('un numéro pas encore publié n’est comparé à rien — la construction reste libre', () => {
+    // Le flux ordinaire : on monte en 1.0.7, on construit, on commite. Le canal
+    // n'a pas de 1.0.7, donc aucune empreinte de ce numéro-là ne peut être
+    // comparée : ni hachage inutile, ni objection.
+    const dir = atelier('check-pas-encore-publie', { [`MamaTheraFinance-${CURRENT}-setup.exe`]: 'octets-du-build' });
+    const channel = canal('check-pas-encore-publie', [
+      { tag: `v${PREVIOUS}`, assets: [{ name: `MamaTheraFinance-${PREVIOUS}-setup.exe`, bytes: 'octets-du-canal' }] },
+    ]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 0);
+    assert.match(out, /atelier propre/);
+    assert.match(out, /version en cours de construction/);
   });
 
   it('ne condamne PAS ce qu’aucune preuve ne condamne — une décision n’est pas un échec', () => {

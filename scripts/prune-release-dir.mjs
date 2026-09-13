@@ -58,6 +58,23 @@
  * l'alarme d'un canal qui servirait les mauvais octets, et que l'effacer serait
  * effacer l'alarme.
  *
+ * Ce rouge vaut aussi pour le numéro EN COURS, et c'est là qu'il a manqué :
+ * mesuré le 13/09, un `release/` reconstruit détenait un
+ * `MamaTheraFinance-1.0.6-setup.exe` qui n'était PAS celui du canal, et `--check`
+ * répondait « atelier propre ». La version en cours n'était jamais comparée (« elle
+ * ne peut pas partir, donc son empreinte ne décide rien ») — vrai pour le rangement,
+ * faux pour la comparaison : un fichier qui porte le NOM d'un actif du canal sous
+ * d'AUTRES octets promet aux postes ce qu'il ne contient pas. Le seul cas d'empreinte
+ * qui ne décide rien reste celui d'un numéro pas encore publié, et le CLI ne hache
+ * donc la version en cours que si le canal la publie déjà sous ce nom-là.
+ *
+ * Différence entre les deux divergences, et c'est le REMÈDE qui la fait : celle d'un
+ * AUTRE numéro s'enlève (`--stale`, ce numéro ne peut plus atteindre personne),
+ * celle du numéro en cours ne s'enlève pas — elle se répare, en restaurant les
+ * octets du canal ou en prenant un numéro neuf. D'où l'`act` porté par chaque
+ * divergence : un rappel qui proposerait `--stale` sur la version en cours serait
+ * faux, et deux rappels faux ont déjà été payés ici.
+ *
  * `--stale` est le geste séparé qui règle le cas mesuré le 13/09 : la 1.0.3 et
  * la 1.0.5 ont un build local postérieur à leur publication (19:53 contre 18:56,
  * 23:06 contre 22:31), donc la même version en deux exemplaires aux octets
@@ -191,9 +208,20 @@ const published = releases.map((release) => ({
 }));
 
 // ── Les faits locaux ────────────────────────────────────────────────────────
-// On ne hache PAS la version en cours : elle ne peut pas partir, donc son
-// empreinte ne décide rien. Tout le reste est haché sur les octets du disque —
-// une taille relue ne prouve pas une empreinte.
+// On ne hache PAS la version en cours quand elle n'est pas publiée : elle ne
+// peut pas partir, donc son empreinte ne décide rien, et 250 Mo de lecture ne se
+// paient pas pour rien.
+//
+// Mais elle décide UNE chose, et c'est celle que ce contrôle laissait passer :
+// dès que le canal publie DÉJÀ ce numéro sous ce nom-là, un fichier local du même
+// nom avec d'autres octets est une divergence — le nom du canal, et pas ses
+// octets. Les noms publiés pour la version en cours sont donc recensés d'abord,
+// et ce sont les seuls pour lesquels on hache cette version-là.
+const publishedForCurrent = new Set(
+  published
+    .filter((release) => !release.draft && release.version === currentVersion)
+    .flatMap((release) => release.assets.map((asset) => asset.name)),
+);
 /** La taille d'un dossier, récursivement — un dossier de build n'en a pas une. */
 function dirSize(dir) {
   let total = 0;
@@ -232,8 +260,13 @@ for (const name of readdirSync(releaseDir)) {
     continue;
   }
   const version = artifactVersion(name);
+  // Haché sur les octets du disque — une taille relue ne prouve pas une
+  // empreinte. La version en cours ne l'est que si le canal la publie déjà sous
+  // ce nom (voir ci-dessus) : c'est la seule empreinte qui fait encore décider.
   const sha256 =
-    version && version !== currentVersion ? createHash('sha256').update(readFileSync(file)).digest('hex') : null;
+    version && (version !== currentVersion || publishedForCurrent.has(name))
+      ? createHash('sha256').update(readFileSync(file)).digest('hex')
+      : null;
   local.push({ name, size: stat.size, sha256 });
 }
 
@@ -355,14 +388,25 @@ function reportLeftoverDivergencesAndExit() {
   const left = plan.divergences.filter((d) => existsSync(join(releaseDir, d.name)));
   if (left.length === 0) process.exit(0);
   console.error(
-    `\n❌ ${left.length} artefact(s) locaux portent un numéro PUBLIÉ avec d'AUTRES octets — un même numéro ne se voit pas changer :\n`,
+    `\n❌ ${left.length} artefact(s) locaux portent le NOM d'un actif PUBLIÉ avec d'AUTRES octets — un même numéro ne se voit pas changer :\n`,
   );
   for (const item of left) console.error(`   • ${item.reason}`);
-  if (!stale) {
+  // L'acte `--stale` ne concerne QUE les numéros qui ne sont pas celui qu'on
+  // construit : sur la version en cours, il n'enlèverait rien (le plan la garde,
+  // par construction), donc proposer la commande serait un rappel faux — la
+  // famille d'erreur que ce script a déjà payée deux fois.
+  const stales = left.filter((d) => d.act === 'stale');
+  if (stales.length && !stale) {
     console.error(
       '\n   S’il s’agit de reconstructions locales (le canal sert déjà ce numéro), elles ne partiront jamais sur un poste :' +
         `\n   ${pruneCommand(['stale'], { dir: dirArg })}\n` +
         '   Et si le canal sert vraiment les mauvais octets, c’est un incident de canal, pas un ménage.',
+    );
+  }
+  if (left.some((d) => d.act === null)) {
+    console.error(
+      '\n   Pour le numéro EN COURS, aucun drapeau ne range ce dossier : ce n’est pas un reste, c’est une divergence.\n' +
+        '   Restaurez les octets du canal, ou prenez un numéro neuf (le rebuild d’un numéro publié ne peut pas être livré).',
     );
   }
   process.exit(1);
@@ -510,12 +554,26 @@ if (check) {
   // vert. Ce qui compte est déjà fait juste au-dessus — ce volume est NOMMÉ, pesé
   // et compté dans le total, donc il n'échappe plus à la décision.
   const redundant = plan.remove.filter((item) => item.kind === 'digest');
+  // Une divergence qui RESTE est une objection, au même titre qu'un octet
+  // redondant — et elle a manqué ici : mesuré le 13/09, un `release/` reconstruit
+  // détenait un `MamaTheraFinance-1.0.6-setup.exe` qui n'était PAS celui du canal,
+  // et ce mode répondait « atelier propre ». Le nom de l'actif du canal sous
+  // d'autres octets, c'est précisément la forme dangereuse : le fichier promet ce
+  // qu'il ne contient pas, et rien ne l'objectait.
+  const diverged = plan.divergences.filter((d) => existsSync(join(releaseDir, d.name)));
   // Ce qu'aucune preuve ne condamne se lit dans les FAITS du plan, pas dans
   // `remove` : `remove` ne contient que les actes qu'on a demandés, donc un
   // `--check` seul aurait répondu « propre » devant une reconstruction — le plan
   // la gardait, mais elle n'y figurait que comme une conservation.
+  //
+  // Les divergences d'un AUTRE numéro y figurent pour leur ACTE (`--stale`) :
+  // elles partent, donc elles ne sont pas un rouge. Celles du numéro EN COURS
+  // n'ont aucun acte — elles sont donc traitées comme l'objection qu'elles sont,
+  // plus bas, et non comme une décision à prendre.
   const undecided = [
-    ...plan.divergences.map((d) => [d.name, 'stale', 'reconstruction locale d’un numéro déjà publié']),
+    ...plan.divergences
+      .filter((d) => d.act === 'stale')
+      .map((d) => [d.name, 'stale', 'reconstruction locale d’un numéro déjà publié']),
     ...plan.unpublishedCandidates.map((c) => [c.name, 'unpublished', 'build d’une version jamais livrée']),
     ...plan.loose.filter((d) => d.kind === 'unpacked').map((d) => [d.name, 'unpacked', 'sortie de build décompressée']),
   ];
@@ -532,26 +590,45 @@ if (check) {
         )}`,
       );
     }
-    console.log('\n✅ atelier propre — aucun octet prouvé redondant.');
-    process.exit(0);
   }
-  console.error(
-    `\n❌ l'atelier détient ${redundant.length} entrée(s) que le canal sert DÉJÀ, octet pour octet —` +
-      ' c’est précisément ce qui permet de reprendre le mauvais fichier à la main :\n',
-  );
-  for (const item of redundant) {
-    // Un dossier n'a pas de numéro : l'afficher vide donnerait « win-unpacked
-    // (, 507 Mo) », et une virgule orpheline se lit comme un bug.
-    const version = item.version ? `${item.version}, ` : '';
-    console.error(`   • ${item.name} (${version}${formatBytes(sizeOf(item.name))})`);
+  if (redundant.length) {
+    console.error(
+      `\n❌ l'atelier détient ${redundant.length} entrée(s) que le canal sert DÉJÀ, octet pour octet —` +
+        ' c’est précisément ce qui permet de reprendre le mauvais fichier à la main :\n',
+    );
+    for (const item of redundant) {
+      // Un dossier n'a pas de numéro : l'afficher vide donnerait « win-unpacked
+      // (, 507 Mo) », et une virgule orpheline se lit comme un bug.
+      const version = item.version ? `${item.version}, ` : '';
+      console.error(`   • ${item.name} (${version}${formatBytes(sizeOf(item.name))})`);
+    }
+    console.error(
+      `\n   L'acte qui les enlève, sans rien re-prouver :\n   ${pruneCommand(
+        redundant.map((item) => item.kind),
+        { dir: dirArg },
+      )}`,
+    );
   }
-  console.error(
-    `\n   L'acte qui les enlève, sans rien re-prouver :\n   ${pruneCommand(
-      redundant.map((item) => item.kind),
-      { dir: dirArg },
-    )}`,
-  );
-  process.exit(1);
+  if (diverged.length) {
+    console.error(
+      `\n❌ ${diverged.length} artefact(s) portent le NOM d’un actif du canal avec d’AUTRES octets —` +
+        ' un poste qui prendrait ce fichier-ci n’aurait pas ce que le canal publie :\n',
+    );
+    for (const item of diverged) console.error(`   • ${item.name} (version ${item.version}) — ${item.reason}`);
+    console.error(
+      '\n   Ce rouge ne se range pas, il se répare — deux voies, et elles sont explicites :\n' +
+        '   • restaurer les octets du CANAL (les télécharger du release, ou republier depuis ce dossier\n' +
+        '     une fois qu’il les porte) ;\n' +
+        '   • ou prendre un numéro NEUF : reconstruire un numéro déjà publié ne peut pas être livré,\n' +
+        '     et son fichier local n’est pas ce que les postes lisent.',
+    );
+    if (diverged.some((d) => d.act === 'stale')) {
+      console.error(`\n   Pour les reconstructions d’un AUTRE numéro, l’acte existe :\n   ${pruneCommand(['stale'], { dir: dirArg })}`);
+    }
+  }
+  if (redundant.length || diverged.length) process.exit(1);
+  console.log('\n✅ atelier propre — aucun octet prouvé redondant.');
+  process.exit(0);
 }
 
 // ── L'acte, seulement s'il est demandé ──────────────────────────────────────
