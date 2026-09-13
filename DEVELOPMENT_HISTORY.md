@@ -1,3 +1,15 @@
+## [2026-09-13] La dépense fournisseur de l'E2E : un hoquet réseau n'est pas un verdict
+
+Demande : rendre la CI verte, en tirant la conséquence du rouge observé plutôt qu'en le relançant.
+
+**Un rouge de transport était traité comme un jugement sur l'application.** `Business E2E` (run 34764378181, sha `39b0a04`) est tombé sur une seule ligne : `❌ Dépense fournisseur persistée en base — absent`, avec dans la console du navigateur `addVendorExpense error: TypeError: Failed to fetch`. Le même run montrait un `DELETE … HTTP 504 — coupure passagère, tentative 2/4` : le gateway hoquetait. Or le salaire, dix lignes plus haut, **poollait** dix secondes après son envoi — et son commentaire dit pourquoi (« mesuré : le même run passait 3 fois et échouait la 4ᵉ »). La dépense fournisseur, elle, lisait la base **une fois, juste après le `submitForm`**, donc trois situations très différentes se lisaient pareil : la ligne n'est pas encore visible, l'écriture n'a jamais quitté le navigateur, ou l'application est cassée. Un avis sur l'un des trois se prenait pour un avis sur le troisième.
+
+**Corrigé dans `scripts/e2e-business.mjs`** : la lecture devient un **poll** (6 × 1 s), et si rien n'apparaît, le formulaire est **renvoyé une fois** — en disant laquelle des deux causes a été vue (transport lâché avec le message console, ou aucune trace d'erreur). Renvoyer est sûr même si la première écriture était passée sans réponse : le nettoyage balaie les dépenses de démo **par préfixe** (`Vendor E2E %`) et le contrôle anti-résidus par préfixe le vérifie ensuite, plutôt que de le supposer.
+
+**Un second défaut trouvé en lisant la ligne, et il était silencieux.** La requête lisait `select=vendor_name,amount,payment_status` — **sans `id`**. Donc `created.vendorId` était toujours `null`, donc le contrôle de résidu **par identifiant** était écarté par le `.filter(... Boolean(path))` : le run vérifiait que la dépense de démo avait disparu par **préfixe** seulement, et se croyait couvert par un chemin qui n'était jamais construit. Un contrôle qui ne peut pas nommer ce qu'il cherche ne peut pas le retrouver ; l'`id` est maintenant lu.
+
+**Mesures** : `tests/e2e-writes.test.ts` **29/29** (politique de traçabilité des créations, dont la preuve par mutation), `tsc --noEmit` et `eslint --max-warnings 0` propres sur le fichier touché.
+
 ## [2026-09-13] Le sens inverse : ce qui est publié sans être dans le flux est nommé
 
 Demande : « Fais comparer la liste des actifs réellement publiés à celle du flux, pour qu'un fichier téléversé mais absent du flux — ou l'inverse — soit nommé au lieu de rester invisible. »

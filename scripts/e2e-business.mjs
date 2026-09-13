@@ -565,9 +565,48 @@ try {
       );
       await setInput('SENELEC', VENDOR_NAME);
       await setValue('50000', VENDOR_AMOUNT);
+      const logMark = logs.length;
       await submitForm('SENELEC');
-      const ve = await api(`/vendor_expenses?select=vendor_name,amount,payment_status&vendor_name=eq.${encodeURIComponent(VENDOR_NAME)}`);
-      const vrow = (ve.body || [])[0];
+      // POLL + RE-ENVOI, comme le salaire juste au-dessus — et pour la même
+      // raison, payée deux fois. Mesuré le 2026-09-13 (run 34764378181) :
+      // `addVendorExpense error: TypeError: Failed to fetch` dans la console du
+      // navigateur, aucune ligne en base, run ROUGE. La lecture se faisait UNE
+      // fois, 0 ms après le `submitForm`, donc deux pannes différentes se
+      // lisaient pareil : « l'écriture n'est pas encore visible » et « le
+      // transport a lâché avant que l'écriture parte ». Un hoquet réseau jugé
+      // comme un verdict sur l'application, exactement ce que le contrôle
+      // anti-résidus reproche ailleurs à ce dépôt.
+      const readVendor = async () => {
+        // `id` est LU (il ne l'était pas) : sans lui le contrôle de résidu par
+        // identifiant était silencieusement sauté, puisque le chemin n'était
+        // jamais construit — un contrôle qui ne peut pas nommer ce qu'il cherche
+        // ne peut pas le retrouver.
+        const ve = await api(
+          `/vendor_expenses?select=id,vendor_name,amount,payment_status&vendor_name=eq.${encodeURIComponent(VENDOR_NAME)}`,
+        );
+        return (ve.body || [])[0] ?? null;
+      };
+      let vrow = null;
+      for (let pass = 1; pass <= 2 && !vrow; pass += 1) {
+        if (pass > 1) {
+          const transport = logs.slice(logMark).find((l) => /Failed to fetch|NetworkError|fetch failed/i.test(l));
+          logs.push(
+            transport
+              ? `dépense fournisseur : transport lâché (${transport.slice(0, 90)}) — renvoi du formulaire`
+              : 'dépense fournisseur : aucune ligne après le 1ᵉʳ envoi, et aucune erreur console — renvoi du formulaire',
+          );
+          // Renvoyer est sûr même si la première écriture était passée sans
+          // réponse : le nettoyage balaie les dépenses de démo par PRÉFIXE
+          // (`Vendor E2E %`), donc un doublon éventuel ne survit pas au run — et
+          // le contrôle anti-résidus par préfixe le vérifie plutôt que de le
+          // supposer.
+          await submitForm('SENELEC');
+        }
+        for (let i = 0; i < 6 && !vrow; i += 1) {
+          await new Promise((r) => setTimeout(r, 1000));
+          vrow = await readVendor();
+        }
+      }
       created.vendorId = vrow?.id ?? null;
       check('Dépense fournisseur persistée en base', !!vrow, vrow ? `amount=${vrow.amount} | ${vrow.payment_status}` : 'absent');
       if (vrow) check('Montant dépense = 45000', vrow.amount === 45000, String(vrow.amount));
