@@ -1,3 +1,22 @@
+## [2026-09-13] La publication ne demande plus de clic : monter la version devient le déclencheur
+
+Demande : « fais disparaître la dernière main humaine de la chaîne de release : que la consolidation des brouillons en double et la promotion ne dépendent plus d'appels manuels à l'API ».
+
+**Ce qui était manuel n'était pas un appel d'API dans le code — c'était le fait que RIEN ne partait tout seul.** Le publieur savait déjà consolider (`consolidate` : une seule cible conservée, les autres supprimées, puis ce qui manque est téléversé) et promouvoir (`--promote` : `draft=false` puis relecture du canal **dans le même processus**), et `electron-builder` ne crée plus de brouillons en double (`--publish never`). Mais la chaîne ne démarrait que si un humain cliquait « Run workflow », ou lançait deux commandes npm sur sa machine : la consolidation et la promotion étaient donc outillées **et inatteignables** sans un geste manuel. Le geste est retiré, pas la décision.
+
+**Le déclencheur devient la chaîne qualité, et la question posée est celle du canal.** `desktop-release.yml` part sur `workflow_run` du workflow **Quality & performance guard** (terminé, `branches: [main]`), plus `workflow_dispatch` pour une reprise explicite. Un `gate` répond à deux questions, et à deux seulement : la qualité est-elle verte, et y a-t-il quelque chose à publier ? La seconde passe par `npm run check:release:needed` — un **cinquième mode** du contrôle de cohérence, qui réutilise la `publishDecision` du gate d'avant-publication (donc « déjà publié » veut dire « rien à faire » des deux côtés, sans possibilité de divergence), et qui publie un **état** : `needed=true|false`, exit 0 dans les deux cas. Publier un numéro déjà publié est le cas **normal** d'un push qui ne monte pas la version ; en faire un échec aurait transformé chaque push en rouge.
+
+```
+v1.0.5 (déjà publié)  ➖ déjà publié (2026-09-12T22:32:24Z) — rien à publier : le parc a ce numéro   needed=false  exit 0
+v1.0.6 (inédit)       ✅ inédit — il y a un release à faire                                          needed=true   exit 0
+```
+
+Mesuré sur le canal réel, dans les deux sens (la seconde ligne par une version temporaire, restaurée aussitôt). Quand `needed=false`, le job de publication est **sauté** : le run reste vert, et aucune étape de la chaîne ne s'exécute.
+
+**Un run sans objet devait cesser de se lire comme un run d'avant le contrat.** Un job sauté ne rend pas ses étapes à l'API, donc l'audit concluait `legacy` — « run antérieur au contrat de preuve », ce qui est faux pour un déclencheur automatique qui a répondu « rien à faire ». Nouveau verdict `skipped` (➖, non bloquant) : `check-automations.mjs` lit les jobs `skipped` du run et le nomme pour ce qu'il est. Un mot faux apprend à ignorer les ➖.
+
+**Et la seule main humaine qui reste est nommée pour ce qu'elle est.** Monter la version est une **décision** — quelle fonctionnalité mérite un numéro — et elle vit dans un commit relisible, pas dans un appel d'API. Le publieur refuse toujours un numéro déjà publié, donc rien ne peut remplacer du contenu sous un même numéro ; le gate du brouillon reste le passeport, et la consolidation des brouillons en double se fait désormais **dans la CI**, entre le téléversement et la promotion, sans qu'aucune ligne de YAML n'appelle l'API à la main.
+
 ## [2026-09-13] La double brique de transport atteint les derniers maillons — et referme un faux vert du garde-fou RLS
 
 Demande : « applique la même double brique (transport retenté + rejeu sondé) aux scripts de la chaîne automate restants, en commençant par verify-anon-rls.mjs avec sa reprise injectable pour ne pas alourdir les tests ».

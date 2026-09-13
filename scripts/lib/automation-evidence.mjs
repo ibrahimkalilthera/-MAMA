@@ -203,6 +203,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *   - `legacy`    — vert, et ce run n'avait AUCUNE étape de preuve : antérieur au
  *                   contrat. Non bloquant, nommé — le contrat s'applique au run
  *                   suivant.
+ *   - `skipped`   — vert, aucune preuve publiée, parce qu'un JOB du run a été
+ *                   sauté : le déclencheur automatique a répondu « rien à faire »
+ *                   et le job qui porte la preuve n'a jamais démarré. Non
+ *                   bloquant, et distinct de `legacy` — un run sans objet n'est
+ *                   pas un run antérieur au contrat, et le dire de travers
+ *                   apprendrait à ignorer les ➖.
  *   - `unreadable`— un run existe mais ses jobs/annotations n'ont pas pu être
  *                   lus (KO : invérifiable n'est pas un vert).
  *   - `pending`   — run terminé il y a quelques secondes, preuve pas encore
@@ -229,7 +235,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *   run?: { conclusion?: string, created_at?: string } | null,
  *   anyRun?: { status?: string, created_at?: string } | null, absent?: boolean,
  *   annotations?: object[] | null, annotationsUnavailable?: boolean,
- *   promised?: boolean, workflow?: string,
+ *   promised?: boolean, skipped?: boolean, workflow?: string,
  *   nowMs?: number, allowanceDays?: number, evidenceGraceMs?: number }} input
  * @returns {{ file: string, name: string, verdict: string, ko: boolean, reason: string, foreign?: string[] }}
  */
@@ -243,6 +249,7 @@ export function lastRunVerdict({
   annotations = null,
   annotationsUnavailable = false,
   promised = false,
+  skipped = false,
   workflow = '',
   nowMs = Date.now(),
   allowanceDays = DORMANT_ALLOWANCE_DAYS,
@@ -365,15 +372,25 @@ export function lastRunVerdict({
 
   // 2. Aucune preuve, et le RUN dit s'il en attendait une : ses étapes sont
   //    rendues par l'API, donc « ce run avait l'étape et elle n'a rien publié »
-  //    se lit sans rien deviner. Pas d'étape ⇒ run antérieur au contrat.
+  //    se lit sans rien deviner. Pas d'étape ⇒ deux cas, et ils ne veulent pas
+  //    dire la même chose : un run sans objet (un job sauté : le déclencheur a
+  //    répondu « rien à faire ») ou un run antérieur au contrat de preuve.
   if (!promised) {
-    return {
-      ...base,
-      verdict: 'legacy',
-      ko: false,
-      reason: 'run antérieur au contrat de preuve (aucune étape de preuve dans ce run) — jugé sur sa seule conclusion',
-      foreign,
-    };
+    return skipped
+      ? {
+          ...base,
+          verdict: 'skipped',
+          ko: false,
+          reason: 'run sans objet : un job a été sauté (rien à faire pour ce déclencheur) — jugé sur sa seule conclusion',
+          foreign,
+        }
+      : {
+          ...base,
+          verdict: 'legacy',
+          ko: false,
+          reason: 'run antérieur au contrat de preuve (aucune étape de preuve dans ce run) — jugé sur sa seule conclusion',
+          foreign,
+        };
   }
 
   if (young) {
@@ -455,6 +472,7 @@ export const VERDICT_ICON = {
   running: '⏳',
   absent: '➖',
   legacy: '➖',
+  skipped: '➖',
   idle: '➖',
   empty: '❌',
 };

@@ -1,11 +1,22 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Desktop release (Windows) — build + signature + publication manuelle.
+# Desktop release (Windows) — build + signature + publication AUTOMATIQUE.
 #
-# workflow_dispatch uniquement : construit l'app de bureau Windows, la SIGNE
-# avec le certificat de signature de code (secrets) et publie un GitHub
-# Release — le canal electron-updater (setup.exe + portable + latest.yml dans
-# le même release). Sans secret CSC_PFX_B64, le build reste non signé
-# (SmartScreen « éditeur inconnu ») — le workflow avertit et ne publie pas.
+# Déclenché par la CHAÎNE QUALITÉ, pas par un humain : quand le run qualité de
+# `main` finit vert, ce workflow demande à `npm run check:release:needed` s'il y a
+# un release à faire (la version du paquet est-elle encore inédite ? un brouillon
+# est-il à reprendre ?) et, si oui, enchaîne build → signature → téléversement en
+# brouillon → CONSOLIDATION des brouillons en double → PROMOTION → relecture du
+# canal. Aucune de ces étapes n'est un clic ni un appel d'API manuel ; la seule
+# décision humaine qui reste est de MONTER LA VERSION, c'est-à-dire un commit.
+#
+# Il construit l'app de bureau Windows, la SIGNE avec le certificat de signature
+# de code (secrets) et publie un GitHub Release — le canal electron-updater
+# (setup.exe + portable + latest.yml dans le même release). Sans secret
+# CSC_PFX_B64, le build reste non signé (SmartScreen « éditeur inconnu ») — le
+# workflow avertit et ne publie pas.
+#
+# `workflow_dispatch` reste, pour une reprise explicite (le certificat vient
+# d'être posé, un build a été corrigé) : la voie normale n'en a plus besoin.
 #
 # Le téléversement ne passe PLUS par `electron-builder --publish always` : ce
 # chemin a payé deux fois le même défaut ici (electron-builder ouvre un release
@@ -28,16 +39,83 @@
 name: Desktop release (Windows)
 
 on:
+  workflow_run:
+    workflows: ["Quality & performance guard"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: write
+concurrency:
+  # Une seule publication à la fois : le publieur LIT l'état du tag (quel
+  # brouillon existe, quel brouillon est le plus complet) puis AGIT dessus — deux
+  # exécutions en parallèle pourraient supprimer le brouillon que l'autre est en
+  # train de compléter. Jamais d'annulation en cours de route : un téléversement
+  # interrompu laisse un brouillon, et c'est exactement ce que le plan sait
+  # reprendre au run suivant.
+  group: desktop-release
+  cancel-in-progress: false
 
 jobs:
+  # Le gate qui a remplacé le geste humain. Deux questions, et deux seulement :
+  # la chaîne qualité est-elle verte, et y a-t-il quelque chose à publier ?
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # lire la conclusion du run qualité
+    outputs:
+      proceed: ${{ steps.release-gate.outputs.needed == 'true' && steps.quality-gate.outputs.proceed == 'true' }}
+    steps:
+      - name: Gate — publier seulement après une chaîne qualité verte
+        id: quality-gate
+        uses: actions/github-script@v9
+        with:
+          script: |
+            core.setOutput('proceed', 'false');
+            if (context.eventName !== 'workflow_run') {
+              console.log('Lancement manuel — publication demandée explicitement.');
+              core.setOutput('proceed', 'true');
+              return;
+            }
+            const run = context.payload.workflow_run;
+            console.log(`Quality workflow concluded '${run.conclusion}' on ${run.head_sha}.`);
+            if (run.conclusion !== 'success') {
+              console.log(`Qualité non verte (${run.conclusion}) — rien ne part sur le canal de mise à jour.`);
+              return;
+            }
+            core.setOutput('proceed', 'true');
+
+      - uses: actions/checkout@v7
+        if: steps.quality-gate.outputs.proceed == 'true'
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+      - uses: actions/setup-node@v7
+        if: steps.quality-gate.outputs.proceed == 'true'
+        with:
+          node-version-file: .nvmrc
+
+      # La décision vit dans un script testé, pas dans ce YAML : le mode
+      # `needed` réutilise la même `publishDecision` que le gate d'avant-
+      # publication, donc « déjà publié » veut dire « rien à faire » des deux
+      # côtés. Il publie un ÉTAT (`needed=true|false`), pas un échec : un numéro
+      # déjà publié est le cas NORMAL d'un push qui ne monte pas la version.
+      - name: Gate — y a-t-il quelque chose à publier ?
+        id: release-gate
+        if: steps.quality-gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run check:release:needed
+
   build-sign-publish:
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc

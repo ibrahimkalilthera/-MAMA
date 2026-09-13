@@ -293,6 +293,15 @@ npm run release:promote   # promotion + relecture du flux SANS jeton (le geste q
 #   dans le MÊME processus : une promotion sans relecture du canal n'est plus possible.
 ```
 
+**Publier ne demande plus de clic : monter la version est le déclencheur.** `desktop-release.yml` ne se contente plus d'un `workflow_dispatch` — il part quand le run **qualité** de `main` finit vert, et un `gate` demande à `npm run check:release:needed` s'il y a un release à faire. La question est posée par la **même** décision que le gate d'avant-publication (`publishDecision`), donc les deux ne peuvent pas diverger, et la réponse est un **état** (`needed=true|false`), jamais un échec : un numéro déjà publié est le cas NORMAL d'un push qui ne monte pas la version, le job de publication est alors **sauté**, et l'audit le nomme « run sans objet » au lieu de le lire comme un run antérieur au contrat. Une fois le gate ouvert, ce qui suit est la chaîne d'avant, sans aucune intervention : `check:release:tag` → build signé → téléversement en brouillon → **consolidation des brouillons en double** → **promotion** → relecture du canal sans jeton. La seule main humaine qui reste sur cette chaîne est de **monter la version** : une décision, dans un commit relisible, pas un appel d'API.
+
+Mesuré sur le canal réel, dans les deux sens :
+
+```
+v1.0.5 (déjà publié)  ➖ déjà publié (2026-09-12T22:32:24Z) — rien à publier : le parc a ce numéro   needed=false  exit 0
+v1.0.6 (inédit)       ✅ inédit — il y a un release à faire                                          needed=true   exit 0
+```
+
 **Le publieur décide de la forme du release, et c'est ce qui rend le défaut impossible.** `scripts/lib/release-publish.mjs` porte le plan — pur, donc testé sans réseau — et il n'a que quatre issues : `create` (aucun release pour ce tag), `reuse` (un brouillon existe : on n'y téléverse que ce qui manque), `consolidate` (plusieurs brouillons : **une** cible conservée — celle qui porte déjà le plus d'artefacts attendus — les autres supprimés) et `refuse` (un numéro **déjà publié**, rien à publier, un artefact annoncé mais absent du disque). À la fin, le release contient les octets vérifiés **et rien d'autre** : ce qui est en trop est retiré, y compris l'installeur d'une autre version qui traînerait là — c'est exactement le fichier qu'un humain télécharge à la main. La liste des octets publiés ne vient pas d'une liste écrite ici mais de `latest.yml` (`assetsToPublish`), donc de **ce que les postes lisent**, et un artefact annoncé mais introuvable fait refuser la publication au lieu de publier un release incomplet.
 
 **Le côté sûr est toujours de téléverser.** « Ne pas retéléverser ce qui est déjà là » est une optimisation, et une optimisation qui se trompe publie les mauvais octets : une taille égale **ne prouve pas** des octets égaux (un installeur reconstruit porte le même nom et une taille proche). Un téléversement n'est donc sauté que si l'API a renvoyé un `digest` qui correspond à l'empreinte calculée localement ; sans `digest`, « je ne sais pas » se traite comme « il faut téléverser ».

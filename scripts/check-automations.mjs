@@ -154,6 +154,12 @@ async function evidenceFor(workflow) {
   // Le contrat se lit sur les ÉTAPES de CE run : une étape de preuve qui existait
   // et n'a pas abouti est un manquement du run, pas une tolérance de migration.
   const promised = all.some((job) => promisedEvidence(job.steps));
+  // Un job SAUTÉ, et c'est un fait de l'API : un déclencheur automatique dont le
+  // gate a répondu « rien à faire » (une version déjà publiée, une PR en retard
+  // qui n'existe pas) laisse le job de preuve à l'état `skipped` — ses étapes ne
+  // sont donc jamais rendues. Sans ce drapeau, ce run se lirait « antérieur au
+  // contrat de preuve », ce qui est faux : il est sans objet.
+  const skipped = all.some((job) => job.conclusion === 'skipped');
   const annotations = [];
   for (const job of all.slice(0, maxJobs)) {
     const read = await annotationsOf(job);
@@ -170,7 +176,7 @@ async function evidenceFor(workflow) {
     }
     annotations.push(...(read.data ?? []));
   }
-  return { workflow, run, anyRun, promised, annotations, error: null };
+  return { workflow, run, anyRun, promised, skipped, annotations, error: null };
 }
 
 const workflows = readWorkflows();
@@ -180,7 +186,7 @@ for (const workflow of workflows) {
 }
 
 const { results, ko, ok } = auditAutomations({
-  workflows: evidence.map(({ workflow, run, anyRun, absent, annotations, annotationsUnavailable, promised }) => ({
+  workflows: evidence.map(({ workflow, run, anyRun, absent, annotations, annotationsUnavailable, promised, skipped }) => ({
     file: workflow.file,
     name: workflow.name,
     hasSchedule: workflow.hasSchedule,
@@ -193,6 +199,7 @@ const { results, ko, ok } = auditAutomations({
     // EVIDENCE_STEP_NAME) : un run antérieur au contrat ne pouvait rien publier,
     // et le juger comme un manquement serait un faux rouge de plus.
     promised: Boolean(promised),
+    skipped: Boolean(skipped),
     workflow: workflow.file,
   })),
 });

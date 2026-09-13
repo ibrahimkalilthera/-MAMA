@@ -8,6 +8,7 @@
  *   npm run check:release:draft    → les octets téléversés tiennent-ils la promesse ?
  *   npm run check:release:live     → ce que les postes lisent est-il cohérent ?
  *   npm run check:release:channel  → le CANAL tel qu'un poste le voit (sans jeton)
+ *   npm run check:release:needed   → y a-t-il QUELQUE CHOSE à publier ? (le déclencheur)
  *
  * ─── Pourquoi ce contrôle existe ────────────────────────────────────────────
  * Un poste se met à jour sur une PROMESSE D'OCTETS : `latest.yml` annonce une
@@ -26,6 +27,9 @@
  *          l'empreinte est recalculée, pas relue ;
  *   tag    le numéro est inédit : c'est le refus qui tombe AVANT la publication,
  *          quand il ne coûte encore rien ;
+ *   needed l'ÉTAT du canal répond à la question du déclencheur automatique —
+ *          « ce numéro est-il déjà publié ? » Sinon il y a un release à faire
+ *          (créer, reprendre une publication interrompue, ou consolider) ;
  *   draft  un seul release, encore brouillon, contenant TOUT ce qui est annoncé,
  *          et les octets déjà téléversés se recalculent sur la même empreinte —
  *          c'est ce contrôle qui autorise la promotion vers « publié » ;
@@ -57,7 +61,7 @@
  * dépôt qu'on n'a pas pu interroger est un ÉCHEC, jamais un feu vert.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -75,7 +79,7 @@ import {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
-const MODE = ['local', 'tag', 'draft', 'live', 'channel'].find((m) => args.includes(`--${m}`)) || 'local';
+const MODE = ['local', 'tag', 'draft', 'live', 'channel', 'needed'].find((m) => args.includes(`--${m}`)) || 'local';
 const dirArg = args.find((a) => a.startsWith('--dir='))?.slice('--dir='.length) || 'release';
 const releaseDir = join(root, dirArg);
 // La branche que le poste interroge pour le frein (`HOLD_BRANCH_DEFAULT` dans
@@ -207,6 +211,45 @@ if (MODE === 'tag') {
   }
   console.log(`✅ ${releaseTag(version)} est inédit — la publication peut commencer`);
   if (sameTag.length) console.log(`   ℹ️  ${sameTag.length} brouillon(s) existant(s) seront réutilisés (relance d'une tentative interrompue)`);
+  process.exit(0);
+}
+
+// ── Mode needed : le déclencheur automatique a-t-il quelque chose à faire ? ───
+// C'est la réponse MACHINE à la question qu'un humain se posait à la main :
+// « est-ce qu'il y a un release à faire ? ». Il existe pour que la chaîne de
+// publication puisse se déclencher TOUT SEUL sur un push, sans qu'aucune de ses
+// étapes (téléversement, consolidation des brouillons en double, promotion) ne
+// dépende d'un clic ou d'un appel d'API manuel.
+//
+// Il réutilise la décision du gate d'avant-publication (`publishDecision`), donc
+// il ne peut pas en divergier : « déjà publié » veut dire « rien à faire ». Ce
+// n'est pas une FAUTE pour autant — le parc a déjà ce numéro — donc la sortie est
+// un ÉTAT (`needed=true|false`), jamais un code de sortie : un numéro déjà publié
+// qui ferait rougir ce mode transformerait chaque push en rouge.
+//
+// Un dépôt qu'on ne peut pas interroger reste un ÉCHEC (le `fail` d'avant), parce
+// qu'un état illisible qui passerait pour « rien à faire » serait un vert muet.
+if (MODE === 'needed') {
+  const published = sameTag.find((r) => r.draft !== true) || null;
+  const drafts = sameTag.filter((r) => r.draft === true);
+  const needed = publishDecision({ version, existingTag: Boolean(published) }).publish;
+  if (!needed) {
+    console.log(
+      `➖ ${releaseTag(version)} est DÉJÀ publié (${published.published_at ?? 'date inconnue'}) — rien à publier : ` +
+        'le parc a ce numéro, et un même numéro ne peut pas changer de contenu.',
+    );
+  } else if (drafts.length) {
+    console.log(
+      `✅ ${releaseTag(version)} : ${drafts.length} brouillon(s) à reprendre et à consolider en UN seul — ` +
+        'publication interrompue, la suite est le rôle du publieur.',
+    );
+  } else {
+    console.log(`✅ ${releaseTag(version)} est inédit — il y a un release à faire.`);
+  }
+  // La ligne lisible dans le journal ET la sortie d'étape : le workflow lit la
+  // seconde, un humain lit la première sans ouvrir un fichier d'outputs.
+  console.log(`needed=${needed}`);
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `needed=${needed}\n`);
   process.exit(0);
 }
 

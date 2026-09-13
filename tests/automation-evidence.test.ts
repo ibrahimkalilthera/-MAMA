@@ -180,6 +180,26 @@ describe('les verdicts', () => {
     assert.match(v.reason, /antérieur au contrat/);
   });
 
+  it('un run SANS OBJET (job sauté) n’est pas un run antérieur au contrat', () => {
+    // Le déclencheur automatique du release répond « rien à faire » quand la
+    // version est déjà publiée : le job qui porte la preuve n'a jamais démarré,
+    // donc ses étapes ne sont pas rendues. Le lire « antérieur au contrat »
+    // serait faux — et un mot faux apprend à ignorer les ➖.
+    const v = lastRunVerdict({
+      file: WORKFLOW,
+      workflow: WORKFLOW,
+      run: GREEN,
+      annotations: [],
+      promised: false,
+      skipped: true,
+      nowMs: NOW,
+    });
+    assert.equal(v.verdict, 'skipped');
+    assert.equal(v.ko, false, 'un run sans objet n’est pas un faux vert : il n’avait rien à faire');
+    assert.match(v.reason, /sans objet/);
+    assert.notEqual(v.reason, lastRunVerdict({ file: WORKFLOW, workflow: WORKFLOW, run: GREEN, annotations: [], promised: false, nowMs: NOW }).reason);
+  });
+
   it('le module ne lit plus de journal : le transport a changé, pas seulement l’habitude', () => {
     // Un contrat se vérifie à la source : tant qu'un lecteur de journal existe,
     // quelqu'un finira par s'en servir. La ligne imprimée ci-dessous ressemble à

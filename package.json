@@ -25,6 +25,7 @@
     "check:release:draft": "node scripts/check-release-coherence.mjs --draft",
     "check:release:live": "node scripts/check-release-coherence.mjs --live",
     "check:release:channel": "node scripts/check-release-coherence.mjs --channel",
+    "check:release:needed": "node scripts/check-release-coherence.mjs --needed",
     "setup:node": "node scripts/setup-node-runtime.mjs",
     "shell": "node scripts/node-shell.mjs",
     "quality": "node scripts/with-pinned-node.mjs --node scripts/quality-chain.mjs",

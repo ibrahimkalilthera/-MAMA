@@ -438,6 +438,24 @@ describe('le câblage du contrôle', () => {
     assert.match(workflow, /c'est le\s*\n?\s*#?\s*contrôle qui sert de passeport, pas de conseil/, 'la raison du pas séparé est dite dans le workflow');
   });
 
+  it('la publication n’attend plus de clic : la qualité verte déclenche, l’état du canal décide', () => {
+    const workflow = read('.github/workflows/desktop-release.yml');
+    const pkg = JSON.parse(read('package.json'));
+    // Le déclencheur a remplacé le geste humain. La seule décision qui reste est
+    // de MONTER LA VERSION — un commit, relisible — et non un clic ni un appel
+    // d'API : téléversement, consolidation des brouillons en double et promotion
+    // s'enchaînent seuls une fois le gate ouvert.
+    assert.match(workflow, /workflow_run:\s*workflows: \["Quality & performance guard"\]/, 'la qualité verte déclenche la publication');
+    assert.match(workflow, /branches: \[main\]/, 'et seulement pour main');
+    assert.match(workflow, /workflow_dispatch:/, 'la reprise explicite reste possible');
+    assert.match(workflow, /npm run check:release:needed/, 'la décision passe par le mode `needed`, testé avec le reste');
+    assert.equal(pkg.scripts['check:release:needed'], 'node scripts/check-release-coherence.mjs --needed');
+    assert.match(workflow, /needs\.gate\.outputs\.proceed == 'true'/, 'sans gate vert, le job de publication ne démarre pas');
+    assert.match(workflow, /npm run electron:release[\s\S]*npm run release:promote/, 'téléversement puis promotion, dans le même job');
+    assert.doesNotMatch(workflow, /api\.github\.com/, 'aucun appel d’API manuel dans la chaîne');
+    assert.doesNotMatch(workflow, /gh release/, 'et aucun `gh release` à la main');
+  });
+
   it('le gate s’exécute sans jeton et sans réseau en mode local', () => {
     const source = read('scripts/check-release-coherence.mjs');
     assert.match(source, /if \(MODE === 'local'\)[\s\S]*process\.exit\(0\)/, 'le mode local rend son verdict avant tout appel réseau');
