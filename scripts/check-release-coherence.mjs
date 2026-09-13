@@ -271,6 +271,24 @@ function reportReadPath(label, read) {
   console.log(`   ℹ️  ${label} : lu par la voie du poste (${detail})`);
 }
 
+/**
+ * Le verdict de la LISTE du flux, ligne par ligne.
+ *
+ * `latest.yml` annonce chaque fichier séparément (taille + sha512) et c'est cette
+ * liste qu'un poste parcourt : une entrée conforme ne dit donc rien des autres.
+ * Le rapport les nomme toutes, avec la taille et l'empreinte RÉELLEMENT servies,
+ * pour que « le flux est cohérent » se lise fichier par fichier.
+ */
+function reportFeed(verdict) {
+  const files = Array.isArray(verdict?.feed) ? verdict.feed : [];
+  if (!files.length) return;
+  console.log(`   flux — ${files.length} fichier(s) annoncé(s), chacun rehaché sur les octets servis :`);
+  for (const line of files) {
+    const hash = line.servedSha512 ? `sha512 ${line.servedSha512.slice(0, 24)}…` : 'sha512 illisible';
+    console.log(`   ${line.ok ? '✅' : '❌'} ${line.name} · ${line.servedSize ?? '—'} octet(s) · ${hash} — ${line.detail}`);
+  }
+}
+
 const listRes = await api('/releases?per_page=100');
 if (!listRes.ok) {
   fail(`GitHub injoignable (HTTP ${listRes.status}) — un dépôt qu'on ne peut pas interroger n'est pas un feu vert`);
@@ -340,19 +358,35 @@ async function factsFor(rel) {
   const remoteLatest = latestAsset ? await readAsset(latestAsset, { asText: true }) : null;
   if (remoteLatest) reportReadPath('latest.yml', remoteLatest);
   const announced = remoteLatest?.text ? parseLatestYml(remoteLatest.text) : null;
-  let installer = null;
-  let installerMissing = false;
-  let installerStatuses = null;
-  if (announced?.path) {
-    const asset = (rel?.assets || []).find((a) => a.name === announced.path);
-    installerMissing = !asset;
-    if (asset) {
-      const got = await readAsset(asset, { asText: false });
-      reportReadPath(announced.path, got);
-      installerStatuses = got.statuses;
-      if (got.sha512) installer = { name: announced.path, size: got.size, sha512: got.sha512 };
+  const remoteAssets = rel?.assets || [];
+  // Chaque fichier que le flux ANNONCE est téléchargé et rehaché — le `path` du
+  // haut ET la liste `files[]`, qui est ce qu'`electron-updater` parcourt. Le
+  // nom du `path` figure aussi dans la liste : il n'est donc téléchargé qu'UNE
+  // fois, sinon 129 Mo seraient payés deux fois pour la même preuve.
+  const announcedNames = [
+    ...new Set(
+      [announced?.path, ...(Array.isArray(announced?.files) ? announced.files.map((f) => f?.url) : [])]
+        .filter(Boolean)
+        .map(String),
+    ),
+  ];
+  const feedReads = [];
+  for (const name of announcedNames) {
+    const asset = remoteAssets.find((a) => a.name === name);
+    if (!asset) {
+      feedReads.push({ name, missing: true });
+      continue;
     }
+    const got = await readAsset(asset, { asText: false });
+    reportReadPath(name, got);
+    feedReads.push({ name, size: got.size ?? null, sha512: got.sha512 ?? null, statuses: got.statuses ?? null });
   }
+  const installerRead = feedReads.find((r) => r.name === String(announced?.path ?? '')) ?? null;
+  const installer = installerRead?.sha512
+    ? { name: installerRead.name, size: installerRead.size, sha512: installerRead.sha512 }
+    : null;
+  const installerMissing = Boolean(announced?.path) && !remoteAssets.some((a) => a.name === announced.path);
+  const installerStatuses = installerRead?.statuses ?? null;
   // Un actif ABSENT de la liste et un actif PRÉSENT mais illisible sont deux
   // pannes différentes : les confondre fait accuser le canal d'un défaut de
   // lecture, ce qui est arrivé (le runner, sans jeton, bloqué sur l'API).
@@ -360,6 +394,7 @@ async function factsFor(rel) {
     assets,
     announced,
     installer,
+    feedReads,
     latestText: remoteLatest?.text ?? null,
     latestMissing: !latestAsset,
     latestStatuses: remoteLatest?.statuses ?? null,
@@ -412,6 +447,7 @@ if (MODE === 'channel') {
       latestStatuses: facts.latestStatuses,
       announced: facts.announced,
       installer: facts.installer,
+      feedReads: facts.feedReads,
       installerMissing: facts.installerMissing,
       installerStatuses: facts.installerStatuses,
     },
@@ -504,6 +540,7 @@ if (MODE === 'channel') {
       `   ${facts.installer.name} · ${facts.installer.size} octet(s) · sha512 ${facts.installer.sha512.slice(0, 24)}… (rehaché depuis le dépôt public)`,
     );
   }
+  reportFeed(verdict);
   console.log(
     `   frein ${brakeUrl} · ${brake.entries.length} retenue(s)` +
       (brake.holds.length ? ` : ${brake.holds.join(', ')}` : ' (aucune version retenue)'),
@@ -542,6 +579,7 @@ const verdict = compareRelease({
     latestStatuses: facts.latestStatuses,
     announced,
     installer,
+    feedReads: facts.feedReads,
     installerMissing: facts.installerMissing,
     installerStatuses: facts.installerStatuses,
   },
@@ -561,3 +599,4 @@ console.log(MODE === 'draft'
   ? '✅ brouillon cohérent : les octets téléversés répondent à latest.yml — la promotion est autorisée'
   : '✅ flux publié cohérent : ce que les postes lisent répond exactement à la promesse');
 if (installer) console.log(`   ${installer.name} · ${installer.size} octet(s) · sha512 ${installer.sha512.slice(0, 24)}… (rehaché depuis le dépôt)`);
+reportFeed(verdict);

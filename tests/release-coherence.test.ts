@@ -28,6 +28,7 @@ import { describe, it } from 'node:test';
 import { EVIDENCE_STEP_NAME } from '../scripts/lib/automation-evidence.mjs';
 import {
   assetsToPublish,
+  compareFeedFiles,
   compareLatest,
   compareRelease,
   expectedArtifacts,
@@ -506,6 +507,102 @@ describe('le release distant', () => {
   });
 });
 
+describe('la liste du flux, entrée par entrée', () => {
+  // `latest.yml` ne promet pas un installeur : sa liste `files[]` porte, entrée
+  // par entrée, une taille et un sha512 — et c'est CETTE liste qu'un poste
+  // parcourt. Le contrôle ne regardait que le `path` du haut : une entrée
+  // ajoutée, ou servie par d'autres octets, restait donc invisible. Ces cas
+  // tiennent chaque branche de refus, parce qu'elles se réparent différemment.
+  const SIG = hash('octets:1.0.4');
+  const local = coherentDir();
+
+  /** Un flux dont la liste est écrite à la main, pour la faire varier. */
+  const flux = (files: { url: string; size?: number | null; sha512?: string | null }[]) => ({
+    version: PACKAGE,
+    path: FILE,
+    sha512: SIG,
+    files,
+  });
+
+  const release = (over: Record<string, unknown> = {}) => ({
+    mode: 'live' as const,
+    version: PACKAGE,
+    expected: ['latest.yml', FILE],
+    remote: {
+      count: 1,
+      isDraft: false,
+      tag: releaseTag(PACKAGE),
+      assets: [{ name: 'latest.yml' }, { name: FILE }],
+      latestText: local.latestText,
+      announced: flux([{ url: FILE, size: 100, sha512: SIG }]),
+      installer: { name: FILE, size: 100, sha512: SIG },
+      feedReads: [{ name: FILE, size: 100, sha512: SIG }],
+      ...over,
+    },
+  });
+
+  it('taille et empreinte conformes ⇒ vert, et la ligne dit ce qui a été confronté', () => {
+    const verdict = compareRelease(release());
+    assert.deepEqual(verdict.problems, []);
+    assert.equal(verdict.feed.length, 1);
+    assert.equal(verdict.feed[0].ok, true);
+    assert.match(verdict.feed[0].detail, /taille et sha512 conformes/);
+    assert.equal(verdict.feed[0].servedSize, 100, 'la ligne porte la taille RÉELLEMENT servie');
+  });
+
+  it('une TAILLE qui ne correspond pas est un refus — même quand le sha512 tombe juste', () => {
+    // Le `path` du haut ne décrit qu'une empreinte : une entrée de la liste qui
+    // annonce 100 octets pour un fichier de 120 passait donc sans un mot, alors
+    // qu'`electron-updater` vérifie les deux.
+    const verdict = compareRelease(
+      release({ feedReads: [{ name: FILE, size: 120, sha512: SIG }], installer: { name: FILE, size: 120, sha512: SIG } }),
+    );
+    assert.equal(verdict.ok, false);
+    assert.equal(verdict.problems.length, 1, 'une seule règle parle : la liste, pas le haut du flux');
+    assert.match(verdict.problems[0], /taille 120 servie vs 100 annoncée/);
+    assert.equal(verdict.feed[0].ok, false);
+  });
+
+  it('une entrée ABSENTE du release est un refus, même si le `path` du haut, lui, est là', () => {
+    const verdict = compareRelease(
+      release({
+        announced: flux([{ url: FILE, size: 100, sha512: SIG }, { url: 'MamaTheraFinance-1.0.4-portable.exe', size: 90, sha512: hash('portable') }]),
+      }),
+    );
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.problems.join('\n'), /portable\.exe » est annoncé par le latest\.yml publié mais absent du release/);
+    assert.match(verdict.problems.join('\n'), /mène à un vide/, 'et il dit ce qu’un poste y perdrait');
+  });
+
+  it('présente mais illisible : le mot est la LECTURE, jamais l’absence', () => {
+    const verdict = compareRelease(
+      release({ feedReads: [{ name: FILE, size: null, sha512: null, statuses: [{ via: 'api', status: 403 }, { via: 'poste', status: 403 }] }] }),
+    );
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.problems.join('\n'), /n’ont pas pu être LUS/);
+    assert.match(verdict.problems.join('\n'), /voie du poste HTTP 403/, 'les deux voies et leurs statuts sont publiés');
+    assert.doesNotMatch(verdict.problems.join('\n'), /absent du release/, 'et l’absence n’est pas inventée');
+  });
+
+  it('une entrée sans taille ni empreinte est NOMMÉE — listée n’est pas prouvée', () => {
+    const verdict = compareRelease(release({ announced: flux([{ url: FILE, size: null, sha512: null }]) }));
+    assert.deepEqual(verdict.problems, []);
+    assert.match(verdict.warnings.join('\n'), /listé sans taille ni sha512/);
+    assert.match(verdict.feed[0].detail, /rien à confronter/);
+  });
+
+  it('la règle elle-même : le sha512 servi contre celui qu’annonce l’entrée', () => {
+    const got = compareFeedFiles({
+      announced: flux([{ url: FILE, size: 100, sha512: SIG }]),
+      assets: [{ name: FILE }],
+      reads: [{ name: FILE, size: 100, sha512: hash('autres-octets') }],
+    });
+    assert.equal(got.files[0].ok, false);
+    assert.match(got.problems[0], /ne sont pas ceux annoncés/);
+    assert.match(got.problems[0], /servi vs/, 'les deux empreintes sont nommées, donc comparables');
+  });
+});
+
 describe('publier un numéro déjà publié', () => {
   it('refuse un tag existant — un même numéro ne peut pas changer de contenu', () => {
     const decision = publishDecision({ version: PACKAGE, existingTag: true });
@@ -532,6 +629,15 @@ describe('le câblage du contrôle', () => {
     assert.match(pkg.scripts['electron:dist'], /npm run electron:build && npm run check:release/, 'un build local refuse aussi un flux incohérent');
     assert.equal(pkg.scripts['check:release:tag'], 'node scripts/check-release-coherence.mjs --tag');
     assert.equal(pkg.scripts['check:release:live'], 'node scripts/check-release-coherence.mjs --live');
+  });
+
+  it('le CLI télécharge la LISTE du flux, pas seulement son `path`', () => {
+    // Le module compare chaque entrée annoncée, mais il ne peut le faire que si
+    // le CLI lui a donné des octets : une liste non lue serait un vert muet.
+    const cli = read('scripts/check-release-coherence.mjs');
+    assert.match(cli, /announced\.files\.map/, 'chaque entrée annoncée est nommée');
+    assert.match(cli, /feedReads/, 'et ses octets sont lus, sinon le verdict n’a pas de matière');
+    assert.match(cli, /new Set\(/, 'un même fichier n’est téléchargé qu’une fois : le `path` figure aussi dans la liste');
   });
 
   it('electron-builder ne publie PLUS : c’est le publieur qui ouvre l’unique release', () => {

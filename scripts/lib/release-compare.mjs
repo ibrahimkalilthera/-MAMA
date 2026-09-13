@@ -129,8 +129,10 @@ export function compareLatest({
  *     latestMissing?: boolean, latestStatuses?: { via: string, status: number }[]|null,
  *     installer?: { name: string, size: number, sha512: string }|null,
  *     installerMissing?: boolean, installerStatuses?: { via: string, status: number }[]|null,
- *     announced?: { version?: string, path?: string, sha512?: string }|null }|null }} input
- * @returns {{ ok: boolean, problems: string[], warnings: string[] }}
+ *     feedReads?: { name: string, size?: number|null, sha512?: string|null }[]|null,
+ *     announced?: { version?: string, path?: string, sha512?: string,
+ *       files?: { url?: string, size?: number|null, sha512?: string|null }[] }|null }|null }} input
+ * @returns {{ ok: boolean, problems: string[], warnings: string[], feed: FeedFileLine[] }}
  */
 export function compareRelease({ mode = 'live', version, expected = [], remote = null, localLatestText = null } = {}) {
   const problems = [];
@@ -196,6 +198,16 @@ export function compareRelease({ mode = 'live', version, expected = [], remote =
         'ce qui serait rendu visible n’est pas ce qui vient d’être vérifié',
     );
   }
+  // La liste COMPLÈTE du flux, pas seulement son `path` : chaque entrée annoncée
+  // est confrontée aux octets servis. `feedReads` n'est fourni que par le CLI,
+  // qui seul télécharge — absent, rien n'est affirmé plutôt que de faire passer
+  // une non-lecture pour une conformité.
+  const feed = Array.isArray(remote.feedReads)
+    ? compareFeedFiles({ announced: remote.announced, assets: remote.assets || [], reads: remote.feedReads })
+    : { problems: [], warnings: [], files: [] };
+  problems.push(...feed.problems);
+  warnings.push(...feed.warnings);
+
   if (remote.installer && remote.announced && remote.announced.sha512) {
     if (remote.installer.sha512 !== remote.announced.sha512) {
       problems.push(
@@ -212,7 +224,100 @@ export function compareRelease({ mode = 'live', version, expected = [], remote =
           '— impossible de prouver que les octets servis sont ceux promis',
     );
   }
-  return { ok: problems.length === 0, problems, warnings };
+  return { ok: problems.length === 0, problems, warnings, feed: feed.files };
+}
+
+/**
+ * Une entrée de la liste du flux, une fois confrontée aux octets servis.
+ *
+ * @typedef {{ name: string, declaredSize: number|null, declaredSha512: string|null,
+ *   servedSize: number|null, servedSha512: string|null, ok: boolean, detail: string }} FeedFileLine
+ */
+
+/**
+ * Chaque fichier que le flux ANNONCE, confronté aux octets réellement servis.
+ *
+ * `latest.yml` ne promet pas un seul installeur : sa liste `files[]` porte,
+ * ENTRÉE PAR ENTRÉE, une taille et un sha512 — c'est cette liste qu'`electron-updater`
+ * parcourt, et chaque entrée est une promesse séparée. Le contrôle ne regardait
+ * que le `path` du haut : une entrée ajoutée, servie par un autre objet, ou
+ * annoncée avec la taille d'un fichier qui n'est plus celui-là restait donc
+ * invisible — la première ligne répondait, et la promesse de la seconde ne fut
+ * lue par personne. La liste est maintenant confrontée telle qu'elle est écrite.
+ *
+ * Tout y est PUR : les lectures (`reads`) viennent du CLI, qui seul télécharge.
+ * C'est ce qui permet d'asserter chaque branche de refus sans dépôt ni réseau.
+ *
+ * @param {{ announced?: object|null, assets?: { name?: string }[],
+ *   reads?: { name: string, size?: number|null, sha512?: string|null,
+ *     statuses?: { via: string, status: number }[]|null }[] }} input
+ * @returns {{ problems: string[], warnings: string[], files: FeedFileLine[] }}
+ */
+export function compareFeedFiles({ announced = null, assets = [], reads = [] } = {}) {
+  const problems = [];
+  const warnings = [];
+  const files = [];
+  const entries = Array.isArray(announced?.files) ? announced.files : [];
+  for (const entry of entries) {
+    const name = String(entry?.url ?? '').trim();
+    if (!name) continue;
+    const declaredSize = Number.isFinite(entry?.size) ? entry.size : null;
+    const declaredSha = String(entry?.sha512 ?? '').trim() || null;
+    const served = reads.find((r) => String(r?.name ?? '') === name) ?? null;
+    const line = {
+      name,
+      declaredSize,
+      declaredSha512: declaredSha,
+      servedSize: served?.size ?? null,
+      servedSha512: served?.sha512 ?? null,
+      ok: true,
+      detail: '',
+    };
+    if (!assets.some((a) => String(a?.name ?? '') === name)) {
+      line.ok = false;
+      line.detail = 'annoncé par le flux, mais ABSENT du release — un poste qui suit cette entrée ne reçoit rien';
+      problems.push(`« ${name} » est annoncé par le latest.yml publié mais absent du release — cette entrée-là du flux mène à un vide`);
+      files.push(line);
+      continue;
+    }
+    if (!served || served.sha512 == null) {
+      line.ok = false;
+      line.detail = 'présent, mais les octets n’ont pas pu être LUS — une promesse non vérifiée ne vaut pas une promesse tenue';
+      problems.push(
+        `« ${name} » est annoncé et présent, mais ses octets n’ont pas pu être LUS (${describeRead(served?.statuses)}) — ` +
+          'le canal n’est pas jugé tant que la lecture échoue',
+      );
+      files.push(line);
+      continue;
+    }
+    const mismatches = [];
+    if (declaredSize !== null && served.size !== declaredSize) {
+      mismatches.push(`taille ${served.size} servie vs ${declaredSize} annoncée`);
+    }
+    if (declaredSha && served.sha512 !== declaredSha) {
+      mismatches.push(`sha512 ${served.sha512.slice(0, 16)}… servi vs ${declaredSha.slice(0, 16)}… annoncé`);
+    }
+    if (!declaredSha && declaredSize === null) {
+      // Une entrée sans promesse n'est pas une entrée tenue : elle est nommée
+      // pour que « le flux la liste » ne se lise pas comme « le flux la prouve ».
+      warnings.push(`« ${name} » est listé sans taille ni sha512 — rien à confronter, donc rien de prouvé`);
+      line.detail = 'listé sans taille ni empreinte — il n’y a rien à confronter';
+      files.push(line);
+      continue;
+    }
+    if (mismatches.length) {
+      line.ok = false;
+      line.detail = `${mismatches.join(' · ')} — ce que le flux annonce n’est pas ce que le poste télécharge`;
+      problems.push(`les octets SERVIS pour « ${name} » ne sont pas ceux annoncés (${mismatches.join(' ; ')})`);
+      files.push(line);
+      continue;
+    }
+    line.detail = `taille et sha512 conformes à ce que le flux annonce${
+      declaredSize === null || declaredSha === null ? ' (l’entrée n’annonce pas les deux)' : ''
+    }`;
+    files.push(line);
+  }
+  return { problems, warnings, files };
 }
 
 /**
