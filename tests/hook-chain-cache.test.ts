@@ -138,6 +138,13 @@ describe('le hook s’en sert, et n’enregistre que sur un vrai vert', () => {
       writeCacheFn: () => {
         throw new Error('écrire un cache sur un saut serait un abus');
       },
+      // `now` est INJECTÉ, comme le cache et l'état git : sans lui, le vert de
+      // fixture vieillit avec le calendrier et franchit la fenêtre de 24 h le
+      // lendemain de sa date fixée — le cas tombait alors pour une raison qui
+      // n'a rien à voir avec le saut qu'il vérifie (mesuré le 13/09, 25 h après
+      // la fixture : le hook rejouait la chaîne, puis écrivait le cache, et
+      // l'interdiction d'écrire sur un saut faisait échouer l'assertion).
+      now: () => NOW,
       env: {},
       log: (m: string) => lines.push(m),
     });
