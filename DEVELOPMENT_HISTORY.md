@@ -18,7 +18,7 @@ Demande : « Dérive les valeurs par défaut de `makeMainViewsProps` du contrat 
 
 **Coût mesuré** : la dérivation elle-même prend **25 ms** ; l'import de `typescript` (déjà utilisé par trois contrôles du dépôt et par `tests/tailwind-pairs.ts`) ajoute **~700 ms** au premier processus qui importe le harnais. C'est le prix de la lecture par l'API du compilateur, et il ne se paie qu'une fois par processus.
 
-**Mesures** : `tests/views-contract.test.ts` **13 cas** ; `views-render.test.tsx` **18/18** sans une seule réécriture (c'est le point d'un harnais : changer sa mécanique ne doit rien changer aux cas) ; `tests/views-harness.tsx` passe de **399 à 121 lignes**, et la suite complète de **1447 à 1460** cas, tous verts. `tsc --noEmit`, `eslint --max-warnings 0` et la chaîne qualité complète (4 maillons) verts.
+**Mesures** : `tests/views-contract.test.ts` **13 cas** ; `views-render.test.tsx` **18/18** sans une seule réécriture (c'est le point d'un harnais : changer sa mécanique ne doit rien changer aux cas) ; `tests/views-harness.tsx` passe de **399 à 117 lignes**, et la suite complète de **1447 à 1460** cas, tous verts. `tsc --noEmit`, `eslint --max-warnings 0` et la chaîne qualité complète (4 maillons) verts.
 
 ## [2026-09-13] Le rappel d'atelier écrit TOUJOURS son dossier — `release/` compris
 
