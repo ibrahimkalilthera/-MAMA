@@ -15,7 +15,11 @@ plan mixte des trois                →  npm run release:prune -- --yes --stale 
 plan vide                           →  npm run release:prune -- --yes
 ```
 
-**Prouvé sur le dossier réel**, pas seulement par les cas : `release/` annonce maintenant `Applique-le : npm run release:prune -- --yes --unpublished` (3 fichiers, 246 Mo), là où il annonçait `--yes` seul. L'acte lui-même n'a **pas** été exécuté — il reste l'acte de l'humain, et c'est précisément pour ça que son rappel doit être juste.
+**Prouvé sur le dossier réel**, pas seulement par les cas : `release/` annonce maintenant `Applique-le : npm run release:prune -- --yes --unpublished` (3 fichiers, 246 Mo), là où il annonçait `--yes` seul. L'acte lui-même **restait à faire** — il est l'acte de l'humain, et c'est précisément pour ça que son rappel doit être juste.
+
+**Et il a été exécuté, sur décision explicite.** `npm run release:prune -- --yes --unpublished` : 3 fichiers, **246 Mo** libérés, `release/` de 999 Mo à **754 Mo** (14 installeurs au départ → **3**). La 1.0.6 et son trio sont intacts — et vérifiés comme tels : leur empreinte sha512 locale est bien `w+7Wimax9R5U1hcNlBL/S0Vq…`, celle que le canal sert, leurs fichiers datant de cinq minutes **avant** leur téléversement. `check:release` et `check:release:channel` restent verts, `git status` propre (`release/` est ignoré). L'outil avait donc borné la décision et nommé les octets ; l'humain n'a eu qu'à dire oui — c'est exactement le partage que le drapeau existe pour rendre possible.
+
+**Une fausse alerte que je dois au lecteur.** En vérifiant, la date des fichiers 1.0.6 (`04:16`) m'a semblé être celle de ma session, ce qui aurait voulu dire qu'un contrôle avait réécrit un artefact local. Mesuré : `04:16:13` **local (+0200)** = `02:16:13Z`, contre une publication à `02:21:26Z` — cinq minutes plus tard. Le contrôle du canal ne touche pas au dossier (mtime inchangé avant/après, vérifié), et l'hypothèse venait d'une comparaison entre des heures locales et des heures UTC. Noté ici parce qu'un doute mesuré vaut mieux qu'un doute tu.
 
 **Mesures** : `1399/1399` tests (+5 : les trois actes, le mixte, et cette phrase figée qui ne doit pas revenir), `npm run lint` vert. Commit `32a159a` (l'acte) déjà poussé ; ce correctif est le seul contenu neuf.
 
