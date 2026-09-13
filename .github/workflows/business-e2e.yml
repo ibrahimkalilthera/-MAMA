@@ -162,4 +162,4 @@ jobs:
         if: success()
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "cycles métier E2E allés au bout contre la prod déployée : élève → paiement → totaux, parent → salaire → dépense, base revenue vierge, aucun compte éphémère résiduel — la mesure est publiée par scripts/e2e-business.mjs"
+          --reason "cycles métier E2E allés au bout contre la prod déployée : élève → paiement → totaux, parent → salaire → dépense, aucune ligne de démo résiduelle, aucun compte éphémère restant — la mesure est publiée par scripts/e2e-business.mjs"
