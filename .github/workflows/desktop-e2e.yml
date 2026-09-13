@@ -21,7 +21,7 @@ name: Desktop E2E — application empaquetée
 # push ne couvre — une dépendance Electron ou le comportement de la machine qui
 # dérive pendant que le code ne bouge pas.
 #
-# DEUX PREUVES, PARCE QU'ELLES NE DISENT PAS LA MÊME CHOSE : la première construit
+# TROIS PREUVES, PARCE QU'ELLES NE DISENT PAS LA MÊME CHOSE : la première construit
 # (`electron:dist`) et prouve le portable du MÊME build — c'est ce qu'un commit
 # vaut. La seconde ne construit rien : elle demande au CANAL ce qu'un poste
 # téléchargerait, vérifie les octets servis contre le `sha512` du flux, INSTALLE
@@ -29,7 +29,11 @@ name: Desktop E2E — application empaquetée
 # la fiche parent dans l'application installée — c'est ce que les postes reçoivent
 # VRAIMENT. Un runner sait le faire ; ce qu'il ne peut pas, c'est juger une
 # signature, et cette preuve-là n'en dépend pas. Le workflow
-# `Desktop release (Windows)` reste le seul à publier.
+# `Desktop release (Windows)` reste le seul à publier. La troisième ne sort pas de
+# la machine : elle joue SEPT passes contre un flux local servi par le script,
+# avec le binaire empaqueté de ce commit — dont une où le flux annonce une autre
+# empreinte que celle des octets qu'il sert, pour prouver que le poste refuse ces
+# octets et le signale comme une panne de CANAL (et non de réseau).
 #
 # Secrets requis (Settings → Secrets and variables → Actions) :
 #   SUPABASE_SERVICE_ROLE_KEY — clé service du projet Supabase (compte éphémère
@@ -119,6 +123,18 @@ jobs:
       - name: Preuve sur l’app INSTALLÉE depuis l’installeur publié — fiche parent
         run: node scripts/verify-installed-parent-form.mjs
 
+      # Et la chaîne de MISE À JOUR du poste, sur le binaire empaqueté que ce job
+      # vient de construire (`release/win-unpacked`). Ce script existe depuis
+      # longtemps et AUCUN workflow ne le lançait : une preuve que personne
+      # n’exécute est un fichier, pas un contrôle. Sept passes, chacune isolant une
+      # règle — dont la nouvelle : un flux qui sert les bons octets sous une AUTRE
+      # empreinte que celle qu’il annonce. Le poste doit REFUSER ces octets, purger
+      # le cache qui les resservirait, et signaler la cause À PART d’un échec de
+      # réseau (`checksum`, pas `download`) — sinon un parc entier croirait à une
+      # panne de réseau d’école alors que le remède est sur le canal.
+      - name: Preuve de mise à jour — refus des octets non conformes au flux
+        run: node scripts/verify-updater.mjs
+
       # Même garde finale que la chaîne PDF E2E : un run interrompu au milieu est
       # exactement ce qui laisse un compte éphémère en base. `if: always()` pour
       # qu'un échec de l'étape précédente ne la saute pas — la sauter est ce qui
@@ -137,4 +153,4 @@ jobs:
         if: success()
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "application prouvée sur le runner, deux fois : le build de ce commit (connexion réelle dans le binaire, reçu PDF reçu sur le disque — mesure publiée par scripts/verify-desktop-app.mjs), ET l’installeur que le CANAL sert (octets rehachés contre le sha512 du flux, installé en silence, fiche parent ouverte dans l’application installée : adresse ni requise ni marquée obligatoire, formulaire valide sans elle et invalide sans le nom — mesure publiée par scripts/verify-installed-parent-form.mjs) ; base nettoyée, application désinstallée"
+          --reason "application prouvée sur le runner, trois fois : le build de ce commit (connexion réelle dans le binaire, reçu PDF reçu sur le disque — mesure publiée par scripts/verify-desktop-app.mjs) ; l’installeur que le CANAL sert (octets rehachés contre le sha512 du flux, installé en silence, fiche parent ouverte dans l’application installée : adresse ni requise ni marquée obligatoire, formulaire valide sans elle et invalide sans le nom — mesure publiée par scripts/verify-installed-parent-form.mjs) ; et la chaîne de mise à jour sur le binaire empaqueté, sept passes dont le refus d’octets non conformes au flux (cause `checksum` distincte d’un échec de réseau, cache menteur purgé, entrée mise en file pour remonter au prochain démarrage connecté — mesure publiée par scripts/verify-updater.mjs) ; base nettoyée, application désinstallée"

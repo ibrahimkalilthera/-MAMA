@@ -61,21 +61,38 @@ function staleCacheVersion() {
   } catch { /* ignore */ return null; }
 }
 
+/**
+ * Enlever les octets du cache updater.
+ *
+ * C'est la SEULE chose qui empêche une réutilisation : electron-updater relit
+ * `pending/update-info.json` et, si l'empreinte correspond, ressert le dossier
+ * sans aucun GET. Un payload refusé qui resterait là serait donc « téléchargé »
+ * à nouveau à chaque vérification sans jamais repasser par le réseau — et un
+ * poste pourrait tourner des semaines sur des octets qu'on a jugés mauvais.
+ *
+ * @returns {boolean} vrai si un dossier existait et a été enlevé.
+ */
+function wipeUpdaterCache(log, why) {
+  const dir = updaterCacheDir();
+  if (!fs.existsSync(dir)) return false;
+  fs.rmSync(dir, { recursive: true, force: true });
+  log(`cache electron-updater purgé (${why})`);
+  return true;
+}
+
 function purgeStaleUpdaterCache(log) {
   const flag = installPendingFlag();
   if (!fs.existsSync(flag)) return { attempted: false, cachedVersion: null }; // no attempted install → cache stays (e.g. "Later")
   fs.rmSync(flag, { force: true });
-  const dir = updaterCacheDir();
   const cachedVersion = staleCacheVersion();
-  if (!fs.existsSync(dir)) {
+  if (!fs.existsSync(updaterCacheDir())) {
     log('installation précédente non aboutie — cache updater absent');
     return { attempted: true, cachedVersion };
   }
-  fs.rmSync(dir, { recursive: true, force: true });
   const outcome = cachedVersion && cachedVersion !== app.getVersion()
     ? 'installation précédente non aboutie'
     : 'mise à jour appliquée (cache inutile)';
-  log(`cache electron-updater purgé (${outcome})`);
+  wipeUpdaterCache(log, outcome);
   // Le verdict est RENDU, pas seulement journalisé : une installation tentée et
   // revenue sur la même version est le cas le plus silencieux d'un poste bloqué
   // (l'utilisateur a cliqué « Redémarrer maintenant », il a redémarré, rien n'a
@@ -103,6 +120,7 @@ function setupAutoUpdater(win) {
     holdsUrlFrom, holdDecision, updateGate, gateFailure,
     CHECK_INTERVAL_MS, FOCUS_COOLDOWN_MS, RE_PROMPT_MS, FORCED_RE_PROMPT_MS,
   } = require('./updater-policy.cjs');
+  const { feedUrlFrom, inspectUpdateFailure } = require('./update-feed.cjs');
   const logFile = process.env.UPDATER_LOG_FILE;
   const log = (msg) => {
     console.log(`[updater] ${msg}`);
@@ -122,18 +140,34 @@ function setupAutoUpdater(win) {
   // seconde, et elle agit PENDANT que le release est encore là. Elle vit hors du
   // release (un fichier du dépôt) : on peut donc retenir une version après
   // l'avoir publiée.
+  // Read once, used by the brake and by the byte-promise check: the OWNER/REPO
+  // and the feed URL come from the same file electron-builder writes, so neither
+  // is recopied in this process.
+  const appUpdateYml = (() => {
+    try {
+      return fs.readFileSync(path.join(process.resourcesPath, 'app-update.yml'), 'utf8');
+    } catch { return null; }
+  })();
   const holdsUrl = holdsUrlFrom({
     // Un mode preuve peut pointer le frein ailleurs (serveur local) sans rien publier.
     feedOverride: process.env.UPDATER_HOLD_URL || process.env.UPDATER_FEED_URL || null,
-    appUpdateYml: (() => {
-      try {
-        return fs.readFileSync(path.join(process.resourcesPath, 'app-update.yml'), 'utf8');
-      } catch { return null; }
-    })(),
+    appUpdateYml,
   });
   log(`retenues ${holdsUrl || 'URL indéterminable — aucune obligation ne sera imposée'}`);
+  /** Où lire la promesse d'octets, sur ce poste. */
+  const feedUrlForPoste = () => feedUrlFrom({ feedOverride: process.env.UPDATER_FEED_URL || null, appUpdateYml });
   /** La version que ce poste refuse d'installer (retenue ET lue). */
   let heldVersion = null;
+  /**
+   * La version dont les OCTETS ne répondent pas à la promesse du flux.
+   *
+   * Retenue ET octets menteurs refusent la même chose — installer — mais pour
+   * deux raisons opposées : le frein dit « cette version est mauvaise », celle-ci
+   * dit « ces octets ne sont pas ceux qu'on m'annonce ». Les deux gardes restent,
+   * parce qu'une version peut être retenue après avoir été téléchargée, et que
+   * des octets menteurs peuvent arriver sur une version que personne n'a retenue.
+   */
+  let refusedVersion = null;
 
   /**
    * Lire le frein pour une version donnée.
@@ -285,14 +319,59 @@ function setupAutoUpdater(win) {
     broadcast({ status: 'current', version: app.getVersion() });
     log('update-not-available');
   });
+  /**
+   * Classer un échec AVANT de l'inscrire.
+   *
+   * « Le réseau a lâché » et « le canal sert autre chose que ce qu'il annonce »
+   * n'ont pas le même remède : le premier se répare sur le poste (réessayer), le
+   * second SEULEMENT sur le canal — et il concerne tous les postes. Un parc qui
+   * reçoit le second sous le nom du premier envoie ses administrateurs chercher
+   * une panne de réseau scolaire qui n'existe pas.
+   *
+   * Le verdict vient de `electron/update-feed.cjs` : la promesse est relue dans
+   * le flux du poste, et les octets restés sur le disque sont rehachés ici. Quand
+   * la bibliothèque a déjà écarté le fichier, son propre refus reste la preuve —
+   * c'est elle qui a comparé les octets à la promesse.
+   */
+  async function reportFailure({ detail, version = null }) {
+    let fault = { fault: false, code: 'unknown', detail: 'vérification indisponible' };
+    try {
+      fault = await inspectUpdateFailure({
+        feedUrl: feedUrlForPoste(),
+        cacheDir: updaterCacheDir(),
+        version,
+        updaterDetail: detail,
+      });
+    } catch (err) {
+      log(`promesse du flux non confrontée ${(err && err.message) || err}`);
+    }
+    if (fault.fault) {
+      // REFUSER : la version ne s'installera pas, et les octets menteurs ne
+      // pourront plus être resservis depuis le cache.
+      refusedVersion = version;
+      autoUpdater.autoInstallOnAppQuit = false;
+      log(`octets non conformes au flux — installation refusée pour ${version || 'la version annoncée'}`);
+      wipeUpdaterCache(log, 'payload refusé (octets non conformes au flux)');
+    } else {
+      log(`échec de téléchargement — ${fault.detail}`);
+    }
+    // Un échec sur un poste OBLIGÉ ferme la porte, et une promesse non tenue se
+    // signale même hors obligation : il part au journal avec son motif, au lieu
+    // de laisser quelqu'un devant un écran qui dit seulement « téléchargement ».
+    reportBlocked({
+      forced: pressure.forced,
+      status: 'error',
+      detail,
+      version,
+      checksumFault: fault.fault ? fault.detail : null,
+    });
+  }
+
   autoUpdater.on('error', (e) => {
     const detail = (e && e.message) || String(e);
     broadcast({ status: 'error', detail });
     log(`error ${detail}`);
-    // Un échec de téléchargement sur un poste OBLIGÉ ferme la porte : il part au
-    // journal avec son motif, au lieu de laisser quelqu'un devant un écran qui
-    // dit seulement « téléchargement ».
-    reportBlocked({ forced: pressure.forced, status: 'error', detail });
+    void reportFailure({ detail, version: state.version ?? null });
   });
   autoUpdater.on('download-progress', (p) => {
     broadcast({ status: 'downloading', percent: Math.round(p.percent) });
@@ -304,6 +383,15 @@ function setupAutoUpdater(win) {
       // encore si on la laisse partir à la fermeture. Le frein le ferme ici.
       autoUpdater.autoInstallOnAppQuit = false;
       log(`update-downloaded ${i.version} — INSTALLATION REFUSÉE (version retenue)`);
+      return;
+    }
+    if (refusedVersion === i.version) {
+      // Les octets de cette version ne répondent pas à ce que le flux annonce :
+      // ils ne s'installeront pas, ni maintenant, ni à la fermeture — et ils sont
+      // retirés du cache pour ne pas être resservis à la prochaine vérification.
+      autoUpdater.autoInstallOnAppQuit = false;
+      log(`update-downloaded ${i.version} — INSTALLATION REFUSÉE (octets non conformes au flux)`);
+      wipeUpdaterCache(log, 'payload refusé (octets non conformes au flux)');
       return;
     }
     broadcast({ ...pressureState(i), status: 'downloaded', version: i.version });
@@ -321,6 +409,10 @@ function setupAutoUpdater(win) {
     // l'installation, pas seulement sur celui qu'on vient d'écrire.
     if (heldVersion === info.version) {
       log(`prompt refusé — ${info.version} est retenue`);
+      return;
+    }
+    if (refusedVersion === info.version) {
+      log(`prompt refusé — les octets de ${info.version} ne répondent pas au flux`);
       return;
     }
     // Une obligation ne se reporte pas : on relance tout de suite, et la

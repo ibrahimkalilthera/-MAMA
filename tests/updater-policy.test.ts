@@ -35,6 +35,7 @@ const {
   holdsUrlFrom,
   holdDecision,
   updateGate,
+  gateFailure,
 } = require('../electron/updater-policy.cjs') as {
   CHECK_INTERVAL_MS: number;
   FOCUS_COOLDOWN_MS: number;
@@ -56,6 +57,7 @@ const {
   };
   updateAction: (i?: Record<string, unknown>) => { action: string; detail: string };
   holdsUrlFrom: (i?: Record<string, unknown>) => string | null;
+  gateFailure: (i?: Record<string, unknown>) => { blocked: boolean; code: string; detail: string };
   holdDecision: (i?: Record<string, unknown>) => {
     held: boolean;
     verified: boolean;
@@ -416,5 +418,44 @@ describe('frein d’urgence : une version retenue n’est ni imposée ni install
     assert.match(main, /installation refusée/);
     // L'interface n'affiche rien pour une version retenue, et son type l'admet.
     assert.match(read('src/components/UpdateBanner.tsx'), /\| 'held'/);
+  });
+});
+
+// ─── Une promesse d'octets non tenue n'est pas un échec de réseau ─────────────
+//
+// Les deux pannes ont des remèdes opposés : le réseau se répare sur le poste,
+// une promesse non tenue SEULEMENT sur le canal — et elle concerne tous les
+// postes. Confondues sous `download`, un parc croit à une panne d'école.
+describe('les octets qui ne répondent pas au flux sont une cause À PART', () => {
+  it('un octet non conforme est signalé MÊME sans obligation', () => {
+    const v = gateFailure({ forced: false, checksumFault: 'le canal annonce X mais sert Y' });
+    assert.equal(v.blocked, true);
+    assert.equal(v.code, 'checksum');
+    assert.match(v.detail, /canal annonce/);
+  });
+
+  it('la cause passe AVANT le statut d’erreur : elle est plus précise, pas concurrente', () => {
+    const v = gateFailure({ forced: true, status: 'error', detail: 'sha512 mismatch', checksumFault: 'octets non conformes' });
+    assert.equal(v.code, 'checksum');
+  });
+
+  it('un échec ordinaire reste un échec de téléchargement', () => {
+    const v = gateFailure({ forced: true, status: 'error', detail: 'net::ERR_CONNECTION_RESET' });
+    assert.equal(v.code, 'download');
+  });
+
+  it('le poste REFUSE ces octets sur chaque chemin qui mène à l’installation', () => {
+    const main = read('electron/main.cjs');
+    // La décision vient de notre lecture du flux, pas d'une phrase d'une bibliothèque.
+    assert.match(main, /inspectUpdateFailure\(/);
+    assert.match(main, /checksumFault: fault\.fault \? fault\.detail : null/);
+    // Une version refusée ne s'installe ni tout de suite, ni à la fermeture,
+    // ni depuis un rappel déjà programmé.
+    assert.match(main, /let refusedVersion = null/);
+    assert.match(main, /INSTALLATION REFUSÉE \(octets non conformes au flux\)/);
+    assert.match(main, /prompt refusé — les octets de/);
+    // Et les octets menteurs sont retirés du cache : le cache d'electron-updater
+    // resservirait sinon le même payload sans repasser par le réseau.
+    assert.match(main, /wipeUpdaterCache\(log, 'payload refusé/);
   });
 });

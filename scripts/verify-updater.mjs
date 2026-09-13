@@ -45,6 +45,20 @@
 //                                                c'est la seule trace qu'un
 //                                                administrateur peut lire sans
 //                                                session, et elle était muette
+//   tampered les VRAIS octets servis sous une AUTRE empreinte que celle que le
+//          flux annonce (même taille : les octets sont complets, ce ne sont pas
+//          ceux promis)
+//                                              → le poste REFUSE ces octets, le
+//                                                dit (`octets non conformes au
+//                                                flux`), purge le cache qui les
+//                                                resservirait, et signale la
+//                                                cause À PART du réseau :
+//                                                `poste bloqué (checksum)` —
+//                                                la seule ligne qu'un parc peut
+//                                                lire pour apprendre que le CANAL
+//                                                sert autre chose que ce qu'il
+//                                                annonce, au lieu de croire à une
+//                                                panne de réseau de chaque école
 //
 // La passe `blocked` est celle du signalement : un poste bloqué par la porte ne
 // doit pas rester silencieux (le cas mesuré : l'échec partait dans la console du
@@ -66,7 +80,7 @@
 // sinon la preuve suivrait une valeur que le code a quittée.
 //
 // `UPDATER_PASSES=age,major` restreint le run (mise au point) ; sans variable,
-// les six passes tournent.
+// les sept passes tournent.
 //
 // Exit 0 + PROOF_OK = l'exe empaqueté vérifie, trouve, télécharge et valide une
 // mise à jour, et annonce l'obligation EXACTEMENT quand la politique la décide,
@@ -182,8 +196,28 @@ const SCENARIOS = LOCAL ? [
     // Le flux ANNONCE la version mais ne sert pas l'installeur : c'est le cas
     // réel d'un poste dont le téléchargement échoue (réseau filtré, proxy, coupure).
     brokenDownload: true,
+    // Le motif inscrit est celui d'un échec de TÉLÉCHARGEMENT : la promesse
+    // d'octets n'est pas en cause, et c'est précisément ce que la passe
+    // « tampered » distingue.
+    journalCode: 'download',
     // Une chaîne « checking → progress → downloaded » ne peut pas se terminer
     // ici : c'est justement parce qu'elle casse que le poste est bloqué.
+    chainRequired: false,
+  },
+  {
+    id: 'tampered',
+    title: `OBLIGATOIRE (${LOCAL.major + FORCED_MAJOR_BEHIND}.0.0) dont les OCTETS ne répondent pas à latest.yml`,
+    version: `${LOCAL.major + FORCED_MAJOR_BEHIND}.0.0`,
+    releaseDate: ageDate(0),
+    forced: true,
+    because: 'majeure(s) de retard',
+    // Le flux sert les VRAIS octets, mais annonce une AUTRE empreinte — et la
+    // MÊME taille, pour que le verdict tombe sur « ce ne sont pas les octets
+    // promis » et non sur « téléchargement tronqué ». C'est la panne d'un canal
+    // qui sert autre chose que ce qu'il annonce : tous les postes sont concernés,
+    // et aucun ne peut la réparer en réessayant.
+    tampered: true,
+    journalCode: 'checksum',
     chainRequired: false,
   },
 ] : [];
@@ -202,6 +236,10 @@ if (!PASSES.length) {
 
 const exeBytes = readFileSync(SETUP);
 const sha512 = createHash('sha512').update(exeBytes).digest('base64');
+// L'empreinte MENTEUSE de la passe « tampered » : les mêmes octets, annoncés
+// sous une autre empreinte. Elle se calcule ici plutôt que d'être recopiée, pour
+// qu'une empreinte qui vaudrait par accident l'empreinte réelle soit impossible.
+const wrongSha512 = createHash('sha512').update('octets qui ne sont pas ceux annoncés').digest('base64');
 
 /** Le `latest.yml` servi : il change à chaque passe, c'est là que vit la règle. */
 let feedYml = '';
@@ -243,14 +281,15 @@ const server = createServer((req, res) => {
 
 /** Le flux d'une passe : version annoncée + date de publication qui porte la règle. */
 function feedFor(scenario) {
+  const announced = scenario.tampered ? wrongSha512 : sha512;
   return [
     `version: ${scenario.version}`,
     'files:',
     `  - url: MamaTheraFinance-${scenario.version}-setup.exe`,
-    `    sha512: ${sha512}`,
+    `    sha512: ${announced}`,
     `    size: ${exeBytes.length}`,
     `path: MamaTheraFinance-${scenario.version}-setup.exe`,
-    `sha512: ${sha512}`,
+    `sha512: ${announced}`,
     `releaseDate: '${scenario.releaseDate}'`,
     '',
   ].join('\n');
@@ -322,10 +361,12 @@ async function runScenario(scenario) {
   // Déclaré AVANT le `try` : le verdict se lit après le `finally` (une variable
   // déclarée dedans serait hors portée au moment de juger la passe).
   let downloaded = false;
-  // La passe « blocked » n'a rien à télécharger : sa trace est le SIGNALEMENT.
-  // Attendre `update-downloaded` y ferait 90 s de surplace, et l'attente
-  // masquerait le succès derrière un délai au lieu de le constater.
-  const stopOn = scenario.brokenDownload ? 'poste bloqué' : 'update-downloaded';
+  // Les passes qui se terminent sur un BLOCAGE n'ont rien à installer : leur trace
+  // est le SIGNALEMENT. Attendre `update-downloaded` y ferait 90 s de surplace, et
+  // l'attente masquerait le succès derrière un délai au lieu de le constater.
+  const expectsBlocked = scenario.brokenDownload === true || scenario.tampered === true;
+  const journalCode = scenario.journalCode ?? 'download';
+  const stopOn = expectsBlocked ? 'poste bloqué' : 'update-downloaded';
   let stopped = false;
   const seen = [];
   try {
@@ -357,7 +398,7 @@ async function runScenario(scenario) {
     // observer AU MOINS une vérification supplémentaire : c'est la propriété qui
     // manquait (« une version publiée pendant que l'app tourne doit être vue »).
     // Pas sur une passe sans téléchargement : son verdict est déjà tombé.
-    if (!scenario.brokenDownload) {
+    if (!expectsBlocked) {
       await wait(15000);
       readLog(logFile, seen);
     }
@@ -383,10 +424,15 @@ async function runScenario(scenario) {
   // Le blocage signalé, et — ce qui compte le plus — l'entrée RÉELLEMENT écrite
   // dans le journal local du poste. Le log de preuve est un artefact du test ;
   // le journal, lui, existe aussi sur le poste d'un client.
-  const blockedLine = seen.find((m) => m.startsWith('poste bloqué (download)')) || null;
+  const blockedLine = seen.find((m) => m.startsWith(`poste bloqué (${journalCode})`)) || null;
+  // La passe « tampered » exige DEUX traces de plus que le blocage : le refus
+  // ÉCRIT par le poste, et le cache purgé — sans quoi les mêmes octets seraient
+  // resservis à la vérification suivante sans repasser par le réseau.
+  const refusalLine = seen.find((m) => m.startsWith('octets non conformes au flux')) || null;
+  const cacheWiped = seen.find((m) => m.includes('cache electron-updater purgé (payload refusé')) || null;
   const journalFile = join(userData, JOURNAL_FILE);
-  const journalEntries = scenario.brokenDownload ? readJournal(journalFile, { limit: 10 }) : [];
-  const journalEntry = journalEntries.find((e) => e.code === 'download') || null;
+  const journalEntries = expectsBlocked ? readJournal(journalFile, { limit: 10 }) : [];
+  const journalEntry = journalEntries.find((e) => e.code === journalCode) || null;
   // Et l'entrée doit être EN FILE — c'est la propriété de CETTE version. Un poste
   // bloqué devant personne n'a aucune session, donc rien ne peut partir à cet
   // instant : le journal doit pouvoir ATTENDRE (`reportedAt` nul), et la file le
@@ -397,6 +443,7 @@ async function runScenario(scenario) {
     : null;
   const queuedRight = Boolean(queued) && journalEntry?.reportedAt === null;
   const blockedRight = Boolean(blockedLine) && Boolean(journalEntry) && queuedRight;
+  const tamperedRight = blockedRight && Boolean(refusalLine) && Boolean(cacheWiped);
 
   // Le MOTIF fait partie de la preuve : trois règles peuvent forcer, et une règle
   // qui forcerait toujours passerait pour verte si on ne lisait que le drapeau.
@@ -411,7 +458,7 @@ async function runScenario(scenario) {
   const holdRight = Boolean(heldLine) && !announcesForced && (!downloaded || Boolean(refusal));
 
   const ok = (chainRequired ? chain && rechecked : checks >= 1) &&
-    (scenario.held ? holdRight : scenario.brokenDownload ? blockedRight : reasonRight) &&
+    (scenario.held ? holdRight : scenario.tampered ? tamperedRight : expectsBlocked ? blockedRight : reasonRight) &&
     // Un téléchargement refusé n'est pas un flux vide : la passe bloquée ne sert
     // aucun octet d'installeur, et exiger un service réussi l'aurait rendue
     // contradictoire.
@@ -429,10 +476,19 @@ async function runScenario(scenario) {
       ? `✅ l'exe empaqueté retient la version, et n'impose RIEN : ${heldLine}`
       : `❌ frein inopérant — ligne de retenue=${Boolean(heldLine)}, obligation annoncée=${announcesForced}${announced ? ` (${announced})` : ''}${downloaded && !refusal ? ', installation non refusée' : ''}`);
     if (refusal) console.log(`✅ installation refusée après téléchargement : ${refusal}`);
-  } else if (scenario.brokenDownload) {
+  } else if (expectsBlocked) {
     console.log(blockedRight
       ? `✅ le poste bloqué s'est signalé : ${blockedLine} — journal local ${journalEntries.length} entrée(s)`
-      : `❌ poste bloqué MUET — ligne de signalement=${Boolean(blockedLine)}, entrée dans ${JOURNAL_FILE}=${journalEntry ? 'oui' : 'non'} (${journalEntries.length} entrée(s))`);
+      : `❌ poste bloqué MUET — ligne de signalement=${Boolean(blockedLine)} (motif ${journalCode}), entrée dans ${JOURNAL_FILE}=${journalEntry ? 'oui' : 'non'} (${journalEntries.length} entrée(s))`);
+    if (scenario.tampered) {
+      console.log(refusalLine
+        ? `✅ le poste a REFUSÉ ces octets et l'a dit : ${refusalLine}`
+        : '❌ octets non conformes installés ou passés sous silence — aucun refus écrit par le poste');
+      console.log(cacheWiped
+        ? `✅ et le cache qui les resservirait a été purgé : ${cacheWiped}`
+        : '❌ les octets menteurs restent dans le cache : la vérification suivante les reprendrait sans réseau');
+      console.log(`✅ cause distincte du réseau : ${journalCode} (et non download) — le remède est sur le CANAL`);
+    }
     if (journalEntry) {
       console.log(`✅ entrée écrite dans le journal du poste : ${journalEntry.code} · ${journalEntry.station} · ${journalEntry.detail}`);
       console.log(queuedRight
@@ -450,7 +506,7 @@ async function runScenario(scenario) {
   }
   if (chainRequired) {
     console.log(`${chain ? '✅' : '❌'} chaîne ${chain ? 'complète' : 'incomplète'} pour ${scenario.version} (checking → available → progress → downloaded)`);
-  } else if (scenario.brokenDownload) {
+  } else if (expectsBlocked) {
     console.log(`${checks >= 1 ? '✅' : '❌'} ${checks} vérification(s) — le téléchargement a échoué, et c'est la panne prouvée ici`);
   } else {
     console.log(`${checks >= 1 ? '✅' : '❌'} ${checks} vérification(s) — une version retenue ne se télécharge pas pour être installée`);

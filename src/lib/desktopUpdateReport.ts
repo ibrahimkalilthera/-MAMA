@@ -22,7 +22,7 @@ import type { LogAuditParams } from './auditLogger';
 
 /** Ce que le processus principal inscrit d'un poste bloqué. */
 export interface BlockedUpdate {
-  code: 'install' | 'manual' | 'download' | string;
+  code: 'install' | 'manual' | 'download' | 'checksum' | string;
   detail: string;
   station?: string | null;
   journal?: string | null;
@@ -49,6 +49,20 @@ export interface ReportOutcome {
   /** Le texte envoyé (ou qui aurait été envoyé) : affiché tel quel, jamais résumé. */
   detail: string;
 }
+
+/**
+ * L'intitulé d'un signalement, choisi par sa CAUSE et pas par un mot passe-partout.
+ *
+ * Un blocage de la porte et une promesse d'octets non tenue ne se lisent pas de
+ * la même façon dans un journal d'audit : dire « mise à jour obligatoire » d'un
+ * poste qui n'était PAS obligé ferait chercher une porte fermée qui n'existe pas,
+ * alors que le vrai sujet est un canal qui sert autre chose que ce qu'il annonce
+ * — et c'est valable pour tous les postes, obligés ou non.
+ */
+const blockAction = (code: string): string =>
+  code === 'checksum'
+    ? 'mise à jour refusée — les octets servis ne répondent pas au flux (checksum)'
+    : `poste bloqué — mise à jour obligatoire (${code})`;
 
 /**
  * L'identité d'un blocage : même code ET même version cible ⇒ même panne.
@@ -94,7 +108,7 @@ export function blockedAuditEntry(
   // chercherait un fichier qui n'existe pas, et croirait le poste silencieux.
   if (blocked.recorded === false) parts.push('journal local non écrit (disque ou droits)');
   return {
-    action: `poste bloqué — mise à jour obligatoire (${blocked.code})`,
+    action: blockAction(blocked.code),
     targetType: 'update',
     targetId: state.version ?? null,
     details: parts.join(' · '),
@@ -217,7 +231,7 @@ export function journalAuditEntry(
   const occurrences = Number(entry.occurrences ?? 1);
   if (Number.isFinite(occurrences) && occurrences > 1) parts.push(`bloqué ${occurrences} fois`);
   return {
-    action: `poste bloqué — mise à jour obligatoire (${entry.code}) — remonté depuis le journal du poste`,
+    action: `${blockAction(entry.code)} — remonté depuis le journal du poste`,
     targetType: 'update',
     targetId: entry.version ?? null,
     details: parts.join(' · '),

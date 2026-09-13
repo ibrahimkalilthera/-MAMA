@@ -326,7 +326,7 @@ function holdDecision({ version = null, holds = null, readOk = true } = {}) {
  * pas : choisir le canal (fichier local, journal d'audit). Un poste bloqué n'a
  * peut-être aucune session — le canal ne peut donc pas être décidé ici.
  *
- * Trois causes, et il n'y en a pas d'autre :
+ * Quatre causes, et il n'y en a pas d'autre :
  *   • **`install`** — une installation a été tentée et le poste est revenu sur
  *     la même version. C'est le pire des trois, parce que c'est un échec
  *     SILENCIEUX : l'utilisateur a cliqué « Redémarrer maintenant », a redémarré,
@@ -337,15 +337,23 @@ function holdDecision({ version = null, holds = null, readOk = true } = {}) {
  *     NSIS). Le forcer serait le bloquer pour toujours ; le signaler est la
  *     seule chose honnête à faire, parce qu'il faut une main humaine ;
  *   • **`download`** — obligatoire, et le téléchargement a échoué : le poste ne
- *     peut plus avancer seul, et il attend sur une porte fermée.
+ *     peut plus avancer seul, et il attend sur une porte fermée ;
+ *   • **`checksum`** — les octets reçus ne répondent PAS à ce que `latest.yml`
+ *     annonce. Signalé **même hors obligation**, comme une installation non
+ *     aboutie, et pour la même raison : c'est un fait, pas une opinion sur le
+ *     retard. La distinction avec `download` n'est pas cosmétique, elle est le
+ *     sujet — un échec de réseau se répare sur le poste (réessayer), une
+ *     promesse non tenue se répare **sur le canal** et concerne TOUS les postes.
+ *     Les confondre enverrait l'administrateur chercher au mauvais endroit ;
  *
  * Et une quatrième chose, qui n'est PAS bloquée : un poste obligé qui
  * télécharge, qui a téléchargé, ou qui attend une confirmation. Le signaler
  * noierait le vrai cas sous le bruit de la progression normale.
  *
  * @param {{ forced?: boolean, status?: string|null, detail?: string|null,
- *   isPortable?: boolean, installPending?: boolean }} input
- * @returns {{ blocked: boolean, code: 'install' | 'manual' | 'download' | 'none', detail: string }}
+ *   isPortable?: boolean, installPending?: boolean, checksumFault?: string|null }} input
+ * @returns {{ blocked: boolean,
+ *   code: 'install' | 'manual' | 'download' | 'checksum' | 'none', detail: string }}
  */
 function gateFailure({
   forced = false,
@@ -353,6 +361,7 @@ function gateFailure({
   detail = null,
   isPortable = false,
   installPending = false,
+  checksumFault = null,
 } = {}) {
   if (installPending) {
     return {
@@ -360,6 +369,13 @@ function gateFailure({
       code: 'install',
       detail: 'installation précédente non aboutie — ce poste est revenu sur la même version',
     };
+  }
+  // Une promesse d'octets non tenue passe AVANT tout le reste : elle est vraie
+  // quel que soit le retard de ce poste, et la signaler hors obligation est le
+  // seul moyen qu'un parc entende parler d'un canal qui sert autre chose que ce
+  // qu'il annonce — un poste non obligé ne se plaint jamais, il est content.
+  if (checksumFault) {
+    return { blocked: true, code: 'checksum', detail: String(checksumFault) };
   }
   if (!forced) {
     return { blocked: false, code: 'none', detail: 'mise à jour non obligatoire — rien à signaler' };

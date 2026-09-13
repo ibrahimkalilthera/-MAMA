@@ -146,8 +146,14 @@ describe('le câblage du signalement', () => {
     assert.match(main, /appendEntry\(journalFile/, 'un blocage s’inscrit dans le journal');
     assert.match(main, /ipcMain\.handle\('updates:journal'/, 'l’interface doit pouvoir lire le journal');
     assert.match(main, /ipcMain\.handle\('updates:open-journal'/, 'un humain devant le poste doit pouvoir l’ouvrir');
-    // Les deux chemins qui bloquent réellement un poste obligé.
-    assert.match(main, /reportBlocked\(\{ forced: pressure\.forced, status: 'error', detail \}\)/, 'un échec de téléchargement sur un poste obligé doit partir au journal');
+    // Les chemins qui bloquent réellement un poste obligé.
+    //
+    // L'échec de téléchargement part au journal APRÈS avoir été classé : « le
+    // réseau a lâché » et « le canal sert autre chose que ce qu'il annonce » ont
+    // des remèdes opposés, et les confondre enverrait un parc chercher une panne
+    // d'école inexistante. La classe est donc lue dans le MÊME appel.
+    assert.match(main, /reportBlocked\(\{[\s\S]{0,200}status: 'error',[\s\S]{0,120}checksumFault: fault\.fault \? fault\.detail : null/, 'un échec de téléchargement sur un poste obligé doit partir au journal, avec sa cause');
+    assert.match(main, /checksumFault: fault\.fault \? fault\.detail : null/, 'la cause classée accompagne le blocage');
     assert.match(main, /reportBlocked\(\{ forced: gate\.forced, version: i\.version \}\)/, 'un portable obligé ne pourra jamais satisfaire la porte : ça se signale');
     assert.match(main, /reportBlocked\(\{ installPending: true/, 'une installation non aboutie se signale dès le démarrage');
   });
