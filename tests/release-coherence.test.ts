@@ -686,18 +686,34 @@ describe('le câblage du contrôle', () => {
     assert.doesNotMatch(workflow, /gh release/, 'et aucun `gh release` à la main');
   });
 
-  it('sans certificat, le run ne peut pas annoncer une publication : c’est une INACTION', () => {
+  it('sans certificat, le build se PUBLIE quand même — et la preuve dit quelle signature', () => {
+    // Ce cas verrouillait la politique INVERSE (« un build non signé est une
+    // publication qui n'a pas eu lieu ») jusqu'au 2026-09-13. Elle a été
+    // retournée pour une raison mesurée : refuser de publier sans certificat
+    // avait renvoyé la publication vers une machine locale, où un certificat de
+    // test a signé la 1.0.8 — `publisherName: [ "Mama Thera Finance (test)" ]`,
+    // racine non approuvée — donc un parc gelé à jamais. L'état accepté est
+    // celui que la 1.0.9 porte : aucun signataire promis (see
+    // `scripts/lib/updater-trust.mjs`), dont les postes se mettent à jour.
     const workflow = read('.github/workflows/desktop-release.yml');
-    // Le job ne démarre que si le gate a ouvert — donc parce qu'il y avait un
-    // release à faire. Un build non signé est alors une publication qui N'A PAS
-    // EU LIEU : la déclarer `--acted` (en décrivant des artefacts que personne ne
-    // recevra) serait exactement le vert sans action que l'audit pourchasse.
     assert.match(workflow, /signed=true/, 'le build signé se déclare');
     assert.match(workflow, /signed=false/, 'et son absence aussi');
+    const start = workflow.indexOf('echo "signed=false"');
+    const end = workflow.indexOf('\n          fi', start);
+    assert.ok(start > 0 && end > start, 'la branche « aucun certificat » est lisible');
+    const unsigned = workflow.slice(start, end);
     assert.match(
+      unsigned,
+      /npm run check:release:tag[\s\S]*npm run electron:release[\s\S]*npm run release:promote/,
+      'le numéro est vérifié, le brouillon publié puis promu, même sans certificat',
+    );
+    assert.doesNotMatch(unsigned, /--inert/, 'ne rien publier n’est plus le verdict de cet état');
+    assert.match(workflow, /SIGN_KIND/, 'et la preuve d’action nomme le type de signature');
+    assert.match(workflow, /NON signé/, 'jusqu’à l’écrire en toutes lettres');
+    assert.doesNotMatch(
       workflow,
-      /steps\.build\.outputs\.signed[\s\S]{0,240}--inert/,
-      'sans certificat, la preuve est une inaction — et elle fait rougir le run',
+      /::warning::[\s\S]{0,80}CSC_PFX_B64/,
+      'l’absence de certificat n’est plus un avertissement : c’est l’état de référence',
     );
   });
 

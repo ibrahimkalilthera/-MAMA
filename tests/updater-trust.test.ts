@@ -12,6 +12,8 @@
 // c'est leur forme qui compte, pas une forme inventée par le test.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { basename } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
@@ -187,10 +189,16 @@ describe('les jetons de test ne débordent pas sur les vrais noms', () => {
 
 describe('le CLI refuse de conclure plutôt que de rendre un vert non mesuré', () => {
   it('sans binaire construit (ou hors Windows), la sortie n’est jamais 0', () => {
+    // Le dossier est FABRIQUÉ pour ce cas, jamais emprunté à `release/`. Depuis
+    // qu'une publication laisse un build dans `release/` — le cas normal d'un
+    // poste qui vient de livrer — ce cas mesurait le VRAI binaire et passait au
+    // vert en n'éprouvant plus rien : exactement le faux vert que ce contrôle
+    // existe pour refuser, cette fois dans sa propre suite.
+    const dir = mkdtempSync('.probe-updater-trust-');
     let code = 0;
     let stderr = '';
     try {
-      execFileSync(process.execPath, ['scripts/check-updater-trust.mjs', '--dir=release'], {
+      execFileSync(process.execPath, ['scripts/check-updater-trust.mjs', `--dir=${basename(dir)}`], {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -198,6 +206,8 @@ describe('le CLI refuse de conclure plutôt que de rendre un vert non mesuré', 
       const failure = error as { status?: number; stderr?: string };
       code = failure.status ?? 1;
       stderr = String(failure.stderr ?? '');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
     assert.notEqual(code, 0, 'un contrôle qui ne peut pas mesurer ne doit pas sortir en 0');
     assert.match(stderr, /non mesurable|rien à juger|rien de vérifié/);

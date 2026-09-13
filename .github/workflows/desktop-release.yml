@@ -9,20 +9,26 @@
 # canal. Aucune de ces étapes n'est un clic ni un appel d'API manuel ; la seule
 # décision humaine qui reste est de MONTER LA VERSION, c'est-à-dire un commit.
 #
-# Il construit l'app de bureau Windows, la SIGNE avec le certificat de signature
-# de code (secrets) et publie un GitHub Release — le canal electron-updater
-# (setup.exe + portable + latest.yml dans le même release). Sans secret
-# CSC_PFX_B64, le build reste non signé (SmartScreen « éditeur inconnu ») — le
-# workflow avertit et ne publie pas. Un build non signé n'est PAS une
-# publication : ce dépôt ne pose pas dans le parc une app que Windows ne peut pas
-# identifier, et c'est le publieur qui porte la règle miroir —
-# `npm run check:updater-trust` (appelé par `release:publish` AVANT la première
-# requête) refuse tout contrat promettant un signataire non approuvé, donc un
-# certificat de TEST ne peut plus atteindre le canal depuis quelque machine que
-# ce soit. Mesuré le 2026-09-13 : l'installeur publié portait
-# `publisherName: [ "Mama Thera Finance (test)" ]` et une racine non approuvée —
-# chaque poste équipé refusait À JAMAIS toutes les mises à jour
-# (ERR_UPDATER_INVALID_SIGNATURE), un parc figé sous un workflow vert.
+# Il construit l'app de bureau Windows, la SIGNE avec un certificat de confiance
+# quand il en existe un, et publie un GitHub Release — le canal electron-updater
+# (setup.exe + portable + latest.yml dans le même release).
+#
+# Sans certificat, le build est NON SIGNÉ et **publie quand même** — décision du
+# 2026-09-13, prise en connaissance de cause et écrite ici pour qu'elle ne se
+# perde pas. Ce qu'elle règle : un build sans `publisherName` embarqué laisse le
+# poste se mettre à jour (`electron-updater` ne vérifie une signature que si un
+# signataire est PROMIS). Ce qu'elle ne règle PAS : Windows affiche toujours
+# « éditeur inconnu » — seul un certificat approuvé lève cet avertissement, et le
+# publieur le dit lui-même.
+#
+# Ce qui reste INTERDIT, et le publieur s'en porte garant : signer avec un
+# certificat NON approuvé (auto-signé, de test). C'est ce qui a été fait pour la
+# 1.0.8 — `publisherName: [ "Mama Thera Finance (test)" ]` et une racine non
+# approuvée — et chaque poste équipé refusait À JAMAIS toutes les mises à jour
+# (ERR_UPDATER_INVALID_SIGNATURE) : un parc figé, sous un workflow vert.
+# `npm run check:updater-trust`, appelé par `release:publish` AVANT la première
+# requête, refuse ce contrat quel que soit l'endroit d'où l'on publie. Un
+# certificat de test « pour que ça passe » ne passe donc pas — et c'est voulu.
 #
 # `workflow_dispatch` reste, pour une reprise explicite (le certificat vient
 # d'être posé, un build a été corrigé) : la voie normale n'en a plus besoin.
@@ -45,12 +51,11 @@
 #   CSC_PFX_B64       certificat .pfx encodé en base64
 #   CSC_KEY_PASSWORD  mot de passe du certificat
 #
-# Ces deux secrets ne sont pas une option depuis que la chaîne est automatique :
-# le gate n'ouvre ce job que s'il y a un release à faire, donc un build non signé
-# est une publication qui n'a pas eu lieu — le run le déclare en INACTION et
-# rougit, au lieu de rester vert en décrivant des artefacts que personne ne reçoit.
-# Et faire disparaître l'avertissement de Windows passe par les mêmes secrets :
-# seul un certificat approuvé (OV/EV, ou Azure Trusted Signing) lève SmartScreen.
+# Ces secrets restent la voie pour FAIRE DISPARAÎTRE l'avertissement de Windows :
+# seul un certificat approuvé le lève. Mais leur absence n'empêche plus de
+# publier — elle empêche seulement d'avoir un éditeur nommé, et la preuve d'action
+# du job le dit désormais en toutes lettres (« installeur NON signé ») pour qu'un
+# parc qui se met à jour ne se lise pas comme un parc sans avertissement.
 # ─────────────────────────────────────────────────────────────────────────────
 name: Desktop release (Windows)
 
@@ -179,7 +184,12 @@ jobs:
             echo "$CSC_PFX_B64" | base64 -d > "$RUNNER_TEMP/code-sign.pfx"
             echo "certificat restauré ($(wc -c < "$RUNNER_TEMP/code-sign.pfx") octets)"
           else
-            echo "::warning::Secret CSC_PFX_B64 absent — build NON signé (SmartScreen « éditeur inconnu »)"
+            # L'absence de certificat n'est plus une anomalie à signaler : c'est
+            # l'état de RÉFÉRENCE du parc — celui de la 1.0.9 publiée (aucun
+            # `publisherName` promis, octets NotSigned). Un `::warning::` ici
+            # clignoterait à chaque publication légitime, c'est-à-dire
+            # apprendrait à ignorer le seul signal qui compte.
+            echo "→ aucun certificat : build NON signé — état de référence (1.0.9), publication autorisée"
           fi
 
       - name: Build, sign and publish (electron-updater channel)
@@ -215,15 +225,15 @@ jobs:
             #    processus, un flux illisible fait rougir le job au lieu d'être
             #    seulement signalé.
           else
-            # Aucun certificat : le build reste possible, la PUBLICATION non. Sous
-            # le déclencheur automatique, ce n'est plus un choix anodin — le gate
-            # n'a ouvert ce job que parce qu'il y avait un release à faire, donc
-            # ne rien publier est un échec, et la preuve ci-dessous le DIT (`--inert`)
-            # plutôt que de décrire des artefacts que personne ne recevra.
+            # Aucun certificat : build NON signé, publication QUAND MÊME (décision
+            # du 2026-09-13, cf. l'en-tête). Refuser de publier cet état avait
+            # renvoyé la publication vers une machine locale — où un certificat de
+            # test a signé la 1.0.8 et gelé le parc.
             echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "→ aucun certificat : build non signé (electron:dist, pas de publication)"
-            # electron:dist inclut le gate local : un flux incohérent échoue ici aussi.
-            npm run electron:dist
+            echo "→ aucun certificat : build NON signé (aucun publisherName embarqué) — publication autorisée, avertissement Windows assumé"
+            npm run check:release:tag
+            npm run electron:release
+            npm run release:promote
           fi
 
       # LE SEUL runner où `release/` existe. C'est ce qui décide de la place de ce
@@ -253,22 +263,26 @@ jobs:
       #
       # Et « j'ai agi » exige que quelque chose soit réellement PUBLIÉ : sous le
       # déclencheur automatique, ce job ne démarre que s'il y avait un release à
-      # faire, donc un build non signé est une publication qui n'a pas eu lieu —
-      # l'annoncer comme une action serait le faux vert que cet audit pourchasse.
+      # faire, et il refuse de conclure si rien n'est sorti sur le disque. Depuis
+      # la décision du 2026-09-13, un build NON signé EST publié — donc `--acted`
+      # est le verdict, à condition de dire QUELLE signature le parc reçoit.
       - name: Publier la preuve d’action — installeur Windows
         if: success()
         shell: bash
         run: |
           COUNT=$(ls release/*.exe 2>/dev/null | wc -l | tr -d ' ')
-          if [ "${{ steps.build.outputs.signed }}" != "true" ]; then
-            node scripts/publish-automation-evidence.mjs --inert \
-              --reason "Rien n'a été publié : certificat de signature absent (CSC_PFX_B64) — le gate avait ouvert ce job pour un release à faire, et le build est resté non signé ($COUNT fichier(s) .exe construits)"
-            exit 1
-          fi
           if [ "$COUNT" -lt 2 ]; then
             node scripts/publish-automation-evidence.mjs --inert \
               --reason "aucun installeur dans release/ ($COUNT fichier .exe) — le build n'a rien produit"
             exit 1
           fi
+          # La signature est DITE, jamais supposée : un parc qui se met à jour sous
+          # « éditeur inconnu » n'est pas un parc signé, et une preuve qui tairait la
+          # différence ferait passer le second pour le premier.
+          if [ "${{ steps.build.outputs.signed }}" = "true" ]; then
+            SIGN_KIND="installeur SIGNÉ"
+          else
+            SIGN_KIND="installeur NON signé — aucun signataire promis, dont les postes se mettent à jour ; Windows affichera « éditeur inconnu »"
+          fi
           node scripts/publish-automation-evidence.mjs --acted --count "$COUNT" \
-            --reason "version publiée sur le canal : $COUNT artefact(s) Windows dans release/ (installeur signé + portable, blockmaps, latest.yml) — la promotion et la relecture du canal sont faites par le même programme"
+            --reason "version publiée sur le canal : $COUNT artefact(s) Windows dans release/ ($SIGN_KIND + portable, blockmaps, latest.yml) — la promotion et la relecture du canal sont faites par le même programme"

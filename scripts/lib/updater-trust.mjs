@@ -39,6 +39,13 @@
 // signé, seul état qui laisse le parc se mettre à jour tant qu'aucun certificat
 // de confiance n'est posé — au prix du « éditeur inconnu » de Windows, qui est
 // nommé plutôt que tu.
+//
+// Et depuis le 2026-09-13, c'est l'état de RÉFÉRENCE de ce dépôt : la 1.0.9
+// publiée n'a aucun signataire promis, et la politique de publication autorise
+// cet état au lieu d'attendre un certificat — attendre avait renvoyé la
+// publication vers une machine locale, où un certificat de test a gelé le parc.
+// Ce module le dit pour qu'un futur changement doive le contredire
+// explicitement, au lieu de le contredire par inadvertance.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -143,8 +150,9 @@ export function updaterTrustVerdict({ publisherNames, signature }) {
     );
     if (!signed) {
       notes.push(
-        'Windows affichera « éditeur inconnu » à l’installation : c’est le prix de cet état, et il ' +
-          'disparaît le jour où un certificat approuvé (OV/EV, ou Azure Trusted Signing) est posé',
+        'c’est l’état de RÉFÉRENCE du parc depuis la 1.0.9 (2026-09-13 : aucun signataire promis, ' +
+          'octets NotSigned) — Windows affichera « éditeur inconnu » à l’installation, et c’est le ' +
+          'prix de cet état, qui disparaît le jour où un certificat approuvé (OV/EV) est posé',
       );
     } else {
       notes.push(

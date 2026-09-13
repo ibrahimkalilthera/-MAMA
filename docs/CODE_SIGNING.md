@@ -37,10 +37,13 @@ sur le canal : il lit le contrat réellement embarqué, interroge Windows sur le
 fichier réel, et **refuse** un signataire de test, une promesse vide, une chaîne
 non approuvée ou un nom promis que le certificat ne porte pas. Un build **non
 signé** n'est pas refusé par ce contrôle (il ne promet rien, donc le poste
-n'exige rien) — mais ce dépôt ne le **publie** pas pour autant : sans certificat,
-le workflow de publication reste en inaction déclarée et rougit en le disant.
-Une app que Windows ne peut pas identifier ne se pose pas dans le parc ; le
-contrôle nomme ce coût au lieu de le taire pour que la décision reste explicite.
+n'exige rien — c'est le seul état qui se met à jour sans certificat), et depuis
+le **2026-09-13** il se **publie** : refuser cet état avait renvoyé la publication
+vers une machine locale, où un certificat de test a signé la 1.0.8 et gelé le
+parc. Le coût reste entier et il est **dit** (« Windows affichera « éditeur
+inconnu » à l'installation », et la preuve d'action du job écrit « installeur NON
+signé ») : une décision explicite, jamais un état silencieux. Ce qui reste
+**interdit**, avant toute écriture sur le canal : un certificat non approuvé.
 
 ## 1 bis. La voie gratuite : signature OSS (SignPath Foundation)
 
@@ -79,17 +82,88 @@ embarqué du binaire **signé** avant la première requête — le nom promis de
 correspondre au certificat SignPath, donc la publication reste refusée si
 quelque chose ne concorde pas.
 
-⚠️ Tant que ces secrets n'existent pas, **rien ne change** : la branche « aucun
-certificat » du workflow construit, refuse de publier et le déclare en INACTION.
-Il n'y a pas de troisième état silencieux — c'est délibéré, un certificat absent
-doit se lire comme une publication qui n'a pas eu lieu.
+⚠️ Tant que ces secrets n'existent pas, la branche « aucun certificat » du
+workflow construit un build **non signé** et le publie (décision du 2026-09-13,
+voir ci-dessus) : les postes reçoivent les correctifs et continuent de se mettre à
+jour, sans nom d'éditeur. La candidature reste la voie pour l'avertissement, pas
+pour la livraison.
+
+## 2 bis. Deux choses qu'il faut savoir AVANT d'acheter (vérifiées le 2026-09-13)
+
+### openssl ne peut pas produire le certificat qu'il faut
+
+`openssl` génère une paire de clés, une demande de signature (CSR) et des
+certificats **auto-signés**. Un certificat auto-signé **n'est pas** un certificat
+« de test inoffensif » : c'est exactement celui qui a gelé le parc (voir l'encadré
+§1). Ce qui rend un certificat utile à Windows n'est pas sa fabrication, c'est
+l'**autorité** qui l'émet : sa racine est déjà dans le magasin de confiance de
+Windows, ce qu'aucun `openssl` local ne peut imiter. Le certificat s'**achète**
+(validation d'identité) ou s'obtient par un programme dédié (§1 bis), il ne se
+génère pas.
+
+### Un certificat neuf ne se livre plus en `.pfx`
+
+Depuis le **1er juin 2023**, les *Code Signing Baseline Requirements* du CA/B
+Forum imposent que la clé privée soit **générée et conservée dans un module
+matériel** (HSM, FIPS 140-2 niveau 2 ou équivalent). Un certificat OV/EV acheté
+aujourd'hui arrive donc sous forme de **jeton matériel** ou de **clé hébergée
+chez le fournisseur** — jamais d'un fichier `.pfx` importable dans un secret
+GitHub. Conséquence directe pour ce dépôt :
+
+- les deux secrets actuels (`CSC_PFX_B64`, `CSC_KEY_PASSWORD`) correspondent au
+  chemin **logiciel**, c'est-à-dire à un certificat **auto-signé de test** —
+  celui des 1.0.6/1.0.7/1.0.8. Ils ne pourront pas porter un certificat acheté ;
+- la signature se fera **par le service du fournisseur** depuis le runner, via
+  son action GitHub : DigiCert publie `digicert/code-signing-software-trust-action`
+  (produit **Binary Signing**, successeur de Software Trust Manager et de
+  KeyLocker) ; SignPath publie son connecteur pour la voie OSS gratuite ;
+- l'insertion est **le même point unique** que celui déjà commenté dans
+  `.github/workflows/desktop-release.yml` (l'étape de signature) : l'artefact
+  construit est envoyé au service, l'artefact **signé** remplace les octets non
+  signés, puis `npm run release:publish` publie — et `check:updater-trust` juge le
+  contrat embarqué du binaire signé avant la première requête.
+
+Ce que ça change pour la commande : au lieu d'un `.pfx` à déposer, il faut les
+identifiants d'API du service de signature (DigiCert ou SignPath) en secrets, et
+un *profil* de signature créé côté fournisseur.
+
+## 2 ter. Ce qu'on trouve sur un poste et qui ne signe PAS
+
+Tous ces fichiers ont l'air d'un certificat. Aucun ne peut servir à publier, et
+chacun pour une raison mesurable. Le cas `ska.p7b` du 2026-09-13 est lu ici tel
+qu'il est, pas tel qu'on l'espère :
+
+```
+$ openssl pkcs7 -inform DER -in ska.p7b -print_certs -noout
+subject=C=ML, ST=Bamako, L=Lafiabougou, O=MaMA THERA FINANCE
+issuer =C=ML, ST=Bamako, L=Lafiabougou, O=MaMA THERA FINANCE     ← émetteur = sujet
+1 seul certificat · aucune extension (ni KeyUsage, ni ExtendedKeyUsage)
+```
+
+| Fichier | Ce qu'il contient | Pourquoi il ne signe pas |
+|---|---|---|
+| **`.p7b`** (PKCS#7) | des **certificats** seulement | **aucune clé privée** : il ne peut rien signer, par construction |
+| **`.cer` / `.crt`** | un certificat | même raison |
+| **auto-signé** (émetteur = sujet) | un certificat qu'aucune autorité ne cautionne | Windows ne peut pas l'approuver : avertissement conservé, **et parc gelé** (l'électron-updater exige `Valid` + le nom promis, cf. §1) |
+| **`.pfx` / `.p12`** | certificat **+** clé privée | signe bien localement — mais un certificat **acheté** n'arrive plus sous cette forme depuis 2023 (§2 bis), donc celui-ci est un certificat auto-signé |
+
+Un certificat **auto-signé** ne devient pas utilisable en le « distribuant » : il
+faudrait installer sa racine dans le magasin de confiance de **chaque** poste,
+manuellement, avec des droits administrateur — un vrai travail par machine, à
+refaire pour tout poste neuf, et une clé que n'importe qui peut copier depuis le
+dépôt. Ce n'est pas une voie de production, c'est une dette de sécurité.
+
+Ce qu'un outil local peut produire d'**utile** : une **demande de signature
+(CSR)**. Et encore : pour un certificat de signature de code acheté, la clé doit
+naître dans le HSM du fournisseur (§2 bis), donc le CSR local ne sert pas non
+plus. Il n'existe pas de raccourci local vers un certificat approuvé.
 
 ## 2. Choisir le certificat
 
 | Option | Coût indicatif | Ce qu'il faut savoir |
 |---|---|---|
-| **OV** (Organization Validation) | 200–400 USD/an | Vérification de l'organisation (documents de l'école). Certificat logiciel exportable en `.pfx` — l'option pragmatique pour cette app. |
-| **EV** (Extended Validation) | 600–1 000 USD/an | Exige généralement une clé sur jeton matériel/HSM (moins pratique pour un build CI sans matériel dédié). Meilleure confiance immédiate. |
+| **OV** (Organization Validation) | 200–400 USD/an | Vérification de l'organisation (documents de l'école). **Ne se livre PAS en `.pfx`** depuis 2023 : la clé doit vivre dans un HSM (voir §2 bis) — la CI signe donc via le service du fournisseur, pas avec `CSC_LINK`. |
+| **EV** (Extended Validation) | 600–1 000 USD/an | Même contrainte de clé (jeton/HSM), confiance immédiate. Plus cher, sans bénéfice décisif ici. |
 | **Azure Trusted Signing** | ~10 USD/mois + par signature | Signature cloud Microsoft, racine DigiCert ; s'intègre via `win.azureSignOptions` (electron-builder 26.15.3 le porte). **Mais la validation d'identité du service est limitée à quelques pays** (États-Unis/Canada pour les organisations, et des utilisateurs européens s'y voient déjà refusés) : une organisation au Mali n'y est pas recevable. Vérifié le 2026-09-13, ne pas s'y engager sans essayer. |
 
 Fournisseurs reconnus : **DigiCert, Sectigo, SSL.com, GlobalSign**. Le produit à
@@ -169,8 +243,12 @@ sur celui-là.
    signe le build et publie le GitHub Release (setup.exe + portable +
    `latest.yml`) — le canal electron-updater devient actif.
 
-   Sans secret `CSC_PFX_B64`, le workflow avertit, construit **sans** signature
-   et ne publie pas.
+   Sans secret `CSC_PFX_B64`, le workflow construit **sans** signature et
+   **publie quand même** (décision du 2026-09-13). L'état publié est celui de la
+   **1.0.9** — aucun `publisherName` promis, octets `NotSigned` — et c'est la
+   **signature de référence** de ce dépôt : le poste juge alors les octets par le
+   `sha512` du flux, donc il se met à jour. Ce qu'un certificat apporte en plus
+   est le **nom de l'éditeur**, pas la livraison.
 
 ## 5. Sécurité
 

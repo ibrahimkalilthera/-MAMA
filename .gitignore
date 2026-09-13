@@ -28,5 +28,16 @@ electron-ui-dist/
 *.pfx
 *.p12
 code-sign.*
+# Bases de clés locales des outils de signature (`key.xdb` est apparu à la racine
+# le 2026-09-13, sans qu'aucune commande de ce dépôt ne l'écrive — et elle porte
+# un `pwhash`). Un magasin de clés ne se committe pas plus qu'un `.pfx`.
+*.xdb
+# Certificats et chaînes exportés par ces mêmes outils (`ska.p7b`, même soir).
+# Ils ne signent rien (pas de clé privée) mais n'ont rien à faire dans
+# l'historique non plus — la question « peut-on s'en servir ? » a déjà été posée
+# une fois, elle n'a pas besoin d'un fichier committé pour se reposer.
+*.p7b
+*.cer
+*.crt
 
 release/
