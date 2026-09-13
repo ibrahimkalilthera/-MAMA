@@ -17,4 +17,6 @@
 #     the hooks.
 # Node : même lanceur que pre-commit — la chaîne tourne sur le runtime épinglé
 # par .nvmrc, provisionné par le projet au besoin (aucun gestionnaire requis).
-AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 WORKSHOP_SOFT_OFFLINE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs lint test audit workshop
+# WORKSHOP_TREE_PROOF=0 : même partage que pre-commit — le hook ne paie pas les
+# ~6 s de hachage d'une arborescence de build, et le DIT ; la CI est stricte.
+AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 WORKSHOP_SOFT_OFFLINE=1 WORKSHOP_TREE_PROOF=0 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs lint test audit workshop

@@ -42,19 +42,41 @@
 // chiffré n'existe qu'une fois dans ce dépôt, et « strictement plus basse que »
 // ne se décide pas sur des chaînes.
 import { compareVersions, versionParts } from './release-version.mjs';
+// Le suffixe d'un manifeste d'arborescence vient de son PROPRIÉTAIRE : deux
+// définitions de « comment se nomme un manifeste publié » finiraient par en
+// désigner deux, et la preuve qui repose dessus ne mordrait plus.
+import { MANIFEST_SUFFIX, isManifestAsset } from './unpacked-manifest.mjs';
+
+/**
+ * Les noms qui portent un numéro de version, écrits une fois.
+ *
+ * Trois formes d'artefact (`setup.exe` et son `.blockmap`, `portable.exe`) et le
+ * manifeste d'arborescence : ce dernier porte son numéro exactement pareil, donc
+ * il entre dans la MÊME preuve qu'un installeur — un manifeste publié dont les
+ * octets sont ceux du disque local est redondant au même titre, et il est
+ * minuscule, donc l'ignorer n'aurait rien protégé.
+ */
+const MANIFEST_TAIL = MANIFEST_SUFFIX.replace(/^-/, '').replace(/\./g, '\\.');
+const ARTIFACT_VERSION = new RegExp(
+  `-(\\d+\\.\\d+\\.\\d+)-(?:(?:setup|portable)\\.exe(?:\\.blockmap)?|${MANIFEST_TAIL})$`,
+  'i',
+);
 
 /**
  * La version qu'un nom d'artefact porte, ou `null`.
  *
  * Le nom est la seule source : `latest.yml` ne décrit que le fichier de tête,
  * donc un portable et un blockmap n'y sont pas — les ignorer laisserait dans le
- * dossier exactement les octets les plus lourds.
+ * dossier exactement les octets les plus lourds. Le manifeste d'arborescence n'y
+ * est pas non plus (aucun poste ne le lit), et c'est pour ça qu'il est reconnu
+ * ici plutôt que dans une liste écrite ailleurs. `ARTIFACT_VERSION` ci-dessus est
+ * l'unique définition de ces formes.
  *
  * @param {unknown} name
  * @returns {string|null}
  */
 export function artifactVersion(name) {
-  const match = /-(\d+\.\d+\.\d+)-(?:setup|portable)\.exe(?:\.blockmap)?$/i.exec(String(name ?? ''));
+  const match = ARTIFACT_VERSION.exec(String(name ?? ''));
   return match ? match[1] : null;
 }
 
@@ -96,7 +118,14 @@ export function artifactVersion(name) {
  *   dirs?: { name: string, size?: number }[],
  *   published?: { version?: string, tag?: string, draft?: boolean,
  *     assets?: { name?: string, size?: number, digest?: string|null }[] }[],
- *   stale?: boolean, unpublished?: boolean, unpacked?: boolean }} input
+ *   stale?: boolean, unpublished?: boolean, unpacked?: boolean,
+ *   provenDirs?: string[] }} input
+ *
+ *   `provenDirs` = les arborescences de build qu'une PREUVE condamne : un
+ *   manifeste publié porte l'empreinte de leur description, donc le canal sert
+ *   déjà ces octets, fichier par fichier. C'est la même famille qu'un digest de
+ *   fichier (`kind: 'digest'`), et ça part sur le même acte — la preuve est
+ *   calculée par l'appelant, qui seul lit le disque et le canal.
  * @returns {{ remove: { name: string, version: string, kind: 'digest'|'stale'|'unpublished', reason: string }[],
  *   keep: { name: string, version?: string, reason: string }[],
  *   ignored: { name: string, reason: string }[],
@@ -113,6 +142,7 @@ export function prunePlan({
   stale = false,
   unpublished = false,
   unpacked = false,
+  provenDirs = [],
 } = {}) {
   const remove = [];
   const keep = [];
@@ -151,6 +181,12 @@ export function prunePlan({
   // sortie de build décompressée, régénérable par `electron:dist`. Les autres
   // (ressources de build comme `.icon-ico`) sont des ENTRÉES : elles restent, et
   // le plan le dit au lieu de laisser croire qu'elles sont du déchet.
+  // Ce qu'une PREUVE condamne, parmi les dossiers : un manifeste publié dont
+  // l'empreinte est celle du manifeste recomposé ici décrit exactement cette
+  // arborescence — donc le canal détient déjà ces octets, fichier par fichier.
+  // C'est la même famille qu'un digest de fichier, et ça se traite pareil :
+  // l'atelier l'OBJECTE, l'acte reste `--yes`.
+  const proven = new Set((Array.isArray(provenDirs) ? provenDirs : []).map((name) => String(name)));
   for (const dir of dirs) {
     const name = String(dir?.name ?? '');
     const size = Number(dir?.size) || 0;
@@ -162,6 +198,17 @@ export function prunePlan({
         reason:
           'dossier de build (non versionné) — hors du sort de ce contrôle, mais nommé pour que le volume restant s’explique',
       });
+      continue;
+    }
+    if (proven.has(name)) {
+      remove.push({
+        name,
+        version: '',
+        kind: 'digest',
+        reason:
+          'le canal PUBLIE un manifeste dont l’empreinte est celle de cette arborescence — chaque fichier, sa taille et son sha256 : ces octets-là sont déjà servis, et `electron:dist` la régénère',
+      });
+      bytesFreed += size;
       continue;
     }
     loose.push({
@@ -203,7 +250,13 @@ export function prunePlan({
       keep.push({
         name,
         version,
-        reason: 'version en cours de construction — c’est la sortie du build, et les contrôles locaux la lisent',
+        // Un manifeste n'est pas la sortie du build : il la DÉCRIT. Gardé pour la
+        // même raison (il porte le numéro en cours), mais avec une raison
+        // exacte — une conservation qui explique mal pourquoi est une
+        // conservation qu'on ne saura pas relire demain.
+        reason: isManifestAsset(name)
+          ? 'manifeste du build en cours — écrit par `electron:build` et téléversé avec le lot'
+          : 'version en cours de construction — c’est la sortie du build, et les contrôles locaux la lisent',
       });
       continue;
     }

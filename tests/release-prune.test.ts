@@ -270,6 +270,74 @@ describe('ce qui autorise une suppression est une preuve, pas une date', () => {
   });
 });
 
+describe('une arborescence décrite par un manifeste PUBLIÉ est condamnable par une preuve', () => {
+  const unpacked = (name = 'win-unpacked', size = 507_000_000) => ({ name, size });
+
+  it('une arborescence PROUVÉE part sur `--yes` : une empreinte l’autorise, pas un drapeau', () => {
+    // C'est le dernier volume qui échappait à toute preuve : 507 Mo mesurés, ni
+    // numéro ni empreinte. Depuis que le build publie un manifeste, l'empreinte
+    // recomposée ici dit si le canal détient déjà ces octets — et si oui, le
+    // dossier est du même famille qu'un fichier dont le digest correspond.
+    const plan = prunePlan({
+      currentVersion: '1.0.7',
+      dirs: [unpacked()],
+      provenDirs: ['win-unpacked'],
+      published: [release('1.0.6', [])],
+    });
+    assert.deepEqual(
+      plan.remove.map((r) => r.name),
+      ['win-unpacked'],
+    );
+    assert.equal(plan.remove[0].kind, 'digest', 'l’acte est celui d’une preuve, pas d’une décision');
+    assert.match(plan.remove[0].reason, /manifeste/);
+    assert.match(plan.remove[0].reason, /déjà servis/);
+    assert.equal(plan.bytesFreed, 507_000_000, 'et on sait exactement quoi libérer');
+    assert.deepEqual(plan.loose, [], 'une arborescence condamnée n’est plus « nommée sans être jugée »');
+  });
+
+  it('sans preuve, elle est NOMMÉE et intacte — et `--unpacked` reste le seul acte', () => {
+    const plan = prunePlan({ currentVersion: '1.0.7', dirs: [unpacked()], published: [] });
+    assert.deepEqual(plan.remove, []);
+    assert.equal(plan.loose.length, 1);
+    assert.equal(plan.loose[0].kind, 'unpacked');
+
+    const acted = prunePlan({ currentVersion: '1.0.7', dirs: [unpacked()], unpacked: true, published: [] });
+    assert.deepEqual(acted.remove.map((r) => r.name), ['win-unpacked']);
+    assert.equal(acted.remove[0].kind, 'unpacked', 'une décision ne se déguise pas en preuve');
+  });
+
+  it('une preuve ne peut PAS condamner ce qui n’est pas une sortie de build', () => {
+    // La convention `-unpacked` seule décide de ce qui est une sortie de build.
+    // Sans cette borne, un manifeste se trompant de dossier ferait partir les
+    // ressources de build — des ENTRÉES, pas des sorties.
+    const plan = prunePlan({
+      currentVersion: '1.0.7',
+      dirs: [unpacked('.icon-ico'), unpacked('resources')],
+      provenDirs: ['.icon-ico', 'resources'],
+      published: [],
+    });
+    assert.deepEqual(plan.remove, []);
+    assert.equal(plan.loose.length, 2);
+  });
+
+  it('le manifeste lui-même est un artefact versionné : son numéro le range', () => {
+    const manifest = (v: string) => `MamaTheraFinance-${v}-unpacked.manifest.json`;
+    const plan = prunePlan({
+      currentVersion: '1.0.6',
+      local: [local(manifest('1.0.5'), 'manifeste-1.0.5'), local(manifest('1.0.6'), 'manifeste-1.0.6')],
+      published: [release('1.0.5', [held(manifest('1.0.5'), 'manifeste-1.0.5')])],
+    });
+    assert.deepEqual(
+      plan.remove.map((r) => r.name),
+      [manifest('1.0.5')],
+      'celui du canal part, celui du build en cours reste',
+    );
+    assert.equal(plan.keep[0].name, manifest('1.0.6'));
+    assert.match(plan.keep[0].reason, /manifeste du build en cours/, 'et la raison dit ce qu’il est vraiment');
+    assert.deepEqual(plan.ignored, [], 'il porte un numéro : il n’est pas « hors sujet »');
+  });
+});
+
 describe('ce que le plan ne touche jamais', () => {
   it('la version en cours de construction reste, même déjà publiée', () => {
     // C'est la sortie du build : `check:release`, la preuve bureau et le rejeu de

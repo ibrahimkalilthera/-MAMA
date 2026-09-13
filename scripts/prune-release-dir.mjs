@@ -7,6 +7,9 @@
  *   npm run release:prune -- --yes --stale → et les reconstructions d'un numéro déjà publié
  *   npm run release:prune -- --yes --unpublished → et les builds d'une version jamais livrée
  *   npm run release:prune -- --yes --unpacked → et la sortie de build DÉCOMPRESSÉE
+ *     (sa forme PROUVÉE — `electron:build` publie un manifeste d'arborescence, et
+ *     une arborescence décrite par un manifeste PUBLIÉ de la version ANTÉRIEURE
+ *     part sur le seul `--yes`, parce qu'une empreinte l'autorise)
  *   npm run release:prune -- --dir=release-test
  *   npm run release:prune -- --check      → OBJECTE (exit 1) si l'atelier détient
  *     des octets que le canal sert déjà ; ne supprime jamais rien
@@ -36,7 +39,13 @@
  *   • supprimer sur une empreinte absente, ou sur un actif non déclaré ;
  *   • toucher à un dossier qui ne soit pas une sortie de build décompressée
  *     (la convention `-unpacked` d'electron-builder) : les autres sont des
- *     ENTRÉES de build, et elles sont nommées sans être jugées ;
+ *     ENTRÉES de build, et elles sont nommées sans être jugées — même si un
+ *     manifeste portait leur empreinte, la convention seule décide de ce qui est
+ *     une sortie de build ;
+ *   • condamner l'arborescence de la version EN COURS : elle est décrite par un
+ *     manifeste de ce numéro-là, donc le canal en détient les octets, et c'est
+ *     précisément la sortie de build que les preuves locales lisent (même règle
+ *     que pour les fichiers de `currentVersion`) ;
  *   • autoriser un BROUILLON à quoi que ce soit : il est invisible pour un poste.
  *
  * Et une empreinte qui DIFFÈRE ne produit pas une suppression mais un ROUGE : des
@@ -86,6 +95,7 @@ import {
   pruneCommand,
   prunePlan,
 } from './lib/release-prune.mjs';
+import { manifestOfTree, matchingManifestAsset, publishedManifests } from './lib/unpacked-manifest.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -100,10 +110,11 @@ const stale = args.includes('--stale');
 // qui reste prouvable, c'est qu'elle est morte (plus basse que ce qu'on prépare
 // et que tout ce que le canal détient), et c'est la règle qui s'en charge.
 const unpublished = args.includes('--unpublished');
-// La sortie de build décompressée (`win-unpacked`) : un dossier, donc aucun
-// numéro, donc aucune empreinte — mais 508 Mo mesurés sur 754 Mo. C'est un acte
-// à part pour la même raison que les autres : sa suppression ne se prouve pas,
-// elle se décide (et elle demande un `electron:dist` aux preuves locales).
+// La sortie de build décompressée (`win-unpacked`) : 508 Mo mesurés sur 754 Mo.
+// C'est un acte à part, et il n'est plus le seul chemin : une arborescence
+// DÉCRITE par un manifeste publié d'une autre version part sur le seul `--yes`
+// (une empreinte l'autorise). `--unpacked` reste l'acte de ce qu'aucune preuve
+// ne condamne — il demande un `electron:dist` aux preuves locales.
 const unpacked = args.includes('--unpacked');
 // Le canal lu depuis un FICHIER au lieu de l'API. C'est une couture, et elle est
 // assumée : sans elle, la suite ne peut exercer ce CLI qu'en lisant sa source
@@ -233,7 +244,98 @@ const entries = [
   ...others.map((o) => ({ name: o.name, size: o.size })),
 ];
 
-const plan = prunePlan({ currentVersion, local, dirs, published, stale, unpublished, unpacked });
+// ── La preuve d'arborescence ─────────────────────────────────────────────────
+// Un dossier n'a ni numéro ni empreinte : le canal ne pouvait donc RIEN dire de
+// lui, et les 508 Mo mesurés dans `release/win-unpacked` restaient hors de toute
+// preuve — nommés, pesés, jamais jugés. Depuis que le build PUBLIE un manifeste
+// (`manifest:unpacked`, à la fin de `electron:build`), cette empreinte existe :
+// recomposée ici, elle se compare à ce que le canal sert, sans télécharger un
+// octet. Deux garde-fous, et les deux tiennent aux faits :
+//   • rien n'est haché si le canal ne publie aucun manifeste — hacher 508 Mo
+//     pour ne rien pouvoir comparer serait du temps perdu en silence, et le
+//     bloc le DIT au lieu de laisser croire qu'aucune preuve n'existe ;
+//   • l'arborescence de la version EN COURS n'est pas condamnée : son manifeste
+//     porte le numéro en préparation, donc c'est la sortie de build — celle que
+//     les preuves locales lisent (même règle que pour les fichiers).
+const manifestAssets = publishedManifests(published);
+// Ce qui pourrait CONDAMNER, s'il en existait : seul un manifeste d'une AUTRE
+// version le peut (celui de la version en cours décrit la sortie du build, qui
+// reste). S'il est le seul publié, hacher ne pourrait donc rien changer au
+// verdict — mesuré : 508 Mo d'arborescence coûtent ~6 s sur ce poste, et ce prix
+// ne se paie pas pour répondre « rien n'a changé ». Le plan le DIT au lieu de
+// faire silence sur une preuve qu'il n'a pas tentée.
+const provable = manifestAssets.filter((asset) => String(asset.version ?? '') !== currentVersion);
+// Le hook de commit ne hache pas 508 Mo à chaque commit — mais il le déclare
+// (même partage que `WORKSHOP_SOFT_OFFLINE` : le hook dégrade et le dit, la CI ne
+// dégrade jamais).
+const treeProofOff = process.env.WORKSHOP_TREE_PROOF === '0';
+const unpackedDirs = dirs.filter((dir) => /-unpacked$/.test(dir.name));
+const treeProof = new Map();
+for (const dir of unpackedDirs) {
+  if (treeProofOff) {
+    treeProof.set(dir.name, {
+      proven: false,
+      why: 'preuve d’arborescence non tentée (WORKSHOP_TREE_PROOF=0) : hacher ce dossier ralentirait chaque commit — la CI la lance, elle, strictement',
+    });
+    continue;
+  }
+  if (!manifestAssets.length) {
+    treeProof.set(dir.name, {
+      proven: false,
+      why: 'le canal ne publie aucun manifeste d’arborescence — rien à comparer, donc rien à hacher',
+    });
+    continue;
+  }
+  if (!provable.length) {
+    treeProof.set(dir.name, {
+      proven: false,
+      why: `le canal ne publie de manifeste que pour la version en cours (${currentVersion}) — aucune arborescence antérieure ne peut donc être prouvée, et rien n’est haché`,
+    });
+    continue;
+  }
+  try {
+    const { digest } = manifestOfTree(join(releaseDir, dir.name), { label: dir.name });
+    const match = matchingManifestAsset(manifestAssets, digest);
+    if (!match) {
+      treeProof.set(dir.name, {
+        proven: false,
+        why: `aucun manifeste publié ne décrit cette arborescence (empreinte recomposée ${digest.slice(0, 12)}…) — donc jamais condamnée sur un doute`,
+      });
+      continue;
+    }
+    if (String(match.version ?? '') === currentVersion) {
+      treeProof.set(dir.name, {
+        proven: false,
+        why: `décrite par ${match.name}, qui porte la version EN COURS (${currentVersion}) — c’est la sortie de build, et les preuves locales la lisent`,
+      });
+      continue;
+    }
+    treeProof.set(dir.name, {
+      proven: true,
+      why: `décrite par ${match.name} (version ${match.version}) — le canal sert déjà ces octets, et \`electron:dist\` la régénère`,
+    });
+  } catch (error) {
+    // Un fichier verrouillé (l'application tourne), un lien : l'arborescence n'a
+    // pas pu être LUE, donc elle n'est pas prouvée — une preuve qu'on n'a pas pu
+    // faire ne condamne rien.
+    treeProof.set(dir.name, {
+      proven: false,
+      why: `arborescence non lisible (${error.message}) — donc non prouvée, et jamais condamnée sur un doute`,
+    });
+  }
+}
+const provenDirs = [...treeProof].filter(([, proof]) => proof.proven).map(([name]) => name);
+
+const plan = prunePlan({
+  currentVersion,
+  local,
+  dirs,
+  published,
+  stale,
+  unpublished,
+  unpacked,
+  provenDirs,
+});
 const sizeOf = (name) =>
   local.find((f) => f.name === name)?.size ?? dirs.find((d) => d.name === name)?.size ?? 0;
 
@@ -330,6 +432,18 @@ if (plan.ignored.length) {
   );
 }
 
+// Ce qu'une PREUVE dit des arborescences, y compris quand elle ne prouve rien :
+// c'est la seule ligne qui distingue « le canal ne publie pas de manifeste »,
+// « celui qu'il publie décrit autre chose », « c'est la sortie du build en
+// cours » et « ces octets sont déjà servis ». Quatre lectures, quatre sorts.
+if (unpackedDirs.length) {
+  console.log(`\n🔐 arborescences (${unpackedDirs.length}) — ce qu’une preuve peut en dire :`);
+  for (const dir of unpackedDirs) {
+    const proof = treeProof.get(dir.name);
+    console.log(`   ${proof.proven ? '✅' : '➖'} ${dir.name}  ${formatBytes(dir.size)} — ${proof.why}`);
+  }
+}
+
 if (others.length) {
   console.log(`\n🔗 ni fichier ni dossier (${others.length}) — nommés, pesés, jamais jugés :`);
   for (const item of others) console.log(`   ${item.name}  ${formatBytes(item.size)} — ${item.reason}`);
@@ -419,11 +533,14 @@ if (check) {
     process.exit(0);
   }
   console.error(
-    `\n❌ l'atelier détient ${redundant.length} fichier(s) que le canal sert DÉJÀ, octet pour octet —` +
+    `\n❌ l'atelier détient ${redundant.length} entrée(s) que le canal sert DÉJÀ, octet pour octet —` +
       ' c’est précisément ce qui permet de reprendre le mauvais fichier à la main :\n',
   );
   for (const item of redundant) {
-    console.error(`   • ${item.name} (${item.version}, ${formatBytes(sizeOf(item.name))})`);
+    // Un dossier n'a pas de numéro : l'afficher vide donnerait « win-unpacked
+    // (, 507 Mo) », et une virgule orpheline se lit comme un bug.
+    const version = item.version ? `${item.version}, ` : '';
+    console.error(`   • ${item.name} (${version}${formatBytes(sizeOf(item.name))})`);
   }
   console.error(
     `\n   L'acte qui les enlève, sans rien re-prouver :\n   ${pruneCommand(

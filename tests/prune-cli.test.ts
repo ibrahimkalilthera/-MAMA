@@ -35,7 +35,17 @@ function runCli(args: string[], env: Record<string, string> = {}) {
   const result = spawnSync(process.execPath, [CLI, ...args], {
     cwd: ROOT,
     encoding: 'utf8',
-    env: { ...process.env, GH_TOKEN: '', GITHUB_TOKEN: '', WORKSHOP_SOFT_OFFLINE: '', ...env },
+    // `WORKSHOP_TREE_PROOF` est NEUTRALISÉ par défaut : la suite tourne aussi
+    // dans le hook de commit, qui pose `WORKSHOP_TREE_PROOF=0` — héritée, elle
+    // ferait passer pour « conforme » un contrôle qui n'a rien tenté.
+    env: {
+      ...process.env,
+      GH_TOKEN: '',
+      GITHUB_TOKEN: '',
+      WORKSHOP_SOFT_OFFLINE: '',
+      WORKSHOP_TREE_PROOF: '',
+      ...env,
+    },
   });
   return { code: result.status, out: String(result.stdout), err: String(result.stderr) };
 }
@@ -71,6 +81,34 @@ function canal(caseName: string, releases: { tag: string; assets: { name: string
 }
 
 const listed = (dir: string) => readdirSync(join(ROOT, dir)).sort();
+
+// La version en cours vient du PAQUET, pas d'un littéral : un test qui écrirait
+// « 1.0.6 » deviendrait faux au prochain numéro, et pire, il continuerait de
+// passer en ne mesurant plus ce qu'il croit mesurer.
+const CURRENT = String(JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version);
+const PREVIOUS = CURRENT.replace(/\.(\d+)$/, (_, patch: string) => `.${Number(patch) === 0 ? 1 : Number(patch) - 1}`);
+const MANIFEST_SUFFIX = '-unpacked.manifest.json';
+
+/**
+ * Le manifeste d'une arborescence, écrit À LA MAIN.
+ *
+ * Volontairement sans passer par le module : c'est un ORACLE indépendant. Si la
+ * forme canonique changeait, ce cas tomberait au lieu de suivre la dérive — une
+ * empreinte qui s'accorde avec elle-même ne prouve rien.
+ */
+function manifeste(label: string, files: [path: string, content: string][]) {
+  const entries = files
+    .map(([path, content]) => ({
+      path,
+      size: Buffer.byteLength(content),
+      sha256: createHash('sha256').update(content).digest('hex'),
+    }))
+    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return JSON.stringify({ dir: label, bytes: entries.reduce((sum, f) => sum + f.size, 0), files: entries });
+}
+
+/** Les octets exacts que `dirs: ['win-unpacked']` de `atelier()` écrit. */
+const APPBIN = 'x'.repeat(2048);
 
 describe('release:prune, lancé pour de vrai — sans --yes, il ne touche à RIEN', () => {
   it('détecte un fichier prouvé redondant, l’annonce, et le laisse sur le disque', () => {
@@ -265,6 +303,130 @@ describe('release:prune --check — l’objection automatique', () => {
   });
 });
 
+describe('une arborescence PROUVÉE par un manifeste publié', () => {
+  /** Un atelier avec son arborescence de build, et le même nom de lot pour tous. */
+  const atelierArbre = (name: string) =>
+    atelier(name, { 'MamaTheraFinance-1.0.6-setup.exe': 'octets-courants' }, ['win-unpacked']);
+
+  /** Un release qui publie le manifeste d'une arborescence donnée. */
+  const manifesteDe = (version: string, content: string) => ({
+    tag: `v${version}`,
+    assets: [
+      { name: `MamaTheraFinance-${version}${MANIFEST_SUFFIX}`, bytes: manifeste('win-unpacked', [['app.bin', content]]) },
+    ],
+  });
+
+  const nomManifeste = (version: string) => `MamaTheraFinance-${version}${MANIFEST_SUFFIX}`;
+
+  it('--check OBJECTE (exit 1) sans rien supprimer, et nomme le manifeste qui le prouve', () => {
+    // C'est la demande d'origine, au mot près : 507 Mo ne pouvaient être ni
+    // jugés ni condamnés. Maintenant l'objection tombe seule, et elle dit sur
+    // quoi elle s'appuie.
+    const dir = atelierArbre('arbre-propre');
+    const channel = canal('arbre-propre', [manifesteDe(PREVIOUS, APPBIN)]);
+
+    const { code, out, err } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 1, 'un octet prouvé redondant est un ROUGE, pas un commentaire');
+    assert.match(out, /🔐 arborescences \(1\)/);
+    assert.match(
+      out,
+      new RegExp(`✅ win-unpacked.*${nomManifeste(PREVIOUS).replace(/\./g, '\\.')}`),
+      'la preuve nomme l’actif du canal',
+    );
+    assert.match(err, /que le canal sert DÉJÀ, octet pour octet/);
+    assert.match(err, /win-unpacked \(\d/, 'et la ligne ne laisse pas une virgule de version orpheline');
+    assert.equal(existsSync(join(ROOT, dir, 'win-unpacked')), true, 'l’objection ne supprime rien');
+  });
+
+  it('--yes la fait partir SANS --unpacked : une empreinte l’autorise', () => {
+    const dir = atelierArbre('arbre-acte');
+    const channel = canal('arbre-acte', [manifesteDe(PREVIOUS, APPBIN)]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--yes']);
+
+    assert.equal(code, 0);
+    assert.match(out, /1 entrée\(s\) supprimée\(s\)/);
+    assert.equal(existsSync(join(ROOT, dir, 'win-unpacked')), false, 'le dossier est parti');
+    assert.deepEqual(listed(dir), ['MamaTheraFinance-1.0.6-setup.exe'], 'et rien d’autre n’a bougé');
+  });
+
+  it('l’arborescence de la version EN COURS n’est pas condamnée : c’est la sortie du build', () => {
+    // Même règle que pour les fichiers : le build d'aujourd'hui est lu par les
+    // preuves locales (preuve bureau, rejeu de mise à jour). Et le canal publie
+    // AUSSI un manifeste antérieur — sans lui, rien ne serait haché, et le cas
+    // ne mesurerait pas la règle qu'il prétend mesurer.
+    const dir = atelierArbre('arbre-courante');
+    const channel = canal('arbre-courante', [
+      manifesteDe(PREVIOUS, `${APPBIN}-autre-build`),
+      manifesteDe(CURRENT, APPBIN),
+    ]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 0, 'publier puis garder sa propre sortie de build n’est pas une objection');
+    assert.match(out, /➖ win-unpacked/);
+    assert.match(out, /porte la version EN COURS/);
+    assert.equal(existsSync(join(ROOT, dir, 'win-unpacked')), true);
+  });
+
+  it('aucun manifeste ne décrit cet arbre → elle est NOMMÉE, et rien n’est condamné', () => {
+    // L'arborescence a changé depuis ce que le canal a décrit. Une preuve qui ne
+    // correspond pas ne condamne rien, et le plan le DIT — avec l'empreinte
+    // recomposée, pour qu'on puisse voir que la comparaison a bien eu lieu.
+    const dir = atelierArbre('arbre-autre');
+    const channel = canal('arbre-autre', [manifesteDe(PREVIOUS, `${APPBIN}-different`)]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 0);
+    assert.match(out, /➖ win-unpacked/);
+    assert.match(out, /aucun manifeste publié ne décrit cette arborescence/);
+    assert.match(out, /jamais condamnée sur un doute/);
+    assert.equal(existsSync(join(ROOT, dir, 'win-unpacked')), true);
+  });
+
+  it('sans manifeste au canal, il le dit et ne hache RIEN', () => {
+    const dir = atelierArbre('arbre-sans-manifeste');
+    const channel = canal('arbre-sans-manifeste', [
+      { tag: 'v1.0.4', assets: [{ name: 'MamaTheraFinance-1.0.4-setup.exe', bytes: 'x' }] },
+    ]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 0);
+    assert.match(out, /le canal ne publie aucun manifeste d’arborescence/);
+    assert.match(out, /rien à comparer, donc rien à hacher/);
+  });
+
+  it('quand seul le manifeste de la version en cours est publié, il ne hache pas pour rien', () => {
+    // Aucune arborescence antérieure ne peut être prouvée : le manifeste de la
+    // version en cours décrit la sortie du build, qui n'est jamais condamnée. Le
+    // hachage coûterait ~6 s pour ne rien pouvoir changer — et le plan le dit,
+    // au lieu de laisser croire qu'il a comparé quelque chose.
+    const dir = atelierArbre('arbre-courant-seul');
+    const channel = canal('arbre-courant-seul', [manifesteDe(CURRENT, APPBIN)]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 0);
+    assert.match(out, /ne publie de manifeste que pour la version en cours/);
+    assert.match(out, /rien n’est haché/);
+  });
+
+  it('le hook peut s’en dispenser — et le DIT, sinon la dispense serait un faux vert', () => {
+    const dir = atelierArbre('arbre-hook');
+    const channel = canal('arbre-hook', [manifesteDe(PREVIOUS, APPBIN)]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check'], { WORKSHOP_TREE_PROOF: '0' });
+
+    assert.equal(code, 0, 'sans preuve, aucune condamnation : le dossier reste');
+    assert.match(out, /preuve d’arborescence non tentée \(WORKSHOP_TREE_PROOF=0\)/);
+    assert.match(out, /la CI la lance, elle, strictement/);
+    assert.equal(existsSync(join(ROOT, dir, 'win-unpacked')), true);
+  });
+});
+
 describe('le câblage, vérifié là où il compte', () => {
   it('les commandes sont branchées, et le maillon est dans la chaîne', () => {
     const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
@@ -296,6 +458,33 @@ describe('le câblage, vérifié là où il compte', () => {
     const build = workflow.indexOf('id: build');
     const workshop = workflow.indexOf('run: npm run check:release:workshop');
     assert.ok(build >= 0 && workshop > build, 'le contrôle suit le build, il ne le précède pas');
+  });
+
+  it('le manifeste d’arborescence est ÉCRIT par le build, et la CI le prouve SANS dispense', () => {
+    const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+    assert.equal(pkg.scripts['manifest:unpacked'], 'node scripts/write-unpacked-manifest.mjs');
+    assert.match(
+      pkg.scripts['electron:build'],
+      /&& npm run manifest:unpacked$/,
+      'un manifeste écrit à la main décrirait un arbre d’avant-hier',
+    );
+    assert.ok(existsSync(join(ROOT, 'scripts', 'write-unpacked-manifest.mjs')));
+
+    // La dispense du hook est DÉCLARÉE là où elle est accordée — et le job de
+    // publication ne la connaît pas : sinon le seul contexte qui juge vraiment
+    // l'atelier serait aussi celui qui ne hache rien.
+    for (const hook of ['pre-commit', 'pre-push']) {
+      assert.match(
+        readFileSync(join(ROOT, '.husky', hook), 'utf8'),
+        /WORKSHOP_TREE_PROOF=0/,
+        `${hook} : 6 s de hachage à chaque commit ne se paient pas sans le dire`,
+      );
+    }
+    assert.doesNotMatch(
+      readFileSync(join(ROOT, '.github', 'workflows', 'desktop-release.yml'), 'utf8'),
+      /WORKSHOP_TREE_PROOF/,
+      'la CI n’a aucune raison de renoncer à la seule preuve qui condamne 507 Mo',
+    );
   });
 
   it('aucun rappel de commande n’est écrit en dur dans le CLI', () => {

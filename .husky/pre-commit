@@ -22,4 +22,7 @@
 # projet si le Node courant ne correspond pas (scripts/with-pinned-node.mjs) —
 # un poste sans gestionnaire de version peut donc committer. Tout ce que la
 # chaîne lance hérite de ce runtime (elle spawn via process.execPath).
-AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 WORKSHOP_SOFT_OFFLINE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs
+# WORKSHOP_TREE_PROOF=0 : l'atelier ne hache pas les 508 Mo d'une arborescence de
+# build à chaque commit (~6 s mesurés pour ne rien condamner) — il le DIT dans
+# son rapport, et le job de publication de la CI, lui, la lance strictement.
+AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 WORKSHOP_SOFT_OFFLINE=1 WORKSHOP_TREE_PROOF=0 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs

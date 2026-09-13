@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { nameCarriesVersion, parseLatestYml } from './latest-yml.mjs';
 import { releaseTag } from './release-version.mjs';
+import { isManifestAsset } from './unpacked-manifest.mjs';
 
 /**
  * Comparer le flux local, les artefacts du dossier, et la version du paquet.
@@ -260,6 +261,12 @@ export function assetsToPublish({ latest, dirNames = [] } = {}) {
     // mais un poste sans droits d'installation le télécharge à la main : il est
     // donc publié, et seulement s'il porte bien la version annoncée.
     if (/-portable\.exe$/i.test(name) && nameCarriesVersion(name, latest.version)) push(name);
+    // Le manifeste d'arborescence voyage avec le lot : c'est LUI qui rendra plus
+    // tard la sortie de build condamnable (le contrôle d'atelier compare son
+    // empreinte à celle de l'arbre local, sans rien télécharger). Un manifeste
+    // d'une AUTRE version n'est pas publié : il décrirait un arbre qui n'est pas
+    // celui de ce release.
+    if (isManifestAsset(name) && nameCarriesVersion(name, latest.version)) push(name);
   }
   return wanted;
 }
@@ -319,8 +326,11 @@ export function expectedArtifacts({ latest = null, dirNames = [], releases = [] 
       if (!name) continue;
       if (flux.has(name)) add(name);
       // Le portable n'est pas dans `latest.yml` (il ne s'auto-installe pas),
-      // donc c'est la version portée par son nom qui dit qu'il est du lot.
+      // donc c'est la version portée par son nom qui dit qu'il est du lot — et
+      // c'est aussi le cas du manifeste d'arborescence, pour la même raison :
+      // aucun poste ne le télécharge, mais le release doit le porter.
       else if (/-portable\.exe$/i.test(name) && nameCarriesVersion(name, latest.version)) add(name);
+      else if (isManifestAsset(name) && nameCarriesVersion(name, latest.version)) add(name);
     }
   }
   return names;
