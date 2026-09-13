@@ -223,6 +223,16 @@ const insertOnce = (table, row, find) => replayableWrite(
 );
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Les reprises de transport du run, DITES à la fin.
+ *
+ * Un run vert après trois reprises ne raconte pas la même chose qu'un run vert
+ * du premier essai : la règle du dépôt est qu'une reprise doit se voir, sinon
+ * « vert » ne distingue plus « tout allait bien » de « ça a fini par passer ».
+ */
+const transients = [];
+const noteTransient = (what) => { transients.push(what); };
+
 // ── Cleanup ──────────────────────────────────────────────────────────────────
 async function cleanup() {
   try {
@@ -518,6 +528,42 @@ async function createTechniqueMember(page, name, email) {
   throw new Error('membre technique créé mais id introuvable via l\u2019API');
 }
 
+/**
+ * Naviguer vers la prod en distinguant un HOQUET d'un VERDICT.
+ *
+ * Mesuré : un 504 du gateway Supabase et un délai de navigation ne disent rien
+ * de l'application, alors que le run, lui, tombait en rouge et paraissait dire
+ * quelque chose sur elle. Une navigation reprise est donc journalisée, une
+ * navigation qui échoue pour de bon est nommée comme ce qu'elle est (la
+ * plateforme n'a pas servi la page), et un échec qui n'a PAS la forme d'un
+ * transport n'est jamais retenté : il remonte tel quel.
+ */
+async function gotoWithRetry(page, target, { attempts = 3 } = {}) {
+  let reason = '';
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const res = await page.goto(target, { waitUntil: 'networkidle2', timeout: 90000 });
+      const status = res ? res.status() : null;
+      if (status === null || status < 500) return { status, attempts: attempt };
+      reason = `HTTP ${status} servi par la plateforme`;
+    } catch (e) {
+      const msg = String(e?.message || e).slice(0, 140);
+      // Ni un délai de navigation ni une panne de socket ne parlent de l'app.
+      if (!/timeout|timed out|net::ERR|ECONNRESET|ECONNREFUSED|ERR_CONNECTION|socket hang up|Navigation failed/i.test(msg)) throw e;
+      reason = msg;
+    }
+    if (attempt < attempts) {
+      console.log(`  ↻ navigation : ${reason} — coupure passagère, tentative ${attempt + 1}/${attempts}`);
+      noteTransient(`navigation (${reason})`);
+      await wait(3000 * attempt);
+    }
+  }
+  throw new Error(
+    `la prod n’a pas servi la page après ${attempts} tentatives (${reason}) — ` +
+      'c’est la PLATEFORME (ou le réseau du runner) qui n’a pas répondu, pas une régression de l’application',
+  );
+}
+
 // target: { member (Staff row) | null, mode, createViaUI? }
 async function runE2E(target) {
   const browser = await puppeteer.launch({
@@ -559,18 +605,46 @@ async function runE2E(target) {
     });
     page.on('pageerror', (e) => console.log('  [pageerror]', String(e).slice(0, 180)));
 
-    await page.goto(URL, { waitUntil: 'networkidle2', timeout: 90000 });
+    await gotoWithRetry(page, URL);
     await wait(2500);
-    const emailSel = await page.$('input[type="email"]') || await page.$('input[placeholder*="@"]');
-    if (emailSel) {
-      await page.type('input[type="email"], input[placeholder*="@"]', EMAIL);
-      const pwd = await page.$('input[type="password"]');
-      if (pwd) await pwd.type(PASS);
-      await page.evaluate(() => {
-        const btn = [...document.querySelectorAll('button')].find((b) => /se connecter|login/i.test(b.textContent || ''));
-        if (btn) btn.click();
-      });
-      await page.waitForFunction(() => !document.querySelector('input[type="email"]'), { timeout: 30000 }).catch(() => {});
+    /** Le formulaire de connexion est-il encore là ? (le seul signe honnête.) */
+    const stillOnLogin = () =>
+      page.evaluate(() => !!document.querySelector('input[type="email"]')).catch(() => true);
+    const loginForm = await stillOnLogin();
+    if (loginForm) {
+      let loggedIn = false;
+      // DEUX tentatives, et la seconde recharge la page : le formulaire a déjà
+      // été rempli, donc taper à nouveau empilerait les caractères au lieu de
+      // refaire la saisie.
+      for (let attempt = 1; attempt <= 2 && !loggedIn; attempt += 1) {
+        if (attempt > 1) {
+          console.log('  ↻ connexion : le formulaire est resté — nouvelle tentative 2/2');
+          noteTransient('connexion (formulaire resté affiché)');
+          await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
+          await wait(2500);
+        }
+        await page.type('input[type="email"], input[placeholder*="@"]', EMAIL);
+        const pwd = await page.$('input[type="password"]');
+        if (pwd) await pwd.type(PASS);
+        await page.evaluate(() => {
+          const btn = [...document.querySelectorAll('button')].find((b) => /se connecter|login/i.test(b.textContent || ''));
+          if (btn) btn.click();
+        });
+        // `waitForFunction` qui échoue ne doit plus être AVALÉ : la version
+        // précédente imprimait « connecté » même quand le formulaire restait
+        // affiché, et le run mourait plus loin sur un « bouton introuvable » —
+        // un rouge qui accusait l'application d'un problème de transport.
+        loggedIn = await page
+          .waitForFunction(() => !document.querySelector('input[type="email"]'), { timeout: 30000 })
+          .then(() => true)
+          .catch(() => false);
+      }
+      if (!loggedIn) {
+        throw new Error(
+          'la connexion n’a pas abouti : le formulaire est resté affiché après 2 tentatives — ' +
+            'l’application n’a pas rendu de session (Supabase joignable ?), ce n’est pas une régression du rendu',
+        );
+      }
       console.log('✅ connecté à', URL);
     }
     await wait(4000);
@@ -948,6 +1022,12 @@ try {
 }
 
 const failed = checks.filter((c) => !c.ok);
+// Les reprises se disent AVANT le verdict : un vert obtenu au troisième essai
+// ne doit pas se lire comme un vert du premier.
+if (transients.length) {
+  console.log(`\n↻ ${transients.length} reprise(s) de transport pendant ce run :`);
+  for (const t of transients) console.log(`   - ${t}`);
+}
 console.log(`\n${failed.length === 0 ? '✅' : '❌'} ${checks.length - failed.length}/${checks.length} vérifications OK`);
 if (failed.length === 0) {
   // La preuve vient d'ici, pas d'une phrase du workflow : ce que ce pixel-check a

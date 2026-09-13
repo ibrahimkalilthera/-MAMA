@@ -222,6 +222,12 @@ describe('câblage — le bandeau part vraiment au démarrage du serveur de dev'
   it('vite.config.ts l’enregistre dans ses plugins (sinon le module est mort)', () => {
     const config = readFileSync(join(root, 'vite.config.ts'), 'utf8');
     assert.match(config, /import \{devRuntimeBanner\} from '\.\/scripts\/lib\/runtime-banner\.mjs'/);
-    assert.match(config, /plugins: \[react\(\), tailwindcss\(\), devRuntimeBanner\(\)\]/);
+    // On regarde la LISTE des plugins, pas sa forme exacte : un plugin de plus
+    // (`buildStamp`, qui nomme le commit du build) ne doit pas faire échouer le
+    // contrôle du bandeau — ce qui compte est que chacun soit ENREGISTRÉ, parce
+    // qu'un module importé mais absent de la liste est un module mort.
+    const list = config.match(/plugins: \[([^\]]*)\]/)?.[1] ?? '';
+    assert.match(list, /devRuntimeBanner\(\)/, 'le bandeau est enregistré');
+    assert.match(list, /buildStamp\(\)/, 'et l’estampille de build aussi');
   });
 });

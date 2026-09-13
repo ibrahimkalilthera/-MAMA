@@ -143,19 +143,25 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           EOF
 
-      # Le CLI vercel deploy --prebuilt --prod retourne une fois le build
-      # uploadé ; la propagation CDN peut prendre quelques secondes. On attend
-      # un HTTP 200 de la racine avant de lancer le pixel-check.
-      - name: Wait for the fresh deployment to be live
-        run: |
-          for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://mama-thera-finance.vercel.app/ || true)
-            if [ "$code" = "200" ]; then echo "prod en ligne (HTTP 200, essai $i)"; exit 0; fi
-            echo "attente du déploiement… HTTP $code (essai $i/30)"
-            sleep 5
-          done
-          echo "prod pas en ligne après 150s — abandon" >&2
-          exit 1
+      # Attendre un HTTP 200 ne suffit PAS : le déploiement PRÉCÉDENT en rend un,
+      # et pendant la propagation de l'alias un cache de bord sert encore l'ancien
+      # HTML. Le pixel-check jugeait alors le build d'un AUTRE commit et rendait un
+      # rouge qui accusait l'application pour une page jamais publiée. On attend
+      # donc que la page SERVIE déclare le build de CE commit (l'identité écrite
+      # dans son HTML par `scripts/lib/build-stamp.mjs`) : l'attente ne passe plus
+      # tant que la prod ne sert pas le bon build, et son refus nomme la
+      # PUBLICATION, jamais le rendu.
+      - name: Wait until prod serves THIS commit's build
+        # Mandat de preuve : cette étape publie SA mesure (quelle identité la prod
+        # sert, et en combien d'essais) — c'est la phrase qui rend le rapport E2E
+        # honnête sur ce qu'il a jugé.
+        env:
+          AUTOMATION_EVIDENCE: '1'
+        run: >-
+          node scripts/wait-for-deployment.mjs
+          --url=https://mama-thera-finance.vercel.app/
+          --sha=${{ github.event.workflow_run.head_sha || github.sha }}
+          --timeout=240
 
       # Garde de sécurité : X-Frame-Options (SAMEORIGIN/DENY) et
       # X-Content-Type-Options (nosniff) doivent être servis sur la racine —

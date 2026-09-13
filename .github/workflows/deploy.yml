@@ -256,7 +256,15 @@ jobs:
       - name: Pull Vercel production settings and environment
         run: tools/node_modules/.bin/vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
+      # `BUILD_SHA` : le build écrit ce commit dans son HTML
+      # (`scripts/lib/build-stamp.mjs` → <meta name="build-sha">). Sans lui, un
+      # test post-déploiement ne peut pas distinguer le build qu'il vient de
+      # publier du précédent — c'est ce qui faisait juger un autre commit que le
+      # sien pendant la propagation de l'alias. Il est posé ICI, explicitement,
+      # plutôt que déduit de l'environnement du bâti.
       - name: Build app (Vite) and stage for Vercel
+        env:
+          BUILD_SHA: ${{ needs.gate.outputs.deploy_sha || github.sha }}
         run: tools/node_modules/.bin/vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to production (prebuilt)

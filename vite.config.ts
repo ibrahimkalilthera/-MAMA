@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
+import {buildStamp} from './scripts/lib/build-stamp.mjs';
 import {devRuntimeBanner} from './scripts/lib/runtime-banner.mjs';
 
 export default defineConfig(({mode}) => {
@@ -10,7 +11,11 @@ export default defineConfig(({mode}) => {
     // `devRuntimeBanner` prints, at server start, which runtime is serving and
     // warns when another Node major is present in the environment (a mismatch
     // never fails here — it fails in CI, on a bundle built by another runtime).
-    plugins: [react(), tailwindcss(), devRuntimeBanner()],
+    // `buildStamp` écrit dans le HTML le commit dont il vient : sans cette
+    // identité, la CI ne peut pas distinguer « la prod sert le build que je
+    // viens de publier » d'« elle sert encore le précédent », et un pixel-check
+    // jugerait alors un autre commit que le sien.
+    plugins: [react(), tailwindcss(), devRuntimeBanner(), buildStamp()],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
