@@ -1,3 +1,25 @@
+## [2026-09-13] Les valeurs par défaut des vues sont DÉRIVÉES du contrat de props
+
+Demande : « Dérive les valeurs par défaut de `makeMainViewsProps` du contrat de props (au lieu de ~200 lignes de noop recopiés) pour qu'une prop nouvelle n'exige plus d'éditer le harnais à la main. »
+
+**Le problème n'était pas la longueur, c'était le mode d'échec.** `tests/views-harness.tsx` portait une valeur par prop : ~200 lignes de `noop`, une soixantaine d'icônes, et une liste de setters à recopier. Le contrat a grossi de 186 à **215 props** au fil des mois, donc chaque ajout demandait une édition — et un oubli ne se voyait pas toujours : la prop valait `undefined`, la vue rendait autre chose, et le cas passait quand même (ou jetait trois fichiers plus loin).
+
+**La dérivation vient du contrat lui-même**, lu par l'API du compilateur (pas par un motif, donc le formatage n'y change rien — les quatre `ComponentType<…>` du contrat s'étalent sur plusieurs lignes) : tableau → `[]`, `Dispatch<SetStateAction<T>>` → fonction, `(id: string) => Promise<string[]>` → fonction **asynchrone** qui rend `[]`, interface locale → objet dont chaque membre est dérivé à son tour, union de littéraux → premier membre, `T | null` → `null`, `LucideIcon`/`ComponentType<…>` → composant inerte. **213 des 215 props se dérivent** ; les deux qui restent (`auth: AuthState`, `t: TranslationDict`) ont leur forme hors du module : elles sont **NOMMÉES** par la dérivation, jamais devinées.
+
+**Ce que la dérivation ne peut pas deviner, c'est la CONTENANCE — et c'est dit.** Huit props restent déclarées, chacune avec sa raison vérifiable : le dictionnaire réel (`t`, sinon aucune vue ne rend de texte), un poste admin (`auth`), le rôle finance (`isPromoter`, `ExpensesView` ne montre ses actions qu'à lui), la date de référence (`today`, qui sert de SEUIL dans `v.dueDate < today` — vide, tout serait « non en retard »), les deux formateurs imprimés par un rendu (`formatCurrency`, `formatDate` : dérivés, ils écriraient le mot « undefined »), `Suspense` et `HighlightText` (le composant inerte rendrait `null`, donc le contenu enveloppé disparaîtrait du HTML mesuré). Un cas vérifie que chaque clé déclarée existe **encore** dans le contrat : une prop renommée laisse une déclaration orpheline, et ce cas tombe.
+
+**La ceinture du mécanisme est un REFUS, pas un défaut silencieux.** `assembleProps` refuse de construire quand une prop n'est ni dérivable ni déclarée, en la nommant avec son type et sa raison — donc la suite tombe sur le nom à traiter au lieu de rendre une vue à moitié câblée. C'est la seule façon dont un défaut dérivé peut mentir : ne rien produire pour une prop.
+
+**Deux défauts trouvés par la suite, tous deux dans ma dérivation** — et le second rendra service plus tard :
+- le `null` d'une union est un type LITTÉRAL (`LiteralTypeNode`), pas le mot-clé `NullKeyword` : les confondre faisait retomber `expandedParentId`, `schoolLogo`, `studentSortKey` et `passwordTarget` sur leur premier membre, donc un état « absent » devenait une chaîne vide ou un objet ;
+- `Promise<T>` en type de RETOUR doit se DÉROULER : mon premier jet rendait une fonction qui rendait une promesse de fonction — la vue recevait une fonction au `await`. Mesuré par un cas qui attend réellement la promesse.
+
+**La promesse demandée est mesurée sur un contrat SYNTHÉTIQUE**, pas sur celui d'aujourd'hui : un contrat de toutes pièces reçoit douze props aux formes variées (`Dispatch`, `Promise<string[]>`, interface locale, union, `T | null`, `ComponentType`, objet littéral en tableau) et elles sont toutes dérivées **sans toucher à un seul fichier du harnais** ; une prop opaque y est NOMMÉE dans le rapport ; et `assembleProps` y refuse un contrat troué. Sinon on ne testerait qu'un exemple.
+
+**Coût mesuré** : la dérivation elle-même prend **25 ms** ; l'import de `typescript` (déjà utilisé par trois contrôles du dépôt et par `tests/tailwind-pairs.ts`) ajoute **~700 ms** au premier processus qui importe le harnais. C'est le prix de la lecture par l'API du compilateur, et il ne se paie qu'une fois par processus.
+
+**Mesures** : `tests/views-contract.test.ts` **13 cas** ; `views-render.test.tsx` **18/18** sans une seule réécriture (c'est le point d'un harnais : changer sa mécanique ne doit rien changer aux cas) ; `tests/views-harness.tsx` passe de **399 à 121 lignes**, et la suite complète de **1447 à 1460** cas, tous verts. `tsc --noEmit`, `eslint --max-warnings 0` et la chaîne qualité complète (4 maillons) verts.
+
 ## [2026-09-13] Le rappel d'atelier écrit TOUJOURS son dossier — `release/` compris
 
 Demande : « Un choix explicite que je signale : `--dir=release` reste silencieux dans le rappel, parce que c'est la ligne que la documentation montre ; si tu préfères que le dossier soit toujours écrit, c'est une ligne à changer. »
