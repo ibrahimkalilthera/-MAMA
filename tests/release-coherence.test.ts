@@ -639,9 +639,10 @@ describe('le frein d’urgence, tel qu’un poste le lit', () => {
 });
 
 describe('le canal tel que la CI doit le voir', () => {
-  const rel = (tag: string, draft: boolean, when: string, created = when) => ({
+  const rel = (tag: string, draft: boolean, when: string, created = when, prerelease = false) => ({
     tag_name: tag,
     draft,
+    prerelease,
     published_at: when,
     created_at: created,
   });
@@ -658,6 +659,43 @@ describe('le canal tel que la CI doit le voir', () => {
   it('rend null quand rien n’est publié — le canal est muet', () => {
     assert.equal(pickLatestPublished([]), null);
     assert.equal(pickLatestPublished([rel('v2.0.0', true, '2026-09-13T00:00:00Z')]), null);
+  });
+
+  it('une PRÉ-version n’est jamais « la plus récente » : aucun poste ne la voit', () => {
+    // Mesuré le 2026-09-13, avec une pré-version de sonde publiée pour de vrai :
+    // notre tri la désignait (elle était la plus récemment publiée), et la ligne
+    // de divergence reprochait alors à l'endpoint du poste un désaccord qui
+    // venait d'ici. C'est l'endpoint que l'updater interroge qui met les
+    // pré-versions hors du canal stable : notre tri doit faire pareil.
+    const picked = pickLatestPublished([
+      rel('v0.0.1', false, '2026-09-13T03:22:00Z', '2026-09-13T03:22:00Z', true),
+      rel('v1.0.6', false, '2026-09-13T02:21:26Z'),
+      rel('v1.0.5', false, '2026-09-12T22:32:24Z'),
+    ]);
+    assert.equal(picked?.tag_name, 'v1.0.6', 'une pré-version plus RÉCENTE ne déplace pas la tête du canal stable');
+  });
+
+  it('un canal qui ne porte que des pré-versions est muet pour un poste', () => {
+    assert.equal(
+      pickLatestPublished([
+        rel('v2.0.0-rc.1', false, '2026-09-13T00:00:00Z', '2026-09-13T00:00:00Z', true),
+        rel('v1.9.0-beta', false, '2026-09-12T00:00:00Z', '2026-09-12T00:00:00Z', true),
+      ]),
+      null,
+      'publié n’est pas livré : sans version stable, il n’y a rien à lire',
+    );
+  });
+
+  it('la sortie dit NOTRE tri, et nomme les pré-versions qu’elle ne désigne pas', () => {
+    // Deux imprécisions d'affichage mesurées le même soir : la ligne « le plus
+    // récent publié » montrait `target` (la tête), pas le résultat de notre tri —
+    // donc les deux lignes se contredisaient — et les pré-versions étaient
+    // calculées puis jamais imprimées, alors que la documentation promettait
+    // qu'elles seraient nommées.
+    const source = read('scripts/check-release-coherence.mjs');
+    assert.match(source, /le plus récent publié \(notre tri\) : /);
+    assert.match(source, /for \(const invisibleTag of reach\.invisible\)/);
+    assert.match(source, /PRÉ-version — le canal stable l’ignore/, 'une pré-version publiée se NOMME, elle ne fait pas qu’exister');
   });
 
   it('le câblage : le canal est vérifié SANS jeton, et tous les jours', () => {

@@ -1,3 +1,23 @@
+## [2026-09-13] Notre tri du canal ne désigne plus ce qu'aucun poste ne lit
+
+Demande : « Corrige notre tri « le plus récent publié » pour qu'une pré-version ne soit plus désignée comme le plus récent, afin que la ligne de divergence ne reproche plus au canal notre propre imprécision. »
+
+**Trois imprécisions, dont la troisième expliquait comment les deux premières se voyaient.** La première, mesurée la veille en publiant une pré-version de sonde : `pickLatestPublished` filtrait les brouillons mais **pas les pré-versions**, donc notre tri désignait la sonde — et le contrôle accusait alors l'endpoint du poste d'un désaccord qui venait de chez nous (`l’endpoint du poste nomme v1.0.6, notre tri désigne v0.0.1`). C'est l'endpoint que l'updater interroge qui met les pré-versions hors du canal stable : le tri fait maintenant pareil. La deuxième : la ligne intitulée « le plus récent publié » affichait `target`, c'est-à-dire la **tête** — donc dès qu'un tri et une tête divergeaient, deux lignes du même rapport se contredisaient. Elle dit désormais ce qu'elle montre (`le plus récent publié (notre tri) : …`). La troisième : `deliveryReach` calculait la liste des pré-versions invisibles (`invisible`) et **personne ne l'imprimait** — la documentation promettait depuis le début qu'elles seraient « nommées au lieu d'être tues », et elles ne l'étaient pas.
+
+**Prouvé sur le canal réel, avec une pré-version publiée pour de vrai puis retirée.** Même situation qu'avant le correctif (pré-version plus récente que la tête), et deux différences mesurables : **aucune ligne de divergence** — notre tri et l'endpoint sont d'accord — et la pré-version est enfin nommée :
+
+```
+🔎 canal — 7 release(s) dont 7 publié(s) (mode channel, sans jeton)
+   la tête que le poste lit : GET /releases/latest → v1.0.6 (Accept: application/json, sans jeton)
+   le plus récent publié (notre tri) : v1.0.6 (2026-09-13T02:21:26Z)
+   ℹ️  v0.0.3 est publiée mais c’est une PRÉ-version — le canal stable l’ignore, aucun poste ne la reçoit
+✅ canal vivant : les 6 version(s) publiée(s) rejoignent la tête 1.0.6, le frein est lisible
+```
+
+Tête vérifiée avant et après (`v1.0.6`, inchangée), release et étiquette retirés dans le même souffle : canal à **6 publiés, 0 brouillon**.
+
+**Mesures** : `1394/1394` tests, dont 3 cas neufs pour ce correctif — une pré-version plus RÉCENTE ne déplace plus la tête du canal stable, un canal qui ne porte QUE des pré-versions est **muet** pour un poste (publié n'est pas livré), et la sortie dit notre tri en nommant ce qu'elle ne désigne pas. `npm run lint` vert.
+
 ## [2026-09-13] L'acte qui n'invoque aucune preuve : une version jamais livrée
 
 Demande : « Donne à release/ un acte explicite pour la dernière catégorie que la règle ne peut pas prouver : une version jamais publiée, en disant qui décide et pourquoi. »
@@ -44,7 +64,7 @@ Demande : « Décide du sort du dossier release/ : huit installeurs d'anciennes 
 
 **Le plan a trouvé deux choses, dont une que personne n'avait vue.** D'abord les vrais redondants : la 1.0.1, la 1.0.2 et la 1.0.4, dont les octets locaux **sont** ceux du canal (empreinte identique) — 9 fichiers, **737 Mo**, partis sur `release:prune -- --yes`. Ensuite la 1.0.3 et la 1.0.5 : mêmes noms, **octets différents** du canal, à la taille près pour la 1.0.5. La mesure tranche : leurs fichiers locaux datent d'**après** leur publication (19:53 contre un téléversement à 18:56 ; 23:06 contre 22:31), tandis que la 1.0.1, la 1.0.2, la 1.0.4 et la 1.0.6 précèdent leur téléversement de deux à trois minutes — c'est bien le build téléversé. Ce sont donc des **reconstructions locales d'un numéro déjà publié**, indistinguables à l'œil, et leurs octets ne peuvent plus être livrés (une republication n'atteint aucun poste). Mais leur sort ne s'autorise pas par empreinte : il s'autorise par le fait que **le numéro est pris**. D'où un second acte, `--yes --stale` (6 fichiers, **492 Mo**), séparé au lieu d'être un cas particulier du premier — parce que la divergence est aussi **l'alarme d'un canal qui servirait les mauvais octets**, et qu'un script qui l'effacerait tout seul effacerait l'alarme avec.
 
-**Ce qui reste est nommé, pas oublié.** La **1.0.0** n'a jamais été publiée : le canal ne peut rien prouver sur elle, donc ses trois fichiers restent, avec la raison écrite (387 Mo). La 1.0.6 reste comme sortie du build — et c'est la seule entrée dont l'empreinte ne décide rien, donc le CLI ne hache même pas ces octets. Le dossier passe de **2,2 Go à 999 Mo**, `check:release` reste vert et ne nomme plus que les deux installeurs de la 1.0.0 au lieu de quatorze.
+**Ce qui reste est nommé, pas oublié.** La **1.0.0** n'a jamais été publiée : le canal ne peut rien prouver sur elle, donc ses trois fichiers restent, avec la raison écrite (246 Mo). La 1.0.6 reste comme sortie du build — et c'est la seule entrée dont l'empreinte ne décide rien, donc le CLI ne hache même pas ces octets. Le dossier passe de **2,2 Go à 999 Mo**, `check:release` reste vert et ne nomme plus que les deux installeurs de la 1.0.0 au lieu de quatorze.
 
 **Deux détails de la foulée.** Un brouillon **sans étiquette** portait encore le fixture `0.0.9` de la veille de la publication : la veille cru l'avoir supprimé, l'API en gardait un quatrième actif (`latest.yml` + les trois fichiers). Supprimé — le canal est maintenant 6 publiés, **0 brouillon**. Et le script est **pur** (`scripts/lib/release-prune.mjs`, décision testable sans disque ni réseau) plus un CLI qui lit le dossier et l'API : 19 cas neufs, dont le brouillon qui ne peut rien autoriser, l'empreinte absente qui ne vaut pas une correspondance, et la divergence qui **reste** sans `--stale`.
 

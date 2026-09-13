@@ -454,8 +454,24 @@ if (MODE === 'channel') {
       `(mode channel, sans jeton${token ? ' — le jeton de l’environnement est délibérément ignoré' : ''})`,
   );
   console.log(`   la tête que le poste lit : ${head.detail}`);
-  console.log(`   le plus récent publié : ${targetTag} (${target.published_at || target.created_at})`);
+  // Le libellé dit ce qu'il montre : NOTRE tri, sur les seules entrées qu'un
+  // poste peut voir. Y afficher `target` serait faux dès que la tête et « le plus
+  // récent publié » ne sont pas la même entrée — c'est-à-dire exactement le cas
+  // que la ligne de divergence, juste après, raconte.
+  console.log(
+    '   le plus récent publié (notre tri) : ' +
+      (newestPublished
+        ? `${newestPublished.tag_name} (${newestPublished.published_at || newestPublished.created_at})`
+        : '— (aucun)'),
+  );
   if (divergence) console.log(`   ⚠️  ${divergence}`);
+  // Les pré-versions publiées ne portent aucun poste — le canal stable les
+  // ignore — mais elles sont NOMMÉES : sans cette ligne, une pré-version plus
+  // récente resterait la raison invisible pour laquelle le tri ci-dessus ne la
+  // désigne pas, et « publié » se lirait comme « livré ».
+  for (const invisibleTag of reach.invisible) {
+    console.log(`   ℹ️  ${invisibleTag} est publiée mais c’est une PRÉ-version — le canal stable l’ignore, aucun poste ne la reçoit`);
+  }
   console.log(`   chemin de chaque version publiée — ce qu’un poste resté là recevrait :`);
   for (const client of reach.clients) {
     console.log(`   ${client.receives ? '✅' : '❌'} ${client.version} → ${client.detail}`);

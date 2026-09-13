@@ -412,7 +412,8 @@ export function expectedArtifacts({ latest = null, dirNames = [], releases = [] 
 
 /**
  * Ce qu'on a besoin de savoir d'un release pour décider lequel les postes voient.
- * @typedef {{ tag_name?: string, draft?: boolean, published_at?: string, created_at?: string }} ReleaseLike
+ * @typedef {{ tag_name?: string, draft?: boolean, prerelease?: boolean,
+ *   published_at?: string, created_at?: string }} ReleaseLike
  */
 
 /**
@@ -424,12 +425,21 @@ export function expectedArtifacts({ latest = null, dirNames = [], releases = [] 
  * publication en cours. Le tri porte donc sur les releases PUBLIÉS, et sur la
  * date de publication (celle que le poste voit), pas sur l'ordre de l'API.
  *
+ * Et une PRÉ-VERSION n'est pas « publiée » au sens où un poste la lit : c'est
+ * l'endpoint que l'updater interroge qui la met hors du canal stable
+ * (`/releases/latest` ignore `prerelease`, comme le client lui-même). La garder
+ * faisait donc désigner à NOTRE tri une version qu'aucun poste ne verra jamais.
+ * Mesuré le 2026-09-13 avec une pré-version de sonde : la ligne de divergence
+ * reprochait à l'endpoint du poste un désaccord qui venait d'ici — c'est-à-dire
+ * qu'elle accusait le canal d'une imprécision qui était la nôtre, et un tri qui
+ * désigne ce que personne ne peut voir ne juge plus ce que les postes lisent.
+ *
  * @param {ReleaseLike[]} [releases]
  * @returns {ReleaseLike|null} null si aucun release n'est publié — le canal est muet
  */
 export function pickLatestPublished(releases = []) {
   const list = (Array.isArray(releases) ? releases : []).filter(
-    (r) => r && r.draft !== true && typeof r.tag_name === 'string' && r.tag_name,
+    (r) => r && r.draft !== true && r.prerelease !== true && typeof r.tag_name === 'string' && r.tag_name,
   );
   if (!list.length) return null;
   const when = (r) => {
