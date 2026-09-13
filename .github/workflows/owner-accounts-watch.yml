@@ -1,0 +1,94 @@
+name: Owner accounts watch
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « Les quatre comptes propriétaires existent-ils encore, et peut-on s'y
+#   connecter ? »
+#
+# Le 2026-09-13, `ibrahimkalilthera@mamathera.org` — le compte dev, documenté
+# dans ce dépôt — n'existait plus en base : un script jetable avait supprimé un
+# compte réel (réparé depuis, scripts/lib/ephemeral-accounts.mjs). La chaîne
+# qualité était verte pendant tout ce temps, parce que ce qui manquait n'était
+# pas dans un fichier. La panne a été découverte au moment où son propriétaire a
+# voulu se connecter — trop tard, et par la seule personne qui ne pouvait rien y
+# faire.
+#
+# Ce workflow lit donc l'ÉTAT DE LA BASE, seul endroit où la réponse existe :
+#   • chaque compte du roster (scripts/lib/owner-accounts.mjs) est présent, avec
+#     le rôle que la documentation lui attribue, confirmé, non suspendu ;
+#   • un login RÉEL aboutit (compte de contrôle : création → session → suppression)
+#     par le chemin exact de l'application (clé anon).
+#
+# Deux déclencheurs, comme les autres veilles : le push (un livrable neuf est le
+# moment où une suppression accidentelle arrive) et un cron quotidien (une
+# suppression ne produit aucun commit). Ce job ne bloque aucun déploiement :
+# c'est un signal, pas une porte.
+#
+# Si les secrets manquent, le script est INDÉCIS (exit 2) et le dit — un
+# contrôle qui ne peut pas regarder la base ne félicite personne.
+#
+# Le roster vit dans scripts/lib/owner-accounts.mjs — une seule liste, donc un
+# compte ne peut pas être surveillé ici et oublié ailleurs.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+
+  schedule:
+    # 05:40 UTC — avant les autres veilles, pour que le verdict du jour soit là
+    # quand on ouvre la matinée.
+    - cron: '40 5 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: owner-accounts-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Vérifier les comptes propriétaires et un login réel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Comme les autres jobs : installer Node ne prouve pas le majeur exécuté.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # Aucune dépendance à installer (le script n'utilise que fetch) : rien ne
+      # peut échouer avant la mesure.
+      - name: Lire l'état des comptes propriétaires
+        # Mandat de preuve : le script publie lui-même ce qu'il a mesuré (nombre
+        # de comptes présents et conformes, nombre de logins réels aboutis).
+        env:
+          AUTOMATION_EVIDENCE: '1'
+          SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
+          # Clé anon PUBLIQUE par conception (embarquée dans le client livré) :
+          # c'est le chemin exact d'un poste qui se connecte.
+          ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Facultatifs : chaque mot de passe posé ici ajoute un login RÉEL pour
+          # ce compte. Absents, ces logins sont annoncés « NON MESURÉ » — jamais
+          # comptés comme verts.
+          OWNER_DEV_PASSWORD: ${{ secrets.OWNER_DEV_PASSWORD }}
+          OWNER_ADMIN_PASSWORD: ${{ secrets.OWNER_ADMIN_PASSWORD }}
+          OWNER_GM_PASSWORD: ${{ secrets.OWNER_GM_PASSWORD }}
+          OWNER_STAFF_PASSWORD: ${{ secrets.OWNER_STAFF_PASSWORD }}
+        run: npm run check:owners
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — comptes propriétaires
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "état des comptes propriétaires lu sur la base réelle ; les chiffres (comptes présents et conformes, logins réels aboutis) sont publiés par scripts/check-owner-accounts.mjs"

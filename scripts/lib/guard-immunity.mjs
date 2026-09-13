@@ -194,6 +194,17 @@ export const GUARD_INVENTORY = [
       [IMMUNITY.PROSE_BLIND]: 'il lit un fichier de données (app-update.yml) et la sortie d’un cmdlet Windows, jamais du code source',
     },
   },
+  {
+    check: 'check-owner-accounts.mjs',
+    input: 'network+roster',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // Le sujet lu est la BASE : il n’y a pas de corpus de fichiers à trouver, et
+    // deux absences sont des REFUS, jamais un vert — un roster vide (rien à
+    // juger) et des secrets absents (rien de regardé) sortent en 2.
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit des champs d’API JSON (auth.users, user_profiles), jamais du code source',
+    },
+  },
 ];
 
 /**
