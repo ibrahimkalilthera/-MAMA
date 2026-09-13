@@ -21,10 +21,15 @@ name: Desktop E2E — application empaquetée
 # push ne couvre — une dépendance Electron ou le comportement de la machine qui
 # dérive pendant que le code ne bouge pas.
 #
-# POURQUOI `electron:dist` ET PAS UN INSTALLEUR PUBLIÉ : prouver ce qu'un poste
-# reçoit vraiment demanderait d'installer le NSIS signé (ce que fait une
-# machine, pas un runner). Ici on prouve le portable du MÊME build, et le
-# workflow `Desktop release (Windows)` reste le seul à publier.
+# DEUX PREUVES, PARCE QU'ELLES NE DISENT PAS LA MÊME CHOSE : la première construit
+# (`electron:dist`) et prouve le portable du MÊME build — c'est ce qu'un commit
+# vaut. La seconde ne construit rien : elle demande au CANAL ce qu'un poste
+# téléchargerait, vérifie les octets servis contre le `sha512` du flux, INSTALLE
+# l'installeur publié en silence (NSIS `/S`, désinstallé en fin de run) et rouvre
+# la fiche parent dans l'application installée — c'est ce que les postes reçoivent
+# VRAIMENT. Un runner sait le faire ; ce qu'il ne peut pas, c'est juger une
+# signature, et cette preuve-là n'en dépend pas. Le workflow
+# `Desktop release (Windows)` reste le seul à publier.
 #
 # Secrets requis (Settings → Secrets and variables → Actions) :
 #   SUPABASE_SERVICE_ROLE_KEY — clé service du projet Supabase (compte éphémère
@@ -101,6 +106,19 @@ jobs:
           AUTOMATION_EVIDENCE: '1'
         run: node scripts/verify-desktop-app.mjs
 
+      # Et ce que le POSTE reçoit vraiment, pas seulement ce que ce commit compile.
+      # Le correctif « l'adresse n'est plus obligatoire » avait été prouvé dans un
+      # `app.asar` extrait d'un installeur, c'est-à-dire LU, jamais EXÉCUTÉ — alors
+      # que le symptôme signalé (un formulaire qui refuse l'enregistrement) est un
+      # comportement. Cette étape demande donc au CANAL (sans jeton) ce qu'un poste
+      # téléchargerait, vérifie les octets servis contre le sha512 du flux,
+      # l'INSTALLE en silence, lance le binaire installé, ouvre Parents →
+      # « Ajouter Parent/Tuteur », et demande au NAVIGATEUR ce qu'il impose.
+      # Aucun mandat de preuve (`AUTOMATION_EVIDENCE` absent) : la preuve d'action
+      # du workflow reste publiée par l'unique étape nommée, plus bas.
+      - name: Preuve sur l’app INSTALLÉE depuis l’installeur publié — fiche parent
+        run: node scripts/verify-installed-parent-form.mjs
+
       # Même garde finale que la chaîne PDF E2E : un run interrompu au milieu est
       # exactement ce qui laisse un compte éphémère en base. `if: always()` pour
       # qu'un échec de l'étape précédente ne la saute pas — la sauter est ce qui
@@ -119,4 +137,4 @@ jobs:
         if: success()
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "application empaquetée prouvée sur le runner : build de ce commit, connexion réelle dans le binaire, reçu PDF reçu sur le disque (mesure publiée par scripts/verify-desktop-app.mjs), base nettoyée"
+          --reason "application prouvée sur le runner, deux fois : le build de ce commit (connexion réelle dans le binaire, reçu PDF reçu sur le disque — mesure publiée par scripts/verify-desktop-app.mjs), ET l’installeur que le CANAL sert (octets rehachés contre le sha512 du flux, installé en silence, fiche parent ouverte dans l’application installée : adresse ni requise ni marquée obligatoire, formulaire valide sans elle et invalide sans le nom — mesure publiée par scripts/verify-installed-parent-form.mjs) ; base nettoyée, application désinstallée"
