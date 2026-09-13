@@ -30,7 +30,7 @@ dont la signature n'est pas `Valid` **et** dont le sujet ne porte pas ce nom
 que sur la machine qui l'a créé, ce contrat rend le parc **incapable de recevoir
 la moindre mise à jour** — et comme le nom promis est gravé **dans les postes
 déjà installés**, une version ultérieure signée par un vrai certificat serait
-refusée elle aussi : ces postes doivent **réinstaller une fois à la main**.
+refusée elle aussi. Le remède est **local** et ne demande **ni réinstallation, ni droits administrateur** : retirer la promesse de `resources/app-update.yml` sur le poste concerné — voir **§3**, `npm run repair:frozen-updater -- --apply`.
 
 D'où `npm run check:updater-trust`, appelé par le publieur avant toute écriture
 sur le canal : il lit le contrat réellement embarqué, interroge Windows sur le
@@ -194,37 +194,76 @@ acheter s'appelle **Code Signing** (jamais un certificat TLS/SSL de site web).
    (Le build est horodaté automatiquement — la signature reste valide après
    l'expiration du certificat.)
 
-### La transition : quels postes, et pourquoi UNE seule fois
+### La transition : comment dégeler un poste, SANS réinstaller
 
-Un poste qui a installé une version signée du certificat de test (le contrat
-`publisherName: [ "Mama Thera Finance (test)" ]` est gravé dans son
-`resources/app-update.yml`) est **définitivement fermé aux mises à jour
-automatiques** : son application applique sa propre vérification, et il faudrait
-qu'un futur installeur soit signé de ce même nom **avec une chaîne approuvée** —
-ce qu'aucune machine ne peut accorder à un certificat auto-signé.
+Un poste qui a installé la 1.0.6, la 1.0.7 ou la 1.0.8 porte
+`publisherName: [ "Mama Thera Finance (test)" ]` dans son
+`resources/app-update.yml`, et c'est **son propre code** qui refuse l'installeur
+téléchargé. Trois lignes mesurées dans la bibliothèque que le poste exécute
+disent tout ce qui compte ici :
 
-Ce n'est donc pas « à chaque réinstallation » : c'est **une fois par poste
-concerné**, et seulement ceux-là.
+| Ce que fait le poste | Où c'est écrit |
+|---|---|
+| il lit le contrat **sur son disque** | `ElectronAppAdapter.js:23` → `path.join(process.resourcesPath, "app-update.yml")` |
+| **sans `publisherName`, il ne vérifie AUCUNE signature** | `NsisUpdater.js:86-90` → `if (publisherName == null) return null` |
+| avec, il exige `Valid` **au CN promis** | `windowsExecutableCodeSignatureVerifier.js:44-88` |
+
+Deux conséquences, et la seconde est la bonne nouvelle : **aucun changement de
+canal ne peut atteindre ces postes** (le refus tombe chez eux, avant toute
+exécution), mais **le fichier qui bloque est chez eux, et il est inscriptible** —
+une installation par utilisateur vit sous `%LOCALAPPDATA%`, où personne n'a besoin
+d'élever ses droits pour écrire. Retirer la promesse suffit alors à rendre le
+poste normal : plus de promesse, plus de vérification de signature, et le
+`sha512` du flux redevient le seul juge.
+
+```powershell
+# 1. Le constat, sans rien écrire (sort en 1 si un contrat est gelé) :
+npm run repair:frozen-updater
+
+# 2. L'acte : retire la promesse, sauvegarde l'original en `.bak`, puis RELIT le
+#    fichier écrit pour prouver que la promesse n'y est plus.
+npm run repair:frozen-updater -- --apply
+
+# 3. Relancer l'application : elle ne lit ce fichier qu'au démarrage.
+```
+
+Sans `--dir`, le script cherche lui-même les installations de **cette**
+application (`%LOCALAPPDATA%\Programs`, `%ProgramFiles%`, `%ProgramFiles(x86)%`) ;
+les contrats d'autres applications sont comptés et **jamais touchés**. Pour un
+parc, le même script se lance sur chaque poste (ou via une tâche de connexion),
+et il est **idempotent** : un poste déjà libre n'est ni ré-écrit ni annoncé comme
+réparé.
+
+Il ne retire, en revanche, **que ce qu'aucun certificat ne peut honorer** — une
+promesse vide, ou un signataire de test. Une promesse *satisfiable* est une
+garantie : la retirer accepterait des octets non signés sur un poste qui n'était
+pas cassé, donc elle est nommée et laissée en place, sauf `--force` explicite.
 
 | Versions publiées | Contrat embarqué | Ce que ça implique |
 |---|---|---|
-| **1.0.1 → 1.0.5** (avant le certificat de test) | aucun `publisherName` | ces postes se mettent à jour **tout seuls** dès qu'un build signé (ou non signé) est publié |
-| **1.0.6, 1.0.7, 1.0.8** (certificat de test) | `Mama Thera Finance (test)` | **un passage à la main par machine**, une seule fois, pour la première version signée approuvée |
+| **1.0.1 → 1.0.5** (avant le certificat de test) | aucun `publisherName` | ces postes se mettent à jour **tout seuls** |
+| **1.0.6, 1.0.7, 1.0.8** (certificat de test) | `Mama Thera Finance (test)` | **un passage de `repair:frozen-updater -- --apply` par machine**, puis un redémarrage de l'application — pas de réinstallation, aucune donnée touchée |
+| **1.0.9 et suivantes** (non signées) | aucune promesse | libres par construction : rien à réparer |
 
-Comment le vérifier sur une machine :
+Comment constater l'état d'une machine, en une commande (l'emplacement dépend de
+l'installation — `Programs\<app>\resources\` en édition utilisateur,
+`Program Files\<éditeur>\<app>\resources\` en édition machine) :
 
 ```powershell
-Get-AuthenticodeSignature "$env:LOCALAPPDATA\Programs\MamaTheraFinance\MamaTheraFinance.exe" |
-  Select-Object Status, @{n='Signer';e={$_.SignerCertificate.Subject}}
-# Status = Valid → la machine se mettra à jour toute seule
-# Status = UnknownError/NotSigned → machine à repasser une fois à la main
+Get-Content "$env:LOCALAPPDATA\Programs\MamaTheraFinance\resources\app-update.yml"
+# pas de ligne publisherName:  → le poste se met à jour tout seul
+# publisherName: …            → contrat de gel : npm run repair:frozen-updater -- --apply
 ```
 
-L'installation manuelle remplace **tout** le dossier de l'application, contrat
-compris : après elle, la machine revient dans le cas « se met à jour toute seule »,
-quel que soit le certificat utilisé ensuite (un poste sans signataire promis
-n'en exige aucun). Rien n'est à faire sur les autres postes, et plus rien à faire
-sur celui-là.
+⚠️ **Il existe une autre voie, et elle coûte plus cher.** On pourrait rendre le
+certificat de test *approuvé* sur chaque poste (installer sa racine dans
+« Autorités de certification racines de confiance », droits administrateur), puis
+publier un build signé de ce même certificat : le poste verrait alors `Valid` au
+nom promis et accepterait la mise à jour. Mais ce build graverait **à nouveau** la
+promesse dans le contrat des postes, et il faudrait réinstaller cette racine sur
+**chaque** machine neuve, indéfiniment — une dette de sécurité pour un certificat
+dont la clé privée circule en clair. La voie du fichier est plus courte, réversible
+(une sauvegarde `.bak`), et elle ne demande aucun droit particulier.
 
 ## 4. Activer la signature en CI (GitHub Actions)
 
