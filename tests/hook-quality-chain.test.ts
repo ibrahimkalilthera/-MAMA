@@ -132,12 +132,12 @@ describe('runHookQualityChain', () => {
     assert.equal(spawns.filter(isSweep).length, 3);
   });
 
-  it('steps par défaut → lint test audit (pre-commit ET pre-push)', async () => {
+  it('steps par défaut → lint test audit workshop (pre-commit ET pre-push)', async () => {
     plan = [{ mode: 'close', code: 0 }];
     await runHookQualityChain({ ...quiet, attempts: 1, waitMs: 1 });
     const chain = spawns.find(isChain);
     assert.ok(chain, 'la chaîne qualité est lancée');
-    assert.deepEqual(chain.args.slice(1), ['lint', 'test', 'audit']);
+    assert.deepEqual(chain.args.slice(1), ['lint', 'test', 'audit', 'workshop']);
   });
 
   it('steps personnalisés (ex. pre-push allégé) → transmis à la chaîne', async () => {
@@ -153,7 +153,7 @@ describe('runHookQualityChain', () => {
     await runHookQualityChain({ ...quiet, attempts: 1, waitMs: 1, steps: [] });
     const chain = spawns.find(isChain);
     assert.ok(chain);
-    assert.deepEqual(chain.args.slice(1), ['lint', 'test', 'audit']);
+    assert.deepEqual(chain.args.slice(1), ['lint', 'test', 'audit', 'workshop']);
   });
 
   it('sweepAll → purge élargie (tous les node.exe orphelins) avant la 1re tentative', async () => {

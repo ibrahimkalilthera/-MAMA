@@ -236,6 +236,13 @@ const STEPS = {
   // both (cache + soft-offline), CI keeps it strict by calling the script
   // directly without them.
   audit: () => runStep('audit-gate', ['scripts/check-audit.mjs'], { timeoutMs: 600000 }),
+  // L'atelier `release/` ne peut plus regrossir en silence : dès qu'un fichier y
+  // est PROUVÉ redondant (le canal sert déjà ces octets exacts), ce maillon sort
+  // en échec. Il ne supprime rien — l'acte reste humain — mais plus aucun commit
+  // ne peut se faire en laissant l'atelier mentir. Hors ligne, il se tait en le
+  // DISANT (WORKSHOP_SOFT_OFFLINE=1, comme le gate d'audit) : le hook ne doit pas
+  // dépendre du réseau, la CI si.
+  workshop: () => runStep('workshop', ['scripts/prune-release-dir.mjs', '--check'], { timeoutMs: 180000 }),
 };
 
 const wanted = process.argv.slice(2);

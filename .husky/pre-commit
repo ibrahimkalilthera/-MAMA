@@ -22,4 +22,4 @@
 # projet si le Node courant ne correspond pas (scripts/with-pinned-node.mjs) —
 # un poste sans gestionnaire de version peut donc committer. Tout ce que la
 # chaîne lance hérite de ce runtime (elle spawn via process.execPath).
-AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs
+AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 WORKSHOP_SOFT_OFFLINE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs

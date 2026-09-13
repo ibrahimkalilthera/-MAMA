@@ -30,16 +30,12 @@ import {
   assetsToPublish,
   compareLatest,
   compareRelease,
-  compareVersions,
-  deliveryReach,
   expectedArtifacts,
-  nameCarriesVersion,
-  parseHoldsFile,
-  parseLatestYml,
-  pickLatestPublished,
   publishDecision,
-  releaseTag,
-} from '../scripts/lib/release-coherence.mjs';
+} from '../scripts/lib/release-compare.mjs';
+import { compareVersions, releaseTag } from '../scripts/lib/release-version.mjs';
+import { nameCarriesVersion, parseHoldsFile, parseLatestYml } from '../scripts/lib/latest-yml.mjs';
+import { deliveryReach, pickLatestPublished } from '../scripts/lib/release-reach.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');

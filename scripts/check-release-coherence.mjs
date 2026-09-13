@@ -66,17 +66,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { publishEvidence } from './lib/evidence-publisher.mjs';
-import {
-  assetsToPublish,
-  compareLatest,
-  compareRelease,
-  deliveryReach,
-  parseHoldsFile,
-  parseLatestYml,
-  pickLatestPublished,
-  publishDecision,
-  releaseTag,
-} from './lib/release-coherence.mjs';
+import { parseHoldsFile, parseLatestYml } from './lib/latest-yml.mjs';
+import { assetsToPublish, compareLatest, compareRelease, publishDecision } from './lib/release-compare.mjs';
+import { deliveryReach, pickLatestPublished } from './lib/release-reach.mjs';
+import { releaseTag } from './lib/release-version.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);

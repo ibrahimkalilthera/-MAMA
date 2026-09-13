@@ -88,8 +88,8 @@ function writeCache(record) {
 
 // Steps understood by scripts/quality-chain.mjs. The hooks pass an explicit
 // subset (pre-commit and pre-push both gate on the same full chain today).
-export const DEFAULT_STEPS = ['lint', 'test', 'audit'];
-export const KNOWN_STEPS = ['lint', 'l10n', 'test', 'build', 'audit'];
+export const DEFAULT_STEPS = ['lint', 'test', 'audit', 'workshop'];
+export const KNOWN_STEPS = ['lint', 'l10n', 'test', 'build', 'audit', 'workshop'];
 const QUALITY_CHAIN_SCRIPT = 'scripts/quality-chain.mjs';
 
 /**

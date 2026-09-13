@@ -13,7 +13,8 @@
 #   - the gate scans the WORKING TREE, so uncommitted WIP that fails it blocks
 #     the push: commit the fix, or `git push --no-verify` (CI re-verifies).
 #   - lighter subset: `node scripts/hook-quality-chain.mjs lint` (other known
-#     steps: l10n, test, build, audit). `HUSKY=0 git push` disables the hooks.
+#     steps: l10n, test, build, audit, workshop). `HUSKY=0 git push` disables
+#     the hooks.
 # Node : même lanceur que pre-commit — la chaîne tourne sur le runtime épinglé
 # par .nvmrc, provisionné par le projet au besoin (aucun gestionnaire requis).
-AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs lint test audit
+AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 WORKSHOP_SOFT_OFFLINE=1 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs lint test audit workshop

@@ -22,7 +22,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 
-import { artifactVersion, formatBytes, pruneCommand, prunePlan } from '../scripts/lib/release-prune.mjs';
+import {
+  artifactVersion,
+  formatBytes,
+  noRemovalMessage,
+  pruneCommand,
+  prunePlan,
+} from '../scripts/lib/release-prune.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
@@ -315,6 +321,9 @@ describe('ce que le plan ne touche jamais', () => {
 });
 
 describe('le rappel du plan applique VRAIMENT ce plan', () => {
+  /** Les actes qu'un plan demande — l'entrée réelle de la ligne de commande. */
+  const acts = (plan: { remove: { kind: string }[] }) => plan.remove.map((r) => r.kind);
+
   it('un plan de reconstructions redemande --stale : --yes seul n’enlèverait rien', () => {
     // Mesuré le 13/09 sur le dossier réel : le plan de la 1.0.0 seule annonçait
     // « Applique-le : npm run release:prune -- --yes » — or `--yes` seul n'applique
@@ -328,7 +337,7 @@ describe('le rappel du plan applique VRAIMENT ce plan', () => {
       published: [release('1.0.5', [held(setup('1.0.5'), 'octets-du-canal')])],
     });
     assert.match(plan.remove[0].reason, /le canal sert DÉJÀ 1\.0\.5/, 'le motif est bien celui de la reconstruction locale');
-    assert.equal(pruneCommand(plan), 'npm run release:prune -- --yes --stale');
+    assert.equal(pruneCommand(acts(plan)), 'npm run release:prune -- --yes --stale');
   });
 
   it('un plan de builds jamais livrés redemande --unpublished', () => {
@@ -339,7 +348,7 @@ describe('le rappel du plan applique VRAIMENT ce plan', () => {
       published: [release('1.0.1', [held(setup('1.0.1'), 'x')])],
     });
     assert.equal(plan.remove[0].kind, 'unpublished');
-    assert.equal(pruneCommand(plan), 'npm run release:prune -- --yes --unpublished');
+    assert.equal(pruneCommand(acts(plan)), 'npm run release:prune -- --yes --unpublished');
   });
 
   it('un plan mixte demande LES DEUX drapeaux — un seul oubli laisserait la moitié en place', () => {
@@ -358,56 +367,70 @@ describe('le rappel du plan applique VRAIMENT ce plan', () => {
       ],
     });
     assert.deepEqual([...new Set(plan.remove.map((r) => r.kind))].sort(), ['digest', 'stale', 'unpublished']);
-    assert.equal(pruneCommand(plan), 'npm run release:prune -- --yes --stale --unpublished');
+    assert.equal(pruneCommand(acts(plan)), 'npm run release:prune -- --yes --stale --unpublished');
   });
 
   it('un plan vide ne propose que l’acte nu : rien à autoriser, rien à ajouter', () => {
-    assert.equal(pruneCommand({ remove: [] }), 'npm run release:prune -- --yes');
+    assert.equal(pruneCommand([]), 'npm run release:prune -- --yes');
   });
 
-  it('le CLI imprime la commande du plan, il ne l’écrit pas d’avance', () => {
-    const source = read('scripts/prune-release-dir.mjs');
-    assert.match(source, /Applique-le : \$\{pruneCommand\(plan\)\}/, 'la commande vient du plan');
-    assert.doesNotMatch(
-      source,
-      /Applique-le : npm run release:prune -- --yes$/m,
-      'et surtout pas d’une phrase figée, qui redevient fausse dès qu’un acte s’ajoute',
+  it('la commande PORTE le dossier — sans quoi un plan de sonde proposait d’agir sur release/', () => {
+    // Mesuré en montrant le plan d'un dossier de sonde : la ligne ne portait pas
+    // le dossier, donc un plan calculé sur `release-probe/` proposait de supprimer
+    // dans `release/`. Aidant, et faux — la seule façon dont un rappel peut être
+    // pire que rien, parce qu'il est recopié tel quel.
+    const probe = prunePlan({
+      currentVersion: '1.0.6',
+      unpublished: true,
+      local: [local(portable('1.0.0'), 'octets-1.0.0')],
+      published: [release('1.0.1', [held(setup('1.0.1'), 'x')])],
+    });
+    assert.equal(
+      pruneCommand(acts(probe), { dir: 'release-probe' }),
+      'npm run release:prune -- --dir=release-probe --yes --unpublished',
     );
+    assert.equal(
+      pruneCommand(['digest', 'stale'], { dir: 'release-test' }),
+      'npm run release:prune -- --dir=release-test --yes --stale',
+    );
+  });
+
+  it('le dossier par DÉFAUT se tait : la ligne de la documentation reste la sienne', () => {
+    assert.equal(pruneCommand(['digest'], { dir: 'release' }), 'npm run release:prune -- --yes');
+    assert.equal(pruneCommand(['digest']), 'npm run release:prune -- --yes');
+  });
+
+  it('aucune commande n’est écrite en dur dans le CLI : un seul site peut la produire', () => {
+    // Le bug du dossier n'existait que parce que la ligne était recopiée à TROIS
+    // endroits : le corriger à un seul laissait les deux autres mentir.
+    const source = read('scripts/prune-release-dir.mjs');
+    const literals = source.match(/['`][^'`\n]*npm run release:prune[^'`\n]*['`]/g) ?? [];
+    assert.deepEqual(literals, [], 'la commande ne s’écrit qu’à un endroit — le module pur');
+    // Le NOMBRE de sites n'est pas la propriété : il a déjà changé deux fois.
+    // Ce qui compte est qu'aucun d'eux n'écrive la ligne lui-même.
+    assert.ok((source.match(/pruneCommand\(/g) ?? []).length >= 3, 'le plan, les candidats et le refus y passent');
   });
 });
 
-describe('le câblage du script', () => {
-  it('un plan ne supprime RIEN sans --yes', () => {
-    const source = read('scripts/prune-release-dir.mjs');
-    assert.match(source, /const apply = args\.includes\('--yes'\)/);
-    // La suppression ne vit qu'après la garde : un `unlinkSync` qui remonterait
-    // avant elle ferait du plan un acte, ce qui est exactement ce qu'on refuse.
-    const guard = source.indexOf('if (!apply)');
-    const unlink = source.indexOf('unlinkSync(');
-    assert.ok(guard !== -1 && unlink > guard, 'la suppression est derrière la garde du plan');
-    assert.doesNotMatch(source, /secrets\./, 'aucun secret : le canal se lit sans jeton quand il n’y en a pas');
+describe('un plan sans départ dit ce qu’il sait, sans plaider', () => {
+  it('un dossier VIDE ne se voit pas reprocher ce qu’il contient', () => {
+    // La phrase précédente affirmait « ne contient que ce que le canal ne détient
+    // pas encore » — y compris à propos d'un dossier vide, donc à propos de rien.
+    assert.equal(noRemovalMessage(0), '✅ rien à décider — le dossier est vide.');
   });
 
-  it('--unpublished est le troisième acte, et le plan dit QUI décide', () => {
-    const source = read('scripts/prune-release-dir.mjs');
-    assert.match(source, /const unpublished = args\.includes\('--unpublished'\)/);
-    assert.match(source, /--yes --unpublished/, 'le plan donne la commande exacte de l’acte');
-    assert.match(source, /La décision est humaine/, 'et il dit à qui elle appartient, puisqu’aucune preuve n’existe');
-    assert.match(source, /le canal ne les a jamais eus/, 'avec la raison de fond : aucune empreinte n’est possible');
+  it('un dossier plein mais sans départ n’invente pas de raison', () => {
+    // Fausse sur le dossier RÉEL : elle l'affirmait pendant que le bloc suivant
+    // nommait la 1.0.6 comme sortie du build — or le canal la détient, c'est sa tête.
+    // Deux lignes du même rapport se contredisaient.
+    const line = noRemovalMessage(3);
+    assert.match(line, /rien à supprimer/);
+    assert.doesNotMatch(line, /ne détient pas encore/, 'elle ne plaide plus pour le dossier');
   });
 
-  it('--stale est un acte SÉPARÉ, nommé dans le plan', () => {
+  it('le CLI dit la phrase du module au lieu de la réinventer', () => {
     const source = read('scripts/prune-release-dir.mjs');
-    assert.match(source, /const stale = args\.includes\('--stale'\)/);
-    assert.match(source, /--yes --stale/, 'le refus dit quoi faire quand c’est bien une reconstruction locale');
-    assert.match(source, /c’est un incident de canal, pas un ménage/, 'et il refuse de confondre les deux causes');
-  });
-
-  it('le plan est branché comme commande, et l’échec de lecture du canal est un échec', () => {
-    const pkg = JSON.parse(read('package.json'));
-    assert.equal(pkg.scripts['release:prune'], 'node scripts/prune-release-dir.mjs');
-    const source = read('scripts/prune-release-dir.mjs');
-    assert.match(source, /canal illisible \(\$\{error\.message\}\)/, 'un corpus illisible n’est pas un plan vide');
-    assert.match(source, /process\.exit\(2\)/, 'et il sort en échec, jamais en vert');
+    assert.match(source, /noRemovalMessage\(local\.length\)/);
+    assert.doesNotMatch(source, /ne contient que ce que le canal ne détient pas encore/);
   });
 });

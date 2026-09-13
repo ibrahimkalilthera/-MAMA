@@ -19,7 +19,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import { parseArgs } from '../scripts/git-retry.mjs';
-import { runHookQualityChain } from '../scripts/hook-quality-chain.mjs';
+import { DEFAULT_STEPS, runHookQualityChain } from '../scripts/hook-quality-chain.mjs';
 import {
   CHAIN_CACHE_TTL_MS,
   chainCacheVerdict,
@@ -30,11 +30,16 @@ import {
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const NOW = Date.parse('2026-09-12T12:00:00.000Z');
 const TREE = 'a'.repeat(40);
+// Les maillons enregistrés sont ceux que le hook DEMANDE : un fixture figé à la
+// main a déjà menti une fois — le jour où `workshop` est entré dans la chaîne, il
+// ne couvrait plus la demande, le saut n'avait plus lieu, et ce suite de tests
+// unitaires a lancé la VRAIE chaîne pendant 75 s avant d'échouer. Dérivé de
+// `DEFAULT_STEPS`, il ne peut plus se désynchroniser du hook.
 const green = (over: Record<string, unknown> = {}) => ({
   treeOid: TREE,
   at: NOW - 60_000,
   nodeMajor: '22',
-  steps: ['audit', 'lint', 'test'],
+  steps: [...DEFAULT_STEPS].sort(),
   ...over,
 });
 
@@ -73,6 +78,11 @@ describe('sauter la chaîne : seulement quand rien n’a changé', () => {
     const missing = verdict({ steps: ['lint', 'test', 'audit', 'build'] });
     assert.equal(missing.skip, false);
     assert.match(missing.reason, /build/);
+    // Un vert enregistré AVANT qu'un maillon n'entre dans la chaîne ne le couvre
+    // pas : c'est ce qui doit rejouer, et non un vert réputé valable pour tout.
+    const before = verdict({ cache: green({ steps: ['audit', 'lint', 'test'] }), steps: DEFAULT_STEPS });
+    assert.equal(before.skip, false);
+    assert.match(before.reason, /workshop/);
     // pre-commit vert sur lint+test+audit vaut pour un pre-push qui demande
     // moins : la couverture enregistrée est un SUR-ensemble.
     assert.equal(verdict({ steps: ['lint'] }).skip, true);

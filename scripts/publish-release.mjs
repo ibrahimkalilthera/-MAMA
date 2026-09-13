@@ -51,7 +51,9 @@ import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
 import { runGateAttempts } from './lib/gate-runner.mjs';
-import { expectedArtifacts, parseLatestYml, releaseTag } from './lib/release-coherence.mjs';
+import { expectedArtifacts } from './lib/release-compare.mjs';
+import { parseLatestYml } from './lib/latest-yml.mjs';
+import { releaseTag } from './lib/release-version.mjs';
 import { publicationPlan } from './lib/release-publish.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');

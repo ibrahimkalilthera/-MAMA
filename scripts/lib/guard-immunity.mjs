@@ -154,8 +154,11 @@ export const GUARD_INVENTORY = [
     input: 'artifact+network+config',
     needs: [IMMUNITY.NON_VACUOUS],
     // La garantie de non-vacuité (aucun fichier annoncé ⇒ refus) vit dans le
-    // module qui compare, et elle est NOMMÉE ici plutôt que recopiée.
-    via: 'release-coherence.mjs',
+    // module qui compare, et elle est NOMMÉE ici plutôt que recopiée. Le module
+    // s'appelait `release-coherence.mjs` jusqu'au 2026-09-13 : il portait cinq
+    // métiers, et c'est `compareLatest` — donc `release-compare.mjs` — qui porte
+    // cette preuve.
+    via: 'release-compare.mjs',
     exempt: {
       [IMMUNITY.PROSE_BLIND]: 'il lit un fichier de données (latest.yml) et des octets d’installeur, jamais du code source',
     },

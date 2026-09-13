@@ -50,7 +50,14 @@ on:
   push:
     paths:
       - 'scripts/check-release-coherence.mjs'
-      - 'scripts/lib/release-coherence.mjs'
+      # Le contrôle n'importe plus UN module de 727 lignes mais quatre (lire,
+      # comparer, la portée du canal, l'algèbre des versions) : un filtre qui
+      # nommerait le fichier disparu ne déclencherait plus rien, et le contrôle
+      # ne serait donc plus exercé par le push qui le change.
+      - 'scripts/lib/latest-yml.mjs'
+      - 'scripts/lib/release-compare.mjs'
+      - 'scripts/lib/release-reach.mjs'
+      - 'scripts/lib/release-version.mjs'
       - 'updates/holds.json'
       - '.github/workflows/release-channel-watch.yml'
 

@@ -22,9 +22,6 @@
 //   • le regroupement est une LECTURE : les remontées brutes restent attachées à
 //     l'incident, donc rien n'est caché à l'administrateur.
 import { strict as assert } from 'node:assert';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 
 import type { AuditLogEntry } from '../src/lib/auditLogger';
@@ -33,9 +30,6 @@ import type { QueuedReport } from '../src/lib/desktopUpdateReport';
 import { blockedIncidents, incidentRows, parseBlockedReport } from '../src/lib/blockedIncidents';
 import { en as adminEn } from '../src/i18n/domains/adminEn';
 import { fr as adminFr } from '../src/i18n/domains/adminFr';
-
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
 
 /** Un rapport EN DIRECT, composé par le module de remontée lui-même. */
 function live(station: string, at: string, options: { currentVersion?: string; version?: string; detail?: string } = {}): AuditLogEntry {
@@ -197,21 +191,11 @@ describe('les lignes de la vue', () => {
 });
 
 describe('le câblage de la vue administrateur', () => {
-  it('la vue regroupe par défaut, déplie les postes, et n’invente aucun libellé', () => {
-    const view = read('src/components/AuditView.tsx');
-    assert.match(view, /import \{ incidentRows \} from '\.\.\/lib\/blockedIncidents'/, 'le regroupement est une décision du module pur');
-    assert.match(view, /useState\(true\)/, 'regroupé par défaut : c’est la question qui se pose devant un parc');
-    assert.match(view, /t\.auditFilterGroupIncidents/, 'un libellé traduit, jamais une chaîne en dur');
-    assert.match(view, /aria-expanded=\{open\}/, 'le dépliage est annoncé aux lecteurs d’écran');
-    assert.match(view, /incident\.reports\.map/, 'les remontées brutes restent lisibles sous l’incident');
-    assert.match(view, /incidentRows\(filtered\)/, 'le regroupement porte sur la vue FILTRÉE');
-  });
-
-  it('l’export CSV suit la vue : regroupé, il ne redonne pas les vingt lignes', () => {
-    const view = read('src/components/AuditView.tsx');
-    assert.match(view, /viewRows\.map\(\(row\) => row\.kind === 'incident'/, 'l’export part des lignes affichées');
-  });
-
+  // Ce que la vue FAIT se prouve dans tests/views-render.test.tsx, sur la vue
+  // rendue avec de vrais rapports : une ligne par panne, remontées repliées puis
+  // dépliées, et un CSV qui suit la vue (regroupé / dégroupé). Deux assertions
+  // par expression régulière sur AuditView.tsx vivaient ici : elles restaient
+  // vertes si la vue n’affichait plus rien, donc elles ne prouvaient rien.
   it('les libellés existent dans les deux langues, avec leurs jetons', () => {
     const keys = [
       'auditFilterGroupIncidents',

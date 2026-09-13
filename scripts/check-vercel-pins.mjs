@@ -31,6 +31,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { withTransientRetry } from './lib/transient-http.mjs';
+import { compareVersions } from './lib/release-version.mjs';
 
 const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const SPAWN_OPTS = { shell: process.platform === 'win32' };
@@ -116,15 +117,12 @@ function probeTree(version) {
   }
 }
 
-function compareVersions(a, b) {
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  for (let i = 0; i < 3; i++) {
-    const delta = (pa[i] || 0) - (pb[i] || 0);
-    if (delta !== 0) return delta;
-  }
-  return 0;
-}
+// `compareVersions` vivait ICI en double, avec d'autres règles que celle du
+// dépôt : sa version lisait « 1.0.x » en `split('.').map(Number)`, donc une
+// chaîne qui n'est pas un numéro devenait `NaN` — ou `0` — et le contrôle
+// concluait « pas de nouvelle version » au lieu de le dire. La comparaison est
+// maintenant CELLE du dépôt (`release-version.mjs`), et une version illisible
+// n'est plus un « non » : c'est un échec nommé, juste en dessous.
 
 // ─── GitHub REST (issues only; read-only when TOKEN is empty) ────────────────
 
@@ -293,7 +291,11 @@ if (process.env.PROBE_VERSION) {
   const currentCount = auditTree('tools');
   if (currentCount === null) fail('could not audit the current tools/ tree (lockfile unreadable?)');
 
-  const isNew = compareVersions(latest, pinned) > 0;
+  const delta = compareVersions(latest, pinned);
+  if (delta === null) {
+    fail(`versions illisibles : vercel@${latest} contre ${pinned} — on ne devine pas un ordre à partir d'une chaîne libre`);
+  }
+  const isNew = delta > 0;
   let latestCount = null;
   let fixAvailable = false;
   if (isNew) {

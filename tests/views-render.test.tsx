@@ -36,6 +36,7 @@ import { ExpensesView } from '../src/components/ExpensesView';
 import { CalendarView } from '../src/components/CalendarView';
 import { NotesView } from '../src/components/NotesView';
 import { AuditView } from '../src/components/AuditView';
+import { blockedAuditEntry } from '../src/lib/desktopUpdateReport';
 import { SettingsView } from '../src/components/SettingsView';
 
 // ─── Shared stubs ────────────────────────────────────────────────────────────
@@ -505,6 +506,161 @@ describe('views render inside MainViewsContext', () => {
     } finally {
       await act(async () => root.unmount());
       container.remove();
+    }
+  });
+
+  // ─── Le regroupement par incident, exercé SUR LA VUE ──────────────────────
+  //
+  // Ces trois cas remplacent des assertions par expression régulière sur le
+  // source d'AuditView.tsx (`useState(true)`, `incident.reports.map`,
+  // `viewRows.map((row) => row.kind === 'incident'`), qui ne prouvaient rien :
+  // elles restaient vertes même si la vue n'affichait plus rien. Ici on rend la
+  // vue avec de VRAIS rapports produits par le module de remontée, on déplie, on
+  // exporte — et on lit ce qui sort. « Rien ne suit » n'est donc plus vert.
+  const blockedReport = (station: string, at: string): AuditLogEntry => {
+    const entry = blockedAuditEntry(
+      {
+        blocked: {
+          code: 'download',
+          detail: 'Cannot download "MamaTheraFinance-2.0.0-setup.exe", status 404',
+          station,
+          journal: 'C:/Users/x/update-journal.jsonl',
+          recorded: true,
+        },
+        version: '2.0.0',
+        currentVersion: '1.0.5',
+      },
+      { station }
+    );
+    assert.ok(entry, 'le producteur doit rendre un rapport pour un poste bloqué');
+    return {
+      id: `live-${station}-${at}`,
+      action: entry.action,
+      targetType: entry.targetType,
+      targetId: entry.targetId ?? undefined,
+      details: entry.details,
+      createdAt: at,
+    };
+  };
+
+  const blockedLogs = () => [
+    blockedReport('POSTE-A', '2026-09-13T08:00:00.000Z'),
+    blockedReport('POSTE-B', '2026-09-13T09:00:00.000Z'),
+  ];
+
+  /** Monte AuditView dans happy-dom. `fn` voit le conteneur, le root est démonté. */
+  const withAuditDom = async (
+    logs: AuditLogEntry[],
+    fn: (ctx: { container: HTMLElement; win: ReturnType<typeof installDomGlobals> }) => Promise<void> | void
+  ) => {
+    const win = installDomGlobals();
+    const container = win.document.createElement('div');
+    win.document.body.appendChild(container);
+    const root = createRoot(container as unknown as Element);
+    try {
+      await act(async () => {
+        root.render(
+          createElement(
+            MainViewsContext.Provider,
+            { value: makeProps({ auditLogs: logs }) },
+            createElement(AuditView)
+          )
+        );
+      });
+      // happy-dom's HTMLElement n'est pas celui de lib.dom : le conteneur est
+      // rendu au cas sous le type du DOM standard (mêmes méthodes utilisées).
+      await fn({ container: container as unknown as HTMLElement, win });
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  };
+
+  it('AuditView : deux postes, une panne → UN incident, remontées brutes repliées puis dépliées', async () => {
+    await withAuditDom(blockedLogs(), async ({ container }) => {
+      const rows = container.querySelectorAll('tbody tr');
+      assert.equal(rows.length, 1, 'deux postes bloqués par la même panne → une seule ligne affichée');
+      assert.ok(container.innerHTML.includes(translations.en.auditIncidentAction.replace('{code}', 'download')));
+      assert.ok(container.innerHTML.includes(translations.en.auditIncidentStations), 'le compte est étiqueté');
+      assert.match(container.innerHTML, />2</, 'les deux postes sont comptés sur la ligne');
+      assert.ok(
+        container.innerHTML.includes('POSTE-A') && container.innerHTML.includes('POSTE-B'),
+        'les postes touchés sont nommés'
+      );
+      assert.ok(
+        !container.innerHTML.includes('update-journal.jsonl'),
+        'les remontées brutes restent repliées tant qu’on ne demande rien'
+      );
+
+      const toggle = [...container.querySelectorAll('button')].find(
+        (b) => b.getAttribute('aria-label') === translations.en.auditIncidentShow
+      );
+      assert.ok(toggle, 'le dépliage est nommé (donc annoncé aux lecteurs d’écran)');
+      assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+
+      await act(async () => {
+        toggle.click();
+      });
+      assert.ok(
+        container.innerHTML.includes('update-journal.jsonl'),
+        'déplié, l’incident rend les remontées brutes — rien n’est caché à l’administrateur'
+      );
+      assert.ok(
+        [...container.querySelectorAll('button')].some(
+          (b) => b.getAttribute('aria-label') === translations.en.auditIncidentHide
+        ),
+        'l’état déplié est annoncé'
+      );
+    });
+  });
+
+  it('l’export CSV suit la vue : regroupé, une ligne par incident ; dégroupé, une par poste', async () => {
+    const blobs: Blob[] = [];
+    const url = globalThis.URL as unknown as Record<string, unknown>;
+    const realCreate = url.createObjectURL;
+    const realRevoke = url.revokeObjectURL;
+    url.createObjectURL = (blob: Blob) => {
+      blobs.push(blob);
+      return 'blob:probe';
+    };
+    url.revokeObjectURL = () => {};
+    try {
+      await withAuditDom(blockedLogs(), async ({ container, win }) => {
+        // Le clic du lien de téléchargement est neutralisé : on ne teste pas la
+        // navigation, on teste les OCTETS que la vue produit.
+        const realAnchorClick = win.HTMLAnchorElement.prototype.click;
+        win.HTMLAnchorElement.prototype.click = () => {};
+        try {
+          const buttons = [...container.querySelectorAll('button')];
+          const exportBtn = buttons.find((b) => b.textContent?.includes(translations.en.exportCsv));
+          assert.ok(exportBtn, 'le bouton d’export existe');
+
+          await act(async () => {
+            exportBtn.click();
+          });
+          const grouped = await blobs[0].text();
+          assert.equal(grouped.split('\r\n').length, 2, 'en-tête + UNE ligne : le CSV ne redonne pas les postes regroupés');
+          assert.equal((grouped.match(/POSTE-A/g) ?? []).length, 1, 'le poste n’apparaît qu’une fois, dans le résumé');
+
+          const groupToggle = buttons.find((b) =>
+            b.textContent?.includes(translations.en.auditFilterGroupIncidents)
+          );
+          assert.ok(groupToggle, 'le regroupement se désactive depuis la vue');
+          await act(async () => {
+            groupToggle.click();
+          });
+          await act(async () => {
+            exportBtn.click();
+          });
+          const ungrouped = await blobs[1].text();
+          assert.equal(ungrouped.split('\r\n').length, 3, 'dégroupé : en-tête + deux postes');
+        } finally {
+          win.HTMLAnchorElement.prototype.click = realAnchorClick;
+        }
+      });
+    } finally {
+      url.createObjectURL = realCreate;
+      url.revokeObjectURL = realRevoke;
     }
   });
 

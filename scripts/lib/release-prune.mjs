@@ -41,7 +41,7 @@
 // Le comparateur de versions vient du module du canal : un `1.0.10 > 1.0.9`
 // chiffré n'existe qu'une fois dans ce dépôt, et « strictement plus basse que »
 // ne se décide pas sur des chaînes.
-import { compareVersions, versionParts } from './release-coherence.mjs';
+import { compareVersions, versionParts } from './release-version.mjs';
 
 /**
  * La version qu'un nom d'artefact porte, ou `null`.
@@ -93,22 +93,33 @@ export function artifactVersion(name) {
  *
  * @param {{ currentVersion?: string,
  *   local?: { name: string, size?: number, sha256?: string|null }[],
+ *   dirs?: { name: string, size?: number }[],
  *   published?: { version?: string, tag?: string, draft?: boolean,
  *     assets?: { name?: string, size?: number, digest?: string|null }[] }[],
- *   stale?: boolean, unpublished?: boolean }} input
+ *   stale?: boolean, unpublished?: boolean, unpacked?: boolean }} input
  * @returns {{ remove: { name: string, version: string, kind: 'digest'|'stale'|'unpublished', reason: string }[],
  *   keep: { name: string, version?: string, reason: string }[],
  *   ignored: { name: string, reason: string }[],
  *   divergences: { name: string, version: string, reason: string }[],
  *   unpublishedCandidates: { name: string, version: string }[],
+ *   loose: { name: string, size: number, kind: 'unpacked'|'dir', reason: string }[],
  *   bytesFreed: number }}
  */
-export function prunePlan({ currentVersion = '', local = [], published = [], stale = false, unpublished = false } = {}) {
+export function prunePlan({
+  currentVersion = '',
+  local = [],
+  dirs = [],
+  published = [],
+  stale = false,
+  unpublished = false,
+  unpacked = false,
+} = {}) {
   const remove = [];
   const keep = [];
   const ignored = [];
   const divergences = [];
   const unpublishedCandidates = [];
+  const loose = [];
   let bytesFreed = 0;
 
   // Le canal, indexé par version — et seuls les releases PUBLIÉS y entrent. Un
@@ -126,6 +137,50 @@ export function prunePlan({ currentVersion = '', local = [], published = [], sta
   for (const version of channel.keys()) {
     if (!versionParts(version)) continue;
     if (highestPublished === null || compareVersions(version, highestPublished) === 1) highestPublished = version;
+  }
+
+  // ── Les DOSSIERS ────────────────────────────────────────────────────────
+  // Mesuré le 13/09 sur le dossier réel : ils pesaient 508 Mo sur 754 Mo, et
+  // le plan n'en disait pas un mot — les fichiers sont entrés ici, donc le
+  // volume le plus gros était muet. « L'atelier devient compréhensible » veut
+  // dire que ce qui reste a un nom, une taille et une raison, y compris ce qui
+  // ne part pas.
+  //
+  // Le seul DOSSIER qu'un acte peut enlever est celui d'electron-builder : sa
+  // convention de nom (`win-unpacked`, `linux-unpacked`) est la signature d'une
+  // sortie de build décompressée, régénérable par `electron:dist`. Les autres
+  // (ressources de build comme `.icon-ico`) sont des ENTRÉES : elles restent, et
+  // le plan le dit au lieu de laisser croire qu'elles sont du déchet.
+  for (const dir of dirs) {
+    const name = String(dir?.name ?? '');
+    const size = Number(dir?.size) || 0;
+    if (!/-unpacked$/.test(name)) {
+      loose.push({
+        name,
+        size,
+        kind: 'dir',
+        reason:
+          'dossier de build (non versionné) — hors du sort de ce contrôle, mais nommé pour que le volume restant s’explique',
+      });
+      continue;
+    }
+    loose.push({
+      name,
+      size,
+      kind: 'unpacked',
+      reason:
+        'sortie de build DÉCOMPRESSÉE (convention electron-builder) — elle n’est ni versionnée ni livrable, et `electron:dist` la régénère',
+    });
+    if (unpacked) {
+      remove.push({
+        name,
+        version: '',
+        kind: 'unpacked',
+        reason:
+          'sortie de build décompressée, régénérable par `electron:dist` — la retirer ne change RIEN pour un poste ; les preuves locales qui lancent son exe (preuve bureau, rejeu de mise à jour) demanderont un rebuild',
+      });
+      bytesFreed += size;
+    }
   }
 
   for (const file of local) {
@@ -245,30 +300,66 @@ export function prunePlan({ currentVersion = '', local = [], published = [], sta
     bytesFreed += Number(file.size) || 0;
   }
 
-  return { remove, keep, ignored, divergences, unpublishedCandidates, bytesFreed };
+  return { remove, keep, ignored, divergences, unpublishedCandidates, loose, bytesFreed };
 }
 
 /**
- * La commande qui applique RÉELLEMENT ce plan.
+ * La commande qui agit RÉELLEMENT, sur CE dossier, pour les actes demandés.
  *
- * Un rappel qui dit « relance avec --yes » s'est déjà trompé ici, et de la pire
- * façon : en silence. `--yes` seul n'applique que les départs qu'une EMPREINTE
- * autorise ; sur un plan de reconstructions (`--stale`) ou de builds jamais
- * livrés (`--unpublished`), il redemandait donc exactement la commande qu'on
+ * Deux erreurs ont été payées ici, et la seconde était dangereuse.
+ *
+ * La première : un rappel figé sur `--yes`, qui n'applique que les départs
+ * qu'une EMPREINTE autorise. Sur un plan de reconstructions (`--stale`) ou de
+ * builds jamais livrés (`--unpublished`), il redemandait donc la commande qu'on
  * venait de taper — et l'appliquer n'enlevait RIEN. Un plan qu'on croit appliqué
- * et qui n'a rien fait ne se relit pas comme un plan vide : il se relit comme un
- * ménage fait. Les drapeaux sont donc DÉDUITS des catégories présentes, jamais
- * écrits d'avance.
+ * ne se relit pas comme un plan vide : il se relit comme un ménage fait.
  *
- * @param {{ remove?: { kind?: string }[] }} plan
- * @returns {string} la ligne exacte à recopier, `--yes` compris
+ * La seconde, mesurée en montrant le plan d'un dossier de sonde : la commande ne
+ * portait pas le DOSSIER. Un plan calculé sur `release-probe/` proposait donc
+ * d'agir sur `release/` — aidant, et faux, c'est-à-dire la seule façon dont un
+ * rappel peut être pire que rien.
+ *
+ * Le dossier et les actes passent donc par ici, et par ici seulement : un
+ * troisième site qui recopierait la ligne rouvrirait les deux erreurs à la fois.
+ *
+ * @param {Iterable<string>} [kinds] les actes présents dans le plan
+ *   (`digest` | `stale` | `unpublished`) — `--yes` est toujours là, il EST l'acte
+ * @param {{ dir?: string }} [options] le dossier visé ; `release` est le défaut
+ *   et se tait, parce que c'est la ligne que la documentation montre
+ * @returns {string} la ligne exacte à recopier
  */
-export function pruneCommand({ remove = [] } = {}) {
-  const kinds = new Set(remove.map((item) => item?.kind));
+export function pruneCommand(kinds = [], { dir = 'release' } = {}) {
+  const acts = new Set(kinds);
   const flags = ['--yes'];
-  if (kinds.has('stale')) flags.push('--stale');
-  if (kinds.has('unpublished')) flags.push('--unpublished');
-  return `npm run release:prune -- ${flags.join(' ')}`;
+  if (acts.has('stale')) flags.push('--stale');
+  if (acts.has('unpublished')) flags.push('--unpublished');
+  if (acts.has('unpacked')) flags.push('--unpacked');
+  const target = dir && dir !== 'release' ? ` --dir=${dir}` : '';
+  return `npm run release:prune --${target} ${flags.join(' ')}`;
+}
+
+/**
+ * Ce qu'un plan SANS départ doit dire — et pourquoi il ne peut pas dire autre
+ * chose.
+ *
+ * La phrase précédente, « le dossier ne contient que ce que le canal ne détient
+ * pas encore », était fausse sur les deux dossiers réels. Sur `release/`, elle
+ * l'affirmait pendant que le bloc suivant nommait la 1.0.6 comme sortie du build —
+ * et le canal la détient, c'est sa tête. Sur un dossier vide, elle nommait une
+ * raison qui ne peut s'appliquer à rien. Deux lignes du même rapport se
+ * contredisaient donc, et la rassurante était la fausse.
+ *
+ * Les raisons de chaque conservation sont déjà écrites ligne à ligne dans les
+ * blocs qui suivent (`⛔ conservés`, `➖ hors sujet`, les candidats nommés) :
+ * cette ligne n'a plus qu'à dire ce qu'elle sait, sans plaider.
+ *
+ * @param {number} fileCount ce que le dossier contient réellement
+ * @returns {string}
+ */
+export function noRemovalMessage(fileCount = 0) {
+  return Number(fileCount) === 0
+    ? '✅ rien à décider — le dossier est vide.'
+    : '✅ rien à supprimer — aucun fichier ne remplit une condition de départ.';
 }
 
 /**
