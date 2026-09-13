@@ -281,11 +281,24 @@ function reportReadPath(label, read) {
  */
 function reportFeed(verdict) {
   const files = Array.isArray(verdict?.feed) ? verdict.feed : [];
-  if (!files.length) return;
-  console.log(`   flux — ${files.length} fichier(s) annoncé(s), chacun rehaché sur les octets servis :`);
-  for (const line of files) {
-    const hash = line.servedSha512 ? `sha512 ${line.servedSha512.slice(0, 24)}…` : 'sha512 illisible';
-    console.log(`   ${line.ok ? '✅' : '❌'} ${line.name} · ${line.servedSize ?? '—'} octet(s) · ${hash} — ${line.detail}`);
+  if (files.length) {
+    console.log(`   flux — ${files.length} fichier(s) annoncé(s), chacun rehaché sur les octets servis :`);
+    for (const line of files) {
+      const hash = line.servedSha512 ? `sha512 ${line.servedSha512.slice(0, 24)}…` : 'sha512 illisible';
+      console.log(`   ${line.ok ? '✅' : '❌'} ${line.name} · ${line.servedSize ?? '—'} octet(s) · ${hash} — ${line.detail}`);
+    }
+  }
+  // L'AUTRE SENS, nommé lui aussi : un actif publié que le flux ne liste pas ne
+  // sera jamais téléchargé par un poste, et rien ne manque là où on regarde —
+  // c'est donc la moitié qui resterait invisible si on ne l'imprimait pas. Les
+  // actifs qui ont le DROIT d'être hors flux sont nommés avec leur raison :
+  // « attendu hors flux » dit se lit, un silence ne se lit pas.
+  const outside = Array.isArray(verdict?.outside) ? verdict.outside : [];
+  if (!outside.length) return;
+  console.log(`   hors flux — ${outside.length} actif(s) publié(s) que le flux ne liste pas :`);
+  for (const line of outside) {
+    const mark = line.kind === 'off-feed' ? '➖' : line.ok ? 'ℹ️ ' : '❌';
+    console.log(`   ${mark} ${line.name} — ${line.detail}`);
   }
 }
 

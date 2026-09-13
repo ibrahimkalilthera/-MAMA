@@ -30,6 +30,7 @@ import {
   assetsToPublish,
   compareFeedFiles,
   compareLatest,
+  comparePublishedOutsideFeed,
   compareRelease,
   expectedArtifacts,
   publishDecision,
@@ -949,5 +950,101 @@ describe('ce qu’un poste resté sur une ancienne version reçoit', () => {
     assert.deepEqual(reach.invisible, ['v1.0.5-beta.1']);
     assert.match(reach.warnings.join(' '), /PRÉ-VERSION/);
     assert.deepEqual(reach.problems, []);
+  });
+});
+
+// ─── Le sens inverse : ce qui est publié SANS être dans le flux ───────────────
+//
+// `compareFeedFiles` regarde chaque entrée ANNONCÉE. L'autre moitié était
+// invisible, et c'est celle d'un fichier qui existe pour tout le monde sauf pour
+// les postes : `electron-updater` parcourt `files[]` et suit son `path`, donc un
+// installeur absent du flux ne sera JAMAIS téléchargé. Rien ne manque là où on
+// regarde — c'est pour ça qu'il faut le nommer.
+describe('les actifs publiés hors du flux', () => {
+  const FEED = 'version: 1.0.8\nfiles:\n  - url: MamaTheraFinance-1.0.8-setup.exe\n    sha512: a\n    size: 129081184\npath: MamaTheraFinance-1.0.8-setup.exe\nsha512: a\n';
+  const announced = parseLatestYml(FEED)!;
+  const assets = (...names: string[]) => names.map((name) => ({ name }));
+
+  it('un installeur téléversé que le flux ne liste pas est un REFUS — publié pour personne', () => {
+    const v = comparePublishedOutsideFeed({
+      announced,
+      assets: assets('MamaTheraFinance-1.0.8-setup.exe', 'MamaTheraFinance-1.0.8-extra-setup.exe'),
+      version: '1.0.8',
+    });
+    assert.equal(v.problems.length, 1);
+    assert.match(v.problems.join(' '), /ABSENT du latest.yml/);
+    assert.equal(v.lines.find((l) => l.name.endsWith('extra-setup.exe'))?.kind, 'hole');
+    assert.equal(v.lines.some((l) => l.name === 'MamaTheraFinance-1.0.8-setup.exe'), false, 'une entrée du flux n’est pas un actif hors flux');
+  });
+
+  it('un blockmap hors flux est NORMAL et nommé : le différentiel le découvre par convention', () => {
+    const v = comparePublishedOutsideFeed({
+      announced,
+      assets: assets('MamaTheraFinance-1.0.8-setup.exe.blockmap'),
+      version: '1.0.8',
+    });
+    assert.deepEqual(v.problems, []);
+    assert.deepEqual(v.warnings, [], 'le canal publié est dans cet état : en faire un défaut allumerait un contrôle en permanence');
+    assert.equal(v.lines[0]?.kind, 'off-feed');
+    assert.match(v.lines[0]?.detail ?? '', /blockmap/);
+  });
+
+  it('les trois actifs qui ont le DROIT d’être hors flux sont nommés, avec leur raison', () => {
+    const v = comparePublishedOutsideFeed({
+      announced,
+      assets: assets('latest.yml', 'MamaTheraFinance-1.0.8-portable.exe', 'MamaTheraFinance-1.0.8-unpacked.manifest.json'),
+      version: '1.0.8',
+    });
+    assert.deepEqual(v.problems, []);
+    assert.deepEqual(v.warnings, []);
+    assert.equal(v.lines.length, 3, '« attendu hors flux » doit se LIRE : un silence ne se lit pas');
+    assert.ok(v.lines.every((l) => l.kind === 'off-feed'));
+    assert.match(v.lines.map((l) => l.detail).join(' '), /télécharge à la main/);
+  });
+
+  it('un actif d’une AUTRE version est nommé : c’est le fichier repris à la main', () => {
+    const v = comparePublishedOutsideFeed({
+      announced,
+      assets: assets('MamaTheraFinance-1.0.5-setup.exe'),
+      version: '1.0.8',
+    });
+    assert.equal(v.lines[0]?.kind, 'foreign');
+    assert.match(v.warnings.join(' '), /autre numéro/);
+  });
+
+  it('un actif d’aucune catégorie connue est DIT, pas rangé de force', () => {
+    const v = comparePublishedOutsideFeed({ announced, assets: assets('notes.txt'), version: '1.0.8' });
+    assert.equal(v.lines[0]?.kind, 'unknown');
+    assert.match(v.warnings.join(' '), /sans catégorie qui l’explique/);
+  });
+
+  it('sans flux lisible, rien n’est jugé : sinon chaque actif deviendrait « hors flux »', () => {
+    const v = compareRelease({
+      mode: 'live',
+      version: '1.0.8',
+      remote: { count: 1, isDraft: false, tag: 'v1.0.8', assets: assets('MamaTheraFinance-1.0.8-setup.exe'), announced: null },
+    });
+    assert.equal(v.outside?.length, 0);
+    assert.match(v.problems.join(' '), /latest.yml absent/);
+  });
+
+  it('et le refus remonte par compareRelease, donc les quatre modes en héritent', () => {
+    const v = compareRelease({
+      mode: 'live',
+      version: '1.0.8',
+      expected: ['latest.yml', 'MamaTheraFinance-1.0.8-setup.exe'],
+      remote: {
+        count: 1,
+        isDraft: false,
+        tag: 'v1.0.8',
+        assets: assets('latest.yml', 'MamaTheraFinance-1.0.8-setup.exe', 'MamaTheraFinance-1.0.8-extra-setup.exe'),
+        latestText: FEED,
+        announced,
+      },
+    });
+    assert.equal(v.ok, false);
+    assert.match(v.problems.join(' '), /un fichier publié que personne ne verra/);
+    assert.equal(v.outside?.find((l) => l.name.endsWith('extra-setup.exe'))?.kind, 'hole');
+    assert.equal(v.outside?.find((l) => l.name === 'latest.yml')?.kind, 'off-feed');
   });
 });

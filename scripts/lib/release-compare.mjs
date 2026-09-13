@@ -132,7 +132,8 @@ export function compareLatest({
  *     feedReads?: { name: string, size?: number|null, sha512?: string|null }[]|null,
  *     announced?: { version?: string, path?: string, sha512?: string,
  *       files?: { url?: string, size?: number|null, sha512?: string|null }[] }|null }|null }} input
- * @returns {{ ok: boolean, problems: string[], warnings: string[], feed: FeedFileLine[] }}
+ * @returns {{ ok: boolean, problems: string[], warnings: string[], feed: FeedFileLine[],
+ *   outside?: PublishedLine[] }}
  */
 export function compareRelease({ mode = 'live', version, expected = [], remote = null, localLatestText = null } = {}) {
   const problems = [];
@@ -208,6 +209,18 @@ export function compareRelease({ mode = 'live', version, expected = [], remote =
   problems.push(...feed.problems);
   warnings.push(...feed.warnings);
 
+  // Et le sens INVERSE — ce qui est publié sans être dans le flux. Il vit ici,
+  // donc les quatre modes (local, tag, draft, live, channel) en héritent d'un
+  // coup : un actif que le flux ignore est vrai de la même façon partout.
+  // Sans flux lisible, il n'y a rien à confronter : chaque actif deviendrait
+  // « hors flux » et noierait la panne réelle (le flux manquant, déjà nommée)
+  // sous une dizaine d'accusations qui n'en sont pas.
+  const outside = remote.announced
+    ? comparePublishedOutsideFeed({ announced: remote.announced, assets: remote.assets || [], version })
+    : { problems: [], warnings: [], lines: [] };
+  problems.push(...outside.problems);
+  warnings.push(...outside.warnings);
+
   if (remote.installer && remote.announced && remote.announced.sha512) {
     if (remote.installer.sha512 !== remote.announced.sha512) {
       problems.push(
@@ -224,7 +237,7 @@ export function compareRelease({ mode = 'live', version, expected = [], remote =
           '— impossible de prouver que les octets servis sont ceux promis',
     );
   }
-  return { ok: problems.length === 0, problems, warnings, feed: feed.files };
+  return { ok: problems.length === 0, problems, warnings, feed: feed.files, outside: outside.lines };
 }
 
 /**
@@ -318,6 +331,110 @@ export function compareFeedFiles({ announced = null, assets = [], reads = [] } =
     files.push(line);
   }
   return { problems, warnings, files };
+}
+
+/** Un nom qui porte un numéro de version (`-1.0.5-`, `-1.0.5.`). */
+const VERSION_IN_NAME = /-\d+(\.\d+)+[-.]/;
+
+/**
+ * Une ligne de l'inventaire publié hors flux.
+ *
+ * @typedef {{ name: string, kind: 'off-feed'|'hole'|'foreign'|'unknown',
+ *   ok: boolean, detail: string }} PublishedLine
+ */
+
+/**
+ * L'AUTRE SENS de la comparaison : ce qui est téléversé sans être dans le flux.
+ *
+ * `compareFeedFiles` confronte chaque entrée ANNONCÉE aux octets servis. Le sens
+ * inverse restait invisible, et c'est celui d'un fichier qui existe pour tout le
+ * monde sauf pour les postes : un installeur téléversé que `latest.yml` ne liste
+ * pas ne sera JAMAIS téléchargé par `electron-updater` (il parcourt `files[]` et
+ * suit son `path`, rien d'autre). Le fichier est là, il pèse son poids, et aucun
+ * poste ne le verra — le défaut le plus silencieux de la chaîne, puisque rien ne
+ * manque là où on regarde.
+ *
+ * Tout actif est donc NOMMÉ, y compris ceux qui ont le droit d'être hors du flux :
+ * « attendu hors flux » dit aussi se lit, et un silence ne doit pas se confondre
+ * avec une conformité. Quatre issues, et chacune a sa raison :
+ *   • `off-feed`  — normal et dit : `latest.yml` (le flux ne se liste pas
+ *     lui-même), le portable (téléchargé à la main), le manifeste d'arborescence
+ *     (aucun poste ne le lit) ;
+ *   • `hole`      — un installeur de la version annoncée que le flux ne liste
+ *     pas : publié pour personne (refus) ; un **blockmap** dans le même cas est
+ *     un AVERTISSEMENT, pas un refus : sans lui un poste télécharge l'installeur
+ *     entier au lieu du delta, donc c'est un coût, pas une panne ;
+ *   • `foreign`   — le nom porte un AUTRE numéro que celui annoncé : nommé, pour
+ *     que « le mauvais fichier repris à la main » ne reste pas possible sans
+ *     être vu ;
+ *   • `unknown`   — ni le flux, ni une catégorie connue : dit tel quel plutôt
+ *     que rangé de force dans une case qui ne le décrit pas.
+ *
+ * PUR : il ne lit que des noms, donc chaque branche se prouve sans release.
+ *
+ * @param {{ announced?: { path?: string, files?: { url?: string }[] }|null,
+ *   assets?: { name?: string }[], version?: string|null }} [input]
+ * @returns {{ problems: string[], warnings: string[], lines: PublishedLine[] }}
+ */
+export function comparePublishedOutsideFeed({ announced = null, assets = [], version = null } = {}) {
+  const problems = [];
+  const warnings = [];
+  const lines = [];
+  const wanted = String(version ?? '').trim();
+  const announcedNames = new Set();
+  if (announced?.path) announcedNames.add(String(announced.path));
+  for (const entry of Array.isArray(announced?.files) ? announced.files : []) {
+    if (entry?.url) announcedNames.add(String(entry.url));
+  }
+
+  for (const asset of assets) {
+    const name = String(asset?.name ?? '').trim();
+    if (!name || announcedNames.has(name)) continue;
+    const carries = wanted ? nameCarriesVersion(name, wanted) : false;
+    const line = { name, kind: 'unknown', ok: true, detail: '' };
+
+    if (name === 'latest.yml') {
+      line.kind = 'off-feed';
+      line.detail = 'le flux lui-même — il ne se liste pas dans son propre `files[]`';
+    } else if (/-portable\.exe$/i.test(name)) {
+      line.kind = 'off-feed';
+      line.detail = 'portable — hors du flux par conception : l’auto-installation exige l’installeur NSIS, ce fichier se télécharge à la main';
+    } else if (isManifestAsset(name)) {
+      line.kind = 'off-feed';
+      line.detail = 'manifeste d’arborescence — aucun poste ne le lit, c’est la preuve du dossier de build';
+      // Un nom qui porte un AUTRE numéro est « étranger » ; un nom qui n'en
+      // porte aucun (`notes.txt`) n'est pas une autre version, c'est une chose
+      // inexpliquée — et la ranger dans « mauvaise version » serait une
+      // catégorie qui ne la décrit pas.
+    } else if (wanted && VERSION_IN_NAME.test(name) && !carries) {
+      line.kind = 'foreign';
+      line.detail = `porte un AUTRE numéro que ${wanted} — c’est le fichier qu’un humain peut reprendre à la main en croyant prendre la bonne version`;
+      warnings.push(`« ${name} » est dans le release mais porte un autre numéro que ${wanted} — hors du flux, et repris à la main plus facilement qu’il ne se repère`);
+    } else if (/-setup\.exe$/i.test(name)) {
+      line.kind = 'hole';
+      line.ok = false;
+      line.detail = 'TÉLÉVERSÉ mais absent du flux — aucun poste ne suivra cette entrée : `electron-updater` parcourt `files[]` et son `path`, rien d’autre';
+      problems.push(
+        `« ${name} » est téléversé dans le release mais ABSENT du latest.yml — un fichier publié que personne ne verra ; ` +
+          'soit le flux le liste, soit il n’a rien à faire là',
+      );
+    } else if (/-setup\.exe\.blockmap$/i.test(name)) {
+      // NORMAL, et nommé pour cette raison : le mécanisme différentiel ne lit pas
+      // ce fichier dans `files[]`, il le découvre par CONVENTION (`<url>.blockmap`
+      // à côté de l'installeur). Mesuré sur le canal publié (v1.0.8) : le flux
+      // liste UN fichier et le blockmap est un actif à part. Le classer en défaut
+      // aurait produit un avertissement permanent sur un canal sain — et un
+      // contrôle toujours allumé ne se lit plus.
+      line.kind = 'off-feed';
+      line.detail = 'blockmap — hors du flux par convention : le mécanisme différentiel le découvre à `<installeur>.blockmap`, pas dans `files[]`';
+    } else {
+      line.kind = 'unknown';
+      line.detail = 'dans le release, hors du flux, et d’aucune catégorie connue — dites pourquoi il est là, ou retirez-le';
+      warnings.push(`« ${name} » est publié, hors du flux, et sans catégorie qui l’explique — un actif inexpliqué est un actif qu’on finit par reprendre à la main`);
+    }
+    lines.push(line);
+  }
+  return { problems, warnings, lines };
 }
 
 /**
