@@ -1,3 +1,23 @@
+## [2026-09-13] Le volume de l'atelier devient une addition — et ce qui n'entrait dans aucune case est nommé
+
+Demande : « Fais nommer par release:prune les dossiers qu'il ne juge pas (dont win-unpacked, 508 Mo), pour qu'un volume invisible au plan ne puisse plus échapper à la décision. »
+
+**Le nom et le poids y étaient déjà** (mesuré : `📦 nommés sans être jugés (2)` — `.icon-ico 156 Ko`, `win-unpacked 507 Mo`, chacun avec sa raison). Mais deux volumes restaient muets, et le second était invisible par construction.
+
+**Le premier : les « hors sujet » étaient listés SANS taille.** `➖ hors sujet (2) : builder-debug.yml, latest.yml` — le nom disait tout d'un fichier de 300 octets comme d'une archive oubliée de 400 Mo. Le plus gros volume du dossier pouvait donc être hors sujet sans que rien ne le pèse. Chaque entrée porte maintenant son poids.
+
+**Le second : ce qui n'est ni fichier ni dossier était silencieusement sauté.** Deux `continue` faisaient disparaître une entrée illisible (lien cassé) ou d'un type inattendu (lien, jonction, périphérique) : elle existait sur le disque et n'existait dans aucune ligne — un volume qui ne manque nulle part parce qu'il manque au total que personne ne fait. Ces entrées ont leur bloc (`🔗 ni fichier ni dossier`), leur poids (0 o quand il n'y a rien à peser — et c'est dit ainsi), et leur case dans le total.
+
+**Et le total, justement, est devenu vérifiable.** Chaque entrée de surface reçoit **une** case par ordre de priorité (`à supprimer`, `conservés`, `nommés sans être jugés`, `hors sujet`, `ni fichier ni dossier`) — une seule, parce qu'une divergence est aussi une conservation et qu'un candidat `--unpublished` aussi : compter par LISTE aurait doublé le même volume. Puis une ligne confronte la somme des cases au dossier mesuré récursivement. Mesuré sur le dossier réel :
+
+```
+⚖️  volume : 753 Mo dans release/ — 246 Mo conservés (3) · 507 Mo nommés sans être jugés (2) · 6,4 Ko hors sujet (2)
+```
+
+**Une objection que j'ai écrite puis RETIRÉE, et c'est le point le plus utile de ce tour.** Ma première version sortait en échec (mode contrôle) dès qu'une entrée n'avait pas de case ou que la somme ne tombait pas juste. Sur un disque réel, ça ne peut pas arriver : les quatre listes du plan plus les types non classés couvrent toute entrée de surface, donc ce rouge n'aurait jamais pu se déclencher — un garde-fou qu'aucune exécution normale ne peut atteindre est le **miroir** du faux vert, et il aurait fait croire à une protection. Ce qui remplit la demande est déjà là : le volume non attribué est **nommé, pesé et additionné**, donc il n'échappe plus à la décision (et si le dossier changeait PENDANT la lecture, l'écart serait écrit).
+
+**Mesures** : `release-prune` **34/34** (+3 cas purs : la somme des cases EST le dossier, une entrée non revendiquée est nommée avec son poids, une entrée revendiquée par deux listes n'a qu'une case) et `prune-cli` **17/17** (+2 : le poids des « hors sujet » et la ligne de volume sur un CLI lancé pour de vrai ; l'entrée ni fichier ni dossier sur un lien réellement cassé, avec le garde de plateforme déclaré si le poste ne sait pas en créer). `tsc --noEmit` propre.
+
 ## [2026-09-13] Le dossier du rappel vient d'une seule source — et la seconde qui le nommait mentait
 
 Demande : « Fais porter le dossier au rappel de release:prune, depuis une seule source, pour qu'un plan sur un autre dossier ne propose plus d'agir sur release/. »

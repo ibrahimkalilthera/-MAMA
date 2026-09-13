@@ -80,6 +80,7 @@ import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_RELEASE_DIR,
   artifactVersion,
+  attributeVolume,
   formatBytes,
   noRemovalMessage,
   pruneCommand,
@@ -192,20 +193,45 @@ function dirSize(dir) {
 
 const local = [];
 const dirs = [];
+// Ce qui n'est NI fichier NI dossier — lien, jonction, périphérique, entrée
+// cassée — était silencieusement `continue` : un volume que le dossier contenait
+// et qu'aucune ligne ne portait. Ce n'est pas un déchet à enlever (on ne sait pas
+// ce que c'est), c'est une entrée à NOMMER avec son poids, comme les autres.
+const others = [];
 for (const name of readdirSync(releaseDir)) {
   const file = join(releaseDir, name);
-  if (!existsSync(file)) continue;
+  if (!existsSync(file)) {
+    others.push({ name, size: 0, reason: 'entrée illisible (lien cassé ?) — rien à peser, mais elle occupe le nom' });
+    continue;
+  }
   const stat = statSync(file);
   if (stat.isDirectory()) {
     dirs.push({ name, size: dirSize(file) });
     continue;
   }
-  if (!stat.isFile()) continue;
+  if (!stat.isFile()) {
+    others.push({
+      name,
+      size: stat.size,
+      reason: 'ni fichier ni dossier (lien, jonction, périphérique) — ce contrôle ne sait pas l’interpréter',
+    });
+    continue;
+  }
   const version = artifactVersion(name);
   const sha256 =
     version && version !== currentVersion ? createHash('sha256').update(readFileSync(file)).digest('hex') : null;
   local.push({ name, size: stat.size, sha256 });
 }
+
+// Tout ce que le dossier contient EN SURFACE, une fois pesé. C'est ce qui permet
+// de confronter la somme des catégories au total mesuré : un volume qui n'entre
+// dans aucune case se voit alors, au lieu de manquer discrètement au total que
+// personne ne fait.
+const entries = [
+  ...local.map((f) => ({ name: f.name, size: f.size })),
+  ...dirs.map((d) => ({ name: d.name, size: d.size })),
+  ...others.map((o) => ({ name: o.name, size: o.size })),
+];
 
 const plan = prunePlan({ currentVersion, local, dirs, published, stale, unpublished, unpacked });
 const sizeOf = (name) =>
@@ -293,8 +319,62 @@ if (!unpublished && plan.unpublishedCandidates.length) {
   );
 }
 
+// Le poids, pas seulement le nom : un `latest.yml` de 300 octets et une archive
+// oubliée de 400 Mo se lisaient exactement pareil, donc le plus gros volume du
+// dossier pouvait être « hors sujet » sans que personne le voie.
 if (plan.ignored.length) {
-  console.log(`\n➖ hors sujet (${plan.ignored.length}) : ${plan.ignored.map((i) => i.name).join(', ')}`);
+  console.log(
+    `\n➖ hors sujet (${plan.ignored.length}) : ${plan.ignored
+      .map((i) => `${i.name} (${formatBytes(sizeOf(i.name))})`)
+      .join(', ')}`,
+  );
+}
+
+if (others.length) {
+  console.log(`\n🔗 ni fichier ni dossier (${others.length}) — nommés, pesés, jamais jugés :`);
+  for (const item of others) console.log(`   ${item.name}  ${formatBytes(item.size)} — ${item.reason}`);
+}
+
+// ── L'attribution du volume ─────────────────────────────────────────────────
+// Chaque entrée de surface reçoit UNE case, et le total des cases est confronté
+// au total mesuré du dossier. Deux choses ne peuvent donc plus être muettes :
+// une entrée qu'aucune catégorie ne revendique (nommée avec son poids, et c'est
+// une OBJECTION en mode contrôle — le plan ne sait pas ce qu'il regarde), et un
+// écart entre la somme des cases et le dossier (des octets qu'aucune ligne ne
+// porte). Le volume cesse d'être une impression pour devenir une addition.
+const volume = attributeVolume(entries, [
+  { label: 'à supprimer', names: plan.remove.map((r) => r.name) },
+  { label: 'conservés', names: plan.keep.map((k) => k.name) },
+  { label: 'nommés sans être jugés', names: plan.loose.map((l) => l.name) },
+  { label: 'hors sujet', names: plan.ignored.map((i) => i.name) },
+  { label: 'ni fichier ni dossier', names: others.map((o) => o.name) },
+]);
+const folderBytes = dirSize(releaseDir);
+const gap = folderBytes - volume.total;
+
+console.log(
+  `\n⚖️  volume : ${formatBytes(folderBytes)} dans ${dirArg}/ — ` +
+    volume.buckets
+      .filter((b) => b.count > 0 || b.bytes > 0)
+      .map((b) => `${formatBytes(b.bytes)} ${b.label} (${b.count})`)
+      .join(' · '),
+);
+
+if (volume.unattributed.length) {
+  console.error(
+    `\n⚠️  ${volume.unattributed.length} entrée(s) qu'aucune catégorie ne revendique (${formatBytes(
+      volume.unattributed.reduce((sum, item) => sum + item.size, 0),
+    )}) :`,
+  );
+  for (const item of volume.unattributed) console.error(`   • ${item.name}  ${formatBytes(item.size)}`);
+  console.error('   Ce n’est pas un verdict, c’est un manque : le volume existe et le plan ne dit pas ce qu’il est.');
+}
+
+if (gap !== 0) {
+  console.error(
+    `\n⚠️  ${formatBytes(Math.abs(gap))} ${gap > 0 ? 'de plus que' : 'de moins que'} la somme des entrées de surface — ` +
+      'des octets qu’aucune ligne ne porte (entrées imbriquées, liens, fichiers apparus pendant la lecture).',
+  );
 }
 
 // ── Le mode qui OBJECTE ─────────────────────────────────────────────────────
@@ -305,6 +385,13 @@ if (plan.ignored.length) {
 // déjà ces octets exacts), on sort en échec. On ne supprime RIEN : l'acte reste
 // humain, l'objection devient automatique.
 if (check) {
+  // Pourquoi il n'y a PAS d'objection ici : sur un disque réel, chaque entrée de
+  // surface tombe dans une case (les quatre listes du plan plus les types non
+  // classés), donc un résidu non nul suppose que le dossier a changé PENDANT la
+  // lecture — un build concurrent. En faire un rouge aurait été un garde-fou
+  // qu'aucune exécution normale ne peut déclencher : exactement le miroir du faux
+  // vert. Ce qui compte est déjà fait juste au-dessus — ce volume est NOMMÉ, pesé
+  // et compté dans le total, donc il n'échappe plus à la décision.
   const redundant = plan.remove.filter((item) => item.kind === 'digest');
   // Ce qu'aucune preuve ne condamne se lit dans les FAITS du plan, pas dans
   // `remove` : `remove` ne contient que les actes qu'on a demandés, donc un

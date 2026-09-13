@@ -17,7 +17,7 @@
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, describe, it } from 'node:test';
@@ -204,6 +204,47 @@ describe('release:prune --check — l’objection automatique', () => {
     const { code, out } = runCli(['--check', `--dir=${SCRATCH}/inexistant`]);
     assert.equal(code, 0);
     assert.match(out, /atelier non applicable .* n'existe pas ici/);
+  });
+
+  it('le poids des entrées « hors sujet » est écrit, et le volume se vérifie comme une somme', () => {
+    // Avant, elles étaient listées SANS taille : un `latest.yml` de 300 octets et
+    // une archive oubliée de 400 Mo se lisaient pareil, donc le plus gros volume
+    // du dossier pouvait être « hors sujet » sans que personne le voie.
+    const dir = atelier('volume-1', {
+      'MamaTheraFinance-1.0.0-setup.exe': 'octets-1.0.0',
+      'archive-oubliee.zip': 'z'.repeat(4096),
+    });
+    const channel = canal('volume-1', [{ tag: 'v1.0.6', assets: [] }]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 0, 'un volume nommé n’est pas une objection : il est dit, pesé, et compté');
+    assert.match(out, /➖ hors sujet \(1\) : archive-oubliee\.zip \(\d/, 'le poids est écrit, pas seulement le nom');
+    assert.match(out, /⚖️ {2}volume : \d[^\n]*dans /, 'le total est confronté au dossier');
+    assert.match(out, /hors sujet \(1\)/, 'et la case « hors sujet » y figure avec son compte');
+  });
+
+  it('une entrée ni fichier ni dossier est nommée, pesée, et reste dans le total', () => {
+    const dir = atelier('volume-lien', { 'MamaTheraFinance-1.0.0-setup.exe': 'octets-1.0.0' });
+    const channel = canal('volume-lien', [{ tag: 'v1.0.6', assets: [] }]);
+    // @platform-guard : un lien symbolique de fichier demande des droits sur
+    // certaines installations Windows. Ne pas pouvoir en créer un est une limite
+    // du POSTE, pas un comportement du contrôle — le cas s'arrête donc là plutôt
+    // que d'échouer sur une capacité de l'environnement.
+    let linked = true;
+    try {
+      symlinkSync('cible-absente', join(ROOT, dir, 'lien-casse'));
+    } catch {
+      linked = false;
+    }
+    if (!linked) return;
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 0);
+    assert.match(out, /🔗 ni fichier ni dossier \(1\)/, 'l’entrée que le plan ne classe pas est nommée');
+    assert.match(out, /lien-casse/, 'nommément');
+    assert.match(out, /ni fichier ni dossier \(1\)/, 'et elle compte dans une case du volume');
   });
 
   it('hors ligne, le hook se tait EN LE DISANT ; sans la dérogation, c’est un échec', () => {

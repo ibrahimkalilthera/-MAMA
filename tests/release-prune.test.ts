@@ -25,6 +25,7 @@ import { describe, it } from 'node:test';
 import {
   DEFAULT_RELEASE_DIR,
   artifactVersion,
+  attributeVolume,
   formatBytes,
   noRemovalMessage,
   pruneCommand,
@@ -426,6 +427,55 @@ describe('le rappel du plan applique VRAIMENT ce plan', () => {
     // Le NOMBRE de sites n'est pas la propriété : il a déjà changé deux fois.
     // Ce qui compte est qu'aucun d'eux n'écrive la ligne lui-même.
     assert.ok((source.match(/pruneCommand\(/g) ?? []).length >= 3, 'le plan, les candidats et le refus y passent');
+  });
+});
+
+describe('le volume : chaque octet a une case, et le total se vérifie', () => {
+  const entries = [
+    { name: 'MamaTheraFinance-1.0.0-setup.exe', size: 100 },
+    { name: 'win-unpacked', size: 500 },
+    { name: 'latest.yml', size: 20 },
+  ];
+  const buckets = [
+    { label: 'à supprimer', names: ['MamaTheraFinance-1.0.0-setup.exe'] },
+    { label: 'nommés sans être jugés', names: ['win-unpacked'] },
+    { label: 'hors sujet', names: ['latest.yml'] },
+  ];
+
+  it('la somme des cases EST le dossier — un volume ne peut plus manquer discrètement au total', () => {
+    const volume = attributeVolume(entries, buckets);
+    assert.equal(volume.total, 620, 'le total vient des entrées de surface, pas d’une addition partielle');
+    const sum = volume.buckets.reduce((acc, b) => acc + b.bytes, 0);
+    assert.equal(sum, volume.total, 'aucun octet ne tombe entre deux blocs');
+    assert.deepEqual(volume.unattributed, []);
+  });
+
+  it('une entrée qu’aucune case ne revendique est NOMMÉE avec son poids', () => {
+    // C'est le volume invisible : avant, les « hors sujet » étaient listés sans
+    // taille et une entrée non classée ne figurait nulle part.
+    const volume = attributeVolume([...entries, { name: 'archive-oubliee.zip', size: 400_000_000 }], buckets);
+    assert.equal(volume.unattributed.length, 1);
+    assert.equal(volume.unattributed[0].name, 'archive-oubliee.zip');
+    assert.equal(volume.unattributed[0].size, 400_000_000, 'elle n’est pas muette : elle a un poids');
+    assert.equal(
+      volume.buckets.reduce((acc, b) => acc + b.bytes, 0) + volume.unattributed[0].size,
+      volume.total,
+    );
+  });
+
+  it('une entrée revendiquée par DEUX listes n’a qu’une case', () => {
+    // Une divergence est aussi une conservation, un candidat `--unpublished`
+    // aussi : compter par LISTE aurait doublé le même volume dans le total.
+    const volume = attributeVolume(
+      [{ name: 'a.exe', size: 100 }],
+      [
+        { label: 'conservés', names: ['a.exe'] },
+        { label: 'hors sujet', names: ['a.exe'] },
+      ],
+    );
+    assert.equal(volume.buckets.find((b) => b.label === 'conservés')?.bytes, 100);
+    assert.equal(volume.buckets.find((b) => b.label === 'hors sujet')?.bytes, 0);
+    assert.equal(volume.total, 100);
   });
 });
 

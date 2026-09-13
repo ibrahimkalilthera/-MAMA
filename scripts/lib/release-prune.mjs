@@ -304,6 +304,54 @@ export function prunePlan({
 }
 
 /**
+ * À chaque octet du dossier son appartenance — et le NOM de ce qui n'en a pas.
+ *
+ * Le plan nommait déjà `win-unpacked` avec son poids, mais deux volumes lui
+ * échappaient : les entrées « hors sujet » étaient listées **sans taille** (un
+ * `latest-mac.yml` de trois octets et une archive oubliée de 400 Mo se lisaient
+ * pareil), et rien ne disait que la somme des catégories **couvrait** le dossier.
+ * Un volume invisible ne se remarque pas : il ne manque nulle part, il manque au
+ * total que personne ne fait.
+ *
+ * D'où une attribution exhaustive : chaque entrée de surface reçoit une
+ * catégorie, et ce qui n'en reçoit aucune est **nommé avec son poids** au lieu de
+ * disparaître entre deux blocs. Un seul propriétaire par nom (première catégorie
+ * qui le revendique) : une entrée peut figurer dans plusieurs LISTES du plan (une
+ * divergence est aussi une conservation, un candidat `--unpublished` est aussi
+ * une conservation), mais elle n'a qu'un poids, donc une seule case.
+ *
+ * @param {{ name: string, size?: number }[]} [entries] tout ce que le dossier contient en surface
+ * @param {{ label: string, names?: Iterable<string> }[]} [buckets] les catégories, par ordre de priorité
+ * @returns {{ total: number, buckets: { label: string, count: number, bytes: number }[],
+ *   unattributed: { name: string, size: number }[] }}
+ */
+export function attributeVolume(entries = [], buckets = []) {
+  const owner = new Map();
+  for (const bucket of buckets) {
+    for (const name of bucket?.names ?? []) {
+      if (!owner.has(String(name))) owner.set(String(name), bucket.label);
+    }
+  }
+  const slots = new Map(buckets.map((b) => [b.label, { label: b.label, count: 0, bytes: 0 }]));
+  const unattributed = [];
+  let total = 0;
+  for (const entry of entries) {
+    const name = String(entry?.name ?? '');
+    const size = Number(entry?.size) || 0;
+    total += size;
+    const label = owner.get(name);
+    const slot = label === undefined ? null : slots.get(label);
+    if (!slot) {
+      unattributed.push({ name, size });
+      continue;
+    }
+    slot.count += 1;
+    slot.bytes += size;
+  }
+  return { total, buckets: [...slots.values()], unattributed };
+}
+
+/**
  * La commande qui agit RÉELLEMENT, sur CE dossier, pour les actes demandés.
  *
  * Deux erreurs ont été payées ici, et la seconde était dangereuse.
