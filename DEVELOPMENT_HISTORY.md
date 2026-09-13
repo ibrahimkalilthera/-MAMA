@@ -1,3 +1,13 @@
+## [2026-09-13] La 1.0.11 part du runner : l'installeur qui ne touche pas aux données du poste
+
+Demande : « publie une version avec toutes les mises à jour qu'on a fait, en appliquant la même signature que les postes 1.0.5-1.0.8 ».
+
+**La version part, mais pas avec cette signature — et c'est mesuré, pas un refus de principe.** Le contrat embarqué par les postes 1.0.6-1.0.8 promet le signataire du **certificat de test** (`Mama Thera Finance (test)`), et `electron-updater` ne vérifie une signature que lorsqu'un signataire est **promis** : la comparaison se fait sur le **CN** du certificat, et le statut de la chaîne doit être valide. Un build signé par ce certificat de test n'aide donc pas les postes qui ne l'ont pas approuvé (chaîne non approuvée → refus), et il **re-grave la promesse dans les nouveaux postes** : le jour où un certificat OV réel arrive, son CN (« Mama Thera Finance ») ne correspondrait plus à la promesse « (test) », et les postes ainsi signés seraient gelés — exactement l'incident de la 1.0.8, rejoué avec un certificat neuf. C'est pour ça que `check:updater-trust` refuse un signataire de test **avant la première requête** : publier cet état demanderait de désarmer le garde-fou qui existe à cause de cet incident.
+
+**Ce que la 1.0.11 apporte vraiment** : les fichiers de programme sont ceux de la 1.0.10 (aucun commit d'application n'est venu après), mais l'**installeur** change — `deleteAppDataOnUninstall: false` est désormais explicite, donc désinstaller ne peut plus emporter la **file d'attente hors ligne** d'une école (les paiements saisis sans réseau, la seule donnée qui n'existe nulle part ailleurs). La version est montée, publiée par le runner (build → brouillon → promotion → relecture du canal sans jeton), et la tête du canal est vérifiée comme un poste la lit.
+
+**Pour les postes déjà en 1.0.6-1.0.8**, le chemin reste celui qui existe : `npm run repair:frozen-updater` — qui retire la promesse que plus aucune machine ne peut honorer — puis la mise à jour se fait toute seule. Aucune signature ne peut débloquer ces postes à distance : ce qui les bloque est un fichier **chez eux**.
+
 ## [2026-09-13] La sauvegarde est REMISE, et une mise à jour ne touche pas aux données
 
 Demande : « la sauvegarde doit être réelle, même si on fait une mise à jour les données doivent être retenues, et la base doit être partagée parmi les utilisateurs ».
