@@ -262,15 +262,17 @@ jobs:
       - name: Deploy to production (prebuilt)
         run: tools/node_modules/.bin/vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
 
-      # Un déploiement qui rend 0 ne dit pas qu'une origine RÉPOND : le 13/09, un
-      # domaine du projet servait `HTTP 404 DEPLOYMENT_NOT_FOUND` pendant que ce
-      # job était vert. Ce pas relit l'origine que l'APPLICATION EMBARQUE (le
-      # repli d'un poste, `electron/public-origin.cjs`) : elle doit répondre 200,
-      # servir la coquille de l'app, et ses modules doivent se télécharger. Il
-      # tourne ici — et pas dans la chaîne locale — parce qu'un commit ne doit pas
-      # dépendre du réseau, alors qu'un déploiement qui ne livre personne ne doit
-      # jamais être vert.
-      - name: L’origine publique que le poste embarque répond vraiment
+      # Un déploiement qui rend 0 ne dit pas qu'un lien EMBARQUÉ aboutit : le
+      # 13/09, un domaine du projet servait `HTTP 404 DEPLOYMENT_NOT_FOUND`
+      # pendant que ce job était vert. Ce pas relit donc TOUT l'inventaire des
+      # liens que l'application embarque (`electron/embedded-links.cjs`), chacun
+      # jugé par sa catégorie : l'origine de repli doit répondre 200, servir la
+      # coquille et ses modules ; la page de téléchargement d'un poste portable
+      # doit répondre ET atterrir sur une page de version ; le domaine tiers doit
+      # répondre. Il tourne ici — et pas dans la chaîne locale — parce qu'un
+      # commit ne doit pas dépendre du réseau, alors qu'un déploiement qui ne
+      # livre personne ne doit jamais être vert.
+      - name: Les liens embarqués par le poste aboutissent-ils tous ?
         run: npm run check:public-origin
 
       # La preuve est publiée par l'étape NOMMÉE, après le déploiement réussi :

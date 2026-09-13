@@ -1,3 +1,29 @@
+## [2026-09-13] Toutes les URL embarquées sont relues, chacune jugée par sa catégorie
+
+Demande : « Fais relire par le même contrôle toutes les URL que l'application embarque (liens de release, repli portable), pour qu'aucun lien mort ne survive dans un installeur. »
+
+**Le défaut n'était pas de mal relire l'origine — c'était de ne relire QU'ELLE.** Deux autres adresses partent dans chaque installeur : la page de téléchargement où atterrit un poste PORTABLE, et le domaine des liens de notification d'un parent. Le dépôt avait déjà payé une fois le prix d'une adresse que personne ne relit (une origine morte pendant que tout était vert), et la plus fragile des trois est celle dont un portable dépend seul : il ne s'auto-installe pas, donc cette page est sa seule porte de sortie pour reprendre une version.
+
+**L'inventaire est une seule définition, et il porte une CATÉGORIE par lien** (`electron/embedded-links.cjs`, lu par le poste et par le contrôle — `RELEASES_URL` a quitté `electron/main.cjs`, où elle était en clair). Un test interdit désormais d'y réécrire une URL en clair, et confronte les deux écritures du lien WhatsApp, qui vit dans `src/` (donc sans `require` possible) : deux écritures qui divergeraient en silence rendraient un lien de notification faux sans que rien ne rougisse.
+
+**Le piège, en étendant la lecture, n'était pas de lire plus : c'était de juger les trois par la même règle.** Une application qu'on sert, une page qu'on ne sert pas et le domaine d'un tiers n'ont pas les mêmes refus possibles, et une règle unique donne soit un contrôle toujours rouge, soit un contrôle toujours vert. `scripts/lib/embedded-links.mjs` (pur) porte donc trois règles distinctes : l'origine doit répondre, servir la **coquille** et ses **modules** (déjà en place) ; la page de téléchargement doit répondre **200 ET atterrir sur une page de version** — mesuré sur le lien réel : `302 → /releases/tag/v1.0.8`, donc l'atterrissage est vérifiable, et un 200 qui mène ailleurs (page d'accueil du dépôt, passage de connexion) n'y permet rien ; le domaine tiers doit **répondre**, et un 4xx y est un **avertissement nommé** — limitation de débit ou filtrage d'IP de centre de données — jamais un refus, parce qu'accuser notre installeur d'un refus d'un tiers ferait rougir la veille sur un lien sain, et un contrôle toujours allumé ne se lit plus.
+
+**Deux refus contre les faux verts, dont un qui protège le contrôle de moi-même.** Une catégorie **sans règle nommée** est un refus (`un lien qu'on ne sait pas juger n'est pas un lien vérifié`) — donc ajouter un lien à l'inventaire ne peut pas produire un lien « vérifié » par personne. Et quand `--url=` fait relire une AUTRE adresse que celle du poste, le rapport **le dit** : sans cet avertissement, un vert sur un aperçu de déploiement se lirait comme un vert sur l'adresse embarquée.
+
+**La preuve, sur les trois liens réels et sans jeton** :
+
+```
+🔎 liens embarqués par l’application — relus un par un, chacun jugé par sa catégorie
+   ✅ fallback-ui · app — HTTP 200 · 975 octet(s) · 1 module(s) référencé(s)
+      ✅ assets/index-Bul42F3A.js · HTTP 200 · application/javascript; charset=utf-8
+   ✅ releases-page · release-page — HTTP 200 → …/releases/tag/v1.0.8 (page de version)
+   ✅ whatsapp · third-party — HTTP 200 (une réponse suffit : ce domaine n’est pas le nôtre)
+```
+
+Et il mord, sur les deux catégories qui doivent mordre : `--url=https://mama-thera.vercel.app` sort en **1** en nommant `HTTP 404 — « The deployment could not be found on Vercel. »` **et** en avertissant que l'adresse embarquée, elle, n'a pas été relue ; un lien à catégorie inconnue sort en **1** aussi.
+
+**Mesures** : `tests/public-origin.test.ts` passe à **21 cas** (+6 : page morte, 200 qui atterrit ailleurs, tiers en 429 qui avertit sans refuser, catégorie sans règle, inventaire sans entrée muette, plus d'URL en clair dans le code qui les ouvre). `tsc --noEmit` et `eslint --max-warnings 0` propres.
+
 ## [2026-09-13] L'origine publique du poste est veillée chaque jour, et sa preuve dit ce qu'elle a lu
 
 Demande : « Fais surveiller quotidiennement l'origine publique que le poste embarque, pour qu'une bascule de réglage côté hébergeur devienne rouge sans attendre le prochain déploiement. »

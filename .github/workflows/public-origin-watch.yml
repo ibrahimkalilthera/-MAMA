@@ -36,11 +36,14 @@ name: Public origin watch
 on:
   push:
     paths:
-      # L'adresse elle-même : la changer sans que rien ne la relise serait le
-      # seul cas où un commit peut rendre l'origine injoignable en silence.
+      # Les adresses elles-mêmes : les changer sans que rien ne les relise
+      # serait le seul cas où un commit peut rendre un lien embarqué injoignable
+      # en silence. L'inventaire nomme les TROIS, donc le filtre suit l'inventaire.
+      - 'electron/embedded-links.cjs'
       - 'electron/public-origin.cjs'
       - 'scripts/check-public-origin.mjs'
       - 'scripts/lib/public-origin.mjs'
+      - 'scripts/lib/embedded-links.mjs'
       # Le module qui extrait les modules référencés par la page : un filtre qui
       # nommerait un fichier disparu ne déclencherait plus rien, donc le contrôle
       # ne serait plus exercé par le push qui le change.
@@ -88,7 +91,7 @@ jobs:
       # Le script n'utilise que la bibliothèque standard (fetch global) : aucune
       # dépendance à installer, donc pas de `npm ci` — rien qui puisse échouer
       # avant la mesure.
-      - name: L’origine publique répond-elle, et sert-elle l’application ?
+      - name: Les liens embarqués par le poste aboutissent-ils tous ?
         # Mandat de preuve : le contrôle publie lui-même ce qu'il a MESURÉ (statut,
         # taille de la coquille, nombre de modules réellement téléchargés) — sans
         # lui, la preuve ne serait qu'une phrase écrite dans ce fichier.

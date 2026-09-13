@@ -23,9 +23,11 @@ const { appendEntry, readEntries, journalPath, pendingReports, markReported } = 
 // peuvent s'accorder aujourd'hui et diverger le jour où l'une bouge — et c'est
 // l'une des deux qui déciderait ce qu'un poste affiche.
 const { PUBLIC_ORIGIN: FALLBACK_URL } = require('./public-origin.cjs');
-// Où atterrit un poste qui ne peut pas s'auto-installer (portable) : le lien
-// doit être celui des versions, pas une page d'accueil où rien ne se télécharge.
-const RELEASES_URL = 'https://github.com/ibrahimkalilthera/-MAMA/releases/latest';
+// Où atterrit un poste qui ne peut pas s'auto-installer (portable) : le lien est
+// tenu par l'INVENTAIRE des liens embarqués, pour la même raison que l'origine.
+// Une URL en clair ici partait dans chaque installeur sans que rien ne la relise
+// — un test interdit d'en réécrire une autre en clair dans ce fichier.
+const { RELEASES_URL } = require('./embedded-links.cjs');
 const isDev = !app.isPackaged;
 // electron-builder sets PORTABLE_EXECUTABLE_FILE only for the portable target:
 // auto-update installs via the NSIS installer, so it is disabled on portable.

@@ -22,10 +22,20 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 
+import { createRequire } from 'node:module';
+
+import { KIND_JUDGED_BY, embeddedLinkVerdict } from '../scripts/lib/embedded-links.mjs';
 import { MAX_PROBED_MODULES, moduleUrlsIn, originVerdict } from '../scripts/lib/public-origin.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
+// La définition que le POSTE lit, chargée telle quelle : le test juge l'inventaire
+// réel, pas une copie qui pourrait s'accorder avec lui-même.
+type EmbeddedLink = { id: string; url: string; kind: string; where: string; why: string };
+const { EMBEDDED_LINKS, WHATSAPP_URL } = createRequire(import.meta.url)('../electron/embedded-links.cjs') as {
+  EMBEDDED_LINKS: EmbeddedLink[];
+  WHATSAPP_URL: string;
+};
 
 const ORIGIN = 'https://exemple.test/';
 const ENTRY = `${ORIGIN}assets/index-abc123.js`;
@@ -128,7 +138,12 @@ describe('le câblage : une définition, et une relecture là où le poste est l
     const shared = read('electron/public-origin.cjs');
     const literal = shared.match(/PUBLIC_ORIGIN = '([^']+)'/)?.[1] ?? '';
     assert.match(literal, /^https:\/\/[^']+\/$/, 'la définition est une origine, avec sa barre finale');
-    assert.match(read('scripts/check-public-origin.mjs'), /PUBLIC_ORIGIN/, 'et le contrôle lit la même');
+    // Le contrôle ne connaît plus d'adresse en propre : il lit l'INVENTAIRE des
+    // liens embarqués, qui tient l'origine depuis cette définition-ci. Un
+    // contrôle qui recopierait l'URL rendrait possible la divergence que les
+    // deux écritures partagées viennent d'éliminer.
+    assert.match(read('electron/embedded-links.cjs'), /require\('\.\/public-origin\.cjs'\)/, 'l’inventaire tient l’origine depuis sa définition');
+    assert.match(read('scripts/check-public-origin.mjs'), /EMBEDDED_LINKS/, 'et le contrôle relit l’inventaire');
   });
 
   it('le déploiement relit l’origine APRÈS avoir déployé, et publie sa preuve après', () => {
@@ -138,7 +153,10 @@ describe('le câblage : une définition, et une relecture là où le poste est l
     const evidence = workflow.indexOf('publish-automation-evidence.mjs');
     assert.ok(deploy > 0 && check > deploy, "le contrôle vient après le déploiement, sinon il juge l'état précédent");
     assert.ok(evidence > check, 'et la preuve « j’ai agi » ne part pas avant que l’origine ait répondu');
-    assert.match(workflow, /L’origine publique que le poste embarque répond vraiment/, 'le pas est nommé');
+    // Le pas est NOMMÉ par ce qu'il juge : son intitulé disait « l'origine » alors
+    // qu'il relit maintenant tout l'inventaire, et un intitulé qui nomme la
+    // mauvaise porte fait chercher au mauvais endroit.
+    assert.match(workflow, /Les liens embarqués par le poste aboutissent-ils tous/, 'le pas est nommé');
   });
 
   it('le contrôle est un script du projet, donc la CI ne recopie pas la commande', () => {
@@ -159,8 +177,10 @@ describe('le câblage : une définition, et une relecture là où le poste est l
     const evidence = workflow.indexOf('publish-automation-evidence.mjs');
     assert.ok(check > 0, 'elle lance le MÊME contrôle que le déploiement, par son nom de script');
     assert.ok(evidence > check, 'et la preuve « j’ai agi » ne part pas avant que l’origine ait répondu');
-    // L'adresse embarquée doit être dans le filtre de push : la changer est le
-    // seul commit capable de rendre l'origine injoignable en silence.
+    // Les adresses embarquées doivent être dans le filtre de push : les changer
+    // est le seul commit capable de rendre un lien injoignable en silence, et le
+    // filtre doit suivre l'inventaire plutôt qu'une de ses entrées.
+    assert.match(workflow, /electron\/embedded-links\.cjs/);
     assert.match(workflow, /electron\/public-origin\.cjs/);
   });
 
@@ -171,6 +191,99 @@ describe('le câblage : une définition, et une relecture là où le poste est l
     // statut, le nombre de modules réellement téléchargés — doit venir de lui.
     const script = read('scripts/check-public-origin.mjs');
     assert.match(script, /publishEvidence\(\{/, 'le contrôle publie sa preuve');
-    assert.match(script, /count: probes\.length/, 'et le compte vient des sondes réelles, pas d’un littéral');
+    assert.match(script, /count: read1\.length/, 'et le compte vient des liens réellement relus, pas d’un littéral');
+  });
+});
+
+describe('les autres liens embarqués : chacun jugé par SA catégorie', () => {
+  const link = (over: Record<string, unknown> = {}) => ({
+    id: 'releases-page',
+    url: 'https://exemple.test/releases/latest',
+    kind: 'release-page',
+    where: 'bouton « Ouvrir la page de téléchargement »',
+    why: 'un portable ne s’auto-installe pas',
+    ...over,
+  });
+
+  it('une page de téléchargement morte est un refus, et le refus dit quel geste il casse', () => {
+    // Cas mesuré sur un domaine supprimé : 404 pendant que tout le reste est
+    // vert. Pour un poste PORTABLE, cette page est la seule porte de sortie — il
+    // ne s'auto-installe pas.
+    const dead = embeddedLinkVerdict({ link: link(), status: 404, finalUrl: 'https://exemple.test/404', body: 'Not Found\n' });
+    assert.equal(dead.ok, false);
+    assert.match(dead.problems[0], /HTTP 404/);
+    assert.match(dead.problems[0], /porte de sortie/, 'et il dit pourquoi ce lien-là compte');
+    assert.match(dead.problems[0], /Ouvrir la page de téléchargement/, 'et il nomme l’endroit à réparer');
+  });
+
+  it('un 200 qui n’atterrit PAS sur une page de version est aussi un refus', () => {
+    // Le faux vert du canal, transposé au geste de l'utilisateur : la page
+    // s'ouvre, et il n'y a rien à y prendre. Mesuré sur le vrai lien :
+    // `302 → /releases/tag/v1.0.8`, donc l'atterrissage est vérifiable.
+    const off = embeddedLinkVerdict({ link: link(), status: 200, finalUrl: 'https://exemple.test/' });
+    assert.equal(off.ok, false);
+    assert.match(off.problems[0], /atterrit sur https:\/\/exemple\.test\//);
+    assert.match(off.problems[0], /n’est pas permis/);
+
+    const good = embeddedLinkVerdict({ link: link(), status: 200, finalUrl: 'https://exemple.test/releases/tag/v1.0.8' });
+    assert.equal(good.ok, true, good.problems.join('\n'));
+    assert.match(good.detail, /page de version/);
+  });
+
+  it('un tiers qui répond est vert MÊME en 429 : on ne juge que ce qui nous appartient', () => {
+    // C'est le cas qui décide si ce contrôle vit ou meurt : juger le code d'un
+    // domaine qu'on ne sert pas produirait un rouge permanent sur un lien sain
+    // (limitation de débit, filtrage d'IP de centre de données) — et un contrôle
+    // toujours allumé ne se lit plus. Le refus est donc réservé à ce qui est
+    // vraiment de notre côté : le lien ne répond pas du tout.
+    const third = (status: number | null, error: string | null = null) =>
+      embeddedLinkVerdict({ link: link({ id: 'whatsapp', kind: 'third-party' }), status, error });
+
+    const limited = third(429);
+    assert.equal(limited.ok, true, 'un 429 du tiers ne condamne pas notre installeur');
+    assert.equal(limited.warnings.length, 1, 'mais il n’est pas tu : un utilisateur pourrait ne pas aboutir');
+    assert.match(limited.warnings[0], /ce n’est pas notre serveur/);
+
+    assert.equal(third(200).ok, true);
+    const dead = third(null, 'ENOTFOUND');
+    assert.equal(dead.ok, false, 'un domaine qui ne résout plus, lui, est bien un lien mort');
+    assert.match(dead.problems[0], /ENOTFOUND/);
+  });
+
+  it('une catégorie sans règle est un REFUS, pas un saut silencieux', () => {
+    // « Nommé plutôt qu'omis » : ajouter un lien à l'inventaire avec une
+    // catégorie que rien ne juge doit faire échouer le contrôle, sinon ce lien
+    // serait « vérifié » par personne.
+    const unknown = embeddedLinkVerdict({ link: link({ id: 'nouveau', kind: 'a-decider' }), status: 200 });
+    assert.equal(unknown.ok, false);
+    assert.match(unknown.problems[0], /catégorie que ce contrôle ne sait pas juger/);
+    for (const entry of EMBEDDED_LINKS) {
+      assert.ok(
+        (KIND_JUDGED_BY as Record<string, string>)[entry.kind],
+        `la catégorie « ${entry.kind} » de « ${entry.id} » doit avoir une règle nommée`,
+      );
+    }
+  });
+
+  it('l’inventaire ne peut pas contenir un lien muet : chaque entrée dit où il sert et pourquoi il compte', () => {
+    assert.ok(EMBEDDED_LINKS.length >= 3, 'les trois liens du poste sont inventoriés');
+    for (const entry of EMBEDDED_LINKS) {
+      assert.match(entry.url, /^https:\/\/\S+$/, `${entry.id} : une URL absolue`);
+      assert.ok(entry.where.length > 10, `${entry.id} : l’endroit où le lien sert, pour réparer au bon endroit`);
+      assert.ok(entry.why.length > 20, `${entry.id} : pourquoi ce lien compte, sinon sa catégorie est arbitraire`);
+    }
+  });
+
+  it('les liens du poste ne sont plus écrits en clair dans le code qui les ouvre', () => {
+    const main = read('electron/main.cjs');
+    assert.match(main, /require\('\.\/embedded-links\.cjs'\)/, 'le poste prend le lien de l’inventaire');
+    assert.doesNotMatch(main, /https:\/\/github\.com\//, 'et il n’en porte plus aucun en clair');
+    // Le lien des notifications est fabriqué dans l'APPLICATION (`src/`), pas dans
+    // le processus principal : il n'y a donc pas de `require` possible, et la
+    // seule façon d'empêcher deux écritures de diverger est de les confronter.
+    assert.ok(
+      read('src/app/useParents.ts').includes(WHATSAPP_URL),
+      `les deux écritures de ${WHATSAPP_URL} doivent s’accorder (inventaire ↔ application)`,
+    );
   });
 });
