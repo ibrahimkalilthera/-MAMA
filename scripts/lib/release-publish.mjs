@@ -23,7 +23,7 @@
 //   consolidate plusieurs brouillons (l'héritage d'electron-builder) → garder
 //               UNE cible, supprimer les autres, téléverser le reste
 //   refuse      un release est DÉJÀ publié, rien à téléverser, ou un artefact
-//               annoncé manque sur le disque
+//               annoncé qui n'existe NULLE PART (ni disque, ni brouillon)
 //
 // « Par construction » veut dire ceci : le plan décrit **exactement** l'ensemble
 // vérifié — `upload` pour ce qui manque ou ne correspond pas, `remove` pour ce
@@ -101,19 +101,58 @@ export function pickConsolidationTarget(drafts = [], expected = []) {
 }
 
 /**
- * Le plan complet : quoi créer, quoi téléverser, quoi retirer, quoi supprimer.
+ * Ce que des brouillons en DOUBLE peuvent encore apporter à la cible.
+ *
+ * Consolider ne doit pas dépendre du dossier local : un artefact attendu peut
+ * n'exister QUE dans un brouillon hérité — le blockmap que la passe NSIS avait
+ * téléversé, sur une machine dont le `release/` a été nettoyé depuis, ou une
+ * reprise faite ailleurs. Sans ce rapatriement, « consolider » voudrait dire
+ * « supprimer l'autre brouillon, et tant pis pour ses octets », c'est-à-dire la
+ * perte silencieuse que ce module existe pour empêcher.
+ *
+ * Le DISQUE reste la source préférée : ses octets sont ceux qu'on vient de
+ * vérifier, et les reprendre ne coûte aucun aller-retour destructeur (un
+ * brouillon est un état à réparer, pas une source de confiance). Un artefact
+ * n'est donc repris d'un brouillon que si le disque ne peut pas le fournir, et
+ * c'est le gate du brouillon — qui rehashe les octets TÉLÉVERSÉS contre
+ * `latest.yml` — qui juge ce qu'on a réuni.
+ *
+ * @param {{ target?: object|null, drafts?: object[], expected?: string[],
+ *   local?: Map<string, unknown> }} input
+ * @returns {{ name: string, releaseId: number|string, size: number|null }[]}
+ */
+export function salvagePlan({ target = null, drafts = [], expected = [], local = new Map() } = {}) {
+  const targetNames = new Set((target?.assets ?? []).filter(Boolean).map((a) => a?.name));
+  const sources = (Array.isArray(drafts) ? drafts : []).filter((r) => r && r.id !== target?.id);
+  const out = [];
+  for (const name of expected) {
+    if (targetNames.has(name) || local.has(name)) continue;
+    for (const draft of sources) {
+      const asset = (draft.assets ?? []).filter(Boolean).find((a) => a?.name === name);
+      if (asset) {
+        out.push({ name, releaseId: draft.id, size: Number.isInteger(asset.size) ? asset.size : null });
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Le plan complet : quoi créer, quoi téléverser, quoi retirer, quoi réunir, quoi
+ * supprimer.
  *
  * @param {{ version: string, releases?: object[], expected?: string[],
  *   local?: Map<string, { size: number, sha256: string }> }} input
  *   `releases` ne contient QUE les releases portant le tag de cette version.
  * @returns {{ action: 'create'|'reuse'|'consolidate'|'refuse', target: object|null,
- *   tag: string, deleteIds: (number|string)[], upload: string[], remove: string[],
- *   skip: string[], problems: string[] }}
+ *   tag: string, deleteIds: (number|string)[], upload: string[],
+ *   salvage: { name: string, releaseId: number|string, size: number|null }[],
+ *   remove: string[], skip: string[], problems: string[] }}
  */
 export function publicationPlan({ version, releases = [], expected = [], local = new Map() } = {}) {
   const tag = `v${String(version ?? '').trim()}`;
-  const base = { target: null, tag, deleteIds: [], upload: [], remove: [], skip: [], problems: [] };
-  const problems = [];
+  const base = { target: null, tag, deleteIds: [], upload: [], salvage: [], remove: [], skip: [], problems: [] };
 
   // Un plan vide serait un plan vert : on refuse de conclure sur rien à publier.
   // C'est la règle de non-vacuité, et elle a un sens concret ici — un
@@ -126,12 +165,6 @@ export function publicationPlan({ version, releases = [], expected = [], local =
       problems: ['aucun artefact à publier — un release vide ne peut rien apporter à un poste'],
     };
   }
-  for (const name of expected) {
-    if (!local.has(name)) {
-      problems.push(`artefact annoncé mais introuvable sur ce disque : « ${name} » — rien à téléverser`);
-    }
-  }
-  if (problems.length) return { ...base, action: 'refuse', problems };
 
   const list = (Array.isArray(releases) ? releases : []).filter(Boolean);
   const published = list.filter((r) => r.draft !== true);
@@ -150,21 +183,42 @@ export function publicationPlan({ version, releases = [], expected = [], local =
   }
 
   const drafts = list.filter((r) => r.draft === true);
+  const target = drafts.length ? pickConsolidationTarget(drafts, expected) : null;
+  const salvage = salvagePlan({ target, drafts, expected, local });
+  const salvaged = new Set(salvage.map((s) => s.name));
+
+  // Le refus d'un artefact introuvable se juge APRÈS le rapatriement : un fichier
+  // absent du disque peut être dans un brouillon en double, et refuser là ferait
+  // payer à l'humain exactement le geste que ce module vient d'outiller.
+  const missing = expected.filter((name) => !local.has(name) && !salvaged.has(name));
+  if (missing.length) {
+    return {
+      ...base,
+      action: 'refuse',
+      problems: missing.map(
+        (name) =>
+          `artefact annoncé mais introuvable : « ${name} » n'est ni sur ce disque ni dans un brouillon — rien à téléverser`,
+      ),
+    };
+  }
+
   if (!drafts.length) {
     return { ...base, action: 'create', upload: [...expected] };
   }
 
-  const target = pickConsolidationTarget(drafts, expected);
   const deleteIds = drafts.filter((r) => r.id !== target?.id).map((r) => r.id);
   const assets = (target?.assets ?? []).filter(Boolean);
   const byName = new Map(assets.map((a) => [a.name, a]));
 
+  // Deux sources, et une seule par artefact : `upload` depuis le disque (ce
+  // qu'on a vérifié), `salvage` depuis un brouillon en double (ce qu'il faut
+  // d'abord rapatrier). Un artefact réuni n'est donc jamais téléversé deux fois.
   const upload = [];
   const skip = [];
   for (const name of expected) {
     const asset = byName.get(name);
     if (asset && assetMatchesLocal(asset, local.get(name))) skip.push(name);
-    else upload.push(name);
+    else if (!salvaged.has(name)) upload.push(name);
   }
   // Ce qui est en trop sort : à la fin, le release contient les octets vérifiés
   // et RIEN d'autre. Un installeur d'une autre version laissé là est le fichier
@@ -177,6 +231,7 @@ export function publicationPlan({ version, releases = [], expected = [], local =
     target,
     deleteIds,
     upload,
+    salvage,
     remove,
     skip,
   };

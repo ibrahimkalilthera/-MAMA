@@ -240,6 +240,50 @@ describe('le plan de publication', () => {
     assert.deepEqual(p.upload, [BLOCKMAP], 'seul ce que la cible n’avait pas est téléversé');
   });
 
+  it('un artefact attendu qui n’existe QUE dans un brouillon est RÉUNI, pas perdu', () => {
+    // Le cas qui restait humain : le blockmap que la passe NSIS avait téléversé,
+    // sur une machine dont le `release/` a été nettoyé depuis. « Consolider »
+    // doit le RAPPORTER dans la cible — le supprimer avec son brouillon serait
+    // la perte silencieuse que ce module existe pour empêcher.
+    const good = localFor();
+    const local = localFor();
+    local.delete(BLOCKMAP);
+    const rich = remote(12, {
+      assets: { 'latest.yml': good.get('latest.yml')!, [SETUP]: good.get(SETUP)!, [PORTABLE]: good.get(PORTABLE)! },
+    });
+    const nsiss = remote(11, { assets: { [BLOCKMAP]: good.get(BLOCKMAP)! } });
+    const p = plan([nsiss, rich], { local });
+    assert.equal(p.action, 'consolidate');
+    assert.deepEqual(p.salvage, [{ name: BLOCKMAP, releaseId: 11, size: 100 + BLOCKMAP.length }]);
+    assert.deepEqual(p.upload, [], 'rien ne vient du disque : il ne l’a pas');
+    assert.deepEqual(p.problems, [], 'et ce n’est PAS un refus : l’artefact existe quelque part');
+    assert.deepEqual(p.deleteIds, [11], 'le doublon part APRÈS avoir rendu ce qu’il avait d’unique');
+  });
+
+  it('le DISQUE reste la source préférée : présent des deux côtés, il est téléversé et non rapatrié', () => {
+    // Rapatrier est un aller-retour destructeur (un brouillon est un état à
+    // réparer, pas une source de confiance) : il ne sert qu'à défaut du disque,
+    // dont les octets sont ceux qu'on vient de vérifier.
+    const good = localFor();
+    const nsiss = remote(11, { assets: { [BLOCKMAP]: good.get(BLOCKMAP)! } });
+    const rich = remote(12, {
+      assets: { 'latest.yml': good.get('latest.yml')!, [SETUP]: good.get(SETUP)!, [PORTABLE]: good.get(PORTABLE)! },
+    });
+    const p = plan([nsiss, rich]);
+    assert.deepEqual(p.salvage, []);
+    assert.deepEqual(p.upload, [BLOCKMAP]);
+  });
+
+  it('introuvable partout — disque ET brouillons : refusé, et nommé', () => {
+    const local = localFor();
+    local.delete(PORTABLE);
+    const rich = remote(12, { assets: { 'latest.yml': local.get('latest.yml')! } });
+    const p = plan([rich], { local });
+    assert.equal(p.action, 'refuse');
+    assert.match(p.problems.join(' '), new RegExp(PORTABLE));
+    assert.match(p.problems.join(' '), /ni sur ce disque ni dans un brouillon/);
+  });
+
   it('le brouillon qui a les BONS NOMS mais d’AUTRES OCTETS est retéléversé', () => {
     // Le cas qui justifie de ne pas se fier à la seule taille : un installeur
     // reconstruit porte le même nom et une taille proche.
@@ -280,8 +324,21 @@ describe('le plan de publication', () => {
 describe('le câblage du publieur', () => {
   it('les artefacts publiés viennent de latest.yml, pas d’une liste écrite à la main', () => {
     const source = read('scripts/publish-release.mjs');
-    assert.match(source, /assetsToPublish/, 'la liste des octets à publier est celle que les postes lisent');
+    assert.match(source, /expectedArtifacts/, 'la liste des octets à publier est celle que les postes lisent');
     assert.match(source, /publicationPlan/, 'et la forme du release est décidée par le plan testable');
+  });
+
+  it('l’ensemble attendu est calculé APRÈS lecture du canal : un artefact qui n’existe que là est réuni', () => {
+    // L'ordre n'est pas cosmétique : calculer l'ensemble attendu AVANT de lire le
+    // canal rendrait la réunion inatteignable (l'ensemble ne contiendrait que ce
+    // qui est déjà sur le disque), et la suppression du brouillon emporterait un
+    // artefact unique sans que rien ne rougisse.
+    const source = read('scripts/publish-release.mjs');
+    const channelRead = source.indexOf("const all = await api('/releases?per_page=100')");
+    const expected = source.indexOf('expectedArtifacts({ latest, dirNames, releases: sameTag })');
+    const hashing = source.indexOf('local.set(name, { size: statSync(file).size');
+    assert.ok(channelRead > 0 && expected > channelRead, 'le canal est lu avant de fixer ce que le release doit porter');
+    assert.ok(hashing > expected, 'et on ne hache que ce qui est réellement attendu');
   });
 
   it('publier est une ÉCRITURE : sans jeton, rien n’est touché', () => {
@@ -297,6 +354,23 @@ describe('le câblage du publieur', () => {
     assert.match(source, /withoutToken: true/, 'le flux publié est relu sans autorisation');
     assert.match(source, /GH_TOKEN: '', GITHUB_TOKEN: ''/, 'et le jeton est réellement retiré de l’environnement du gate');
     assert.match(source, /runGate\('--channel'/, 'le canal vivant et le frein sont vérifiés dans le même geste que la promotion');
+  });
+
+  it('la consolidation RÉUNIT avant de supprimer : aucun octet unique ne part avec son brouillon', () => {
+    const source = read('scripts/publish-release.mjs');
+    const reunite = source.indexOf('await transferAsset(');
+    const remove = source.indexOf('brouillon en double supprimé');
+    const upload = source.indexOf('await uploadAsset(');
+    assert.ok(reunite > 0 && remove > reunite, 'le rapatriement précède la suppression des doublons');
+    assert.ok(upload > remove, 'et le téléversement depuis le disque vient après (il porte le reste)');
+    // En FLUX : la source se déverse dans la destination, sinon un installeur de
+    // 129 Mo serait porté deux fois en mémoire.
+    assert.match(source, /bytes\.pipe\(target\)/, 'le rapatriement ne charge pas les octets en mémoire');
+    assert.match(source, /redirect: 'follow'/, 'et il SUIT la redirection (mesuré : 302 vers release-assets) sans quoi il ne verrait aucun octet');
+    assert.match(source, /if \(reunited\.has\(name\)\) continue/, 'un artefact réuni n’est jamais téléversé deux fois');
+    // Une longueur devinée est la seule façon de publier des octets TRONQUÉS
+    // sans que rien ne rougisse : elle doit être un échec nommé, pas un zéro.
+    assert.match(source, /taille inconnue[^']*octets tronqués/, 'une taille inconnue refuse, elle ne devine pas');
   });
 
   it('le brouillon est un SAS : sa vérification précède la promotion', () => {

@@ -30,6 +30,9 @@ import {
   assetsToPublish,
   compareLatest,
   compareRelease,
+  compareVersions,
+  deliveryReach,
+  expectedArtifacts,
   nameCarriesVersion,
   parseHoldsFile,
   parseLatestYml,
@@ -216,6 +219,51 @@ describe('ce qui doit partir dans le release', () => {
 
   it('sans flux lisible, rien n’est publié', () => {
     assert.deepEqual(assetsToPublish({ latest: null }), []);
+  });
+});
+
+describe('ce que le RELEASE doit porter, indépendamment de ce que ce dossier a', () => {
+  const BLOCKMAP = `${FILE}.blockmap`;
+
+  it('un artefact que SEUL un brouillon porte reste attendu — sinon il partirait avec lui', () => {
+    // Le trou que cet élargissement ferme est mesurable : sur une machine dont
+    // `release/` a été nettoyée, le blockmap n'est plus sur le disque. S'il sort
+    // de l'ensemble attendu, la consolidation supprime le brouillon qui le porte
+    // et le release sort sans lui — chaque poste retélécharge alors l'installeur
+    // entier à chaque mise à jour, et rien ne rougit.
+    const dir = coherentDir();
+    const latest = parseLatestYml(dir.latestText);
+    const withoutBlockmap = dir.dirNames.filter((n) => n !== BLOCKMAP);
+    const drafts = [{ assets: [{ name: BLOCKMAP }] }];
+    const expected = expectedArtifacts({ latest, dirNames: withoutBlockmap, releases: drafts });
+    assert.ok(expected.includes(BLOCKMAP), 'le blockmap est attendu même absent du dossier');
+    assert.deepEqual(expected, ['latest.yml', FILE, `MamaTheraFinance-${PACKAGE}-portable.exe`, BLOCKMAP]);
+  });
+
+  it('ce qui ne fait PAS partie du flux de cette version n’entre pas dans l’ensemble', () => {
+    // Sinon un brouillon deviendrait une source de confiance : tout ce qu'il
+    // contient ressusciterait, y compris l'installeur d'une autre version que
+    // ce dépôt refuse partout ailleurs.
+    const dir = coherentDir();
+    const latest = parseLatestYml(dir.latestText);
+    const drafts = [{ assets: [{ name: 'MamaTheraFinance-1.0.3-setup.exe' }, { name: 'notes.txt' }] }];
+    const expected = expectedArtifacts({ latest, dirNames: dir.dirNames, releases: drafts });
+    assert.deepEqual(expected.filter((n) => !dir.dirNames.includes(n)), []);
+  });
+
+  it('un portable d’une autre version présent dans un brouillon n’est pas ramassé', () => {
+    const dir = coherentDir();
+    const latest = parseLatestYml(dir.latestText);
+    const drafts = [{ assets: [{ name: 'MamaTheraFinance-1.0.3-portable.exe' }] }];
+    const expected = expectedArtifacts({ latest, dirNames: dir.dirNames, releases: drafts });
+    assert.equal(expected.includes('MamaTheraFinance-1.0.3-portable.exe'), false);
+  });
+
+  it('sans brouillon et sans dossier, rien n’est attendu — et un flux illisible n’invente rien', () => {
+    const dir = coherentDir();
+    const latest = parseLatestYml(dir.latestText);
+    assert.deepEqual(expectedArtifacts({ latest, dirNames: dir.dirNames }), assetsToPublish({ latest, dirNames: dir.dirNames }));
+    assert.deepEqual(expectedArtifacts({ latest: null, releases: [{ assets: [{ name: BLOCKMAP }] }] }), []);
   });
 });
 
@@ -569,5 +617,89 @@ describe('le canal tel que la CI doit le voir', () => {
     assert.match(source, /raw\.githubusercontent\.com\/\$\{repo\}\/\$\{branch\}\/updates\/holds\.json/);
     assert.match(source, /const branch = args\.find/, '--branch permet de vérifier une branche, et de PROUVER le rouge');
     assert.match(source, /canal cassé/, 'un canal cassé doit rendre un rouge nommé');
+  });
+
+  it('la tête est demandée à l’ENDPOINT DU POSTE, pas déduite par notre propre tri', () => {
+    // La moitié qui manquait : `electron-updater` ne déduit pas la version la
+    // plus récente, il demande `/releases/latest` (Accept: application/json) et
+    // lit `tag_name`. Un canal qui calcule sa propre tête juge un flux que
+    // personne ne lit, et les deux peuvent diverger en silence.
+    const source = read('scripts/check-release-coherence.mjs');
+    assert.match(source, /releases\/latest/, 'l’URL interrogée est celle du poste');
+    assert.match(source, /Accept: 'application\/json', 'User-Agent': 'release-coherence'/, 'et avec l’en-tête qui fait répondre du JSON');
+    assert.match(source, /const head = await clientLatestTag\(\)/, 'la tête vient de cet appel');
+    assert.match(source, /headTag: head\.tag \?\? targetTag/, 'et c’est bien cette tête-là que le chemin des versions juge');
+  });
+});
+
+describe('ce qu’un poste resté sur une ancienne version reçoit', () => {
+  const pub = (tag: string, extra: Record<string, unknown> = {}) => ({
+    tag_name: tag,
+    draft: false,
+    prerelease: false,
+    ...extra,
+  });
+
+  it('chaque version publiée rejoint la tête — et c’est la comparaison chiffrée qui le dit', () => {
+    const reach = deliveryReach({
+      published: [pub('v1.0.10'), pub('v1.0.9'), pub('v1.0.5'), pub('v1.0.2')],
+      headTag: 'v1.0.10',
+    });
+    assert.equal(reach.head, '1.0.10');
+    assert.equal(reach.newest, '1.0.10');
+    assert.deepEqual(reach.problems, []);
+    assert.deepEqual(reach.clients.map((c) => [c.version, c.receives]), [
+      ['1.0.10', true],
+      ['1.0.9', true],
+      ['1.0.5', true],
+      ['1.0.2', true],
+    ]);
+    // 1.0.10 > 1.0.9 : un tri par chaîne dirait l'inverse, et enverrait un poste
+    // « à jour » alors qu'il ne l'est pas.
+    assert.equal(compareVersions('1.0.10', '1.0.9'), 1);
+  });
+
+  it('une version publiée PLUS HAUTE que la tête ne reçoit plus rien, et c’est refusé', () => {
+    // Le défaut que ce verdict existe pour attraper : la tête reste cohérente,
+    // donc rien ne rougit, et une population entière de postes sort du chemin.
+    const reach = deliveryReach({ published: [pub('v1.0.6'), pub('v1.0.5')], headTag: 'v1.0.5' });
+    const stranded = reach.clients.find((c) => c.version === '1.0.6');
+    assert.equal(stranded?.receives, false);
+    assert.match(reach.problems.join(' '), /poste resté en 1\.0\.6/);
+    assert.match(reach.problems.join(' '), /n’est PAS la version la plus haute publiée \(1\.0\.6\)/);
+  });
+
+  it('une tête illisible ou absente : le canal ne nomme rien, donc personne ne reçoit', () => {
+    const reach = deliveryReach({ published: [pub('v1.0.5')], headTag: null });
+    assert.equal(reach.head, null);
+    assert.equal(reach.clients[0].receives, false);
+    assert.match(reach.problems.join(' '), /ne recevrait plus rien/);
+    assert.match(reach.clients[0].detail, /ne reçoit PLUS RIEN/);
+    assert.match(reach.problems.join(' '), /ERR_UPDATER_NO_PUBLISHED_VERSIONS/);
+  });
+
+  it('une tête qui n’est pas un release publié du canal stable est refusée', () => {
+    const reach = deliveryReach({ published: [pub('v1.0.5', { prerelease: true }), pub('v1.0.4')], headTag: 'v1.0.5' });
+    assert.match(reach.problems.join(' '), /n’est pas un release publié du canal stable/);
+  });
+
+  it('une tête RETENUE par le frein : nommée, pas refusée — c’est le frein qui agit', () => {
+    const reach = deliveryReach({ published: [pub('v1.0.5'), pub('v1.0.4')], headTag: 'v1.0.5', holds: ['1.0.5'] });
+    const older = reach.clients.find((c) => c.version === '1.0.4');
+    assert.equal(older?.receives, false);
+    assert.equal(older?.held, true);
+    assert.deepEqual(reach.problems, [], 'retenir est un geste voulu : ce n’est pas un canal cassé');
+    assert.match(reach.warnings.join(' '), /retenue par le frein/);
+  });
+
+  it('un brouillon n’est une population pour personne, une pré-version est nommée', () => {
+    const reach = deliveryReach({
+      published: [pub('v1.0.6', { draft: true }), pub('v1.0.5-beta.1', { prerelease: true }), pub('v1.0.5'), pub('v1.0.4')],
+      headTag: 'v1.0.5',
+    });
+    assert.deepEqual(reach.clients.map((c) => c.version), ['1.0.5', '1.0.4']);
+    assert.deepEqual(reach.invisible, ['v1.0.5-beta.1']);
+    assert.match(reach.warnings.join(' '), /PRÉ-VERSION/);
+    assert.deepEqual(reach.problems, []);
   });
 });

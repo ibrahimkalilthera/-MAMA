@@ -70,6 +70,7 @@ import {
   assetsToPublish,
   compareLatest,
   compareRelease,
+  deliveryReach,
   parseHoldsFile,
   parseLatestYml,
   pickLatestPublished,
@@ -166,6 +167,39 @@ const api = (path) =>
       ...auth,
     },
   });
+
+/**
+ * La tête que le POSTE lit, demandée à l'endpoint que le poste interroge.
+ *
+ * MESURÉ sur le canal réel, et c'est la moitié qui manquait : `electron-updater`
+ * ne déduit pas la version la plus récente, il DEMANDE `/<owner>/<repo>/releases/latest`
+ * avec `Accept: application/json` et lit `tag_name` de la réponse (le dépôt
+ * d'à côté, `getLatestTagName` : « do not use API for GitHub to avoid limit » —
+ * c'est bien cette URL-là, et elle répond du JSON). Un canal qui calcule sa
+ * propre tête — la plus récente par date de publication — juge donc un flux que
+ * personne ne lit, et les deux peuvent diverger en silence.
+ *
+ * Sans jeton : c'est l'appel exact d'un poste, et un dépôt public y répond.
+ *
+ * @returns {Promise<{ tag: string|null, detail: string }>}
+ */
+async function clientLatestTag() {
+  const url = `https://github.com/${repo}/releases/latest`;
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: 'application/json', 'User-Agent': 'release-coherence' },
+      redirect: 'follow',
+    });
+    if (!res.ok) return { tag: null, detail: `l’endpoint du poste a répondu HTTP ${res.status} sur ${url}` };
+    const body = await res.json().catch(() => null);
+    const tag = String(body?.tag_name ?? '').trim();
+    return tag
+      ? { tag, detail: `GET /releases/latest → ${tag} (Accept: application/json, sans jeton)` }
+      : { tag: null, detail: `l’endpoint du poste n’a nommé aucune version (${url})` };
+  } catch (error) {
+    return { tag: null, detail: `l’endpoint du poste est injoignable (${String(error?.message ?? error)})` };
+  }
+}
 
 /** Lit un asset : le texte pour un petit fichier, l'empreinte des octets sinon. */
 async function readAsset(asset, { asText }) {
@@ -280,12 +314,25 @@ const expectedFor = (announced) =>
 
 // ── Mode channel : le canal vivant, vu de l'extérieur et SANS jeton ───────────
 if (MODE === 'channel') {
-  const target = pickLatestPublished(releases);
+  // La tête vient d'abord de l'ENDPOINT DU POSTE : c'est lui qui décide laquelle
+  // un poste installeur lit, pas notre propre tri.
+  const head = await clientLatestTag();
+  const newestPublished = pickLatestPublished(releases);
+  const target =
+    (head.tag && releases.find((r) => r.tag_name === head.tag && r.draft !== true)) || newestPublished;
   if (!target) {
     fail('aucun release PUBLIÉ — le canal est muet', [
       `${releases.length} release(s) existent, aucun n’est promu (brouillons ou liste vide) : aucun poste ne lit quoi que ce soit`,
+      head.detail,
     ]);
   }
+  // Divergence entre ce que l'endpoint du poste nomme et ce que notre tri
+  // désigne : elle est nommée, jamais tue — les deux ordres ne se confondent pas
+  // (le dépôt du côté du client ordonne par création, pas par publication).
+  const divergence =
+    head.tag && newestPublished && head.tag !== newestPublished.tag_name
+      ? `l’endpoint du poste nomme ${head.tag}, notre tri désigne ${newestPublished.tag_name} — c’est le premier que le poste lit`
+      : null;
   const targetTag = target.tag_name;
   const targetVersion = String(targetTag).replace(/^v/, '');
   const targetSameTag = releases.filter((r) => r.tag_name === targetTag);
@@ -332,22 +379,46 @@ if (MODE === 'channel') {
     (r) => r.draft === true && Date.parse(String(r.created_at || '')) > publishedWhen,
   );
 
+  // ── Le chemin de CHAQUE version publiée, pas seulement de la tête ────────
+  // Chaque release publié est une population de postes. Une population sortie du
+  // chemin ne le dit jamais : la tête reste cohérente, et rien ne rougit — sauf
+  // si on demande, version par version, ce qu'elle recevrait.
+  const reach = deliveryReach({
+    published: releases,
+    headTag: head.tag ?? targetTag,
+    holds: brake.holds,
+  });
+
   console.log(
     `🔎 canal — ${releases.length} release(s) dont ${releases.filter((r) => r.draft !== true).length} publié(s) ` +
       `(mode channel, sans jeton${token ? ' — le jeton de l’environnement est délibérément ignoré' : ''})`,
   );
+  console.log(`   la tête que le poste lit : ${head.detail}`);
   console.log(`   le plus récent publié : ${targetTag} (${target.published_at || target.created_at})`);
+  if (divergence) console.log(`   ⚠️  ${divergence}`);
+  console.log(`   chemin de chaque version publiée — ce qu’un poste resté là recevrait :`);
+  for (const client of reach.clients) {
+    console.log(`   ${client.receives ? '✅' : '❌'} ${client.version} → ${client.detail}`);
+  }
   for (const r of newerDrafts) {
     console.log(`   ℹ️  ${r.tag_name} est en BROUILLON plus récent — invisible pour les postes tant qu’il n’est pas promu`);
   }
-  if (!verdict.ok || brake.problems.length) {
+  if (!verdict.ok || brake.problems.length || reach.problems.length || !head.tag) {
     fail(
-      `canal cassé — ${targetTag} ou le frein d’urgence est inutilisable`,
-      [...verdict.problems, ...brake.problems],
-      [...verdict.warnings, ...brake.warnings],
+      `canal cassé — la tête, le frein d’urgence, ou le chemin de versions entières est inutilisable`,
+      [
+        ...verdict.problems,
+        ...brake.problems,
+        ...reach.problems,
+        ...(head.tag ? [] : [head.detail]),
+      ],
+      [...verdict.warnings, ...brake.warnings, ...reach.warnings, ...(divergence ? [divergence] : [])],
     );
   }
-  console.log('✅ canal vivant : le release publié le plus récent est livrable, et le frein est lisible');
+  console.log(
+    `✅ canal vivant : les ${reach.clients.filter((c) => c.receives).length} version(s) publiée(s) rejoignent la tête ` +
+      `${reach.head}, le frein est lisible`,
+  );
   if (facts.installer) {
     console.log(
       `   ${facts.installer.name} · ${facts.installer.size} octet(s) · sha512 ${facts.installer.sha512.slice(0, 24)}… (rehaché depuis le dépôt public)`,
@@ -360,9 +431,13 @@ if (MODE === 'channel') {
   for (const w of brake.warnings) console.log(`   ⚠️  ${w}`);
   publishEvidence({
     acted: true,
-    count: expected.length,
+    count: reach.clients.filter((c) => c.receives).length,
     reason:
-      `canal vérifié sans jeton : ${targetTag} publié et livrable (${facts.installer ? 'installeur rehaché depuis le dépôt public' : 'latest.yml relu'}), ` +
+      `canal vérifié sans jeton : la tête ${head.tag} est livrable (${facts.installer ? 'installeur rehaché depuis le dépôt public' : 'latest.yml relu'}), ` +
+      `les ${reach.clients.length} version(s) publiées y sont rattachées (postes en ${reach.clients
+        .filter((c) => c.version !== reach.head)
+        .map((c) => c.version)
+        .join(', ') || 'aucune'}), ` +
       `frein lisible (${brake.entries.length} retenue(s)${brake.holds.length ? ` : ${brake.holds.join(', ')}` : ''})`,
   });
   process.exit(0);

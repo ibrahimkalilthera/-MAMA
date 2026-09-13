@@ -1,3 +1,76 @@
+## [2026-09-13] Le canal dit ce que reçoit CHAQUE version publiée — et demande la tête à l'endpoint du poste
+
+Demande : « fais dire au canal si un poste resté sur chaque ancienne version publiée recevrait bien la plus récente, au lieu de ne juger que la tête du flux ».
+
+**La tête n'était pas la bonne question, et ce n'était même pas la bonne tête.** Le mode `channel` jugeait un seul release — le plus récent **publié par nos propres yeux** (`pickLatestPublished`, tri sur `published_at`). Or deux populations de postes existent pour la même tête : celles qui sont à jour, et celles qui sont restées sur chaque version publiée avant. Une population sortie du chemin ne le dit jamais — la tête reste cohérente, le job reste vert — et c'est précisément la forme du faux vert que ce dépôt traque.
+
+**Pire, la tête que nous calculions n'est pas celle que le client lit.** Mesuré dans le dépôt du client (`electron-updater/out/providers/GitHubProvider.js`, `getLatestTagName`) : pour GitHub, l'updater ne déduit rien, il **demande** `https://github.com/<owner>/<repo>/releases/latest` avec `Accept: application/json` et lit `tag_name` — le commentaire du code le dit (« do not use API for GitHub to avoid limit »), et c'est le `releases.atom` qui fournit le reste. Vérifié sur le canal réel : cette URL répond **302** puis `{"tag_name":"v1.0.5",…}`. Un canal qui trie lui-même par date de publication juge donc un flux que **personne ne lit**, et les deux tris (création côté client, publication côté nous) peuvent diverger en silence : la divergence est maintenant **nommée** au lieu d'être tue.
+
+**Le verdict porte donc sur chaque version publiée, `deliveryReach`.** Il rend un client par version et deux ordres de grandeur :
+
+```
+✅ 1.0.5 → c'est la tête : rien à installer
+✅ 1.0.4 → reçoit 1.0.5
+✅ 1.0.3 → reçoit 1.0.5
+✅ 1.0.2 → reçoit 1.0.5
+✅ 1.0.1 → reçoit 1.0.5
+```
+
+Mesuré sur le canal réel, sans jeton (`--channel`), la tête étant confirmée par l'appel exact d'un poste : `la tête que le poste lit : GET /releases/latest → v1.0.5 (Accept: application/json, sans jeton)`.
+
+**Trois refus, et chacun est un état où la tête est parfaite et le canal cassé :**
+
+```
+une version publiée PLUS HAUTE que la tête   un poste en 1.0.6 ne recevrait PLUS RIEN
+                                              (et la tête ne serait pas la plus haute version)
+une tête absente / illisible                 aucun poste ne reçoit rien (ERR_UPDATER_NO_PUBLISHED_VERSIONS)
+une tête qui n'est pas un release publié     un poste lit une tête qui n'existe pour personne
+                                              (pré-version, ou brouillon promu nulle part)
+```
+
+**La comparaison est chiffrée, jamais alphabétique** — `1.0.10 > 1.0.9`, ce qu'un tri de chaînes se trompe à dire et qui enverrait un poste se croire à jour. Et une tête **retenue** par le frein d'urgence n'est **pas** un refus : le frein agit, volontairement, donc c'est nommé (`la tête 1.0.5 est RETENUE : ce poste ne la recevra pas tant que la retenue est là`) et la preuve publiée donne le compte des versions rattachées, pas un chiffre vert.
+
+**Deux choses franchement.** Le rouge du « poste sorti du chemin » n'est prouvé que par les cas unitaires : le produire sur le canal réel demanderait de **publier** une version plus haute que la tête, c'est-à-dire de l'offrir à tous les postes installés — un vrai effet sur un vrai parc, pour une démonstration. Ce n'est pas fait, et c'est délibéré. Ensuite la pré-version publiée est **nommée** mais ne porte aucun poste : le canal stable ignore les pré-versions, comme le fait `releases.atom` côté client.
+
+**Mesures** : 52/52 sur la suite du contrôle (+9 : sept cas de chemin, deux de câblage), `npm run lint` vert (21 contrôles inventoriés, `tsc` et eslint compris), suite complète **1345/1345**, `npm run check:release:channel` vert sur le canal réel avec les cinq versions publiées rattachées.
+
+## [2026-09-13] La consolidation RÉUNIT : un artefact qui n'existe que dans un brouillon ne part plus avec lui
+
+Demande : « outille enfin la consolidation des brouillons : que la publication réunisse elle-même les artefacts en un seul release, au lieu d'une main humaine sur l'API ».
+
+**La consolidation existait, la RÉUNION non — et la différence est un blockmap perdu en silence.** Le plan savait déjà choisir une cible, y téléverser ce qui manque **depuis le disque** et supprimer les brouillons en double. Mais ce qu'un brouillon porte d'unique n'était jamais repris : il partait avec lui. Or l'ensemble « ce que le release doit porter » était calculé par `assetsToPublish`, qui ne décrit que **ce que ce dossier contient** — donc un artefact présent sur le disque est publié, et un artefact absent du disque n'est pas attendu du tout. Sur une machine dont `release/` a été nettoyée (ou une reprise faite ailleurs), le blockmap qui vivait dans le second brouillon n'était ni attendu ni réuni : la consolidation supprimait le brouillon, et le release sortait **sans blockmap**, vert, sans qu'aucune ligne ne le dise. Conséquence côté parc : chaque poste retélécharge l'installeur **entier** à chaque mise à jour.
+
+**L'ensemble attendu ne dépend plus du dossier, mais du FLUX.** `expectedArtifacts` élargit la liste de `latest.yml` avec ce que les brouillons du **même tag** portent déjà — et l'élargissement est volontairement étroit : `latest.yml`, le `path` annoncé et son blockmap, les fichiers listés et leurs blockmaps, et un portable qui **porte la version** par son nom. Le reste d'un brouillon est un état à réparer, pas une source de confiance : l'installeur d'une autre version qu'il contiendrait n'entre pas dans l'ensemble (c'est le refus que ce dépôt applique partout ailleurs). Conséquence seconde, et elle compte : `publicationPlan` n'a plus de branche morte — sans cet élargissement, `salvage` était **inatteignable** depuis le CLI, puisque tout artefact attendu était par construction déjà sur le disque.
+
+**Deux pièges mesurés, dont un qui aurait rendu la réunion muette.** Le chemin de lecture a été vérifié sur le canal réel avant d'être écrit : l'API des actifs (`Accept: application/octet-stream`) répond **302** vers `release-assets.githubusercontent.com`. Un `https.request` qui ne suit pas la redirection ne voit **jamais** un octet — il lit « HTTP 302 » et conclut à une panne de l'API, sur un chemin qui n'aurait jamais tourné (aucun brouillon n'existait depuis la 1.0.5). La lecture passe donc par `fetch`, et la redirection est suivie **sans le jeton** (la spécification retire `Authorization` quand l'origine change — un jeton qui suit une redirection est un jeton offert à qui la contrôle ; le lien signé porte ses propres droits). Second piège : `Content-Length` n'est jamais deviné — un `Content-Length` faux est la seule façon de publier des octets **tronqués** sans que rien ne rougisse, donc une taille inconnue est un échec nommé, pas un zéro.
+
+**Prouvé sur le canal réel, avec le piège reproduit à l'identique, puis nettoyé.** Deux brouillons `v0.0.7` fabriqués pour porter exactement le défaut d'origine — l'un `latest.yml` + l'installeur, l'autre le blockmap **seul** — et le publieur lancé sur un dossier dont le blockmap était **absent** (la condition qui rendait la perte silencieuse) :
+
+```
+🔎 v0.0.7 — 2 release(s) pour ce tag · plan : consolidate
+   à publier : latest.yml, …-setup.exe, …-portable.exe, …-setup.exe.blockmap
+   ⚠️  absent de release-test/, présent dans un brouillon : …-setup.exe.blockmap
+       (sera réuni, jamais téléversé depuis ce disque)
+   cible : release #387760479 (brouillon)
+   ⏭  déjà en place, mêmes octets : latest.yml, …-setup.exe
+   ⬆️  à téléverser : …-portable.exe
+   ↔  à réunir depuis le brouillon #387760480 : …-setup.exe.blockmap
+   🗑  brouillon en double, à supprimer : release #387760480
+↔  réuni depuis le brouillon #387760480 : …-setup.exe.blockmap (23 octets)
+🗑  brouillon en double supprimé : release #387760480
+✅ brouillon cohérent : les octets téléversés répondent à latest.yml — la promotion est autorisée
+
+releases v0.0.7 : 1 · actifs du seul restant : 4
+blockmap réuni — sha256 téléchargé b7ad8a4a34bb790a56b8 | octets d'origine b7ad8a4a34bb790a56b8 IDENTIQUES
+supprimé release #387760479 (brouillon) · releases v0.0.7 restants : 0 · tag v0.0.7 : aucun (jamais promu)
+```
+
+Le gate du brouillon est ce qui rend la preuve non circulaire : il exige le blockmap **par son nom** (d'après le `latest.yml` du release, pas d'après le dossier), donc la consolidation n'aurait pas pu passer en l'ayant perdu. Et 2 brouillons → **1** release de 4 actifs, le doublon supprimé, rien qui traîne : le canal est revenu exactement à son état d'avant, `package.json` restauré.
+
+**Trois choses franchement.** La réunion ne sait pas **déjuger** : un artefact repris d'un brouillon est cru sur parole pour ce qui n'est pas l'installeur annoncé (`latest.yml`, lui, est comparé octet pour octet par le gate du brouillon, et l'installeur est rehaché) — un **blockmap** venu d'un brouillon d'une autre construction ne serait pas détecté, et ferait retélécharger l'installeur entier au prochain delta : c'est un défaut de performance, pas de sécurité. Ensuite, l'élargissement est étroit par choix : un artefact du même tag qui ne fait pas partie du flux (`notes.txt`, l'installeur d'une autre version) est ignoré, donc **volontairement** non réuni. Enfin le cas où le brouillon le plus complet est aussi celui qu'on supprimerait n'existe pas — `pickConsolidationTarget` garde celui qui porte **le plus** d'artefacts attendus, et l'ordre (le plus ancien, puis l'identifiant) est stable, donc deux exécutions du même plan ne changent pas de cible.
+
+**Mesures** : 74/74 sur les deux suites de la publication (+6 : quatre cas d'élargissement, deux de câblage et d'ordre), `tsc` et eslint verts sur les 21 contrôles inventoriés, suite complète **1338/1338**.
+
 ## [2026-09-13] La publication ne demande plus de clic : monter la version devient le déclencheur
 
 Demande : « fais disparaître la dernière main humaine de la chaîne de release : que la consolidation des brouillons en double et la promotion ne dépendent plus d'appels manuels à l'API ».

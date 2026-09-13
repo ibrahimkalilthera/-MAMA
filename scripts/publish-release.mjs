@@ -24,9 +24,11 @@
  *
  * ─── Trois principes, et pourquoi ceux-là ────────────────────────────────────
  *   • **on téléverse ce qu'on a VÉRIFIÉ, pas ce qu'on espère** : la liste des
- *     artefacts vient de `assetsToPublish` (donc de `latest.yml`, donc de ce que
- *     les postes lisent), et un artefact annoncé mais absent du disque fait
- *     REFUSER la publication ;
+ *     artefacts vient de `latest.yml` (donc de ce que les postes lisent) — un
+ *     artefact annoncé qui n'existe NULLE PART fait REFUSER la publication, et
+ *     ce qui n'est que dans un brouillon en double lui est **réuni** avant que
+ *     ce brouillon ne soit supprimé (`expectedArtifacts` dit ce que le release
+ *     doit porter, pas ce que le dossier contient) ;
  *   • **le brouillon n'est pas une formalité, c'est un sas** : rien n'est
  *     visible avant que les octets TÉLÉVERSÉS aient été rehachés DEPUIS LE
  *     DÉPÔT et comparés à `latest.yml` (`--draft`). C'est le gate du dépôt qui
@@ -45,9 +47,10 @@ import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { request as httpsRequest } from 'node:https';
 import { dirname, join } from 'node:path';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
-import { assetsToPublish, parseLatestYml, releaseTag } from './lib/release-coherence.mjs';
+import { expectedArtifacts, parseLatestYml, releaseTag } from './lib/release-coherence.mjs';
 import { publicationPlan } from './lib/release-publish.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -102,6 +105,79 @@ async function sha256OfFile(file) {
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(file)) hash.update(chunk);
   return hash.digest('hex');
+}
+
+/** L'en-tête d'écriture commun aux deux requêtes d'un rapatriement. */
+const authHeaders = (extra = {}) => ({
+  'User-Agent': 'release-publisher',
+  Accept: 'application/vnd.github+json',
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  ...extra,
+});
+
+/**
+ * Réunir dans la cible un actif qui n'existe QUE dans un brouillon en double.
+ *
+ * Aucune API ne « déplace » un actif : on le rapatrie (les octets d'un brouillon
+ * ne sont pas publics, donc le jeton est requis) puis on le téléverse dans la
+ * cible — EN FLUX, source vers destination, pour ne jamais porter 129 Mo en
+ * mémoire. Sans ce rapatriement, consolider voudrait dire « supprimer l'autre
+ * brouillon et perdre ses octets », et la réparation redeviendrait humaine.
+ *
+ * ─── Pourquoi la lecture passe par `fetch` et pas par `https.request` ────────
+ * MESURÉ sur le canal réel, actif `latest.yml` de `v1.0.5` : ce point d'entrée
+ * répond **302** et renvoie vers `release-assets.githubusercontent.com`. Un GET
+ * qui ne suit pas la redirection ne voit donc jamais les octets — il lit
+ * « HTTP 302 » et conclut à une panne de l'API, sur un chemin qui paraîtrait
+ * simplement cassé. `fetch` suit la redirection, et il la suit **sans le
+ * jeton** (la spécification retire `Authorization` dès que la redirection
+ * change d'origine) : c'est le comportement voulu, un jeton qui suit une
+ * redirection est un jeton offert à qui la contrôle — le lien signé porte ses
+ * propres droits, donc rien n'est perdu.
+ *
+ * Et la longueur n'est jamais DEVINÉE : téléverser avec un `Content-Length`
+ * faux est la seule façon de publier des octets tronqués en silence, donc une
+ * taille inconnue est un échec nommé, pas un zéro.
+ *
+ * @param {{ name: string, assetId: number|string, releaseId: number|string, size?: number|null }} input
+ * @returns {Promise<number>} octets réunis
+ */
+async function transferAsset({ name, assetId, releaseId, size = null }) {
+  const source = await fetch(`https://api.github.com/repos/${repo}/releases/assets/${assetId}`, {
+    headers: authHeaders({ Accept: 'application/octet-stream' }),
+    redirect: 'follow',
+  });
+  if (!source.ok || !source.body) {
+    throw new Error(`rapatriement de « ${name} » → HTTP ${source.status}`);
+  }
+  const length = Number(source.headers.get('content-length')) || Number(size) || 0;
+  if (!Number.isInteger(length) || length <= 0) {
+    throw new Error(
+      `rapatriement de « ${name} » : taille inconnue — téléverser une longueur devinée publierait des octets tronqués`,
+    );
+  }
+  return new Promise((resolve, reject) => {
+    const target = httpsRequest(
+      {
+        hostname: 'uploads.github.com',
+        method: 'POST',
+        path: `/repos/${repo}/releases/${releaseId}/assets?name=${encodeURIComponent(name)}`,
+        headers: authHeaders({ 'Content-Type': 'application/octet-stream', 'Content-Length': length }),
+      },
+      (up) => {
+        let body = '';
+        up.on('data', (c) => (body += c));
+        up.on('end', () => {
+          if (up.statusCode >= 200 && up.statusCode < 300) resolve(length);
+          else reject(new Error(`téléversement réuni de « ${name} » → HTTP ${up.statusCode} — ${body.slice(0, 160)}`));
+        });
+      },
+    );
+    const bytes = Readable.fromWeb(source.body);
+    target.on('error', reject);
+    bytes.on('error', reject);
+    bytes.pipe(target);
+  });
 }
 
 /**
@@ -213,7 +289,16 @@ const dirNames = existsSync(releaseDir)
       return existsSync(file) && statSync(file).isFile();
     })
   : [];
-const expected = assetsToPublish({ latest, dirNames });
+
+// ── 2. Le plan ───────────────────────────────────────────────────────────────
+// L'état du canal est lu AVANT de hacher quoi que ce soit, parce que l'ensemble
+// attendu en dépend : un artefact qui n'existe que dans un brouillon du même tag
+// doit être RÉUNI, pas oublié — sinon le supprimer avec son brouillon serait la
+// perte silencieuse que ce programme existe pour empêcher.
+const all = await api('/releases?per_page=100');
+const sameTag = (all || []).filter((r) => r.tag_name === tag);
+const expected = expectedArtifacts({ latest, dirNames, releases: sameTag });
+const onlyInDrafts = expected.filter((name) => !dirNames.includes(name));
 
 const local = new Map();
 for (const name of expected) {
@@ -222,9 +307,6 @@ for (const name of expected) {
   local.set(name, { size: statSync(file).size, sha256: await sha256OfFile(file) });
 }
 
-// ── 2. Le plan ───────────────────────────────────────────────────────────────
-const all = await api('/releases?per_page=100');
-const sameTag = (all || []).filter((r) => r.tag_name === tag);
 const plan = publicationPlan({ version, releases: sameTag, expected, local });
 
 if (plan.problems.length) {
@@ -233,9 +315,13 @@ if (plan.problems.length) {
 
 console.log(`🔎 ${tag} — ${sameTag.length} release(s) pour ce tag · plan : ${plan.action}`);
 console.log(`   à publier : ${expected.join(', ')}`);
+for (const name of onlyInDrafts) {
+  console.log(`   ⚠️  absent de ${dirArg}/, présent dans un brouillon : ${name} (sera réuni, jamais téléversé depuis ce disque)`);
+}
 if (plan.target) console.log(`   cible : release #${plan.target.id} (brouillon)`);
 for (const name of plan.skip) console.log(`   ⏭  déjà en place, mêmes octets : ${name}`);
 for (const name of plan.upload) console.log(`   ⬆️  à téléverser : ${name} (${mb(local.get(name)?.size ?? 0)})`);
+for (const s of plan.salvage) console.log(`   ↔  à réunir depuis le brouillon #${s.releaseId} : ${s.name} (${mb(s.size ?? 0)})`);
 for (const name of plan.remove) console.log(`   🗑  en trop, à retirer : ${name}`);
 for (const id of plan.deleteIds) console.log(`   🗑  brouillon en double, à supprimer : release #${id}`);
 
@@ -268,8 +354,39 @@ try {
     console.log(`\n✅ release #${target.id} créé en BROUILLON pour ${tag}`);
   }
 
-  // Les brouillons en double partent AVANT tout téléversement : à partir d'ici
-  // il n'existe plus qu'un release pour ce tag, et c'est la cible.
+  // Ce qu'un brouillon a d'UNIQUE est RÉUNI dans la cible avant que les doublons
+  // ne partent : sinon « consolider » effacerait des octets que rien ne saurait
+  // reconstruire — et la réparation redeviendrait une main humaine sur l'API.
+  // Aucune API ne déplace un actif, donc on le rapatrie puis on le téléverse.
+  const assetsOf = new Map(sameTag.map((r) => [r.id, (r.assets ?? []).filter(Boolean)]));
+  const reunited = new Set();
+  for (const s of plan.salvage) {
+    const asset = (assetsOf.get(s.releaseId) ?? []).find((a) => a.name === s.name);
+    if (!asset) {
+      fail(`rapatriement impossible pour « ${s.name} » : le brouillon #${s.releaseId} ne le porte plus`, [
+        'rien n’a été supprimé — relancez : ce script relit l’état du canal à chaque exécution.',
+      ]);
+    }
+    try {
+      const bytes = await transferAsset({
+        name: s.name,
+        assetId: asset.id,
+        releaseId: target.id,
+        size: asset.size ?? s.size,
+      });
+      reunited.add(s.name);
+      target.assets = [...(target.assets ?? []), { name: s.name, size: bytes }];
+      console.log(`↔  réuni depuis le brouillon #${s.releaseId} : ${s.name} (${mb(bytes)})`);
+    } catch (error) {
+      fail(`la consolidation a échoué AVANT de supprimer quoi que ce soit`, [
+        String(error?.message ?? error),
+        'les brouillons en double sont intacts : relancez, la cible et ses octets sont réutilisés.',
+      ]);
+    }
+  }
+
+  // Les brouillons en double partent maintenant : à partir d'ici il n'existe plus
+  // qu'un release pour ce tag, et c'est la cible.
   for (const id of plan.deleteIds) {
     await api(`/releases/${id}`, { method: 'DELETE' });
     console.log(`🗑  brouillon en double supprimé : release #${id}`);
@@ -288,6 +405,9 @@ try {
   // les octets d'une exécution précédente — exactement ce que ce script existe
   // pour rendre impossible.
   for (const name of plan.upload) {
+    // Un artefact déjà réuni depuis un brouillon n'est pas téléversé une seconde
+    // fois : il est là, et le gate du brouillon va rehacher ses octets.
+    if (reunited.has(name)) continue;
     const stale = (target?.assets ?? []).find((a) => a.name === name);
     if (stale) {
       await api(`/releases/assets/${stale.id}`, { method: 'DELETE' });
