@@ -76,6 +76,7 @@ describe('ce qui autorise une suppression est une preuve, pas une date', () => {
     );
     assert.equal(plan.bytesFreed, 1000);
     assert.match(plan.remove[0].reason, /octets exacts/, 'le plan dit POURQUOI il ose');
+    assert.equal(plan.remove[0].kind, 'digest', 'et par quoi : trois autorisations ne se résument pas d’une phrase');
   });
 
   it('le canal dit la même TAILLE mais d’autres octets → conservé, et c’est un rouge', () => {
@@ -111,6 +112,7 @@ describe('ce qui autorise une suppression est une preuve, pas une date', () => {
     );
     assert.match(plan.remove[0].reason, /ne peuvent plus être livrés/, 'la raison dit que le numéro est pris');
     assert.equal(plan.divergences.length, 1, 'la divergence reste visible : c’est aussi l’alarme du canal');
+    assert.equal(plan.remove[0].kind, 'stale');
     assert.equal(plan.bytesFreed, 1000);
   });
 
@@ -164,17 +166,89 @@ describe('ce qui autorise une suppression est une preuve, pas une date', () => {
       published: [release('0.0.9', [held(setup('0.0.9'), 'octets-fixture')], true)],
     });
     assert.deepEqual(plan.remove, [], 'un brouillon ne « détient » pas les octets là où un poste les lit');
-    assert.match(plan.keep[0].reason, /aucun release PUBLIÉ/);
+    assert.match(plan.keep[0].reason, /jamais publiée/);
+    assert.match(
+      plan.keep[0].reason,
+      /le canal ne détient RIEN de comparable/,
+      'un brouillon ne rend donc personne mort non plus : il ne prouve rien dans un sens ni dans l’autre',
+    );
   });
 
-  it('une version jamais publiée garde sa copie : elle peut être l’unique', () => {
+  it('sans --unpublished, une version jamais livrée reste — mais elle est NOMMÉE, et l’acte est dit', () => {
+    // Le canal ne l'a jamais eue, donc aucune empreinte ne peut autoriser quoi
+    // que ce soit sur elle : la décision est humaine. Un plan qui garde sans le
+    // dire ne laisse pas la décision à l'humain, il la lui cache.
     const plan = prunePlan({
       currentVersion: '1.0.6',
       local: [local(portable('1.0.0'), 'octets-1.0.0')],
       published: [release('1.0.1', [held(setup('1.0.1'), 'x')])],
     });
     assert.deepEqual(plan.remove, []);
-    assert.match(plan.keep[0].reason, /seule au monde/);
+    assert.deepEqual(
+      plan.unpublishedCandidates.map((c) => c.version),
+      ['1.0.0'],
+      'le candidat est nommé même quand l’acte n’est pas demandé',
+    );
+    assert.match(plan.keep[0].reason, /un acte humain explicite \(--unpublished\) est requis/);
+  });
+
+  it('--unpublished enlève un build mort, et dit les DEUX comparaisons qui le rendent mort', () => {
+    const plan = prunePlan({
+      currentVersion: '1.0.6',
+      unpublished: true,
+      local: [local(portable('1.0.0'), 'octets-1.0.0')],
+      published: [release('1.0.1', [held(setup('1.0.1'), 'x')])],
+    });
+    assert.deepEqual(
+      plan.remove.map((r) => r.name),
+      [portable('1.0.0')],
+    );
+    assert.match(plan.remove[0].reason, /plus basse que la version en préparation \(1\.0\.6\)/);
+    assert.match(plan.remove[0].reason, /DESCENDRE la tête/, 'la raison dit pourquoi il ne peut plus atteindre personne');
+    assert.equal(plan.remove[0].kind, 'unpublished');
+    assert.equal(plan.bytesFreed, 1000);
+  });
+
+  it('--unpublished ne touche JAMAIS un build au moins aussi haut que celui qu’on prépare', () => {
+    // C'est peut-être celui qui attend sa publication, et sa copie locale en est
+    // l'unique exemplaire : aucun drapeau ne peut l'enlever.
+    const plan = prunePlan({
+      currentVersion: '1.0.6',
+      unpublished: true,
+      local: [local(setup('1.1.0'), 'octets-futurs'), local(setup('1.0.6'), 'octets-courants')],
+      published: [release('1.0.5', [held(setup('1.0.5'), 'x')])],
+    });
+    assert.deepEqual(plan.remove, []);
+    assert.equal(plan.unpublishedCandidates.length, 0, 'un build en attente de publication n’est même pas un candidat');
+    assert.match(plan.keep.map((k) => k.reason).join('\n'), /au moins aussi haute/);
+    assert.match(plan.keep.map((k) => k.reason).join('\n'), /aucun drapeau ne peut autoriser sa suppression/);
+  });
+
+  it('--unpublished ne touche pas non plus un build plus haut que TOUT ce que le canal détient', () => {
+    // Plus bas que ce qu'on prépare (donc pas le build courant) mais plus haut
+    // que la tête : le publier ne ferait pas descendre la tête, donc il est
+    // encore livrable. Sa copie locale n'est pas morte.
+    const plan = prunePlan({
+      currentVersion: '1.1.0',
+      unpublished: true,
+      local: [local(setup('1.0.7'), 'octets-1.0.7')],
+      published: [release('1.0.6', [held(setup('1.0.6'), 'x')])],
+    });
+    assert.deepEqual(plan.remove, []);
+    assert.equal(plan.unpublishedCandidates.length, 0);
+  });
+
+  it('un canal dont aucune version n’est lisible ne rend personne mort', () => {
+    // On ne devine pas un ordre à partir d'une chaîne libre : sans version
+    // comparable, « plus basse que » est faux, donc on ne supprime pas.
+    const plan = prunePlan({
+      currentVersion: '1.0.6',
+      unpublished: true,
+      local: [local(setup('1.0.0'), 'octets-1.0.0')],
+      published: [release('nightly', [held(setup('nightly'), 'x')])],
+    });
+    assert.deepEqual(plan.remove, []);
+    assert.equal(plan.unpublishedCandidates.length, 0);
   });
 
   it('un release publié mais aux actifs illisibles ne prouve rien', () => {
@@ -250,6 +324,14 @@ describe('le câblage du script', () => {
     const unlink = source.indexOf('unlinkSync(');
     assert.ok(guard !== -1 && unlink > guard, 'la suppression est derrière la garde du plan');
     assert.doesNotMatch(source, /secrets\./, 'aucun secret : le canal se lit sans jeton quand il n’y en a pas');
+  });
+
+  it('--unpublished est le troisième acte, et le plan dit QUI décide', () => {
+    const source = read('scripts/prune-release-dir.mjs');
+    assert.match(source, /const unpublished = args\.includes\('--unpublished'\)/);
+    assert.match(source, /--yes --unpublished/, 'le plan donne la commande exacte de l’acte');
+    assert.match(source, /La décision est humaine/, 'et il dit à qui elle appartient, puisqu’aucune preuve n’existe');
+    assert.match(source, /le canal ne les a jamais eus/, 'avec la raison de fond : aucune empreinte n’est possible');
   });
 
   it('--stale est un acte SÉPARÉ, nommé dans le plan', () => {

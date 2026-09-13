@@ -5,6 +5,7 @@
  *   npm run release:prune                 → le PLAN, et rien d'autre
  *   npm run release:prune -- --yes        → applique le plan (supprime)
  *   npm run release:prune -- --yes --stale → et les reconstructions d'un numéro déjà publié
+ *   npm run release:prune -- --yes --unpublished → et les builds d'une version jamais livrée
  *   npm run release:prune -- --dir=release-test
  *
  * ─── Pourquoi ───────────────────────────────────────────────────────────────
@@ -44,6 +45,21 @@
  * conservation ne s'autorise pas par empreinte : elle s'autorise par le fait
  * que le numéro est pris. D'où deux actes distincts.
  *
+ * `--unpublished` est le troisième acte, et le seul qui n'invoque aucune preuve —
+ * parce qu'il n'en existe aucune : le canal n'a jamais eu cette version, donc ni
+ * empreinte ni comparaison ne peuvent dire si la copie locale est superflue.
+ * **Qui décide, alors ? Un humain, et c'est le drapeau qui le dit.** Ce que
+ * l'outil peut faire, c'est contraindre la décision à ce qui est mort, par deux
+ * comparaisons chiffrées : un build ne part que s'il est STRICTEMENT PLUS BAS
+ * que la version en préparation (ce n'est donc pas celui qu'on s'apprête à
+ * livrer) ET strictement plus bas que tout ce que le canal détient — le publier
+ * ferait donc DESCENDRE la tête, ce que le contrôle du canal refuse parce que ça
+ * coupe les postes installés au-dessus. Soit un build qui ne peut plus atteindre
+ * personne. L'autre moitié du dossier est intouchable : un build **au moins
+ * aussi haut** que ce qu'on prépare est peut-être celui qui attend sa
+ * publication, et sa copie locale en est l'unique exemplaire — aucun drapeau ne
+ * l'enlève, et le plan le dit.
+ *
  * Par défaut il ne supprime RIEN : un plan qu'on ne relit pas est un plan qu'on
  * n'a pas décidé. `--yes` est l'acte.
  */
@@ -62,6 +78,10 @@ const apply = args.includes('--yes');
 // Les reconstructions d'un numéro déjà publié : mêmes octets jamais livrés, et
 // une justification différente (le numéro est pris), donc un acte à part.
 const stale = args.includes('--stale');
+// Le seul acte sans preuve possible : le canal n'a jamais eu cette version. Ce
+// qui reste prouvable, c'est qu'elle est morte (plus basse que ce qu'on prépare
+// et que tout ce que le canal détient), et c'est la règle qui s'en charge.
+const unpublished = args.includes('--unpublished');
 
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const currentVersion = String(pkg.version ?? '');
@@ -120,7 +140,7 @@ for (const name of readdirSync(releaseDir)) {
   local.push({ name, size, sha256 });
 }
 
-const plan = prunePlan({ currentVersion, local, published, stale });
+const plan = prunePlan({ currentVersion, local, published, stale, unpublished });
 
 /**
  * Le rouge de ce script, calculé sur ce qui RESTE sur le disque.
@@ -154,7 +174,10 @@ console.log(
 );
 
 if (plan.remove.length) {
-  console.log(`\n🗑  à supprimer (${plan.remove.length}) — le canal détient déjà ces octets :`);
+  // Le titre ne résume PAS l'autorisation : trois actes différents mènent ici
+  // (empreinte prouvée, numéro déjà publié, version jamais livrée), et un titre
+  // qui les confondrait mentirait sur au moins l'un des trois.
+  console.log(`\n🗑  à supprimer (${plan.remove.length}) — ce qui autorise chaque départ est écrit ligne par ligne :`);
   for (const item of plan.remove) {
     const size = local.find((f) => f.name === item.name)?.size ?? 0;
     console.log(`   ${item.name}  (${item.version}, ${formatBytes(size)}) — ${item.reason}`);
@@ -168,6 +191,24 @@ if (plan.keep.length) {
   for (const item of plan.keep) console.log(`   ${item.name} — ${item.reason}`);
 }
 
+// Les candidats de `--unpublished` sont nommés même quand l'acte n'est pas
+// demandé : le plan doit dire ce qu'il ne fait PAS, sinon la décision humaine
+// n'existe pas — elle est seulement différée.
+if (!unpublished && plan.unpublishedCandidates.length) {
+  const versions = [...new Set(plan.unpublishedCandidates.map((c) => c.version))].join(', ');
+  const bytes = plan.unpublishedCandidates.reduce(
+    (sum, c) => sum + (local.find((f) => f.name === c.name)?.size ?? 0),
+    0,
+  );
+  console.log(
+    `\nℹ️  ${plan.unpublishedCandidates.length} artefact(s) d'une version JAMAIS publiée et plus basse que ce que le canal détient (${versions}) :`,
+  );
+  console.log(
+    '   aucune empreinte ne peut prouver quoi que ce soit sur eux — le canal ne les a jamais eus. La décision est humaine :',
+  );
+  console.log(`   npm run release:prune -- --yes --unpublished   (${formatBytes(bytes)} libérables, si ce sont bien d'anciens builds jamais livrés)`);
+}
+
 if (plan.ignored.length) {
   console.log(`\n➖ hors sujet (${plan.ignored.length}) : ${plan.ignored.map((i) => i.name).join(', ')}`);
 }
@@ -179,10 +220,18 @@ if (!plan.remove.length) {
 }
 
 if (!apply) {
+  // Le rappel dit par quel acte, parce que « relance avec --yes » ne suffit pas :
+  // selon la catégorie, l'acte est celui d'une empreinte, d'un numéro pris, ou
+  // d'une décision humaine qui n'invoque aucune preuve.
+  const how = plan.remove.every((r) => r.kind === 'digest')
+    ? '   Ce n’est pas la date du fichier qui l’autorise, c’est l’empreinte que le canal déclare.'
+    : plan.remove.every((r) => r.kind === 'unpublished')
+      ? '   Aucune empreinte ne peut les autoriser : c’est la comparaison qui les dit morts, et la décision qui les enlève.'
+      : '   Chaque ligne dit par quoi elle est autorisée — empreinte, numéro déjà pris, ou décision humaine.';
   console.log(
     `\nℹ️  plan seulement — rien n'a été supprimé (${plan.remove.length} fichier(s), ${formatBytes(plan.bytesFreed)} libérables).\n` +
       '   Applique-le : npm run release:prune -- --yes\n' +
-      '   Ce n’est pas la date du fichier qui l’autorise, c’est l’empreinte que le canal déclare.',
+      how,
   );
   reportLeftoverDivergencesAndExit();
 }

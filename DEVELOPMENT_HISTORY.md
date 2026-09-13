@@ -1,3 +1,27 @@
+## [2026-09-13] L'acte qui n'invoque aucune preuve : une version jamais livrée
+
+Demande : « Donne à release/ un acte explicite pour la dernière catégorie que la règle ne peut pas prouver : une version jamais publiée, en disant qui décide et pourquoi. »
+
+**Il restait un cas que la règle ne pouvait pas trancher, et c'est le canal qui le dit.** La **1.0.0** n'a jamais été publiée : aucune empreinte ne peut exister, donc aucune comparaison ne peut dire si sa copie locale est superflue. Le plan la gardait déjà, avec sa raison écrite — mais garder n'est pas décider, et la question restait entière : qui décide, et sur quoi ?
+
+**« Jamais publiée » recouvre deux situations opposées, et les confondre serait dangereux.** Un artefact ne part sur l'acte `--yes --unpublished` que s'il satisfait **deux comparaisons chiffrées** : strictement plus bas que la version en préparation (ce n'est donc pas le build qu'on s'apprête à livrer) **et** strictement plus bas que tout ce que le canal détient. La seconde est la vraie : le publier ferait **descendre la tête**, ce que le contrôle du canal refuse par construction, parce qu'une tête qui descend coupe tous les postes installés au-dessus d'elle — donc ces octets-là ne peuvent plus atteindre personne. L'autre moitié du dossier est l'inverse exact : un build **au moins aussi haut** que celui qu'on prépare est peut-être celui qui attend sa publication, et sa copie locale en est l'**unique exemplaire** — aucun drapeau ne l'enlève, et le plan le dit dans ces mots. Une version illisible n'est jamais « plus basse » non plus : on ne devine pas un ordre à partir d'une chaîne libre, et la comparaison réutilise celle du canal (`compareVersions`) au lieu d'en écrire une seconde.
+
+**Qui décide : un humain — et le plan le dit même quand on ne lui demande rien.** Les candidats sont **nommés** avec la commande exacte de l'acte tant qu'il n'est pas demandé : garder en silence ne laisserait pas la décision à l'humain, elle la lui cacherait. Ce que l'outil refuse, c'est de trancher à sa place là où aucune preuve n'existe — et ce qu'il garantit, c'est que l'acte ne peut toucher que ce qui est **mort par comparaison**, jamais ce qui peut encore être livré.
+
+**Mesuré, et pas appliqué — c'est le point.** Le plan réel dit :
+
+```
+⛔ conservés : 1.0.0 ×3 — jamais publiée, plus basse que la version en préparation (1.0.6)
+              et que tout ce que le canal détient (1.0.6) : morte, mais aucune empreinte
+              ne peut le prouver — un acte humain explicite (--unpublished) est requis
+ℹ️  3 artefact(s) d'une version JAMAIS publiée (1.0.0) — la décision est humaine :
+   npm run release:prune -- --yes --unpublished   (246 Mo libérables)
+```
+
+Je ne l'ai **pas** lancé : l'acte ne vaut que s'il reste celui de l'humain, et l'exécuter d'office aurait contredit la raison d'être du drapeau. Le dossier reste donc à 999 Mo (1.0.0 + la version en cours), et la commande attend.
+
+**Mesures** : 24 cas sur la suite du plan (+5 : les deux lectures jamais confondues, le build en attente intouchable, le build plus haut que la tête intouchable, le canal sans version comparable), `npm run lint` vert, `1386/1386` tests.
+
 ## [2026-09-13] Le canal ne se lit plus par l'API, et ne s'accuse plus d'un défaut de lecture
 
 Demande : « Commite et pousse la relance du canal sur l'événement de publication, puis prouve sur le runner que le run part bien après une publication réelle. »
