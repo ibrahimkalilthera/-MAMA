@@ -177,6 +177,35 @@ describe('e2e-writes — le contrat d’une écriture de démo', () => {
     `), []);
   });
 
+  it('ne compte pas un POST qui écrase par CLÉ comme une création : sa clé est dans la charge utile', () => {
+    const verdict = judgeWrites({
+      file: 'scripts/probe.mjs',
+      source: script(`
+        await rawApi('/rest/v1/students?on_conflict=id', {
+          method: 'POST',
+          headers: { Prefer: 'resolution=merge-duplicates' },
+          body: JSON.stringify([{ id: '00000000-0000-0000-0000-000000000001' }]),
+        });
+      `),
+    });
+    assert.deepEqual(verdict.problems, []);
+    // Compté en MUTATION, jamais en création : un rejeu réécrit la même ligne.
+    assert.equal(verdict.creates, 0);
+    assert.equal(verdict.mutations, 1);
+  });
+
+  it('n’exempte pas l’écrasement par clé s’il n’ÉCRASE pas : `on_conflict` seul reste un ajout', () => {
+    const found = problems(`
+      await rawApi('/rest/v1/students?on_conflict=id', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify([{ id: '00000000-0000-0000-0000-000000000001' }]),
+      });
+    `);
+    assert.equal(found.length, 1);
+    assert.match(found[0], /sans enrobage rejouable/);
+  });
+
   it('laisse tranquille un script qui ne parle pas à la base partagée', () => {
     const verdict = judgeWrites({
       file: 'scripts/github-probe.mjs',

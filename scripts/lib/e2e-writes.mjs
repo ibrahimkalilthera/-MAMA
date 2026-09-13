@@ -103,6 +103,32 @@ const WINDOW_AFTER = 900;
 const NON_CREATING = /(\/rpc\/|rpc\/|grant_type=|authApi\('recover'|authApi\('token)/;
 
 /**
+ * Un POST qui ÉCRASE par clé : `on_conflict=<pk>` + `resolution=merge-duplicates`.
+ *
+ * Ce n'est pas une « création » au sens de ce contrôle, et le dire ici plutôt que
+ * par une exemption évite un angle mort : la ligne qu'il écrit porte sa clé DANS
+ * la charge utile, donc un rejeu — ou une réponse perdue suivie d'une reprise —
+ * écrit la MÊME ligne sous la MÊME clé. Il ne peut pas produire le doublon
+ * inconnu que ce contrôle existe pour refuser.
+ *
+ * `scripts/restore-db.mjs` s'en sert pour restaurer une sauvegarde. Exiger de ces
+ * lignes un « jeton d'exécution » reviendrait à réécrire des données réelles pour
+ * les rendre identifiables — l'inverse du but, et une entorse aux données de
+ * l'école pour satisfaire un contrôle de texte.
+ *
+ * Les DEUX marqueurs sont exigés : `on_conflict` seul dit quelle contrainte
+ * arbitre, `resolution=merge-duplicates` dit que le conflit ÉCRASE au lieu
+ * d'échouer — sans lui, le POST reste un ajout qui peut doubler.
+ */
+const KEYED_UPSERT = { conflict: /on_conflict=/, merge: /resolution=merge-duplicates/ };
+
+/** Le site est-il un écrasement par clé (donc idempotent par construction) ? */
+const isKeyedUpsert = (code, offset) => {
+  const window = code.slice(Math.max(0, offset - 300), offset + 300);
+  return KEYED_UPSERT.conflict.test(window) && KEYED_UPSERT.merge.test(window);
+};
+
+/**
  * L'offset exact d'une ligne, quel que soit le format de fin de ligne.
  *
  * Recalculer l'offset en recollant les lignes avec `\n` se trompe d'un caractère
@@ -433,7 +459,9 @@ export const EXEMPTIONS = [
  * rejouable est refusée, sauf exemption NOMMÉE et BORNÉE (le nombre de sites
  * tolérés est écrit dans l'exemption, et il est vérifié dans les deux sens). Une
  * mutation (PATCH, DELETE, PUT) n'est pas le sujet : rejouer une mutation ne
- * duplique pas de ligne. Elle est comptée, pour que l'inventaire reste lisible.
+ * duplique pas de ligne. Elle est comptée, pour que l'inventaire reste lisible —
+ * et un POST qui écrase PAR CLÉ (`on_conflict=` + `merge-duplicates`) y tombe pour
+ * la même raison : sa clé est dans la charge utile, un rejeu réécrit la même ligne.
  *
  * @param {{ file: string, source: string, allowlist?: { file: string, maxCreates: number, reason: string }[] }} input
  * @returns {{ creates: number, mutations: number, problems: string[], exempted: string|null }}
@@ -448,7 +476,9 @@ export function judgeWrites({ file, source, allowlist = [] } = {}) {
   // et non la seule ligne.
   const creates = writes
     .filter((w) => w.kind === 'create')
-    .filter((w) => !NON_CREATING.test(code.slice(Math.max(0, lineOffset(code, w.line) - 400), lineOffset(code, w.line) + 200)));
+    .filter((w) => !NON_CREATING.test(code.slice(Math.max(0, lineOffset(code, w.line) - 400), lineOffset(code, w.line) + 200)))
+    // Un écrasement par clé n'est pas une création : il reste compté, en mutation.
+    .filter((w) => !isKeyedUpsert(code, lineOffset(code, w.line)));
   const entry = allowlist.find((a) => a.file === file) || null;
   const problems = [];
   if (entry && !String(entry.reason ?? '').trim()) {

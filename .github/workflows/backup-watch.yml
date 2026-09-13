@@ -1,0 +1,102 @@
+name: Database backup
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « La base est-elle sauvegardée, et la sauvegarde est-elle relisible ? »
+#
+# Jusqu'au 2026-09-13, ce dépôt n'avait AUCUN moyen de sauvegarder la base : une
+# erreur de manipulation était définitive, et la seule copie des données d'école
+# vivait dans un projet dont personne ne relisait l'état. Ce workflow ferme ce
+# trou, et il le ferme de façon prouvable :
+#
+#   1. `npm run backup:db -- --encrypt --require-encryption` lit les tables
+#      déclarées (scripts/lib/db-tables.mjs), écrit le contenu + son manifeste,
+#      et REFUSE d'écrire en clair. C'est non négociable dans un dépôt PUBLIC :
+#      un artefact de workflow y est téléchargeable par n'importe qui, donc un
+#      dump en clair remonté ici serait exactement la fuite que la veille des
+#      secrets existe pour empêcher.
+#   2. `npm run backup:verify` RELIT la sauvegarde sans aucune base (déchiffre,
+#      vérifie le manifeste, recompte chaque table) : une sauvegarde qu'on n'a
+#      jamais rouverte n'est pas une sauvegarde.
+#   3. L'artefact chiffré est conservé 30 jours, et le script publie sa mesure
+#      (lignes, tables, chiffré) par l'étape de preuve nommée.
+#
+# Si `BACKUP_PASSPHRASE` n'est pas posé, le job est ROUGE et le dit : une
+# sauvegarde quotidienne non configurée doit se voir, pas se deviner le jour où
+# l'on en a besoin. Poser le secret (Settings → Secrets and variables → Actions,
+# une phrase de 12 caractères minimum) rend le job vert — et le même secret
+# déchiffre l'archive (`npm run restore:db -- --from <dossier>`, en local).
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    # 02:20 UTC — la nuit, quand personne n'écrit.
+    - cron: '20 2 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: backup-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Sauvegarder la base (chiffré) et relire la sauvegarde
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Comme les autres jobs : installer Node ne prouve pas le majeur exécuté.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      - name: Refuser de tourner sans phrase de chiffrement
+        # Nommé ici, une fois : sans elle, `--require-encryption` ferait échouer
+        # l'étape suivante pour une raison moins lisible.
+        run: |
+          if [ -z "${BACKUP_PASSPHRASE}" ]; then
+            echo "::error title=Sauvegarde non configurée::BACKUP_PASSPHRASE est absent — aucune sauvegarde ne peut être écrite en clair dans un dépôt public. Posez le secret (Settings → Secrets and variables → Actions), 12 caractères minimum."
+            exit 1
+          fi
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+
+      - name: Sauvegarder la base (chiffré, manifeste vérifiable)
+        # Mandat de preuve : le script publie lui-même ce qu'il a mesuré (lignes,
+        # tables, chiffrement) — et il nomme les tables métier vides.
+        env:
+          AUTOMATION_EVIDENCE: '1'
+          SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: npm run backup:db -- --out .backup/current --encrypt --require-encryption
+
+      - name: Relire la sauvegarde SANS base de données
+        # Le contrôle qui compte : ni credentials, ni réseau. Il déchiffre,
+        # vérifie le manifeste et recompte chaque table.
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: npm run backup:verify -- --from .backup/current
+
+      - name: Conserver l’archive chiffrée (30 jours)
+        uses: actions/upload-artifact@v5
+        with:
+          name: db-backup-encrypted
+          path: .backup/current/
+          retention-days: 30
+          if-no-files-found: error
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — sauvegarde de la base
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "sauvegarde chiffrée écrite puis relue sans base (manifeste vérifié, tables recomptées) ; les chiffres sont publiés par scripts/backup-db.mjs"

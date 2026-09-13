@@ -198,6 +198,16 @@ Le 13/09, `ibrahimkalilthera@mamathera.org` — le **compte dev**, documenté da
 
 **`owner-accounts-watch.yml`** l'exécute à chaque push **et une fois par jour** (une suppression ne produit aucun commit), sans bloquer aucun déploiement. Mesure du 2026-09-13 après la restauration : `✅ 4 compte(s) propriétaire(s) présents et conformes, 1 hors service, 2 login(s) réel(s) aboutis`.
 
+## Sauvegarde de la base — une erreur de manipulation ne doit plus être définitive
+
+Jusqu'au 13/09/2026, ce dépôt n'avait **aucun** moyen de sauvegarder la base : pas de `pg_dump`, pas de script, aucune procédure. La seule copie des données d'école vivait dans un projet Supabase, et une suppression par erreur — celle du compte dev l'a montré — n'avait aucun retour possible.
+
+**`npm run backup:db`** lit les tables déclarées **une seule fois** (`scripts/lib/db-tables.mjs`, dans l'ordre où elles peuvent être réécrites : `students.parent_id` référence `parents`, `payments.student_id` référence `students` — restaurer dans le désordre écrit des lignes que la base refuse), et écrit deux fichiers : le contenu, et un **manifeste** qui dit ce qu'il contient (lignes et empreinte **par table**, empreinte du fichier, projet, date). « Sauvegarde OK » sans chiffres ne se distingue pas d'un export vide, et un export vide est un cas légitime : la différence doit se lire.
+
+**`npm run backup:verify`** relit cette sauvegarde **sans aucune base de données** — ni credentials, ni réseau. Il déchiffre, vérifie le manifeste et recompte chaque table : une sauvegarde qu'on n'a jamais rouverte n'est pas une sauvegarde. Et **`npm run restore:db`** la réécrit de façon **idempotente par construction** (`on_conflict` sur la clé primaire + `resolution=merge-duplicates`, sonde qui relit la ligne par sa clé avant tout rejeu), après **trois refus** : un contenu qui ne correspond pas à son manifeste, une cible non vide (sauf `--force`), une sauvegarde venue d'un autre projet (sauf `--allow-project-mismatch`).
+
+**Le chiffrement est obligatoire en CI.** Le workflow `backup-watch.yml` (quotidien, 02:20 UTC) refuse de tourner sans `BACKUP_PASSPHRASE` et refuse d'écrire en clair : un artefact de workflow est téléchargeable par n'importe qui dans un dépôt **public**, donc un dump lisible qui remonte ici serait exactement la fuite que les autres veilles existent pour empêcher. L'archive chiffrée (AES-256-GCM, scrypt) est conservée 30 jours, et le script publie sa mesure. Le jour où l'on restaure vraiment, la phrase est le seul secret à retrouver : **sans elle, la sauvegarde est un fichier mort** — c'est le prix du chiffrement, et il est écrit dans `docs/BACKUP.md` plutôt que découvert ce jour-là.
+
 ## Mise à jour automatique des postes installés
 
 Une version publiée doit atteindre **tous** ceux qui ont installé le setup, sans qu'ils aient à y penser. L'auto-update utilise le flux GitHub Releases (`electron-builder` publie `latest.yml` à côté de l'installeur) et **vérifie à trois moments** : au démarrage, **toutes les 30 min** (une application d'école reste ouverte toute la journée — c'est ce qui manquait), et **au retour sur la fenêtre**, avec 10 min d'espacement minimal.

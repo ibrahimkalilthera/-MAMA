@@ -41,3 +41,11 @@ code-sign.*
 *.crt
 
 release/
+
+# Sauvegardes de base : un instantané des données d'école ne doit JAMAIS pouvoir
+# entrer dans l'historique — ni en clair, ni chiffré (la clé vit dans un secret,
+# pas dans le dépôt). Le dossier par défaut des scripts (`backup:db`) est ici.
+.backup/
+*.dump
+payload.json
+payload.json.enc
