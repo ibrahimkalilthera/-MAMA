@@ -311,6 +311,67 @@ describe('le release distant', () => {
     assert.match(verdict.problems[0], /répartis/);
   });
 
+  it('un latest.yml PRÉSENT mais illisible n’est pas un latest.yml absent', () => {
+    // Mesuré le 2026-09-13 sur le runner : « latest.yml absent du release
+    // v1.0.6 » alors que le fichier y était. C'était la LECTURE qui échouait
+    // (endpoint d'actif de l'API, requête anonyme, IP de runner partagée), et le
+    // verdict accusait le canal d'un défaut qui était le sien. Deux pannes qui
+    // se réparent différemment ne peuvent pas porter le même mot.
+    const unreadable = compareRelease({
+      mode: 'live',
+      version: PACKAGE,
+      expected: ['latest.yml'],
+      remote: {
+        count: 1,
+        isDraft: false,
+        tag: releaseTag(PACKAGE),
+        assets: [{ name: 'latest.yml' }, { name: FILE }],
+        latestText: null,
+        latestMissing: false,
+        latestStatuses: [
+          { via: 'api', status: 403 },
+          { via: 'poste', status: 403 },
+        ],
+      },
+    });
+    assert.equal(unreadable.ok, false);
+    assert.match(unreadable.problems.join('\n'), /n’a pas pu être LU/);
+    assert.match(unreadable.problems.join('\n'), /endpoint d’actif de l’API HTTP 403/, 'le statut est publié, jamais jeté');
+    assert.doesNotMatch(unreadable.problems.join('\n'), /absent du release/, 'et l’absence n’est pas inventée');
+
+    // Le vrai absent, lui, garde son mot : il se répare autrement (téléverser).
+    const absent = compareRelease({
+      mode: 'live',
+      version: PACKAGE,
+      expected: ['latest.yml'],
+      remote: { count: 1, isDraft: false, tag: releaseTag(PACKAGE), assets: [{ name: FILE }], latestText: null, latestMissing: true },
+    });
+    assert.match(absent.problems.join('\n'), /latest\.yml absent du release/);
+  });
+
+  it('un installeur dont les octets ne se téléchargent pas n’est pas un installeur introuvable', () => {
+    const local2 = coherentDir();
+    const verdict = compareRelease({
+      mode: 'live',
+      version: PACKAGE,
+      expected: ['latest.yml', FILE],
+      remote: {
+        count: 1,
+        isDraft: false,
+        tag: releaseTag(PACKAGE),
+        assets: [{ name: 'latest.yml' }, { name: FILE }],
+        latestText: local2.latestText,
+        announced: parseLatestYml(local2.latestText),
+        installer: null,
+        installerMissing: false,
+        installerStatuses: [{ via: 'api', status: 403 }, { via: 'poste', status: 403 }],
+      },
+    });
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.problems.join('\n'), /octets n’ont pas pu être LUS/);
+    assert.doesNotMatch(verdict.problems.join('\n'), /introuvable parmi les artefacts/);
+  });
+
   it('un brouillon ne livre RIEN : la promotion est le seul geste qui rend visible', () => {
     const live = compareRelease({
       mode: 'live',
@@ -626,6 +687,18 @@ describe('le canal tel que la CI doit le voir', () => {
     // par le job de publication ne déclencherait rien.
     assert.match(workflow, /workflow_run:\s*\r?\n\s*workflows: \["Desktop release \(Windows\)"\]/, 'le publieur qui agit en CI doit déclencher la relecture');
     assert.match(workflow, /ref: \$\{\{ github\.event_name == 'push' && github\.ref \|\| 'main' \}\}/, 'le moniteur exécute le contrôle courant, pas un arbre de tag');
+  });
+
+  it('les octets sont lus par la voie du POSTE, et un repli se dit', () => {
+    // `electron-updater` télécharge par `github.com/…/releases/download`
+    // (`browser_download_url`), pas par l'endpoint d'actif de l'API — lequel est
+    // soumis au quota anonyme par IP, donc inutilisable pour un cron sur une IP
+    // de runner. La seconde voie est un repli, et un repli qui ne se dit pas est
+    // un vert qu'on ne saurait pas expliquer.
+    const source = read('scripts/check-release-coherence.mjs');
+    assert.match(source, /url: asset\.browser_download_url/, 'la voie du poste est une des deux voies de lecture');
+    assert.match(source, /reportReadPath\('latest\.yml', remoteLatest\)/, 'une lecture par la seconde voie est dite');
+    assert.match(source, /latestMissing: !latestAsset/, 'présent-mais-illisible se distingue d’absent');
   });
 
   it('le mode channel refuse le jeton de l’environnement, et lit le frein où un poste le lit', () => {

@@ -209,7 +209,9 @@ export function compareLatest({
  * @param {{ mode?: 'draft'|'live', version: string, expected?: string[], localLatestText?: string|null,
  *   remote: { count?: number, isDraft?: boolean, tag?: string,
  *     assets?: { name: string, size?: number }[], latestText?: string|null,
+ *     latestMissing?: boolean, latestStatuses?: { via: string, status: number }[]|null,
  *     installer?: { name: string, size: number, sha512: string }|null,
+ *     installerMissing?: boolean, installerStatuses?: { via: string, status: number }[]|null,
  *     announced?: { version?: string, path?: string, sha512?: string }|null }|null }} input
  * @returns {{ ok: boolean, problems: string[], warnings: string[] }}
  */
@@ -257,7 +259,16 @@ export function compareRelease({ mode = 'live', version, expected = [], remote =
     );
   }
   if (remote.latestText === null || remote.latestText === undefined) {
-    problems.push(`latest.yml absent du release « ${tag} » — un poste sans ce fichier ne voit rien`);
+    // RÉELLEMENT absent, ou présent mais ILLISIBLE ? Les deux pannes se
+    // réparent différemment, et les confondre fait accuser le canal d'un défaut
+    // de lecture — ce qui a été mesuré : « latest.yml absent du release v1.0.6 »
+    // alors qu'il était là, sur un runner anonyme bloqué par le quota de l'API.
+    problems.push(
+      remote.latestMissing === false
+        ? `latest.yml du release « ${tag} » n’a pas pu être LU (${describeRead(remote.latestStatuses)}) — ` +
+          'le canal n’est pas jugé tant que la lecture échoue, et une lecture ratée n’est pas un fichier absent'
+        : `latest.yml absent du release « ${tag} » — un poste sans ce fichier ne voit rien`,
+    );
   } else if (mode === 'draft' && localLatestText !== null && remote.latestText !== localLatestText) {
     // Le geste qui rend visible ne doit publier QUE ce qui a été vérifié : un
     // brouillon dont le flux diffère du local (reprise d'une tentative
@@ -277,11 +288,31 @@ export function compareRelease({ mode = 'live', version, expected = [], remote =
     }
   } else if (remote.announced && remote.announced.sha512) {
     problems.push(
-      `« ${remote.announced.path} » annoncé par le latest.yml publié est introuvable parmi les artefacts ` +
-        '— impossible de prouver que les octets servis sont ceux promis',
+      remote.installerMissing === false
+        ? `« ${remote.announced.path} » est bien dans le release, mais ses octets n’ont pas pu être LUS ` +
+          `(${describeRead(remote.installerStatuses)}) — la promesse est là et le fichier aussi, seul le téléchargement a échoué`
+        : `« ${remote.announced.path} » annoncé par le latest.yml publié est introuvable parmi les artefacts ` +
+          '— impossible de prouver que les octets servis sont ceux promis',
     );
   }
   return { ok: problems.length === 0, problems, warnings };
+}
+
+/**
+ * Pourquoi une lecture d'actif a échoué — par voie, avec le statut de chacune.
+ *
+ * Un échec qui ne dit pas ce qu'il a reçu oblige à deviner, et deviner a déjà
+ * coûté : « latest.yml absent » était une lecture bloquée, pas un fichier
+ * manquant. Le statut est donc publié dans le verdict, pas jeté.
+ *
+ * @param {{ via: string, status: number }[]|null} statuses
+ * @returns {string}
+ */
+function describeRead(statuses) {
+  if (!Array.isArray(statuses) || statuses.length === 0) return 'aucune tentative de lecture n’a abouti';
+  return statuses
+    .map((s) => `${s.via === 'api' ? 'endpoint d’actif de l’API' : 'voie du poste'} HTTP ${s.status}`)
+    .join(', ');
 }
 
 /**

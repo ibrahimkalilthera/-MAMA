@@ -202,31 +202,69 @@ async function clientLatestTag() {
 }
 
 /** Lit un asset : le texte pour un petit fichier, l'empreinte des octets sinon. */
+/**
+ * Lire les octets d'un actif, par DEUX voies, et dire par laquelle.
+ *
+ * `asset.url` (l'endpoint d'actif de l'API) marche authentifié, et c'est le seul
+ * qui serve un BROUILLON. Mais l'API limite les requêtes ANONYMES par adresse IP,
+ * et un runner GitHub partage la sienne : une lecture sans jeton y échoue par
+ * intermittence. Mesuré le 13/09 — « latest.yml absent du release v1.0.6 »,
+ * faux : le fichier était là, c'est la LECTURE qui avait échoué, et le verdict
+ * accusait le canal d'un défaut qui était le sien.
+ *
+ * D'où la seconde voie, `browser_download_url` : c'est exactement celle qu'un
+ * POSTE suit (`electron-updater` télécharge par `github.com/…/releases/download`),
+ * elle n'est pas soumise au quota de l'API, et c'est donc la plus honnête à
+ * prouver. Les statuts des deux tentatives sont conservés : un échec doit
+ * pouvoir dire laquelle a répondu quoi, au lieu de deviner.
+ */
 async function readAsset(asset, { asText }) {
-  const res = await fetch(asset.url, {
-    headers: {
-      Accept: 'application/octet-stream',
-      'User-Agent': 'release-coherence',
-      ...auth,
-    },
-    redirect: 'follow',
-  });
-  if (!res.ok) return { status: res.status };
-  if (asText) {
-    const buf = Buffer.from(await res.arrayBuffer());
-    return { status: res.status, text: buf.toString('utf8') };
+  const ways = [
+    { via: 'api', url: asset.url },
+    { via: 'poste', url: asset.browser_download_url },
+  ].filter((way) => Boolean(way.url));
+  const statuses = [];
+  for (const way of ways) {
+    const res = await fetch(way.url, {
+      headers: {
+        Accept: 'application/octet-stream',
+        'User-Agent': 'release-coherence',
+        ...auth,
+      },
+      redirect: 'follow',
+    });
+    if (!res.ok) {
+      statuses.push({ via: way.via, status: res.status });
+      continue;
+    }
+    if (asText) {
+      const buf = Buffer.from(await res.arrayBuffer());
+      return { ok: true, text: buf.toString('utf8'), statuses, via: way.via };
+    }
+    // L'installeur est gros : il est haché EN FLUX. C'est la seule façon de
+    // prouver que les octets servis sont ceux promis, et c'est exactement ce que
+    // cette preuve doit faire — la relire depuis le disque ne prouverait rien du
+    // dépôt.
+    const hash = createHash('sha512');
+    let size = 0;
+    for await (const chunk of res.body) {
+      hash.update(chunk);
+      size += chunk.length;
+    }
+    return { ok: true, sha512: hash.digest('base64'), size, statuses, via: way.via };
   }
-  // L'installeur est gros : il est haché EN FLUX. C'est la seule façon de
-  // prouver que les octets servis sont ceux promis, et c'est exactement ce que
-  // cette preuve doit faire — la relire depuis le disque ne prouverait rien du
-  // dépôt.
-  const hash = createHash('sha512');
-  let size = 0;
-  for await (const chunk of res.body) {
-    hash.update(chunk);
-    size += chunk.length;
-  }
-  return { status: res.status, sha512: hash.digest('base64'), size };
+  return { ok: false, statuses };
+}
+
+/**
+ * Une lecture qui a dû passer par la SECONDE voie le dit, avec le statut de la
+ * première. Un repli silencieux serait un vert qu'on ne saurait pas expliquer,
+ * et c'est précisément ce qu'un canal de mise à jour ne peut pas se permettre.
+ */
+function reportReadPath(label, read) {
+  if (!read?.statuses?.length) return;
+  const detail = read.statuses.map((s) => `${s.via === 'api' ? 'endpoint d’API' : 'voie du poste'} HTTP ${s.status}`).join(', ');
+  console.log(`   ℹ️  ${label} : lu par la voie du poste (${detail})`);
 }
 
 const listRes = await api('/releases?per_page=100');
@@ -296,16 +334,34 @@ async function factsFor(rel) {
   const assets = (rel?.assets || []).map((a) => ({ name: a.name, size: a.size }));
   const latestAsset = (rel?.assets || []).find((a) => a.name === 'latest.yml');
   const remoteLatest = latestAsset ? await readAsset(latestAsset, { asText: true }) : null;
+  if (remoteLatest) reportReadPath('latest.yml', remoteLatest);
   const announced = remoteLatest?.text ? parseLatestYml(remoteLatest.text) : null;
   let installer = null;
+  let installerMissing = false;
+  let installerStatuses = null;
   if (announced?.path) {
     const asset = (rel?.assets || []).find((a) => a.name === announced.path);
+    installerMissing = !asset;
     if (asset) {
       const got = await readAsset(asset, { asText: false });
+      reportReadPath(announced.path, got);
+      installerStatuses = got.statuses;
       if (got.sha512) installer = { name: announced.path, size: got.size, sha512: got.sha512 };
     }
   }
-  return { assets, latestText: remoteLatest?.text ?? null, announced, installer };
+  // Un actif ABSENT de la liste et un actif PRÉSENT mais illisible sont deux
+  // pannes différentes : les confondre fait accuser le canal d'un défaut de
+  // lecture, ce qui est arrivé (le runner, sans jeton, bloqué sur l'API).
+  return {
+    assets,
+    announced,
+    installer,
+    latestText: remoteLatest?.text ?? null,
+    latestMissing: !latestAsset,
+    latestStatuses: remoteLatest?.statuses ?? null,
+    installerMissing,
+    installerStatuses,
+  };
 }
 
 /** Ce qu'un release doit contenir, d'après son PROPRE `latest.yml`. */
@@ -348,8 +404,12 @@ if (MODE === 'channel') {
       tag: targetTag,
       assets: facts.assets,
       latestText: facts.latestText,
+      latestMissing: facts.latestMissing,
+      latestStatuses: facts.latestStatuses,
       announced: facts.announced,
       installer: facts.installer,
+      installerMissing: facts.installerMissing,
+      installerStatuses: facts.installerStatuses,
     },
   });
 
@@ -458,8 +518,12 @@ const verdict = compareRelease({
     tag: release?.tag_name,
     assets,
     latestText: facts.latestText,
+    latestMissing: facts.latestMissing,
+    latestStatuses: facts.latestStatuses,
     announced,
     installer,
+    installerMissing: facts.installerMissing,
+    installerStatuses: facts.installerStatuses,
   },
 });
 
