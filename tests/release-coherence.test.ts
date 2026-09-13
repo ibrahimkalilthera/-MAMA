@@ -456,6 +456,21 @@ describe('le câblage du contrôle', () => {
     assert.doesNotMatch(workflow, /gh release/, 'et aucun `gh release` à la main');
   });
 
+  it('sans certificat, le run ne peut pas annoncer une publication : c’est une INACTION', () => {
+    const workflow = read('.github/workflows/desktop-release.yml');
+    // Le job ne démarre que si le gate a ouvert — donc parce qu'il y avait un
+    // release à faire. Un build non signé est alors une publication qui N'A PAS
+    // EU LIEU : la déclarer `--acted` (en décrivant des artefacts que personne ne
+    // recevra) serait exactement le vert sans action que l'audit pourchasse.
+    assert.match(workflow, /signed=true/, 'le build signé se déclare');
+    assert.match(workflow, /signed=false/, 'et son absence aussi');
+    assert.match(
+      workflow,
+      /steps\.build\.outputs\.signed[\s\S]{0,240}--inert/,
+      'sans certificat, la preuve est une inaction — et elle fait rougir le run',
+    );
+  });
+
   it('le gate s’exécute sans jeton et sans réseau en mode local', () => {
     const source = read('scripts/check-release-coherence.mjs');
     assert.match(source, /if \(MODE === 'local'\)[\s\S]*process\.exit\(0\)/, 'le mode local rend son verdict avant tout appel réseau');

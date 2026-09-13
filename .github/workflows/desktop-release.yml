@@ -35,6 +35,11 @@
 # Secrets à configurer (Settings → Secrets and variables → Actions) :
 #   CSC_PFX_B64       certificat .pfx encodé en base64
 #   CSC_KEY_PASSWORD  mot de passe du certificat
+#
+# Ces deux secrets ne sont pas une option depuis que la chaîne est automatique :
+# le gate n'ouvre ce job que s'il y a un release à faire, donc un build non signé
+# est une publication qui n'a pas eu lieu — le run le déclare en INACTION et
+# rougit, au lieu de rester vert en décrivant des artefacts que personne ne reçoit.
 # ─────────────────────────────────────────────────────────────────────────────
 name: Desktop release (Windows)
 
@@ -137,12 +142,14 @@ jobs:
           fi
 
       - name: Build, sign and publish (electron-updater channel)
+        id: build
         shell: bash
         env:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ -f "$RUNNER_TEMP/code-sign.pfx" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
             export CSC_LINK="$(cygpath -w "$RUNNER_TEMP/code-sign.pfx")"
             echo "→ build signé avec CSC_LINK=$CSC_LINK"
             # 1. Le numéro est-il INÉDIT ? (un même numéro ne peut pas changer de
@@ -167,6 +174,12 @@ jobs:
             #    processus, un flux illisible fait rougir le job au lieu d'être
             #    seulement signalé.
           else
+            # Aucun certificat : le build reste possible, la PUBLICATION non. Sous
+            # le déclencheur automatique, ce n'est plus un choix anodin — le gate
+            # n'a ouvert ce job que parce qu'il y avait un release à faire, donc
+            # ne rien publier est un échec, et la preuve ci-dessous le DIT (`--inert`)
+            # plutôt que de décrire des artefacts que personne ne recevra.
+            echo "signed=false" >> "$GITHUB_OUTPUT"
             echo "→ aucun certificat : build non signé (electron:dist, pas de publication)"
             # electron:dist inclut le gate local : un flux incohérent échoue ici aussi.
             npm run electron:dist
@@ -177,14 +190,25 @@ jobs:
       # sur le DISQUE — l'installeur n'est pas un effet de bord, c'est ce que ce job
       # existe pour produire, et un build qui n'a rien sorti doit le dire (preuve
       # d'inaction + run rouge) plutôt que publier un « 2 » écrit d'avance.
+      #
+      # Et « j'ai agi » exige que quelque chose soit réellement PUBLIÉ : sous le
+      # déclencheur automatique, ce job ne démarre que s'il y avait un release à
+      # faire, donc un build non signé est une publication qui n'a pas eu lieu —
+      # l'annoncer comme une action serait le faux vert que cet audit pourchasse.
       - name: Publier la preuve d’action — installeur Windows
+        if: success()
         shell: bash
         run: |
           COUNT=$(ls release/*.exe 2>/dev/null | wc -l | tr -d ' ')
+          if [ "${{ steps.build.outputs.signed }}" != "true" ]; then
+            node scripts/publish-automation-evidence.mjs --inert \
+              --reason "Rien n'a été publié : certificat de signature absent (CSC_PFX_B64) — le gate avait ouvert ce job pour un release à faire, et le build est resté non signé ($COUNT fichier(s) .exe construits)"
+            exit 1
+          fi
           if [ "$COUNT" -lt 2 ]; then
             node scripts/publish-automation-evidence.mjs --inert \
               --reason "aucun installeur dans release/ ($COUNT fichier .exe) — le build n'a rien produit"
             exit 1
           fi
           node scripts/publish-automation-evidence.mjs --acted --count "$COUNT" \
-            --reason "artefacts Windows présents dans release/ : $COUNT fichier(s) .exe (setup + portable, blockmaps et latest.yml), publiés si le certificat est présent"
+            --reason "version publiée sur le canal : $COUNT artefact(s) Windows dans release/ (installeur signé + portable, blockmaps, latest.yml) — la promotion et la relecture du canal sont faites par le même programme"
