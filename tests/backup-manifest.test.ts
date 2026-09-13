@@ -264,6 +264,34 @@ describe('--verify-only : on juge une sauvegarde sans toucher à aucune base', (
     }
   });
 
+  it('--empty-first REFUSE la base partagée : aucun geste ne doit pouvoir vider l’école', () => {
+    // C'est le seul drapeau de toute cette chaîne qui SUPPRIME des lignes sans
+    // savoir lesquelles. Le ref de la cible est donc vérifié avant la première
+    // requête : une variable d'environnement mal copiée ne peut pas transformer
+    // une préparation de bac à sable en effacement de production.
+    const dir = mkdtempSync(join(tmpdir(), 'mama-empty-shared-'));
+    try {
+      writeBackup(dir, sampleTables());
+      let failed: { status?: number; stdout?: string; stderr?: string } | null = null;
+      try {
+        // `--allow-project-mismatch` est posé aussi : sans lui, le refus de
+        // divergence (cible ≠ sauvegarde) tomberait avant l'interlock, et le test
+        // prouverait autre chose que ce qu'il annonce.
+        run(['--from', dir, '--empty-first', '--allow-project-mismatch'], {
+          SUPABASE_URL: 'https://rpcjdohfxwukbqngbprw.supabase.co',
+          SUPABASE_SERVICE_ROLE_KEY: 'cle-de-test',
+        });
+      } catch (error) {
+        failed = error as { status?: number; stdout?: string; stderr?: string };
+      }
+      assert.equal(failed?.status, 1);
+      assert.match(`${failed?.stdout ?? ''}${failed?.stderr ?? ''}`, /--empty-first refusé/);
+      assert.match(`${failed?.stdout ?? ''}${failed?.stderr ?? ''}`, /rpcjdohfxwukbqngbprw/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('refuse un contenu chiffré sans mot de passe', () => {
     const dir = mkdtempSync(join(tmpdir(), 'mama-verify-enc-'));
     try {

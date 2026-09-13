@@ -101,6 +101,11 @@ jobs:
           set +a
           # La cible est locale : elle porte un AUTRE ref que la sauvegarde, donc
           # `--allow-project-mismatch` est le geste conscient prévu pour ça.
+          # `--empty-first` enlève ce que les MIGRATIONS ont ensemencé (années
+          # scolaires, réglage par défaut) : sans ça, la cible n'est pas vide et le
+          # recomptage ne pourrait pas exiger l'égalité. Le drapeau refuse la base
+          # partagée par son ref — c'est le seul geste qui pourrait effacer une
+          # école, donc il est verrouillé avant la première requête.
           # Rien n'est écrit avant que le manifeste concorde.
           # Les noms exportés par `supabase status -o env` (API_URL,
           # SERVICE_ROLE_KEY) sont la source ; le repli nommé évite qu'un
@@ -109,7 +114,7 @@ jobs:
           SUPABASE_URL="${API_URL:-http://127.0.0.1:54321}" \
           SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY:?service_role absente de supabase status}" \
           BACKUP_PASSPHRASE="${{ secrets.BACKUP_PASSPHRASE }}" \
-          npm run restore:db -- --from .backup/live --allow-project-mismatch
+          npm run restore:db -- --from .backup/live --allow-project-mismatch --empty-first
 
       - name: Recompter la cible, table par table (le jugement indépendant)
         # Mandat de preuve : ce script publie lui-même ce qu'il a mesuré (lignes

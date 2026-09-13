@@ -45,6 +45,11 @@ Trois refus **avant** la première écriture, parce qu'une restauration est le d
 2. **la cible n'est pas vide** → rien n'est écrit sans `--force` : restaurer par-dessus une base vivante mélangerait deux états ;
 3. **la sauvegarde vient d'un autre projet** → refus sans `--allow-project-mismatch` : verser la production dans un bac à sable est légitime, l'inverse doit être conscient.
 
+Deux drapeaux pour les cibles de **travail** uniquement, parce qu'un schéma neuf n'est jamais tout à fait vide (les migrations ensemencent des années scolaires et un réglage) :
+
+- `--empty-first` vide la cible avant de restaurer, pour qu'un aller-retour puisse exiger l'**égalité** des comptes — et il **refuse la base partagée**, par son ref, avant la première requête : c'est le seul geste de cette chaîne qui pourrait effacer une école ;
+- `--force` restaure par-dessus une cible peuplée (lignes en conflit **écrasées**) sans la vider.
+
 L'écriture est **idempotente par construction** : insertion en `resolution=merge-duplicates` sur la clé primaire, et sonde qui relit la ligne par sa clé (`?<pk>=eq.<valeur>`) avant tout rejeu. Après restauration, chaque table est **recomptée** et comparée au manifeste : une restauration qui n'a pas restauré est rouge.
 
 ## Une mise à jour de l'application ne touche pas les données

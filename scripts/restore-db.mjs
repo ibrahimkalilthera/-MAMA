@@ -17,6 +17,10 @@
  *   3. **La sauvegarde vient d'un autre projet** → refus, sauf
  *      `--allow-project-mismatch` : verser la production dans un bac à sable
  *      est légitime, l'inverse doit être un geste conscient.
+ *   4. **La cible n'est pas vide** → refus, sauf `--force` (lignes en conflit
+ *      écrasées). Sur une cible de TRAVAIL, `--empty-first` la vide d'abord — et
+ *      ce drapeau REFUSE la base partagée, par son ref : c'est le seul geste de
+ *      cette chaîne qui pourrait effacer une école, donc il est verrouillé.
  *
  * L'écriture est **idempotente par construction** : insertion en
  * `resolution=merge-duplicates` sur la clé primaire, et sonde qui relit la ligne
@@ -32,6 +36,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import { BACKUP_TABLES } from './lib/db-tables.mjs';
+import { SHARED_PROJECT_REF, projectRefOf } from './lib/shared-project.mjs';
 import { contentFingerprint, decryptPayload, payloadFingerprint, verifyManifest } from './lib/backup-manifest.mjs';
 import { replayableWrite } from './lib/transient-http.mjs';
 
@@ -46,6 +51,7 @@ const FROM = valueOf('--from');
 const VERIFY_ONLY = flag('--verify-only');
 const DRY_RUN = flag('--dry-run');
 const FORCE = flag('--force');
+const EMPTY_FIRST = flag('--empty-first');
 const ALLOW_MISMATCH = flag('--allow-project-mismatch');
 const CHUNK = 500;
 
@@ -145,7 +151,39 @@ function readEnvFile(pathname) {
   return out;
 }
 
-// ── 2. La cible est-elle vide ? ──────────────────────────────────────────────
+// ── 2. Vider une cible de TRAVAIL, jamais la production ───────────────────────
+// Un schéma neuf n'est jamais tout à fait vide : les migrations ensemencent des
+// années scolaires et un réglage par défaut. Une preuve d'aller-retour qui
+// exigerait l'égalité des comptes doit donc partir d'une cible vraiment vide —
+// et c'est exactement le geste qui, mal ciblé, efface une école. D'où
+// l'interlock : `--empty-first` REFUSE la base partagée, par son ref, avant la
+// moindre requête. La suppression se fait dans l'ORDRE INVERSE des dépendances
+// (les paiements avant les élèves) pour que les clés étrangères tiennent.
+if (EMPTY_FIRST) {
+  if (projectRefOf(BASE) === SHARED_PROJECT_REF) {
+    console.error(
+      `❌ --empty-first refusé : la cible EST la base partagée (${SHARED_PROJECT_REF}).\n` +
+        '   Ce drapeau n’existe que pour préparer une cible de TRAVAIL (pile locale, bac à sable).',
+    );
+    process.exit(1);
+  }
+  let removed = 0;
+  for (const table of [...BACKUP_TABLES].reverse()) {
+    const res = await fetch(`${BASE}/rest/v1/${table.name}?${table.pk}=not.is.null`, {
+      method: 'DELETE',
+      headers: { ...HDR, Prefer: 'return=representation' },
+    });
+    if (!(res.status < 300)) {
+      console.error(`❌ ${table.name} : vidage refusé (HTTP ${res.status}) ${(await res.text()).slice(0, 160)}`);
+      process.exit(1);
+    }
+    const deleted = await res.json().catch(() => []);
+    removed += Array.isArray(deleted) ? deleted.length : 0;
+  }
+  console.log(`🧹 cible de travail vidée : ${removed} ligne(s) supprimée(s) dans ${BACKUP_TABLES.length} table(s).`);
+}
+
+// ── 3. La cible est-elle vide ? ──────────────────────────────────────────────
 const occupied = [];
 for (const table of BACKUP_TABLES) {
   const n = await countOf(table.name);
@@ -160,7 +198,7 @@ if (occupied.length && !FORCE && !DRY_RUN) {
 }
 if (occupied.length) console.log(`ℹ️  cible déjà peuplée : ${occupied.join(', ')}`);
 
-// ── 3. Restaurer, table par table, dans l'ordre des dépendances ──────────────
+// ── 4. Restaurer, table par table, dans l'ordre des dépendances ──────────────
 const authUsers = new Set();
 {
   const res = await fetch(`${BASE}/auth/v1/admin/users?per_page=1000`, { headers: HDR });
@@ -229,7 +267,7 @@ if (DRY_RUN) {
   process.exit(0);
 }
 
-// ── 4. Recompter : une restauration qui n'a pas restauré est rouge ───────────
+// ── 5. Recompter : une restauration qui n'a pas restauré est rouge ───────────
 const mismatches = [];
 for (const table of BACKUP_TABLES) {
   const expected = parsed?.tables?.[table.name]?.length ?? 0;
