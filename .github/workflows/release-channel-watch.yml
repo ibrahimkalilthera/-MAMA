@@ -24,10 +24,26 @@ name: Release channel watch
 # qu'authentifié n'est pas prouvé pour un poste qui, lui, ne s'authentifie
 # jamais.
 #
-# Deux déclencheurs, pour la raison déjà retenue ailleurs dans ce dépôt : un
+# Quatre déclencheurs, pour la raison déjà retenue ailleurs dans ce dépôt : un
 # canal se casse SANS commit (release supprimé à la main, fichier écrasé côté
 # dépôt), donc le cron quotidien est le vrai filet ; le push, filtré, exerce le
 # contrôle quand c'est lui qui change.
+#
+# Les deux derniers répondent à la seule question que le push filtré ne pose
+# pas : QUAND LE CANAL CHANGE, qui le relit ? La publication est précisément
+# l'événement qui déplace la tête, et elle n'est pas un commit du contrôle —
+# mesuré : le commit qui a publié la 1.0.6 n'a touché aucun des quatre chemins
+# filtrés, donc le workflow n'a pas tourné, et la CI n'a rien appris avant le
+# cron de 05:40. Le trou n'était pas le contrôle (il avait attrapé, la veille,
+# la pré-version promue en tête) mais l'absence de relance.
+#
+#   • `release: [published]` — toute publication, y compris HORS de la chaîne
+#     (un `PATCH`/`POST` à la main avec un PAT, comme la 1.0.6). L'API remplace
+#     la ressource : ce geste peut déplacer la tête, donc il doit être relu.
+#   • `workflow_run` sur le publieur — parce que GitHub NE CASCADE PAS les
+#     événements produits par `github.token` : le job qui publie en CI crée son
+#     release avec ce jeton, donc `release` ne se déclencherait jamais pour lui.
+#     C'est le seul chemin qui couvre la publication automatique.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -37,6 +53,15 @@ on:
       - 'scripts/lib/release-coherence.mjs'
       - 'updates/holds.json'
       - '.github/workflows/release-channel-watch.yml'
+
+  # La publication est l'événement qui change ce qu'un poste lit.
+  release:
+    types: [published]
+
+  workflow_run:
+    workflows: ["Desktop release (Windows)"]
+    types: [completed]
+    branches: [main]
 
   schedule:
     # 05:40 UTC — après les crons de nuit, avant la journée de travail.
@@ -57,7 +82,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # Le moniteur lit le canal par l'API, jamais l'arbre d'un commit : il
+      # exécute donc le contrôle COURANT de `main`. Un push qui touche le
+      # contrôle lui-même reste vérifié là où il a été poussé — c'est ce qui
+      # l'exerce sur une branche de travail.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
 
       - uses: actions/setup-node@v7
         with:

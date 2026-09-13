@@ -611,6 +611,23 @@ describe('le canal tel que la CI doit le voir', () => {
     assert.match(workflow, /publish-automation-evidence\.mjs/);
   });
 
+  it('le canal est relu QUAND IL CHANGE — la publication est un déclencheur, pas seulement le cron', () => {
+    // Mesuré : le commit qui a publié la 1.0.6 n'a touché aucun des quatre
+    // chemins filtrés, donc le workflow n'a pas tourné et la CI n'a rien su
+    // avant le cron de 05:40. Le contrôle savait attraper (il avait nommé la
+    // pré-version promue en tête la veille) ; il n'était simplement pas relancé.
+    const workflow = read('.github/workflows/release-channel-watch.yml');
+
+    // La publication hors chaîne (un PAT à la main) est l'événement direct.
+    assert.match(workflow, /\r?\n\s*release:\s*\r?\n\s*types: \[published\]/, 'publier déplace la tête : cette publication doit être relue');
+
+    // Et la publication AUTOMATIQUE, que `release` ne couvre pas : GitHub ne
+    // cascade aucun événement produit par `github.token`, donc le release créé
+    // par le job de publication ne déclencherait rien.
+    assert.match(workflow, /workflow_run:\s*\r?\n\s*workflows: \["Desktop release \(Windows\)"\]/, 'le publieur qui agit en CI doit déclencher la relecture');
+    assert.match(workflow, /ref: \$\{\{ github\.event_name == 'push' && github\.ref \|\| 'main' \}\}/, 'le moniteur exécute le contrôle courant, pas un arbre de tag');
+  });
+
   it('le mode channel refuse le jeton de l’environnement, et lit le frein où un poste le lit', () => {
     const source = read('scripts/check-release-coherence.mjs');
     assert.match(source, /const useToken = MODE !== 'channel'/, 'un canal relu authentifié n’est pas prouvé pour un poste');
