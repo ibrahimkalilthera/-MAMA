@@ -55,8 +55,15 @@ export function parentFormVerdict({ fields = [], gate = null } = {}) {
   /** @type {Record<'name'|'primaryPhone'|'address', { label?: string, placeholder?: string, required?: boolean }|null>} */
   const found = { name: null, primaryPhone: null, address: null };
 
+  // Le LIBELLÉ d'abord, le placeholder seulement en repli : un écran porte d'autres
+  // champs (la recherche d'élève, le filtre de classe), et un motif qui matcherait
+  // l'un d'eux AVANT le vrai champ ferait porter le verdict sur un autre champ —
+  // le genre de faux positif qui rougit pour la mauvaise raison.
   for (const [key, pattern] of Object.entries(FIELDS)) {
-    found[key] = fields.find((f) => pattern.test(`${f?.label ?? ''} ${f?.placeholder ?? ''}`)) ?? null;
+    found[key] =
+      fields.find((f) => pattern.test(f?.label ?? '')) ??
+      fields.find((f) => pattern.test(`${f?.label ?? ''} ${f?.placeholder ?? ''}`)) ??
+      null;
   }
 
   // 1. Ce qu'on n'a pas TROUVÉ ne peut pas être conforme.

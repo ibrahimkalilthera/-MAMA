@@ -319,19 +319,68 @@ try {
   });
   console.log(opened ? '🎯 entrée de navigation « Parents » cliquée' : '⚠️ entrée « Parents » introuvable');
   await wait(4000);
-  const clicked = await page.evaluate(() => {
-    const btn = [...document.querySelectorAll('button')].find((x) => x.offsetParent && /parent/i.test(x.textContent || ''));
-    if (btn) btn.click();
-    return btn ? (btn.textContent || '').trim().slice(0, 40) : null;
-  });
-  if (!clicked) {
-    const visible = await page.evaluate(() =>
-      [...document.querySelectorAll('button')].filter((x) => x.offsetParent).map((x) => (x.textContent || '').trim().slice(0, 30)),
+
+  // LE BOUTON D'AJOUT, PAS L'ENTRÉE DE NAVIGATION. La barre latérale est faite de
+  // `<button>` elle aussi, donc « un bouton qui parle de parent » attrape le MENU :
+  // mesuré au deuxième run — `bouton « Parents » cliqué`, puis aucun dialogue. On
+  // cherche donc un libellé d'ACTION (ajouter/nouveau/créer), et un repli refuse
+  // explicitement les libellés de navigation.
+  const addPattern = /(ajouter|nouveau|nouvelle|cr[ée]er|add|new)[^a-z]{0,14}(parent|tuteur|guardian)/i;
+  const navPattern = /^(parents?|annuaire des parents|parent directory|tuteurs?|guardians?)$/i;
+  const visibleButtons = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('button')]
+        .filter((x) => x.offsetParent)
+        .map((x) => (x.textContent || '').trim().slice(0, 30))
+        .filter(Boolean)
+        .slice(0, 40),
     );
-    await fail('le bouton « Ajouter Parent/Tuteur » est introuvable dans l’app installée', [JSON.stringify(visible)]);
+  let clicked = null;
+  for (let i = 0; i < 10 && !clicked; i++) {
+    clicked = await page.evaluate(
+      ([addSrc, navSrc]) => {
+        const mk = (src) => new RegExp(src, 'i');
+        const buttons = [...document.querySelectorAll('button')].filter((x) => x.offsetParent);
+        const text = (x) => (x.textContent || '').trim();
+        const hit =
+          buttons.find((x) => mk(addSrc).test(text(x))) ??
+          buttons.find((x) => /parent|tuteur|guardian/i.test(text(x)) && !mk(navSrc).test(text(x)));
+        if (!hit) return null;
+        hit.click();
+        return text(hit).slice(0, 40);
+      },
+      [addPattern.source, navPattern.source],
+    );
+    if (!clicked) await wait(1500);
+  }
+  if (!clicked) {
+    await fail('le bouton « Ajouter Parent/Tuteur » est introuvable dans l’app installée', [
+      JSON.stringify(await visibleButtons()),
+    ]);
   }
   console.log(`🎯 bouton « ${clicked} » cliqué`);
-  await wait(2500);
+
+  // Le dialogue est attendu, pas supposé : une fenêtre lente ne doit pas se lire
+  // comme un formulaire absent, et l'absence doit être dite AVEC ce que l'écran
+  // montrait.
+  let open = false;
+  for (let i = 0; i < 12 && !open; i++) {
+    open = await page.evaluate(() =>
+      [...document.querySelectorAll('[role="dialog"]')].some((d) => /parent|tuteur|guardian/i.test(d.getAttribute('aria-label') || '')),
+    );
+    if (!open) await wait(1500);
+  }
+  if (!open) {
+    const diag = await page.evaluate(() => ({
+      dialogs: [...document.querySelectorAll('[role="dialog"]')].map((d) => d.getAttribute('aria-label')),
+      body: (document.body?.innerText || '').slice(0, 200),
+    }));
+    await fail('la fiche parent ne s’est pas ouverte dans l’application installée', [
+      JSON.stringify(diag),
+      JSON.stringify(await visibleButtons()),
+    ]);
+  }
+  await wait(1200);
 
   // ── lire la fiche, et demander au NAVIGATEUR ce qu’il impose ────────────
   const observed = await page.evaluate(
@@ -345,6 +394,7 @@ try {
           dialogs: [...document.querySelectorAll('[role="dialog"]')].map((d) => d.getAttribute('aria-label')),
         };
       }
+
       const form = dialog.querySelector('form');
       const els = [...dialog.querySelectorAll('input, select, textarea')].filter((el) => el.type !== 'checkbox');
       const fields = els.map((el) => ({
@@ -386,7 +436,7 @@ try {
     },
   );
 
-  if (observed.error) await fail('la fiche parent ne s’est pas ouverte dans l’application installée', [observed.error, JSON.stringify(observed.dialogs)]);
+  if (observed.error) await fail('le dialogue parent a disparu entre l’ouverture et la lecture', [observed.error, JSON.stringify(observed.dialogs)]);
   if (!observed.hasForm) await fail('le dialogue parent n’a pas de formulaire — le gate du navigateur n’a pas pu être lu', []);
 
   const formVerdict = parentFormVerdict({ fields: observed.fields, gate: observed.gate });
