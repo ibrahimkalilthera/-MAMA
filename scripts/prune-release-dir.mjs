@@ -116,6 +116,9 @@ import {
   prunePlan,
 } from './lib/release-prune.mjs';
 import { manifestOfTree, matchingManifestAsset, publishedManifests } from './lib/unpacked-manifest.mjs';
+// Le seul propriétaire de « quelle forme a un fichier de flux » : le module qui
+// le lit pour les trois autres entrées (cohérence, publieur, comparaison).
+import { parseLatestYml } from './lib/latest-yml.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -222,6 +225,19 @@ const publishedForCurrent = new Set(
     .filter((release) => !release.draft && release.version === currentVersion)
     .flatMap((release) => release.assets.map((asset) => asset.name)),
 );
+// Les couples (version, nom) que le canal publie DÉJÀ, tous numéros confondus.
+// C'est la même question pour un fichier dont le nom ne porte pas de version :
+// le flux déclare la sienne dans son contenu, donc « ce fichier peut-il être
+// comparé ? » se répond par ce qu'il déclare et par ce que le canal en dit.
+const publishedAssets = new Set(
+  published
+    .filter((release) => !release.draft)
+    .flatMap((release) => release.assets.map((asset) => `${release.version}\u0000${asset.name}`)),
+);
+// Un flux est un fichier TEXTE de quelques centaines d'octets : au-delà, ce
+// n'est pas lui, et lire 400 Mo d'archive pour le découvrir serait un coût payé
+// pour rien.
+const FEED_MAX_BYTES = 64 * 1024;
 /** La taille d'un dossier, récursivement — un dossier de build n'en a pas une. */
 function dirSize(dir) {
   let total = 0;
@@ -260,14 +276,24 @@ for (const name of readdirSync(releaseDir)) {
     continue;
   }
   const version = artifactVersion(name);
-  // Haché sur les octets du disque — une taille relue ne prouve pas une
-  // empreinte. La version en cours ne l'est que si le canal la publie déjà sous
-  // ce nom (voir ci-dessus) : c'est la seule empreinte qui fait encore décider.
-  const sha256 =
-    version && (version !== currentVersion || publishedForCurrent.has(name))
-      ? createHash('sha256').update(readFileSync(file)).digest('hex')
+  // Ce que le fichier DÉCLARE quand son nom ne porte aucun numéro : le flux
+  // (`latest.yml`) annonce sa version en clair, et c'est `parseLatestYml` qui
+  // décide de ce qui a cette forme — jamais un nom écrit ici. Un fichier de build
+  // qui ne s'y conforme pas (une version sans `path`) retombe « hors sujet »,
+  // exactement comme avant.
+  const declaredVersion =
+    !version && stat.size > 0 && stat.size <= FEED_MAX_BYTES
+      ? parseLatestYml(readFileSync(file, 'utf8'))?.version ?? null
       : null;
-  local.push({ name, size: stat.size, sha256 });
+  // Haché sur les octets du disque — une taille relue ne prouve pas une empreinte
+  // — et seulement quand l'empreinte peut DÉCIDER quelque chose : la version en
+  // cours que le canal ne publie pas encore ne peut pas être comparée, et le flux
+  // ne l'est que si le canal publie cette version-là sous ce nom.
+  const comparable = version
+    ? version !== currentVersion || publishedForCurrent.has(name)
+    : Boolean(declaredVersion && publishedAssets.has(`${declaredVersion}\u0000${name}`));
+  const sha256 = comparable ? createHash('sha256').update(readFileSync(file)).digest('hex') : null;
+  local.push({ name, size: stat.size, sha256, ...(declaredVersion ? { declaredVersion } : {}) });
 }
 
 // Tout ce que le dossier contient EN SURFACE, une fois pesé. C'est ce qui permet

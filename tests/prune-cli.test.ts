@@ -110,6 +110,22 @@ function manifeste(label: string, files: [path: string, content: string][]) {
 /** Les octets exacts que `dirs: ['win-unpacked']` de `atelier()` écrit. */
 const APPBIN = 'x'.repeat(2048);
 
+/**
+ * Un `latest.yml` réduit à ce que le parseur exige de lui : une version ET un
+ * `path`. Le jeton ne change qu'une ligne — donc la forme reste valide et seuls
+ * les octets diffèrent, ce qui est exactement ce qu'on veut mesurer.
+ */
+function flux(seed: string) {
+  return [
+    `version: ${CURRENT}`,
+    'files:',
+    `  - url: MamaTheraFinance-${CURRENT}-setup.exe`,
+    `    sha512: ${seed}`,
+    '    size: 12',
+    `path: MamaTheraFinance-${CURRENT}-setup.exe`,
+  ].join('\n');
+}
+
 describe('release:prune, lancé pour de vrai — sans --yes, il ne touche à RIEN', () => {
   it('détecte un fichier prouvé redondant, l’annonce, et le laisse sur le disque', () => {
     const dir = atelier('plan', { 'MamaTheraFinance-1.0.4-setup.exe': 'octets-1.0.4' });
@@ -263,6 +279,46 @@ describe('release:prune --check — l’objection automatique', () => {
     assert.match(err, /--yes --stale/, 'le remède de CE cas est nommé');
     assert.doesNotMatch(err, /numéro EN COURS/, 'et il ne se présente pas comme la version qu’on construit');
     assert.deepEqual(listed(dir), ['MamaTheraFinance-1.0.5-setup.exe'], 'l’objection ne supprime rien');
+  });
+
+  it('OBJECTE aussi sur le FLUX, dont le nom ne porte aucun numéro', () => {
+    // `latest.yml` est le seul fichier que CHAQUE poste lit à chaque vérification,
+    // et son nom ne porte aucun numéro : la règle qui compare les installeurs ne
+    // pouvait donc pas le voir, et un flux local décrivant d'AUTRES octets pour la
+    // même version passait inaperçu. C'est son CONTENU qui déclare sa version — le
+    // CLI l'y lit (`parseLatestYml`, le seul propriétaire de cette forme).
+    const dir = atelier('check-flux', { 'latest.yml': flux('octets-locaux') });
+    const channel = canal('check-flux', [{ tag: `v${CURRENT}`, assets: [{ name: 'latest.yml', bytes: flux('octets-du-canal') }] }]);
+
+    const { code, err } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 1, 'le flux divergent est un ROUGE, pas une décision humaine');
+    assert.match(err, /les postes LISENT/, 'et il dit pourquoi ce fichier-là compte plus qu’un autre');
+    assert.match(err, /version est dans son contenu/, 'la version vient du contenu, jamais du nom');
+    assert.deepEqual(listed(dir), ['latest.yml'], 'l’objection ne supprime rien : le publieur le téléverse à chaque release');
+  });
+
+  it('le flux aux MÊMES octets que le canal reste propre, et dit pourquoi il est comparé', () => {
+    const dir = atelier('flux-propre', { 'latest.yml': flux('octets-du-canal') });
+    const channel = canal('flux-propre', [{ tag: `v${CURRENT}`, assets: [{ name: 'latest.yml', bytes: flux('octets-du-canal') }] }]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 0, 'un contrôle qui rougit toujours ne se lirait plus');
+    assert.match(out, /MÊMES octets/);
+    assert.match(out, /le flux que les postes lisent/);
+  });
+
+  it('pour une version que le canal ne détient pas encore, le flux n’accuse personne', () => {
+    const dir = atelier('flux-en-preparation', { 'latest.yml': flux('octets-en-preparation') });
+    const channel = canal('flux-en-preparation', [
+      { tag: `v${PREVIOUS}`, assets: [{ name: 'latest.yml', bytes: 'octets-du-canal' }] },
+    ]);
+
+    const { code, out } = runCli([`--dir=${dir}`, `--channel=${channel}`, '--check']);
+
+    assert.equal(code, 0);
+    assert.match(out, /ne détient pas encore/);
   });
 
   it('mais la version en cours aux MÊMES octets que le canal reste propre', () => {

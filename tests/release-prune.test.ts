@@ -314,6 +314,66 @@ describe('ce qui autorise une suppression est une preuve, pas une date', () => {
   });
 });
 
+describe('le fichier que les postes lisent n’a aucun numéro dans son nom', () => {
+  // `latest.yml` est le seul fichier dont DÉPEND chaque poste : `electron-updater`
+  // le lit à chaque vérification. Son nom ne porte pas de numéro, donc la règle
+  // qui compare les installeurs l'ignorait — il tombait dans « hors sujet », et
+  // un flux local décrivant d'autres octets que le canal pour la MÊME version
+  // passait inaperçu. C'est le CONTENU qui déclare la version, et c'est le CLI qui
+  // l'y lit (`declaredVersion`) : le module reste pur.
+  const feed = (name: string, seed: string, declaredVersion: string) => ({
+    ...local(name, seed, 361),
+    declaredVersion,
+  });
+
+  it('aux octets du canal → conservé, et la raison dit pourquoi il est comparé', () => {
+    const plan = prunePlan({
+      currentVersion: '1.0.7',
+      local: [feed('latest.yml', 'flux-du-canal', '1.0.7')],
+      published: [release('1.0.7', [held('latest.yml', 'flux-du-canal', 361)])],
+    });
+    assert.deepEqual(plan.divergences, []);
+    assert.deepEqual(plan.remove, [], 'le flux ne part sur AUCUN acte : le publieur le téléverse à chaque release');
+    assert.match(plan.keep[0].reason, /MÊMES octets/);
+    assert.match(plan.keep[0].reason, /le flux que les postes lisent/);
+  });
+
+  it('avec d’AUTRES octets pour la même version → divergence, et elle nomme ce qui est lu', () => {
+    const plan = prunePlan({
+      currentVersion: '1.0.7',
+      local: [feed('latest.yml', 'flux-reconstruit', '1.0.7')],
+      published: [release('1.0.7', [held('latest.yml', 'flux-du-canal', 361)])],
+    });
+    assert.equal(plan.divergences.length, 1);
+    assert.equal(plan.divergences[0].act, null, 'aucun drapeau ne range ce fichier : la divergence se répare');
+    assert.match(plan.divergences[0].reason, /les postes LISENT/);
+    assert.deepEqual(plan.remove, []);
+  });
+
+  it('d’une version que le canal ne détient pas encore → rien à comparer, donc rien à accuser', () => {
+    const plan = prunePlan({
+      currentVersion: '1.0.8',
+      local: [feed('latest.yml', 'flux-en-preparation', '1.0.8')],
+      published: [release('1.0.7', [held('latest.yml', 'flux-du-canal', 361)])],
+    });
+    assert.deepEqual(plan.divergences, []);
+    assert.match(plan.keep[0].reason, /ne détient pas encore/);
+  });
+
+  it('sans version déclarée, il reste « hors sujet » : la forme d’un flux est reconnue, pas supposée', () => {
+    // Un fichier de configuration qui ne se lit pas comme un flux (une version
+    // sans `path`) ne devient pas comparable par ressemblance.
+    const plan = prunePlan({
+      currentVersion: '1.0.7',
+      local: [{ name: 'builder-debug.yml', size: 6226, sha256: null }],
+      published: [release('1.0.7', [held('latest.yml', 'flux-du-canal', 361)])],
+    });
+    assert.deepEqual(plan.divergences, []);
+    assert.equal(plan.ignored.length, 1);
+    assert.match(plan.ignored[0].reason, /ne porte pas de numéro de version/);
+  });
+});
+
 describe('une arborescence décrite par un manifeste PUBLIÉ est condamnable par une preuve', () => {
   const unpacked = (name = 'win-unpacked', size = 507_000_000) => ({ name, size });
 

@@ -1,3 +1,26 @@
+## [2026-09-13] Le fichier que les postes LISENT était hors du sort du contrôle
+
+Demande : « Étends la comparaison d'octets à latest.yml, dont le nom ne porte aucun numéro, pour qu'une divergence du fichier que les postes lisent soit attrapée elle aussi. »
+
+**Ce qui restait ouvert, et pourquoi c'était le pire des cas.** La règle du matin compare un fichier local aux octets du canal quand les deux portent le **même nom** — mais `latest.yml`, le seul fichier que **chaque** poste lit à chaque vérification, n'a aucun numéro dans son nom. Il tombait donc dans « hors sujet », et un flux local déclarant d'**autres** octets pour la **même** version — le fichier qui promet aux postes un contenu qu'il ne porte pas — passait sans un mot, avec l'atelier qui répondait « propre ». C'est la même famille de mensonge que l'installeur divergent, sur le seul fichier dont **tous** les postes dépendent.
+
+**La règle, et ses trois lectures.** Sa version vit dans son **contenu**, donc c'est le CLI qui l'y lit (`parseLatestYml`, l'unique propriétaire de « quelle forme a un fichier de flux » : la reconnaître par un nom écrit ici aurait été une seconde réponse à la même question) et qui pose `declaredVersion` ; le module reste **pur** et ne voit qu'un fait déjà lu. Ensuite : **mêmes octets** que le canal ⇒ conservé, et sa raison dit *pourquoi* il est comparé (« c'est le flux que les postes lisent, et le publieur le téléverse à chaque release ») ; **autres octets** ⇒ **divergence**, donc objection en `--check`, avec `act: null` — **aucun drapeau ne le range**, un flux divergent se **restaure** (octets du canal) ou se remplace par un numéro neuf, et proposer `--stale` aurait envoyé au mauvais acte ; **version pas encore publiée** ⇒ rien à comparer, donc rien à accuser. Le coût reste nul dans le flux ordinaire : le hachage n'a lieu que si le canal publie **déjà** cette version sous ce nom-là, et un fichier de plus de **64 Ko** n'est pas lu du tout — un flux fait quelques centaines d'octets, lire 400 Mo d'archive pour découvrir que ce n'est pas lui serait un coût payé pour rien.
+
+**Preuve sur le flux réel de l'atelier, pas sur un fixture.** `release/latest.yml` (361 octets, sha `5d2dc022…`) correspondait déjà aux octets du canal : `check:release:workshop` le dit ligne par ligne. Une seule ligne ajoutée au fichier (387 octets, sha `d639f9a6…`) et l'atelier passe au **rouge**, sans jeton :
+
+```
+❌ latest.yml (version 1.0.7) — le canal dit d'AUTRES octets pour « latest.yml » (taille 361 vs 387,
+   empreinte 5d2dc0225adc… vs d639f9a6cfca…) — et c'est le fichier que les postes LISENT pour 1.0.7,
+   dont la version est dans son contenu et non dans son nom
+
+   Ce rouge ne se range pas, il se répare — deux voies, et elles sont explicites :
+   • restaurer les octets du CANAL ; ou prendre un numéro NEUF.
+```
+
+Fichier restauré aussitôt à l'octet du canal, et l'atelier redit « propre » : **un contrôle qui rougit toujours ne se lirait plus.** Au passage, la ligne des volumes explique maintenant le flux sans qu'on la lui demande (`246 Mo conservés (6)` au lieu de 5) — son octet a une case, comme les autres.
+
+**Mesures.** `release-prune.test.ts` + `prune-cli.test.ts` : **74/74** puis **32/32**, dont **quatre cas neufs** au plan (mêmes octets, autres octets avec `act: null` et `remove` vide, version non publiée, fichier qui n'a PAS la forme d'un flux — une version sans `path` — qui reste « hors sujet » : la forme est reconnue, jamais supposée) et **trois cas neufs** au CLI, lancés pour de vrai sur des fixtures, sans réseau ni jeton. `tsc --noEmit` et `eslint --max-warnings 0` propres.
+
 ## [2026-09-13] 1.0.7 publiée de bout en bout — et la preuve d'arborescence a RÉELLEMENT condamné 507 Mo
 
 Demande : « Monte la version et publie un release de bout en bout tous nos mises a jour arrivent sur le canal, puis prouve que la preuve condamne réellement quelque chose. »

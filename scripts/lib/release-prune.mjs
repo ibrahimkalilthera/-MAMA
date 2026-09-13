@@ -117,7 +117,7 @@ export function artifactVersion(name) {
  * ce sont des reconstructions locales, enlevez-les ».
  *
  * @param {{ currentVersion?: string,
- *   local?: { name: string, size?: number, sha256?: string|null }[],
+ *   local?: { name: string, size?: number, sha256?: string|null, declaredVersion?: string|null }[],
  *   dirs?: { name: string, size?: number }[],
  *   published?: { version?: string, tag?: string, draft?: boolean,
  *     assets?: { name?: string, size?: number, digest?: string|null }[] }[],
@@ -237,10 +237,54 @@ export function prunePlan({
     const name = String(file?.name ?? '');
     const version = artifactVersion(name);
     if (!version) {
-      ignored.push({
+      // Un nom sans numéro n'est pas forcément hors sujet : le fichier que les
+      // postes LISENT à chaque vérification (`latest.yml`) n'en porte aucun, et
+      // sa version est dans son CONTENU. L'ignorer laissait passer exactement la
+      // divergence que la règle du dessus attrape pour les installeurs — des
+      // octets locaux sous un numéro publié qui ne sont pas ceux du canal — sur
+      // le seul fichier dont TOUS les postes dépendent. C'est le CLI qui lit ce
+      // contenu (le module est pur) et qui pose `declaredVersion` ; sans elle,
+      // le fichier reste « hors sujet », comme avant.
+      const declared = String(file?.declaredVersion ?? '').trim();
+      if (!declared) {
+        ignored.push({
+          name,
+          reason:
+            'ne porte pas de numéro de version — hors du sort de ce contrôle (flux, dossier de build, artefacts de configuration)',
+        });
+        continue;
+      }
+      const feedRelease = channel.get(declared);
+      const feedAsset = feedRelease
+        ? (Array.isArray(feedRelease.assets) ? feedRelease.assets : []).find((a) => String(a?.name ?? '') === name)
+        : null;
+      const feedMismatch = feedAsset ? assetsDiffer(feedAsset, file) : null;
+      if (feedMismatch) {
+        divergences.push({
+          name,
+          version: declared,
+          // Le fichier n'est jamais enlevé (c'est celui que les postes lisent à
+          // chaque démarrage, et le publieur le téléverse à chaque release) : la
+          // divergence se RÉPARE, elle ne se range pas — donc aucun acte.
+          act: null,
+          reason:
+            `${feedMismatch} — et c’est le fichier que les postes LISENT pour ${declared}, dont la version est dans son contenu et non dans son nom`,
+        });
+        keep.push({
+          name,
+          version: declared,
+          reason: `${feedMismatch} — ce n’est pas un reste à ranger : un fichier de flux divergent se restaure (octets du canal) ou se remplace par un numéro neuf`,
+        });
+        continue;
+      }
+      keep.push({
         name,
-        reason:
-          'ne porte pas de numéro de version — hors du sort de ce contrôle (flux, dossier de build, artefacts de configuration)',
+        version: declared,
+        reason: feedAsset
+          ? `le canal publie les MÊMES octets pour « ${name} » en ${declared} — c’est le flux que les postes lisent, et le publieur le téléverse à chaque release`
+          : feedRelease
+            ? `déclare la version ${declared}, que le canal ne déclare pas sous « ${name} » — rien à comparer, donc rien à accuser`
+            : `déclare la version ${declared}, que le canal ne détient pas encore — la comparaison viendra avec la publication`,
       });
       continue;
     }
