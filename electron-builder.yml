@@ -80,6 +80,14 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  # Les données du poste ne sont JAMAIS effacées par le programme d'installation.
+  # Ce qui protège une école n'est pas seulement la sauvegarde de la base : ce qui
+  # a été saisi HORS LIGNE vit dans le profil du poste (`userData` — file d'attente
+  # hors ligne, notes lues), et `appId`/`productName` ci-dessus n'ont pas changé
+  # depuis la première version, donc le même dossier est réutilisé d'une version à
+  # l'autre. Désinstaller ne doit pas non plus l'effacer : réinstaller après une
+  # désinstallation qui a tout pris serait une perte de données d'école.
+  deleteAppDataOnUninstall: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Mama Thera Finance

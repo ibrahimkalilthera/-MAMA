@@ -195,6 +195,18 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-backup-roundtrip.mjs',
+    input: 'network+backup',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // Son sujet est la BASE et une archive : il n’y a pas de corpus de fichiers à
+    // trouver. Deux absences sont des REFUS, jamais un vert — sans sauvegarde ou
+    // sans credentials il sort en 2, et une seule table illisible dans la cible
+    // arrête le jugement (« on ne devine pas la part non restaurable »).
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit un manifeste JSON, des comptes d’API et des octets de sauvegarde, jamais du code source',
+    },
+  },
+  {
     check: 'check-owner-accounts.mjs',
     input: 'network+roster',
     needs: [IMMUNITY.NON_VACUOUS],

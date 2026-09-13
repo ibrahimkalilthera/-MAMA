@@ -18,6 +18,7 @@
     "check:owners": "node scripts/check-owner-accounts.mjs",
     "backup:db": "node scripts/backup-db.mjs",
     "backup:verify": "node scripts/restore-db.mjs --verify-only",
+    "backup:roundtrip": "node scripts/check-backup-roundtrip.mjs",
     "restore:db": "node scripts/restore-db.mjs",
     "check:shared-db:live": "node scripts/check-shared-db.mjs --live https://mama-thera-finance.vercel.app",
     "check:automations": "node scripts/check-automations.mjs",

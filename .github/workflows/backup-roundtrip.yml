@@ -1,0 +1,138 @@
+name: Backup round-trip
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « La sauvegarde est-elle RÉELLE ? » — on la remet, et on recompte.
+#
+# Une sauvegarde qu'on n'a jamais remise est une hypothèse : le 2026-09-13, le
+# dépôt savait écrire une archive chiffrée et la RELIRE, mais n'avait jamais
+# exercé la remise. Le seul angle mort restant de la sauvegarde était donc
+# exactement celui qui compte le jour où l'on en a besoin.
+#
+# Ce job ferme ce trou avec la vraie matière, pas un fixture :
+#   1. une sauvegarde RÉELLE de la base PARTAGÉE (lecture seule, service_role),
+#      chiffrée, écrite par `npm run backup:db` ;
+#   2. une pile Supabase LOCALE neuve (Docker, les 22 migrations appliquées) ;
+#   3. `npm run restore:db -- --allow-project-mismatch` : la sauvegarde de
+#      production est REMISE dans cette pile vide ;
+#   4. `npm run backup:roundtrip` recompte la cible LUI-MÊME, table par table, et
+#      exige l'égalité avec ce que le manifeste déclare — les lignes dont le
+#      compte `auth.users` n'existe pas localement sont calculées, nommées, et
+#      comptées à part (elles ne voyagent pas par l'API REST).
+#
+# Ce que le vert PROUVE : le tuyau complet (lecture → chiffrement → manifeste →
+# déchiffrement → remise par clé → recomptage) fonctionne sur les données réelles
+# de la base partagée, et une table qui perdrait des lignes rendrait le job rouge
+# en la nommant.
+#
+# Ce que le vert NE PROUVE PAS, et qui est dit dans le journal : la base est
+# aujourd'hui vide de données d'école (0 élève, 0 paiement). Le contrôle nomme
+# les tables métier vides, donc un vert ne se lit pas comme « vos données sont
+# sauvegardées » quand il n'y a pas de données.
+#
+# Déclencheurs : push sur main quand la sauvegarde, la restauration ou ce
+# contrôle changent, plus un cron mensuel — c'est une preuve de MÉCANISME, pas un
+# signal quotidien, et un aller-retour quotidien ne dit rien de plus.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/backup-db.mjs'
+      - 'scripts/restore-db.mjs'
+      - 'scripts/check-backup-roundtrip.mjs'
+      - 'scripts/lib/backup-manifest.mjs'
+      - 'scripts/lib/db-tables.mjs'
+      - 'supabase/migrations/**'
+      - '.github/workflows/backup-roundtrip.yml'
+
+  schedule:
+    # 03:40 UTC le 1er du mois — la nuit, et rare : un mécanisme ne change pas
+    # tous les jours.
+    - cron: '40 3 1 * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: backup-roundtrip
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  roundtrip:
+    name: Sauvegarder la prod, remettre dans une pile locale, recompter
+    runs-on: ubuntu-latest
+    # supabase start tire ~15 conteneurs, puis la remise écrit ~350 lignes.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # Pinné sur la version éprouvée localement (mêmes migrations en local et en
+      # CI) ; version bump volontaire et explicite — même choix que le garde-fou
+      # des migrations.
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.116.0
+
+      - name: Sauvegarder la base PARTAGÉE (chiffré, manifeste vérifiable)
+        env:
+          SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: npm run backup:db -- --out .backup/live --encrypt --require-encryption
+
+      - name: Démarrer une pile Supabase VIDE (les migrations s'appliquent)
+        run: supabase start
+
+      - name: Remettre la sauvegarde de production dans la pile neuve
+        run: |
+          supabase status -o env | tee /tmp/supabase.env
+          set -a
+          . /tmp/supabase.env
+          set +a
+          # La cible est locale : elle porte un AUTRE ref que la sauvegarde, donc
+          # `--allow-project-mismatch` est le geste conscient prévu pour ça.
+          # Rien n'est écrit avant que le manifeste concorde.
+          # Les noms exportés par `supabase status -o env` (API_URL,
+          # SERVICE_ROLE_KEY) sont la source ; le repli nommé évite qu'un
+          # renommage côté CLI ne se traduise par un « credentials absents »
+          # silencieux au milieu de la preuve.
+          SUPABASE_URL="${API_URL:-http://127.0.0.1:54321}" \
+          SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY:?service_role absente de supabase status}" \
+          BACKUP_PASSPHRASE="${{ secrets.BACKUP_PASSPHRASE }}" \
+          npm run restore:db -- --from .backup/live --allow-project-mismatch
+
+      - name: Recompter la cible, table par table (le jugement indépendant)
+        # Mandat de preuve : ce script publie lui-même ce qu'il a mesuré (lignes
+        # attendues et retrouvées, tables métier vides).
+        env:
+          AUTOMATION_EVIDENCE: '1'
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -a
+          . /tmp/supabase.env
+          set +a
+          SUPABASE_URL="${API_URL:-http://127.0.0.1:54321}" \
+          SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY:?service_role absente de supabase status}" \
+          npm run backup:roundtrip -- --from .backup/live
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — aller-retour de sauvegarde
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "sauvegarde de la base partagée remise dans une pile locale neuve puis recomptée table par table ; les chiffres (lignes attendues et retrouvées, tables métier vides) sont publiés par scripts/check-backup-roundtrip.mjs"
+
+      - name: Arrêter la pile locale
+        if: always()
+        run: supabase stop --no-backup

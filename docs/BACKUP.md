@@ -47,6 +47,24 @@ Trois refus **avant** la première écriture, parce qu'une restauration est le d
 
 L'écriture est **idempotente par construction** : insertion en `resolution=merge-duplicates` sur la clé primaire, et sonde qui relit la ligne par sa clé (`?<pk>=eq.<valeur>`) avant tout rejeu. Après restauration, chaque table est **recomptée** et comparée au manifeste : une restauration qui n'a pas restauré est rouge.
 
+## Une mise à jour de l'application ne touche pas les données
+
+C'est le point qui inquiète le plus, et il tient à trois faits distincts :
+
+1. **Les données d'école ne sont pas dans l'application.** Elles vivent dans la base Postgres **partagée** (`rpcjdohfxwukbqngbprw`) : une mise à jour remplace des fichiers de programme sur le poste, jamais des lignes sur le serveur. La base que l'application livrée interroge est vérifiée à chaque build (`check:shared-db`) et le site déployé est relu à chaque déploiement (`check:shared-db:live`).
+2. **Ce qui vit sur le poste est dans `userData`** — la **file d'attente hors ligne** (un paiement saisi sans réseau : de la vraie donnée d'école en attente), les notes lues, le journal de mise à jour. Ce dossier est nommé par `appId` (`com.mamathera.finance`) et `productName` (`MamaTheraFinance`), qui **n'ont pas changé depuis la première version** : le même dossier est donc réutilisé d'une version à l'autre. Les renommer orphelinerait les données locales de tout le parc — `tests/update-retention.test.ts` verrouille cette identité.
+3. **Désinstaller ne les efface pas non plus** (`deleteAppDataOnUninstall: false` dans `electron-builder.yml`) : une désinstallation suivie d'une réinstallation ne doit pas emporter la file d'attente d'une école.
+
+Ce qui n'est **pas** conservé, et qui est normal : la **session** (le jeton est rangé par onglet, `sessionStorage`) — après une mise à jour il faut se reconnecter. Se reconnecter ne perd rien : les données sont sur le serveur, pas dans la session.
+
+## L'aller-retour est exercé en CI, sur la vraie base
+
+`backup-roundtrip.yml` fait ce qu'aucun contrôle local ne peut faire : il prend une **vraie** sauvegarde de la base partagée, démarre une **pile Supabase locale vide** (les 22 migrations appliquées), y **remet** cette sauvegarde (`restore:db --allow-project-mismatch`), puis `npm run backup:roundtrip` **recompte la cible lui-même**, table par table, et exige l'égalité avec le manifeste.
+
+- une table qui perdrait des lignes rend le job **rouge en la nommant** (le contrôle ne croit ni le script de sauvegarde ni celui de restauration : il recompte) ;
+- les lignes dont le compte `auth.users` n'existe pas dans la cible sont **calculées, nommées et comptées à part** — elles ne peuvent pas revenir, leurs mots de passe ne voyagent pas par l'API REST ;
+- si la base ne contient **aucune** donnée métier, le verdict le dit (`tables métier VIDES des deux côtés`) : un vert prouve alors le tuyau, pas des données.
+
 ## Ce qui est prouvé, et ce qui ne l'est pas encore
 
 | geste | preuve |
