@@ -1,3 +1,27 @@
+## [2026-09-13] 1.0.7 publiée de bout en bout — et la preuve d'arborescence a RÉELLEMENT condamné 507 Mo
+
+Demande : « Monte la version et publie un release de bout en bout tous nos mises a jour arrivent sur le canal, puis prouve que la preuve condamne réellement quelque chose. »
+
+**La 1.0.7 est sur le canal, manifeste compris.** Bump du paquet → `electron:build` → brouillon → gate du brouillon (les octets **rehachés depuis le dépôt**, c'est le passeport) → promotion → relecture. Ce que la lecture **anonyme** prouve ensuite : la tête est `v1.0.7` (`GET /releases/latest`, sans jeton), et **les sept versions publiées — 1.0.1 à 1.0.6 — rejoignent 1.0.7** ; le frein est lisible et ne retient rien. `check:release:live` est **vert pour la première fois** : c'est le premier release qui porte un manifeste d'arborescence (`MamaTheraFinance-1.0.7-unpacked.manifest.json`), c'est-à-dire exactement le manque qui rendait cette ligne rouge depuis que l'exigence existe (elle est arrivée APRÈS la publication de la 1.0.6).
+
+**Et la preuve d'arborescence a condamné quelque chose de réel : 507 Mo.** L'atelier a été jugé avec le manifeste publié, et le verdict s'est inversé sur les MÊMES octets, parce que la seule chose qui change est ce qu'on est en train de construire : tant que 1.0.7 est la version en cours, l'arborescence est la sortie du build et elle est CONSERVÉE (les preuves locales lisent son exe) — le plan le dit ligne par ligne ; dès que la version avance, la même arborescence devient la sortie d'une version ANTÉRIEURE que le canal détient déjà, donc la preuve la recompose (empreinte `ba0d9150…`), la compare au manifeste publié et **la condamne** :
+
+```
+🔐 arborescences (1) — ce qu’une preuve peut en dire :
+   ✅ win-unpacked  507 Mo — décrite par MamaTheraFinance-1.0.7-unpacked.manifest.json (version 1.0.7)
+                             — le canal sert déjà ces octets, et `electron:dist` la régénère
+
+❌ l'atelier détient 8 entrée(s) que le canal sert DÉJÀ, octet pour octet (999 Mo)
+   L'acte qui les enlève, sans rien re-prouver :
+   npm run release:prune -- --dir=release --yes
+```
+
+L'acte appliqué a fait **999 Mo → 189 Ko** : l'arborescence **sur le seul `--yes`**, sans `--unpacked` — c'est l'empreinte qui a autorisé le départ, pas un drapeau — et avec elle les installeurs 1.0.6 et 1.0.7 que le canal servait déjà. La démonstration a été faite avec la version montée transitoirement à 1.0.8 (sans rebuild), puis **restaurée** : `package.json` revenu à 1.0.7, arborescence et installeurs remis d'une copie, et l'arborescence remise porte **toujours l'empreinte du canal** (`sha256` de `ba0d91505747…` = celui de l'actif publié) — l'atelier est revenu à 753 Mo, vert, avec la preuve locale de bureau à nouveau exécutable.
+
+**Ce que ce tour laisse en dette, et c'est dit.** La publication est passée par ce POSTE, pas par le runner : les secrets `CSC_PFX_B64` / `CSC_KEY_PASSWORD` ne sont toujours pas posés (`DEPENDABOT_REBASE_TOKEN, SUPABASE_SERVICE_ROLE_KEY, VERCEL_ORG_ID, VERCEL_PROJECT_ID, VERCEL_TOKEN`), donc le job de publication de la CI ne peut pas signer — et sans certificat il refuse de publier plutôt que de décrire des artefacts que personne ne recevra. Conséquence : le tag existant, le gate `check:release:needed` répond « rien à publier » et le job reste **skipped** — donc pas de faux vert et pas de rouge de circonstance. Le jour où un OV est acheté, ces deux secrets activent la chaîne automatique pour les bumps suivants.
+
+**Mesures** : le run de promotion a rendu un **HTTP 500** de l'API GitHub sur le `PATCH` de promotion alors que la promotion avait abouti (vérifié ensuite : `draft=false`, `prerelease=false`, 5 actifs, tête anonyme à `v1.0.7`) — un 500 qui n'a rien cassé mais qu'un script qui se fie au code de retour prendrait pour un échec. Les trois lectures indépendantes concordent : brouillon (gate du dépôt), flux publié (`--live`, sans jeton), canal vivant (`--channel`, sans jeton).
+
 ## [2026-09-13] Un fichier qui porte le NOM d'un actif du canal sous d'AUTRES octets est un ROUGE
 
 Demande : « Fais rougir l'atelier sur un fichier qui porte le nom d'un actif du canal mais dont les octets diffèrent, pour que la divergence silencieuse ne puisse plus survivre. »
