@@ -1,3 +1,13 @@
+## [2026-09-13] La 1.0.10 part du runner, et signer devient un choix explicite
+
+Demande : « publie 1.0.9 », puis, le canal portant déjà la 1.0.9 : « monte en 1.0.10 et laisse le runner publier ».
+
+**Ce qui bloquait n'était pas la politique, c'était un secret.** Les secrets du dépôt portent encore le **certificat de test** (`CSC_PFX_B64`, `CSC_KEY_PASSWORD`, posés le 2026-09-13 à 11:10 — les 2 854 octets que le log du run de la 1.0.8 montre restaurés). Et la présence du secret *décidait* : le runner restaurait, signait, puis `check:updater-trust` refusait la publication — donc un run rouge et rien de livré. Retirer le certificat des secrets aurait réparé l'instant sans réparer la cause : **un secret présent n'est pas une décision**.
+
+**La signature devient donc un choix explicite** (`SIGNING_ENABLED`, variable de dépôt) : les secrets sont restaurés et **jamais employés** sans elle, et le journal du job nomme lequel des trois états s'applique — `aucun certificat dans les secrets`, `certificat présent … signature ÉTEINTE`, ou `build signé avec CSC_LINK=…`. Le jour où un certificat **approuvé** arrive, la variable passe à `true` et la même étape signe. Le cas mesuré — un certificat de test oublié — ne peut plus ni signer ni bloquer : il part non signé, en le disant.
+
+**Une version montée pour prouver la chaîne, pas pour changer l'app** : `1.0.9 → 1.0.10`, alors que `git diff fdcfa65..HEAD -- src electron public` est **vide** — la 1.0.9 publiée porte déjà chaque correctif d'application, et c'est écrit ici pour que personne ne cherche un changement de comportement là où il n'y en a pas. Ce que la 1.0.10 prouve : la branche « aucun certificat » **du runner** (vérifier le tag → construire → publier en brouillon → promouvoir → relire le canal sans jeton), qui n'avait jamais tourné en CI — la 1.0.9 était sortie de ce poste. Ce que ça retire : la publication ne dépend plus d'une machine.
+
 ## [2026-09-13] Publier NON signé plutôt que signer avec un certificat de test
 
 Demande : « publie 1.0.9 avec le même genre de certificat de test que tu as créé pour les autres pour que ça passe, ne casse pas le workflow. »

@@ -50,6 +50,11 @@
 # Secrets à configurer (Settings → Secrets and variables → Actions) :
 #   CSC_PFX_B64       certificat .pfx encodé en base64
 #   CSC_KEY_PASSWORD  mot de passe du certificat
+#   SIGNING_ENABLED   variable de dépôt (Settings → Variables) : `true` rend la
+#                     signature UTILISABLE. Sans elle, les secrets sont restaurés
+#                     et JAMAIS employés — parce qu'un secret présent ne dit pas
+#                     qu'il est utilisable, et que le prendre sans le dire est
+#                     exactement ce qui a gravé le certificat de test dans la 1.0.8.
 #
 # Ces secrets restent la voie pour FAIRE DISPARAÎTRE l'avertissement de Windows :
 # seul un certificat approuvé le lève. Mais leur absence n'empêche plus de
@@ -175,6 +180,13 @@ jobs:
       # Dans les deux cas, `npm run check:updater-trust` juge ensuite le contrat
       # embarqué AVANT la première requête et refuse un signataire que Windows
       # ne peut pas approuver — c'est ce refus qui rend cette étape sûre.
+      # Restaurer n'est pas décider : ce qui se trouve dans le secret est POSÉ,
+      # pas utilisé. L'usage dépend de `SIGNING_ENABLED` (variable du dépôt, pas
+      # un secret) — parce qu'un secret présent ne dit pas qu'il est utilisable.
+      # C'est la leçon de la 1.0.8 : le certificat de TEST était dans ces secrets,
+      # le runner l'a pris, l'a gravé dans le contrat du binaire, et chaque poste
+      # équipé a refusé à jamais ses mises à jour. Sans le choix explicite, il
+      # n'existe plus de chemin par lequel un secret oublié signe ce qu'on livre.
       - name: Restore code-signing certificate
         shell: bash
         env:
@@ -182,14 +194,14 @@ jobs:
         run: |
           if [ -n "$CSC_PFX_B64" ]; then
             echo "$CSC_PFX_B64" | base64 -d > "$RUNNER_TEMP/code-sign.pfx"
-            echo "certificat restauré ($(wc -c < "$RUNNER_TEMP/code-sign.pfx") octets)"
+            echo "certificat restauré ($(wc -c < "$RUNNER_TEMP/code-sign.pfx") octets) — utilisé seulement si SIGNING_ENABLED=true"
           else
-            # L'absence de certificat n'est plus une anomalie à signaler : c'est
-            # l'état de RÉFÉRENCE du parc — celui de la 1.0.9 publiée (aucun
+            # L'absence de certificat n'est pas une anomalie : c'est l'état de
+            # RÉFÉRENCE du parc — celui de la 1.0.9 publiée (aucun
             # `publisherName` promis, octets NotSigned). Un `::warning::` ici
             # clignoterait à chaque publication légitime, c'est-à-dire
             # apprendrait à ignorer le seul signal qui compte.
-            echo "→ aucun certificat : build NON signé — état de référence (1.0.9), publication autorisée"
+            echo "→ aucun certificat dans les secrets"
           fi
 
       - name: Build, sign and publish (electron-updater channel)
@@ -198,8 +210,9 @@ jobs:
         env:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           GH_TOKEN: ${{ github.token }}
+          SIGNING_ENABLED: ${{ vars.SIGNING_ENABLED }}
         run: |
-          if [ -f "$RUNNER_TEMP/code-sign.pfx" ]; then
+          if [ "$SIGNING_ENABLED" = "true" ] && [ -f "$RUNNER_TEMP/code-sign.pfx" ]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
             export CSC_LINK="$(cygpath -w "$RUNNER_TEMP/code-sign.pfx")"
             echo "→ build signé avec CSC_LINK=$CSC_LINK"
@@ -225,12 +238,19 @@ jobs:
             #    processus, un flux illisible fait rougir le job au lieu d'être
             #    seulement signalé.
           else
-            # Aucun certificat : build NON signé, publication QUAND MÊME (décision
-            # du 2026-09-13, cf. l'en-tête). Refuser de publier cet état avait
-            # renvoyé la publication vers une machine locale — où un certificat de
-            # test a signé la 1.0.8 et gelé le parc.
+            # NON signé, et publié QUAND MÊME (décision du 2026-09-13, cf.
+            # l'en-tête). Refuser de publier cet état avait renvoyé la publication
+            # vers une machine locale — où un certificat de test a signé la 1.0.8
+            # et gelé le parc.
             echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "→ aucun certificat : build NON signé (aucun publisherName embarqué) — publication autorisée, avertissement Windows assumé"
+            if [ -f "$RUNNER_TEMP/code-sign.pfx" ]; then
+              # Le cas qui a produit l'incident, nommé au lieu d'être tu : un
+              # certificat EXISTE dans les secrets et n'est pas utilisé. Le taire
+              # ferait lire un canal signé là où il n'y en a pas.
+              echo "→ certificat présent dans les secrets, signature ÉTEINTE (variable de dépôt SIGNING_ENABLED absente ou ≠ true) : build NON signé, publication autorisée"
+            else
+              echo "→ aucun certificat : build NON signé (aucun publisherName embarqué) — état de référence (1.0.9), publication autorisée"
+            fi
             npm run check:release:tag
             npm run electron:release
             npm run release:promote

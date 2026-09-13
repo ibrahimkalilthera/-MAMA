@@ -238,10 +238,21 @@ sur celui-là.
    - `CSC_PFX_B64` : le contenu base64 du `.pfx`
    - `CSC_KEY_PASSWORD` : le mot de passe du certificat
 
+   Et **une variable**, dans l'onglet *Variables* du même écran :
+   `SIGNING_ENABLED` = `true`. C'est elle qui rend la signature **utilisable** —
+   les secrets seuls ne décident plus de rien. La raison est mesurée : un
+   certificat de **test** resté dans ces secrets a été pris par le runner, gravé
+   dans le contrat du binaire (1.0.8) et a gelé le parc. Sans le choix explicite,
+   un secret oublié ne peut plus signer ce qu'on livre.
+
 3. Déclenchez **Actions → Desktop release (Windows) → Run workflow**. Le
    workflow `.github/workflows/desktop-release.yml` restaure le certificat,
    signe le build et publie le GitHub Release (setup.exe + portable +
-   `latest.yml`) — le canal electron-updater devient actif.
+   `latest.yml`) — le canal electron-updater devient actif. Si un certificat est
+   présent dans les secrets mais que `SIGNING_ENABLED` vaut autre chose que
+   `true`, le journal du job le dit en toutes lettres (`signature ÉTEINTE`) et la
+   publication part **non signée** : la voie normale de livraison ne dépend plus
+   d'un secret, et rien ne peut être signé par surprise.
 
    Sans secret `CSC_PFX_B64`, le workflow construit **sans** signature et
    **publie quand même** (décision du 2026-09-13). L'état publié est celui de la

@@ -717,6 +717,39 @@ describe('le câblage du contrôle', () => {
     );
   });
 
+  it('signer est un CHOIX explicite, jamais la conséquence d’un secret présent', () => {
+    // Le 2026-09-13, la 1.0.8 a été signée par un certificat de test **parce
+    // qu'il était dans les secrets** : le runner l'a pris, le binaire a promis ce
+    // signataire, et chaque poste équipé a gelé. La présence d'un secret n'est
+    // pas une décision — l'usage dépend donc d'une variable de dépôt, et sans
+    // elle les secrets sont restaurés et JAMAIS employés.
+    const workflow = read('.github/workflows/desktop-release.yml');
+    assert.match(
+      workflow,
+      /SIGNING_ENABLED: \$\{\{ vars\.SIGNING_ENABLED \}\}/,
+      'le choix vient d’une VARIABLE (publique, relisible), pas d’un secret',
+    );
+    assert.match(
+      workflow,
+      /if \[ "\$SIGNING_ENABLED" = "true" \] && \[ -f "\$RUNNER_TEMP\/code-sign\.pfx" \]/,
+      'la branche signée exige le choix ET le certificat, dans cet ordre de lecture',
+    );
+    assert.match(
+      workflow,
+      /signature ÉTEINTE/,
+      'un certificat présent mais non employé est NOMMÉ au lieu d’être tu',
+    );
+    // Le fichier de certificat est encore TESTÉ dans la branche non signée —
+    // pour nommer le cas mesuré (« présent mais non employé »), jamais pour
+    // décider. Ce qui doit rester vrai : la restauration annonce qu'elle ne
+    // suffit pas, et la seule condition qui ouvre la signature est l'opt-in.
+    assert.match(
+      workflow,
+      /utilisé seulement si SIGNING_ENABLED=true/,
+      'la restauration l’annonce : le secret est POSÉ, pas employé',
+    );
+  });
+
   it('le gate s’exécute sans jeton et sans réseau en mode local', () => {
     const source = read('scripts/check-release-coherence.mjs');
     assert.match(source, /if \(MODE === 'local'\)[\s\S]*process\.exit\(0\)/, 'le mode local rend son verdict avant tout appel réseau');
