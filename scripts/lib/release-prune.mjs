@@ -249,6 +249,29 @@ export function prunePlan({ currentVersion = '', local = [], published = [], sta
 }
 
 /**
+ * La commande qui applique RÉELLEMENT ce plan.
+ *
+ * Un rappel qui dit « relance avec --yes » s'est déjà trompé ici, et de la pire
+ * façon : en silence. `--yes` seul n'applique que les départs qu'une EMPREINTE
+ * autorise ; sur un plan de reconstructions (`--stale`) ou de builds jamais
+ * livrés (`--unpublished`), il redemandait donc exactement la commande qu'on
+ * venait de taper — et l'appliquer n'enlevait RIEN. Un plan qu'on croit appliqué
+ * et qui n'a rien fait ne se relit pas comme un plan vide : il se relit comme un
+ * ménage fait. Les drapeaux sont donc DÉDUITS des catégories présentes, jamais
+ * écrits d'avance.
+ *
+ * @param {{ remove?: { kind?: string }[] }} plan
+ * @returns {string} la ligne exacte à recopier, `--yes` compris
+ */
+export function pruneCommand({ remove = [] } = {}) {
+  const kinds = new Set(remove.map((item) => item?.kind));
+  const flags = ['--yes'];
+  if (kinds.has('stale')) flags.push('--stale');
+  if (kinds.has('unpublished')) flags.push('--unpublished');
+  return `npm run release:prune -- ${flags.join(' ')}`;
+}
+
+/**
  * `a` strictement plus basse que `b`.
  *
  * Une version illisible n'est JAMAIS « plus basse » : `compareVersions` rend

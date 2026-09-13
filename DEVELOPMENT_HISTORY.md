@@ -1,3 +1,24 @@
+## [2026-09-13] Le rappel de `release:prune` déduit ses drapeaux du plan
+
+Demande : « Commite et pousse l'acte --unpublished de release/ avec un message au style du repo. »
+
+**Trouvé en montrant l'acte une dernière fois en lecture seule, après l'avoir committé.** La ligne de fin disait `Applique-le : npm run release:prune -- --yes` — une phrase écrite d'avance. Or `--yes` seul n'applique que les départs qu'une **empreinte** autorise, et le plan de ce dossier ne contient que des `unpublished` : recopier la commande annoncée n'aurait **rien** enlevé. Le pire n'est pas d'échouer, c'est de réussir à ne rien faire : un plan qu'on croit appliqué et qui n'a rien fait ne se relit pas comme un plan vide, il se relit comme un ménage fait — et la 1.0.0 serait restée, avec la conviction du contraire.
+
+**L'ironie est que la phrase juste était juste en dessous.** C'est le paragraphe suivant (`Aucune empreinte ne peut les autoriser : c'est la comparaison qui les dit morts, et la décision qui les enlève.`) qui portait déjà, correctement, la distinction des trois actes — ajoutée la veille exactement pour ça. Le commentaire disait donc la bonne chose pendant que la commande, deux lignes plus haut, disait l'ancienne. Un texte et une commande qui répondent à la même question dans le même bloc doivent la lire au même endroit.
+
+**Corrigé à la source, pas dans la phrase.** `pruneCommand(plan)` vit dans le module **pur** (`scripts/lib/release-prune.mjs`) : il lit les `kind` présents dans le plan et en déduit les drapeaux, dans l'ordre où ils se lisent (`--yes`, puis `--stale`, puis `--unpublished`), avec `--yes` toujours présent puisqu'il EST l'acte. Le CLI l'imprime, il ne l'écrit plus. Un plan mixte reçoit donc les deux drapeaux : un seul oubli laisserait la moitié du dossier en place pendant que le rappel prétendrait l'avoir appliqué.
+
+```
+plan de reconstructions (--stale)   →  npm run release:prune -- --yes --stale
+plan jamais livré (--unpublished)   →  npm run release:prune -- --yes --unpublished
+plan mixte des trois                →  npm run release:prune -- --yes --stale --unpublished
+plan vide                           →  npm run release:prune -- --yes
+```
+
+**Prouvé sur le dossier réel**, pas seulement par les cas : `release/` annonce maintenant `Applique-le : npm run release:prune -- --yes --unpublished` (3 fichiers, 246 Mo), là où il annonçait `--yes` seul. L'acte lui-même n'a **pas** été exécuté — il reste l'acte de l'humain, et c'est précisément pour ça que son rappel doit être juste.
+
+**Mesures** : `1399/1399` tests (+5 : les trois actes, le mixte, et cette phrase figée qui ne doit pas revenir), `npm run lint` vert. Commit `32a159a` (l'acte) déjà poussé ; ce correctif est le seul contenu neuf.
+
 ## [2026-09-13] Notre tri du canal ne désigne plus ce qu'aucun poste ne lit
 
 Demande : « Corrige notre tri « le plus récent publié » pour qu'une pré-version ne soit plus désignée comme le plus récent, afin que la ligne de divergence ne reproche plus au canal notre propre imprécision. »

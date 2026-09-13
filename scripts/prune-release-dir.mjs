@@ -68,7 +68,7 @@ import { existsSync, readFileSync, readdirSync, statSync, unlinkSync } from 'nod
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { artifactVersion, formatBytes, prunePlan } from './lib/release-prune.mjs';
+import { artifactVersion, formatBytes, pruneCommand, prunePlan } from './lib/release-prune.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -228,9 +228,12 @@ if (!apply) {
     : plan.remove.every((r) => r.kind === 'unpublished')
       ? '   Aucune empreinte ne peut les autoriser : c’est la comparaison qui les dit morts, et la décision qui les enlève.'
       : '   Chaque ligne dit par quoi elle est autorisée — empreinte, numéro déjà pris, ou décision humaine.';
+  // La commande vient du plan, pas d'une phrase écrite d'avance : `--yes` seul
+  // n'applique que les départs prouvés par une empreinte, donc la recopier sur un
+  // plan de reconstructions ou de builds jamais livrés n'enlèverait rien.
   console.log(
     `\nℹ️  plan seulement — rien n'a été supprimé (${plan.remove.length} fichier(s), ${formatBytes(plan.bytesFreed)} libérables).\n` +
-      '   Applique-le : npm run release:prune -- --yes\n' +
+      `   Applique-le : ${pruneCommand(plan)}\n` +
       how,
   );
   reportLeftoverDivergencesAndExit();

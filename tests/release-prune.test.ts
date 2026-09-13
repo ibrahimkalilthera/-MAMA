@@ -22,7 +22,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 
-import { artifactVersion, formatBytes, prunePlan } from '../scripts/lib/release-prune.mjs';
+import { artifactVersion, formatBytes, pruneCommand, prunePlan } from '../scripts/lib/release-prune.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
@@ -311,6 +311,68 @@ describe('ce que le plan ne touche jamais', () => {
   it('une taille lisible, pour que le plan se lise sans compter des zéros', () => {
     assert.equal(formatBytes(512), '512 o');
     assert.equal(formatBytes(129080968), '123 Mo');
+  });
+});
+
+describe('le rappel du plan applique VRAIMENT ce plan', () => {
+  it('un plan de reconstructions redemande --stale : --yes seul n’enlèverait rien', () => {
+    // Mesuré le 13/09 sur le dossier réel : le plan de la 1.0.0 seule annonçait
+    // « Applique-le : npm run release:prune -- --yes » — or `--yes` seul n'applique
+    // que les départs qu'une empreinte autorise, donc l'exécuter n'aurait rien
+    // enlevé. Un plan qu'on croit appliqué et qui n'a rien fait ne se relit pas
+    // comme un plan vide : il se relit comme un ménage fait.
+    const plan = prunePlan({
+      currentVersion: '1.0.6',
+      stale: true,
+      local: [local(setup('1.0.5'), 'octets-reconstruits-locaux')],
+      published: [release('1.0.5', [held(setup('1.0.5'), 'octets-du-canal')])],
+    });
+    assert.match(plan.remove[0].reason, /le canal sert DÉJÀ 1\.0\.5/, 'le motif est bien celui de la reconstruction locale');
+    assert.equal(pruneCommand(plan), 'npm run release:prune -- --yes --stale');
+  });
+
+  it('un plan de builds jamais livrés redemande --unpublished', () => {
+    const plan = prunePlan({
+      currentVersion: '1.0.6',
+      unpublished: true,
+      local: [local(portable('1.0.0'), 'octets-1.0.0')],
+      published: [release('1.0.1', [held(setup('1.0.1'), 'x')])],
+    });
+    assert.equal(plan.remove[0].kind, 'unpublished');
+    assert.equal(pruneCommand(plan), 'npm run release:prune -- --yes --unpublished');
+  });
+
+  it('un plan mixte demande LES DEUX drapeaux — un seul oubli laisserait la moitié en place', () => {
+    const plan = prunePlan({
+      currentVersion: '1.0.6',
+      stale: true,
+      unpublished: true,
+      local: [
+        local(setup('1.0.5'), 'octets-reconstruits-locaux'),
+        local(portable('1.0.0'), 'octets-1.0.0'),
+        local(setup('1.0.4'), 'octets-1.0.4'),
+      ],
+      published: [
+        release('1.0.5', [held(setup('1.0.5'), 'octets-du-canal')]),
+        release('1.0.4', [held(setup('1.0.4'), 'octets-1.0.4')]),
+      ],
+    });
+    assert.deepEqual([...new Set(plan.remove.map((r) => r.kind))].sort(), ['digest', 'stale', 'unpublished']);
+    assert.equal(pruneCommand(plan), 'npm run release:prune -- --yes --stale --unpublished');
+  });
+
+  it('un plan vide ne propose que l’acte nu : rien à autoriser, rien à ajouter', () => {
+    assert.equal(pruneCommand({ remove: [] }), 'npm run release:prune -- --yes');
+  });
+
+  it('le CLI imprime la commande du plan, il ne l’écrit pas d’avance', () => {
+    const source = read('scripts/prune-release-dir.mjs');
+    assert.match(source, /Applique-le : \$\{pruneCommand\(plan\)\}/, 'la commande vient du plan');
+    assert.doesNotMatch(
+      source,
+      /Applique-le : npm run release:prune -- --yes$/m,
+      'et surtout pas d’une phrase figée, qui redevient fausse dès qu’un acte s’ajoute',
+    );
   });
 });
 
