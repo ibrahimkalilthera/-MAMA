@@ -207,11 +207,17 @@ describe('release:prune --check — l’objection automatique', () => {
   });
 
   it('hors ligne, le hook se tait EN LE DISANT ; sans la dérogation, c’est un échec', () => {
-    const strict = runCli(['--check', '--channel=absent-partout.json']);
+    // L’atelier doit EXISTER : sur un runner, `release/` n’est pas là, et le CLI
+    // répond alors « atelier non applicable » AVANT de lire le canal — donc en 0.
+    // La première version de ce cas poussait le défaut par un `--dir` implicite et
+    // passait sur un poste de travail pour échouer en CI : un test qui dépend de
+    // l’état ambiant mesure la machine, pas le comportement.
+    const dir = atelier('check-hors-ligne', { 'MamaTheraFinance-1.0.0-setup.exe': 'octets' });
+    const strict = runCli([`--dir=${dir}`, '--check', '--channel=absent-partout.json']);
     assert.equal(strict.code, 2, '« je n’ai pas pu regarder » n’est jamais un vert');
     assert.match(strict.err, /canal illisible/);
 
-    const hook = runCli(['--check', '--channel=absent-partout.json'], { WORKSHOP_SOFT_OFFLINE: '1' });
+    const hook = runCli([`--dir=${dir}`, '--check', '--channel=absent-partout.json'], { WORKSHOP_SOFT_OFFLINE: '1' });
     assert.equal(hook.code, 0);
     assert.match(hook.err, /atelier NON jugé/, 'et la dégradation est nommée, jamais silencieuse');
     assert.match(hook.err, /la redondance n’est PAS prouvée/);
