@@ -206,10 +206,14 @@ function stubSupabase({
 
     // ─── students (REST) ─────────────────────────────────────────────────────
     const idMatch = restPath!.match(/^students\?id=eq\.([\w-]+)$/);
-    if (method === 'GET' && (idMatch || restPath === 'students')) {
-      const row = idMatch ? rows.find((r) => r.id === idMatch[1]) : undefined;
+    // La sonde de `replayableWrite` : retrouver la ligne de CE run par son nom
+    // (`students?select=*&name=eq.<PROBE_NAME>&limit=1`), pour ne pas la recréer.
+    const nameMatch = restPath!.match(/^students\?select=\*&name=eq\.([^&]+)/);
+    if (method === 'GET' && (idMatch || nameMatch || restPath === 'students')) {
       if (anon && leakAnonReads) return json(rows, 200);
       if (anon) return json([], 200); // RLS filters everything
+      if (nameMatch) return json(rows.filter((r) => r.name === decodeURIComponent(nameMatch[1])), 200);
+      const row = idMatch ? rows.find((r) => r.id === idMatch[1]) : undefined;
       return json(idMatch ? (row ? [row] : []) : rows, 200);
     }
 
@@ -258,13 +262,57 @@ function stubSupabase({
   };
 }
 
-const run = (opts: StubOptions = {}) =>
+/**
+ * La cadence de reprise, INJECTÉE : trois essais, aucune attente réelle.
+ *
+ * Les scripts attendent 700 ms puis 1,4 s entre deux essais (c'est voulu en
+ * production : on laisse passer un hoquet du gateway). Un test qui les paierait
+ * transformerait chaque scénario de panne en trois secondes de suite — donc la
+ * cadence est un paramètre, et la reprise se prouve sans l'attendre.
+ */
+const FAST_RETRY = { attempts: 3, waitMs: 0, sleep: async () => {} };
+
+/** Le monde qui hoquette : un 504 du gateway, pas une policy qui parle. */
+const flakyGateway = (
+  inner: typeof fetch,
+  hit: (url: string, init: RequestInit) => boolean,
+  times: number,
+) => {
+  let seen = 0;
+  const wrapper: typeof fetch = (input, init = {}) => {
+    if (hit(String(input), init) && ++seen <= times) {
+      return Promise.resolve(new Response('gateway timeout', { status: 504 }));
+    }
+    return inner(input, init);
+  };
+  return wrapper;
+};
+
+/** Compte les appels visés, pour prouver qui a été repris — et qui ne l'a pas été. */
+const counting = (inner: typeof fetch, hit: (url: string, init: RequestInit) => boolean) => {
+  let seen = 0;
+  const wrapper: typeof fetch = (input, init = {}) => {
+    if (hit(String(input), init)) seen += 1;
+    return inner(input, init);
+  };
+  return { wrapper, count: () => seen };
+};
+
+/** La lecture anon d'une table entière : `/rest/v1/students`, sans requête. */
+const isPlainGet = (table: string) => (url: string, init: RequestInit) =>
+  url.endsWith(`/rest/v1/${table}`) && (init.method ?? 'GET') === 'GET';
+
+/** L'en-tête d'authentification d'un appel, pour distinguer anon / service / session. */
+const authOf = (init: RequestInit) => String((init.headers as Record<string, string>)?.Authorization ?? '');
+
+const run = (opts: StubOptions = {}, fetchImpl: typeof fetch = stubSupabase(opts)) =>
   verifyAnonRls({
     base: 'http://stub',
     anonKey: 'anon-key',
     serviceKey: 'service-key',
-    fetchImpl: stubSupabase(opts),
+    fetchImpl,
     tables: TABLES,
+    retry: FAST_RETRY,
   });
 
 describe('verifyAnonRls (garde-fou CI RLS anon)', () => {
@@ -345,6 +393,7 @@ describe('verifyAnonRemote (garde-fou prod, anon seul, fail-on-breach)', () => {
       anonKey: 'anon-key',
       fetchImpl: stubSupabase(opts),
       tables: TABLES,
+      retry: FAST_RETRY,
     });
 
   it('passe sur la base distante saine : aucune donnée ni accès pour anon', async () => {
@@ -382,6 +431,7 @@ describe('verifyAnonRemote (garde-fou prod, anon seul, fail-on-breach)', () => {
       anonKey: 'anon-key',
       fetchImpl: stubSupabase(),
       tables: [...TABLES, 'ghost_table'],
+      retry: FAST_RETRY,
     });
     assert.equal(ok, false, 'une table absente de la base distante doit rendre le job rouge (dérive)');
     assert.ok(failures.some((f) => f.includes('table ghost_table absente de la base distante')), failures.join(' | '));
@@ -402,6 +452,7 @@ describe('détection d\'absence de backend — skip propre, jamais une brèche',
       serviceKey: 'service-key',
       fetchImpl: unreachable,
       tables: TABLES,
+      retry: FAST_RETRY,
     });
     assert.equal(skipped, true, 'backend absent → skipped, pas un échec rouge');
     assert.equal(ok, false);
@@ -421,6 +472,7 @@ describe('détection d\'absence de backend — skip propre, jamais une brèche',
       serviceKey: 'service-key',
       fetchImpl: flaky,
       tables: TABLES,
+      retry: FAST_RETRY,
     });
     assert.equal(skipped, true, 'panne en cours de run → skip, pas une brèche');
     assert.equal(ok, false);
@@ -432,9 +484,70 @@ describe('détection d\'absence de backend — skip propre, jamais une brèche',
       anonKey: 'anon-key',
       fetchImpl: unreachable,
       tables: TABLES,
+      retry: FAST_RETRY,
     });
     assert.equal(skipped, true, 'base distante absente → skip propre');
     assert.equal(ok, false);
     assert.deepEqual(failures, [], 'aucune fausse brèche sur la base distante morte');
+  });
+});
+
+describe('double brique du transport — un 504 du gateway n\'est pas un verdict', () => {
+  it('une coupure passagère sur une LECTURE est reprise, et la lecture reste jugée', async () => {
+    const counted = counting(flakyGateway(stubSupabase(), isPlainGet('students'), 1), isPlainGet('students'));
+    const { ok, skipped } = await run({}, counted.wrapper);
+    assert.equal(skipped, false, 'un hoquet absorbé par la reprise ne rend pas la passe inconclusive');
+    assert.equal(ok, true, 'après reprise, la lecture anon est bien refusée');
+    assert.equal(counted.count(), 2, 'une tentative 504 + une reprise — le hoquet a bien été rejoué');
+  });
+
+  it('une coupure qui SURVIT à la reprise rend la passe inconclusive, pas verte', async () => {
+    const { ok, failures, skipped } = await run({}, flakyGateway(stubSupabase(), isPlainGet('students'), 99));
+    // Avant la double brique, un 504 vivant était lu comme `!res.ok` : la lecture
+    // passait pour « refusée » et la passe sortait VERTE sans avoir rien prouvé.
+    assert.equal(ok, false, 'une lecture qu\'on n\'a pas pu juger ne vaut pas un vert');
+    assert.equal(skipped, true, 'elle vaut un SKIP explicite (exit 0) — jamais une brèche');
+    assert.deepEqual(failures, [], 'un 504 lu comme un refus anon aurait été le faux vert à éviter');
+  });
+
+  it('un VERDICT n\'est jamais repris : le refus 401 de la RPC est compté une fois', async () => {
+    const isAnonRpc = (url: string, init: RequestInit) =>
+      url.endsWith('/rest/v1/rpc/admin_set_user_password') && authOf(init).includes('anon-key');
+    const counted = counting(stubSupabase(), isAnonRpc);
+    const { ok } = await run({}, counted.wrapper);
+    assert.equal(ok, true);
+    assert.equal(counted.count(), 1, 'un 401 est une réponse, pas un hoquet : aucune reprise');
+  });
+
+  it('un 504 sur l\'ÉCRITURE de sonde ne double pas la ligne (sonde avant rejeu)', async () => {
+    let seedPosts = 0;
+    const inner = stubSupabase();
+    const isSeedPost = (url: string, init: RequestInit) =>
+      url.endsWith('/rest/v1/students') && (init.method ?? 'GET') === 'POST' && authOf(init).includes('service');
+    const losesTheAnswer: typeof fetch = (input, init = {}) => {
+      if (!isSeedPost(String(input), init)) return inner(input, init);
+      seedPosts += 1;
+      // Le gateway perd la réponse APRÈS avoir appliqué l'écriture : c'est le
+      // scénario exact où un rejeu à l'aveugle créerait une seconde ligne.
+      if (seedPosts === 1) return inner(input, init).then(() => new Response('gateway timeout', { status: 504 }));
+      return inner(input, init);
+    };
+    const { ok, skipped } = await run({}, losesTheAnswer);
+    assert.equal(skipped, false);
+    assert.equal(ok, true);
+    assert.equal(seedPosts, 1, 'la sonde a retrouvé la ligne déjà appliquée — aucun second POST');
+  });
+
+  it('en mode remote aussi : une coupure persistante SKIP au lieu de juger', async () => {
+    const { ok, failures, skipped } = await verifyAnonRemote({
+      base: 'http://stub',
+      anonKey: 'anon-key',
+      fetchImpl: flakyGateway(stubSupabase(), isPlainGet('students'), 99),
+      tables: TABLES,
+      retry: FAST_RETRY,
+    });
+    assert.equal(ok, false);
+    assert.equal(skipped, true, 'base distante qu\'on n\'a pas pu lire → inconclusif, pas un verdict');
+    assert.deepEqual(failures, []);
   });
 });

@@ -30,6 +30,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
+import { withTransientRetry } from './lib/transient-http.mjs';
 
 const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const SPAWN_OPTS = { shell: process.platform === 'win32' };
@@ -127,26 +128,50 @@ function compareVersions(a, b) {
 
 // ─── GitHub REST (issues only; read-only when TOKEN is empty) ────────────────
 
-async function gh(path, init = {}, tries = 4) {
-  for (let i = 0; i < tries; i++) {
-    try {
-      const res = await fetch(API + path, {
-        ...init,
-        headers: {
-          'User-Agent': 'vercel-pins-watch',
-          Accept: 'application/vnd.github+json',
-          ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}),
-          ...(init.headers || {}),
-        },
-      });
-      if (res.ok) return res.status === 204 ? null : await res.json();
-      if (res.status === 404) return null;
-    } catch {
-      // network hiccup — retry
-    }
-    await sleep(2000);
+/**
+ * Un appel à l'API GitHub.
+ *
+ * La reprise vient de `transient-http.mjs`, la brique partagée du dépôt, et pas
+ * d'une boucle locale : celle-ci rejouait TOUT le même nombre de fois — un 401
+ * (token expiré), un 403 ou un 404 compris. Ce sont des RÉPONSES, pas des
+ * hoquets : les rejouer ne les répare pas, ça retarde seulement le rapport.
+ * Seules les coupures (429, 5xx, pannes réseau) sont reprises, bornées, et
+ * chaque reprise se voit dans le journal (un run qui a repris doit le dire,
+ * sinon « vert » ne distingue plus « tout allait bien » de « ça a fini par
+ * passer »).
+ *
+ * Cette veille est en LECTURE : rien à réconcilier ici — une issue créée deux
+ * fois serait un doublon visible dans l'issue elle-même, et la sonde coûterait
+ * un aller-retour par appel.
+ *
+ * @param {string} path
+ * @param {RequestInit} [init]
+ * @returns {Promise<any|null>} la charge utile, ou null (déjà rapporté ailleurs)
+ */
+async function gh(path, init = {}) {
+  try {
+    const res = await withTransientRetry(
+      () =>
+        fetch(API + path, {
+          ...init,
+          headers: {
+            'User-Agent': 'vercel-pins-watch',
+            Accept: 'application/vnd.github+json',
+            ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}),
+            ...(init.headers || {}),
+          },
+        }),
+      {
+        label: `${init.method ?? 'GET'} ${path} — `,
+        log: (m) => info(`↻ ${m}`),
+      },
+    );
+    if (res.ok) return res.status === 204 ? null : await res.json();
+    return null;
+  } catch {
+    // Coupure épuisée : même contrat qu'avant — null, jamais une exception.
+    return null;
   }
-  return null;
 }
 
 /** The open, non-PR issue carrying the vercel-pins label (our single tracker). */

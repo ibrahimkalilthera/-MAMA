@@ -228,6 +228,21 @@ describe('câblage du workflow Dependabot rebase', () => {
     assert.match(script, /TOKEN_ENV = 'REBASE_TOKEN'/, 'le seul token lu doit être celui du PAT dédié');
   });
 
+  it('rejoue les coupures par la brique partagée, et SONDÉ avant de rejouer une écriture', () => {
+    // Deux régressions que ce contrôle refuse, et elles sont arrivées ailleurs
+    // dans ce dépôt : une boucle de reprise MAISON (qui rejoue un verdict, et
+    // meurt avec le module qu'elle remplace) et une écriture rejouée à l'aveugle
+    // (ici : `update-branch` porteur de `expected_head_sha`, où un rejeu non sondé
+    // après un 504 rend un 422 lu comme un conflit).
+    assert.match(script, /withTransientRetry/, 'le transport retenté doit venir de la brique partagée');
+    assert.match(
+      script,
+      /replayableWrite\([\s\S]{0,400}update-branch/,
+      'la mise à jour de branche doit passer par le rejeu SONDÉ',
+    );
+    assert.doesNotMatch(script, /for \(let i = 0; i < tries/, 'plus de boucle de reprise maison');
+  });
+
   it('lance bien le script, et prouve le majeur Node exécuté', () => {
     assert.match(workflow, /node scripts\/rebase-dependabot-prs\.mjs/);
     assert.match(workflow, /node scripts\/check-node-version\.mjs/);

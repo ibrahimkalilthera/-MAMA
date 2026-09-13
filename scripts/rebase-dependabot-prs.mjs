@@ -46,6 +46,7 @@
 import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
+import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 
 const API = 'https://api.github.com';
 const DEFAULT_REPO = 'ibrahimkalilthera/-MAMA';
@@ -69,9 +70,7 @@ const TOKEN_ENV = 'REBASE_TOKEN';
  */
 const WORKFLOW_FILE = 'dependabot-rebase.yml';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// ── Décision (pure : tout est testable sans réseau) ─────────────────────────
+// ── Décision (pure : tout est testable sans réseau) ────────────────────────
 
 /**
  * Une PR est-elle une PR Dependabot rebasable ? Renvoie `{ ok: true }` ou
@@ -198,34 +197,49 @@ export async function rebaseOutOfDatePrs({ pulls, repo, compare, updateBranch, a
  * Un appel à l'API. Ne lève jamais : renvoie `{ ok, status, data, message }`,
  * pour que la boucle de décision traite un conflit (422) comme un cas normal et
  * une panne (401/403) comme un échec.
+ *
+ * La reprise vient de `transient-http.mjs` — la même brique que les autres
+ * contrôles du dépôt — au lieu d'une boucle locale qui rejouait TOUT sauf
+ * 401/403/422 : un 404, une réponse métier quelconque, étaient retentés trois
+ * fois pour rien. Ici, seules les COUPURES (429, 5xx, pannes réseau) sont
+ * rejouées, bornées, et chaque reprise se voit dans le journal.
+ *
+ * @param {string} method
+ * @param {string} path
+ * @param {any} [body]
+ * @param {string} token
+ * @returns {Promise<{ ok: boolean, status: number, data?: any, message?: string }>}
  */
-async function api(method, path, body, token, tries = 3) {
-  let last = { ok: false, status: 0, message: 'aucune tentative' };
-  for (let i = 0; i < tries; i++) {
-    try {
-      const res = await fetch(API + path, {
-        method,
-        headers: {
-          'User-Agent': 'dependabot-rebase',
-          Accept: 'application/vnd.github+json',
-          Authorization: `Bearer ${token}`,
-          ...(body ? { 'Content-Type': 'application/json' } : {}),
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      });
-      if (res.ok || res.status === 202) {
-        return { ok: true, status: res.status, data: res.status === 204 ? null : await res.json().catch(() => null) };
-      }
-      const payload = await res.json().catch(() => null);
-      last = { ok: false, status: res.status, message: payload?.message ?? res.statusText };
-      // Un refus d'autorisation ne se répare pas en réessayant.
-      if (res.status === 401 || res.status === 403 || res.status === 422) return last;
-    } catch (err) {
-      last = { ok: false, status: 0, message: err?.message ?? String(err) };
+async function api(method, path, body, token) {
+  // Une panne réseau REMONTE (la brique la classe et la rejoue) ; une réponse
+  // est rendue telle quelle — c'est la brique qui décide du sort d'un statut.
+  const attempt = async () => {
+    const res = await fetch(API + path, {
+      method,
+      headers: {
+        'User-Agent': 'dependabot-rebase',
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${token}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (res.ok || res.status === 202) {
+      return { ok: true, status: res.status, data: res.status === 204 ? null : await res.json().catch(() => null) };
     }
-    if (i < tries - 1) await sleep(2000);
+    const payload = await res.json().catch(() => null);
+    return { ok: false, status: res.status, message: payload?.message ?? res.statusText };
+  };
+  try {
+    return await withTransientRetry(attempt, {
+      label: `${method} ${path} — `,
+      log: (m) => console.log(`  ↻ ${m}`),
+    });
+  } catch (err) {
+    // Coupure épuisée : même contrat qu'avant — un échec, jamais une exception
+    // qui remonterait en stack trace.
+    return { ok: false, status: 0, message: err?.message ?? String(err) };
   }
-  return last;
 }
 
 function appendSummary(markdown) {
@@ -298,8 +312,28 @@ async function main() {
     pulls: listed.data,
     repo,
     compare: (headSha) => api('GET', `/repos/${repo}/compare/${BASE}...${headSha}`, null, token),
+    // La mise à jour de branche est un REJEU SONDÉ, et c'est ici que ça compte :
+    // un 504 tombe souvent APRÈS que la branche a été avancée, et la reprise
+    // porte le MÊME `expected_head_sha` — sans sonde, GitHub répond 422 (« does
+    // not match »), que la boucle de décision lirait comme un CONFLIT et
+    // « réparerait » en postant `@dependabot rebase` sur une PR déjà à jour. La
+    // sonde relit la PR : si la tête a bougé, l'écriture est déjà passée, et
+    // c'est SON résultat qui compte.
+    //
+    // (Le commentaire `@dependabot rebase`, lui, n'est pas sondé : un doublon
+    // éventuel n'ajoute qu'un commentaire, jamais un état faux.)
     updateBranch: (pr) =>
-      api('PUT', `/repos/${repo}/pulls/${pr.number}/update-branch`, { expected_head_sha: pr.head.sha }, token),
+      replayableWrite(
+        () => api('PUT', `/repos/${repo}/pulls/${pr.number}/update-branch`, { expected_head_sha: pr.head.sha }, token),
+        async () => {
+          const now = await api('GET', `/repos/${repo}/pulls/${pr.number}`, null, token);
+          const head = now.ok ? now.data?.head?.sha : null;
+          return head && head !== pr.head.sha
+            ? { ok: true, status: 202, message: `branche déjà avancée (${String(head).slice(0, 7)})` }
+            : null;
+        },
+        { label: `PUT update-branch #${pr.number} — `, log: (m) => console.log(`  ↻ ${m}`) },
+      ),
     askDependabot: (pr) =>
       api('POST', `/repos/${repo}/issues/${pr.number}/comments`, { body: '@dependabot rebase' }, token),
   });

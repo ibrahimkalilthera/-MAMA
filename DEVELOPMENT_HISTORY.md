@@ -1,3 +1,37 @@
+## [2026-09-13] La double brique de transport atteint les derniers maillons — et referme un faux vert du garde-fou RLS
+
+Demande : « applique la même double brique (transport retenté + rejeu sondé) aux scripts de la chaîne automate restants, en commençant par verify-anon-rls.mjs avec sa reprise injectable pour ne pas alourdir les tests ».
+
+**Le garde-fou qui juge les droits des autres était le seul sans transport retenté, et c'était un faux vert.** `verify-anon-rls.mjs` sondait déjà avant de rejouer ses écritures (`replayableWrite` sur la ligne de sonde et sur les trois comptes GoTrue), mais son `safeFetch` ne retentait rien : un **504 du gateway** sur une lecture anon tombait dans `refused = !res.ok || body.length === 0` — donc un hoquet de plateforme était compté comme un **refus RLS**, et la passe sortait **VERTE** sur une lecture qu'elle n'avait jamais pu juger. C'est le miroir exact du faux rouge payé par le pixel-check le 2026-09-12 : là, un 504 passait pour une brèche ; ici, pour une preuve.
+
+**Le transport devient une décision, plus une fonction de passage.** `makeTransport(fetchImpl, retry)` porte les trois issues, et chacune est un contrat :
+
+```
+une réponse qui parle de la RLS (200, 400, 401, 403)   un VERDICT — jamais rejoué
+429/502/503/504 + pannes réseau                        une COUPURE — reprise, bornée, journalisée
+ce qui SURVIT à la reprise                             une SENTINELLE {status: 0} → INCONCLUSIF (exit 0)
+```
+
+La sentinelle n'est pas une invention : le fichier la lisait déjà partout (`ok=false`) pour son mode « backend absent », donc la seule chose qui change est ce qu'elle **couvre** — un backend mort *et* une coupure qui ne se débouche pas. Une brèche réelle, elle, répond 200/400/401/403 : jamais 504 quatre fois de suite.
+
+**La cadence est injectable, et c'est ce qui rend la reprise prouvable sans l'attendre.** Les scripts gardent 700 ms puis 1,4 s entre essais (c'est voulu en production), donc les tests décident de la cadence (`{ attempts, waitMs, sleep }`) : cinq cas neufs, et la suite `anon-rls` complète tient en **0,5 s**.
+
+```
+504 passager sur une lecture      rejoué → lecture jugée → 2 appels mesurés sur cette table
+504 qui persiste                  INCONCLUSIF (skip, exit 0) — les vérifications restent vides
+verdict 401 (RPC pour anon)       jamais rejoué → 1 appel mesuré malgré 3 essais autorisés
+504 sur l'ÉCRITURE de sonde       sonde → ligne déjà appliquée → 1 seul POST (aucun doublon)
+balayage ci-probe-*                passe par `fetchRetried` : c'est ce 504-là qui avait laissé un compte
+```
+
+**Deux scripts de la chaîne automate remplaçaient la brique par une boucle maison, qui rejouait les verdicts.** `check-vercel-pins.mjs` rejouait un **401** (token expiré) et un **404** quatre fois ; `rebase-dependabot-prs.mjs` trois fois tout sauf 401/403/422 — un refus n'y était pas réparé, seulement **retardé**. Les deux passent par `withTransientRetry`.
+
+**Et la mise à jour de branche devient un rejeu SONDÉ, parce que le rejeu y était activement faux.** `PUT /pulls/{n}/update-branch` porte un `expected_head_sha` : rejoué à l'aveugle après un 504 déjà appliqué, GitHub répond **422**, que la boucle de décision lit comme un **conflit** — et « répare » en postant `@dependabot rebase` sur une PR qui venait d'être mise à jour. La sonde relit la tête de la PR (`GET /pulls/{n}`) : si elle a bougé, l'écriture est passée, et c'est son résultat qui compte. Le commentaire `@dependabot rebase`, lui, n'est pas sondé — un doublon n'y ajoute qu'un commentaire, jamais un état faux.
+
+**Deux pièges traversés, tous deux dus aux contrôles du dépôt qui se surveillent eux-mêmes.** Glisser `transport.guard(() => replayableWrite(...))` dans la **définition** de l'aide a fait rougir `check:e2e-writes` : il lit l'enrobage rejouable dans la **forme** de l'aide (le corps de la flèche EST l'appel de rejeu), donc la sentinelle est posée chez les **appelants**, pas dans la définition — c'est écrit dans le code, pour que personne ne la remette au mauvais endroit. Et la suppression du `sleep` devenu inutile dans le rebase était obligatoire, pas cosmétique : `eslint --max-warnings 0` refuse une variable morte.
+
+**Mesuré :** `npm test` **1326/1326** (+6), `npm run lint` vert sur les 21 contrôles inventoriés, `check:e2e-writes` « 6 scripts, 11 créations toutes traçables, 41 mutations », et la suite du rebase Dependabot verrouille désormais les deux moitiés (brique partagée + sonde) — une boucle de reprise maison ne peut plus revenir sans rougir.
+
 ## [2026-09-13] Deux preuves E2E qui ne tournaient nulle part tournent, et se mesurent
 
 Demande : « fais tourner e2e-business.mjs et verify-desktop-app.mjs dans un workflow, pour qu'ils publient enfin leur mesure au lieu de la garder pour eux ».

@@ -53,12 +53,30 @@
 // visible, exit 0, jamais une fausse brèche, jamais un crash avec stack
 // trace. Une brèche réelle reste un exit 1 ; un mode --remote avec clé
 // service reste un exit 2.
+//
+// ─── La double brique du transport (transient-http.mjs) ────────────────────
+// Un 504 du gateway n'est PAS un verdict sur la RLS, et un rejeu à l'aveugle
+// n'est pas une reprise :
+//   • les coupures passagères (429/502/503/504, pannes réseau) sont REPRISES,
+//     bornées et journalisées, par `makeTransport` — un 200/400/401/403 n'est
+//     jamais repris, c'est une réponse ;
+//   • une coupure qui SURVIT à la reprise devient une sentinelle {status: 0},
+//     donc INCONCLUSIF (skipped) : la lire comme un refus anon serait un faux
+//     vert, la lire comme une brèche un faux rouge ;
+//   • les écritures de sonde (ligne students, comptes GoTrue) passent par
+//     `replayableWrite` : la sonde demande si l'écriture est DÉJÀ passée avant
+//     de rejouer, donc une réponse perdue ne crée pas une deuxième identité ;
+//   • le balayage anti-résidus passe par `fetchRetried` — c'est précisément le
+//     504 qu'il a pris le 2026-09-12 qui avait laissé un compte en base.
+//
+// La cadence de reprise est INJECTABLE (`retry`) dans les deux passes : les
+// tests décident de la cadence (essais, attente, sleep) au lieu de l'attendre.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
-import { replayableWrite } from './lib/transient-http.mjs';
+import { isTransientStatus, replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 
 // Le nom sonde porte le jeton de SON run : c'est lui qui rend la ligne
 // retrouvable. Un nom fixe aurait fait ressembler deux exécutions (ou un rejeu
@@ -96,6 +114,28 @@ const readBody = async (res) => {
   }
 };
 
+/**
+ * Un appel HTTP qui survit à une coupure passagère.
+ *
+ * Le balayage de résidus ne pouvait pas non plus mourir d'un 504 : c'est
+ * exactement ainsi qu'un compte `ci-probe-*` est resté en base le 2026-09-12 —
+ * la suppression avait pris le même 504 que la création. Une coupure qui ne se
+ * débouche pas REMONTE (le balayage l'annonce comme partiel, il ne se tait pas).
+ *
+ * @param {string} url
+ * @param {RequestInit} [init]
+ * @param {object} [retry] cadence injectable, même contrat que `makeTransport`
+ * @returns {Promise<Response>}
+ */
+export const fetchRetried = (url, init = {}, retry = {}) => withTransientRetry(
+  async () => fetch(url, init),
+  {
+    label: `${init.method ?? 'GET'} ${url} — `,
+    log: (m) => console.log(`  ↻ ${m}`),
+    ...retry,
+  },
+);
+
 const makeCheck = () => {
   const failures = [];
   // Compteur VIVANT (un objet partagé, pas une valeur recopiée au moment du
@@ -113,8 +153,8 @@ const makeCheck = () => {
   };
 };
 
-const makeApi = (base, fetchImpl) => (path, key, init = {}) =>
-  fetchImpl(`${base}/rest/v1/${path}`, {
+const makeApi = (base, send) => (path, key, init = {}) =>
+  send(`${base}/rest/v1/${path}`, {
     ...init,
     headers: {
       apikey: key,
@@ -123,8 +163,8 @@ const makeApi = (base, fetchImpl) => (path, key, init = {}) =>
     },
   });
 
-const makeAuthApi = (base, fetchImpl) => (path, key, init = {}) =>
-  fetchImpl(`${base}/auth/v1/${path}`, {
+const makeAuthApi = (base, send) => (path, key, init = {}) =>
+  send(`${base}/auth/v1/${path}`, {
     ...init,
     headers: {
       apikey: key,
@@ -134,31 +174,93 @@ const makeAuthApi = (base, fetchImpl) => (path, key, init = {}) =>
   });
 
 /**
+ * Le transport d'une passe : une tentative nue, la reprise des coupures, et la
+ * sentinelle qui rend l'inconclusif au lieu d'inventer un verdict.
+ *
+ * Mesuré le 2026-09-12 : un 504 du gateway Supabase a fait rougir le
+ * pixel-check PDF alors que l'application était intacte — et la suppression du
+ * compte éphémère, qui avait pris le même 504, l'a laissé en base. Ce garde-fou
+ * est exposé exactement à la même panne : chaque lecture anon est un GET sur
+ * PostgREST, et un 504 tombe AVANT que la policy ait dit quoi que ce soit.
+ *
+ * Deux contrats, et ils ne se mélangent pas :
+ *   • une réponse HTTP qui dit quelque chose de la RLS (200, 400, 401, 403) est
+ *     un VERDICT : elle n'est jamais reprise. Seules 429/502/503/504 le sont —
+ *     elles ne parlent pas de l'application ;
+ *   • ce qui SURVIT à la reprise (coupure qui ne se débouche pas, réseau mort)
+ *     devient une sentinelle `{status: 0}` : ce fichier la lisait déjà comme
+ *     « SKIP, pas une brèche », et une coupure lue comme un refus serait
+ *     exactement le faux vert qu'un garde-fou ne doit pas produire.
+ *
+ * `attempt` est la brique NUE (une tentative, qui remonte ses pannes) : elle est
+ * réservée aux écritures passées à `replayableWrite`, qui porte DÉJÀ la reprise
+ * avec sa sonde — les empiler multiplierait les essais sur le même POST.
+ *
+ * La cadence est INJECTABLE (`retry`) : les tests n'en paient pas les attentes.
+ *
+ * @param {typeof fetch} fetchImpl
+ * @param {{ attempts?: number, waitMs?: number, maxWaitMs?: number, sleep?: (ms: number) => Promise<void>,
+ *   log?: (message: string) => void, label?: string }} [retry] options de reprise, injectables
+ */
+function makeTransport(fetchImpl, retry = {}) {
+  const state = { error: null };
+  const sentinel = () => ({ status: 0, ok: false, text: async () => '' });
+  const retryOptions = (method) => ({
+    label: `${method} — `,
+    log: (m) => console.log(`  ↻ ${m}`),
+    ...retry,
+  });
+
+  /** Inconclusif : une panne de transport, ou une coupure qui a survécu. */
+  const guard = async (fn) => {
+    try {
+      const res = await fn();
+      if (isTransientStatus(res?.status)) {
+        state.error ??= new Error(`HTTP ${res.status} — coupure persistante après reprise`);
+        return sentinel();
+      }
+      return res;
+    } catch (err) {
+      state.error ??= err;
+      return sentinel();
+    }
+  };
+
+  return {
+    /** Une tentative, telle quelle — une panne réseau REMONTE (la reprise décide). */
+    attempt: (url, init) => fetchImpl(url, init),
+    /** L'appel ordinaire : coupures reprises, sentinelle en dernier recours. */
+    retried: (url, init) =>
+      guard(() => withTransientRetry(() => fetchImpl(url, init), retryOptions(init?.method ?? 'GET'))),
+    guard,
+    get error() {
+      return state.error;
+    },
+  };
+}
+
+/**
  * @param {object} opts
  * @param {string} opts.base
  * @param {string} opts.anonKey
  * @param {string} opts.serviceKey
  * @param {typeof fetch} [opts.fetchImpl]
  * @param {string[]} opts.tables
+ * @param {object} [opts.retry] cadence de reprise, injectable (essais, attente, sleep)
  */
-export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fetch, tables }) {
+export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fetch, tables, retry = {} }) {
   const { failures, check, state } = makeCheck();
 
-  // Garde de transport : un fetch rejeté (backend absent, Docker down, blip
-  // réseau) ne doit NI crasher le garde-fou NI se lire comme une brèche — il
-  // rend la passe INCONCLUSIVE (skipped), avec la cause réelle dans la
-  // bannière. Les sentinelles {status: 0} sont acceptées partout (ok=false).
-  let transportError = null;
-  const safeFetch = async (url, init) => {
-    try {
-      return await fetchImpl(url, init);
-    } catch (err) {
-      transportError ??= err;
-      return { status: 0, ok: false, text: async () => '' };
-    }
-  };
-  const api = makeApi(base, safeFetch);
-  const authApi = makeAuthApi(base, safeFetch);
+  // Le transport : chaque appel est REPRIS sur une coupure passagère, et ce qui
+  // survit (réseau mort, coupure persistante) devient une sentinelle {status: 0}
+  // — donc INCONCLUSIF (skipped), jamais une brèche inventée.
+  const transport = makeTransport(fetchImpl, retry);
+  const api = makeApi(base, transport.retried);
+  const authApi = makeAuthApi(base, transport.retried);
+  // Le transport NU pour les ÉCRITURES de sonde : `replayableWrite` porte déjà
+  // la reprise, avec sa sonde anti-doublon.
+  const rawApi = makeApi(base, transport.attempt);
+  const rawAuthApi = makeAuthApi(base, transport.attempt);
 
   /**
    * Crée un utilisateur auth via service_role, sans jamais en créer deux.
@@ -168,37 +270,46 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
    * le compte resterait en base. La sonde relit le compte par son email (unique
    * côté GoTrue) et le réutilise ; la clé de réconciliation est donc l'EMAIL, et
    * `label` ne sert qu'au journal.
+   *
+   * La sentinelle d'inconclusif est posée chez les APPELANTS
+   * (`transport.guard(() => createAuthUser(...))`), pas dans cette définition :
+   * `check:e2e-writes` lit l'enrobage rejouable dans la FORME de l'aide (le corps
+   * de la flèche EST l'appel de rejeu), et glisser une couche de plus dans la
+   * définition lui ferait perdre la trace du rejeu — le contrôle deviendrait
+   * rouge sur du code correct, ou pire, aveugle.
    */
   const createAuthUser = (email, label) => replayableWrite(
-    () => authApi('admin/users', serviceKey, {
+    () => rawAuthApi('admin/users', serviceKey, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password: 'probe-pass-123', email_confirm: true }),
     }),
     async () => {
-      const probe = await authApi(`admin/users?email=${encodeURIComponent(email)}`, serviceKey);
+      const probe = await rawAuthApi(`admin/users?email=${encodeURIComponent(email)}`, serviceKey);
       const found = probe.ok ? (await readBody(probe))?.users?.[0] : null;
       if (found?.id) console.log(`  ↻ utilisateur ${label} : déjà créé — réutilisé`);
       return found?.id ? probedResponse(found) : null;
     },
-    { label: `POST /auth/v1/admin/users (${label}) — `, log: (m) => console.log(`  ↻ ${m}`) },
+    { label: `POST /auth/v1/admin/users (${label}) — `, log: (m) => console.log(`  ↻ ${m}`), ...retry },
   );
 
   const finish = () => {
-    if (transportError) {
-      console.log(`⚠ backend injoignable en cours de route (${transportError.message}) — vérification RLS SKIPPÉE, pas une brèche.`);
+    if (transport.error) {
+      console.log(`⚠ backend injoignable en cours de route (${transport.error.message}) — vérification RLS SKIPPÉE, pas une brèche.`);
       return { ok: false, failures, skipped: true, checks: state.total };
     }
     return { ok: failures.length === 0, failures, skipped: false, checks: state.total };
   };
 
   // 0. Backend joignable ? TOUTE réponse HTTP le prouve (même 404/500) — seul
-  // un rejet réseau signifie l'absence du backend. Skip propre, pas de probes.
-  const ping = await safeFetch(`${base}/rest/v1/`, {
+  // un rejet réseau significait l'absence du backend (et, depuis que les
+  // coupures sont reprises, une coupure qui SURVIT à la reprise : dans les deux
+  // cas la sentinelle vaut 0). Skip propre, pas de probes.
+  const ping = await transport.retried(`${base}/rest/v1/`, {
     headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
   });
   if (ping.status === 0) {
-    console.log(`⚠ backend Supabase injoignable (${transportError?.message ?? 'réseau'}) — vérification RLS SKIPPÉE, pas une brèche. Relancez une fois le backend démarré.`);
+    console.log(`⚠ backend Supabase injoignable (${transport.error?.message ?? 'réseau'}) — vérification RLS SKIPPÉE, pas une brèche. Relancez une fois le backend démarré.`);
     return { ok: false, failures, skipped: true, checks: state.total };
   }
   console.log(`✓ backend Supabase joignable (HTTP ${ping.status})`);
@@ -209,8 +320,8 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   check(tables.length > 0, `${tables.length} tables publiques découvertes dans les migrations`);
 
   // 1. Seed d'une ligne métier via service_role.
-  const seed = await replayableWrite(
-    () => api('students', serviceKey, {
+  const seed = await transport.guard(() => replayableWrite(
+    () => rawApi('students', serviceKey, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Prefer: REP },
       body: JSON.stringify({ name: PROBE_NAME }),
@@ -220,13 +331,13 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
     // (qui supprime par l'id rendu) n'aurait jamais connu la première. La
     // sonde retrouve la ligne par le nom de sonde, qui porte le jeton du run.
     async () => {
-      const probe = await api(`students?select=*&name=eq.${encodeURIComponent(PROBE_NAME)}&limit=1`, serviceKey);
+      const probe = await rawApi(`students?select=*&name=eq.${encodeURIComponent(PROBE_NAME)}&limit=1`, serviceKey);
       const row = probe.ok ? (await readBody(probe))[0] : null;
       if (row?.id) console.log('  ↻ ligne de sonde : déjà présente — réutilisée');
       return row?.id ? probedResponse([row]) : null;
     },
-    { label: 'POST /rest/v1/students (sonde RLS) — ', log: (m) => console.log(`  ↻ ${m}`) },
-  );
+    { label: 'POST /rest/v1/students (sonde RLS) — ', log: (m) => console.log(`  ↻ ${m}`), ...retry },
+  ));
   // Sans Prefer: return=representation, PostgREST répond 201 avec un corps
   // VIDE (return=minimal) — le header est requis pour récupérer l'id seedé.
   const seedBody = seed.ok ? await readBody(seed) : null;
@@ -305,7 +416,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   // cette ligne (FK vers auth.users), PATCH/DELETE anon seraient vides — le
   // même piège 204 que pour students.
   const probeEmail = ephemeralEmail('ci-probe', 'example.test');
-  const adminCreate = await createAuthUser(probeEmail, 'utilisateur A');
+  const adminCreate = await transport.guard(() => createAuthUser(probeEmail, 'utilisateur A'));
   const createdUser = adminCreate.ok ? await readBody(adminCreate) : null;
   check(adminCreate.ok && createdUser?.id != null, `création utilisateur auth via service_role (${adminCreate.status})`);
   if (!createdUser?.id) return finish();
@@ -369,7 +480,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   // 14. Deuxième utilisateur : prouver qu'un utilisateur authentifié ne voit
   // que SON profil exige au moins 2 lignes en base.
   const secondEmail = ephemeralEmail('ci-probe-b', 'example.test');
-  const adminCreateB = await createAuthUser(secondEmail, 'utilisateur B');
+  const adminCreateB = await transport.guard(() => createAuthUser(secondEmail, 'utilisateur B'));
   const userB = adminCreateB.ok ? await readBody(adminCreateB) : null;
   check(adminCreateB.ok && userB?.id != null, `création deuxième utilisateur auth (${adminCreateB.status})`);
   if (!userB?.id) return finish();
@@ -454,7 +565,7 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   // 18. Créer un utilisateur C puis promouvoir son profil en 'admin' (via
   // service_role — la RLS est contournée, mais le rôle est posé en base).
   const adminEmail = ephemeralEmail('ci-probe-admin', 'example.test');
-  const adminCreateC = await createAuthUser(adminEmail, 'utilisateur admin');
+  const adminCreateC = await transport.guard(() => createAuthUser(adminEmail, 'utilisateur admin'));
   const userC = adminCreateC.ok ? await readBody(adminCreateC) : null;
   check(adminCreateC.ok && userC?.id != null, `création utilisateur admin (${adminCreateC.status})`);
   if (!userC?.id) return finish();
@@ -546,27 +657,21 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
  * @param {string} opts.anonKey
  * @param {typeof fetch} [opts.fetchImpl]
  * @param {string[]} opts.tables
+ * @param {object} [opts.retry] cadence de reprise, injectable (essais, attente, sleep)
  */
-export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, tables }) {
+export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, tables, retry = {} }) {
   const { failures, check, state } = makeCheck();
 
-  // Même garde de transport que verifyAnonRls : backend absent ou panne en
-  // cours de route → INCONCLUSIF (skipped), jamais une brèche, jamais un crash.
-  let transportError = null;
-  const safeFetch = async (url, init) => {
-    try {
-      return await fetchImpl(url, init);
-    } catch (err) {
-      transportError ??= err;
-      return { status: 0, ok: false, text: async () => '' };
-    }
-  };
-  const api = makeApi(base, safeFetch);
-  const authApi = makeAuthApi(base, safeFetch);
+  // Même transport que verifyAnonRls : les coupures sont reprises, et ce qui
+  // survit (réseau mort, coupure persistante) est INCONCLUSIF (skipped) —
+  // jamais une brèche, jamais un crash, jamais un refus lu comme un verdict.
+  const transport = makeTransport(fetchImpl, retry);
+  const api = makeApi(base, transport.retried);
+  const authApi = makeAuthApi(base, transport.retried);
 
   const finish = () => {
-    if (transportError) {
-      console.log(`⚠ backend injoignable en cours de route (${transportError.message}) — vérification RLS SKIPPÉE, pas une brèche.`);
+    if (transport.error) {
+      console.log(`⚠ backend injoignable en cours de route (${transport.error.message}) — vérification RLS SKIPPÉE, pas une brèche.`);
       return { ok: false, failures, skipped: true, checks: state.total };
     }
     return { ok: failures.length === 0, failures, skipped: false, checks: state.total };
@@ -574,11 +679,11 @@ export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, table
 
   // 0. Base distante joignable ? Toute réponse HTTP suffit ; un rejet réseau
   // (blip, DNS, base éteinte) → skip propre, pas une fausse alerte prod.
-  const ping = await safeFetch(`${base}/rest/v1/`, {
+  const ping = await transport.retried(`${base}/rest/v1/`, {
     headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
   });
   if (ping.status === 0) {
-    console.log(`⚠ base distante injoignable (${transportError?.message ?? 'réseau'}) — vérification RLS SKIPPÉE, pas une brèche.`);
+    console.log(`⚠ base distante injoignable (${transport.error?.message ?? 'réseau'}) — vérification RLS SKIPPÉE, pas une brèche.`);
     return { ok: false, failures, skipped: true, checks: state.total };
   }
   console.log(`✓ base distante joignable (HTTP ${ping.status})`);
@@ -729,7 +834,7 @@ if (isMain) {
       if (serviceKey) {
         try {
           const list = await (
-            await fetch(`${base}/auth/v1/admin/users?per_page=1000`, {
+            await fetchRetried(`${base}/auth/v1/admin/users?per_page=1000`, {
               headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
             })
           ).json();
@@ -737,10 +842,12 @@ if (isMain) {
             /^ci-probe-.*@example\.test$/i.test(u.email || '')
           );
           for (const u of probes) {
-            const del = await fetch(`${base}/auth/v1/admin/users/${u.id}`, {
+            const del = await fetchRetried(`${base}/auth/v1/admin/users/${u.id}`, {
               method: 'DELETE',
               headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
             });
+            // 404 = déjà supprimé (une reprise après réponse perdue) : le
+            // résidu n'est plus là, c'est tout ce que ce balayage promet.
             console.log(`  🧹 résidu ci-probe supprimé (${u.email}, HTTP ${del.status})`);
           }
           if (!probes.length) console.log('  🧹 aucun résidu ci-probe-* à nettoyer');
