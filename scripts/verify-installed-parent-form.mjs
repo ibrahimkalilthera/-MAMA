@@ -40,7 +40,7 @@ import { join } from 'node:path';
 import puppeteer from 'puppeteer-core';
 
 import { publishedInstaller } from './lib/channel-installer.mjs';
-import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { assertEphemeralTarget, ephemeralEmail, pickEphemeralUser } from './lib/ephemeral-accounts.mjs';
 import { sweepOrphanElectron } from './lib/orphan-chrome.mjs';
 import { PARENT_FIELD_PATTERNS, parentFormVerdict } from './lib/parent-form-contract.mjs';
 import { replayableWrite } from './lib/transient-http.mjs';
@@ -237,14 +237,17 @@ try {
   const created = await replayableWrite(
     () => raw('/auth/v1/admin/users', { method: 'POST', body: JSON.stringify({ email, password: PASS, email_confirm: true }) }),
     async () => {
-      const probe = await raw(`/auth/v1/admin/users?email=${encodeURIComponent(email)}`);
-      const found = Array.isArray(probe.body?.users) ? probe.body.users[0] : null;
+      // `?email=` est ignoré par cette version de GoTrue (mesuré le 2026-09-13) :
+      // on liste, puis on compare l'email exactement côté client.
+      const probe = await raw('/auth/v1/admin/users?per_page=1000');
+      const found = pickEphemeralUser(probe.body?.users, email);
       return found?.id ? { status: 200, body: { id: found.id } } : null;
     },
     { label: 'POST /auth/v1/admin/users — ', log: (m) => console.log(`  ↻ ${m}`) },
   );
   if (!created.body?.id) await fail('compte éphémère non créé', [`${created.status} ${JSON.stringify(created.body ?? null).slice(0, 120)}`]);
   uid = created.body.id;
+  assertEphemeralTarget(email); // jamais un compte réel, même si la sonde se trompait
   console.log(`✅ compte éphémère ${email}`);
   await wait(2500);
   const up = await fetch(`${BASE}/rest/v1/user_profiles?id=eq.${uid}`, {

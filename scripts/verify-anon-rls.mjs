@@ -74,7 +74,7 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { ephemeralEmail, pickEphemeralUser } from './lib/ephemeral-accounts.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { isTransientStatus, replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 
@@ -285,8 +285,11 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
       body: JSON.stringify({ email, password: 'probe-pass-123', email_confirm: true }),
     }),
     async () => {
-      const probe = await rawAuthApi(`admin/users?email=${encodeURIComponent(email)}`, serviceKey);
-      const found = probe.ok ? (await readBody(probe))?.users?.[0] : null;
+      // `?email=` est ignoré par cette version de GoTrue (mesuré le 2026-09-13) :
+      // on liste, puis on compare l'email EXACTEMENT côté client. Sans ça, la
+      // sonde désignait un compte réel — promu admin puis supprimé au nettoyage.
+      const probe = await rawAuthApi('admin/users?per_page=1000', serviceKey);
+      const found = probe.ok ? pickEphemeralUser((await readBody(probe))?.users, email) : null;
       if (found?.id) console.log(`  ↻ utilisateur ${label} : déjà créé — réutilisé`);
       return found?.id ? probedResponse(found) : null;
     },

@@ -49,3 +49,70 @@ export const ephemeralEmail = (prefix, domain = 'audit.local') => {
   }
   return email;
 };
+
+// ── La cible d'écriture, et pourquoi elle est vérifiée deux fois ─────────────
+//
+// MESURÉ le 2026-09-13, contre la production : `GET /auth/v1/admin/users?email=X`
+// **ignore le filtre**. La réponse était la première page de TOUS les comptes,
+// quel que soit X — y compris pour un email inexistant. Six scripts lisaient
+// donc `users[0]` en croyant lire LEUR compte jetable : ils tombaient sur un
+// compte réel, le promouvaient admin (`PATCH user_profiles?id=eq.uid`) et le
+// **supprimaient** au nettoyage (`DELETE admin/users/{uid}`). C'est ce qui a fait
+// disparaître `ibrahimkalilthera@mamathera.org` (rôle dev, présent dans
+// `audit_logs` avant sa suppression) et `aggeediarra@mamathera.org`, sans qu'aucun
+// mot de passe ne soit touché : le compte n'existait simplement plus.
+//
+// Deux gardes, parce qu'une seule ne suffit pas : la RÉSOLUTION ne fait plus
+// confiance au filtre (comparaison exacte côté client) et l'ÉCRITURE refuse toute
+// cible qui n'est pas jetable (assertEphemeralTarget). Un filtre ignoré ne peut
+// donc plus désigner un compte réel, même si un futur script l'oubliait.
+
+/**
+ * Le compte jetable portant EXACTEMENT cet email, dans une liste rendue par
+ * l'API — jamais « le premier de la liste ».
+ *
+ * @param {Array<{email?: string}>} users la réponse brute (`body.users`)
+ * @param {string} email l'email du compte jetable attendu
+ * @returns {object|null} le compte correspondant, ou null s'il est absent
+ */
+export function pickEphemeralUser(users, email) {
+  assertEphemeralTarget(email);
+  const target = String(email).trim().toLowerCase();
+  const matches = (Array.isArray(users) ? users : []).filter(
+    (u) => String(u?.email ?? '').trim().toLowerCase() === target,
+  );
+  if (matches.length > 1) {
+    throw new Error(
+      `pickEphemeralUser: ${matches.length} comptes portent « ${target} » — ` +
+        `l'email est unique côté GoTrue, donc cette réponse est incohérente : rien n'est touché.`,
+    );
+  }
+  return matches[0] ?? null;
+}
+
+/**
+ * Refuse une cible d'écriture qui n'est pas un compte jetable.
+ *
+ * C'est la garde qui rend la panne de 2026-09-13 impossible par construction :
+ * un compte réel ne peut plus être promu ni supprimé, même si l'appelant se
+ * trompe de cible.
+ *
+ * @param {string} email l'email visé par l'écriture
+ * @returns {string} l'email, quand il est jetable
+ */
+export function assertEphemeralTarget(email) {
+  const clean = String(email ?? '').trim();
+  if (!clean) {
+    throw new Error(
+      'assertEphemeralTarget: cible sans email — on ne modifie ni ne supprime un compte qu’on ne peut pas identifier',
+    );
+  }
+  if (!isEphemeralEmail(clean)) {
+    throw new Error(
+      `assertEphemeralTarget: « ${clean} » n'est pas un compte jetable ` +
+        `(préfixe verify-/e2e-/audit-/ci-probe-, ou domaine @audit.local / @example.test) : ` +
+        `écriture refusée — un compte réel ne doit jamais être promu ni supprimé par un script jetable.`,
+    );
+  }
+  return clean;
+}

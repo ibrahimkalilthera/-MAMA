@@ -30,7 +30,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
-import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { assertEphemeralTarget, ephemeralEmail, pickEphemeralUser } from './lib/ephemeral-accounts.mjs';
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
@@ -103,8 +103,10 @@ async function createAccount() {
       body: JSON.stringify({ email: EMAIL, password: PASS, email_confirm: true }),
     }),
     async () => {
-      const probe = await rawApi(`/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`);
-      const found = Array.isArray(probe.body?.users) ? probe.body.users[0] : null;
+      // `?email=` est ignoré par cette version de GoTrue (mesuré le 2026-09-13) :
+      // on liste, puis on compare l'email exactement côté client.
+      const probe = await rawApi('/auth/v1/admin/users?per_page=1000');
+      const found = pickEphemeralUser(probe.body?.users, EMAIL);
       if (found?.id) {
         console.log('  ↻ compte éphémère : déjà créé — réutilisé');
         return { status: 200, body: { id: found.id } };
@@ -115,6 +117,7 @@ async function createAccount() {
   );
   if (!r.body?.id) throw new Error(`création du compte échouée (${r.status})`);
   ephemeralUid = r.body.id;
+  assertEphemeralTarget(EMAIL); // jamais un compte réel, même si la sonde se trompait
   await api(`/rest/v1/user_profiles?id=eq.${ephemeralUid}`, {
     method: 'PATCH',
     body: JSON.stringify({ role: 'admin' }),

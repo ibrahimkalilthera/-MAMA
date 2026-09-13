@@ -74,8 +74,17 @@ const INTERPOLATION = /\$\{\s*([A-Za-z_$][\w$]*|Date\.now\s*\(|new Date|randomUU
 /** Une déclaration de constante, dont on veut lire la valeur. */
 const STAMP_DECL = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/g;
 
-/** Une clé de RÉCONCILIATION : une REQUÊTE qui retrouve la ligne. */
-export const RECONCILIATION_MARKERS = /=eq\.|\?email=/;
+/**
+ * Une clé de RÉCONCILIATION : ce qui retrouve la ligne après une réponse perdue.
+ *
+ * `pickEphemeralUser` en fait partie depuis le 2026-09-13 : le filtre `?email=`
+ * de GoTrue est IGNORÉ (la réponse est la première page de tous les comptes), et
+ * les scripts ont dû abandonner `?email=` pour une comparaison EXACTE côté
+ * client. C'est la même clé — l'email —, simplement lue pour de vrai ; la
+ * reconnaître ici évite qu'une reprise correcte soit signalée comme non
+ * réconciliable (un contrôle qui rougit sur du code juste apprend à l'ignorer).
+ */
+export const RECONCILIATION_MARKERS = /=eq\.|\?email=|pickEphemeralUser\s*\(/;
 
 /** La définition d'une aide de rejeu, et le nom de cette aide. */
 const WRAPPER_DEF = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>\s*(?:replayableWrite|insertOnce|createOnce|insertOnceRow|createDemoRow)\s*\(/g;

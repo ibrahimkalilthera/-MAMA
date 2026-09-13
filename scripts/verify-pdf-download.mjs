@@ -73,7 +73,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
-import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { assertEphemeralTarget, ephemeralEmail, pickEphemeralUser } from './lib/ephemeral-accounts.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { firstRow, readUntil } from './lib/read-after-submit.mjs';
 import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
@@ -283,8 +283,10 @@ async function createAccount() {
       // supprimer, et le compte resterait en base. On réutilise celui qui est là.
       // (Même parade que scripts/e2e-business.mjs, qui gère déjà
       // `user_already_exists` en relisant le compte par son email.)
-      const probe = await rawApi(`/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`);
-      const found = Array.isArray(probe.body?.users) ? probe.body.users[0] : null;
+      // `?email=` est ignoré par cette version de GoTrue (mesuré le 2026-09-13) :
+      // on liste, puis on compare l'email exactement côté client.
+      const probe = await rawApi('/auth/v1/admin/users?per_page=1000');
+      const found = pickEphemeralUser(probe.body?.users, EMAIL);
       if (found?.id) {
         console.log('  ↻ compte éphémère : déjà créé — réutilisé');
         return { status: 200, body: { id: found.id } };
@@ -295,6 +297,7 @@ async function createAccount() {
   );
   if (!r.body?.id) throw new Error(`création du compte échouée (${r.status})`);
   ephemeralUid = r.body.id;
+  assertEphemeralTarget(EMAIL); // jamais un compte réel, même si la sonde se trompait
   // promote to admin so Settings/nav are fully available (reliable navigation)
   await api(`/rest/v1/user_profiles?id=eq.${ephemeralUid}`, {
     method: 'PATCH',

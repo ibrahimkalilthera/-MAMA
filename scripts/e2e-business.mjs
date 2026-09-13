@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import puppeteer from 'puppeteer-core';
 import { readFileSync, rmSync, existsSync } from 'node:fs';
-import { ephemeralEmail } from './lib/ephemeral-accounts.mjs';
+import { assertEphemeralTarget, ephemeralEmail, pickEphemeralUser } from './lib/ephemeral-accounts.mjs';
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { firstRow, readUntil } from './lib/read-after-submit.mjs';
@@ -189,6 +189,9 @@ const cleanup = async (uidToDelete) => {
     for (const v of vendors) await api(`/vendor_expenses?id=eq.${v.id}`, { method: 'DELETE' });
     await api(`/custom_classes?code=eq.${CLASS_NAME}`, { method: 'DELETE' });
     if (uidToDelete) {
+      // La cible est un compte JETABLE, vérifié avant la suppression : c'est le
+      // garde qui rend impossible la suppression d'un compte réel (2026-09-13).
+      assertEphemeralTarget(EMAIL);
       // Suppression IDEMPOTENTE : un 404 veut dire « déjà parti », ce que ce
       // nettoyage demande exactement ; une coupure de passerelle, elle, ne doit
       // pas laisser le compte en base (c'est le résidu signale au run suivant).
@@ -239,18 +242,23 @@ let uid = null;
       return { status: r.status, body: await r.json() };
     },
     async () => {
-      const list = await (await fetch(`${base}/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`, { headers: HDR })).json();
-      const found = list.users?.[0];
+      // `?email=` est IGNORÉ par cette version de GoTrue (mesuré le 2026-09-13 :
+      // la réponse était la première page de TOUS les comptes, y compris pour un
+      // email inexistant). On liste, puis on compare l'email exactement — sinon
+      // `users[0]` désignait un compte RÉEL, promu puis supprimé au nettoyage.
+      const list = await (await fetch(`${base}/auth/v1/admin/users?per_page=1000`, { headers: HDR })).json();
+      const found = pickEphemeralUser(list.users, EMAIL);
       return found?.id ? { status: 200, body: found } : null;
     },
     { label: 'POST /auth/v1/admin/users — ', log: (m) => console.log(`  ↻ ${m}`) },
   );
   if (created.body?.id) {
     uid = created.body.id;
+    assertEphemeralTarget(EMAIL);
     check('Compte jetable créé', true);
   } else if (created.body?.code === 'user_already_exists') {
-    const list = await (await fetch(`${base}/auth/v1/admin/users?email=${encodeURIComponent(EMAIL)}`, { headers: HDR })).json();
-    uid = list.users?.[0]?.id ?? null;
+    const list = await (await fetch(`${base}/auth/v1/admin/users?per_page=1000`, { headers: HDR })).json();
+    uid = pickEphemeralUser(list.users, EMAIL)?.id ?? null;
     check('Compte jetable déjà existant (réutilisé)', true);
   } else check('Compte jetable créé', false, created.body?.msg || created.status);
   await new Promise((res) => setTimeout(res, 2000)); // wait for profile trigger
