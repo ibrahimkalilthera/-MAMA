@@ -32,6 +32,37 @@ export const EPHEMERAL_PATTERNS = [
 export const isEphemeralEmail = (email) =>
   EPHEMERAL_PATTERNS.some((re) => re.test(email || ''));
 
+/**
+ * Le verdict d'une suppression de compte jetable — et ce qui la rend PROUVÉE.
+ *
+ * Mesuré le 2026-09-14 : le veilleur des comptes propriétaires supprimait son
+ * compte de contrôle en `.catch(() => null)` — la réponse n'était jamais lue — et
+ * imprimait « création → session → suppression » AVANT cette suppression. Un
+ * `DELETE` resté sans suite a laissé `verify-ownerwatch-*@audit.local` en base,
+ * deux workflows E2E sont devenus rouges (leur garde de résidus avait raison),
+ * et la phrase verte était fausse depuis le début.
+ *
+ * D'où la règle, ici pure : un **statut** de suppression ne suffit pas, l'absence
+ * doit être RELUE. Un 404 est le but atteint (une reprise a réussi après un
+ * hoquet : « plus rien en base » est ce qu'on demande), un 2xx suivi d'un compte
+ * encore là est un échec nommé.
+ */
+export function ephemeralDeleteVerdict({ status, stillPresent, email }) {
+  const code = Number(status);
+  if (![200, 204, 404].includes(code)) {
+    return { ok: false, problem: `suppression du compte jetable « ${email} » refusée (HTTP ${status})` };
+  }
+  if (stillPresent) {
+    return {
+      ok: false,
+      problem:
+        `le compte jetable « ${email} » est TOUJOURS en base après une suppression HTTP ${code} — ` +
+        'la suppression n’a pas pris (lire la réponse ne suffit pas : il faut relire l’absence)',
+    };
+  }
+  return { ok: true, note: code === 404 ? 'déjà absent' : `HTTP ${code}` };
+}
+
 // Build a unique ephemeral email for a script account. `domain` defaults to
 // the reserved @audit.local — the only domains that guarantee a match. The
 // result is asserted against the guard patterns: a prefix/domain combination

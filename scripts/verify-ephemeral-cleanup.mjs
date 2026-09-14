@@ -17,6 +17,12 @@
 // The Supabase admin API deletes the auth user; the cascade handles the
 // profile. A residue here means the cleanup chain is broken → red run.
 //
+// L'ÂGE départage le résidu du vol en cours (mesuré le 2026-09-14 : deux
+// workflows déclenchés par le même push écrivent dans la même base, et le compte
+// de contrôle de l'un faisait rougir l'autre). Voir
+// scripts/lib/ephemeral-cleanup.mjs : au-delà de la grâce, c'est un résidu ;
+// en deçà, le compte est NOMMÉ « en vol » et n'est pas jugé.
+//
 // Usage:
 //   node scripts/verify-ephemeral-cleanup.mjs              → détecte (exit 1 si résidus)
 //   node scripts/verify-ephemeral-cleanup.mjs --cleanup-only → purge les résidus (maintenance)
@@ -29,6 +35,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EPHEMERAL_PATTERNS } from './lib/ephemeral-accounts.mjs';
+import { classifyEphemeral, DEFAULT_IN_FLIGHT_MS } from './lib/ephemeral-cleanup.mjs';
 import { withTransientRetry } from './lib/transient-http.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 
@@ -86,9 +93,20 @@ const CLEANUP_ONLY = process.argv.includes('--cleanup-only');
 
 let fail = false;
 
-// 1. auth.users — every ephemeral account created by the E2E scripts.
+// Ce que ce contrôle a RÉELLEMENT parcouru : la preuve d'automatisation qui
+// porte ce nombre vient d'ici, pas d'une phrase écrite dans le workflow —
+// « j'ai agi » sans rien à compter serait une preuve vide.
 const users = await api('/auth/v1/admin/users?per_page=1000');
-const leftoverUsers = (users.body?.users || []).filter((u) => isEphemeral(u.email));
+const profiles = await api('/rest/v1/user_profiles?select=id,email,created_at&limit=1000');
+const scanned = (users.body?.users || []).length + (profiles.body || []).length;
+const { residues, inFlight } = classifyEphemeral({
+  users: users.body?.users || [],
+  profiles: profiles.body || [],
+  isEphemeral,
+});
+const leftoverUsers = residues.users;
+const leftoverProfiles = residues.profiles;
+
 if (leftoverUsers.length) {
   console.error(`❌ ${leftoverUsers.length} compte(s) éphémère(s) encore présent(s) dans auth.users :`);
   for (const u of leftoverUsers) console.error(`   ${u.email} | ${u.id} | ${u.created_at}`);
@@ -97,21 +115,31 @@ if (leftoverUsers.length) {
   console.log('✅ aucun compte éphémère résiduel dans auth.users');
 }
 
-// 2. user_profiles — the trigger inserts one row per new user; the FK
-//    (ON DELETE CASCADE) removes it with the account. A leftover row here
-//    also means a broken cleanup.
-const profiles = await api('/rest/v1/user_profiles?select=id,email&limit=1000');
-const leftoverProfiles = (profiles.body || []).filter((p) => isEphemeral(p.email));
-// Ce que ce contrôle a RÉELLEMENT parcouru : la preuve d'automatisation qui
-// porte ce nombre vient d'ici, pas d'une phrase écrite dans le workflow —
-// « j'ai agi » sans rien à compter serait une preuve vide.
-const scanned = (users.body?.users || []).length + (profiles.body || []).length;
 if (leftoverProfiles.length) {
   console.error(`❌ ${leftoverProfiles.length} profil(s) éphémère(s) résiduel(s) dans public.user_profiles :`);
   for (const p of leftoverProfiles) console.error(`   ${p.email} | ${p.id}`);
   fail = true;
 } else {
   console.log('✅ aucun profil éphémère résiduel dans user_profiles');
+}
+
+// En vol : un AUTRE job vient de créer ce compte (même base, même déclencheur).
+// Il est nommé, avec son âge, et il n'est pas jugé — le faire rougir imputerait à
+// l'application le travail en cours de son voisin.
+// Le profil d'un compte en vol est la MÊME histoire (la cascade l'effacera avec
+// lui) : on ne le compte pas deux fois, sinon la liste se lirait comme deux
+// résidus là où il n'y a qu'un job au travail.
+const inFlightAll = [
+  ...inFlight.users,
+  ...inFlight.profiles.filter((p) => !inFlight.users.some((u) => u.id === p.id)),
+];
+if (inFlightAll.length) {
+  const s = (ms) => `${Math.round(ms / 1000)}s`;
+  console.log(
+    `➖ ${inFlightAll.length} compte(s) jetable(s) EN VOL — créé(s) il y a moins de ` +
+      `${Math.round(DEFAULT_IN_FLIGHT_MS / 1000)}s, non jugé(s) ici :`,
+  );
+  for (const u of inFlightAll) console.log(`   ${u.email} | ${u.id} | âge ${s(u.ageMs)}`);
 }
 
 // ── 3. Purge mode (--cleanup-only) ─────────────────────────────────────────
@@ -124,6 +152,12 @@ const deleted = (status) => status === 204 || status === 200 || status === 404;
 
 if (CLEANUP_ONLY) {
   let ok = true;
+  // Seuls les RÉSIDUS sont purgés : supprimer le compte d'un job en vol casserait
+  // ce job (et son propre garde-fou le dirait). Un résidu en vol qui persiste
+  // vieillit de quelques minutes et bascule tout seul dans cette liste.
+  for (const u of inFlight.users) {
+    console.log(`⏳ en vol — laissé intact : ${u.email} (créé il y a ${Math.round(u.ageMs / 1000)}s)`);
+  }
   // Delete the accounts; ON DELETE CASCADE removes their user_profiles row.
   for (const u of leftoverUsers) {
     const del = await api(`/auth/v1/admin/users/${u.id}`, { method: 'DELETE' });

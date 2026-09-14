@@ -1,3 +1,18 @@
+## [2026-09-14] Deux workflows rouges causés par un compte de contrôle jamais supprimé — et la phrase qui le niait
+
+Le rouge, tel qu'il est arrivé : `Business E2E` et `PDF E2E` tombent en même temps, à la même étape (« aucun compte éphémère résiduel en base »), en nommant `verify-ownerwatch-703282@audit.local | 7d2efb3d… | 2026-09-14T04:55:03Z`. Les deux E2E avaient bien nettoyé les leurs (`🧹 compte éphémère supprimé (200)`), et le résidu accusé appartenait à un **troisième** workflow : le veilleur des comptes propriétaires.
+
+**Deux défauts, mesurés, dans le même fichier.** (1) La suppression était écrite `await fetch(…, { method: 'DELETE' }).catch(() => null)` : **la réponse n'était jamais lue**, donc un 504 de passerelle (déjà rencontré le 12/09 sur ce chemin) laissait le compte en base sans que personne ne l'apprenne. (2) La ligne verte — « compte de contrôle : création → session → suppression » — était imprimée **avant** la suppression, à `04:55:03.696Z`, soit 0,4 s après le début du job : elle affirmait une suppression qui n'avait pas encore été tentée, et qui n'a pas eu lieu. Le compte vivait encore cinq minutes plus tard, quand je l'ai mesuré, et il a fallu `verify-ephemeral-cleanup.mjs --cleanup-only` pour le retirer.
+
+**Le remède, aux deux endroits où le mensonge est né.**
+
+- `ephemeralDeleteVerdict` (`scripts/lib/ephemeral-accounts.mjs`) : une suppression se **prouve** — le `DELETE` est **rejoué** (un 504 n'est pas un verdict, même règle que le reste de la chaîne) puis l'**absence est relue** dans la liste des comptes ; un 2xx suivi d'un compte encore là est un échec nommé. Le veilleur n'imprime plus la phrase qu'après cette preuve, et elle porte son code (`… suppression, HTTP 200`).
+- `classifyEphemeral` (`scripts/lib/ephemeral-cleanup.mjs`) : le garde-fou de résidus ne juge plus par présence mais par **âge**. Le compte du voisin, créé quelques secondes plus tôt par un autre job sur la même base, est **nommé « en vol » avec son âge** et n'est pas jugé ; au-delà de **deux minutes** c'est un résidu, donc rouge. Un vrai résidu vieillit et sera rouge au passage suivant ; un faux ne survit pas au vol de son auteur. Une date illisible n'ouvre **aucun** sursis.
+
+**Preuve que le remède mord, sur le cas réel.** Le garde-fou relancé pendant qu'un `PDF E2E` écrivait a affiché : `➖ 1 compte(s) jetable(s) EN VOL — créé(s) il y a moins de 120s, non jugé(s) ici : verify-pdf-126721@audit.local … âge 5s` puis `✅ Base propre` — exactement la situation qui produisait deux rouges une heure plus tôt. Et `npm run check:owners` sur la même base : `✅ chemin de login vivant (compte de contrôle : création → session → suppression, HTTP 200)`, avec **zéro** compte jetable laissé derrière (relu après coup : 5 comptes = les 4 propriétaires + le vol du voisin).
+
+**Mesures** : `tests/ephemeral-cleanup.test.ts` **11 cas** (dont le cas exact du 2026-09-14 : « 200 annoncé, compte encore là », l'orphelin, la date illisible, la grâce à deux minutes et une seconde au-delà, et le refus de juger sans motifs) ; `npm run lint` vert (26 contrôles).
+
 ## [2026-09-14] Le journal d'audit vidé avant la mise en service : 432 lignes parties, aucune perdue
 
 Demande : « vide manuellement les données présentes dans le journal d'audit ». Fait, et **conservé avant d'être vidé** : les 432 lignes ont été exportées hors dépôt (`%LOCALAPPDATA%\Temp\audit-logs-export-20260914.json`, 185 Ko) — un journal d'audit est la trace de qui a fait quoi, donc le vider sans copie aurait détruit une histoire, pas seulement des lignes.

@@ -37,8 +37,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { publishEvidence } from './lib/evidence-publisher.mjs';
-import { assertEphemeralTarget, ephemeralEmail, pickEphemeralUser } from './lib/ephemeral-accounts.mjs';
-import { replayableWrite } from './lib/transient-http.mjs';
+import {
+  assertEphemeralTarget,
+  ephemeralDeleteVerdict,
+  ephemeralEmail,
+  pickEphemeralUser,
+} from './lib/ephemeral-accounts.mjs';
+import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 import { OWNER_ROSTER, ownerAccountsVerdict, loginProbeVerdict } from './lib/owner-accounts.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -121,6 +126,7 @@ async function loginPathProbe() {
   assertEphemeralTarget(email);
   const password = `OwnerWatch-${Date.now().toString().slice(-6)}`;
   let uid = null;
+  let loginOk = false;
   try {
     // Une réponse perdue (504 de passerelle) ne doit pas laisser un compte en
     // base : sans uid, le nettoyage n'aurait RIEN à supprimer. L'email est
@@ -163,17 +169,39 @@ async function loginPathProbe() {
     );
     const verdict = loginProbeVerdict({ ...probe, label: 'login réel (compte de contrôle)' });
     if (!verdict.ok) PROBLEMS.push(verdict.problem);
-    else console.log('   ✅ chemin de login vivant (compte de contrôle : création → session → suppression)');
-    return verdict.ok;
+    loginOk = verdict.ok;
   } finally {
     if (uid) {
       // La cible est jetable, vérifiée avant l'écriture — la suppression d'un
       // compte réel n'est pas possible depuis ce chemin (voir l'incident du
       // 2026-09-13 : c'est exactement ainsi qu'un compte propriétaire était né).
       assertEphemeralTarget(email);
-      await fetch(`${BASE}/auth/v1/admin/users/${uid}`, { method: 'DELETE', headers: HDR }).catch(() => null);
+      // Deux moitiés, et la seconde manquait le 2026-09-14 : la suppression est
+      // REJOUÉE (un 504 de passerelle n'est pas une décision) puis son ABSENCE est
+      // RELUE. La ligne verte n'est plus imprimée avant la suppression mais après
+      // sa preuve — c'est ce qui distingue une phrase d'un fait.
+      const del = await withTransientRetry(
+        async () => {
+          const res = await fetch(`${BASE}/auth/v1/admin/users/${uid}`, { method: 'DELETE', headers: HDR });
+          return { status: res.status };
+        },
+        { label: 'DELETE /auth/v1/admin/users — ', log: (m) => console.log(`  ↻ ${m}`) },
+      );
+      const after = await json(await fetch(`${BASE}/auth/v1/admin/users?per_page=1000`, { headers: HDR }));
+      const gone = ephemeralDeleteVerdict({
+        status: del.status,
+        stillPresent: Boolean(pickEphemeralUser(after.body?.users, email)),
+        email,
+      });
+      if (!gone.ok) PROBLEMS.push(gone.problem);
+      else if (loginOk) {
+        console.log(
+          `   ✅ chemin de login vivant (compte de contrôle : création → session → suppression, ${gone.note})`,
+        );
+      }
     }
   }
+  return loginOk;
 }
 
 const users = await json(await fetch(`${BASE}/auth/v1/admin/users?per_page=1000`, { headers: HDR }));
