@@ -345,7 +345,7 @@ deps: BatchImportDeps
     logAuditEvent({
       action: 'BATCH_IMPORT',
       targetType: category,
-      details: `Imported ${inserted} ${category} record(s) via Excel (${updated} updated, ${errors} errors)`,
+      details: `Import Excel : ${inserted} ${category}, ${updated} mis à jour, ${errors} erreur(s)`,
     });
 
     // Refresh data to reflect newly imported records

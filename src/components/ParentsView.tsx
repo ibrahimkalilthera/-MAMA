@@ -3,7 +3,7 @@ import { useMainViews } from '../app/mainViewsContext';
 import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
 
 export function ParentsView() {
-  const { AlertCircle, ArrowUpDown, Bell, Briefcase, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CreditCard, DollarSign, Download, Edit2, FileText, HighlightText, Mail, MapPin, Phone, Plus, Receipt, Search, Trash2, Unlink, UserCheck, UserPlus, Users, X, currentTheme, expandedParentId, formatCurrency, getChildrenForParent, getParentOutstandingBalance, getParentPaymentHistory, handleDeleteParent, handleExportParentLedgerPdf, handleUnlinkStudent, openEditParentModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, selectedYear, setActiveLinkingParent, setEditingParent, setExpandedParentId, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setPaymentAmount, setPaymentStudentId, setShowPaymentForm, setSelectedStudent, setShowLinkStudentModal, setShowParentModal, setStudentToLinkId, t } = useMainViews();
+  const { AlertCircle, ArrowUpDown, Bell, Briefcase, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CreditCard, DollarSign, Download, Edit2, FileText, HighlightText, Mail, MapPin, Phone, Plus, Receipt, Search, Trash2, Unlink, UserCheck, UserPlus, Users, X, canDelete, currentTheme, expandedParentId, formatCurrency, getChildrenForParent, getParentOutstandingBalance, getParentPaymentHistory, handleDeleteParent, handleExportParentLedgerPdf, handleUnlinkStudent, openEditParentModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, selectedYear, setActiveLinkingParent, setEditingParent, setExpandedParentId, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setPaymentAmount, setPaymentStudentId, setShowPaymentForm, setSelectedStudent, setShowLinkStudentModal, setShowParentModal, setStudentToLinkId, t } = useMainViews();
   return (
           <div className="space-y-8">
             {/* Header & Search Bar */}
@@ -265,16 +265,20 @@ export function ParentsView() {
                               <Edit2 size={16} className="flex-shrink-0" />
                             </button>
 
-                            <button
-                              title={t.deleteParent}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteParent(parent.id);
-                              }}
-                              className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all flex items-center justify-center flex-shrink-0"
-                            >
-                              <Trash2 size={16} className="flex-shrink-0" />
-                            </button>
+                            {/* « Admin delete parents » : sans ce rôle, le bouton
+                                n'existe pas — l'échec n'est pas annoncé, il n'arrive pas. */}
+                            {canDelete && (
+                              <button
+                                title={t.deleteParent}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteParent(parent.id);
+                                }}
+                                className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all flex items-center justify-center flex-shrink-0"
+                              >
+                                <Trash2 size={16} className="flex-shrink-0" />
+                              </button>
+                            )}
 
                             <button
                               onClick={() => setExpandedParentId(isExpanded ? null : parent.id)}

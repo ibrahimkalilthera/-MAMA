@@ -39,6 +39,8 @@ export interface StudentDetailsModalProps {
   onEdit: () => void;
   onPrint: () => void;
   onDeleteRequest: () => void;
+  /** Le rôle peut-il supprimer ? Décidé par la base (`src/lib/deleteRights.ts`). */
+  canDelete: boolean;
 }
 
 export function StudentDetailsModal(props: StudentDetailsModalProps) {
@@ -46,7 +48,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
     student: selectedStudent, t, lang, currentTheme, formatDate, formatCurrency,
     getGradeDisplay, generatePaymentReceiptPdf, currentUser, copyToClipboard,
     handleSaveNote, studentDetailTab, setStudentDetailTab, overlayRef,
-    onClose, onEdit, onPrint, onDeleteRequest,
+    onClose, onEdit, onPrint, onDeleteRequest, canDelete,
   } = props;
   // Notes ⇄ Calendar bridge: optional date picked next to the sticky note.
   const [noteDateInput, setNoteDateInput] = useState('');
@@ -373,13 +375,16 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               <span className="truncate">{t.printStudentFile}</span>
             </button>
 
-            <button
-              onClick={onDeleteRequest}
-              className="h-11 px-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap"
-            >
-              <Trash2 size={16} className="flex-shrink-0" />
-              <span className="truncate">{t.deleteStudent}</span>
-            </button>
+            {/* « Admin delete students » : pas de rôle, pas de bouton. */}
+            {canDelete && (
+              <button
+                onClick={onDeleteRequest}
+                className="h-11 px-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap"
+              >
+                <Trash2 size={16} className="flex-shrink-0" />
+                <span className="truncate">{t.deleteStudent}</span>
+              </button>
+            )}
 
             <button
               onClick={onClose}

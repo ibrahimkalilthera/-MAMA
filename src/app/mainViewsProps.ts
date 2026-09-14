@@ -284,6 +284,9 @@ export interface MainViewsProps {
   handleUnlinkStudent: (studentId: string) => Promise<void>;
   handleUpdateRole: (targetProfile: UserProfile, newRole: AppRole) => Promise<void>;
   isPromoter: boolean;
+  /** Le rôle peut-il SUPPRIMER une ligne ? Décidé par la base (`src/lib/deleteRights.ts`),
+   *  pas par l'écran : un bouton de suppression n'existe pas là où le serveur refuse. */
+  canDelete: boolean;
   /** Gestionnaire Principal — finance admin without user/settings/audit access. */
   isGeneralManager: boolean;
   lang: 'en' | 'fr';

@@ -1,4 +1,5 @@
 import type { Staff, SalaryPayment } from './useSupabaseData';
+import { downloadBytes } from './browserDownload';
 import { drawSchoolStamp } from './pdfStamp';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
@@ -317,5 +318,5 @@ export async function generateMonthlyPayrollDraftPdf({
 
   // Save / Download PDF
   const filename = `MAMA_THERA_Bordereau_Paie_${monthName}_${year}.pdf`;
-  doc.save(filename);
+  downloadBytes(doc.output('arraybuffer'), filename);
 }

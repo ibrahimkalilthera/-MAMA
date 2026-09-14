@@ -61,8 +61,19 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
       return true;
     }
     const row = studentUpdatesToRow(normalizedUpdates);
-    const { error } = await supabase.from('students').update(row).eq('id', id);
+    // `.select('id')` + the empty check is what makes this write HONEST — the
+    // same rule as staff.ts. PostgREST answers 200 with an EMPTY body when the
+    // RLS `USING` clause removes every target row (a non-admin editing a pupil,
+    // for instance): the request "succeeded", changed nothing, and used to be
+    // reported as success — the screen then showed a value the database does
+    // not have. Zero rows is a failure and says so.
+    const { data, error } = await supabase.from('students').update(row).eq('id', id).select('id');
     if (error) { console.error('updateStudent error:', error.message); notifyError('updateStudent', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('updateStudent: aucune ligne modifiée — cible filtrée par la policy RLS');
+      notifyError('updateStudent', 'Aucune ligne modifiée — droits insuffisants sur cet élève.');
+      return false;
+    }
     const changes: string[] = [];
     if (currentStudent && normalizedUpdates.name !== undefined && normalizedUpdates.name !== currentStudent.name) changes.push(`nom ${currentStudent.name}→${normalizedUpdates.name}`);
     if (currentStudent && normalizedUpdates.grade !== undefined && normalizedUpdates.grade !== currentStudent.grade) changes.push(`classe ${currentStudent.grade}→${normalizedUpdates.grade}`);
@@ -86,8 +97,18 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
       notifySuccess('deleteStudent');
       return true;
     }
-    const { error } = await supabase.from('students').delete().eq('id', id);
+    // Same honesty rule as deleteStaff: an RLS-filtered DELETE removes zero
+    // rows and answers 200, so « Élève supprimé(e) » could be shown for a pupil
+    // still in the table — and their payments with them (ON DELETE CASCADE
+    // never fires, because no row was deleted). `.select('id')` tells us what
+    // really went.
+    const { data, error } = await supabase.from('students').delete().eq('id', id).select('id');
     if (error) { console.error('deleteStudent error:', error.message); notifyError('deleteStudent', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('deleteStudent: aucune ligne supprimée — cible filtrée par la policy RLS');
+      notifyError('deleteStudent', 'Aucune ligne supprimée — droits insuffisants sur cet élève.');
+      return false;
+    }
     const deleted = students.find(s => s.id === id);
     void logAuditEvent({
       action: 'DELETE_STUDENT',
@@ -165,7 +186,7 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
       logAuditEvent({
         action: 'PROMOTE_CLASS_BATCH',
         targetType: 'students',
-        details: `Processed batch promotions/re-enrollments for ${successCount} student(s)`,
+        details: `Promotions/réinscriptions traitées pour ${successCount} élève(s)`,
       });
 
       notifySuccess(`Promoted ${successCount} student(s)`);

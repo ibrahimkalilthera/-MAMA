@@ -1,4 +1,5 @@
 import type { Student, Expense, VendorExpense, SalaryPayment } from './useSupabaseData';
+import { downloadBytes } from './browserDownload';
 import { drawSchoolStamp } from './pdfStamp';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
@@ -249,5 +250,7 @@ export async function generateFinancialReportPdf({
   );
 
   const fileName = `Rapport_Financier_MAMA_THERA_${selectedYear}.pdf`;
-  doc.save(fileName);
+  // Les octets passent par le SEUL émetteur de téléchargement : c'est lui qui
+  // décide comment un fichier sort de l'app (voir src/lib/browserDownload.ts).
+  downloadBytes(doc.output('arraybuffer'), fileName);
 }

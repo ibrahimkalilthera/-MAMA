@@ -48,8 +48,15 @@ export function createTodoOps(ctx: SupabaseDataCtx) {
     if (updates.completed !== undefined) row.completed = updates.completed;
     if (updates.date !== undefined) row.due_date = updates.date;
 
-    const { error } = await supabase.from('todos').update(row).eq('id', id);
+    // Même règle honnête que staff/students/parents : une requête filtrée par la
+    // policy RLS revient en 200 avec un corps VIDE — 0 ligne n'est pas un succès.
+    const { data, error } = await supabase.from('todos').update(row).eq('id', id).select('id');
     if (error) { console.error('updateTodo error:', error.message); notifyError('updateTodo', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('updateTodo: aucune ligne modifiée — cible filtrée par la policy RLS');
+      notifyError('updateTodo', 'Aucune ligne modifiée — droits insuffisants sur cette tâche.');
+      return false;
+    }
     setTodos(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
     return true;
   };
@@ -60,8 +67,13 @@ export function createTodoOps(ctx: SupabaseDataCtx) {
       enqueueOffline('deleteTodo', { id });
       return true;
     }
-    const { error } = await supabase.from('todos').delete().eq('id', id);
+    const { data, error } = await supabase.from('todos').delete().eq('id', id).select('id');
     if (error) { console.error('deleteTodo error:', error.message); notifyError('deleteTodo', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('deleteTodo: aucune ligne supprimée — cible filtrée par la policy RLS');
+      notifyError('deleteTodo', 'Aucune ligne supprimée — droits insuffisants sur cette tâche.');
+      return false;
+    }
     setTodos(prev => prev.filter(t => t.id !== id));
     return true;
   };

@@ -299,6 +299,56 @@ describe('usePayroll.handleStaffSubmit', () => {
       act(() => root.unmount());
     }
   });
+
+  it('stamps the KIND the flow creates — employé / Centre T et P / administration', async () => {
+    const { args, spies } = baseDeps({});
+    const { ref, root } = await mount(args);
+    try {
+      const create = async (mode: 'employee' | 'technique' | 'admin') => {
+        await act(async () => { ref.current!.setStaffModalMode(mode); });
+        await act(async () => {
+          ref.current!.setStaffForm({
+            ...ref.current!.staffForm,
+            name: `Nouveau ${mode}`,
+            // A position the curated lists do not know: the kind must not come
+            // from this text.
+            position: 'Agent technique polyvalent',
+            salary: '90000',
+            email: 'nouveau@mamathera.org',
+            phone: '70 00 00 00',
+          });
+        });
+        await act(async () => { await ref.current!.handleStaffSubmit(submitEvent); });
+        return spies.addStaffCalls[spies.addStaffCalls.length - 1]!;
+      };
+
+      assert.equal((await create('employee')).category, 'employee', '“Ajouter un Employé” → employee');
+      assert.equal((await create('technique')).category, 'technique', '“Ajouter un Membre du Centre T et P” → technique');
+      assert.equal((await create('admin')).category, 'admin', '“Ajouter un Membre de l’Administration” → admin');
+      assert.equal(spies.addStaffCalls.length, 3, 'three members created, one per flow');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('an edit never changes the kind — the administrateur keeps their category', async () => {
+    const admin = staff({ id: 'a1', name: 'Ibrahim Thera', position: 'Proviseur', salary: 200000, category: 'admin' });
+    const { args, spies } = baseDeps({ staff: [admin] });
+    const { ref, root } = await mount(args);
+    try {
+      await act(async () => { ref.current!.openEditStaffModal(admin); });
+      // The edit form is ALWAYS the free-text employee one: if the modal mode
+      // decided the kind, saving an administrator would demote them to an
+      // employee — and take their bulletin de paie with them.
+      assert.equal(ref.current!.staffModalMode, 'employee', 'the edit form opens in employee mode');
+      await act(async () => { await ref.current!.handleStaffSubmit(submitEvent); });
+
+      assert.equal(spies.updateStaffCalls.length, 1);
+      assert.equal(spies.updateStaffCalls[0]!.updates.category, 'admin', 'the row\'s own kind is written back, not the mode\'s');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
 });
 
 describe('usePayroll.handleSalarySubmit', () => {
@@ -483,6 +533,54 @@ describe('usePayroll.handleExportMonthlyPayrollExcel (bordereau XLSX)', () => {
     }
   });
 
+  it('la CATÉGORIE décide du document — un membre du Centre T et P au poste libellé librement reçoit bien sa fiche', async () => {
+    // The position was typed by the school ("Agent technique polyvalent"), not
+    // chosen from the curated list. The old prose match read this member as an
+    // ordinary employee and handed out fiche-paiement-salaire.pdf.
+    const freeTextTech = staff({
+      id: 't3', name: 'Salif Diarra', position: 'Agent technique polyvalent', salary: 100000, category: 'technique',
+    });
+    const { args } = baseDeps({ staff: [freeTextTech] });
+    const { ref, root } = await mount(args);
+    try {
+      ficheCalls.length = 0;
+      bulletinCalls.length = 0;
+      techniqueCalls.length = 0;
+      await act(async () => { await ref.current!.handleExportStaffReceiptPdf(freeTextTech); });
+
+      assert.equal(techniqueCalls.length, 1, 'la fiche T et P est générée');
+      assert.equal(techniqueCalls[0]!.staffMember.id, 't3');
+      assert.equal(ficheCalls.length, 0, 'plus de repli silencieux sur la fiche employé');
+      assert.equal(bulletinCalls.length, 0, 'et pas le bulletin de l’administration');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('un poste reformulé ne fait plus changer de document — l’administrateur garde son bulletin', async () => {
+    // The position was reworded by hand (or by a later edit of the free-text
+    // form). The old match classified the member as an employee and their
+    // bulletin silently became the employee fiche.
+    const rewordedAdmin = staff({
+      id: 'a9', name: 'Fanta Thera', position: 'Suivi des dossiers et des partenaires', salary: 180000, category: 'admin',
+    });
+    const { args } = baseDeps({ staff: [rewordedAdmin] });
+    const { ref, root } = await mount(args);
+    try {
+      ficheCalls.length = 0;
+      bulletinCalls.length = 0;
+      techniqueCalls.length = 0;
+      await act(async () => { await ref.current!.handleExportStaffReceiptPdf(rewordedAdmin); });
+
+      assert.equal(bulletinCalls.length, 1, 'le bulletin de paie est généré');
+      assert.equal(bulletinCalls[0]!.staffMember.id, 'a9');
+      assert.equal(ficheCalls.length, 0, 'pas la fiche employé');
+      assert.equal(techniqueCalls.length, 0, 'pas la fiche technique');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
   it('routes the employee fiche and the admin bulletin to their paper-template generators (stamp contract covered by the static guard + pdf-bulletin tests)', async () => {
     const { args } = baseDeps({});
     const { ref, root } = await mount(args);
@@ -582,6 +680,41 @@ describe('usePayroll.filteredStaff', () => {
     const { ref, root } = await mount(args);
     try {
       assert.equal(ref.current!.adminStaffCount, 2, '2 admin + 1 employé');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('chaque KIND a son bac : un membre du Centre T et P n’est plus listé comme employé', async () => {
+    const tech = staff({ id: 't1', name: 'Issa Touré', position: 'Agent technique polyvalent', salary: 100000, category: 'technique' });
+    const { args } = baseDeps({ staff: [adminProviseur, employee, tech] });
+    const { ref, root } = await mount(args);
+    try {
+      await act(async () => { ref.current!.setStaffPositionFilter('employee'); });
+      assert.deepEqual(ref.current!.filteredStaff.map(s => s.id), ['e1'], 'le bac employé ne contient que les employés');
+      await act(async () => { ref.current!.setStaffPositionFilter('technique'); });
+      assert.deepEqual(ref.current!.filteredStaff.map(s => s.id), ['t1']);
+      await act(async () => { ref.current!.setStaffPositionFilter('admin'); });
+      assert.deepEqual(ref.current!.filteredStaff.map(s => s.id), ['a1']);
+      await act(async () => { ref.current!.setStaffPositionFilter('all'); });
+      assert.equal(ref.current!.filteredStaff.length, 3, '“Tous” réunit les trois bacs');
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('la catégorie l’emporte sur un poste qui la contredit', async () => {
+    // A row whose stored category says employee while its label reads like an
+    // administration role: the column is the fact, the prose is only prose.
+    const mislabelled = staff({ id: 'x1', name: 'Bakary Sanogo', position: 'Proviseur', salary: 100000, category: 'employee' });
+    const { args } = baseDeps({ staff: [mislabelled] });
+    const { ref, root } = await mount(args);
+    try {
+      await act(async () => { ref.current!.setStaffPositionFilter('admin'); });
+      assert.deepEqual(ref.current!.filteredStaff.map(s => s.id), [], 'pas dans le bac administration');
+      await act(async () => { ref.current!.setStaffPositionFilter('employee'); });
+      assert.deepEqual(ref.current!.filteredStaff.map(s => s.id), ['x1'], 'dans le bac employé');
+      assert.equal(ref.current!.adminStaffCount, 0, 'et pas compté comme membre de l’administration');
     } finally {
       act(() => root.unmount());
     }

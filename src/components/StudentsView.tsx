@@ -5,7 +5,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 
 export function StudentsView() {
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
-  const { ArrowDown, ArrowUp, ArrowUpDown, FileText, Flag, HighlightText, Printer, Trash2, currentTheme, deleteStudent, filteredStudents, formatCurrency, formatDate, getGradeDisplay, getStatus, handleSort, lang, openEditModal, searchTerm, setSelectedStudent, setTicketStudent, stats, studentSortKey, studentSortOrder, t, today, toggleFlag } = useMainViews();
+  const { ArrowDown, ArrowUp, ArrowUpDown, FileText, Flag, HighlightText, Printer, Trash2, canDelete, currentTheme, deleteStudent, filteredStudents, formatCurrency, formatDate, getGradeDisplay, getStatus, handleSort, lang, openEditModal, searchTerm, setSelectedStudent, setTicketStudent, stats, studentSortKey, studentSortOrder, t, today, toggleFlag } = useMainViews();
   return (
     <>
           <div className="space-y-8">
@@ -192,13 +192,18 @@ export function StudentsView() {
                               <Printer size={18} />
                             </button>
                           )}
-                          <button 
-                            onClick={() => setConfirmDeleteStudent(student)}
-                            className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all"
-                            title={t.deleteStudent}
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          {/* La suppression est réservée aux administrateurs par la
+                              policy « Admin delete students » : le bouton n'existe pas
+                              pour les autres rôles, au lieu d'échouer après le clic. */}
+                          {canDelete && (
+                            <button
+                              onClick={() => setConfirmDeleteStudent(student)}
+                              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all"
+                              title={t.deleteStudent}
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

@@ -1,4 +1,5 @@
 import type { Student, Expense, VendorExpense, SalaryPayment } from './useSupabaseData';
+import { downloadBytes } from './browserDownload';
 import { drawSchoolStamp } from './pdfStamp';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
@@ -272,5 +273,5 @@ export async function generateMultiYearReportPdf({
 
   // Trigger Save / Download
   const filename = `MAMA_THERA_Bilan_Multi_Annuel_${new Date().toISOString().split('T')[0]}.pdf`;
-  doc.save(filename);
+  downloadBytes(doc.output('arraybuffer'), filename);
 }

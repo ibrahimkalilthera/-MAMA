@@ -32,6 +32,7 @@
  */
 import type { TranslationDict } from '../i18n/translations';
 import { translations } from '../i18n/translations';
+import { downloadBytes } from './browserDownload';
 import { drawSchoolStamp } from './pdfStamp';
 import type { Staff } from './useSupabaseData';
 
@@ -212,19 +213,6 @@ async function loadTemplateBytes(template?: Uint8Array | ArrayBuffer): Promise<U
   return new Uint8Array(await res.arrayBuffer());
 }
 
-function triggerBrowserDownload(bytes: Uint8Array, filename: string): void {
-  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
-  const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
-
 /** Formats an amount like the school writes it on the bulletin. */
 function fmtFcfa(value: number): string {
   return `${value.toLocaleString('fr-FR').replace(/[\u202f\u00a0]/g, ' ')} FCFA`;
@@ -366,6 +354,8 @@ export async function generateAdminBulletinPdf({
   const safeName = staffMember.name.replace(/[^a-zA-Z0-9_-]/g, '_');
   const periodStamp = `${periodYear}-${String(monthIdx + 1).padStart(2, '0')}`;
   const filename = `Bulletin_Paie_${safeName}_${periodStamp}.pdf`;
-  triggerBrowserDownload(bytes, filename);
+  // Le téléchargement n'est plus recopié ici : c'est `downloadBytes` qui émet,
+  // pour toutes les surfaces (`src/lib/browserDownload.ts`).
+  downloadBytes(bytes, filename);
   return { bytes, filename };
 }

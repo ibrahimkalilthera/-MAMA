@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabaseClient';
+import { isAdminRole } from './deleteRights';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -289,7 +290,10 @@ export function useAuth(): AuthState {
     profile,
     loading,
     error,
-    isAdmin: profile?.role === 'admin' || profile?.role === 'dev',
+    // La liste des rôles administrateurs vit dans src/lib/deleteRights.ts, à côté
+    // de la règle de suppression qu'elle gouverne : deux listes écrites à la main
+    // divergeraient, et la base, elle, n'en a qu'une (`public.is_admin()`).
+    isAdmin: isAdminRole(profile?.role),
     signIn,
     signOut,
     fetchAllProfiles,

@@ -28,6 +28,7 @@
  * itself; only `lang` localizes the month name and the payment motif.
  */
 import type { Student, Payment } from './useSupabaseData';
+import { downloadBytes } from './browserDownload';
 import { montantEnLettres } from './pdfPayrollBulletin';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
@@ -129,19 +130,6 @@ async function loadTemplateBytes(template?: Uint8Array | ArrayBuffer): Promise<U
   const res = await fetch(`${baseUrl}${TEMPLATE_URL}`);
   if (!res.ok) throw new Error(`Le modèle du reçu des parents est introuvable (HTTP ${res.status}).`);
   return new Uint8Array(await res.arrayBuffer());
-}
-
-function triggerBrowserDownload(bytes: Uint8Array, filename: string): void {
-  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
-  const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 /** Formats an amount like the school writes it: thin spaces + the FCFA unit. */
@@ -307,5 +295,5 @@ export async function buildParentReceiptPdf({
  */
 export async function generatePaymentReceiptPdf(opts: ReceiptDataOptions): Promise<void> {
   const { bytes, filename } = await buildParentReceiptPdf(opts);
-  triggerBrowserDownload(bytes, filename);
+  downloadBytes(bytes, filename);
 }

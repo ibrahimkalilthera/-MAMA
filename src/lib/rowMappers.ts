@@ -4,6 +4,7 @@
 import type { DbRow } from './database.types';
 import type { Parent, Payment, SalaryPayment, Staff, Student, StudentNoteEntry, Todo, VendorExpense, Expense } from './domainTypes';
 import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
+import { isStaffCategory } from './adminPositions';
 
 // ─── Unique temp IDs for offline-created records ──────────────────────────────
 // `Date.now()` alone can collide when several records are created in the same
@@ -78,6 +79,10 @@ export function mapStaffRow(row: DbRow<'staff'>): Staff {
     travelAllowance: Number(row.travel_allowance) || 0,
     communicationAllowance: Number(row.communication_allowance) || 0,
     housingAllowance: Number(row.housing_allowance) || 0,
+    // A value outside the three kinds is dropped rather than trusted: the row
+    // then falls back to the position guess (staffCategory) instead of being
+    // labelled something the app cannot document.
+    category: isStaffCategory(row.category) ? row.category : undefined,
   };
 }
 

@@ -8,7 +8,7 @@ import type { Dispatch, SetStateAction, FormEvent } from 'react';
 import type { Staff } from '../lib/useSupabaseData';
 import type { StaffForm, CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
-import { isAdminPosition } from '../lib/adminPositions';
+import { staffCategory } from '../lib/adminPositions';
 import { ModalShell } from './ModalShell';
 
 export interface StaffFormModalProps {
@@ -32,9 +32,10 @@ export interface StaffFormModalProps {
 export function StaffFormModal(props: StaffFormModalProps) {
   const { t, currentTheme, editingStaff, staffForm, setStaffForm, handleStaffSubmit, overlayRef, onClose, adminMode = false, techniqueMode = false, positionOptions } = props;
   const title = editingStaff ? t.editStaff : techniqueMode ? t.addTechMember : adminMode ? t.addAdminMember : t.addStaff;
-  /** Editing a member whose stored position is a curated admin role — the
-   *  header and the POSTE label get a small violet shield to flag it. */
-  const isEditingAdmin = Boolean(editingStaff && isAdminPosition(editingStaff.position));
+  /** Editing an administration member — the header and the POSTE label get a
+   *  small violet shield to flag it. Read from the row's category, so the flag
+   *  survives a position the curated list does not know. */
+  const isEditingAdmin = Boolean(editingStaff && staffCategory(editingStaff) === 'admin');
   return (
     <ModalShell
       overlayRef={overlayRef}

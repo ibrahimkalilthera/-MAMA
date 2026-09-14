@@ -54,6 +54,20 @@ name: Deploy (Vercel)
 # DB lacks the 20260906000000 REVOKE, gate n°3 is red and deploys stay
 # blocked until it is applied.
 #
+# Fourth gate — the same database read the other way round: what the MIGRATIONS
+# declare must exist in the hosted base. On 2026-09-14 `staff.category` was
+# written in the code before its migration was applied; PostgREST validates the
+# columns it is asked for, so every ADD of a member would have been refused while
+# this workflow deployed green — a correct-looking deploy that broke a feature.
+# The probe is the app's own channel (`?select=<columns>&limit=0`), derived from
+# supabase/migrations/ rather than restated, with the same public anon key as
+# gate n°3: PostgREST resolves the columns before RLS, so no row is read and no
+# secret is needed. Its verdict is deliberately NOT the neutral one gates 2-3
+# use: a base that is BEHIND is a named defect (table by table, column by
+# column) and turns the run RED, because a deployment whose schema is missing
+# breaks an insert rather than a read; « I could not look » (network, 401,
+# unknown status) stays neutral (exit 78). Either way nothing is deployed.
+#
 # Known trade-off: if the quality workflow itself cannot run (Actions outage,
 # disabled workflow), deploys stop too — by design: no green gate, no deploy.
 #
@@ -246,6 +260,34 @@ jobs:
           # bundle client Vercel) — jamais de service_role ici.
           SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
           ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
+
+      # Gate n°4 — la base hébergée porte-t-elle les COLONNES que les migrations
+      # déclarent ? PostgREST valide les colonnes demandées AVANT d'appliquer la
+      # RLS : la clé anon publique suffit donc à poser la question, sans lire une
+      # seule ligne et sans aucun secret — même famille que la porte n°3. Le
+      # schéma attendu est DÉDUIT de supabase/migrations/ (jamais recopié) : une
+      # deuxième liste dériverait de la première, et c'est cette dérive-là que ce
+      # contrôle existe pour attraper.
+      #
+      # Sémantique volontairement distincte des portes 2 et 3 : une base EN RETARD
+      # est un défaut NOMMÉ (table par table, colonne par colonne) ⇒ ROUGE — un
+      # déploiement dont le schéma manque casse un AJOUT, pas une lecture ;
+      # « je n'ai pas pu regarder » (réseau, 401, réponse inconnue) ⇒ NEUTRE
+      # (exit 78). Dans les deux cas, rien n'est déployé.
+      - name: Gate — schéma hébergé à jour (colonnes des migrations)
+        env:
+          # Clé anon PUBLIQUE par conception (embarquée dans le bundle client
+          # Vercel) — ce contrôle ne lit aucune donnée : il ne fait que nommer
+          # des colonnes.
+          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
+        run: |
+          status=0
+          npm run check:hosted-schema || status=$?
+          case "$status" in
+            0) exit 0 ;;
+            1) exit 1 ;;
+            *) exit 78 ;;
+          esac
 
       - name: Install project dependencies (needed by vercel build → npm run build)
         run: npm ci

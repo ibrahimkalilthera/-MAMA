@@ -259,6 +259,7 @@ export interface Database {
           travel_allowance: number;
           communication_allowance: number;
           housing_allowance: number;
+          category: string;
           created_at: string;
         };
         Insert: {
@@ -278,6 +279,7 @@ export interface Database {
           travel_allowance?: number;
           communication_allowance?: number;
           housing_allowance?: number;
+          category?: string;
           created_at?: string;
         };
         Update: {
@@ -297,6 +299,7 @@ export interface Database {
           travel_allowance?: number;
           communication_allowance?: number;
           housing_allowance?: number;
+          category?: string;
           created_at?: string;
         };
         Relationships: [];

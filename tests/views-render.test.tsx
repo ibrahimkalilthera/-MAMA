@@ -14,6 +14,7 @@ import { installDomGlobals } from './harness';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import { MainViewsContext } from '../src/app/mainViewsContext';
+import type { MainViewsProps } from '../src/app/mainViewsProps';
 import type { AuditLogEntry } from '../src/lib/auditLogger';
 import { DashboardView } from '../src/components/DashboardView';
 import { StudentsView } from '../src/components/StudentsView';
@@ -185,7 +186,11 @@ describe('views render inside MainViewsContext', () => {
   /** Monte AuditView dans happy-dom. `fn` voit le conteneur, le root est démonté. */
   const withAuditDom = async (
     logs: AuditLogEntry[],
-    fn: (ctx: { container: HTMLElement; win: ReturnType<typeof installDomGlobals> }) => Promise<void> | void
+    fn: (ctx: { container: HTMLElement; win: ReturnType<typeof installDomGlobals> }) => Promise<void> | void,
+    // Les propriétés du cas : la LANGUE, en particulier — la colonne ACTIONS se
+    // lit dans les dictionnaires, donc un cas qui mesure du français doit rendre
+    // la vue avec le dictionnaire français.
+    overrides: Partial<MainViewsProps> = {}
   ) => {
     const win = installDomGlobals();
     const container = win.document.createElement('div');
@@ -196,7 +201,7 @@ describe('views render inside MainViewsContext', () => {
         root.render(
           createElement(
             MainViewsContext.Provider,
-            { value: makeProps({ auditLogs: logs }) },
+            { value: makeProps({ auditLogs: logs, ...overrides }) },
             createElement(AuditView)
           )
         );
@@ -296,6 +301,50 @@ describe('views render inside MainViewsContext', () => {
       url.createObjectURL = realCreate;
       url.revokeObjectURL = realRevoke;
     }
+  });
+
+  // ─── Les deux colonnes qui étaient en anglais ─────────────────────────────
+  //
+  // Le 2026-09-13, la page du journal était française partout SAUF au milieu :
+  // la colonne ACTIONS affichait le code stocké (`ADD_VENDOR_EXPENSE`) et DÉTAILS
+  // la phrase écrite en anglais au moment de l'action. Les deux moitiés se
+  // réparent différemment — le libellé vient des dictionnaires, la phrase d'hier
+  // est traduite À LA LECTURE (le journal n'est jamais réécrit) — donc les deux
+  // sont mesurées ici, sur la vue rendue, avec de vraies entrées.
+  it('AuditView : les colonnes ACTIONS et DÉTAILS se lisent en français', async () => {
+    const legacy: AuditLogEntry[] = [
+      {
+        id: 'legacy-1',
+        action: 'RECORD_PAYMENT',
+        targetType: 'payment',
+        details: 'Payment of 80000 FCFA recorded (Receipt: REC-690078)',
+        createdAt: '2026-09-13T23:58:10.000Z',
+      },
+      {
+        id: 'legacy-2',
+        action: 'ADD_VENDOR_EXPENSE',
+        targetType: 'vendor_expense',
+        details: 'Vendor E2E — stationery — 45000 FCFA',
+        createdAt: '2026-09-13T23:56:10.000Z',
+      },
+    ];
+    await withAuditDom(legacy, ({ container }) => {
+      const html = container.innerHTML;
+      assert.ok(
+        html.includes(translations.fr.auditActionRecordPayment),
+        'l’action se lit « Paiement enregistré », pas le code'
+      );
+      assert.ok(
+        html.includes(translations.fr.auditActionAddVendorExpense),
+        'l’action se lit « Dépense fournisseur ajoutée », pas le code'
+      );
+      assert.ok(
+        html.includes('Paiement de 80000 FCFA (reçu REC-690078)'),
+        'la phrase anglaise d’hier se lit en français sans être réécrite en base'
+      );
+      assert.ok(!html.includes('Payment of'), 'il ne reste aucun anglais dans la colonne DÉTAILS');
+      assert.ok(!html.includes('RECORD_PAYMENT'), 'il ne reste aucun code brut dans la colonne ACTIONS');
+    }, { t: translations.fr, lang: 'fr' });
   });
 
   it('each view still renders with a minimal/empty dataset (no data crash)', () => {

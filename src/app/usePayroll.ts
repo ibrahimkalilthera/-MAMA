@@ -20,8 +20,16 @@ import type { TranslationDict } from '../i18n/translations';
 import { generateAdminBulletinPdf } from '../lib/pdfPayrollBulletin';
 import { generateEmployeeFichePdf } from '../lib/pdfPayrollFiche';
 import { generateTechniqueFichePdf } from '../lib/pdfPayrollTechnique';
-import { isAdminPosition, isTechniquePosition } from '../lib/adminPositions';
+import { staffCategory } from '../lib/adminPositions';
+import type { StaffCategory } from '../lib/adminPositions';
 import type { StaffModalMode, StaffPositionFilter } from './mainViewsProps';
+
+/** The kind of member a modal mode CREATES — the one place that mapping lives. */
+const CATEGORY_OF_MODE: Record<StaffModalMode, StaffCategory> = {
+  employee: 'employee',
+  technique: 'technique',
+  admin: 'admin',
+};
 
 interface UsePayrollDeps {
   t: TranslationDict;
@@ -58,7 +66,7 @@ export function usePayroll(deps: UsePayrollDeps) {
 
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
-  const adminStaffCount = useMemo(() => staff.filter(s => isAdminPosition(s.position)).length, [staff]);
+  const adminStaffCount = useMemo(() => staff.filter(s => staffCategory(s) === 'admin').length, [staff]);
 
   const filteredStaff = useMemo(() => {
     return staff.filter(s => {
@@ -66,10 +74,12 @@ export function usePayroll(deps: UsePayrollDeps) {
         s.name.toLowerCase().includes(staffSearchTerm.toLowerCase()) ||
         s.phone.toLowerCase().includes(staffSearchTerm.toLowerCase());
       if (!matchesSearch) return false;
-      if (staffPositionFilter === 'admin') return isAdminPosition(s.position);
-      if (staffPositionFilter === 'employee') return !isAdminPosition(s.position);
-      if (staffPositionFilter === 'technique') return isTechniquePosition(s.position);
-      return true;
+      // One bucket per KIND (the category the row carries), so the three
+      // filters partition the directory instead of overlapping: a member of the
+      // Centre T et P is not listed as an employee as well, which is what the
+      // old "not an admin, therefore an employee" test did.
+      if (staffPositionFilter === 'all') return true;
+      return staffCategory(s) === staffPositionFilter;
     });
   }, [staff, staffSearchTerm, staffPositionFilter]);
 
@@ -91,6 +101,11 @@ export function usePayroll(deps: UsePayrollDeps) {
     const staffData = {
       ...staffForm,
       salary,
+      // Which kind this member IS. Creating: the flow that opened the modal
+      // decides it. Editing: the ROW decides it (never the mode — the edit form
+      // is always the free-text employee one, so letting the mode decide would
+      // silently demote an administrator to an employee on the first edit).
+      category: editingStaff ? staffCategory(editingStaff) : CATEGORY_OF_MODE[staffModalMode],
       email: staffForm.email.trim(),
       phone: staffForm.phone.trim(),
       bankDetails: staffForm.bankDetails.trim(),
@@ -167,7 +182,11 @@ export function usePayroll(deps: UsePayrollDeps) {
   /**
    * Per-employee salary document PDF.
    *
-   * Members of the administration (added via "Ajouter un membre de
+   * The document follows the member's CATEGORY (staff.category), not the prose
+   * of their position: a member added through the Centre T et P flow whose
+   * typed position is not one of the curated labels used to fall through to the
+   * employee fiche, and editing a position could move a member between
+   * documents. Members of the administration (added via "Ajouter un membre de
    * l'administration") download the official monthly bulletin de paie
    * (src/lib/pdfPayrollBulletin.ts) — school template with the INPS 3,60 %
    * and AMO 3,06 % employee contributions, net salary, amount in words and
@@ -184,15 +203,16 @@ export function usePayroll(deps: UsePayrollDeps) {
    * remain exclusive to the administration bulletin.
    */
   const handleExportStaffReceiptPdf = async (staffMember: Staff) => {
-    if (isTechniquePosition(staffMember.position)) {
-      await generateTechniqueFichePdf({ staffMember, lang });
-      return;
+    switch (staffCategory(staffMember)) {
+      case 'technique':
+        await generateTechniqueFichePdf({ staffMember, lang });
+        return;
+      case 'admin':
+        await generateAdminBulletinPdf({ staffMember, lang, schoolLogo });
+        return;
+      default:
+        await generateEmployeeFichePdf({ staffMember, lang });
     }
-    if (isAdminPosition(staffMember.position)) {
-      await generateAdminBulletinPdf({ staffMember, lang, schoolLogo });
-      return;
-    }
-    await generateEmployeeFichePdf({ staffMember, lang });
   };
 
   const handleExportMonthlyPayrollExcel = async (monthIdx: number, yr: number) => {

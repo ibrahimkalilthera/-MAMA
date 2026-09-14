@@ -56,8 +56,18 @@ export function createParentOps(ctx: SupabaseDataCtx) {
     if (updates.relationship !== undefined) row.relationship = updates.relationship;
     if (updates.notes !== undefined) row.notes = updates.notes;
 
-    const { error } = await supabase.from('parents').update(row).eq('id', id);
+    // `.select('id')` + the empty check below is what makes this write HONEST —
+    // the same rule as staff.ts and students.ts. PostgREST answers 200 with an
+    // EMPTY body when the RLS `USING` clause removes every target row: the
+    // request succeeded, changed nothing, and used to report success — the
+    // parent list then showed a value the database does not have.
+    const { data, error } = await supabase.from('parents').update(row).eq('id', id).select('id');
     if (error) { console.error('updateParent error:', error.message); notifyError('updateParent', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('updateParent: aucune ligne modifiée — cible filtrée par la policy RLS');
+      notifyError('updateParent', 'Aucune ligne modifiée — droits insuffisants sur ce parent.');
+      return false;
+    }
     const prevParent = parents.find(p => p.id === id);
     const changes: string[] = [];
     if (prevParent && updates.fullName !== undefined && updates.fullName !== prevParent.fullName) changes.push(`nom ${prevParent.fullName}→${updates.fullName}`);
@@ -81,8 +91,17 @@ export function createParentOps(ctx: SupabaseDataCtx) {
       notifySuccess('deleteParent');
       return true;
     }
-    const { error } = await supabase.from('parents').delete().eq('id', id);
+    // Same honesty rule as deleteStaff/deleteStudent: an RLS-filtered DELETE
+    // removes zero rows and answers 200, so « Parent supprimé » could be shown
+    // for a parent still in the table — and their pupils' links with them.
+    // `.select('id')` tells us what really went.
+    const { data, error } = await supabase.from('parents').delete().eq('id', id).select('id');
     if (error) { console.error('deleteParent error:', error.message); notifyError('deleteParent', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('deleteParent: aucune ligne supprimée — cible filtrée par la policy RLS');
+      notifyError('deleteParent', 'Aucune ligne supprimée — droits insuffisants sur ce parent.');
+      return false;
+    }
     const deleted = parents.find(p => p.id === id);
     void logAuditEvent({
       action: 'DELETE_PARENT',

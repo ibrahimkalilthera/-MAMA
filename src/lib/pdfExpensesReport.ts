@@ -1,4 +1,5 @@
 import type { Expense, VendorExpense } from './useSupabaseData';
+import { downloadBytes } from './browserDownload';
 import { drawSchoolStamp } from './pdfStamp';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
@@ -551,5 +552,5 @@ export async function generateExpensesReportPdf({
   // Trigger Save / Download
   const safeCatName = selectedCategory && selectedCategory !== 'all' ? `_${selectedCategory}` : '';
   const filename = `MAMA_THERA_Rapport_Depenses${safeCatName}_${selectedYear}_${new Date().toISOString().split('T')[0]}.pdf`;
-  doc.save(filename);
+  downloadBytes(doc.output('arraybuffer'), filename);
 }

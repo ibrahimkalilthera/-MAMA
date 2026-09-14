@@ -92,6 +92,9 @@ export interface AppModalsProps {
   handleStudentSubmit: (e: FormEvent) => Promise<void>;
   handleVendorExpenseSubmit: (e: FormEvent) => Promise<void>;
   isPromoter: boolean;
+  /** Même règle que les vues : la suppression demandée à la base est réservée
+   *  aux administrateurs (`src/lib/deleteRights.ts`). */
+  canDelete: boolean;
   /** Gestionnaire Principal — finance admin without user/settings/audit access. */
   isGeneralManager: boolean;
   lang: 'en' | 'fr';

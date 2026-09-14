@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight, Download, History, Layers, ShieldCheck } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
 import { incidentRows } from '../lib/blockedIncidents';
+import { auditActionLabel, localizeAuditDetails } from '../lib/auditDisplay';
+import { downloadBytes } from '../lib/browserDownload';
 import type { BlockedIncident } from '../lib/blockedIncidents';
 
 /** Combien de postes un incident nomme avant de compter les autres. */
@@ -47,7 +49,7 @@ export function AuditView() {
   /** Le résumé d'un incident — ce que le CSV emporte, et ce que l'écran déplie. */
   const incidentSummary = (incident: BlockedIncident) =>
     [
-      `${t.auditIncidentMotif} : ${incident.motif}`,
+      `${t.auditIncidentMotif} : ${localizeAuditDetails(incident.motif, lang)}`,
       `${t.auditIncidentStations} : ${incident.stations.join(', ')}`,
       t.auditIncidentCount.replace('{count}', String(incident.stations.length)),
       t.auditIncidentOccurrences.replace('{count}', String(incident.occurrences)),
@@ -65,7 +67,7 @@ export function AuditView() {
     const csvRows = viewRows.map((row) => row.kind === 'incident'
       ? [
           fmt(row.incident.lastAt),
-          t.auditIncidentAction.replace('{code}', row.incident.code),
+          t.auditIncidentAction.replace('{code}', auditActionLabel(row.incident.code, t)),
           '',
           t.auditIncidentCount.replace('{count}', String(row.incident.stations.length)),
           '',
@@ -73,22 +75,18 @@ export function AuditView() {
         ]
       : [
           fmt(row.log.createdAt),
-          row.log.action,
+          auditActionLabel(row.log.action, t),
           (row.log.details || '').includes('[replay]') ? '[replay]' : '',
           `${row.log.userName || ''}${row.log.userEmail ? ` (${row.log.userEmail})` : ''}`,
           row.log.userRole || '',
-          row.log.details || '',
+          localizeAuditDetails(row.log.details, lang),
         ]);
     const csv = [header, ...csvRows].map((r) => r.map(esc).join(',')).join('\r\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Le CSV passait par sa PROPRE copie du mécanisme de téléchargement (la
+    // cinquième) : il emploie maintenant le même émetteur que les PDF, donc un
+    // changement de la façon dont l'app télécharge n'oubliera pas cet export.
+    // Le BOM reste : Excel doit lire les accents.
+    downloadBytes(new TextEncoder().encode('\ufeff' + csv), `audit-log-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8');
   };
   return (
           <div className="space-y-6">
@@ -252,7 +250,7 @@ export function AuditView() {
                                     {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                   </button>
                                   <span className="text-[10px] font-black tracking-wider uppercase px-2.5 py-1 rounded-full border bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20">
-                                    {t.auditIncidentAction.replace('{code}', incident.code)}
+                                    {t.auditIncidentAction.replace('{code}', auditActionLabel(incident.code, t))}
                                   </span>
                                 </div>
                               </td>
@@ -285,7 +283,7 @@ export function AuditView() {
                                       {incident.reports.map((log) => (
                                         <div key={log.id} className="flex flex-col">
                                           <span className={`text-[10px] font-mono ${currentTheme.muted}`}>{fmt(log.createdAt)}</span>
-                                          <span className={`text-[11px] ${currentTheme.text}`}>{log.details || '—'}</span>
+                                          <span className={`text-[11px] ${currentTheme.text}`}>{localizeAuditDetails(log.details, lang) || '—'}</span>
                                         </div>
                                       ))}
                                     </div>
@@ -323,7 +321,7 @@ export function AuditView() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`text-[10px] font-black tracking-wider uppercase px-2.5 py-1 rounded-full border ${badgeColor}`}>
-                                {log.action}
+                                {auditActionLabel(log.action, t)}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -336,7 +334,7 @@ export function AuditView() {
                               )}
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`text-xs font-medium ${currentTheme.text}`}>{log.details || '—'}</span>
+                              <span className={`text-xs font-medium ${currentTheme.text}`}>{localizeAuditDetails(log.details, lang) || '—'}</span>
                             </td>
                           </tr>
                         );

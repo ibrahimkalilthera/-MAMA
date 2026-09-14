@@ -6,6 +6,7 @@
  * its own identical shapes for the data layer; these are intentionally
  * kept separate until the two are unified.
  */
+import type { StaffCategory } from '../lib/domainTypes';
 
 export type Language = 'en' | 'fr';
 export interface User {
@@ -91,6 +92,10 @@ export interface Staff {
   travelAllowance?: number;
   communicationAllowance?: number;
   housingAllowance?: number;
+  /** Which kind of member this row is (migration 20260914000000): the flow that
+   *  created it wrote it, and it decides the payroll bucket and the document.
+   *  Absent on rows created before the column — see staffCategory(). */
+  category?: StaffCategory;
 }
 
 export interface SalaryPayment {

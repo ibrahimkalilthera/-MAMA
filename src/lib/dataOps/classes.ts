@@ -80,7 +80,7 @@ export function createClassOps(ctx: SupabaseDataCtx) {
   }): Promise<boolean> => {
     const code = updates.code.trim().replace(/\s+/g, ' ');
     if (!code) return false;
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('custom_classes')
       .update({
         code,
@@ -90,13 +90,20 @@ export function createClassOps(ctx: SupabaseDataCtx) {
         name_fr: updates.nameFr,
         name_en: updates.nameEn,
       })
-      .eq('id', rowId);
+      .eq('id', rowId)
+      .select('id');
     if (error) {
       if (error.code === '23505') {
         notifyError('updateCustomClass', 'A class with this code already exists.');
         return false;
       }
       notifyError('updateCustomClass', error.message);
+      return false;
+    }
+    // Même règle honnête que staff/students/parents : une requête filtrée par la
+    // policy RLS revient en 200 avec un corps VIDE — 0 ligne n'est pas un succès.
+    if (!updated || updated.length === 0) {
+      notifyError('updateCustomClass', 'Aucune ligne modifiée — droits insuffisants sur cette classe.');
       return false;
     }
     setCustomClasses(prev => prev.map(c => c.rowId === rowId
@@ -107,12 +114,18 @@ export function createClassOps(ctx: SupabaseDataCtx) {
   };
 
   const deleteCustomClass = async (rowId: string): Promise<boolean> => {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('custom_classes')
       .delete()
-      .eq('id', rowId);
+      .eq('id', rowId)
+      .select('id');
     if (error) {
       notifyError('deleteCustomClass', error.message);
+      return false;
+    }
+    // Même règle honnête que staff/students/parents : 0 ligne n'est pas un succès.
+    if (!data || data.length === 0) {
+      notifyError('deleteCustomClass', 'Aucune ligne supprimée — droits insuffisants sur cette classe.');
       return false;
     }
     setCustomClasses(prev => prev.filter(c => c.rowId !== rowId));

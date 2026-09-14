@@ -7,8 +7,10 @@ import { useState, useEffect, useMemo, useRef, FormEvent } from 'react';
 import { useSupabaseData } from './lib/useSupabaseData';
 import { sameYearMonth } from './lib/dateWindows';
 import { useToast } from './lib/useToast';
+import { useAcademicYears } from './app/useAcademicYears';
 import { useFloatingChat } from './app/useFloatingChat';
 import { useAuthWelcome } from './app/useAuthWelcome';
+import { canDeleteRecords } from './lib/deleteRights';
 import { useTodoSidebar } from './app/useTodoSidebar';
 import { useParents } from './app/useParents';
 import { usePayments } from './app/usePayments';
@@ -222,7 +224,15 @@ const { selectedYear, setSelectedYear, lockedYears, setLockedYears } = yearData;
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditYear, setAuditYear] = useState<string | null>(null);
 
-  const [academicYears, setAcademicYears] = useState<string[]>(['2026-2027', '2027-2028', '2028-2029']);
+  // Les années viennent de la BASE (`academic_years`), et l'année de travail est
+  // celle du CALENDRIER — elle avance donc toute seule au 1er septembre. Une
+  // liste en dur ici faisait écrire une année et en regarder une autre : l'élève
+  // enregistré « disparaissait » au premier rafraîchissement.
+  //
+  // `isAdmin` est passé parce que la maintenance de la déclaration partagée
+  // (`is_current`) écrit dans `academic_years`, que la policy réserve à
+  // `admin`/`dev` : la tenter pour un caissier ne produirait qu'un 403 muet.
+  const { academicYears, setAcademicYears } = useAcademicYears({ isAdmin: Boolean(auth?.isAdmin) });
   const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
 
@@ -610,6 +620,11 @@ const {
   // src/app/viewsWiring.ts against both interfaces, so a partial wiring
   // still fails the gate. The literal moved there so App.tsx stays under
   // the line budget; buildShellProps recombines it with the shell extras.
+  // Le droit de SUPPRIMER vient de la base, pas de l'écran : la même liste de
+  // rôles que `public.is_admin()` (`src/lib/deleteRights.ts`), lue une seule
+  // fois ici et descendue aux vues. Une action que le serveur refuserait n'est
+  // donc plus AFFICHÉE — l'échec est empêché au lieu d'être annoncé.
+  const canDelete = canDeleteRecords(auth.profile?.role);
   const shellProps = buildShellProps({
     ...supabaseData,
     ...authWelcomeData,
@@ -629,6 +644,7 @@ const {
     ...yearData,
     supabaseLoading: supabaseData.loading,
     supabaseError: supabaseData.error,
+    canDelete,
     lang,
     t,
     toast,

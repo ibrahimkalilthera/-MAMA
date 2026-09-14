@@ -48,7 +48,11 @@ const emptyStudentForm = (): StudentForm => ({
   totalDue: '',
   scholarshipDiscount: '0',
   dueDate: new Date().toISOString().split('T')[0],
-  academicYear: '2024-2025',
+  // Plus d'année en dur : le formulaire naît SANS année et c'est l'année de
+  // travail (`selectedYear`) qui s'applique à l'enregistrement. Un littéral ici
+  // écrivait une année que les listes ne filtraient pas — l'élève était en base
+  // et invisible, ce qui se lit « mes données ont disparu » (2026-09-13).
+  academicYear: '',
   grade: '',
   // Student Profiles & Enrollment Fields
   studentId: '',
@@ -183,6 +187,9 @@ export function useStudents(deps: UseStudentsDeps) {
 
     const studentData = {
       ...studentForm,
+      // L'année ÉCRITE est celle qui est AFFICHÉE : le formulaire garde la main
+      // si l'utilisateur en choisit une autre, sinon c'est l'année de travail.
+      academicYear: studentForm.academicYear || selectedYear,
       parentEmail: studentForm.parentEmail.trim(),
       totalDue: amount,
       // Matricules are reserved for 9th-year classes. The explicit undefined
@@ -211,7 +218,7 @@ export function useStudents(deps: UseStudentsDeps) {
       totalDue: '',
       scholarshipDiscount: '0',
       dueDate: new Date().toISOString().split('T')[0],
-      academicYear: selectedYear || '2024-2025',
+      academicYear: selectedYear,
       grade: '',
       studentId: '',
       photo: '',
@@ -236,7 +243,7 @@ export function useStudents(deps: UseStudentsDeps) {
       totalDue: student.totalDue.toString(),
       scholarshipDiscount: (student.scholarshipDiscount || 0).toString(),
       dueDate: student.dueDate,
-      academicYear: student.academicYear || '2024-2025',
+      academicYear: student.academicYear || selectedYear,
       grade: student.grade || '',
       studentId: isNinthGradeClass(student.grade)
         ? (student.studentId || `MT-2026-${student.id.replace('ST', '')}`)

@@ -37,16 +37,19 @@ export const FIXTURE_PASSWORD = 'Contrast-Fixture-2026';
 /**
  * The academic year every fixture row belongs to.
  *
- * It MUST be the year the app opens on: `src/app/YearProvider.tsx` initialises
- * `selectedYear` to the literal `'2026-2027'`, and every year-filtered view keeps
- * a row only when `!selectedYear || row.academicYear === selectedYear`. The two
- * were out of sync and NOTHING said so: with every fixture row on 2025-2026, the
- * Élèves table rendered zero rows, and the "Fiche Élève" step reported "non
- * applicable (aucun déclencheur)" — green, with that surface never measured.
+ * It MUST be the year the app opens on, and depuis le 2026-09-13 cette année
+ * n'est plus un littéral du provider : elle vient de `academic_years`, celle
+ * marquée `is_current` (`src/lib/academicYears.ts`, `currentYearName`). Le
+ * provider démarrait sinon sur `'2026-2027'` **écrit dans le code** pendant que
+ * le formulaire d'élève naissait en `'2024-2025'` : un élève enregistré était en
+ * base et invisible, les vues filtrées par année se vidaient, et rien ne le
+ * disait.
  *
- * `tests/audit-fixtures.test.ts` pins this constant to the app's literal, so
- * changing one without the other turns the suite red instead of silently
- * emptying the year-filtered views.
+ * C'est pourquoi la fixture sert `academic_years` avec CETTE année marquée
+ * courante : `tests/audit-fixtures.test.ts` fait calculer l'année par la FONCTION
+ * DE L'APP (`currentYearName`) sur les lignes servies, et exige qu'elle vaille ce
+ * constant. Changer l'un sans l'autre rend la suite rouge au lieu de vider en
+ * silence les surfaces filtrées par année.
  */
 export const FIXTURE_ACADEMIC_YEAR = '2026-2027';
 
@@ -107,6 +110,17 @@ const DUE_PAST = '2026-02-10';
 
 /** @type {Record<string, Array<Record<string, unknown>>>} */
 export const FIXTURE_TABLES = {
+  // L'année de travail de l'app est LUE ici (`is_current`) : c'est la même règle
+  // que sur la base réelle, et c'est ce qui empêche la dérive entre l'année des
+  // lignes et l'année affichée. Les années voisines existent pour que le
+  // sélecteur d'année soit mesuré avec une liste venue de la base (une liste
+  // vide mesurerait moins de textes en restant verte).
+  academic_years: [
+    { id: 'f1c7b000-0000-4000-8000-00000000d001', year_name: '2024-2025', is_current: false },
+    { id: 'f1c7b000-0000-4000-8000-00000000d002', year_name: '2025-2026', is_current: false },
+    { id: 'f1c7b000-0000-4000-8000-00000000d003', year_name: FIXTURE_ACADEMIC_YEAR, is_current: true },
+    { id: 'f1c7b000-0000-4000-8000-00000000d004', year_name: '2027-2028', is_current: false },
+  ],
   parents: [
     {
       id: PARENT_ID_A,

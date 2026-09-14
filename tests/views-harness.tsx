@@ -83,6 +83,11 @@ export const declaredDefaults: Partial<MainViewsProps> = {
   // ses actions qu'à ce rôle, donc le `false` de la dérivation ferait mesurer
   // « le bouton est masqué » à des cas qui croient mesurer l'inverse.
   isPromoter: true,
+  // Même raison que `isPromoter`, et plus vive : le poste déclaré ci-dessus a
+  // `isAdmin: true`, donc il a le droit de SUPPRIMER. Dérivée à `false`, chaque
+  // cas qui croit mesurer une liste mesurerait en réalité une liste dont les
+  // actions de suppression ont disparu (les vues les masquent aux autres rôles).
+  canDelete: true,
   // `Suspense` enveloppe du contenu : le composant stub de la dérivation rend
   // `null`, donc ce qu'elle enveloppe disparaîtrait du HTML mesuré.
   Suspense: Suspense as never,

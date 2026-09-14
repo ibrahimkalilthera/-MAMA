@@ -1,4 +1,5 @@
 import type { Staff, SalaryPayment } from './useSupabaseData';
+import { downloadBytes } from './browserDownload';
 import { drawSchoolStamp } from './pdfStamp';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
@@ -199,5 +200,5 @@ export async function generateStaffPayslipPdf({
   );
 
   const fileName = `Bulletin_Paie_${staffMember.name.replace(/\s+/g, '_')}_${payment.date || 'rec'}.pdf`;
-  doc.save(fileName);
+  downloadBytes(doc.output('arraybuffer'), fileName);
 }

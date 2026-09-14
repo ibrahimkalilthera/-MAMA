@@ -5,6 +5,14 @@
  */
 // ─── Type Definitions (matching App.tsx types) ───────────────────────────────
 
+/**
+ * The three kinds of staff member — the only values `staff.category` accepts
+ * (migration 20260914000000). Declared here, next to the row it describes,
+ * so the data layer and the UI name the same union; `lib/adminPositions.ts`
+ * imports it rather than redeclaring it.
+ */
+export type StaffCategory = 'employee' | 'technique' | 'admin';
+
 export interface Parent {
   id: string;
   fullName: string;
@@ -78,6 +86,10 @@ export interface Staff {
   travelAllowance?: number;
   communicationAllowance?: number;
   housingAllowance?: number;
+  /** Which kind of member this row is (migration 20260914000000) — the flow
+   *  that created it wrote it, and it decides the payroll filter and the
+   *  document the member downloads. Absent on rows created before the column. */
+  category?: StaffCategory;
 }
 
 export interface SalaryPayment {

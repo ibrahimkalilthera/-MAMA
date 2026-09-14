@@ -77,6 +77,9 @@ export function staffToRow(s: Omit<Staff, 'id'>) {
     travel_allowance: s.travelAllowance ?? 0,
     communication_allowance: s.communicationAllowance ?? 0,
     housing_allowance: s.housingAllowance ?? 0,
+    // NOT NULL in the schema: a member queued offline before the category
+    // existed is an employee, the same kind the app showed for them.
+    category: s.category ?? 'employee',
   };
 }
 
@@ -275,7 +278,9 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
   const tag = ' [replay]';
   switch (item.type) {
     case 'addPayment':
-      return { action: 'RECORD_PAYMENT', targetType: 'payment', targetId: item.payload.studentId, details: `Payment of ${item.payload.payment.amount} FCFA recorded (Receipt: ${item.payload.payment.receiptNumber || 'N/A'})${tag}` };
+      // Même forme que le chemin en ligne (dataOps/payments.ts) : un même fait
+      // ne doit pas se lire de deux façons selon qu'il a été rejoué ou non.
+      return { action: 'RECORD_PAYMENT', targetType: 'payment', targetId: item.payload.studentId, details: `Paiement de ${item.payload.payment.amount} FCFA (reçu ${item.payload.payment.receiptNumber || 'N/A'})${tag}` };
     case 'addExpense':
       return { action: 'ADD_EXPENSE', targetType: 'expense', targetId: null, details: `${item.payload.description} (${item.payload.category}) — ${item.payload.amount} FCFA${tag}` };
     case 'deleteExpense':

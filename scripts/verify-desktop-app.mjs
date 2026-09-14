@@ -297,6 +297,22 @@ try {
   const size = statSync(full).size;
   console.log(ok ? `✅ PDF TÉLÉCHARGÉ: ${pdfPath} (${size} octets, signature ${head})` : `❌ fichier non-PDF: ${head}`);
 
+  // ── Un clic, UN fichier ──────────────────────────────────────────────────
+  // Le 2026-09-13, le reçu d'un parent arrivait DEUX fois sur les postes
+  // installés : tant que le chemin d'enregistrement n'est pas fixé, Electron
+  // applique sa routine d'origine, donc ouvrir notre propre dialogue en plus
+  // écrivait deux fichiers (voir electron/download-policy.cjs). Le mode
+  // automatique (`ELECTRON_DL_DIR`) ne peut pas produire ce doublon — il est
+  // donc le seul endroit où le COMPTE est observable sans cliquer dans un
+  // dialogue, et il est exigé ici : un second déclencheur côté page (un `onClick`
+  // doublé, un effet rejoué) devient rouge ici plutôt qu'à l'école.
+  const pdfs = readdirSync(DL_DIR).filter((f) => f.toLowerCase().endsWith('.pdf'));
+  if (pdfs.length !== 1) {
+    throw new Error(
+      `${pdfs.length} PDF reçus pour un clic (${pdfs.join(', ')}) — un téléchargement doit avoir UNE seule sortie`,
+    );
+  }
+
   // ── cleanup ─────────────────────────────────────────────────────────────
   // Graceful close over CDP (terminates the app for real — disconnect() only
   // detaches and left orphan processes; the portable stub also survives a bare

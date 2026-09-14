@@ -103,8 +103,15 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     if (updates.beneficiaryStudentName !== undefined) row.beneficiary_student_name = updates.beneficiaryStudentName;
     if (updates.beneficiaryStudentGrade !== undefined) row.beneficiary_student_grade = updates.beneficiaryStudentGrade;
 
-    const { error } = await supabase.from('vendor_expenses').update(row).eq('id', id);
+    // Même règle honnête que staff/students/parents : une requête filtrée par la
+    // policy RLS revient en 200 avec un corps VIDE — 0 ligne n'est pas un succès.
+    const { data, error } = await supabase.from('vendor_expenses').update(row).eq('id', id).select('id');
     if (error) { console.error('updateVendorExpense error:', error.message); notifyError('updateVendorExpense', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('updateVendorExpense: aucune ligne modifiée — cible filtrée par la policy RLS');
+      notifyError('updateVendorExpense', 'Aucune ligne modifiée — droits insuffisants sur cette dépense.');
+      return false;
+    }
     const prev = vendorExpenses.find(v => v.id === id);
     const changes: string[] = [];
     if (prev && updates.amount !== undefined && updates.amount !== prev.amount) changes.push(`montant ${prev.amount}→${updates.amount}`);
@@ -127,8 +134,13 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
       notifySuccess('deleteExpense');
       return true;
     }
-    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    const { data, error } = await supabase.from('expenses').delete().eq('id', id).select('id');
     if (error) { console.error('deleteExpense error:', error.message); notifyError('deleteExpense', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('deleteExpense: aucune ligne supprimée — cible filtrée par la policy RLS');
+      notifyError('deleteExpense', 'Aucune ligne supprimée — droits insuffisants sur cette dépense.');
+      return false;
+    }
     const deleted = expenses.find(e => e.id === id);
     void logAuditEvent({
       action: 'DELETE_EXPENSE',
@@ -148,8 +160,13 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
       notifySuccess('deleteVendorExpense');
       return true;
     }
-    const { error } = await supabase.from('vendor_expenses').delete().eq('id', id);
+    const { data, error } = await supabase.from('vendor_expenses').delete().eq('id', id).select('id');
     if (error) { console.error('deleteVendorExpense error:', error.message); notifyError('deleteVendorExpense', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('deleteVendorExpense: aucune ligne supprimée — cible filtrée par la policy RLS');
+      notifyError('deleteVendorExpense', 'Aucune ligne supprimée — droits insuffisants sur cette dépense.');
+      return false;
+    }
     const deleted = vendorExpenses.find(v => v.id === id);
     void logAuditEvent({
       action: 'DELETE_VENDOR_EXPENSE',

@@ -18,6 +18,7 @@ import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import type { TranslationDict } from '../i18n/translations';
 import type { Language, Parent, Student } from './types';
 import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { downloadBytes } from '../lib/browserDownload';
 import { drawSchoolStamp } from '../lib/pdfStamp';
 
 export interface UseParentsArgs {
@@ -417,7 +418,10 @@ export function useParents({
     );
 
     const safeName = parent.fullName.replace(/[^a-zA-Z0-9_-]/g, '_');
-    doc.save(`Releve_Parent_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    // Le relevé passait par `doc.save()`, c'est-à-dire par un chemin de
+    // téléchargement que l'app ne contrôle pas — le sixième exemplaire du
+    // mécanisme, et celui qu'on oublie parce qu'il ne ressemble pas aux autres.
+    downloadBytes(doc.output('arraybuffer'), `Releve_Parent_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   const handleParentSubmit = async (e: FormEvent) => {

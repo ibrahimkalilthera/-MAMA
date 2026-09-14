@@ -356,23 +356,47 @@ describe('midnight lock: light fills carry a dark: counterpart', () => {
   // vendor disabled fields) are structurally paired at the source instead.
   // Remaining: non-modal fixed-light surfaces + the 20%-alpha wash over the
   // themed card (the card's dark surface still shows through).
-  const EXEMPT_LINES: Record<string, number[]> = {
-    'components/Login.tsx': [95, 110, 126],
-    'components/FloatingChat.tsx': [110],
-    'components/SharedUi.tsx': [18],
+  /**
+   * Les exemptions nomment un FICHIER et un REMPLISSAGE — jamais un numéro de
+   * ligne. Mesuré le 2026-09-14 : quatre lignes ajoutées plus haut dans
+   * `ExpensesView` ont déplacé la surface exemptée de la ligne 431 à la 435, et
+   * l'exemption ne désignait plus rien — le garde est devenu rouge pour une
+   * surface qui était légitime, tandis que la MÊME mécanique aurait pu excuser
+   * une vraie violation apparue sous le numéro périmé. Une ancre de contenu ne
+   * dérive pas ; et pour que son coût soit visible, une exemption qui ne
+   * correspond plus à rien échoue (cas dédié plus bas).
+   */
+  const EXEMPT_FILLS: Record<string, string[]> = {
+    'components/Login.tsx': ['bg-rose-50', 'bg-slate-50'],
+    'components/FloatingChat.tsx': ['bg-slate-50/50'],
+    'components/SharedUi.tsx': ['bg-yellow-200'],
     // 20%-alpha rose wash OVER the themed card (dark surface shows through)
-    'components/ExpensesView.tsx': [252, 431], // 431: overdue-row rose wash over the themed card
+    'components/ExpensesView.tsx': ['bg-rose-50/10'],
   };
 
-  const gaps = extractMissingDarkBg().filter(
-    (g) => !EXEMPT_FILES.includes(g.file) && !(EXEMPT_LINES[g.file] ?? []).includes(g.line),
-  );
+  const gaps = extractMissingDarkBg();
+  const exemptBecause = (g: { file: string; fill: string }) =>
+    EXEMPT_FILES.includes(g.file) || (EXEMPT_FILLS[g.file] ?? []).includes(g.fill);
+  const unexempted = gaps.filter((g) => !exemptBecause(g));
+  const matched = gaps.filter(exemptBecause).map((g) => `${g.file}:${g.fill}`);
 
   it('has no unexempted light fills without a dark: counterpart', () => {
     assert.deepEqual(
-      gaps.map((g) => `${g.file}:${g.line} ${g.fill}`),
+      unexempted.map((g) => `${g.file}:${g.line} ${g.fill}`),
       [],
       'light fills missing a dark:bg-* counterpart (the midnight white-chip defect)',
+    );
+  });
+
+  it('chaque exemption nomme encore une surface RÉELLE — une excuse périmée est un échec', () => {
+    const staleFiles = EXEMPT_FILES.filter((f) => !matched.some((m) => m.startsWith(`${f}:`)));
+    const staleFills = Object.entries(EXEMPT_FILLS).flatMap(([f, fills]) =>
+      fills.filter((fill) => !matched.includes(`${f}:${fill}`)).map((fill) => `${f}:${fill}`),
+    );
+    assert.deepEqual(
+      [...staleFiles, ...staleFills],
+      [],
+      'exemptions qui ne correspondent plus à aucune surface — elles excuseraient la suivante',
     );
   });
 });

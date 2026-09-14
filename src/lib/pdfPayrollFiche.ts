@@ -23,6 +23,7 @@
  */
 import type { TranslationDict } from '../i18n/translations';
 import { translations } from '../i18n/translations';
+import { downloadBytes } from './browserDownload';
 import { splitName } from './pdfPayrollBulletin';
 import type { Staff } from './useSupabaseData';
 
@@ -88,19 +89,6 @@ async function loadTemplateBytes(template?: Uint8Array | ArrayBuffer): Promise<U
   const res = await fetch(`${baseUrl}${TEMPLATE_URL}`);
   if (!res.ok) throw new Error(`La fiche modèle est introuvable (HTTP ${res.status}).`);
   return new Uint8Array(await res.arrayBuffer());
-}
-
-function triggerBrowserDownload(bytes: Uint8Array, filename: string): void {
-  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
-  const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 /**
@@ -248,6 +236,6 @@ export async function generateEmployeeFichePdf({
   const safeName = staffMember.name.replace(/[^a-zA-Z0-9_-]/g, '_');
   const periodStamp = `${now.getFullYear()}-${String(monthIdx + 1).padStart(2, '0')}`;
   const filename = `Fiche_Paie_${safeName}_${periodStamp}.pdf`;
-  triggerBrowserDownload(bytes, filename);
+  downloadBytes(bytes, filename);
   return { bytes, filename };
 }

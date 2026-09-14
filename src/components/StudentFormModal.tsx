@@ -21,6 +21,7 @@ import { useEscapeToClose } from '../lib/useEscapeToClose';
 import type { TranslationDict } from '../i18n/translations';
 import type { Student } from '../lib/useSupabaseData';
 import type { ManagedClass, CurrentTheme } from '../app/mainViewsProps';
+import { useYear } from '../app/yearContext';
 import { isNinthGradeClass } from '../lib/studentIdentifiers';
 import { ModalShell } from './ModalShell';
 
@@ -60,6 +61,9 @@ export interface StudentFormModalProps {
   onOpenAddClass: () => void;
   /** Delete request — AppModals owns the confirm dialog behind this modal. */
   onDeleteRequest: (student: Student) => void;
+  /** Le rôle peut-il supprimer ? Décidé par la base (`src/lib/deleteRights.ts`) :
+   *  sans ce droit, l'action n'est pas montrée du tout. */
+  canDelete: boolean;
   availableClasses: ManagedClass[];
   academicYears: string[];
   isPromoter: boolean;
@@ -70,6 +74,11 @@ export interface StudentFormModalProps {
 }
 
 export function StudentFormModal(props: StudentFormModalProps) {
+  // L'année de travail vient du contexte (`mama_thera_selected_year`), pas d'une
+  // prop : la faire descendre à travers trois composants pour une valeur que le
+  // contexte porte déjà était exactement le genre de relais qui finit par
+  // diverger de ce que les listes filtrent.
+  const { selectedYear } = useYear();
   const {
     t,
     lang,
@@ -81,6 +90,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
     onClose,
     onOpenAddClass,
     onDeleteRequest,
+    canDelete,
     availableClasses,
     academicYears,
     isPromoter,
@@ -380,8 +390,11 @@ export function StudentFormModal(props: StudentFormModalProps) {
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.academicYear}</label>
+              {/* L'année AFFICHÉE est celle qui sera écrite : sans année saisie,
+                  le sélecteur montre l'année de travail au lieu d'un champ vide
+                  dont l'enregistrement choisissait une autre année. */}
               <select
-                value={studentForm.academicYear}
+                value={studentForm.academicYear || selectedYear}
                 onChange={(e) => setStudentForm({ ...studentForm, academicYear: e.target.value })}
                 className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
               >
@@ -409,7 +422,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
             {editingStudent ? t.saveChanges : t.submit}
           </button>
 
-          {editingStudent && (
+          {editingStudent && canDelete && (
             <button
               type="button"
               onClick={() => onDeleteRequest(editingStudent)}

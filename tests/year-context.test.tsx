@@ -4,9 +4,17 @@
  * Locks the YearContext contract introduced by the domain-E refactor:
  *   1. `useYear` outside a `<YearProvider>` throws a clear error (same
  *      convention as useMainViews / the MainViewsContext guard);
- *   2. inside the provider it returns the year state — `selectedYear` with
- *      its default `2026-2027`, `lockedYears` empty — and the setters
- *      actually update the value observed by a re-render.
+ *   2. inside the provider it returns the year state — `selectedYear`, an
+ *      initially EMPTY string, `lockedYears` empty — and the setters actually
+ *      update the value observed by a re-render.
+ *   3. le choix de l'utilisateur survit à un rechargement (le provider relit
+ *      `mama_thera_selected_year`), et rien n'est inventé quand il n'y en a pas.
+ *
+ * Le point 2 était `'2026-2027'` : ce littéral est exactement ce qui a rendu un
+ * élève invisible le 2026-09-13 (l'app filtrait sur 2026-2027 pendant que le
+ * formulaire écrivait 2024-2025). L'assertion ci-dessous verrouille la règle qui
+ * l'a remplacé — l'année vient de la BASE (`academic_years.is_current`), le
+ * provider n'en fabrique aucune.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -60,10 +68,15 @@ describe('YearContext', () => {
     assert.match(err.message, /YearProvider/);
   });
 
-  it('provides the default year state and working setters', () => {
+  it('provides the year state and working setters, sans inventer d’année', () => {
+    localStorage.removeItem('mama_thera_selected_year');
     const h = mountProviderHarness();
     try {
-      assert.equal(h.api.selectedYear, '2026-2027');
+      assert.equal(
+        h.api.selectedYear,
+        '',
+        'aucune année par défaut : une année fabriquée ici est celle que le formulaire écrivait pendant que les listes en filtraient une autre',
+      );
       assert.deepEqual(h.api.lockedYears, []);
 
       act(() => {
@@ -90,6 +103,21 @@ describe('YearContext', () => {
       assert.deepEqual(fresh.lockedYears, ['2026-2027']);
     } finally {
       act(() => h.root.unmount());
+    }
+  });
+
+  it('reprend le choix stocké au rechargement', () => {
+    localStorage.setItem('mama_thera_selected_year', '2026-2027');
+    const h = mountProviderHarness();
+    try {
+      assert.equal(
+        h.api.selectedYear,
+        '2026-2027',
+        'sans cette reprise, le premier F5 ramenait l’app sur une autre année et faisait disparaître ce qu’on venait d’enregistrer',
+      );
+    } finally {
+      act(() => h.root.unmount());
+      localStorage.removeItem('mama_thera_selected_year');
     }
   });
 });

@@ -62,9 +62,20 @@ export function createStaffOps(ctx: SupabaseDataCtx) {
     if (updates.travelAllowance !== undefined) row.travel_allowance = updates.travelAllowance;
     if (updates.communicationAllowance !== undefined) row.communication_allowance = updates.communicationAllowance;
     if (updates.housingAllowance !== undefined) row.housing_allowance = updates.housingAllowance;
+    if (updates.category !== undefined) row.category = updates.category;
 
-    const { error } = await supabase.from('staff').update(row).eq('id', id);
+    // `.select('id')` + the empty check below is what makes this write HONEST.
+    // PostgREST answers 200 with an empty body when the RLS `USING` clause
+    // removes every target row — the request succeeded, changed nothing, and
+    // used to report success. A row the caller may edit is a row the caller can
+    // write, so zero rows is a failure and says so.
+    const { data, error } = await supabase.from('staff').update(row).eq('id', id).select('id');
     if (error) { console.error('updateStaff error:', error.message); notifyError('updateStaff', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('updateStaff: aucune ligne modifiée — cible filtrée par la policy RLS');
+      notifyError('updateStaff', 'Aucune ligne modifiée — droits insuffisants sur cet employé.');
+      return false;
+    }
     const prev = staff.find(s => s.id === id);
     const changes: string[] = [];
     if (prev && updates.salary !== undefined && updates.salary !== prev.salary) changes.push(`salaire ${prev.salary}→${updates.salary}`);
@@ -88,8 +99,17 @@ export function createStaffOps(ctx: SupabaseDataCtx) {
       notifySuccess('deleteStaff');
       return true;
     }
-    const { error } = await supabase.from('staff').delete().eq('id', id);
+    // Same honesty rule as updateStaff: an RLS-filtered DELETE removes zero
+    // rows and returns 200, so "Employé supprimé" could be shown for a member
+    // still in the table — and their salary payments with them (ON DELETE
+    // CASCADE never fires). `.select('id')` tells us what really went.
+    const { data, error } = await supabase.from('staff').delete().eq('id', id).select('id');
     if (error) { console.error('deleteStaff error:', error.message); notifyError('deleteStaff', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('deleteStaff: aucune ligne supprimée — cible filtrée par la policy RLS');
+      notifyError('deleteStaff', 'Aucune ligne supprimée — droits insuffisants sur cet employé.');
+      return false;
+    }
     const deleted = staff.find(x => x.id === id);
     void logAuditEvent({
       action: 'DELETE_STAFF',

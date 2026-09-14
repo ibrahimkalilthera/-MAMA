@@ -65,7 +65,12 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         action: 'RECORD_PAYMENT',
         targetType: 'payment',
         targetId: studentId,
-        details: `Payment of ${payment.amount} FCFA recorded (Receipt: ${payment.receiptNumber || 'N/A'})`,
+        // Français, et c'est le choix du journal : les autres détails de ce
+        // domaine le sont déjà (`nom X→Y`, `classe`, `statut`) — un journal
+        // d'école se lit par l'école. La phrase anglaise homologue reste lisible :
+        // les entrées écrites avant le 2026-09-13 sont traduites à l'AFFICHAGE
+        // (`src/lib/auditDisplay.ts`), jamais réécrites en base.
+        details: `Paiement de ${payment.amount} FCFA (reçu ${payment.receiptNumber || 'N/A'})`,
       });
 
       notifySuccess('addPayment');

@@ -19,6 +19,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+import { currentYearName } from '../src/lib/academicYears';
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const {
   FIXTURE_URL,
@@ -112,24 +114,41 @@ const collectSources = (dir: string): string[] => {
 
 // The dataset is only "real content" if the APP keeps it. Every year-filtered
 // view drops a row whose academicYear differs from selectedYear, so a fixture
-// year that no longer matches the app's default turns whole surfaces empty while
-// the audit keeps reporting green — which is exactly what happened: every row was
-// 2025-2026, the app opens on 2026-2027, the Élèves table rendered zero rows and
-// "Fiche Élève" was reported "non applicable (aucun déclencheur)" in all six
-// themes. These assertions pin the two together so the drift can only happen as
-// a red test.
+// year that no longer matches the app's WORKING year turns whole surfaces empty
+// while the audit keeps reporting green — which is exactly what happened: every
+// row was 2025-2026, the app opened on 2026-2027, the Élèves table rendered zero
+// rows and "Fiche Élève" was reported "non applicable (aucun déclencheur)" in all
+// six themes.
+//
+// L'année de travail n'est plus un littéral du provider : elle vient de la table
+// `academic_years` (celle marquée `is_current`). L'assertion ne compare donc plus
+// un constant à une chaîne recopiée — elle fait calculer l'année par la FONCTION
+// DE L'APP (`currentYearName`) sur les lignes que la fixture sert. Une fixture
+// dont l'année courante ne serait plus celle des lignes est un rouge, pas un
+// audit qui mesure moins de textes.
 describe('audit-fixtures — année scolaire', () => {
   const provider = readFileSync(join(root, 'src/app/YearProvider.tsx'), 'utf8');
-  const appDefault = provider.match(/useState<string>\('(\d{4}-\d{4})'\)/)?.[1];
   const fixtureSource = readFileSync(join(root, 'scripts/lib/audit-fixtures.mjs'), 'utf8');
   const auditSource = readFileSync(join(root, 'scripts/theme-contrast-audit.mjs'), 'utf8');
 
   it('le jeu de données porte l’année sur laquelle l’app s’ouvre', () => {
-    assert.ok(appDefault, 'année par défaut introuvable dans YearProvider.tsx — le test doit être mis à jour, pas supprimé');
+    const rows = FIXTURE_TABLES.academic_years ?? [];
+    assert.ok(
+      rows.length > 0,
+      'la fixture doit servir `academic_years` : c’est la table dont l’app lit l’année de travail',
+    );
     assert.equal(
+      currentYearName(rows as { year_name: string; is_current?: boolean | null }[]),
       FIXTURE_ACADEMIC_YEAR,
-      appDefault,
-      'FIXTURE_ACADEMIC_YEAR doit suivre YearProvider : sinon les vues filtrées par année se vident en silence',
+      'l’année courante des fixtures doit être celle de leurs lignes, sinon les vues filtrées par année se vident en silence',
+    );
+  });
+
+  it('le provider n’invente plus d’année par défaut', () => {
+    assert.doesNotMatch(
+      provider,
+      /useState<string>\('\d{4}-\d{4}'\)/,
+      'une année écrite dans le provider est celle qui a rendu un élève invisible : l’année de travail vient de la base',
     );
   });
 

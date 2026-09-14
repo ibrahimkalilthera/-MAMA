@@ -207,6 +207,16 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-hosted-schema.mjs',
+    input: 'migrations+network',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // Ce qu'il lit est du SQL de migration, et la prose y NOMME les colonnes
+    // (« … puis dropper la colonne `category` ») : la cécité à la prose vit dans
+    // le module qui déduit le schéma, où elle est prouvée (`blankComments`), et
+    // elle y est pour ça — mesuré : le mot de la prose créait une colonne.
+    via: 'schema-expected.mjs',
+  },
+  {
     check: 'check-owner-accounts.mjs',
     input: 'network+roster',
     needs: [IMMUNITY.NON_VACUOUS],

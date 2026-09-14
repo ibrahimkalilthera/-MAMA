@@ -16,6 +16,7 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const { downloadPlan } = require('./download-policy.cjs');
 const { appendEntry, readEntries, journalPath, pendingReports, markReported } = require('./update-journal.cjs');
 
 // L'origine publique vit dans UN SEUL fichier (`public-origin.cjs`), lu ici par le
@@ -604,23 +605,24 @@ function createWindow() {
     }
   });
 
-  // Downloads: explicit save dialog by default; auto-save when
-  // ELECTRON_DL_DIR is set (used by the E2E proof and kiosk-like setups).
+  // Downloads: ONE output per download. Explicit save dialog by default;
+  // auto-save when ELECTRON_DL_DIR is set (used by the E2E proof and kiosk-like
+  // setups).
+  //
+  // Le 2026-09-13, le reçu d'un parent arrivait deux fois : tant que le chemin
+  // n'est pas fixé, Electron applique sa « routine d'origine » (un dialogue),
+  // donc ouvrir EN PLUS notre propre dialogue déclenchait deux enregistrements.
+  // Le contrat est désormais dans electron/download-policy.cjs (pur, testé) :
+  // soit un chemin imposé, soit les options du dialogue qu'Electron ouvre
+  // lui-même — jamais les deux.
   win.webContents.session.on('will-download', (event, item) => {
-    const autoDir = process.env.ELECTRON_DL_DIR;
-    if (autoDir) {
-      fs.mkdirSync(autoDir, { recursive: true });
-      item.setSavePath(path.join(autoDir, item.getFilename()));
+    const plan = downloadPlan({ autoDir: process.env.ELECTRON_DL_DIR, filename: item.getFilename() });
+    if (plan.kind === 'path') {
+      fs.mkdirSync(plan.dir, { recursive: true });
+      item.setSavePath(plan.path);
       return;
     }
-    const suggested = item.getFilename();
-    dialog
-      .showSaveDialog(win, { defaultPath: suggested, title: 'Enregistrer le PDF' })
-      .then(({ canceled, filePath }) => {
-        if (!canceled && filePath) item.setSavePath(filePath);
-        else item.cancel();
-      })
-      .catch(() => item.cancel());
+    item.setSaveDialogOptions(plan.options);
   });
 
   // Local build first, hosted URL as fallback when the build is absent.
