@@ -131,16 +131,32 @@ export function subjectMatchesPublisher(subject, name) {
  * SUIVANTE ? (Question distincte de « cette version est-elle installable ? »,
  * à laquelle un certificat non approuvé répond aussi « non ».)
  *
+ * `allowTestSigner` est la SEULE dérogation, et elle est nommée pour ce qu'elle
+ * est : un choix explicite de publier un signataire de test MALGRÉ le gel qu'il
+ * promet. Elle est demandée par le drapeau `--allow-test-signer` du contrôle
+ * (lui-même posé par la branche signée du workflow de publication), jamais par
+ * défaut — sans elle, le refus reste tel quel. La dérogation ne fait pas
+ * disparaître l'information : elle déplace le refus des `problems` vers un
+ * `overridden` que l'appelant DOIT imprimer, et le refus reste décrit mot pour
+ * mot. Un garde-fou qu'on lève en le taisant n'est plus un garde-fou.
+ *
  * @param {{ publisherNames: string[]|null, signature: { status?: string, subject?: string|null,
- *   statusMessage?: string|null, file?: string }|null }} input
- * @returns {{ ok: boolean, problems: string[], notes: string[] }}
+ *   statusMessage?: string|null, file?: string }|null, allowTestSigner?: boolean }} input
+ * @returns {{ ok: boolean, problems: string[], notes: string[], overridden: string[] }}
  */
-export function updaterTrustVerdict({ publisherNames, signature }) {
+export function updaterTrustVerdict({ publisherNames, signature, allowTestSigner = false }) {
   const problems = [];
   const notes = [];
+  const overridden = [];
   const status = String(signature?.status ?? '').trim();
   const subject = signature?.subject ?? null;
   const signed = status && status !== 'NotSigned' && status !== 'Unknown';
+  // La dérogation ne s'applique QU'À une promesse entièrement de test : c'est
+  // la seule signature dont on sait d'avance que la chaîne ne sera approuvée
+  // nulle part ailleurs. Un nom réel mêlé à un nom de test garde donc son refus,
+  // et une chaîne non approuvée sous un nom qui n'est pas de test aussi.
+  const testOnly = (publisherNames ?? []).length > 0 && (publisherNames ?? []).every(looksLikeTestSigner);
+  const mayOverride = allowTestSigner && testOnly;
 
   // Aucune promesse : le poste vérifie l'empreinte du flux (sha512) mais ne
   // réclame aucun signataire — c'est le seul état vivable sans certificat.
@@ -160,7 +176,7 @@ export function updaterTrustVerdict({ publisherNames, signature }) {
           'qu’à SmartScreen, et un futur installeur signé d’un autre certificat s’installerait sans être vérifié',
       );
     }
-    return { ok: true, problems, notes };
+    return { ok: true, problems, notes, overridden };
   }
 
   if (!publisherNames.length) {
@@ -171,13 +187,21 @@ export function updaterTrustVerdict({ publisherNames, signature }) {
   }
 
   for (const name of publisherNames) {
-    if (looksLikeTestSigner(name)) {
-      problems.push(
-        `« ${name} » est un signataire de TEST gravé dans le contrat des postes — un certificat ` +
-          'auto-signé n’est approuvé que sur la machine qui l’a créé : le parc refusera toutes les ' +
-          'mises à jour (ERR_UPDATER_INVALID_SIGNATURE), et Windows affichera « éditeur inconnu »',
-      );
+    if (!looksLikeTestSigner(name)) continue;
+    const refusal =
+      `« ${name} » est un signataire de TEST gravé dans le contrat des postes — un certificat ` +
+      'auto-signé n’est approuvé que sur la machine qui l’a créé : le parc refusera toutes les ' +
+      'mises à jour (ERR_UPDATER_INVALID_SIGNATURE), et Windows affichera « éditeur inconnu »';
+    if (!mayOverride) {
+      problems.push(refusal);
+      continue;
     }
+    // Dérogation demandée : le refus ne s'effface pas, il change de place — et
+    // il emporte la conséquence à dire par l'appelant.
+    overridden.push(
+      `${refusal}. Publié QUAND MÊME (dérogation explicite) : chaque poste qui installe cette ` +
+        'version devra être remis à jour à la main, une fois, puisqu’il n’acceptera plus rien du canal.',
+    );
   }
 
   if (!signature) {
@@ -185,7 +209,7 @@ export function updaterTrustVerdict({ publisherNames, signature }) {
       'la signature des octets n’a pas pu être lue (hors Windows, ou fichier absent) — une promesse ' +
         'de signataire qui n’est pas mesurée n’est pas vérifiée',
     );
-    return { ok: false, problems, notes };
+    return { ok: false, problems, notes, overridden };
   }
 
   if (!signed) {
@@ -193,16 +217,20 @@ export function updaterTrustVerdict({ publisherNames, signature }) {
       `le poste exige ${publisherNames.map((n) => `« ${n} »`).join(' ou ')} mais les octets ne portent ` +
         'AUCUNE signature — le poste refusera la mise à jour',
     );
-    return { ok: false, problems, notes };
+    return { ok: false, problems, notes, overridden };
   }
 
   if (status !== 'Valid') {
-    problems.push(
+    const refusal =
       `Get-AuthenticodeSignature rend « ${status} » au lieu de « Valid »` +
-        (signature.statusMessage ? ` (« ${signature.statusMessage} »)` : '') +
-        ' — le poste n’accepte qu’une chaîne APPROUVÉE, donc il refusera cette mise à jour ; ' +
-        'un certificat de test peut sembler valide sur la machine qui l’a créé et ne l’être nulle part ailleurs',
-    );
+      (signature.statusMessage ? ` (« ${signature.statusMessage} »)` : '') +
+      ' — le poste n’accepte qu’une chaîne APPROUVÉE, donc il refusera cette mise à jour ; ' +
+      'un certificat de test peut sembler valide sur la machine qui l’a créé et ne l’être nulle part ailleurs';
+    // Même dérogation, même cause : une chaîne de test PAR NATURE ne sera
+    // approuvée que là où sa racine a été installée à la main — c'est la même
+    // décision que celle de graver le nom de test, pas une seconde.
+    if (mayOverride) overridden.push(refusal);
+    else problems.push(refusal);
   }
 
   const matched = publisherNames.filter((name) => subjectMatchesPublisher(subject, name));
@@ -217,5 +245,5 @@ export function updaterTrustVerdict({ publisherNames, signature }) {
   if (!problems.length) {
     notes.push(`signature approuvée : ${subject} — le parc pourra recevoir la version suivante`);
   }
-  return { ok: problems.length === 0, problems, notes };
+  return { ok: problems.length === 0, problems, notes, overridden };
 }

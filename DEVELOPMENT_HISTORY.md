@@ -1,3 +1,13 @@
+## [2026-09-14] La 1.0.13 : signée avec le certificat de test, DÉLIBÉRÉMENT — et le gel est dit, pas tu
+
+Demande : « publish and release, je veux signer avec le certificat de test — le même que les autres, comme la 1.0.8 ».
+
+**Ce que ce choix signifie, mesuré il y a deux jours sur la 1.0.8 et redit ici parce que c'est le prix exact :** le certificat de test a pour nom `CN=Mama Thera Finance (test)`, et signer grave ce nom dans le contrat que **chaque poste lit** (`app-update.yml` → `publisherName`). Or `electron-updater` n'accepte une mise à jour que si Windows approuve la chaîne **et** si le sujet porte le nom promis ; un certificat auto-signé n'est approuvé que sur la machine qui l'a créé. Les postes qui installent cette version **ne recevront plus rien du canal** et devront être remis à jour **à la main, une fois** — c'est le gel des 1.0.6–1.0.8. L'avertissement Windows, lui, ne disparaît pas non plus (`Get-AuthenticodeSignature` rend `UnknownError`). Ce sont les deux seules choses que ce choix n'achète pas, et elles sont dites ici pour qu'elles ne soient pas découvertes plus tard.
+
+**La dérogation est un drapeau nommé, pas un garde-fou retiré.** `updaterTrustVerdict` accepte `allowTestSigner`, demandé par `--allow-test-signer` ou `ALLOW_TEST_SIGNER=1` (posé par la SEULE branche signée du workflow) ; sans lui, le refus de la veille reste **identique** — un test le verrouille. Et la dérogation ne déborde pas, parce que trois propriétés sont testées : elle n'agit **que si tous les noms promis sont des noms de test** (un mélange nom réel + nom de test garde son refus ; un nom réel sous une chaîne non approuvée aussi : *la dérogation est tout-ou-rien*, et c'est l'écriture du test qui avait d'abord laissé passer le mélange — un vrai défaut, attrapé par le cas lui-même), et elle **ne fait pas taire le refus** : elle le déplace dans un `overridden` que le contrôle imprime en entier, avec sa conséquence pour le parc, en tête du journal du runner.
+
+**Ce qui change dans le dépôt** : `tests/updater-trust.test.ts` passe à **25 cas** (5 neufs : sans la dérogation, avec, sur un nom réel, sur un mélange, et sur une racine approuvée — où seule la promesse de test est dérogée), `SIGNING_ENABLED=true` est posée comme **variable de dépôt**, et la version passe à **1.0.13**.
+
 ## [2026-09-14] La 1.0.12 : le parc reçoit enfin les six correctifs — et le rouge du reçu parent est nommé
 
 Demande : « corrige tout ça de bout en bout », avec l'ordre imposé (la migration avant le push), les mots de passe des comptes propriétaires, et l'obligation de **nommer** le rouge du pixel-check PDF plutôt que de le laisser rouge.

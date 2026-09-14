@@ -216,6 +216,22 @@ jobs:
             echo "signed=true" >> "$GITHUB_OUTPUT"
             export CSC_LINK="$(cygpath -w "$RUNNER_TEMP/code-sign.pfx")"
             echo "→ build signé avec CSC_LINK=$CSC_LINK"
+            # ── La dérogation « signataire de test », DÉLIBÉRÉE (2026-09-14) ──
+            # Décision du propriétaire du parc : publier un binaire RÉELLEMENT
+            # signé avec le certificat de test, en assumant le gel qui en découle
+            # (les postes qui installent cette version ne recevront plus rien du
+            # canal et devront être remis à jour à la main, une fois). Elle
+            # accompagne le CHOIX de signer : `SIGNING_ENABLED=true` + un
+            # certificat de test dans les secrets EST cette décision.
+            #
+            # Et elle ne peut pas déborder : `updaterTrustVerdict` ne l'applique
+            # que si TOUS les noms promis sont des noms de TEST. Le jour où un
+            # certificat approuvé (OV/EV) signe, cette variable ne fait plus rien.
+            # Le refus n'est jamais tu — il devient un bloc imprimé dans ce
+            # journal, avec sa conséquence, et la publication continue en le
+            # disant.
+            export ALLOW_TEST_SIGNER=1
+            echo "→ dérogation signataire de test ACTIVE : le gel du parc sera imprimé ci-dessous, pas tu"
             # 1. Le numéro est-il INÉDIT ? (un même numéro ne peut pas changer de
             #    contenu : republier n'atteint aucun poste). Le refus tombe ici,
             #    avant que quoi que ce soit n'ait été téléversé.

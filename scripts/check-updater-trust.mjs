@@ -5,6 +5,19 @@
  *
  *   npm run check:updater-trust                    (dossier release/ par défaut)
  *   npm run check:updater-trust -- --dir=release
+ *   npm run check:updater-trust -- --allow-test-signer   (dérogation explicite)
+ *
+ * ─── La dérogation, et pourquoi elle existe nommée ───────────────────────────
+ * Publier signé avec le certificat de TEST est un choix qui appartient au
+ * propriétaire du parc : le binaire porte alors une signature réelle, et en
+ * échange chaque poste qui l'installe ne recevra plus rien du canal (signature
+ * non approuvée ⇒ `ERR_UPDATER_INVALID_SIGNATURE`) — il faudra le remettre à
+ * jour à la main, une fois. Le drapeau `--allow-test-signer` (ou
+ * `ALLOW_TEST_SIGNER=1`) fait ce choix EXPLICITEMENT ; il reste absent par
+ * défaut, il n'agit que si TOUS les noms promis sont des noms de test, et il ne
+ * fait pas taire le refus : il le déplace dans un bloc qui dit la conséquence.
+ * Le silence, lui, n'est jamais une option — un garde-fou qu'on lève en le
+ * taisant n'est plus un garde-fou.
  *
  * ─── Pourquoi ce contrôle existe ─────────────────────────────────────────────
  * Le 2026-09-13, l'installeur publié sur le canal (1.0.8) était signé par un
@@ -39,6 +52,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const dirArg = args.find((a) => a.startsWith('--dir='))?.slice('--dir='.length) || DEFAULT_RELEASE_DIR;
 const releaseDir = join(root, dirArg);
+// La dérogation se demande par le drapeau OU par l'environnement : le workflow
+// de publication pose la variable dans SA branche signée, où le choix est
+// lisible, plutôt que d'allonger `electron:release`.
+const allowTestSigner =
+  args.includes('--allow-test-signer') || /^(1|true)$/i.test(process.env.ALLOW_TEST_SIGNER ?? '');
 
 const fail = (title, problems = []) => {
   console.error(`\n❌ ${title}`);
@@ -119,11 +137,27 @@ for (const row of measured) {
   console.log(`   signature de ${row.file} : ${row.status}${row.subject ? ` — ${row.subject}` : ''}`);
 }
 
-const verdict = updaterTrustVerdict({ publisherNames, signature });
+const verdict = updaterTrustVerdict({ publisherNames, signature, allowTestSigner });
 for (const note of verdict.notes) console.log(`   ℹ️ ${note}`);
 
+// Le refus dérogé est imprimé en entier, une fois, et avec sa conséquence :
+// c'est ce bloc que le journal du runner doit porter, pour qu'une publication
+// signée d'un certificat de test ne se lise jamais comme une publication saine.
+if (verdict.overridden.length) {
+  console.log('\n⚠️  DÉROGATION « --allow-test-signer » — le parc va être gelé par ce build :');
+  for (const o of verdict.overridden) console.log(`   • ${o}`);
+  console.log(
+    '   ⇒ les postes qui installent cette version ne se mettront plus à jour par le canal : ' +
+      'chaque poste devra recevoir la suivante à la main, une fois.',
+  );
+}
+
 if (verdict.ok) {
-  console.log('\n✅ ce build laisse au parc un chemin de mise à jour utilisable');
+  console.log(
+    verdict.overridden.length
+      ? '\n✅ dérogation assumée — la publication continue, le gel est DIT ci-dessus'
+      : '\n✅ ce build laisse au parc un chemin de mise à jour utilisable',
+  );
   process.exit(0);
 }
 fail(`publication refusée — le parc ne pourrait pas encaisser la version suivante`, verdict.problems);

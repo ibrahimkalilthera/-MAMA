@@ -171,6 +171,68 @@ describe('verdict : le parc pourra-t-il recevoir la version suivante', () => {
   });
 });
 
+/**
+ * La dérogation `allowTestSigner` : un choix du propriétaire du parc, qui doit
+ * rester LISIBLE. Ces cas verrouillent les trois propriétés qui la rendent
+ * acceptable — elle n'agit que si on la demande, elle ne couvre QUE des noms de
+ * test, et elle ne fait pas disparaître le refus.
+ */
+describe('dérogation explicite : publier signé d’un certificat de test', () => {
+  const names = parsePublisherNames(PUBLISHED_CONTRACT).names;
+
+  it('sans la demander, le refus est identique — la dérogation ne s’active pas toute seule', () => {
+    const v = updaterTrustVerdict({ publisherNames: names, signature: UNTRUSTED_ROOT });
+    assert.equal(v.ok, false);
+    assert.equal(v.overridden.length, 0);
+    assert.match(v.problems.join(' '), /signataire de TEST/);
+  });
+
+  it('demandée, elle laisse publier ET déplace le refus dans `overridden`', () => {
+    const v = updaterTrustVerdict({ publisherNames: names, signature: UNTRUSTED_ROOT, allowTestSigner: true });
+    assert.equal(v.ok, true, 'la publication est autorisée : c’est le choix demandé');
+    assert.equal(v.problems.length, 0);
+    assert.equal(v.overridden.length, 2, 'la promesse de test ET la chaîne non approuvée, les deux dites');
+    assert.match(v.overridden.join(' '), /signataire de TEST/);
+    assert.match(v.overridden.join(' '), /UnknownError/);
+    assert.match(v.overridden.join(' '), /remis à jour à la main/, 'la conséquence pour le parc est écrite');
+  });
+
+  it('elle n’agit JAMAIS sur un nom réel, même demandée', () => {
+    const v = updaterTrustVerdict({
+      publisherNames: ['Mama Thera Finance'],
+      signature: { status: 'UnknownError', subject: 'CN=Mama Thera Finance, O=Complexe Scolaire Mama Thera, C=ML' },
+      allowTestSigner: true,
+    });
+    assert.equal(v.ok, false, 'une chaîne non approuvée sous un nom réel reste un refus');
+    assert.match(v.problems.join(' '), /UnknownError/);
+    assert.equal(v.overridden.length, 0);
+  });
+
+  it('un mélange nom réel + nom de test garde son refus : la dérogation est tout-ou-rien', () => {
+    const v = updaterTrustVerdict({
+      publisherNames: ['Mama Thera Finance (test)', 'Mama Thera Finance'],
+      signature: UNTRUSTED_ROOT,
+      allowTestSigner: true,
+    });
+    assert.equal(v.ok, false);
+    assert.match(v.problems.join(' '), /signataire de TEST/);
+  });
+
+  it('sur un certificat de test dont la chaîne est approuvée, elle reste utile et silencieuse', () => {
+    // Le cas « la racine a été installée à la main sur les postes » : la
+    // dérogation n'ajoute alors aucun bruit, et le refus de statut ne s'active
+    // pas. Seule la promesse de test est dérogée.
+    const v = updaterTrustVerdict({
+      publisherNames: names,
+      signature: { status: 'Valid', subject: UNTRUSTED_ROOT.subject },
+      allowTestSigner: true,
+    });
+    assert.equal(v.ok, true);
+    assert.equal(v.overridden.length, 1, 'seule la promesse de test est dérogée');
+    assert.match(v.overridden.join(' '), /signataire de TEST/);
+  });
+});
+
 describe('les jetons de test ne débordent pas sur les vrais noms', () => {
   it('reconnaît les formes mesurées ou plausibles', () => {
     for (const name of ['Mama Thera Finance (test)', 'Mama Thera TEST', 'dev-signed', 'Mama Thera Demo']) {
