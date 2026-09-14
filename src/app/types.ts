@@ -149,6 +149,19 @@ export interface SchoolClass {
   isCustom?: boolean;
 }
 
+/**
+ * Which class family the student add/edit form offers. `'all'` is the ordinary
+ * « Ajouter un Élève » form (every cycle); `'nursery'` is the « Ajouter CR »
+ * one, whose ONLY difference is the class list — it offers the CR classes
+ * alone. Everything else (parent link, fees, receipt, printout) is the same
+ * form, so nothing else can drift between the two flows.
+ */
+export type StudentFormScope = 'all' | 'nursery';
+
+/** The class cycle of the CR (crèche / jardin d'enfants) classes — the
+ *  'maternelle' cycle the Add/EditClass modals already support (PS/MS/GS). */
+export const NURSERY_CYCLE: SchoolClass['cycle'] = 'maternelle';
+
 export const DEFAULT_SCHOOL_CLASSES: SchoolClass[] = [
   // --- Premier Cycle (1ère à 6ème Année — sections A, B, C) ---
   { id: '1A', cycle: 'cycle1', year: 1, section: 'A', nameFr: '1ère Année A (1A)', nameEn: '1st Year A (1A)' },
@@ -180,4 +193,16 @@ export const DEFAULT_SCHOOL_CLASSES: SchoolClass[] = [
   { id: '9A', cycle: 'cycle2', year: 9, section: 'A', nameFr: '9ème Année A (9A)', nameEn: '9th Year A (9A)' },
   { id: '9B', cycle: 'cycle2', year: 9, section: 'B', nameFr: '9ème Année B (9B)', nameEn: '9th Year B (9B)' },
   { id: '9C', cycle: 'cycle2', year: 9, section: 'C', nameFr: '9ème Année C (9C)', nameEn: '9th Year C (9C)' },
+
+  // --- CR (Crèche / Jardin d'Enfants) — sections Petit, Moyen, Grand ---
+  // Les trois classes du flux « Ajouter CR ». Elles vivent dans le cycle
+  // « Maternelle / Jardin d'Enfants » que les modales de classe connaissent
+  // déjà (PS / MS / GS), donc aucun cycle nouveau n'existe : le formulaire CR
+  // ne montre que ce cycle-là, et `students.grade` garde le même code que
+  // partout ailleurs ('CR-PETIT', 'CR-MOYEN', 'CR-GRAND'). Elles sont aussi
+  // semées dans `custom_classes` (migration 20260914000002) pour qu'un poste
+  // dont le build n'embarque pas encore ce code les voie quand même.
+  { id: 'CR-PETIT', cycle: 'maternelle', year: 'PS', section: 'CR', nameFr: 'CR Petit (CR-PETIT)', nameEn: 'CR Petit (CR-PETIT)' },
+  { id: 'CR-MOYEN', cycle: 'maternelle', year: 'MS', section: 'CR', nameFr: 'CR Moyen (CR-MOYEN)', nameEn: 'CR Moyen (CR-MOYEN)' },
+  { id: 'CR-GRAND', cycle: 'maternelle', year: 'GS', section: 'CR', nameFr: 'CR Grand (CR-GRAND)', nameEn: 'CR Grand (CR-GRAND)' },
 ];

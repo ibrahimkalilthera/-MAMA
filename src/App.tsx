@@ -36,7 +36,7 @@ import { AppShell } from './components/AppShell';
 import { formatCurrency as formatCurrencyImpl, formatDateLang } from './lib/formatters';
 
 import { translations } from './i18n/translations';
-import type { Language, User, Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, SchoolClass } from './app/types';
+import type { Language, User, Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, SchoolClass, StudentFormScope } from './app/types';
 
 
 // --- Components ---
@@ -562,7 +562,10 @@ const {
   } = classesData;
 
   // Open the add-student modal (shared by the sidebar and header buttons).
-  const openAddStudentModal = () => {
+  // `scope` choisit la LISTE DE CLASSES que le MÊME formulaire propose : toutes
+  // les classes, ou les seules classes CR (« Ajouter CR »). Rien d'autre ne
+  // change entre les deux boutons — parent, frais, reçu et fiche inclus.
+  const openAddStudentModal = (scope: StudentFormScope = 'all') => {
     setEditingStudent(null);
     setStudentForm({
       name: '',
@@ -582,7 +585,8 @@ const {
       medicalNotes: 'None',
       enrollmentDate: new Date().toISOString().split('T')[0],
       previousSchool: '',
-      status: 'Active'
+      status: 'Active',
+      classScope: scope
     });
     setShowStudentModal(true);
   };

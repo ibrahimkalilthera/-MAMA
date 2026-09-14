@@ -21,6 +21,7 @@ import {
   CheckSquare,
   LogOut,
   Plus,
+  Baby,
   DollarSign,
   Lock,
 } from 'lucide-react';
@@ -43,6 +44,8 @@ export interface SidebarProps {
   onSignOut: () => void;
   onToggleLanguage: () => void;
   onAddStudent: () => void;
+  /** « Ajouter CR » : le MÊME formulaire, ouvert sur les seules classes CR. */
+  onAddCr: () => void;
   onRecordPayment: () => void;
 }
 
@@ -50,7 +53,7 @@ export function Sidebar(props: SidebarProps) {
   const {
     t, schoolLogo, activeTab, setActiveTab, payrollWindowStatus, currentUser,
     fetchAuditLogs, showTodoSidebar, setShowTodoSidebar,
-    onSignOut, onToggleLanguage, onAddStudent, onRecordPayment,
+    onSignOut, onToggleLanguage, onAddStudent, onAddCr, onRecordPayment,
   } = props;
 
   const navBtn = (tab: AppTab) =>
@@ -176,6 +179,14 @@ export function Sidebar(props: SidebarProps) {
           >
             <Plus size={18} className="text-emerald-400" />
             <span>{t.addStudent}</span>
+          </button>
+
+          <button
+            onClick={onAddCr}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 transition-all font-bold text-xs"
+          >
+            <Baby size={18} />
+            <span>{t.addCrStudent}</span>
           </button>
 
           <button

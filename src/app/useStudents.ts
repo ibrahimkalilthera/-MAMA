@@ -63,7 +63,8 @@ const emptyStudentForm = (): StudentForm => ({
   medicalNotes: 'None',
   enrollmentDate: new Date().toISOString().split('T')[0],
   previousSchool: '',
-  status: 'Active' as 'Active' | 'Graduated' | 'Left'
+  status: 'Active' as 'Active' | 'Graduated' | 'Left',
+  classScope: 'all'
 });
 
 export function useStudents(deps: UseStudentsDeps) {
@@ -185,8 +186,12 @@ export function useStudents(deps: UseStudentsDeps) {
       return;
     }
 
+    // `classScope` ne choisit que les classes que le modal PROPOSE (« Ajouter
+    // CR ») : ce n'est pas un champ de la fiche, donc il est retiré ici — au
+    // seul endroit qui écrit — et aucune ligne n'en porte jamais la trace.
+    const { classScope: _classScope, ...studentFields } = studentForm;
     const studentData = {
-      ...studentForm,
+      ...studentFields,
       // L'année ÉCRITE est celle qui est AFFICHÉE : le formulaire garde la main
       // si l'utilisateur en choisit une autre, sinon c'est l'année de travail.
       academicYear: studentForm.academicYear || selectedYear,
@@ -228,7 +233,8 @@ export function useStudents(deps: UseStudentsDeps) {
       medicalNotes: 'None',
       enrollmentDate: new Date().toISOString().split('T')[0],
       previousSchool: '',
-      status: 'Active'
+      status: 'Active',
+      classScope: 'all'
     });
     showToast();
   };
@@ -255,7 +261,8 @@ export function useStudents(deps: UseStudentsDeps) {
       medicalNotes: student.medicalNotes || 'None',
       enrollmentDate: student.enrollmentDate || new Date().toISOString().split('T')[0],
       previousSchool: student.previousSchool || '',
-      status: student.status || 'Active'
+      status: student.status || 'Active',
+      classScope: 'all'
     });
     setShowStudentModal(true);
   };

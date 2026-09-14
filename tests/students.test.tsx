@@ -144,6 +144,7 @@ function fullForm(overrides: Partial<Record<string, unknown>> = {}): Record<stri
     enrollmentDate: '2026-09-01',
     previousSchool: '',
     status: 'Active',
+    classScope: 'all',
     ...overrides,
   };
 }
@@ -284,6 +285,27 @@ describe('useStudents.handleStudentSubmit', () => {
       assert.equal(ref.current!.showStudentModal, false);
       assert.equal(ref.current!.studentForm.name, '', 'form reset');
       assert.equal(spies.toasts, 1);
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+
+  it('an « Ajouter CR » form writes the CR class and never the form-only scope', async () => {
+    const { args, spies } = baseDeps({ students: [] });
+    const { ref, root, restoreAlert } = await setup(args, spies.alerts);
+    try {
+      await act(async () => {
+        ref.current!.setStudentForm(fullForm({ grade: 'CR-MOYEN', classScope: 'nursery' }) as never);
+      });
+      await act(async () => { await ref.current!.handleStudentSubmit(submitEvent); });
+      assert.equal(spies.addStudentCalls.length, 1);
+      const created = spies.addStudentCalls[0]!;
+      assert.equal(created.grade, 'CR-MOYEN', 'la classe CR choisie est celle qui est écrite');
+      assert.equal(created.studentId, undefined, 'CR n’est pas une 9e : pas de matricule');
+      // `classScope` ne choisit que les classes PROPOSÉES par le modal : ce
+      // n'est pas un champ de la fiche, donc il ne doit pas partir en base.
+      assert.ok(!('classScope' in created), 'classScope ne doit jamais atteindre la fiche élève');
     } finally {
       act(() => root.unmount());
       restoreAlert();

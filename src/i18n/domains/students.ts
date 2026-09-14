@@ -6,6 +6,8 @@
  */
 export const en = {
     addStudent: "Add New Student",
+    addCrStudent: "Add Nursery",
+    crClasses: "CR — Nursery / Kindergarten",
     editStudent: "Edit Student",
     saveChanges: "Save Changes",
     email: "Email Address",
@@ -64,6 +66,8 @@ export const en = {
 
 export const fr = {
     addStudent: "Ajouter un Élève",
+    addCrStudent: "Ajouter Crèches",
+    crClasses: "CR — Crèche / Jardin d'Enfants",
     editStudent: "Modifier l'Élève",
     saveChanges: "Enregistrer",
     email: "Adresse Email",

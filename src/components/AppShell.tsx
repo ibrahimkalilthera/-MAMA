@@ -14,7 +14,7 @@ import { AnimatePresence } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
 import type { MainViewsProps } from '../app/mainViewsProps';
 import type { AppModalsProps } from './AppModals';
-import type { User } from '../app/types';
+import type { StudentFormScope, User } from '../app/types';
 import { formatSupabaseError } from '../lib/networkUtils';
 import { database } from '../lib/sharedDatabase';
 import { UpdateBanner } from './UpdateBanner';
@@ -69,7 +69,9 @@ export interface AppShellExtras {
   appEnv: AppEnv;
   toast: ReturnType<typeof useToast>;
   setActiveTab: (t: ActiveTab) => void;
-  openAddStudentModal: () => void;
+  /** Ouvre le formulaire élève ; `scope` est la seule différence entre
+   *  « Ajouter un Élève » ('all') et « Ajouter CR » ('nursery'). */
+  openAddStudentModal: (scope?: StudentFormScope) => void;
   setSelectedYear: (y: string) => void;
   setSearchTerm: (s: string) => void;
   studentGradeFilter: string;
@@ -204,7 +206,8 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
         setShowTodoSidebar={setShowTodoSidebar}
         onSignOut={() => auth.signOut()}
         onToggleLanguage={() => toggleLanguage(lang === 'en' ? 'fr' : 'en')}
-        onAddStudent={openAddStudentModal}
+        onAddStudent={() => openAddStudentModal()}
+        onAddCr={() => openAddStudentModal('nursery')}
         onRecordPayment={() => setShowPaymentForm(true)}
       />
 
@@ -243,7 +246,8 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
             setSelectedDraftYear(new Date().getFullYear());
             setShowMonthlyDraftModal(true);
           }}
-          onAddStudent={openAddStudentModal}
+          onAddStudent={() => openAddStudentModal()}
+          onAddCr={() => openAddStudentModal('nursery')}
           onPrintReport={() => {
             if (activeTab === 'archives') {
               generateMultiYearReportPdf({

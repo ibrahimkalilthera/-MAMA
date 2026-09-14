@@ -17,8 +17,10 @@ import {
   Layers,
   Download,
   Plus,
+  Baby,
 } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
+import { NURSERY_CYCLE } from '../app/types';
 import type { User } from '../app/types';
 import type { CurrentTheme, ManagedClass } from '../app/mainViewsProps';
 import type { AppTab } from './Sidebar';
@@ -43,6 +45,8 @@ export interface AppHeaderProps {
   onImportExcel: () => void;
   onOpenMonthlyDraft: () => void;
   onAddStudent: () => void;
+  /** « Ajouter CR » : le MÊME formulaire, ouvert sur les seules classes CR. */
+  onAddCr: () => void;
   onPrintReport: () => void;
   onExportLate: () => void;
   onFinancialReportPdf: () => void;
@@ -61,7 +65,7 @@ export function AppHeader(props: AppHeaderProps) {
     t, lang, currentTheme, activeTab, currentUser,
     selectedYear, setSelectedYear, academicYears, availableClasses,
     searchTerm, setSearchTerm, studentGradeFilter, setStudentGradeFilter,
-    onPromoteClass, onImportExcel, onOpenMonthlyDraft, onAddStudent,
+    onPromoteClass, onImportExcel, onOpenMonthlyDraft, onAddStudent, onAddCr,
     onPrintReport, onExportLate, onFinancialReportPdf,
     notifications, onOpenStudent, readNotificationIds,
     onMarkNotificationRead, onMarkAllNotificationsRead, onMarkNotificationUnread,
@@ -190,9 +194,16 @@ export function AppHeader(props: AppHeaderProps) {
                   <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                 ))}
               </optgroup>
-              {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
+              {availableClasses.some(c => c.cycle === NURSERY_CYCLE) && (
+                <optgroup label={t.crClasses}>
+                  {availableClasses.filter(c => c.cycle === NURSERY_CYCLE).map(c => (
+                    <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
+                  ))}
+                </optgroup>
+              )}
+              {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2' && c.cycle !== NURSERY_CYCLE) && (
                 <optgroup label={t.otherClasses}>
-                  {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
+                  {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2' && c.cycle !== NURSERY_CYCLE).map(c => (
                     <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                   ))}
                 </optgroup>
@@ -227,6 +238,22 @@ export function AppHeader(props: AppHeaderProps) {
           >
             <Plus size={18} />
             <span className="hidden sm:inline">{t.addStudent}</span>
+          </button>
+        )}
+        {/* Le bouton CR est le MÊME formulaire : seule la liste de classes
+            change (Petit / Moyen / Grand). Il vit ici, à côté de « Ajouter un
+            Élève », parce que c'est là que l'école enrôle un enfant. */}
+        {activeTab === 'students' && (
+          <button 
+            onClick={onAddCr}
+            className={`${currentTheme.card} border ${currentTheme.border} ${currentTheme.text} px-5 py-3 rounded-2xl text-sm font-bold hover:bg-slate-50 dark:hover:bg-white/5 transition-all flex items-center gap-2 shadow-sm active:scale-[0.98]`}
+            title={t.crClasses}
+          >
+            <Baby size={18} />
+            {/* Libellé TOUJOURS visible (contrairement aux autres actions de la
+                barre) : c'est la seule entrée qui ne s'improvise pas — sur un
+                écran étroit, une icône seule ne se distingue pas de « + ». */}
+            <span>{t.addCrStudent}</span>
           </button>
         )}
       </div>

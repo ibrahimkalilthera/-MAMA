@@ -21,6 +21,8 @@ import { useEscapeToClose } from '../lib/useEscapeToClose';
 import type { TranslationDict } from '../i18n/translations';
 import type { Student } from '../lib/useSupabaseData';
 import type { ManagedClass, CurrentTheme } from '../app/mainViewsProps';
+import { NURSERY_CYCLE } from '../app/types';
+import type { StudentFormScope } from '../app/types';
 import { useYear } from '../app/yearContext';
 import { isNinthGradeClass } from '../lib/studentIdentifiers';
 import { ModalShell } from './ModalShell';
@@ -45,6 +47,13 @@ export interface StudentForm {
   enrollmentDate: string;
   previousSchool: string;
   status: 'Active' | 'Graduated' | 'Left';
+  /**
+   * Which class list this form offers — the whole difference between
+   * « Ajouter un Élève » ('all') and « Ajouter CR » ('nursery'). It is NOT
+   * part of the student record: `useStudents.handleStudentSubmit` strips it
+   * before the write, so no row ever carries it.
+   */
+  classScope: StudentFormScope;
 }
 
 export interface StudentFormModalProps {
@@ -102,6 +111,25 @@ export function StudentFormModal(props: StudentFormModalProps) {
   // Principal) — mirrors the gate in useStudents.handleStudentSubmit.
   const canEditScholarship = isPromoter || isGeneralManager;
 
+  // « Ajouter CR » n'est PAS un autre formulaire : c'est le MÊME, ouvert sur la
+  // seule famille de classes CR (cycle Maternelle / Jardin d'Enfants). Tout le
+  // reste — parent, frais, reçu, fiche — est identique par construction.
+  const isNurseryForm = !editingStudent && studentForm.classScope === 'nursery';
+  const formTitle = editingStudent ? t.editStudent : isNurseryForm ? t.addCrStudent : t.addStudent;
+
+  // Groupes de classes proposés : en mode CR un seul groupe (les classes CR),
+  // sinon les trois groupes historiques + le groupe CR. Un groupe vide n'est
+  // jamais rendu — un libellé sans classe serait un choix qui n'existe pas.
+  const classGroups: Array<{ label: string; classes: ManagedClass[] }> = (isNurseryForm
+    ? [{ label: t.crClasses, classes: availableClasses.filter(c => c.cycle === NURSERY_CYCLE) }]
+    : [
+        { label: t.firstCycle1stTo6thYear, classes: availableClasses.filter(c => c.cycle === 'cycle1') },
+        { label: t.secondCycle7thTo9thYear, classes: availableClasses.filter(c => c.cycle === 'cycle2') },
+        { label: t.crClasses, classes: availableClasses.filter(c => c.cycle === NURSERY_CYCLE) },
+        { label: t.otherCustomClasses, classes: availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2' && c.cycle !== NURSERY_CYCLE) },
+      ]
+  ).filter(group => group.classes.length > 0);
+
   // Tab is confined to the modal while open; focus returns to the trigger on
   // close. Escape closes it (stacked with every other overlay).
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -114,9 +142,9 @@ export function StudentFormModal(props: StudentFormModalProps) {
       onClose={onClose}
       currentTheme={currentTheme}
       titleId="modal-title-student-form"
-      ariaLabel={editingStudent ? t.editStudent : t.addStudent}
+      ariaLabel={formTitle}
       icon={<Users size={24} className="text-blue-400" />}
-      title={editingStudent ? t.editStudent : t.addStudent}
+      title={formTitle}
     >
 
         <form onSubmit={handleStudentSubmit} className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
@@ -153,14 +181,16 @@ export function StudentFormModal(props: StudentFormModalProps) {
                 <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
                   {t.gradeClass}
                 </label>
-                <button
-                  type="button"
-                  onClick={onOpenAddClass}
-                  className="text-[10px] font-black text-blue-500 hover:text-blue-600 hover:underline flex items-center gap-1"
-                >
-                  <Plus size={12} />
-                  <span>{t.newClass}</span>
-                </button>
+                {!isNurseryForm && (
+                  <button
+                    type="button"
+                    onClick={onOpenAddClass}
+                    className="text-[10px] font-black text-blue-500 hover:text-blue-600 hover:underline flex items-center gap-1"
+                  >
+                    <Plus size={12} />
+                    <span>{t.newClass}</span>
+                  </button>
+                )}
               </div>
               <select
                 required
@@ -180,30 +210,24 @@ export function StudentFormModal(props: StudentFormModalProps) {
                 className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500' : 'bg-slate-50 text-slate-800'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold`}
               >
                 <option value="">{t.selectGradeClass}</option>
-                <optgroup label={t.firstCycle1stTo6thYear}>
-                  {availableClasses.filter(c => c.cycle === 'cycle1').map(c => (
-                    <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
-                  ))}
-                </optgroup>
-                <optgroup label={t.secondCycle7thTo9thYear}>
-                  {availableClasses.filter(c => c.cycle === 'cycle2').map(c => (
-                    <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
-                  ))}
-                </optgroup>
-                {availableClasses.some(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2') && (
-                  <optgroup label={t.otherCustomClasses}>
-                    {availableClasses.filter(c => c.cycle !== 'cycle1' && c.cycle !== 'cycle2').map(c => (
+                {classGroups.map(group => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.classes.map(c => (
                       <option key={c.id} value={c.id}>{lang === 'en' ? c.nameEn : c.nameFr}</option>
                     ))}
                   </optgroup>
+                ))}
+                {!isNurseryForm && (
+                  <option value="__ADD_NEW_CLASS__" className="text-blue-600 font-bold">
+                    {t.addAnotherClassSection}
+                  </option>
                 )}
-                <option value="__ADD_NEW_CLASS__" className="text-blue-600 font-bold">
-                  {t.addAnotherClassSection}
-                </option>
               </select>
-              <p className={`text-[10px] ${currentTheme.muted}`}>
-                {t.staffCanAddSectionsSuchAs1stYearBOrC}
-              </p>
+              {!isNurseryForm && (
+                <p className={`text-[10px] ${currentTheme.muted}`}>
+                  {t.staffCanAddSectionsSuchAs1stYearBOrC}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.enrollmentStatus}</label>
