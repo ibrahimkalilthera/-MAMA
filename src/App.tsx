@@ -22,8 +22,7 @@ import { useTheme } from './app/useTheme';
 import { useStudents } from './app/useStudents';
 import { useExpenses } from './app/useExpenses';
 import { useUsers } from './app/useUsers';
-import { useInactivityLogout } from './app/useInactivityLogout';
-import { fetchInactivityMinutes, saveInactivityMinutes } from './lib/teamSettings';
+import { useLogoutOnLeave } from './app/useLogoutOnLeave';
 import { logAuditEvent } from './lib/auditLogger';
 import { useYear } from './app/yearContext';
 import { getReadNotificationIds, saveReadNotificationIds } from './lib/notificationReads';
@@ -164,38 +163,12 @@ const {
     welcomeMessage, setWelcomeMessage,
   } = authWelcomeData;
 
-  // Inactivity auto-logout: TEAM-wide configurable window (stored in the
-  // app_settings table, applied by every account), warning countdown before
-  // cut. localStorage only caches the team value for an instant start.
-  const [teamInactivityMinutes, setTeamInactivityMinutes] = useState<number | null>(null);
-  useEffect(() => {
-    if (!auth.user) {
-      setTeamInactivityMinutes(null);
-      return;
-    }
-    let cancelled = false;
-    void fetchInactivityMinutes().then((value) => {
-      if (!cancelled) setTeamInactivityMinutes(value);
-    });
-    return () => { cancelled = true; };
-  }, [auth.user]);
-
-  const inactivity = useInactivityLogout({
+  // Sortie = déconnexion. Il n'y a plus de minuteur d'inactivité (retiré le
+  // 2026-09-14) : la session se ferme quand la personne s'en va, pas après un
+  // temps d'attente — voir src/app/useLogoutOnLeave.ts.
+  useLogoutOnLeave({
     enabled: !!auth.user && !authLoading,
     signOut: auth.signOut,
-    teamMinutes: teamInactivityMinutes,
-    onMinutesCommit: (m) => {
-      setTeamInactivityMinutes(m);
-      void saveInactivityMinutes(m);
-      void logAuditEvent({
-        action: 'update_setting',
-        targetType: 'app_settings',
-        details: JSON.stringify({ key: 'inactivity_minutes', value: m }),
-        user: auth.profile
-          ? { id: auth.profile.id, email: auth.profile.email, full_name: auth.profile.fullName, role: auth.profile.role }
-          : null,
-      });
-    },
   });
 
   // Users/settings domain (add-user modal, role management, password reset) —
@@ -649,9 +622,6 @@ const {
     t,
     toast,
     appEnv,
-    inactivity,
-    inactivityMinutes: inactivity.minutes,
-    setInactivityMinutes: inactivity.setMinutes,
     activeTab,
     setActiveTab,
     currentMonth,

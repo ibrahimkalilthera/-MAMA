@@ -3,7 +3,7 @@
  *
  * Owns: auth/loading gate, sidebar + header + banners, the MainViews /
  * AppModals mounts, floating chat, app-level modals, and the global chrome
- * (offline banner, env badge, toasts, confirm dialog, inactivity warning).
+ * (offline banner, env badge, toasts, confirm dialog).
  *
  * Props: `viewsProps` (the MainViewsProps & AppModalsProps wiring built by
  * App) plus the shell-only values (auth gate, toast, confirm dialog, chat).
@@ -26,12 +26,10 @@ import type { useToast } from '../lib/useToast';
 import type { useSupabaseData } from '../lib/useSupabaseData';
 import type { useFloatingChat } from '../app/useFloatingChat';
 import type { useDashboard } from '../app/useDashboard';
-import type { useInactivityLogout } from '../app/useInactivityLogout';
 import type { generateMultiYearReportPdf } from '../lib/pdfMultiYearReport';
 import type { generateFinancialReportPdf } from '../lib/pdfFinancialReport';
 import { ToastContainer, OfflineBanner, EnvBadge } from './ToastNotification';
 import { FloatingChat } from './FloatingChat';
-import { InactivityWarning } from './InactivityWarning';
 import { ConfirmDialog } from './ConfirmDialog';
 import { AppLoadingScreen } from './AppLoadingScreen';
 import { Sidebar } from './Sidebar';
@@ -110,7 +108,6 @@ export interface AppShellExtras {
   syncOfflineQueue: () => Promise<void>;
   confirmAction: ConfirmAction | null;
   setConfirmAction: (a: ConfirmAction | null) => void;
-  inactivity: ReturnType<typeof useInactivityLogout>;
 }
 
 export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras) {
@@ -134,7 +131,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
     showExcelImport, batchImportData, showMonthlyDraftModal, selectedDraftMonth,
     selectedDraftYear, staff, handleExportMonthlyPayrollExcel, setSalaryForm,
     setShowSalaryModal, pendingQueueCount, isSyncing, syncOfflineQueue, confirmAction,
-    setConfirmAction, inactivity,
+    setConfirmAction,
   } = props;
 
   // ─── La file d'attente du poste, vidée au premier démarrage CONNECTÉ ───────
@@ -472,15 +469,6 @@ onOpenPayroll={() => setActiveTab('payroll')}
           action?.onConfirm();
         }}
         onCancel={() => setConfirmAction(null)}
-        currentTheme={currentTheme}
-      />
-
-      {/* Inactivity auto-logout warning (see useInactivityLogout) */}
-      <InactivityWarning
-        open={inactivity.warningOpen}
-        remainingSeconds={inactivity.remainingSeconds}
-        onStay={inactivity.reset}
-        t={t}
         currentTheme={currentTheme}
       />
     </>

@@ -101,7 +101,6 @@ function shellProps(): Record<string, unknown> {
     syncOfflineQueue: asyncNoop,
     confirmAction: null,
     setConfirmAction: noop,
-    inactivity: { warningOpen: false, remainingSeconds: 0, reset: noop },
 
     // ── champs lus par le shell et ses enfants directs ──
     t,

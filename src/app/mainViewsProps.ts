@@ -387,8 +387,6 @@ export interface MainViewsProps {
   handleSetPassword: () => Promise<void>;
   userProfiles: UserProfile[];
   userRoleFilter: RoleFilter;
-  inactivityMinutes: number;
-  setInactivityMinutes: (minutes: number) => void;
   userSearchTerm: string;
   vendorCategoryFilter: string;
   vendorExpenses: VendorExpense[];

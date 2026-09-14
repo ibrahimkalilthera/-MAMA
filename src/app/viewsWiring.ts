@@ -135,7 +135,6 @@ export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProp
   handleUpdateRole,
   handleUpdateTodoDate,
   handleVendorExpenseSubmit,
-  inactivity,
   isFloatingChatOpen,
   isGeneralManager,
   isPromoter,
@@ -523,8 +522,6 @@ export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProp
   toggleLanguage,
   toggleTodo,
   handleUpdateTodoDate,
-  inactivityMinutes: inactivity.minutes,
-  setInactivityMinutes: inactivity.setMinutes,
   passwordInput,
   passwordTarget,
   setPasswordInput,
@@ -688,7 +685,6 @@ export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProp
     syncOfflineQueue,
     confirmAction,
     setConfirmAction,
-    inactivity,
     formatCurrency,
   };
   const shellProps: MainViewsProps & AppModalsProps & AppShellExtras = { ...viewsProps, ...appShellExtras };

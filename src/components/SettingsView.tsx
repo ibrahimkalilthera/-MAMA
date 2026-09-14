@@ -1,12 +1,12 @@
 /**
- * Settings view (language, theme, inactivity window, logo, backup/export,
+ * Settings view (language, theme, logo, backup/export,
  * class sections, user & role management + the set-password modal) —
  * extracted verbatim from MainViews.tsx. Admin/dev only; reads its data and
  * actions through the MainViewsContext.
  */
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  Briefcase, Check, Clock, Compass, Crown, DollarSign, Download, Edit2, Globe,
+  Briefcase, Check, Compass, Crown, DollarSign, Download, Edit2, Globe,
   KeyRound, Layers, Lock, Plus, Receipt, ShieldCheck, Trash2, UploadCloud,
   UserPlus, Users, X, Zap,
 } from 'lucide-react';
@@ -17,8 +17,8 @@ import type { AppRole } from '../lib/useAuth';
 export function SettingsView() {
   const {
     t, lang, currentTheme, theme, setTheme, toggleLanguage, schoolLogo, setSchoolLogo,
-    logoColor, setLogoColor, logoInputRef, handleLogoUpload, inactivityMinutes,
-    setInactivityMinutes, handleExportAllData, availableClasses, setShowAddClassModal,
+    logoColor, setLogoColor, logoInputRef, handleLogoUpload,
+    handleExportAllData, availableClasses, setShowAddClassModal,
     openEditClass, handleDeleteClass, userProfiles, setUserProfiles, auth,
     setShowAddUserModal, userRoleFilter, setUserRoleFilter, userSearchTerm,
     setUserSearchTerm, updatingUserId, handleUpdateRole, handleSendPasswordReset,
@@ -91,28 +91,6 @@ export function SettingsView() {
                       </button>
                     ))}
                   </div>
-                </div>
-
-                {/* Inactivity auto-logout window */}
-                <div className={`space-y-4 pt-4 border-t ${currentTheme.border}`}>
-                  <h4 className={`text-sm font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.inactivityMinutesLabel}</h4>
-                  <div className={`flex items-center justify-between p-6 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-3xl`}>
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 ${currentTheme.card} rounded-2xl text-amber-600 shadow-sm`}>
-                        <Clock size={20} />
-                      </div>
-                      <p className={`text-xs ${currentTheme.muted}`}>{t.inactivityMinutesLabel}</p>
-                    </div>
-                    <input
-                      type="number"
-                      min={0}
-                      max={480}
-                      value={inactivityMinutes}
-                      onChange={(e) => setInactivityMinutes(Number(e.target.value))}
-                      className={`w-24 px-3 py-2 rounded-xl border ${currentTheme.border} text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-amber-500/30 ${currentTheme.isDark ? 'bg-white/5 text-emerald-400 [color-scheme:dark]' : 'bg-white text-slate-800'}`}
-                    />
-                  </div>
-                  <p className={`text-[10px] ${currentTheme.muted}`}>{t.inactivityTeamScope}</p>
                 </div>
 
                 {/* Logo Upload */}

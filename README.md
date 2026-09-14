@@ -211,6 +211,16 @@ Le 13/09, `ibrahimkalilthera@mamathera.org` — le **compte dev**, documenté da
 
 **`owner-accounts-watch.yml`** l'exécute à chaque push **et une fois par jour** (une suppression ne produit aucun commit), sans bloquer aucun déploiement. Mesure du 2026-09-13 après la restauration : `✅ 4 compte(s) propriétaire(s) présents et conformes, 1 hors service, 2 login(s) réel(s) aboutis`.
 
+## Session — la déconnexion se fait à la SORTIE, plus après un compte à rebours
+
+Le minuteur d'inactivité de 30 minutes a été **retiré** (le 14/09) : il jugeait une **durée** — 30 minutes sans geste — donc il laissait une session ouverte devant une machine quittée, et il fermait celle de quelqu'un qui lisait une page sans cliquer. Il est remplacé par un **événement** : le départ.
+
+`src/app/useLogoutOnLeave.ts` écoute `pagehide` (fermeture d'onglet, navigation vers un autre site, fin de fenêtre Electron, onglet mis de côté) **et** `beforeunload` (certains chemins de fermeture Electron n'émettent que celui-là), et ferme la session **une seule fois par départ** — les deux événements d'une même sortie ne valent pas deux déconnexions. Il fait les **deux moitiés** : le stockage est vidé **synchroniquement** (c'est ce qui déconnecte immédiatement, et une page qui se ferme n'attend personne) **et** `signOut()` est appelé pour **révoquer** le jeton côté serveur — un `sessionStorage` vidé laisse un jeton encore valable ailleurs. Ce balayage ne touche que les clés `sb-*-auth-token` : la **file hors ligne** d'une école (`mama-thera:offline-queue`) n'est jamais emportée par une déconnexion, et un test le verrouille.
+
+La session vit déjà dans `sessionStorage` (`src/lib/supabaseClientCore.ts`), donc fermer l'onglet l'emportait avant même ce hook ; la raison d'être de celui-ci n'est pas là — c'est de rendre le geste **explicite, révocateur et éprouvable** au lieu d'un effet de bord d'un réglage qu'un futur changement pourrait déplacer.
+
+**Ce que ça coûte, et c'est assumé** : un **rechargement (F5) est un départ** comme un autre — il faut se reconnecter. C'est la conséquence directe de « quitte la page », et c'est plus visible sur le déploiement web que dans l'application empaquetée, où le rechargement n'est pas un geste courant. `tests/logout-on-leave.test.tsx` (11 cas) mesure les deux moitiés sur un vrai DOM, l'idempotence du départ, l'innocuité sans session, et **vérifie que la classe est fermée** : plus aucun fichier de `src/` ne porte le minuteur, son réglage d'équipe ni son alerte — « on l'a retiré » se vérifie en le cherchant.
+
 ## Sauvegarde de la base — une erreur de manipulation ne doit plus être définitive
 
 Jusqu'au 13/09/2026, ce dépôt n'avait **aucun** moyen de sauvegarder la base : pas de `pg_dump`, pas de script, aucune procédure. La seule copie des données d'école vivait dans un projet Supabase, et une suppression par erreur — celle du compte dev l'a montré — n'avait aucun retour possible.

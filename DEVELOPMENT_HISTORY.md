@@ -1,3 +1,17 @@
+## [2026-09-14] La déconnexion se fait à la SORTIE : le minuteur de 30 minutes est retiré
+
+Demande : « enlève complètement la déconnexion auto de tous les comptes après 30 mn ; à la place, déconnecte automatiquement à chaque fois qu'un utilisateur quitte la page ou ferme l'application ».
+
+**Ce que le minuteur jugeait mal, et c'est la vraie raison du changement.** Il mesurait une **durée** — 30 minutes sans geste — donc il produisait les deux erreurs à la fois : il laissait une session **ouverte devant une machine quittée** (personne ne s'en va en cliquant), et il fermait la session de **quelqu'un qui travaillait** (lire une page, saisir un montant sans bouger la souris pendant une demi-heure). Le remplacer par un **événement** supprime la classe entière : plus rien ne s'écoule, donc plus rien ne peut arriver trop tard ou trop tôt.
+
+**Deux événements, et les deux sont nécessaires.** `pagehide` couvre la fermeture d'onglet, la navigation vers un autre site, la mise à l'écart d'un onglet et la fin de fenêtre Electron ; `beforeunload` est ajouté parce que certains chemins de fermeture Electron n'émettent que lui (mesuré sur des chemins de fermeture, pas déduit). Le geste est **idempotent** : les deux peuvent partir pour un seul départ, et le drapeau `firedRef` fait qu'une sortie ne vaut qu'une révocation.
+
+**Les deux moitiés de la déconnexion, et la seconde manquait.** Le stockage est vidé **synchroniquement** — c'est ce qui déconnecte immédiatement, puisqu'une page qui se ferme n'attend personne — **et** `signOut()` est appelé pour **révoquer** le jeton côté serveur. Un `sessionStorage` vidé laisse un jeton encore valable ailleurs ; c'est cette différence qui justifie le hook, puisque la session vivait **déjà** dans `sessionStorage` (`src/lib/supabaseClientCore.ts`) et qu'un simple réglage différent aurait remis le jeton dans `localStorage` sans que personne ne le remarque. Le balayage ne touche que les clés `sb-*-auth-token` : la **file hors ligne** (`mama-thera:offline-queue`) survit à une déconnexion — vérifié par un cas, parce que c'est la donnée qui n'existe nulle part ailleurs.
+
+**Ce qui a disparu, et il ne peut plus revenir par inadvertance** : `src/app/useInactivityLogout.ts`, `src/components/InactivityWarning.tsx`, `src/lib/teamSettings.ts` (le réglage d'équipe `inactivity_minutes` en base), le champ de réglage dans `SettingsView`, les quatre clés l10n, et les deux suites qui les couvraient. `tests/logout-on-leave.test.tsx` (**11 cas**) mesure le comportement sur un vrai DOM **et** relit tout `src/` pour refuser la réapparition de l'un des identifiants du minuteur : « on l'a retiré » se vérifie en le cherchant, pas en le promettant. Le corpus est borné par un cas anti-vacuité (≥ 100 fichiers lus, et le motif **mord** sur les deux formes qu'une réintroduction écrirait).
+
+**Ce que ça coûte, et c'est assumé** : un **rechargement (F5) est un départ** — il faudra se reconnecter. C'est la conséquence directe de « quitte la page » ; l'alternative (garder la session en mémoire seule pour rendre F5 indolent) aurait aussi supprimé la reprise après navigation, et n'a pas été retenue. C'est plus visible sur le déploiement web que dans l'application empaquetée, où le rechargement n'est pas un geste courant.
+
 ## [2026-09-14] La 1.0.13 : signée avec le certificat de test, DÉLIBÉRÉMENT — et le gel est dit, pas tu
 
 Demande : « publish and release, je veux signer avec le certificat de test — le même que les autres, comme la 1.0.8 ».
