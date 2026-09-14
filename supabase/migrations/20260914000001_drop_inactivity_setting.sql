@@ -1,18 +1,21 @@
 -- ============================================================================
 -- MAMA THERA Finance Suite — retrait du réglage d'inactivité
 -- ============================================================================
--- Le minuteur de déconnexion automatique a été retiré le 2026-09-14 : il
--- jugeait une DURÉE (30 minutes sans geste) au lieu d'un ÉVÉNEMENT, donc il
--- laissait une session ouverte devant une machine quittée et fermait celle de
--- quelqu'un qui lisait une page sans cliquer. Il est remplacé par la
--- déconnexion à la SORTIE (src/app/useLogoutOnLeave.ts).
+-- Le minuteur de déconnexion automatique est resté, mais il a cessé d'être un
+-- RÉGLAGE le 2026-09-14 : la fenêtre est une CONSTANTE du code
+-- (`INACTIVITY_MINUTES = 45`, src/app/useInactivityLogout.ts), la même pour tout
+-- le monde. « N'importe quel utilisateur » n'a pas besoin d'un réglage par
+-- équipe, et un réglage qu'aucun écran ne change est une dépendance en plus :
+-- une lecture en base qui peut échouer, un cache à gérer, et une valeur en base
+-- qui ment sur ce qui est appliqué.
 --
--- La ligne `inactivity_minutes` de `app_settings` n'est plus ni lue ni écrite :
--- l'application n'a plus aucun lecteur (vérifié par tests/logout-on-leave.test.tsx,
--- qui relit tout src/ et refuse la réapparition de l'identifiant). La garder
--- laisserait dans la base un réglage qui se lit encore « 30 » et qu'aucun écran
--- ne peut plus changer — exactement le genre de valeur orpheline qui finit par
--- être reprise par quelqu'un qui la croit vivante.
+-- La ligne `inactivity_minutes` de `app_settings` n'est donc plus ni lue ni
+-- écrite : l'application n'a plus aucun lecteur (vérifié par
+-- tests/inactivity.test.tsx, qui relit tout src/ — prose blanchie — et refuse la
+-- réapparition de l'identifiant, avec le cas qui prouve que le motif mord sur un
+-- vrai lecteur). La garder laisserait dans la base un réglage qui se lit encore
+-- « 30 » alors que le code applique 45 — exactement le genre de valeur orpheline
+-- qui finit par être reprise par quelqu'un qui la croit vivante.
 --
 -- La TABLE `app_settings` reste : c'est un magasin de réglages d'équipe, et
 -- d'autres clés y vivent. On ne retire que la clé.
