@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
 import type { RoleTab, ThemeOption } from '../app/mainViewsProps';
-import type { AppRole } from '../lib/useAuth';
+import type { AppRole, UserProfile } from '../lib/useAuth';
 
 export function SettingsView() {
   const {
@@ -26,6 +26,21 @@ export function SettingsView() {
   } = useMainViews();
   // The settings tab is admin/dev-only (sidebar hides it for other roles too).
   if (!auth?.isAdmin) return null;
+
+  // ─── Le filtre de la liste des comptes, calculé UNE fois ────────────────────
+  // Il était écrit deux fois (`.length === 0` puis `.map`), donc un changement
+  // de règle atterrissait dans une moitié sur deux — et « ce que le filtre
+  // masque » n'était dit nulle part.
+  const matchesFilter = (p: UserProfile): boolean => {
+    const matchesSearch = !userSearchTerm ||
+      p.fullName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+      p.email.toLowerCase().includes(userSearchTerm.toLowerCase());
+    const matchesRole = userRoleFilter === 'all' || p.role === userRoleFilter;
+    return matchesSearch && matchesRole;
+  };
+  const visibleProfiles = userProfiles.filter(matchesFilter);
+  const hiddenByFilter = userProfiles.length - visibleProfiles.length;
+
   return (
     <>
           <div className="max-w-2xl space-y-8">
@@ -405,8 +420,18 @@ export function SettingsView() {
                   {/* Filter & Search Bar */}
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
+                      {/* Un champ de RECHERCHE, et il le DIT. Un <input type="text">
+                          voisin d'un champ mot de passe est, pour le gestionnaire de
+                          mots de passe du navigateur, un champ « identifiant » : il y
+                          versait l'e-mail du compte connecté, la liste se filtrait
+                          dessus, et trois comptes paraissaient supprimés après un
+                          « Définir mot de passe » annulé (2026-09-14). `type="search"`
+                          et `autoComplete="off"` déclarent ce qu'il est : une recherche,
+                          jamais une identité. */}
                       <input
-                        type="text"
+                        type="search"
+                        name="user-search"
+                        autoComplete="off"
                         value={userSearchTerm}
                         onChange={(e) => setUserSearchTerm(e.target.value)}
                         placeholder={t.searchByNameOrEmail}
@@ -437,29 +462,33 @@ export function SettingsView() {
                     </div>
                   </div>
 
+                  {/* Ce que le filtre MASQUE, dit au lieu d'être caché : une liste
+                      filtrée ressemble à une liste amputée (ou vide), et « ils ont
+                      disparu » a déjà été le verdict d'un écran qui ne disait rien.
+                      Le bouton remet les deux filtres à zéro — la recherche ET
+                      l'onglet de rôle, parce que les deux peuvent masquer. */}
+                  {hiddenByFilter > 0 && (
+                    <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card}`}>
+                      <span className={`text-[11px] font-bold ${currentTheme.muted}`}>
+                        {t.usersHiddenByFilter.replace('{count}', String(hiddenByFilter))}
+                      </span>
+                      <button
+                        onClick={() => { setUserSearchTerm(''); setUserRoleFilter('all'); }}
+                        className="text-[11px] font-black uppercase tracking-wider text-emerald-600 hover:text-emerald-700 transition-colors"
+                      >
+                        {t.clearUserFilter}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Registered Users Cards */}
                   <div className="space-y-3">
-                    {userProfiles
-                      .filter(p => {
-                        const matchesSearch = !userSearchTerm ||
-                          p.fullName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-                          p.email.toLowerCase().includes(userSearchTerm.toLowerCase());
-                        const matchesRole = userRoleFilter === 'all' || p.role === userRoleFilter;
-                        return matchesSearch && matchesRole;
-                      })
-                      .length === 0 ? (
+                    {visibleProfiles.length === 0 ? (
                       <div className={`text-xs ${currentTheme.muted} italic p-8 rounded-2xl text-center border ${currentTheme.border} ${currentTheme.card}`}>
                         {t.noUsersMatchingYourSearch}
                       </div>
                     ) : (
-                      userProfiles
-                        .filter(p => {
-                          const matchesSearch = !userSearchTerm ||
-                            p.fullName.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-                            p.email.toLowerCase().includes(userSearchTerm.toLowerCase());
-                          const matchesRole = userRoleFilter === 'all' || p.role === userRoleFilter;
-                          return matchesSearch && matchesRole;
-                        })
+                      visibleProfiles
                         .map(profile => {
                           const isCurrentUser = auth.profile?.id === profile.id;
                           const isDev = profile.role === 'dev';
@@ -612,6 +641,8 @@ export function SettingsView() {
                   <label className={`block text-xs font-bold ${currentTheme.muted}`}>{t.newPasswordLabel}</label>
                   <input
                     type="password"
+                    name="new-password"
+                    autoComplete="new-password"
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
                     placeholder="••••••••"

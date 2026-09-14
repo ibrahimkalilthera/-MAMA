@@ -192,7 +192,10 @@ describe('la porte du retard — obligatoire veut dire obligatoire', () => {
     assert.match(textOf(gate), /2\.0\.0/, 'la version disponible est nommée');
     assert.match(textOf(gate), /1\.0\.0/, 'la version du poste est nommée');
     assert.match(textOf(gate), /1 majeure\(s\) de retard/, 'le motif est chiffré');
-    assert.equal(container.querySelector('[aria-label="Masquer"]'), null, 'aucune croix : obligatoire');
+    // Projeté en booléen : passer le nœud lui-même à `assert.equal` ferait inspecter
+    // toute la fenêtre happy-dom le jour où l'assertion échoue (tas explosé, pas un
+    // message d'erreur — voir la règle de classe dans settings-filter-honesty).
+    assert.equal(container.querySelector('[aria-label="Masquer"]') !== null, false, 'aucune croix : obligatoire');
     assert.equal(buttonSaying(container, 'Continuer'), undefined, 'aucune issue quand tout va bien');
     const apply = buttonSaying(container, 'Redémarrer');
     assert.ok(apply, 'un bouton applique la mise à jour');

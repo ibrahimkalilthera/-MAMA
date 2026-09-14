@@ -307,6 +307,10 @@ export const fr = {
     noStaffMembersRegistered: "Aucun membre du personnel enregistré.",
     notProvided: "Non renseigné",
     noUsersMatchingYourSearch: "Aucun utilisateur ne correspond à votre recherche.",
+    // Le filtre masque des comptes : le DIRE (un écran muet a déjà fait croire à
+    // des suppressions) et offrir de tout remontrer en un geste.
+    usersHiddenByFilter: "{count} compte(s) masqué(s) par le filtre",
+    clearUserFilter: "Effacer le filtre",
     officialBoardRepresentative: "Représentant Officiel de la Direction",
     officialElectronicDocumentGeneratedByExecutiveFinanceComplexeScolaireMamaThera: "Document officiel édité électroniquement par Finance Exécutive - Complexe Scolaire Mama Thera.",
     officialFinancialReceipt: "Reçu Financier Officiel",

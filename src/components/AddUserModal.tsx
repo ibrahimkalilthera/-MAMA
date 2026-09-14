@@ -152,6 +152,7 @@ export const AddUserModal = ({
             </label>
             <input
               type="email"
+              autoComplete="off"
               required
               value={newUserForm.email}
               onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
@@ -166,8 +167,14 @@ export const AddUserModal = ({
             <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
               {t.initialPasswordMin6Characters}
             </label>
+            {/* Un mot de passe INITIAL, pas une connexion : le dire évite que le
+                navigateur y voie un couple « identifiant + mot de passe » — le
+                nom et l'e-mail ci-dessus sont ceux du NOUVEAU compte, pas ceux de
+                la personne connectée (voir tests/settings-filter-honesty). */}
             <input
               type="password"
+              name="new-password"
+              autoComplete="new-password"
               required
               minLength={6}
               value={newUserForm.password}
