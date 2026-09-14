@@ -22,7 +22,7 @@ import { useTheme } from './app/useTheme';
 import { useStudents } from './app/useStudents';
 import { useExpenses } from './app/useExpenses';
 import { useUsers } from './app/useUsers';
-import { useLogoutOnLeave } from './app/useLogoutOnLeave';
+import { useInactivityLogout } from './app/useInactivityLogout';
 import { logAuditEvent } from './lib/auditLogger';
 import { useYear } from './app/yearContext';
 import { getReadNotificationIds, saveReadNotificationIds } from './lib/notificationReads';
@@ -163,10 +163,12 @@ const {
     welcomeMessage, setWelcomeMessage,
   } = authWelcomeData;
 
-  // Sortie = déconnexion. Il n'y a plus de minuteur d'inactivité (retiré le
-  // 2026-09-14) : la session se ferme quand la personne s'en va, pas après un
-  // temps d'attente — voir src/app/useLogoutOnLeave.ts.
-  useLogoutOnLeave({
+  // Déconnexion après 45 minutes d'inactivité — la même fenêtre pour tous les
+  // comptes (voir src/app/useInactivityLogout.ts). Rien n'est révoqué au
+  // déchargement : un rechargement (F5) n'est donc pas un départ. Fermer
+  // l'onglet ou l'application ferme toujours la session, parce que le stockage
+  // est celui de l'onglet (`sessionStorage`).
+  const inactivity = useInactivityLogout({
     enabled: !!auth.user && !authLoading,
     signOut: auth.signOut,
   });
@@ -622,6 +624,7 @@ const {
     t,
     toast,
     appEnv,
+    inactivity,
     activeTab,
     setActiveTab,
     currentMonth,

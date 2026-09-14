@@ -26,10 +26,12 @@ import type { useToast } from '../lib/useToast';
 import type { useSupabaseData } from '../lib/useSupabaseData';
 import type { useFloatingChat } from '../app/useFloatingChat';
 import type { useDashboard } from '../app/useDashboard';
+import type { useInactivityLogout } from '../app/useInactivityLogout';
 import type { generateMultiYearReportPdf } from '../lib/pdfMultiYearReport';
 import type { generateFinancialReportPdf } from '../lib/pdfFinancialReport';
 import { ToastContainer, OfflineBanner, EnvBadge } from './ToastNotification';
 import { FloatingChat } from './FloatingChat';
+import { InactivityWarning } from './InactivityWarning';
 import { ConfirmDialog } from './ConfirmDialog';
 import { AppLoadingScreen } from './AppLoadingScreen';
 import { Sidebar } from './Sidebar';
@@ -108,6 +110,7 @@ export interface AppShellExtras {
   syncOfflineQueue: () => Promise<void>;
   confirmAction: ConfirmAction | null;
   setConfirmAction: (a: ConfirmAction | null) => void;
+  inactivity: ReturnType<typeof useInactivityLogout>;
 }
 
 export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras) {
@@ -131,7 +134,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
     showExcelImport, batchImportData, showMonthlyDraftModal, selectedDraftMonth,
     selectedDraftYear, staff, handleExportMonthlyPayrollExcel, setSalaryForm,
     setShowSalaryModal, pendingQueueCount, isSyncing, syncOfflineQueue, confirmAction,
-    setConfirmAction,
+    setConfirmAction, inactivity,
   } = props;
 
   // ─── La file d'attente du poste, vidée au premier démarrage CONNECTÉ ───────
@@ -469,6 +472,15 @@ onOpenPayroll={() => setActiveTab('payroll')}
           action?.onConfirm();
         }}
         onCancel={() => setConfirmAction(null)}
+        currentTheme={currentTheme}
+      />
+
+      {/* Préavis d'inactivité — voir src/app/useInactivityLogout.ts */}
+      <InactivityWarning
+        open={inactivity.warningOpen}
+        remainingSeconds={inactivity.remainingSeconds}
+        onStay={inactivity.reset}
+        t={t}
         currentTheme={currentTheme}
       />
     </>

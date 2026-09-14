@@ -1,3 +1,27 @@
+## [2026-09-14] 45 minutes d'INACTIVITÉ, et F5 n'est plus une déconnexion
+
+Demande : « je retire ce que j'ai dit — fais en sorte qu'un rechargement (F5) ne soit pas un départ ; si ce n'est pas possible, efface ce qu'on vient de faire et fais qu'après 45 mn d'inactivité, n'importe quel utilisateur soit déconnecté — je répète : inactivité ».
+
+**C'était possible, et c'est mesuré : aucune API de navigateur ne distingue un F5 d'une fermeture au moment du déchargement.** `pagehide` et `beforeunload` se déclenchent pour les deux, avec la même charge utile ; il n'existe donc que deux façons d'épargner F5 — ne rien révoquer à cet instant, ou différer la décision d'un chargement à l'autre (et une révocation différée d'un chargement est une révocation qui n'a pas lieu avant que le jeton ne serve). La première est retenue. `useLogoutOnLeave` est donc **supprimé**, et un cas de test verrouille la règle qui le remplace : **aucun fichier de `src/` n'enregistre d'écouteur `pagehide`/`beforeunload`** — le motif cherche le mot dans du CODE, donc la prose du hook qui explique pourquoi on ne les écoute plus ne fait pas rougir le contrôle.
+
+**Ce qui ferme quand même la session, et ce n'est pas un geste au déchargement :** le stockage. La session vit dans `sessionStorage` (`src/lib/supabaseClientCore.ts`), donc **fermer l'onglet ou l'application la ferme** — un effet du réglage, qui n'a pas besoin qu'on envoie quoi que ce soit au serveur au moment du départ. C'est la différence entre « la session ne survit pas à la fermeture » (vrai, par le stockage) et « on révoque au déchargement » (faux, et c'était le défaut).
+
+**La fenêtre demandée : 45 minutes, la même pour tout le monde.** Le minuteur de l'après-midi a été repris, mais **sans** son réglage d'équipe : `app_settings.inactivity_minutes` n'est plus ni lu ni écrit (la clé est retirée par la migration `20260914000001`, la table reste — c'est le magasin des réglages d'équipe), il n'y a plus de cache `localStorage`, et la valeur est une **constante** dans `src/app/useInactivityLogout.ts`. « N'importe quel utilisateur » n'a pas besoin d'un réglage par équipe : une constante n'a pas de lecture en base qui peut échouer, ni d'écran à maintenir. Le préavis de 60 secondes et son bouton « Je suis toujours là » sont conservés — sans eux, une saisie longue serait coupée sans prévenir.
+
+**Ce que « inactivité » veut dire, et c'est écrit dans le code** : aucun geste de l'utilisateur — appui, touche au clavier, défilement, molette, déplacement de la souris (bridé à une relance toutes les 30 s). Rester devant une page sans rien toucher EST de l'inactivité ; c'est précisément la différence avec la version « à la sortie », qui ne mesurait rien du tout.
+
+**Tests** : `tests/inactivity.test.tsx`, **10 cas** — la constante vaut **45 et pas 30**, la fenêtre exacte (une milliseconde avant le seuil, la session est encore ouverte), le préavis qui décompte et le bouton qui rouvre la fenêtre **pour entière**, les **cinq** familles de gestes, la souris (avec `Date` simulée, sinon le cas mesurerait le bridage au lieu de la relance), l'innocuité sans session, **l'absence de révocation au déchargement**, et les deux contrôles de classe (plus d'écouteur de déchargement, plus de lecteur de `inactivity_minutes` — prose blanchie, avec le cas qui prouve que le motif mord sur un vrai lecteur et pas sur un commentaire).
+
+## [2026-09-14] La 1.0.13 repart NON signée — les mêmes conditions que la 1.0.12, et l'application à jour
+
+Demande : « mets à jour l'application et publie la 1.0.13 avec les mêmes conditions de signature que la 1.0.12 ».
+
+**Ce qui s'était passé entre-temps, dit tel quel.** La 1.0.13 avait été publiée **signée** avec le certificat de test (run #55, 02:07), et le binaire portait donc `publisherName: « Mama Thera Finance (test) »` — le gel du parc décrit dans l'entrée du 13/09. Elle a été **retirée** : release supprimé, étiquette supprimée, tête du canal revenue à `v1.0.12`. Dix minutes ont séparé la publication de son retrait, donc aucun poste ne l'a vraisemblablement installée — et c'est la seule chose qui rend ce retrait efficace, parce qu'un gel se produit chez le poste, pas sur le canal.
+
+**Deux raisons, et la seconde suffisait à elle seule.** (1) La décision de signer est annulée : `SIGNING_ENABLED` passe à `false`. (2) **La 1.0.13 publiée ne contenait même pas l'application à jour** : elle avait été construite depuis `e0df4e6`, avant le retrait du minuteur d'inactivité (`210d27c`). Republier le même numéro était donc de toute façon nécessaire — un numéro ne peut pas changer de contenu, et c'est exactement ce que `check:release:tag` refuse.
+
+**La dérogation reste rangée, pas oubliée.** Le drapeau `--allow-test-signer` et ses 5 cas de test restent dans le dépôt, dormants : ils ne font rien tant que `SIGNING_ENABLED` est faux, et la leçon du jour — signer un certificat de test **est** un choix, il n'arrive jamais par inadvertance — est ainsi écrite dans le code plutôt que dans une intention. Un futur certificat approuvé (OV/EV) n'a besoin ni de l'un ni de l'autre : il passe le contrôle tout seul.
+
 ## [2026-09-14] La déconnexion se fait à la SORTIE : le minuteur de 30 minutes est retiré
 
 Demande : « enlève complètement la déconnexion auto de tous les comptes après 30 mn ; à la place, déconnecte automatiquement à chaque fois qu'un utilisateur quitte la page ou ferme l'application ».

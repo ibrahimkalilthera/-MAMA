@@ -1,0 +1,24 @@
+-- ============================================================================
+-- MAMA THERA Finance Suite — retrait du réglage d'inactivité
+-- ============================================================================
+-- Le minuteur de déconnexion automatique a été retiré le 2026-09-14 : il
+-- jugeait une DURÉE (30 minutes sans geste) au lieu d'un ÉVÉNEMENT, donc il
+-- laissait une session ouverte devant une machine quittée et fermait celle de
+-- quelqu'un qui lisait une page sans cliquer. Il est remplacé par la
+-- déconnexion à la SORTIE (src/app/useLogoutOnLeave.ts).
+--
+-- La ligne `inactivity_minutes` de `app_settings` n'est plus ni lue ni écrite :
+-- l'application n'a plus aucun lecteur (vérifié par tests/logout-on-leave.test.tsx,
+-- qui relit tout src/ et refuse la réapparition de l'identifiant). La garder
+-- laisserait dans la base un réglage qui se lit encore « 30 » et qu'aucun écran
+-- ne peut plus changer — exactement le genre de valeur orpheline qui finit par
+-- être reprise par quelqu'un qui la croit vivante.
+--
+-- La TABLE `app_settings` reste : c'est un magasin de réglages d'équipe, et
+-- d'autres clés y vivent. On ne retire que la clé.
+--
+-- `WHERE key = 'inactivity_minutes'` : idempotent (une base qui n'a jamais eu
+-- la ligne n'échoue pas), et borné — aucune autre clé n'est touchée.
+-- ============================================================================
+
+DELETE FROM public.app_settings WHERE key = 'inactivity_minutes';
