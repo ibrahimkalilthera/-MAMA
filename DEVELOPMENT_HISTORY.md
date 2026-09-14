@@ -1,3 +1,13 @@
+## [2026-09-14] La 1.0.16 part au parc : « Ajouter Crèches » arrive sur les postes, non signée
+
+Demande : « mets à jour l'application et publish and release la nouvelle version avec les changements, avec les mêmes conditions de signature que la 1.0.12 ».
+
+**Pourquoi un numéro plutôt qu'un espace entre deux commits.** Le bouton « Ajouter Crèches » est sur le site déployé depuis 16:04, mais **un poste installé ne lit pas le site** : il lit le canal de mise à jour, et la 1.0.15 servie par ce canal ne contient ni le bouton ni le flux CR. Un correctif qui reste dans `main` n'atteint aucune école — c'est la raison de ce saut de version, et elle est la même que celle qui a produit la 1.0.12 à la 1.0.15.
+
+**Ce que la 1.0.16 porte, mesuré :** « Ajouter Crèches » à côté de « Ajouter un Élève » (onglet Élèves et actions rapides de la barre latérale), le **même** formulaire ouvert sur les seules classes **Petit / Moyen / Grand** (cycle Maternelle / Jardin d'Enfants), le mode dans le formulaire et **retiré avant l'écriture**, le filtre de classes de l'en-tête qui sait isoler le groupe CR, et les trois classes écrites des deux côtés — déclarées dans `DEFAULT_SCHOOL_CLASSES` **et** semées dans `custom_classes` (migration `20260914000002`) pour qu'un poste dont le build ne les embarque pas encore les voie quand même. Suite complète **1855/1855**, `tsc` propre, `npm run lint` vert.
+
+**Mêmes conditions de signature que la 1.0.12, la 1.0.13, la 1.0.14 et la 1.0.15 : non signée.** La variable de dépôt `SIGNING_ENABLED` n'est pas `true`, donc le publieur construit **sans** certificat et publie quand même — la décision du 2026-09-13, écrite dans l'en-tête du workflow. Signer avec le certificat de test graverait `CN=Mama Thera Finance (test)` dans le contrat que chaque poste lit, et Windows ne l'approuve que sur la machine qui l'a créé : ce serait le gel du parc, mesuré sur les 1.0.6–1.0.8. Non signée, la mise à jour se propose et s'installe, avec l'avertissement SmartScreen habituel (« éditeur inconnu ») — et la preuve d'action du job le dit en toutes lettres plutôt que de le taire.
+
 ## [2026-09-14] « Ajouter Crèches » : un bouton à côté de « Ajouter un Élève », le MÊME formulaire, et trois classes écrites en base
 
 Demande : « à côté de Ajouter un Élève, mets Ajouter CR (crèche / jardin d'enfants) — les mêmes options qu'Ajouter un Élève, lié à un parent, le même reçu et tout, la seule différence c'est la classe : Petit, Moyen, Grand — et ajoute-le à la base Supabase aussi ».
