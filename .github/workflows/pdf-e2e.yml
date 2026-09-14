@@ -63,6 +63,32 @@ name: PDF E2E — pixel check après déploiement
 # sécurité bloque la visibilité du problème ici, sans bloquer le déploiement
 # lui-même (workflow_run en lecture seule — cf. la porte deploy.yml qui reste
 # l'unique entrée en prod).
+#
+# ─── Les trois rouges HISTORIQUES (#170, #171, #172) et leur sort ────────────
+#
+# Trois runs se sont terminés en échec le 2026-09-13 au soir, sur trois commits
+# (`9bbf535`, `5d0d5e2`, `1292ac5`), tous au même endroit : l'étape « reçu parent
+# (mode recu-parent) », avec `⚠️ ligne « Rahim » non ouverte (essai 1/2/3)` puis
+# `❌ bouton « Reçu » de « Rahim » introuvable dans la fiche`. La reprise sondée
+# a fait son travail — elle a retenté trois fois, puis a NOMMÉ ce qu'elle ne
+# trouvait pas, au lieu de bloquer en silence. La cause était en amont : l'élève
+# Rahim (vraie ligne de la base partagée) était rangé sous une année que la
+# session n'affichait pas, donc la liste ne montrait aucune ligne à ouvrir.
+# C'est l'**année scolaire déduite du calendrier** qui a fermé ce chemin.
+#
+# Ces trois runs ne peuvent plus redevenir verts, et c'est DÉLIBÉRÉ : ils
+# vérifient que la prod sert LE build de leur commit, et la prod sert maintenant
+# le build de `main`. Un « Re-run » échouerait donc à l'étape de fraîcheur — un
+# rouge qui accuserait la PUBLICATION au lieu du rendu, c'est-à-dire exactement
+# ce que cette étape existe pour éviter. Ils restent dans l'historique comme la
+# trace de la panne, et le vert qui les suit est le seul verdict qui compte.
+#
+# Verts depuis, sur le même chemin (reçu parent) : #173 (`2e2dd6e`), #174, et
+# #175 relancé À LA MAIN (`workflow_dispatch`) pour ne pas confondre une preuve
+# fraîche avec un historique : la page servie déclare le build de ce commit
+# (1 essai), la paie rend 9/9, le reçu parent 12/12 — la ligne de Rahim s'ouvre
+# du PREMIER coup — et l'étape « Publier la preuve d'action », sautée pendant
+# tout l'échec, s'exécute.
 
 on:
   workflow_run:
