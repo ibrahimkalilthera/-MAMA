@@ -1,3 +1,11 @@
+## [2026-09-14] La 1.0.15 part au parc : « Définir mot de passe » ne fait plus disparaître les comptes
+
+**Pourquoi un numéro plutôt qu'un espace entre deux commits.** La 1.0.14 servie par le canal porte encore la recherche de comptes en champ texte libre : un poste installé peut donc voir trois comptes quitter l'écran après une fiche de mot de passe annulée, et c'est précisément ce qui a été rapporté. Un correctif qui reste dans `main` n'atteint aucune école — c'est la raison de ce saut de version, et elle est la même que celle qui a produit la 1.0.14.
+
+**Ce que la 1.0.15 porte, mesuré** : la recherche est un `type="search"` (jamais un champ d'identité), les mots de passe qu'on DÉFINIT sont des `autoComplete="new-password"`, l'écran **dit** ce qu'un filtre masque et le défait en un geste (recherche et onglet de rôle), plus les deux règles de classe qui ferment la classe — aucun champ mot de passe livré ne s'en remet aux heuristiques du navigateur, aucune assertion de test ne reçoit un nœud du DOM à inspecter. `npm test` **1822/1822**, `npm run lint` vert (26 contrôles).
+
+**Mêmes conditions de signature que la 1.0.12, la 1.0.13 et la 1.0.14 : non signée.** La variable de dépôt `SIGNING_ENABLED` n'est pas `true`, donc le publieur construit sans certificat et **publie quand même** ; c'est la règle du workflow depuis cet après-midi. Signer avec le certificat de test graverait `CN=Mama Thera Finance (test)` dans le contrat que chaque poste lit, et Windows ne l'approuve que sur la machine qui l'a créé : ce serait le gel du parc, mesuré sur les 1.0.6–1.0.8.
+
 ## [2026-09-14] « Les comptes disparaissent » : le gestionnaire de mots de passe écrivait dans la recherche
 
 Bug rapporté : « quand je fais “Définir mot de passe” sur un compte qui n'est pas celui de dev, puis que je clique “Annuler”, ils disparaissent ». La capture le dit entièrement : **l'onglet « Tous » est actif** (donc le rôle ne masque rien) et **le champ de recherche contient l'e-mail du dev** — que personne n'a tapé. Seul le texte de recherche peut donc amputer la liste, et il est arrivé pendant la vie de la fiche.
