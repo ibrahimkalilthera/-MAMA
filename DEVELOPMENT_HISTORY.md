@@ -1,3 +1,9 @@
+## [2026-09-14] La 1.0.14 part au parc : 45 minutes d'inactivité, non signée
+
+**Pourquoi un numéro plutôt qu'un espace entre deux commits.** La 1.0.13 servie par le canal porte encore le **minuteur de 30 minutes piloté par le réglage d'équipe** — donc un poste installé applique aujourd'hui 30 minutes réglables, et non les 45 minutes demandées. Un correctif qui reste dans `main` n'atteint aucune école : c'est écrit noir sur blanc dans l'entrée du 13/09, et c'est la raison de ce saut de version. Elle porte, mesurés : le minuteur à **45 minutes constantes** (`src/app/useInactivityLogout.ts`), la **déconnexion à la sortie supprimée** (donc **F5 ne ferme plus la session**, et la fermeture d'onglet reste une déconnexion par le stockage), et la migration `20260914000001` qui retire la clé devenue muette (`app_settings.inactivity_minutes`, **0 ligne** en base hébergée au moment du push — la migration est idempotente et bornée à cette clé).
+
+**Mêmes conditions de signature que la 1.0.12 et la 1.0.13 : non signée.** C'est l'instruction la plus récente du propriétaire du parc (« publie la 1.0.13 avec les mêmes conditions de signature que la 1.0.12 »), et elle vaut ici pour la même raison : le certificat de test grave un nom que Windows n'approuve que sur la machine qui l'a créé, donc signer avec lui **gèlerait** chaque poste qui l'installe. Non signée, la mise à jour se propose et s'installe, avec l'avertissement SmartScreen habituel.
+
 ## [2026-09-14] 45 minutes d'INACTIVITÉ, et F5 n'est plus une déconnexion
 
 Demande : « je retire ce que j'ai dit — fais en sorte qu'un rechargement (F5) ne soit pas un départ ; si ce n'est pas possible, efface ce qu'on vient de faire et fais qu'après 45 mn d'inactivité, n'importe quel utilisateur soit déconnecté — je répète : inactivité ».

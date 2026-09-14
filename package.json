@@ -2,7 +2,7 @@
   "name": "mama-thera-finance",
   "private": true,
   "license": "MIT",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "type": "module",
   "scripts": {
     "dev": "node scripts/with-pinned-node.mjs --bin vite --port=3000 --host=0.0.0.0",
