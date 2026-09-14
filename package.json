@@ -14,6 +14,7 @@
     "optimize:stamp": "node scripts/optimize-stamp.mjs",
     "check:perf": "node scripts/check-performance.mjs",
     "check:shared-db": "node scripts/check-shared-db.mjs",
+    "check:recette-base": "node scripts/check-recette-base.mjs",
     "check:hosted-schema": "node scripts/check-hosted-schema.mjs",
     "check:public-origin": "node scripts/check-public-origin.mjs",
     "check:owners": "node scripts/check-owner-accounts.mjs",

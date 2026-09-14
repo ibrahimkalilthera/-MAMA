@@ -164,6 +164,19 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-recette-base.mjs',
+    input: 'database+contract',
+    // Non-vacuité par deux refus écrits : secrets absents → exit 2, et un
+    // COMPTAGE incomplet → exit 2 (`readSchoolCounts` remonte ses tables non
+    // lues ; le jugement pur refuse alors d'autoriser). Une passerelle en panne
+    // ne doit pas faire passer une base pleine pour une base libre : c'est
+    // exactement le faux vert que ce contrôle existe pour empêcher.
+    needs: [IMMUNITY.NON_VACUOUS],
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit `.env` et des comptages PostgREST (Range: 0-0), jamais du code source',
+    },
+  },
+  {
     check: 'check-public-origin.mjs',
     input: 'config+network',
     needs: [],

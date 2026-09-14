@@ -94,7 +94,7 @@ Un exercice de restauration qui n'a jamais été fait est une hypothèse, pas un
 Autrement dit : **la base porte la configuration et le journal, pas les données d'école** — aucun élève, aucun paiement, aucune dépense. Deux lectures possibles, et une seule est vraie :
 
 - l'école n'a pas encore commencé à saisir : alors la sauvegarde quotidienne est déjà utile pour la configuration, et le reste suivra ;
-- les données existent ailleurs : l'ancien projet `vulbmmzhcmnzswcvswfk` **ne résout plus** (« domain name not found », mesuré), donc si un fichier ou un projet détient ces données, c'est **la dernière copie** — et il faut la rapatrier maintenant :
+- les données existent ailleurs : l'ancien projet `vulbmmzhcmnzswcvswfk` **répond encore** (`GET /auth/v1/health` → **HTTP 401**, mesuré le 2026-09-14 ; la note « ne résout plus » datait d'un moment où le DNS ne répondait pas, elle est corrigée ici). S'il détient les données de l'école, c'est **la dernière copie** — et il faut la rapatrier maintenant :
   - depuis un dump `pg_dump` : le remettre dans un projet bac à sable, puis `npm run restore:db` (ou `scripts/migrate-auth-users.mjs` pour les comptes) ;
   - depuis un autre projet Supabase : même chemin, avec `--allow-project-mismatch` si la sauvegarde vient d'ailleurs.
 

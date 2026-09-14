@@ -132,6 +132,16 @@ jobs:
           echo "prod pas en ligne après 150s — abandon" >&2
           exit 1
 
+      # Les cycles qui suivent créent des lignes de DÉMONSTRATION dans la base
+      # partagée — celle de l'école. C'est ce qui prouve le chemin réel, et c'est
+      # aussi ce qui a rempli le journal d'audit de 432 lignes de bruit de recette
+      # avant la mise en service. Ce contrôle refuse l'écriture dès que la base
+      # porte une saisie de l'école, en nommant les tables qu'il a comptées :
+      # les lignes de démonstration se mêleraient aux vraies, et un nettoyage raté
+      # les y laisserait. Il lit `.env` (généré juste au-dessus), ne modifie rien.
+      - name: Recette — écrire seulement dans une base libre de données d'école
+        run: npm run check:recette-base
+
       - name: Cycles métier E2E — élève/paiement, parent/salaire/dépense
         # Mandat de preuve : l'étape qui exécute le script lui donne le droit de
         # parler au nom de ce job, et ce qu'il publie est SA mesure — le nombre

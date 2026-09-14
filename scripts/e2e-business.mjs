@@ -30,6 +30,7 @@ import { assertEphemeralTarget, ephemeralEmail, pickEphemeralUser } from './lib/
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { firstRow, readUntil } from './lib/read-after-submit.mjs';
+import { readSchoolCounts, recetteWriteVerdict } from './lib/recette-base.mjs';
 import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -62,6 +63,26 @@ const URL = FLAG_PROD
 const base = env.VITE_SUPABASE_URL.replace(/\/$/, '');
 const sr = env.SUPABASE_SERVICE_ROLE_KEY;
 const HDR = { apikey: sr, Authorization: 'Bearer ' + sr, 'Content-Type': 'application/json' };
+
+// ── Ce run a-t-il le droit d'écrire des lignes de démonstration ici ? ────────
+// Le workflow pose la même question avant de lancer ce script ; la reposer ICI
+// ferme le contournement évident : un lancement à la main n'écrirait plus de
+// lignes de recette à côté des saisies de l'école simplement parce que le
+// garde-fou ne tournait que dans la CI. Aucune dérogation par défaut : il faut
+// `E2E_ALLOW_SCHOOL_DATA=1`, explicitement, en sachant ce que cela veut dire.
+{
+  const { counts, unread } = await readSchoolCounts({ base, key: sr });
+  if (unread.length) {
+    console.error(`❌ tables non comptées : ${unread.join(' · ')} — sans chiffre, on n’écrit rien.`);
+    process.exit(2);
+  }
+  const gate = recetteWriteVerdict({ counts, allow: process.env.E2E_ALLOW_SCHOOL_DATA === '1' });
+  if (!gate.ok) {
+    console.error(`❌ ${gate.cause} — ${gate.detail}`);
+    process.exit(1);
+  }
+  console.log(`✅ recette autorisée — ${gate.detail}`);
+}
 
 // Deux briques, et la séparation EST le contrat — la même que dans le
 // pixel-check PDF et la garde CSP :
