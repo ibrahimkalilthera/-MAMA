@@ -1,3 +1,15 @@
+## [2026-09-14] Le journal d'audit vidé avant la mise en service : 432 lignes parties, aucune perdue
+
+Demande : « vide manuellement les données présentes dans le journal d'audit ». Fait, et **conservé avant d'être vidé** : les 432 lignes ont été exportées hors dépôt (`%LOCALAPPDATA%\Temp\audit-logs-export-20260914.json`, 185 Ko) — un journal d'audit est la trace de qui a fait quoi, donc le vider sans copie aurait détruit une histoire, pas seulement des lignes.
+
+**Ce qui était dedans, mesuré avant la purge** : `audit_logs` 432 lignes, du 2026-09-11T08:54Z au 2026-09-14T04:48Z, et la répartition dit l'origine — `RECORD_PAYMENT 75 · ADD_STUDENT 72 · ADD_PARENT 72 · ADD_STAFF 71 · RECORD_SALARY_PAYMENT 71 · ADD_VENDOR_EXPENSE 65`, puis `UPDATE_STUDENT 2 · DELETE_EXPENSE 1`. Autrement dit : les cycles E2E métier (qui créent puis nettoient leurs lignes de démonstration) et **quatre gestes humains réels** — c'est le bruit de recette qui part, pas l'activité de l'école.
+
+**La mesure de la purge** : `DELETE` sur `/rest/v1/audit_logs` seul, réponse **204** avec `content-range: */432` — le compte annoncé est exactement celui du journal, donc aucune autre table n'était dans le périmètre de cette requête. Contrôle après : `audit_logs` **0 ligne**. Le reste de la base, relu table par table : `students · parents · staff · payments · expenses · salary_payments · vendor_expenses · todos · custom_classes` tous à **0**, `academic_years` **4**, `user_profiles` **4** (les quatre comptes propriétaires sont intacts) — et aucun mot de passe ni identifiant n'a été touché.
+
+**Ce que je n'attribue pas, faute de preuve** : l'audit de ce matin mesurait `students 1 · parents 1 · payments 2` (les restes de démonstration d'un cycle E2E), et ces trois tables sont vides maintenant. Ce n'est **pas** la purge : la requête était bornée à `audit_logs`. C'est le **nettoyage des résidus** qui accompagne les cycles E2E — la preuve publiée par le dernier « Business E2E » dit littéralement « aucune ligne de démo résiduelle » — mais je n'ai pas de run précis à désigner, et je préfère l'écrire que le supposer.
+
+**Conséquence à connaître** : le journal d'audit de l'application est vide à partir de maintenant. Les 11–14/09 ne sont plus consultables dans l'écran ; ils existent dans l'export ci-dessus. C'est exactement l'état voulu pour une mise en service : la première ligne du journal sera un geste de l'école.
+
 ## [2026-09-14] La 1.0.15 part au parc : « Définir mot de passe » ne fait plus disparaître les comptes
 
 **Pourquoi un numéro plutôt qu'un espace entre deux commits.** La 1.0.14 servie par le canal porte encore la recherche de comptes en champ texte libre : un poste installé peut donc voir trois comptes quitter l'écran après une fiche de mot de passe annulée, et c'est précisément ce qui a été rapporté. Un correctif qui reste dans `main` n'atteint aucune école — c'est la raison de ce saut de version, et elle est la même que celle qui a produit la 1.0.14.
