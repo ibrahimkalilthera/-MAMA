@@ -25,7 +25,7 @@ import { useUsers } from './app/useUsers';
 import { useInactivityLogout } from './app/useInactivityLogout';
 import { logAuditEvent } from './lib/auditLogger';
 import { useYear } from './app/yearContext';
-import { getReadNotificationIds, saveReadNotificationIds } from './lib/notificationReads';
+import { useNotificationDismissal } from './app/useNotificationDismissal';
 import { playNotificationChime } from './lib/notificationSound';
 import { findNewNotifications } from './lib/notificationWatch';
 import { useYearOps } from './app/useYearOps';
@@ -303,29 +303,19 @@ const {
     payrollWindowStatus,
   } = dashboardData;
 
-  // --- Notification read-state (persisted per user in localStorage) ---
+  // --- Notification dismissal (read + deleted), persisted per user ---
 
   const notifUserId = auth.profile?.id ?? 'guest';
-  const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    setReadNotificationIds(getReadNotificationIds(notifUserId));
-  }, [notifUserId]);
-
-  useEffect(() => {
-    // Prune dismissed ids that no longer correspond to a live reminder, so a
-    // reminder that comes back later (new due period) notifies again.
-    const liveIds = new Set(notifications.map(n => n.id));
-    saveReadNotificationIds(notifUserId, readNotificationIds.filter(id => liveIds.has(id)));
-  }, [readNotificationIds, notifUserId, notifications]);
-
-  const markNotificationRead = (id: string): void => {
-    setReadNotificationIds(prev => (prev.includes(id) ? prev : [...prev, id]));
-  };
-
-  const markNotificationUnread = (id: string): void => {
-    setReadNotificationIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : prev));
-  };
+  const {
+    readIds: readNotificationIds,
+    deletedIds: deletedNotificationIds,
+    markRead: markNotificationRead,
+    markUnread: markNotificationUnread,
+    markAllRead: markAllNotificationsRead,
+    deleteNotification,
+    clearAllNotifications,
+    restoreDeletedNotifications,
+  } = useNotificationDismissal(notifUserId, notifications);
 
   const openCalendarOnDate = (date: string): void => {
     // Parse as a LOCAL calendar day (never UTC midnight — month display
@@ -336,10 +326,6 @@ const {
     setSelectedCalendarDay(day);
     setShowCalendarModal(true);
     setActiveTab('calendar');
-  };
-
-  const markAllNotificationsRead = (): void => {
-    setReadNotificationIds(notifications.map(n => n.id));
   };
 
   // --- In-session notification alerts (chime + toast) ---
@@ -650,9 +636,13 @@ const {
     setShowExcelImport,
     showExcelImport,
     readNotificationIds,
+    deletedNotificationIds,
     markNotificationRead,
     markAllNotificationsRead,
     markNotificationUnread,
+    deleteNotification,
+    clearAllNotifications,
+    restoreDeletedNotifications,
     openCalendarOnDate,
     confirmAction,
     setConfirmAction,

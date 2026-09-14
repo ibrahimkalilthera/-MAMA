@@ -53,9 +53,15 @@ export interface AppHeaderProps {
   notifications: DashboardNotification[];
   onOpenStudent: (studentId: string) => void;
   readNotificationIds: string[];
+  deletedNotificationIds: string[];
   onMarkNotificationRead: (id: string) => void;
   onMarkAllNotificationsRead: () => void;
   onMarkNotificationUnread: (id: string) => void;
+  /** Retire la notification de la liste (masquage réversible, aucune écriture). */
+  onDeleteNotification: (id: string) => void;
+  /** Nettoie la liste entière d'un coup. */
+  onClearAllNotifications: () => void;
+  onRestoreDeletedNotifications: () => void;
   onOpenCalendarDate: (date: string) => void;
   onOpenPayroll: () => void;
 }
@@ -67,8 +73,9 @@ export function AppHeader(props: AppHeaderProps) {
     searchTerm, setSearchTerm, studentGradeFilter, setStudentGradeFilter,
     onPromoteClass, onImportExcel, onOpenMonthlyDraft, onAddStudent, onAddCr,
     onPrintReport, onExportLate, onFinancialReportPdf,
-    notifications, onOpenStudent, readNotificationIds,
+    notifications, onOpenStudent, readNotificationIds, deletedNotificationIds,
     onMarkNotificationRead, onMarkAllNotificationsRead, onMarkNotificationUnread,
+    onDeleteNotification, onClearAllNotifications, onRestoreDeletedNotifications,
     onOpenCalendarDate, onOpenPayroll,
   } = props;
 
@@ -96,9 +103,13 @@ export function AppHeader(props: AppHeaderProps) {
             t={t}
             lang={lang}
             readIds={readNotificationIds}
+            deletedIds={deletedNotificationIds}
             onMarkRead={onMarkNotificationRead}
             onMarkAllRead={onMarkAllNotificationsRead}
             onMarkUnread={onMarkNotificationUnread}
+            onDelete={onDeleteNotification}
+            onClearAll={onClearAllNotifications}
+            onRestoreAll={onRestoreDeletedNotifications}
             onOpenCalendarDate={onOpenCalendarDate}
             onOpenPayroll={onOpenPayroll}
           />

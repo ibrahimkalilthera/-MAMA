@@ -85,9 +85,13 @@ export interface AppShellExtras {
   generateFinancialReportPdf: typeof generateFinancialReportPdf;
   notifications: ReturnType<typeof useDashboard>['notifications'];
   readNotificationIds: string[];
+  deletedNotificationIds: string[];
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   markNotificationUnread: (id: string) => void;
+  deleteNotification: (id: string) => void;
+  clearAllNotifications: () => void;
+  restoreDeletedNotifications: () => void;
   openCalendarOnDate: (d: string) => void;
   /** Async in useYearOps; mainViewsProps narrows it to void — restore the real shape. */
   handleCloseCurrentYear: () => Promise<void>;
@@ -127,8 +131,10 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
     setShowMonthlyDraftModal, generateMultiYearReportPdf, lockedYears, students,
     expenses, vendorExpenses, salaryPayments, handlePrint, vendorExpensesTab,
     handleExport, generateFinancialReportPdf, generateExpensesReportPdf,
-    notifications, setSelectedStudent, readNotificationIds, markNotificationRead,
-    markAllNotificationsRead, markNotificationUnread, openCalendarOnDate, getYearStats,
+    notifications, setSelectedStudent, readNotificationIds, deletedNotificationIds,
+    markNotificationRead, markAllNotificationsRead, markNotificationUnread,
+    deleteNotification, clearAllNotifications, restoreDeletedNotifications,
+    openCalendarOnDate, getYearStats,
     formatCurrency, handleCloseCurrentYear, setAuditYear, setShowAuditModal,
     isFloatingChatOpen, setIsFloatingChatOpen, floatingChatMessages, floatingChatInput,
     setFloatingChatInput, handleFloatingAiQuery, isPromotionWizardOpen,
@@ -286,9 +292,13 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
             if (student) setSelectedStudent(student);
           }}
           readNotificationIds={readNotificationIds}
+          deletedNotificationIds={deletedNotificationIds}
           onMarkNotificationRead={markNotificationRead}
           onMarkAllNotificationsRead={markAllNotificationsRead}
           onMarkNotificationUnread={markNotificationUnread}
+          onDeleteNotification={deleteNotification}
+          onClearAllNotifications={clearAllNotifications}
+          onRestoreDeletedNotifications={restoreDeletedNotifications}
   onOpenCalendarDate={openCalendarOnDate}
 onOpenPayroll={() => setActiveTab('payroll')}
 />

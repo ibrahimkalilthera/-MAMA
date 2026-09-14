@@ -70,7 +70,11 @@ const note: DashboardNotification = { id: 'note-s2', type: 'note', message: 'B: 
 interface Fixture {
   notifications: DashboardNotification[];
   readIds: string[];
+  /** Reminders the user deleted (hidden) — optional, defaults to none. */
+  deletedIds?: string[];
 }
+
+const noop = (): void => {};
 
 function Harness(props: Fixture & {
   onOpenStudent: (id: string) => void;
@@ -79,6 +83,9 @@ function Harness(props: Fixture & {
   onMarkUnread: (id: string) => void;
   onOpenCalendarDate: (date: string) => void;
   onOpenPayroll?: () => void;
+  onDelete?: (id: string) => void;
+  onClearAll?: () => void;
+  onRestoreAll?: () => void;
 }): React.ReactNode {
   return (
     <NotificationsPanel
@@ -87,11 +94,15 @@ function Harness(props: Fixture & {
       t={t}
       lang="fr"
       readIds={props.readIds}
+      deletedIds={props.deletedIds ?? []}
       onMarkRead={props.onMarkRead}
       onMarkAllRead={props.onMarkAllRead}
       onMarkUnread={props.onMarkUnread}
+      onDelete={props.onDelete ?? noop}
+      onClearAll={props.onClearAll ?? noop}
+      onRestoreAll={props.onRestoreAll ?? noop}
       onOpenCalendarDate={props.onOpenCalendarDate}
-      onOpenPayroll={props.onOpenPayroll ?? (() => {})}
+      onOpenPayroll={props.onOpenPayroll ?? noop}
     />
   );
 }
@@ -366,6 +377,104 @@ describe('NotificationsPanel — happy-dom render', () => {
       assert.ok(pos(recent.message) < pos(mid.message), 'today before 5 days ago');
       assert.ok(pos(mid.message) < pos(old.message), '5 days ago before 10 days ago');
       assert.ok(pos(old.message) < pos(payroll.message), '10 days ago before the fixed payroll date');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('each reminder carries a trash button that deletes it without opening the student', async () => {
+    const deleted: string[] = [];
+    const opened: string[] = [];
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [due, note], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {}, onDelete: (id: string) => deleted.push(id),
+        }));
+      });
+      await act(async () => { click(bell() as Element); });
+
+      const dueRow = rowWithText(due.message) as Element;
+      const trash = dueRow.querySelector(`[title="${t.deleteNotification}"]`);
+      assert.ok(trash, 'the row renders a delete button');
+      assert.ok(trash?.getAttribute('aria-label')?.includes(due.message), 'the delete button names the reminder it removes');
+
+      act(() => { click(trash as Element); });
+      assert.deepEqual(deleted, ['due-s1'], 'the delete button reports the deleted id');
+      assert.deepEqual(opened, [], 'deleting must not open the student profile (stopPropagation)');
+      assert.ok(q('[role="dialog"]'), 'panel stays open after deleting');
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('a deleted reminder leaves the list and the unread badge', async () => {
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [due, note], readIds: [], deletedIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
+        }));
+      });
+      assert.equal(bell()?.getAttribute('aria-label'), 'Notifications (1)', 'the deleted reminder no longer counts as unread');
+      await act(async () => { click(bell() as Element); });
+
+      const dialog = q('[role="dialog"]');
+      assert.ok(!dialog?.textContent?.includes(due.message), 'deleted reminder is gone from the list');
+      assert.ok(dialog?.textContent?.includes(note.message), 'the other reminder stays listed');
+      assert.equal(rowWithText(due.message), undefined, 'no ghost row for the deleted reminder');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('clear-all empties the whole dropdown in one click', async () => {
+    const cleared: boolean[] = [];
+    const deleted: string[] = [];
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [due, note], readIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {}, onClearAll: () => cleared.push(true), onDelete: (id: string) => deleted.push(id),
+        }));
+      });
+      await act(async () => { click(bell() as Element); });
+
+      const btn = buttonWithText(t.clearNotifications);
+      assert.ok(btn, 'clear-all button rendered while reminders are listed');
+      await act(async () => { click(btn as Element); });
+      assert.deepEqual(cleared, [true], 'clear-all cleans the whole list at once');
+      assert.deepEqual(deleted, [], 'clear-all is not a per-row delete');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('an emptied-by-hand list shows the hidden state with restore, not the all-clear', async () => {
+    const restored: boolean[] = [];
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [due, note], readIds: [], deletedIds: ['due-s1', 'note-s2'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {}, onRestoreAll: () => restored.push(true),
+        }));
+      });
+      assert.equal(bell()?.getAttribute('aria-label'), 'Notifications', 'no badge once the list is cleaned');
+      await act(async () => { click(bell() as Element); });
+
+      const dialog = q('[role="dialog"]');
+      assert.ok(dialog?.textContent?.includes(t.notificationsHidden), 'the hidden state says the reminders were hidden');
+      assert.ok(!dialog?.textContent?.includes(t.noNotifications), 'never claim "all caught up" for reminders hidden by hand');
+      assert.equal(buttonWithText(t.clearNotifications), undefined, 'nothing left to clear');
+
+      const btn = buttonWithText(t.restoreNotifications);
+      assert.ok(btn, 'restore button rendered');
+      await act(async () => { click(btn as Element); });
+      assert.deepEqual(restored, [true], 'restore brings the hidden reminders back');
     } finally {
       await act(async () => root.unmount());
       container.remove();

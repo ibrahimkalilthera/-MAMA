@@ -43,6 +43,7 @@ export type ShellDeps = Omit<
 >;
 
 export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProps & AppShellExtras {
+  // Quelques entrées voisines sont appariées deux par ligne : budget de lignes.
   const {
   academicYears,
   activeLinkingParent,
@@ -62,12 +63,13 @@ export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProp
   canDelete,
   changeMonth,
   chartData,
-  confirmAction,
+  clearAllNotifications, confirmAction,
   copiedToast,
   copyToClipboard,
   currentMonth,
   currentTheme,
   currentUser,
+  deleteNotification, deletedNotificationIds,
   deleteStaff,
   deleteStudent,
   deleteTodo,
@@ -178,7 +180,7 @@ export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProp
   pieData,
   printStudentFile,
   productivitySidebarTab,
-  readNotificationIds,
+  readNotificationIds, restoreDeletedNotifications,
   salaryForm,
   salaryPayments,
   saveNoteOnDate,
@@ -659,10 +661,11 @@ export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProp
     handleExport,
     generateFinancialReportPdf,
     notifications,
-    readNotificationIds,
-    markNotificationRead,
-    markAllNotificationsRead,
-    markNotificationUnread,
+    // Carillon (lu / supprimé) — apparié deux par ligne : budget de lignes.
+    readNotificationIds, deletedNotificationIds,
+    markNotificationRead, markAllNotificationsRead,
+    markNotificationUnread, deleteNotification,
+    clearAllNotifications, restoreDeletedNotifications,
     openCalendarOnDate,
     handleCloseCurrentYear,
     setAuditYear,

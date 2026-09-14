@@ -15,11 +15,21 @@
  * one opens the student's profile. A read reminder can be flagged back as
  * unread (badge reappears) via right-click or its hover button.
  *
+ * Deleting: the parent also owns the deleted-id list (`deletedIds`). One
+ * reminder can be removed from the list with its trash button, or the whole
+ * list cleaned with "clear all". Deleting only HIDES the reminder — nothing
+ * is touched in the database, and the reminder returns on its own when the
+ * underlying condition changes. Since the list can therefore be emptied
+ * without the school actually being up to date, an emptied-but-hidden list
+ * shows the hidden state and a restore button instead of the all-clear one.
+ * Deleted reminders no longer count as unread, so cleaning the list also
+ * clears its badge.
+ *
  * Ordering: reminders render most-recent-first (descending by anchor date),
  * so the newest due/note/payroll alert sits at the top of the dropdown.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, CheckCircle2, CheckCheck, RotateCcw, X } from 'lucide-react';
+import { Bell, BellOff, CheckCircle2, CheckCheck, RotateCcw, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { DashboardNotification } from '../app/useDashboard';
 import type { TranslationDict } from '../i18n/translations';
@@ -32,14 +42,18 @@ export interface NotificationsPanelProps {
   t: TranslationDict;
   lang: 'en' | 'fr';
   readIds: string[];
+  deletedIds: string[];
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
   onMarkUnread: (id: string) => void;
+  onDelete: (id: string) => void;
+  onClearAll: () => void;
+  onRestoreAll: () => void;
   onOpenCalendarDate: (date: string) => void;
   onOpenPayroll: () => void;
 }
 
-export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, onMarkRead, onMarkAllRead, onMarkUnread, onOpenCalendarDate, onOpenPayroll }: NotificationsPanelProps) {
+export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, deletedIds, onMarkRead, onMarkAllRead, onMarkUnread, onDelete, onClearAll, onRestoreAll, onOpenCalendarDate, onOpenPayroll }: NotificationsPanelProps) {
   const now = new Date();
 
   const relativeLabel = (date: string): string => {
@@ -68,15 +82,19 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
   }, [open]);
 
   const read = new Set(readIds);
-  const unread = notifications.filter(n => !read.has(n.id));
+  const hidden = new Set(deletedIds);
+  // Hidden reminders leave the list AND the badge, but they are not gone from
+  // the parent's data — restoring holds no information that was destroyed.
+  const visible = notifications.filter(n => !hidden.has(n.id));
+  const unread = visible.filter(n => !read.has(n.id));
   const unreadCount = unread.length;
 
   // Most recent first. All anchor dates are YYYY-MM-DD (or full ISO), so a
   // plain string comparison is chronological; the sort is stable, keeping the
   // source order (dues, then notes, then payroll) for equal dates.
   const sorted = useMemo(
-    () => [...notifications].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
-    [notifications],
+    () => [...visible].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+    [visible],
   );
 
   return (
@@ -119,6 +137,18 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                 {t.notifications}
               </span>
               <div className="flex items-center gap-1">
+                {visible.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={onClearAll}
+                    aria-label={t.clearNotifications}
+                    title={t.clearNotifications}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all"
+                  >
+                    <Trash2 size={12} />
+                    <span>{t.clearNotifications}</span>
+                  </button>
+                )}
                 {unreadCount > 0 && (
                   <button
                     type="button"
@@ -146,6 +176,21 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                 <div className="px-5 py-8 text-center">
                   <CheckCircle2 size={24} className="mx-auto mb-2 text-emerald-500" />
                   <p className="text-xs font-bold text-slate-400 dark:text-slate-500">{t.noNotifications}</p>
+                </div>
+              ) : visible.length === 0 ? (
+                // The list was emptied by hand: nothing was actually resolved,
+                // so this is NOT the all-clear state — restoring is one click.
+                <div className="px-5 py-8 text-center">
+                  <BellOff size={24} className="mx-auto mb-2 text-slate-400 dark:text-slate-500" />
+                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{t.notificationsHidden}</p>
+                  <button
+                    type="button"
+                    onClick={onRestoreAll}
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                  >
+                    <RotateCcw size={12} />
+                    {t.restoreNotifications}
+                  </button>
                 </div>
               ) : (
                 sorted.map(n => {
@@ -212,6 +257,20 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                           <RotateCcw size={12} />
                         </button>
                       )}
+                      {/* Always visible (not hover-only): cleaning the list by
+                          hand is the point, and touch screens have no hover. */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(n.id);
+                        }}
+                        aria-label={`${t.deleteNotification} — ${n.message}`}
+                        title={t.deleteNotification}
+                        className="flex-shrink-0 p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   );
                 })
