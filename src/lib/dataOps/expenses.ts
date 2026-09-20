@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient';
 import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Expense, VendorExpense } from '../domainTypes';
 import type { DbUpdate } from '../database.types';
-import { mapExpenseRow, mapVendorExpenseRow, createTempId } from '../rowMappers';
+import { mapExpenseRow, mapVendorExpenseRow, createRowId } from '../rowMappers';
 import { logAuditEvent } from '../auditLogger';
 
 export function createExpenseOps(ctx: SupabaseDataCtx) {
@@ -14,10 +14,10 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
 
   const addExpense = async (exp: Omit<Expense, 'id'>): Promise<Expense | null> => {
     if (isOffline()) {
-      const tempId = createTempId('expense');
-      const local: Expense = { id: tempId, ...exp };
+      const rowId = createRowId();
+      const local: Expense = { id: rowId, ...exp };
       setExpenses(prev => [...prev, local]);
-      enqueueOffline('addExpense', exp);
+      enqueueOffline('addExpense', exp, rowId);
       notifySuccess('addExpense');
       return local;
     }
@@ -47,10 +47,10 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
 
   const addVendorExpense = async (ve: Omit<VendorExpense, 'id'>): Promise<VendorExpense | null> => {
     if (isOffline()) {
-      const tempId = createTempId('vendor');
-      const local: VendorExpense = { id: tempId, ...ve };
+      const rowId = createRowId();
+      const local: VendorExpense = { id: rowId, ...ve };
       setVendorExpenses(prev => [...prev, local]);
-      enqueueOffline('addVendorExpense', ve);
+      enqueueOffline('addVendorExpense', ve, rowId);
       notifySuccess('addVendorExpense');
       return local;
     }
@@ -127,6 +127,49 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     return true;
   };
 
+  /**
+   * Modifie une dépense existante — symétrique de `updateVendorExpense`, et
+   * utilisé par l'import Excel (stratégie « mettre à jour »), qui doit pouvoir
+   * traverser une coupure de réseau comme le reste de la saisie.
+   */
+  const updateExpense = async (id: string, updates: Partial<Expense>): Promise<boolean> => {
+    if (isOffline()) {
+      setExpenses(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+      enqueueOffline('updateExpense', { id, updates });
+      notifySuccess('updateExpense');
+      return true;
+    }
+    const row: DbUpdate<'expenses'> = {};
+    if (updates.category !== undefined) row.category = updates.category;
+    if (updates.description !== undefined) row.description = updates.description;
+    if (updates.amount !== undefined) row.amount = updates.amount;
+    if (updates.date !== undefined) row.date = updates.date;
+    if (updates.academicYear !== undefined) row.academic_year = updates.academicYear;
+
+    // Même règle honnête que les autres domaines : une requête filtrée par la
+    // policy RLS revient en 200 avec un corps VIDE — 0 ligne n'est pas un succès.
+    const { data, error } = await supabase.from('expenses').update(row).eq('id', id).select('id');
+    if (error) { console.error('updateExpense error:', error.message); notifyError('updateExpense', error.message); return false; }
+    if (!data || data.length === 0) {
+      console.error('updateExpense: aucune ligne modifiée — cible filtrée par la policy RLS');
+      notifyError('updateExpense', 'Aucune ligne modifiée — droits insuffisants sur cette dépense.');
+      return false;
+    }
+    const prev = expenses.find(e => e.id === id);
+    const changes: string[] = [];
+    if (prev && updates.amount !== undefined && updates.amount !== prev.amount) changes.push(`montant ${prev.amount}→${updates.amount}`);
+    if (prev && updates.description !== undefined && updates.description !== prev.description) changes.push(`libellé ${prev.description}→${updates.description}`);
+    void logAuditEvent({
+      action: 'UPDATE_EXPENSE',
+      targetType: 'expense',
+      targetId: id,
+      details: `${prev?.description || id}${changes.length ? ` — ${changes.join(', ')}` : ''}`,
+    });
+    setExpenses(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+    notifySuccess('updateExpense');
+    return true;
+  };
+
   const deleteExpense = async (id: string): Promise<boolean> => {
     if (isOffline()) {
       setExpenses(prev => prev.filter(e => e.id !== id));
@@ -179,5 +222,5 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     return true;
   };
 
-  return { addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense };
+  return { addExpense, updateExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense };
 }

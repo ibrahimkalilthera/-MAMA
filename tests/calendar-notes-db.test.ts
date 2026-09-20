@@ -19,7 +19,7 @@ interface Call {
 let calls: Call[] = [];
 let selectResult: { data: unknown; error: unknown };
 let insertResult: { data: unknown; error: unknown };
-let deleteResult: { error: unknown };
+let deleteResult: { data?: unknown; error: unknown };
 let currentTable = '';
 let currentOp: 'select' | 'delete' = 'select';
 
@@ -60,10 +60,14 @@ const fakeSupabase = {
       delete: () => {
         currentOp = 'delete';
         return {
-          eq: (column: string, value: unknown) => {
-            calls.push({ op: 'delete', table, eqColumn: column, eqValue: value });
-            return Promise.resolve(deleteResult);
-          },
+          // `.select('id')` est ce qui distingue « supprimée » de « refusée » :
+          // une suppression filtrée par la policy répond 200 SANS aucune ligne.
+          eq: (column: string, value: unknown) => ({
+            select: () => {
+              calls.push({ op: 'delete', table, eqColumn: column, eqValue: value });
+              return Promise.resolve(deleteResult);
+            },
+          }),
         };
       },
     };
@@ -131,7 +135,7 @@ describe('saveCalendarDayNote', () => {
 describe('deleteCalendarDayNote', () => {
   beforeEach(() => {
     calls = [];
-    deleteResult = { error: null };
+    deleteResult = { data: [{ id: 'db-1' }], error: null };
   });
 
   it('deletes by id and reports success', async () => {
@@ -145,6 +149,14 @@ describe('deleteCalendarDayNote', () => {
 
   it('returns false when the delete fails', async () => {
     deleteResult = { error: { message: 'boom' } };
+    assert.equal(await deleteCalendarDayNote('db-1'), false);
+  });
+
+  it('une suppression qui ne touche AUCUNE ligne est un refus, pas un succès (policy auteur seul)', async () => {
+    // La policy n'autorise que l'auteur de la note : la requête revient en 200
+    // avec un corps vide. Annoncer « supprimée » laisserait la note à l'écran au
+    // prochain chargement, sans que personne ne comprenne pourquoi.
+    deleteResult = { data: [], error: null };
     assert.equal(await deleteCalendarDayNote('db-1'), false);
   });
 });

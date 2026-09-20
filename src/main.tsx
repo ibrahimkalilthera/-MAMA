@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import { RootBoundary } from './app/rootBoundary';
+import { registerServiceWorker } from './lib/serviceWorker';
 import './index.css';
 
 const root = createRoot(document.getElementById('root')!);
@@ -16,6 +17,10 @@ import('./App.tsx')
         <RootBoundary App={App} />
       </StrictMode>,
     );
+    // APRÈS le rendu : garder le build en réserve ne doit pas retarder
+    // l'ouverture. Ignoré sur le poste installé (interface chargée du disque) et
+    // en développement — voir src/lib/serviceWorker.ts pour les raisons.
+    registerServiceWorker();
   })
   .catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
