@@ -48,6 +48,8 @@ const auth: AuthState = {
   loading: false,
   error: null,
   isAdmin: true,
+  isOfflineSession: false,
+  reauthFailed: false,
   signIn: async () => ({ success: true }),
   signOut: asyncNoop,
   fetchAllProfiles: async () => [],
