@@ -43,7 +43,17 @@ export interface SupabaseDataCtx {
   // Shared helpers
   notifySuccess: (operation: string) => void;
   notifyError: (operation: string, msg: string) => void;
+  /**
+   * True when a server round-trip is impossible — no network, or no usable
+   * session (an offline sign-in whose silent re-authentication has not gone
+   * through yet). A write must then be QUEUED, never attempted and lost.
+   */
   isOffline: () => boolean;
-  enqueueOffline: (type: OfflineActionType, payload: OfflinePayload['payload']) => void;
+  /**
+   * `localId` is the id of the row this action creates (createRowId) — the id
+   * it will keep in the database, so the actions that follow already point at
+   * the right row.
+   */
+  enqueueOffline: (type: OfflineActionType, payload: OfflinePayload['payload'], localId?: string) => void;
   updateQueueCount: () => void;
 }
