@@ -684,9 +684,9 @@ export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProp
     selectedDraftMonth,
     selectedDraftYear,
     handleExportMonthlyPayrollExcel,
-    pendingQueueCount,
-    isSyncing,
-    syncOfflineQueue,
+    pendingQueueCount, isSyncing, syncOfflineQueue,
+    // File hors ligne : ce qui attend, et ce que la base a déjà refusé.
+    pendingFailures: deps.pendingFailures, cacheSavedAt: deps.cacheSavedAt,
     confirmAction,
     setConfirmAction,
     inactivity,

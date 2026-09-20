@@ -24,6 +24,7 @@ import { useExpenses } from './app/useExpenses';
 import { useUsers } from './app/useUsers';
 import { useInactivityLogout } from './app/useInactivityLogout';
 import { logAuditEvent } from './lib/auditLogger';
+import { preloadSchoolStamp } from './lib/pdfStamp';
 import { useYear } from './app/yearContext';
 import { useNotificationDismissal } from './app/useNotificationDismissal';
 import { playNotificationChime } from './lib/notificationSound';
@@ -68,6 +69,20 @@ export default function App() {
   const toast = useToast();
   const appEnv = getAppEnv();
 
+  // Onglet actif : déclaré ici parce que le domaine auth/welcome en dépend, et
+  // que la session doit exister AVANT le domaine données (elle lui dit à QUI
+  // appartient l'instantané hors ligne, et si la session a un jeton).
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit'>('dashboard');
+
+  // Auth/welcome domain (session, greeting banner, profiles, admin tab guard) —
+  // extracted to src/app/useAuthWelcome.ts.
+  const authWelcomeData = useAuthWelcome({ t, activeTab, setActiveTab });
+  const {
+    auth, currentUser, isPromoter, isGeneralManager, authLoading,
+    userProfiles, setUserProfiles,
+    welcomeMessage, setWelcomeMessage,
+  } = authWelcomeData;
+
   // Bilingual operation labels for toast messages
   const operationLabels: Record<string, { en: string; fr: string }> = useMemo(() => ({
     addParent: { en: 'Parent added', fr: 'Parent ajouté' },
@@ -102,6 +117,17 @@ export default function App() {
     onRetry: (attempt) => {
       toast.retrying(t.retryingConnection.replace('{n}', String(attempt)));
     },
+  }, {
+    // Qui possède l'instantané hors ligne, et si la session a un jeton : une
+    // session ouverte sans réseau ne peut rien envoyer, donc tout y est mis en
+    // file au lieu d'être tenté puis perdu.
+    userId: auth.profile?.id ?? null,
+    offlineSession: auth.isOfflineSession,
+    // Pour nommer l'auteur d'une entrée de journal encore en file (voir
+    // pendingAuditEntries) : hors ligne, seule la session sait qui agit.
+    actor: auth.profile
+      ? { id: auth.profile.id, email: auth.profile.email, full_name: auth.profile.fullName, role: auth.profile.role }
+      : null,
   });
 const {
     customClasses,
@@ -153,23 +179,17 @@ const {
     setTimeout(() => setShowSuccessToast(false), 3000);
   };
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit'>('dashboard');
-  // Auth/welcome domain (session, greeting banner, profiles, admin tab guard) —
-  // extracted to src/app/useAuthWelcome.ts.
-  const authWelcomeData = useAuthWelcome({ t, activeTab, setActiveTab });
-const {
-    auth, currentUser, isPromoter, isGeneralManager, authLoading,
-    userProfiles, setUserProfiles,
-    welcomeMessage, setWelcomeMessage,
-  } = authWelcomeData;
 
   // Déconnexion après 45 minutes d'inactivité — la même fenêtre pour tous les
   // comptes (voir src/app/useInactivityLogout.ts). Rien n'est révoqué au
   // déchargement : un rechargement (F5) n'est donc pas un départ. Fermer
   // l'onglet ou l'application ferme toujours la session, parce que le stockage
   // est celui de l'onglet (`sessionStorage`).
+  // Le préavis suit la SESSION, pas le jeton : un poste ouvert hors ligne est
+  // un poste ouvert, et sur un ordinateur partagé il doit se refermer tout seul
+  // même si aucun jeton n'a été émis (voir src/lib/useAuth.ts).
   const inactivity = useInactivityLogout({
-    enabled: !!auth.user && !authLoading,
+    enabled: (!!auth.user || !!auth.profile) && !authLoading,
     signOut: auth.signOut,
   });
 
@@ -345,6 +365,14 @@ const {
       toast.warning(t.newNotifications.replace('{n}', String(fresh.length)));
     }
   }, [notifications, t, toast]);
+
+  // Le cachet de l'école (`public/tampon.png`) est un fichier chargé à
+  // l'exécution : le mettre de côté maintenant, pendant que la ligne est là,
+  // c'est ce qui fait qu'un reçu imprimé plus tard HORS LIGNE garde son cachet.
+  // Non bloquant, silencieux en cas d'échec (voir preloadSchoolStamp).
+  useEffect(() => {
+    void preloadSchoolStamp();
+  }, []);
 
   // Light background refresh so reminders can actually appear mid-session
   // (another staff member's changes). Silent: no loading flash, no error

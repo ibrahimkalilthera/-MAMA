@@ -134,7 +134,13 @@ describe('le câblage : la tentative suivante repart avec un jeton neuf', () => 
       /onRetry: \(attempt, error\) => \{[\s\S]{0,600}isAuthTokenError\([\s\S]{0,200}refreshSession\(\)/,
       'le refus de jeton doit rafraîchir la session avant de réessayer',
     );
-    assert.match(source, /import \{ isAuthTokenError, retryWithBackoff \} from '\.\/networkUtils'/);
+    // Le crochet importe désormais aussi la porte hors ligne du module
+    // (`isStationOffline`), d'où la liste non figée : ce qui compte est que les
+    // DEUX fonctions de networkUtils dont il dépend viennent bien de là.
+    const imports = /import \{([^}]*)\} from '\.\/networkUtils'/.exec(source)?.[1] ?? '';
+    for (const name of ['isAuthTokenError', 'retryWithBackoff', 'isStationOffline']) {
+      assert.match(imports, new RegExp(`\\b${name}\\b`), `${name} doit venir de networkUtils`);
+    }
   });
 
   it('le bandeau passe le message par le formateur (plus de chaîne brute du serveur)', () => {
