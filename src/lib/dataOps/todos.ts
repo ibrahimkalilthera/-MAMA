@@ -6,17 +6,17 @@ import { supabase } from '../supabaseClient';
 import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Todo } from '../domainTypes';
 import type { DbUpdate } from '../database.types';
-import { mapTodoRow, createTempId } from '../rowMappers';
+import { mapTodoRow, createRowId } from '../rowMappers';
 
 export function createTodoOps(ctx: SupabaseDataCtx) {
   const { setTodos, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
 
   const addTodo = async (todo: Omit<Todo, 'id'>): Promise<Todo | null> => {
     if (isOffline()) {
-      const tempId = createTempId('todo');
-      const local: Todo = { id: tempId, ...todo };
+      const rowId = createRowId();
+      const local: Todo = { id: rowId, ...todo };
       setTodos(prev => [...prev, local]);
-      enqueueOffline('addTodo', todo);
+      enqueueOffline('addTodo', todo, rowId);
       notifySuccess('addTodo');
       return local;
     }

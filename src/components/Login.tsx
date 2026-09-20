@@ -14,6 +14,12 @@ import {
 } from 'lucide-react';
 import type { Language } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
+import {
+  OFFLINE_ACCOUNT_LOCKED,
+  OFFLINE_CRYPTO_UNAVAILABLE,
+  OFFLINE_UNKNOWN_ACCOUNT,
+  OFFLINE_WRONG_PASSWORD,
+} from '../lib/offlineCredentials';
 
 export const Login = ({ 
   onLogin, 
@@ -39,9 +45,20 @@ export const Login = ({
     const result = await onLogin(email.trim(), password);
     
     if (!result.success) {
-      // Translate common Supabase auth errors
+      // Translate common Supabase auth errors, and the four verdicts of the
+      // offline verifier (they are deliberately NOT worded like a server
+      // refusal: on a station without a network, « ce compte n'existe pas » and
+      // « ce poste ne l'a jamais vu » are not the same news).
       let errorMsg = result.error || '';
-      if (errorMsg.includes('Invalid login credentials')) {
+      if (errorMsg === OFFLINE_WRONG_PASSWORD) {
+        errorMsg = t.offlineWrongPassword;
+      } else if (errorMsg === OFFLINE_UNKNOWN_ACCOUNT) {
+        errorMsg = t.offlineUnknownAccount;
+      } else if (errorMsg === OFFLINE_ACCOUNT_LOCKED) {
+        errorMsg = t.offlineAccountLocked;
+      } else if (errorMsg === OFFLINE_CRYPTO_UNAVAILABLE) {
+        errorMsg = t.offlineCryptoUnavailable;
+      } else if (errorMsg.includes('Invalid login credentials')) {
         errorMsg = t.invalidEmailOrPassword;
       } else if (errorMsg.includes('Email not confirmed')) {
         errorMsg = t.pleaseConfirmYourEmailFirst;
@@ -88,11 +105,14 @@ export const Login = ({
         </div>
         
         <form onSubmit={handleSubmit} className="p-10 space-y-6">
+          {/* Alerte en rose-700 et non rose-600 : sur ce lavis rose-50,
+              rose-600 ne donnait que 4.28:1 — sous le seuil AA — et un message
+              d'erreur qu'on ne lit pas ne sert à rien. */}
           {error && (
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3 text-rose-600"
+              className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3 text-rose-700"
             >
               <AlertCircle size={18} />
               <span className="text-xs font-bold">{error}</span>
@@ -152,6 +172,13 @@ export const Login = ({
               </>
             )}
           </button>
+
+          {/* Ce que ce poste sait faire sans réseau — sans quoi un utilisateur
+              devant un écran où il ne peut pas se connecter n'a aucun moyen de
+              savoir qu'il PEUT le faire. */}
+          <p className="text-[10px] leading-relaxed text-slate-500 font-semibold text-center">
+            {t.offlineLoginHint}
+          </p>
         </form>
       </motion.div>
     </div>

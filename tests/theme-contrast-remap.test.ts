@@ -287,14 +287,15 @@ describe('surfaces non repeintes par le thème : leur texte garde sa propre coul
   const site = (v: { file: string; line: number }) => `${v.file}:${v.line}`;
 
   /**
-   * Exemptions documentées — le seul cas connu, et il n'est pas de cette
-   * famille : ce n'est pas un texte clair sur fond clair mais un texte déjà
-   * sombre, à 4.28:1 sur l'alerte `rose-50` de l'écran de connexion (surface
-   * fixe-claire par conception, cf. la liste `EXEMPT_LINES` plus bas, qui porte
-   * déjà 95 pour la même raison). Le corriger n'est pas du ressort de cette
-   * règle, et la liste est vérifiée : une excuse qui ne correspond plus échoue.
+   * Exemptions documentées — aujourd'hui VIDE, et c'est le résultat attendu :
+   * le seul cas connu était le texte de l'alerte de l'écran de connexion
+   * (`text-rose-600` sur le lavis `rose-50`, 4.28:1). Il a été corrigé à la
+   * source (`text-rose-700`, ≥ 4.5:1) plutôt que reconduit : une exemption qui
+   * pointe une ligne change de numéro à chaque retouche du fichier, donc une
+   * excuse périmée finissait par masquer une violation neuve. La liste reste
+   * vérifiée dans les deux sens : une excuse qui ne correspond plus échoue.
    */
-  const EXEMPT = new Set(['components/Login.tsx:95']);
+  const EXEMPT = new Set<string>([]);
 
   it('la règle juge vraiment des surfaces non repeintes (anti-vacuité)', () => {
     // Sans ce plancher, un scanner devenu aveugle rendrait une liste de
