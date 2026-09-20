@@ -5,7 +5,7 @@
 import { supabase } from '../supabaseClient';
 import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Student } from '../domainTypes';
-import { mapStudentRow, createTempId } from '../rowMappers';
+import { mapStudentRow, createRowId } from '../rowMappers';
 import { studentToRow, studentUpdatesToRow } from '../offlineReplay';
 import { isNinthGradeClass, visibleStudentIdentifier } from '../studentIdentifiers';
 import { logAuditEvent } from '../auditLogger';
@@ -19,10 +19,10 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
       studentId: visibleStudentIdentifier(student.grade, student.studentId),
     };
     if (isOffline()) {
-      const tempId = createTempId('student');
-      const local: Student = { id: tempId, ...normalizedStudent, payments: [] };
+      const rowId = createRowId();
+      const local: Student = { id: rowId, ...normalizedStudent, payments: [] };
       setStudents(prev => [...prev, local]);
-      enqueueOffline('addStudent', normalizedStudent);
+      enqueueOffline('addStudent', normalizedStudent, rowId);
       notifySuccess('addStudent');
       return local;
     }
@@ -121,6 +121,25 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
     return true;
   };
 
+  /**
+   * Passage de classe / réinscription d'un lot d'élèves.
+   *
+   * La promotion ne parle PLUS à Supabase directement : elle construit la mise
+   * à jour dans la forme du DOMAINE (`Partial<Student>`) et la confie à
+   * `updateStudent`, exactement comme le formulaire d'un élève. C'est ce qui la
+   * rend capable de traverser une coupure de réseau comme le reste de la
+   * saisie : hors ligne, chaque élève passe dans la file d'attente et l'écran
+   * est mis à jour tout de suite, puis la base reçoit le lot au retour de la
+   * ligne.
+   *
+   * Ce qui a changé au passage : l'ancienne version écrivait directement et
+   * comptait un succès dès que la requête ne rendait PAS d'erreur. Hors ligne,
+   * chaque appel échouait, `successCount` restait à 0… et la fonction rendait
+   * quand même `true` — l'écran annonçait donc une promotion réussie pour zéro
+   * élève promu. Le contrat est maintenant exact : `true` seulement si TOUS les
+   * élèves du lot sont passés (écrits ou mis en file), et chaque échec est déjà
+   * annoncé par `updateStudent` (toast d'erreur, ligne RLS filtrée).
+   */
   const batchPromoteStudents = async (
     promotions: Array<{
       studentId: string;
@@ -136,51 +155,23 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
         const student = students.find(s => s.id === item.studentId);
         if (!student) continue;
 
-        const rowUpdates: {
-          academic_year?: string;
-          grade?: string;
-          student_id?: string | null;
-          total_due?: number;
-          amount_paid?: number;
-          status?: 'Active' | 'Graduated' | 'Left';
-        } = {};
+        const updates: Partial<Student> = {};
         if (item.action === 'promote' || item.action === 'repeat') {
-          rowUpdates.academic_year = item.targetAcademicYear;
+          updates.academicYear = item.targetAcademicYear;
           if (item.targetGrade) {
-            rowUpdates.grade = item.targetGrade;
-            rowUpdates.student_id = visibleStudentIdentifier(item.targetGrade, student.studentId) ?? null;
+            updates.grade = item.targetGrade;
+            updates.studentId = visibleStudentIdentifier(item.targetGrade, student.studentId) ?? '';
           }
-          if (item.newTotalDue !== undefined) rowUpdates.total_due = item.newTotalDue;
-          rowUpdates.amount_paid = 0;
-          rowUpdates.status = 'Active';
+          if (item.newTotalDue !== undefined) updates.totalDue = item.newTotalDue;
+          updates.amountPaid = 0;
+          updates.status = 'Active';
         } else if (item.action === 'graduate') {
-          rowUpdates.status = 'Graduated';
+          updates.status = 'Graduated';
         } else if (item.action === 'leave') {
-          rowUpdates.status = 'Left';
+          updates.status = 'Left';
         }
 
-        const { error } = await supabase
-          .from('students')
-          .update(rowUpdates)
-          .eq('id', item.studentId);
-
-        if (!error) {
-          successCount++;
-          setStudents(prev =>
-            prev.map(s => {
-              if (s.id !== item.studentId) return s;
-              return {
-                ...s,
-                academicYear: rowUpdates.academic_year ?? s.academicYear,
-                grade: rowUpdates.grade ?? s.grade,
-                studentId: rowUpdates.student_id === undefined ? s.studentId : rowUpdates.student_id ?? undefined,
-                totalDue: rowUpdates.total_due ?? s.totalDue,
-                amountPaid: rowUpdates.amount_paid !== undefined ? rowUpdates.amount_paid : s.amountPaid,
-                status: rowUpdates.status ?? s.status,
-              };
-            })
-          );
-        }
+        if (await updateStudent(item.studentId, updates)) successCount++;
       }
 
       logAuditEvent({
@@ -190,7 +181,7 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
       });
 
       notifySuccess(`Promoted ${successCount} student(s)`);
-      return true;
+      return successCount === promotions.length;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Promotion failed';
       console.error('batchPromoteStudents error:', err);

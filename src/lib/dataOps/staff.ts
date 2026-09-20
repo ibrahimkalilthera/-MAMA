@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient';
 import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Staff } from '../domainTypes';
 import type { DbUpdate } from '../database.types';
-import { mapStaffRow, createTempId } from '../rowMappers';
+import { mapStaffRow, createRowId } from '../rowMappers';
 import { staffToRow } from '../offlineReplay';
 import { logAuditEvent } from '../auditLogger';
 
@@ -15,10 +15,10 @@ export function createStaffOps(ctx: SupabaseDataCtx) {
 
   const addStaff = async (s: Omit<Staff, 'id'>): Promise<Staff | null> => {
     if (isOffline()) {
-      const tempId = createTempId('staff');
-      const local: Staff = { id: tempId, ...s };
+      const rowId = createRowId();
+      const local: Staff = { id: rowId, ...s };
       setStaff(prev => [...prev, local]);
-      enqueueOffline('addStaff', s);
+      enqueueOffline('addStaff', s, rowId);
       notifySuccess('addStaff');
       return local;
     }
