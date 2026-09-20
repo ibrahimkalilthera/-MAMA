@@ -94,6 +94,34 @@ export function isAuthTokenError(message: string): boolean {
   );
 }
 
+/**
+ * Distinguish « the server refused » from « the server was not reached ».
+ *
+ * That difference decides which of the two sign-in paths runs: a refused
+ * password must be REPORTED (never answered by the local verifier), while an
+ * unreachable server is exactly the case the offline sign-in exists for. A
+ * browser that has lost its network reports it as a fetch failure —
+ * `TypeError: Failed to fetch` — sometimes surfaced by supabase-js as a
+ * retryable fetch error with status 0, and Electron adds its own wording
+ * (`net::ERR_INTERNET_DISCONNECTED`).
+ *
+ * @param error  the thrown value or the `error` returned by supabase-js
+ * @param online navigator.onLine, injected so this stays testable
+ */
+export function isConnectivityFailure(error: unknown, online?: boolean): boolean {
+  const isOnline = online ?? (typeof navigator === 'undefined' ? true : navigator.onLine);
+  if (!isOnline) return true;
+  if (error === null || error === undefined) return false;
+
+  const text = error instanceof Error ? error.message : String(error);
+  if (/failed to fetch|network ?error|fetch failed|load failed|timed? ?out|econnrefused|enotfound|err_internet|err_network|err_connection/i.test(text)) {
+    return true;
+  }
+  // supabase-js wraps an unreachable host in an error carrying status 0.
+  const status = (error as { status?: number }).status;
+  return status === 0;
+}
+
 function isRetryableError(error: unknown): boolean {
   if (!navigator.onLine) return true;
 
@@ -123,6 +151,43 @@ function isRetryableError(error: unknown): boolean {
  */
 export function isOnline(): boolean {
   return navigator.onLine;
+}
+
+// ─── The station-level offline gate ─────────────────────────────────────────
+
+/**
+ * « Cette station ne peut PAS joindre le serveur », au niveau du MODULE.
+ *
+ * Le crochet `useSupabaseData` connaît deux raisons de ne rien envoyer : plus de
+ * réseau, ou une **session hors ligne** (connexion par le vérificateur local,
+ * donc sans jeton). Tant que l'état vivait dans ce seul crochet, les modules qui
+ * écrivent en dehors de lui — les notes du calendrier, le journal d'audit, la
+ * déclaration d'année — ne pouvaient pas poser la même question : ils tentaient
+ * l'écriture, elle échouait, et la saisie était PERDUE au lieu d'être mise en
+ * file. C'est ce vide que ce drapeau comble : `useAuth` le pose dès que la
+ * session devient hors ligne, exactement la valeur que `useSupabaseData` reçoit
+ * en option, donc les deux ne peuvent pas diverger.
+ */
+let offlineSessionActive = false;
+
+/** Posé par `useAuth` (voir src/lib/useAuth.ts) — jamais lu ailleurs qu'ici. */
+export function setOfflineSessionActive(active: boolean): void {
+  offlineSessionActive = Boolean(active);
+}
+
+/**
+ * Vrai quand une écriture ne peut pas partir MAINTENANT : pas de réseau, ou une
+ * session hors ligne pas encore rétablie. C'est la question à poser AVANT toute
+ * écriture, et la seule qu'un module hors du crochet de données puisse poser.
+ */
+export function isStationOffline(): boolean {
+  if (offlineSessionActive) return true;
+  if (typeof navigator === 'undefined') return false;
+  // `=== false` et non `!navigator.onLine` : `onLine` n'existe pas partout
+  // (Node, runner de tests), et `!undefined` vaut vrai — une station parfaitement
+  // connectée se serait déclarée hors ligne, et tout aurait été mis en file
+  // silencieusement. Seul un `false` EXPLICITE veut dire « pas de réseau ».
+  return navigator.onLine === false;
 }
 
 /**

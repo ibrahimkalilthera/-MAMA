@@ -116,12 +116,39 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
 interface OfflineBannerProps {
   lang?: 'en' | 'fr';
   pendingCount?: number;
+  /** Queued items the database already refused at least once (still queued). */
+  pendingFailures?: number;
   isSyncing?: boolean;
   onSync?: () => void;
+  /** Session opened from this station's offline verifier — no token yet. */
+  offlineSession?: boolean;
+  /** Connection is back but the automatic sign-in was refused. */
+  reauthFailed?: boolean;
+  /** When the dataset on screen was saved on this station (null: never). */
+  cacheSavedAt?: string | null;
   t?: Record<string, string>;
 }
 
-export function OfflineBanner({ lang = 'en', pendingCount = 0, isSyncing = false, onSync, t = {} }: OfflineBannerProps) {
+/** Local, language-aware rendering of a snapshot timestamp. */
+function formatSnapshotAge(iso: string, isFr: boolean): string {
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return iso;
+  return when.toLocaleString(isFr ? 'fr-FR' : 'en-GB', {
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+export function OfflineBanner({
+  lang = 'en',
+  pendingCount = 0,
+  pendingFailures = 0,
+  isSyncing = false,
+  onSync,
+  offlineSession = false,
+  reauthFailed = false,
+  cacheSavedAt = null,
+  t = {},
+}: OfflineBannerProps) {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   useEffect(() => {
@@ -137,35 +164,61 @@ export function OfflineBanner({ lang = 'en', pendingCount = 0, isSyncing = false
     };
   }, []);
 
-  if (!isOffline && pendingCount === 0) return null;
+  if (!isOffline && pendingCount === 0 && !reauthFailed) return null;
 
   const isFr = lang === 'fr';
+  // Le bandeau ne parle d'une file en échec que lorsque la base a RÉELLEMENT
+  // refusé : « en attente » et « refusé » ne sont pas la même nouvelle.
+  const refused = !isOffline && pendingFailures > 0;
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-[9998] ${isOffline ? 'bg-amber-600' : 'bg-emerald-700'} text-white text-center py-2 px-4 flex items-center justify-center gap-3 shadow-lg transition-colors`}>
-      {isOffline ? <WifiOff size={16} className="flex-shrink-0" /> : <RefreshCw size={16} className={`flex-shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />}
-      
-      <span className="text-xs font-bold tracking-wide">
-        {isOffline ? (
-          pendingCount > 0
-            ? (t.offlinePendingCount.replace('{count}', String(pendingCount)))
-            : (t.offlineChangesWillBeQueuedLocally)
-        ) : (
-          t.offlinePendingSync.replace('{count}', String(pendingCount))
-        )}
-      </span>
+    <div className={`fixed top-0 left-0 right-0 z-[9998] ${reauthFailed && !isOffline ? 'bg-rose-700' : isOffline ? 'bg-amber-600' : 'bg-emerald-700'} text-white text-center py-2 px-4 shadow-lg transition-colors`}>
+      <div className="flex items-center justify-center gap-3">
+        {isOffline ? <WifiOff size={16} className="flex-shrink-0" /> : <RefreshCw size={16} className={`flex-shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />}
 
-      {onSync && pendingCount > 0 && !isOffline && (
-        <button
-          onClick={onSync}
-          disabled={isSyncing}
-          className="ml-2 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1 rounded-md transition-all flex items-center gap-1.5 disabled:opacity-50"
-        >
-          <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
-          {isSyncing 
-            ? (t.syncing) 
-            : (t.syncNow)}
-        </button>
+        <span className="text-xs font-bold tracking-wide">
+          {reauthFailed && !isOffline ? (
+            t.offlineReauthFailed
+          ) : isOffline ? (
+            pendingCount > 0
+              ? (t.offlinePendingCount.replace('{count}', String(pendingCount)))
+              : (t.offlineChangesWillBeQueuedLocally)
+          ) : (
+            t.offlinePendingSync.replace('{count}', String(pendingCount))
+          )}
+        </span>
+
+        {/* Pas de bouton pendant une session hors ligne : il ne pourrait rien
+            envoyer (pas de jeton). La reconnexion est automatique, et la
+            seconde ligne dit ce qui se passe. */}
+        {onSync && pendingCount > 0 && !isOffline && !reauthFailed && !offlineSession && (
+          <button
+            onClick={onSync}
+            disabled={isSyncing}
+            className="bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1 rounded-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
+            {isSyncing
+              ? (t.syncing)
+              : (t.syncNow)}
+          </button>
+        )}
+      </div>
+
+      {/* Seconde ligne, uniquement quand elle apprend quelque chose : d'où
+          viennent les données affichées, ou ce que la base a refusé. */}
+      {(isOffline || offlineSession) && (
+        <div className="text-[10px] font-semibold opacity-90 mt-0.5">
+          {cacheSavedAt
+            ? t.offlineCachedData.replace('{date}', formatSnapshotAge(cacheSavedAt, isFr))
+            : t.offlineNoCachedData}
+          {offlineSession && ` · ${t.offlineSessionNotice}`}
+        </div>
+      )}
+      {refused && (
+        <div className="text-[10px] font-semibold opacity-90 mt-0.5">
+          {t.offlinePendingFailures.replace('{count}', String(pendingFailures))}
+        </div>
       )}
     </div>
   );
