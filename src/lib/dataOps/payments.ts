@@ -5,7 +5,7 @@
 import { supabase } from '../supabaseClient';
 import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Payment, SalaryPayment } from '../domainTypes';
-import { mapSalaryPaymentRow, createTempId } from '../rowMappers';
+import { mapSalaryPaymentRow, createRowId } from '../rowMappers';
 import { enqueueOfflineAction } from '../offlineQueue';
 import { logAuditEvent } from '../auditLogger';
 
@@ -13,7 +13,10 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
   const { setStudents, setSalaryPayments, notifySuccess, notifyError, isOffline, enqueueOffline, updateQueueCount } = ctx;
 
   const addPayment = async (studentId: string, payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string }): Promise<boolean> => {
-    const isOnline = navigator.onLine;
+    // « En ligne » veut dire « un aller-retour serveur est possible » : sans
+    // réseau OU sans session utilisable (connexion hors ligne pas encore
+    // rouverte), le paiement est mis en file — jamais tenté puis perdu.
+    const isOnline = !isOffline();
 
     let optimisticAmountPaid: number | null = null;
     setStudents(prev => prev.map(s => {
@@ -85,10 +88,10 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
 
   const addSalaryPayment = async (sp: Omit<SalaryPayment, 'id'>): Promise<SalaryPayment | null> => {
     if (isOffline()) {
-      const tempId = createTempId('salary');
-      const local: SalaryPayment = { id: tempId, ...sp };
+      const rowId = createRowId();
+      const local: SalaryPayment = { id: rowId, ...sp };
       setSalaryPayments(prev => [...prev, local]);
-      enqueueOffline('addSalaryPayment', sp);
+      enqueueOffline('addSalaryPayment', sp, rowId);
       notifySuccess('addSalaryPayment');
       return local;
     }

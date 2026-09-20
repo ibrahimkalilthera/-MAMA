@@ -9,6 +9,7 @@ import { useState, useRef, FormEvent } from 'react';
 import { Briefcase, Compass, Crown, Receipt, UserPlus, X } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import type { UserProfile } from '../lib/useAuth';
+import { isConnectionRequiredError } from '../lib/accountGestures';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useFocusTrap } from '../lib/focusStack';
@@ -91,7 +92,12 @@ export const AddUserModal = ({
       const profiles = await fetchAllProfiles();
       onCreated(profiles);
     } else {
-      toastError(t.errorCreatingUser.replace('{error}', res.error || ''));
+      // « Nécessite la connexion » : créer un compte est un appel à GoTrue, donc
+      // le seul geste de cet écran qui ne peut pas attendre la ligne. Le code
+      // brut s'afficherait tel quel dans le message d'erreur.
+      toastError(isConnectionRequiredError(res.error)
+        ? t.accountNeedsConnection
+        : t.errorCreatingUser.replace('{error}', res.error || ''));
     }
   };
 

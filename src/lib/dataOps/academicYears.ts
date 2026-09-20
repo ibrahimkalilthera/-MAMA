@@ -14,10 +14,45 @@
  * dans `academic_years`, que seule une policy `is_admin()` autorise (`admin`,
  * `dev`). L'appelant ne le tente donc que pour ces rôles — sinon ce serait un 403
  * par session, c'est-à-dire du bruit qui apprend à ignorer les erreurs.
+ *
+ * HORS LIGNE, les deux responsabilités continuent d'être tenues : la liste est
+ * relue dans un cache local du poste (le sélecteur n'est plus réduit au jeu de
+ * repli), et la déclaration de l'année part dans la file au lieu d'être
+ * abandonnée — un poste qui démarre sa rentrée sans réseau ne peut pas décider
+ * seul, pour tout le parc, quelle année est courante.
  */
 import { supabase } from '../supabaseClient';
 import type { AcademicYearRow } from '../academicYears';
 import { currentYearName } from '../academicYears';
+import { enqueueOfflineAction, isActionQueued } from '../offlineQueue';
+import { isStationOffline } from '../networkUtils';
+
+/** Les années lues sur ce poste, pour que le sélecteur survive à une coupure. */
+const YEARS_CACHE_KEY = 'mama_thera_academic_years_cache_v1';
+
+function readCachedAcademicYears(): AcademicYearRow[] | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(YEARS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const rows = parsed
+      .map((row) => row as AcademicYearRow)
+      .filter((row) => Boolean(row && typeof row.year_name === 'string' && row.year_name));
+    return rows.length > 0 ? rows : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedAcademicYears(rows: AcademicYearRow[]): void {
+  try {
+    localStorage.setItem(YEARS_CACHE_KEY, JSON.stringify(rows));
+  } catch {
+    /* quota, mode privé : la base reste la source */
+  }
+}
 
 /**
  * Lit les années, ou `null` si la base est injoignable.
@@ -27,8 +62,12 @@ import { currentYearName } from '../academicYears';
  */
 export async function fetchAcademicYears(): Promise<AcademicYearRow[] | null> {
   const { data, error } = await supabase.from('academic_years').select('year_name, is_current').order('year_name');
-  if (error || !data) return null;
-  return data.map((row) => ({ year_name: row.year_name, is_current: row.is_current }));
+  if (error || !data) return readCachedAcademicYears();
+  const rows = data.map((row) => ({ year_name: row.year_name, is_current: row.is_current }));
+  // Écrit APRÈS un vrai chargement : le cache ne peut donc jamais contenir autre
+  // chose que ce que la base a réellement répondu.
+  writeCachedAcademicYears(rows);
+  return rows;
 }
 
 /**
@@ -45,6 +84,14 @@ export async function fetchAcademicYears(): Promise<AcademicYearRow[] | null> {
  */
 export async function keepAcademicYearCurrent(year: string): Promise<boolean> {
   if (!year) return false;
+  // Sans ligne, la déclaration ne peut pas être décidée par ce poste : elle est
+  // mise en file (une seule fois par année — un poste redémarré dix fois hors
+  // ligne ne doit pas empiler dix fois la même déclaration).
+  if (isStationOffline()) {
+    if (isActionQueued('setCurrentYear')) return true;
+    enqueueOfflineAction('setCurrentYear', { year });
+    return true;
+  }
   const existing = await fetchAcademicYears();
   if (!existing) return false;
 

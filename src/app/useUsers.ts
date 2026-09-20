@@ -15,6 +15,10 @@ import type { useToast } from '../lib/useToast';
 import type { TranslationDict } from '../i18n/translations';
 
 import type { AppRole } from '../lib/useAuth';
+// Module SANS dépendance à Supabase (voir son en-tête) : l'importer depuis
+// `useAuth` tirerait le client, que le runner de tests ne peut pas charger.
+import { isConnectionRequiredError } from '../lib/accountGestures';
+import { isStationOffline } from '../lib/networkUtils';
 
 export type UserRoleFilter = 'all' | 'admin' | 'staff' | 'dev' | 'general_manager' | 'econome';
 
@@ -44,7 +48,10 @@ export function useUsers(deps: UseUsersDeps) {
     if (ok) {
       setUserProfiles(prev => prev.map(p => p.id === targetProfile.id ? { ...p, role: newRole } : p));
       const roleLabel = newRole === 'admin' ? t.roleAdminPromoter : newRole === 'dev' ? t.roleDeveloper : newRole === 'general_manager' ? t.roleGeneralManager : newRole === 'econome' ? t.roleEconome : t.roleStaff;
-      toast.success(t.roleUpdated.replace('{name}', targetProfile.fullName).replace('{role}', roleLabel));
+      // Hors ligne le rôle part en file : le dire, sinon l'utilisateur croit que
+      // c'est déjà dans la base (ce qui est exactement le malentendu à éviter).
+      const message = isStationOffline() ? t.roleUpdatedOffline : t.roleUpdated;
+      toast.success(message.replace('{name}', targetProfile.fullName).replace('{role}', roleLabel));
     } else {
       toast.error(t.failedToUpdateRole);
     }
@@ -61,7 +68,9 @@ export function useUsers(deps: UseUsersDeps) {
     if (res.success) {
       toast.success(t.passwordResetEmailSent.replace('{email}', email));
     } else {
-      toast.error(res.error || (t.failedToSendResetEmail));
+      // « Nécessite la connexion » plutôt que le code brut : ce geste ne peut pas
+      // attendre la ligne, et l'écran doit le dire dans la langue de l'école.
+      toast.error(isConnectionRequiredError(res.error) ? t.accountNeedsConnection : (res.error || t.failedToSendResetEmail));
     }
   };
 
@@ -73,7 +82,7 @@ export function useUsers(deps: UseUsersDeps) {
       setPasswordTarget(null);
       setPasswordInput('');
     } else {
-      toast.error(res.error || t.failedToSetPassword);
+      toast.error(isConnectionRequiredError(res.error) ? t.accountNeedsConnection : (res.error || t.failedToSetPassword));
     }
   };
 
