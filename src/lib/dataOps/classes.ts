@@ -5,9 +5,10 @@
 import { supabase } from '../supabaseClient';
 import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { ClassCycle, CustomClass } from '../domainTypes';
+import { createRowId } from '../rowMappers';
 
 export function createClassOps(ctx: SupabaseDataCtx) {
-  const { setCustomClasses, notifySuccess, notifyError } = ctx;
+  const { setCustomClasses, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
 
   const addCustomClass = async (cls: {
     code: string;
@@ -19,6 +20,29 @@ export function createClassOps(ctx: SupabaseDataCtx) {
   }): Promise<CustomClass | null> => {
     const code = cls.code.trim().replace(/\s+/g, ' ');
     if (!code) return null;
+    // Hors ligne : la classe est créée sur le poste et part en file. Son `rowId`
+    // est un UUID choisi ICI (createRowId) et envoyé à l'insertion — la même
+    // règle que pour un élève : la classe garde, dans la base, l'identifiant que
+    // les gestes suivants (modification, suppression) désignent déjà.
+    if (isOffline()) {
+      const rowId = createRowId();
+      const local: CustomClass = {
+        id: code,
+        rowId,
+        cycle: cls.cycle,
+        year: cls.year,
+        section: cls.section,
+        nameFr: cls.nameFr,
+        nameEn: cls.nameEn,
+        isCustom: true,
+      };
+      // Le code est unique (insensible à la casse) dans la table : la liste de
+      // l'écran applique la même règle, sinon la classe s'y afficherait deux fois.
+      setCustomClasses(prev => prev.some(c => c.id.toLowerCase() === code.toLowerCase()) ? prev : [...prev, local]);
+      enqueueOffline('addClass', { ...cls, code }, rowId);
+      notifySuccess('addCustomClass');
+      return local;
+    }
     const { data, error } = await supabase
       .from('custom_classes')
       .insert({
@@ -80,6 +104,14 @@ export function createClassOps(ctx: SupabaseDataCtx) {
   }): Promise<boolean> => {
     const code = updates.code.trim().replace(/\s+/g, ' ');
     if (!code) return false;
+    if (isOffline()) {
+      setCustomClasses(prev => prev.map(c => c.rowId === rowId
+        ? { ...c, id: code, cycle: updates.cycle, year: updates.year, section: updates.section, nameFr: updates.nameFr, nameEn: updates.nameEn }
+        : c));
+      enqueueOffline('updateClass', { id: rowId, updates: { ...updates, code } });
+      notifySuccess('updateCustomClass');
+      return true;
+    }
     const { data: updated, error } = await supabase
       .from('custom_classes')
       .update({
@@ -114,6 +146,12 @@ export function createClassOps(ctx: SupabaseDataCtx) {
   };
 
   const deleteCustomClass = async (rowId: string): Promise<boolean> => {
+    if (isOffline()) {
+      setCustomClasses(prev => prev.filter(c => c.rowId !== rowId));
+      enqueueOffline('deleteClass', { id: rowId });
+      notifySuccess('deleteCustomClass');
+      return true;
+    }
     const { data, error } = await supabase
       .from('custom_classes')
       .delete()

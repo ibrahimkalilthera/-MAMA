@@ -5,10 +5,11 @@
  * actions through the MainViewsContext.
  */
 import { AnimatePresence, motion } from 'motion/react';
+import { useEffect, useState } from 'react';
 import {
   Briefcase, Check, Compass, Crown, DollarSign, Download, Edit2, Globe,
   KeyRound, Layers, Lock, Plus, Receipt, ShieldCheck, Trash2, UploadCloud,
-  UserPlus, Users, X, Zap,
+  UserPlus, Users, WifiOff, X, Zap,
 } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
 import type { RoleTab, ThemeOption } from '../app/mainViewsProps';
@@ -24,6 +25,22 @@ export function SettingsView() {
     setUserSearchTerm, updatingUserId, handleUpdateRole, handleSendPasswordReset,
     passwordTarget, setPasswordTarget, passwordInput, setPasswordInput, handleSetPassword,
   } = useMainViews();
+
+  // ── La ligne est-elle là ? (dit AVANT le clic, pas après l'échec) ─────────
+  // Un RÔLE part en file et arrivera tout seul ; un MOT DE PASSE ou une CRÉATION
+  // DE COMPTE passent par l'authentification du serveur et ne peuvent pas
+  // attendre. Écouteur local, comme le bandeau : une coupure ne provoque aucun
+  // rendu de l'application, donc cet état ne peut venir que d'ici.
+  const [lineDown, setLineDown] = useState(typeof navigator !== 'undefined' && navigator.onLine === false);
+  useEffect(() => {
+    const up = () => setLineDown(false);
+    const down = () => setLineDown(true);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down); };
+  }, []);
+  const accountGesturesNeedConnection = lineDown || Boolean(auth?.isOfflineSession);
+
   // The settings tab is admin/dev-only (sidebar hides it for other roles too).
   if (!auth?.isAdmin) return null;
 
@@ -357,6 +374,13 @@ export function SettingsView() {
                       </button>
                     </div>
                   </div>
+
+                  {accountGesturesNeedConnection && (
+                    <div className={`flex items-start gap-2.5 p-3.5 rounded-2xl border text-[11px] font-semibold leading-relaxed ${currentTheme.isDark ? 'bg-amber-950/30 border-amber-500/40 text-amber-200' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
+                      <WifiOff size={16} className="flex-shrink-0 mt-0.5" />
+                      <span>{t.accountGesturesOffline}</span>
+                    </div>
+                  )}
 
                   {/* Role Definitions & Stats Banner */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
