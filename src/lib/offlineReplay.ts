@@ -11,10 +11,26 @@ import type { Database, DbUpdate, Json } from './database.types';
 import type { QueueItem } from './offlineQueue';
 import type { Parent, Student, Staff } from '../app/types';
 import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
+import { isUuid } from './rowMappers';
 import type { LogAuditParams } from './auditLogger';
 
 /** The surface of the Supabase client that replay touches. */
 export type ReplayDb = Pick<SupabaseClient<Database>, 'from'>;
+
+/**
+ * The `id` to send for a row that was created while the station was offline.
+ *
+ * A pupil enrolled offline already carries a client-generated UUID (createRowId)
+ * — the SAME id their receipt, their queued payment and every later edit point
+ * at. Sending it is what makes the replay land on one row instead of creating a
+ * second one and orphaning the rest.
+ *
+ * No UUID (WebCrypto missing, or an item queued by an older build): the column
+ * is simply omitted and the database generates the id, exactly as before.
+ */
+export function rowIdColumn(localId: string | undefined): { id?: string } {
+  return isUuid(localId) ? { id: localId } : {};
+}
 
 // ─── App type → Supabase insert mappers ──────────────────────────────────────
 
@@ -140,6 +156,7 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     }
   } else if (item.type === 'addExpense') {
     const { error } = await db.from('expenses').insert({
+      ...rowIdColumn(item.localId),
       category: item.payload.category,
       description: item.payload.description,
       amount: item.payload.amount,
@@ -147,11 +164,25 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       academic_year: item.payload.academicYear || null,
     });
     if (!error) success = true;
+  } else if (item.type === 'updateExpense') {
+    // Symétrique de `updateVendorExpense` : la modification d'une dépense
+    // existante (import Excel en stratégie « mettre à jour ») devait pouvoir
+    // attendre la ligne comme les autres écritures.
+    const row: DbUpdate<'expenses'> = {};
+    const u = item.payload.updates;
+    if (u.category !== undefined) row.category = u.category;
+    if (u.description !== undefined) row.description = u.description;
+    if (u.amount !== undefined) row.amount = u.amount;
+    if (u.date !== undefined) row.date = u.date;
+    if (u.academicYear !== undefined) row.academic_year = u.academicYear;
+    const { error } = await db.from('expenses').update(row).eq('id', item.payload.id);
+    if (!error) success = true;
   } else if (item.type === 'deleteExpense') {
     const { error } = await db.from('expenses').delete().eq('id', item.payload.id);
     if (!error) success = true;
   } else if (item.type === 'addVendorExpense') {
     const { error } = await db.from('vendor_expenses').insert({
+      ...rowIdColumn(item.localId),
       vendor_name: item.payload.vendorName,
       category: item.payload.category,
       amount: item.payload.amount,
@@ -168,7 +199,7 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
   } else if (item.type === 'addStudent') {
     const { error, data } = await db
       .from('students')
-      .insert(studentToRow(item.payload))
+      .insert({ ...rowIdColumn(item.localId), ...studentToRow(item.payload) })
       .select()
       .single();
     if (!error && data) success = true;
@@ -180,7 +211,7 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     const { error } = await db.from('students').delete().eq('id', item.payload.id);
     if (!error) success = true;
   } else if (item.type === 'addStaff') {
-    const { error } = await db.from('staff').insert(staffToRow(item.payload));
+    const { error } = await db.from('staff').insert({ ...rowIdColumn(item.localId), ...staffToRow(item.payload) });
     if (!error) success = true;
   } else if (item.type === 'updateStaff') {
     const row: DbUpdate<'staff'> = {};
@@ -199,6 +230,7 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     if (!error) success = true;
   } else if (item.type === 'addSalaryPayment') {
     const { error } = await db.from('salary_payments').insert({
+      ...rowIdColumn(item.localId),
       staff_id: item.payload.staffId,
       amount: item.payload.amount,
       date: item.payload.date,
@@ -208,7 +240,7 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
   } else if (item.type === 'addParent') {
     const { data, error } = await db
       .from('parents')
-      .insert(parentToRow(item.payload))
+      .insert({ ...rowIdColumn(item.localId), ...parentToRow(item.payload) })
       .select()
       .single();
     if (!error && data) success = true;
@@ -229,6 +261,7 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     if (!error) success = true;
   } else if (item.type === 'addTodo') {
     const { error } = await db.from('todos').insert({
+      ...rowIdColumn(item.localId),
       text: item.payload.text,
       completed: item.payload.completed,
       student_id: item.payload.studentId || null,
@@ -263,6 +296,84 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
   } else if (item.type === 'deleteVendorExpense') {
     const { error } = await db.from('vendor_expenses').delete().eq('id', item.payload.id);
     if (!error) success = true;
+  } else if (item.type === 'addClass') {
+    const { error } = await db.from('custom_classes').insert({
+      ...rowIdColumn(item.localId),
+      code: item.payload.code,
+      cycle: item.payload.cycle,
+      year: item.payload.year,
+      section: item.payload.section,
+      name_fr: item.payload.nameFr,
+      name_en: item.payload.nameEn,
+    });
+    // `23505` : le code (unique, insensible à la casse) est déjà dans la table —
+    // la classe que l'école voulait créer EXISTE. La garder en file pour
+    // toujours serait le mensonge inverse de celui qu'on répare ici, et le
+    // chemin en ligne la traite déjà ainsi (il adopte la ligne existante).
+    if (!error || error.code === '23505') success = true;
+  } else if (item.type === 'updateClass') {
+    // `.select('id')` + le contrôle de longueur : la MÊME règle honnête que le
+    // chemin en ligne — une modification filtrée par la RLS revient en 200 avec
+    // un corps vide, et la compter comme réussie ferait disparaître de la file
+    // une modification que la base n'a jamais reçue.
+    const { data, error } = await db.from('custom_classes').update({
+      code: item.payload.updates.code,
+      cycle: item.payload.updates.cycle,
+      year: item.payload.updates.year,
+      section: item.payload.updates.section,
+      name_fr: item.payload.updates.nameFr,
+      name_en: item.payload.updates.nameEn,
+    }).eq('id', item.payload.id).select('id');
+    if (!error && data && data.length > 0) success = true;
+  } else if (item.type === 'deleteClass') {
+    const { data, error } = await db.from('custom_classes').delete().eq('id', item.payload.id).select('id');
+    if (!error && data && data.length > 0) success = true;
+  } else if (item.type === 'addNote') {
+    const { error } = await db.from('calendar_notes').insert({
+      ...rowIdColumn(item.localId),
+      note_date: item.payload.date,
+      text: item.payload.text,
+    });
+    if (!error) success = true;
+  } else if (item.type === 'deleteNote') {
+    const { data, error } = await db.from('calendar_notes').delete().eq('id', item.payload.id).select('id');
+    if (!error && data && data.length > 0) success = true;
+  } else if (item.type === 'setCurrentYear') {
+    // Même ordre que `keepAcademicYearCurrent` (la version en ligne) : la ligne
+    // de l'année existe (ou est créée), puis le drapeau est déplacé dessus — et
+    // l'ancienne le perd, sinon deux lignes se diraient courantes.
+    const year = item.payload.year;
+    const inserted = await db.from('academic_years').insert({ year_name: year, is_current: true });
+    const existingRow = inserted.error?.code === '23505';
+    if (!inserted.error || existingRow) {
+      const cleared = await db.from('academic_years').update({ is_current: false }).neq('year_name', year);
+      const flagged = await db.from('academic_years').update({ is_current: true }).eq('year_name', year);
+      if (!cleared.error && !flagged.error) success = true;
+    }
+  } else if (item.type === 'updateUserRole') {
+    // Le rôle d'un compte : la policy réserve la modification aux admins, et une
+    // requête retirée par la RLS revient en 200 SANS ligne — d'où le
+    // `.select('id')`, comme pour les classes et les notes. Sans lui, un rôle
+    // refusé aurait disparu de la file en laissant croire qu'il était appliqué.
+    const { data, error } = await db.from('user_profiles')
+      .update({ role: item.payload.role })
+      .eq('id', item.payload.id)
+      .select('id');
+    if (!error && data && data.length > 0) success = true;
+  } else if (item.type === 'addAuditLog') {
+    // L'entrée de journal écrite pendant la coupure : elle part telle quelle,
+    // avec l'acteur FIGÉ au moment du geste (voir QueuedAuditEntry).
+    const { error } = await db.from('audit_logs').insert({
+      user_id: item.payload.userId || null,
+      user_email: item.payload.userEmail || 'system',
+      user_name: item.payload.userName || item.payload.userEmail || 'System Staff',
+      user_role: item.payload.userRole || 'staff',
+      action: item.payload.action,
+      target_type: item.payload.targetType || null,
+      target_id: item.payload.targetId || null,
+      details: item.payload.details || null,
+    });
+    if (!error) success = true;
   }
   return success;
 }
@@ -283,6 +394,8 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
       return { action: 'RECORD_PAYMENT', targetType: 'payment', targetId: item.payload.studentId, details: `Paiement de ${item.payload.payment.amount} FCFA (reçu ${item.payload.payment.receiptNumber || 'N/A'})${tag}` };
     case 'addExpense':
       return { action: 'ADD_EXPENSE', targetType: 'expense', targetId: null, details: `${item.payload.description} (${item.payload.category}) — ${item.payload.amount} FCFA${tag}` };
+    case 'updateExpense':
+      return { action: 'UPDATE_EXPENSE', targetType: 'expense', targetId: item.payload.id, details: `mise à jour dépense${tag}` };
     case 'deleteExpense':
       return { action: 'DELETE_EXPENSE', targetType: 'expense', targetId: item.payload.id, details: `suppression dépense${tag}` };
     case 'addVendorExpense':
@@ -312,7 +425,11 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
     case 'deleteParent':
       return { action: 'DELETE_PARENT', targetType: 'parent', targetId: item.payload.id, details: `suppression parent${tag}` };
     default:
-      // todos — not audited online, kept out here too.
+      // Geste dont l'équivalent EN LIGNE n'est pas audité — tâches, classes
+      // personnalisées, notes du calendrier, déclaration d'année — donc le rejeu
+      // ne l'est pas non plus : un même fait ne doit pas se lire de deux façons
+      // selon qu'il a été rejoué ou non. Les entrées `addAuditLog` sont, elles,
+      // le journal lui-même : les auditer bouclerait.
       return null;
   }
 }

@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 import {buildStamp} from './scripts/lib/build-stamp.mjs';
+import {serviceWorkerPlugin} from './scripts/lib/service-worker.mjs';
 import {devRuntimeBanner} from './scripts/lib/runtime-banner.mjs';
 
 export default defineConfig(({mode}) => {
@@ -15,7 +16,11 @@ export default defineConfig(({mode}) => {
     // identité, la CI ne peut pas distinguer « la prod sert le build que je
     // viens de publier » d'« elle sert encore le précédent », et un pixel-check
     // jugerait alors un autre commit que le sien.
-    plugins: [react(), tailwindcss(), devRuntimeBanner(), buildStamp()],
+    //
+    // `serviceWorkerPlugin()` écrit `dist/sw.js` à la fin du bundle : c'est ce qui
+    // rend le SITE ouvrable à froid sans réseau (le poste installé, lui, charge
+    // son interface depuis le disque — voir son en-tête).
+    plugins: [react(), tailwindcss(), devRuntimeBanner(), buildStamp(), serviceWorkerPlugin()],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
