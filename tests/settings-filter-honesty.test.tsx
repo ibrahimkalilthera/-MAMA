@@ -99,6 +99,8 @@ const adminAuth: AuthState = {
   loading: false,
   error: null,
   isAdmin: true,
+  isOfflineSession: false,
+  reauthFailed: false,
   signIn: async () => ({ success: true }),
   signOut: async () => {},
   fetchAllProfiles: async () => PROFILES,
@@ -501,5 +503,65 @@ describe('règle de classe — une assertion ne reçoit jamais un nœud du DOM',
       [],
       'la projection en booléen est la forme recommandée — elle n’est pas une violation',
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ce que la COUPURE change dans ce panneau — dit AVANT le clic.
+//
+// Deux familles de gestes y cohabitent, et elles ne se comportent pas pareil sans
+// ligne : un RÔLE part en file (il arrivera tout seul au retour de la connexion),
+// tandis qu'un MOT DE PASSE ou une CRÉATION DE COMPTE passent par
+// l'authentification du serveur et ne peuvent pas attendre. Le panneau le dit
+// donc à l'avance, au lieu de laisser l'utilisateur découvrir l'échec.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('le panneau des comptes dit ce que la coupure change', () => {
+  const withOnLine = <T,>(value: boolean, run: () => T): T => {
+    const realOnLine = win.navigator.onLine;
+    Object.defineProperty(win.navigator, 'onLine', { value, configurable: true });
+    try {
+      return run();
+    } finally {
+      Object.defineProperty(win.navigator, 'onLine', { value: realOnLine, configurable: true });
+    }
+  };
+
+  it('hors ligne, l’écran prévient : les rôles partent en file, les mots de passe exigent la connexion', () => {
+    withOnLine(false, () => {
+      const { container, root } = mount();
+      try {
+        assert.equal(
+          (container.textContent ?? '').includes(t.accountGesturesOffline),
+          true,
+          'la mention doit être visible AVANT le geste, pas après son échec',
+        );
+      } finally {
+        unmount(container, root);
+      }
+    });
+  });
+
+  it('une session hors ligne (ligne revenue, jeton pas encore rouvert) compte aussi comme hors ligne', () => {
+    const realOfflineSession = adminAuth.isOfflineSession;
+    adminAuth.isOfflineSession = true;
+    const { container, root } = mount();
+    try {
+      assert.equal((container.textContent ?? '').includes(t.accountGesturesOffline), true);
+    } finally {
+      unmount(container, root);
+      adminAuth.isOfflineSession = realOfflineSession;
+    }
+  });
+
+  it('en ligne, aucune mention de coupure (l’écran ne parle pas pour rien)', () => {
+    withOnLine(true, () => {
+      const { container, root } = mount();
+      try {
+        assert.equal((container.textContent ?? '').includes(t.accountGesturesOffline), false);
+      } finally {
+        unmount(container, root);
+      }
+    });
   });
 });

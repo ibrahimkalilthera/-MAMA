@@ -112,6 +112,10 @@ export interface AppShellExtras {
   selectedDraftYear: number;
   handleExportMonthlyPayrollExcel: (m: number, y: number) => Promise<void>;
   pendingQueueCount: number;
+  /** Saisies que la base a déjà refusées — toujours en file, jamais perdues. */
+  pendingFailures: number;
+  /** Heure du dernier instantané hors ligne de ce poste (null : aucun). */
+  cacheSavedAt: string | null;
   isSyncing: boolean;
   syncOfflineQueue: () => Promise<void>;
   confirmAction: ConfirmAction | null;
@@ -129,6 +133,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
     setSearchTerm, studentGradeFilter, setStudentGradeFilter, setIsPromotionWizardOpen,
     setShowExcelImport, setSelectedDraftMonth, setSelectedDraftYear,
     setShowMonthlyDraftModal, generateMultiYearReportPdf, lockedYears, students,
+    pendingFailures, cacheSavedAt,
     expenses, vendorExpenses, salaryPayments, handlePrint, vendorExpensesTab,
     handleExport, generateFinancialReportPdf, generateExpensesReportPdf,
     notifications, setSelectedStudent, readNotificationIds, deletedNotificationIds,
@@ -431,12 +436,19 @@ onOpenPayroll={() => setActiveTab('payroll')}
         />
       </ErrorBoundary>
 
-      {/* Global Toast Notifications & Offline Resilience Banner */}
+      {/* Global Toast Notifications & Offline Resilience Banner —
+          l'état hors ligne vient de la SESSION (auth), pas du réseau seul :
+          une session hors ligne rend l'envoi impossible même si l'interface
+          capte à nouveau, et cela doit se lire à l'écran. */}
       <OfflineBanner
         lang={lang}
         pendingCount={pendingQueueCount}
+        pendingFailures={pendingFailures}
         isSyncing={isSyncing}
         onSync={syncOfflineQueue}
+        offlineSession={auth.isOfflineSession}
+        reauthFailed={auth.reauthFailed}
+        cacheSavedAt={cacheSavedAt}
         t={t}
       />
       <EnvBadge env={appEnv} database={database} />

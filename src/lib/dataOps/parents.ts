@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient';
 import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Parent } from '../domainTypes';
 import type { DbUpdate } from '../database.types';
-import { mapParentRow, createTempId } from '../rowMappers';
+import { mapParentRow, createRowId } from '../rowMappers';
 import { parentToRow } from '../offlineReplay';
 import { logAuditEvent } from '../auditLogger';
 
@@ -15,10 +15,10 @@ export function createParentOps(ctx: SupabaseDataCtx) {
 
   const addParent = async (parent: Omit<Parent, 'id'>): Promise<Parent | null> => {
     if (isOffline()) {
-      const tempId = createTempId('parent');
-      const local: Parent = { id: tempId, ...parent };
+      const rowId = createRowId();
+      const local: Parent = { id: rowId, ...parent };
       setParents(prev => [...prev, local]);
-      enqueueOffline('addParent', parent);
+      enqueueOffline('addParent', parent, rowId);
       notifySuccess('addParent');
       return local;
     }

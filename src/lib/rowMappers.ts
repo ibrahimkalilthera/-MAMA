@@ -6,13 +6,32 @@ import type { Parent, Payment, SalaryPayment, Staff, Student, StudentNoteEntry, 
 import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
 import { isStaffCategory } from './adminPositions';
 
-// ─── Unique temp IDs for offline-created records ──────────────────────────────
-// `Date.now()` alone can collide when several records are created in the same
-// millisecond (double-clicks, batch flows). Add a monotonic counter + random
-// suffix so temp IDs are unique across entities and calls.
-let tempIdCounter = 0;
-export const createTempId = (prefix: string): string =>
-  `off_${prefix}_${Date.now().toString(36)}_${(++tempIdCounter).toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+// ─── IDs of records created OFFLINE ───────────────────────────────────────────
+// A record written without a network gets its DEFINITIVE id right here: the
+// columns are `UUID PRIMARY KEY DEFAULT uuid_generate_v4()` (see
+// supabase/migrations/20260801000000_init.sql), so the client may — and must —
+// choose the id itself. The point is not elegance: while the station is offline
+// a receipt is already printed and a payment is already queued against that
+// pupil. A database-generated id would leave every one of those queued rows
+// pointing at an id no database ever had — the enrollment would land, and the
+// payment for it would be refused on every sync pass, forever.
+//
+// Fallback: when WebCrypto is unavailable the id is a non-UUID marker, and the
+// replay simply omits the column and lets the database generate it (the old
+// behaviour) instead of risking a collision on a guess.
+let fallbackIdCounter = 0;
+
+export function createRowId(): string {
+  const cryptoObj = (globalThis as { crypto?: Crypto }).crypto;
+  if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
+  fallbackIdCounter += 1;
+  return `off_${Date.now().toString(36)}_${fallbackIdCounter.toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** True for a value that can be sent as a `uuid` column. */
+export function isUuid(value: string | undefined): value is string {
+  return Boolean(value) && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value as string);
+}
 
 // ─── Supabase row → App type mappers ─────────────────────────────────────────
 

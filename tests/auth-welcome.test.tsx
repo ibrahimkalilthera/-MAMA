@@ -32,6 +32,8 @@ let authFixture: AuthState = {
   loading: false,
   error: null,
   isAdmin: false,
+  isOfflineSession: false,
+  reauthFailed: false,
   signIn: async () => ({ success: true }),
   signOut: async () => {},
   fetchAllProfiles: async () => [],

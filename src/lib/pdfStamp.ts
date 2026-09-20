@@ -111,23 +111,101 @@ async function downscaleStampBlob(blob: Blob): Promise<string> {
   }
 }
 
+// ─── Le cachet SURVIT À LA COUPURE ──────────────────────────────────────────
+//
+// Le cachet est un fichier chargé à l'exécution : sans précaution, un reçu
+// imprimé sur un poste sans réseau sortait SANS cachet (le document était
+// généré, seule l'image manquait — c'est ce qui rendait la perte discrète). La
+// donnée une fois obtenue est donc conservée sur le poste, et relue avant toute
+// requête : le cachet n'est plus une ressource du réseau, c'est un actif de la
+// station.
+//
+// L'estampille du build (`<meta name="build-sha">`, voir build-stamp.mjs) sert
+// de version : un cachet mis à jour par un nouveau build est rechargé une fois,
+// et l'ancien reste utilisé tant que la nouvelle version n'a pas pu être lue —
+// un cachet d'hier vaut mieux qu'un reçu sans sceau.
+const STAMP_STORAGE_KEY = 'mama_thera_school_stamp_v1';
+
+interface CachedStamp {
+  /** Le build qui a écrit cette copie ('' quand l'identité est inconnue). */
+  build: string;
+  url: string;
+}
+
+/** L'estampille du build servi, ou '' (build local, hors CI). */
+function currentBuildId(): string {
+  try {
+    if (typeof document === 'undefined') return '';
+    return document.querySelector('meta[name="build-sha"]')?.getAttribute('content')?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function readCachedStamp(): CachedStamp | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(STAMP_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CachedStamp>;
+    const url = typeof parsed?.url === 'string' ? parsed.url : '';
+    if (!url.startsWith('data:image')) return null;
+    return { build: typeof parsed?.build === 'string' ? parsed.build : '', url };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedStamp(url: string): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const payload: CachedStamp = { build: currentBuildId(), url };
+    localStorage.setItem(STAMP_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    /* quota, mode privé : le cachet sera simplement rechargé la prochaine fois */
+  }
+}
+
 /** Data URL of the stamp (cached), or null when unavailable. */
 function getStampDataUrl(): Promise<string | null> {
+  const build = currentBuildId();
+  const cached = readCachedStamp();
+  // Copie du build en cours : rien à demander, et rien à décoder.
+  if (cached && cached.build === build) return Promise.resolve(cached.url);
   if (!stampDataUrlPromise) {
     stampDataUrlPromise = (async (): Promise<string | null> => {
       try {
         // Relative to the page origin — works in dev, preview and production.
         const res = await fetch('tampon.png');
-        if (!res.ok) return null;
+        if (!res.ok) return cached?.url ?? null;
         const blob = await res.blob();
         const dataUrl = await downscaleStampBlob(blob);
-        return dataUrl || null;
+        if (!dataUrl) return cached?.url ?? null;
+        writeCachedStamp(dataUrl);
+        return dataUrl;
       } catch {
-        return null;
+        // Hors ligne : le cachet déjà conservé sur le poste est utilisé.
+        return cached?.url ?? null;
       }
     })();
+    // Un échec n'est PAS mémorisé : sans cela, un reçu imprimé pendant la coupure
+    // privait de cachet TOUS les suivants de la session, même après le retour de
+    // la ligne (le premier résultat `null` restait en cache).
+    void stampDataUrlPromise.then((url) => {
+      if (!url) stampDataUrlPromise = null;
+    });
   }
   return stampDataUrlPromise;
+}
+
+/**
+ * Charge le cachet à l'avance et le conserve sur le poste (appelé au démarrage).
+ *
+ * C'est ce qui fait qu'un reçu imprimé plus tard, SANS réseau, garde son cachet :
+ * l'actif a été mis de côté au moment où la ligne était là.
+ */
+export async function preloadSchoolStamp(): Promise<void> {
+  await getStampDataUrl();
 }
 
 /**

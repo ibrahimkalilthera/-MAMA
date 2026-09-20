@@ -16,16 +16,23 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from './supabaseClient';
 import type { DbRow } from './database.types';
-import { isAuthTokenError, retryWithBackoff } from './networkUtils';
+import { isAuthTokenError, isStationOffline, retryWithBackoff } from './networkUtils';
+import {
+  pendingAuditEntries,
+  readAuditJournalCache,
+  writeAuditJournalCache,
+} from './offlineAuditJournal';
 import {
   enqueueOfflineAction,
   getOfflineQueue,
   getOfflineQueueCount,
+  getOfflineQueueFailures,
   OfflineActionType,
   OfflinePayload,
 } from './offlineQueue';
 import { drainOfflineQueue } from './offlineSync';
-import type { AuditLogEntry } from './auditLogger';
+import { loadOfflineSnapshot, saveOfflineSnapshot } from './offlineSnapshot';
+import type { AuditLogEntry, LogAuditParams } from './auditLogger';
 import { logAuditEvent } from './auditLogger';
 import { mapExpenseRow, mapParentRow, mapSalaryPaymentRow, mapStaffRow, mapStudentRow, mapTodoRow, mapVendorExpenseRow } from './rowMappers';
 import { importBatchData } from './batchImport';
@@ -78,7 +85,27 @@ export interface SupabaseDataCallbacks {
   onRetry?: (attempt: number) => void;
 }
 
-export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
+/**
+ * Session facts this hook needs, and that only the auth layer knows:
+ *   • `userId`  — whose snapshot this station may keep (never another account's);
+ *   • `offlineSession` — the session has no token (offline sign-in), so nothing
+ *     may be sent: every write is queued and the screen reads the snapshot.
+ */
+export interface SupabaseDataOptions {
+  userId?: string | null;
+  offlineSession?: boolean;
+  /**
+   * L'utilisateur de la station (id, courriel, nom, rôle), pour que le journal
+   * affiché puisse nommer l'auteur d'une entrée encore en file — le chemin en
+   * ligne, lui, le résout tout seul.
+   */
+  actor?: LogAuditParams['user'] | null;
+}
+
+/** How long a burst of local changes is gathered before the snapshot is written. */
+const SNAPSHOT_DEBOUNCE_MS = 1200;
+
+export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: SupabaseDataOptions) {
   const [parents, setParents] = useState<Parent[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -90,10 +117,29 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingQueueCount, setPendingQueueCount] = useState<number>(() => getOfflineQueueCount());
+  const [pendingFailures, setPendingFailures] = useState<number>(() => getOfflineQueueFailures());
+  const [cacheSavedAt, setCacheSavedAt] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
 
+  // Ce que la BASE a répondu (ou le cache du poste), sans les entrées encore en
+  // file — celles-ci sont ajoutées à l'affichage par `composeAuditLogs`.
+  const auditBaseRef = useRef<AuditLogEntry[]>([]);
+
+  const composeAuditLogs = useCallback(() => {
+    const pending = pendingAuditEntries(actorRef.current);
+    setAuditLogs([...pending, ...auditBaseRef.current]);
+  }, []);
+
   const fetchAuditLogs = useCallback(async () => {
+    const userId = userIdRef.current;
+    // Sans réseau, le journal se lit sur le poste : les entrées reçues la
+    // dernière fois, PLUS les gestes faits depuis (la file), marqués.
+    if (isStationOffline()) {
+      auditBaseRef.current = userId ? readAuditJournalCache(userId) : [];
+      composeAuditLogs();
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('audit_logs')
@@ -103,6 +149,10 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
 
       if (error) {
         console.warn('fetchAuditLogs info/error:', error.message);
+        // La base a refusé ou n'a pas répondu : le cache du poste vaut mieux
+        // qu'un journal vide, qui se lirait « l'école n'a rien fait ».
+        auditBaseRef.current = userId ? readAuditJournalCache(userId) : [];
+        composeAuditLogs();
         return;
       }
 
@@ -119,16 +169,26 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           details: row.details ?? '',
           createdAt: row.created_at,
         }));
-        setAuditLogs(mapped);
+        auditBaseRef.current = mapped;
+        if (userId) writeAuditJournalCache(userId, mapped);
+        composeAuditLogs();
       }
     } catch (err) {
       console.warn('fetchAuditLogs exception:', err);
+      auditBaseRef.current = userId ? readAuditJournalCache(userId) : [];
+      composeAuditLogs();
     }
-  }, []);
+  }, [composeAuditLogs]);
 
-  const updateQueueCount = () => {
+  // Stable (useCallback) parce que le drainage de la file en dépend : sans cela
+  // le crochet se recréerait à chaque rendu, et avec lui l'écouteur « online ».
+  const updateQueueCount = useCallback(() => {
     setPendingQueueCount(getOfflineQueueCount());
-  };
+    setPendingFailures(getOfflineQueueFailures());
+    // La file a changé : le journal montre donc une entrée de plus (un geste
+    // vient d'être mis en file) ou de moins (le rejeu vient de l'écrire en base).
+    composeAuditLogs();
+  }, [composeAuditLogs]);
 
   // Store callbacks in ref to avoid re-creating memoized functions
   const callbacksRef = useRef(callbacks);
@@ -137,44 +197,57 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   const notifySuccess = (operation: string) => callbacksRef.current?.onMutationSuccess?.(operation);
   const notifyError = (operation: string, msg: string) => callbacksRef.current?.onMutationError?.(operation, msg);
 
-  const isOffline = () => typeof navigator !== 'undefined' && !navigator.onLine;
-  const enqueueOffline = (type: OfflineActionType, payload: OfflinePayload['payload']) => {
-    enqueueOfflineAction(type, payload);
+  // `isOffline` combines TWO impossibilities, and the second one is the whole
+  // point of the offline session: no network, OR no usable session (signed in
+  // from the local verifier, no token yet — see src/lib/useAuth.ts). A write
+  // made in that state must be QUEUED, never attempted and lost.
+  //
+  // Options are read through refs because the memoized callbacks below
+  // (fetchAll, syncOfflineQueue) keep the first render's binding, while the
+  // session itself appears after that first render.
+  const userIdRef = useRef<string | null>(options?.userId ?? null);
+  userIdRef.current = options?.userId ?? null;
+  const offlineSessionRef = useRef(Boolean(options?.offlineSession));
+  offlineSessionRef.current = Boolean(options?.offlineSession);
+  const actorRef = useRef<LogAuditParams['user'] | null>(options?.actor ?? null);
+  actorRef.current = options?.actor ?? null;
+
+  // `isStationOffline()` porte les deux impossibilités au niveau du module (voir
+  // networkUtils) : une seule réponse pour ce crochet ET pour les modules qui
+  // écrivent en dehors de lui — notes du calendrier, journal, année scolaire.
+  const isOffline = () => offlineSessionRef.current || isStationOffline();
+  const enqueueOffline = (type: OfflineActionType, payload: OfflinePayload['payload'], localId?: string) => {
+    enqueueOfflineAction(type, payload, localId);
     updateQueueCount();
   };
 
-  // ── Offline Synchronization ─────────────────────────────────────────────
+  // ── Offline snapshot (the dataset this station last received) ───────────
+  // Written after a REAL load and after every local change, read back when the
+  // station has nothing to load from. `snapshotLoadedRef` is what stops an
+  // empty in-memory state (a sign-out, a load that failed) from overwriting a
+  // good snapshot with emptiness.
+  const snapshotLoadedRef = useRef(false);
 
-  const syncOfflineQueue = useCallback(async () => {
-    if (getOfflineQueue().length === 0) return;
-
-    setIsSyncing(true);
-    let syncedCount = 0;
-    try {
-      // Drains the queued mutations (replay + removal per item) — the full
-      // behaviour is unit-tested in tests/offline-sync.test.ts.
-      // Replayed offline mutations are audited too (the queue drain is where
-      // they materialize in the DB), with the [replay] tag in details.
-      syncedCount = await drainOfflineQueue(supabase, (info) => {
-        if (info) void logAuditEvent(info);
-      });
-    } finally {
-      updateQueueCount();
-      setIsSyncing(false);
-      if (syncedCount > 0) {
-        notifySuccess(`Synced ${syncedCount} transaction(s)`);
-      }
-    }
+  // Un jeu de données déjà en mémoire ne doit JAMAIS être remplacé par la copie
+  // du disque : depuis que l'import et la promotion peuvent travailler hors
+  // ligne, l'état local porte des lignes qui n'existent nulle part ailleurs
+  // (elles attendent dans la file), et les réécrire avec l'instantané les ferait
+  // disparaître de l'écran.
+  const hydrateFromCache = useCallback((userId: string): boolean => {
+    const snapshot = loadOfflineSnapshot(userId);
+    if (!snapshot) return false;
+    setParents(snapshot.data.parents);
+    setStudents(snapshot.data.students);
+    setStaff(snapshot.data.staff);
+    setSalaryPayments(snapshot.data.salaryPayments);
+    setExpenses(snapshot.data.expenses);
+    setVendorExpenses(snapshot.data.vendorExpenses);
+    setTodos(snapshot.data.todos);
+    setCustomClasses(snapshot.data.customClasses);
+    snapshotLoadedRef.current = true;
+    setCacheSavedAt(snapshot.savedAt);
+    return true;
   }, []);
-
-  // Auto-sync when internet comes back
-  useEffect(() => {
-    const handleOnline = () => {
-      syncOfflineQueue();
-    };
-    window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
-  }, [syncOfflineQueue]);
 
   // ── Fetch all data ──────────────────────────────────────────────────────
 
@@ -183,6 +256,19 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     // nor surface transient errors — only the initial/retry loads do.
     if (!opts?.silent) setLoading(true);
     if (!opts?.silent) setError(null);
+
+    // Rien à demander à la base : ni réseau, ni session utilisable. L'écran
+    // part de l'instantané de ce poste — et le bandeau dira son âge — au lieu
+    // d'attendre trois tentatives (≈ 7 s) pour finir sur une base vide.
+    if (isOffline()) {
+      const userId = userIdRef.current;
+      const hydrated = snapshotLoadedRef.current || (userId ? hydrateFromCache(userId) : false);
+      if (!opts?.silent) {
+        setLoading(false);
+        if (!hydrated) console.warn('[MAMA THERA] Hors ligne et aucun instantané local pour ce compte.');
+      }
+      return;
+    }
     try {
       // Wrap in retry for network resilience (Bamako connectivity)
       await retryWithBackoff(async () => {
@@ -253,6 +339,10 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
           nameEn: row.name_en,
           isCustom: true,
         })));
+
+        // La base a répondu : à partir d'ici, l'état en mémoire est une
+        // photographie VALIDE de l'école et peut être conservée sur le poste.
+        snapshotLoadedRef.current = true;
       }, {
         maxRetries: 3,
         onRetry: (attempt, error) => {
@@ -277,18 +367,98 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, []);
+    // `hydrateFromCache` est stable (useCallback sans dépendance) : l'ajouter
+    // aux dépendances ne rend donc pas `fetchAll` instable, et c'est bien lui
+    // qui sert l'instantané quand la base est hors de portée.
+  }, [hydrateFromCache]);
+
+  // ── Offline Synchronization ─────────────────────────────────────────────
+
+  const syncOfflineQueue = useCallback(async () => {
+    if (getOfflineQueue().length === 0) return;
+    // Session hors ligne : elle n'a pas encore de jeton, donc envoyer ne
+    // produirait qu'un refus de policy et marquerait comme « refusées » des
+    // saisies parfaitement valides. C'est la reconnexion silencieuse (voir
+    // src/lib/useAuth.ts) qui rouvre la session, et le SIGNED_IN qui en découle
+    // repasse ici avec un vrai jeton.
+    if (offlineSessionRef.current) return;
+
+    setIsSyncing(true);
+    let syncedCount = 0;
+    try {
+      // Drains the queued mutations (replay + removal per item) — the full
+      // behaviour is unit-tested in tests/offline-sync.test.ts.
+      // Replayed offline mutations are audited too (the queue drain is where
+      // they materialize in the DB), with the [replay] tag in details.
+      syncedCount = await drainOfflineQueue(supabase, (info) => {
+        if (info) void logAuditEvent(info);
+      });
+    } finally {
+      updateQueueCount();
+      setIsSyncing(false);
+      if (syncedCount > 0) {
+        notifySuccess(`Synced ${syncedCount} transaction(s)`);
+        // La base vient de recevoir ce qui attendait : on relit pour repartir de
+        // SA vérité (ids réels, totaux consolidés ailleurs) et non de l'état
+        // optimiste de ce poste.
+        void fetchAll({ silent: true });
+      }
+    }
+  }, [fetchAll, updateQueueCount]);
+
+  // Auto-sync when internet comes back
+  useEffect(() => {
+    const handleOnline = () => {
+      syncOfflineQueue();
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [syncOfflineQueue]);
+
+  // Enregistre l'instantané après chaque changement local (débounce : une
+  // saisie produit plusieurs rendus, un seul écrit).
+  useEffect(() => {
+    const userId = options?.userId ?? null;
+    if (!userId || !snapshotLoadedRef.current) return;
+    const handle = setTimeout(() => {
+      const savedAt = saveOfflineSnapshot(userId, {
+        parents, students, staff, salaryPayments, expenses, vendorExpenses, todos, customClasses,
+      });
+      if (savedAt) setCacheSavedAt(savedAt);
+    }, SNAPSHOT_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [options?.userId, parents, students, staff, salaryPayments, expenses, vendorExpenses, todos, customClasses]);
+
+  // Une session hors ligne n'a PAS de jeton : aucun événement Supabase ne
+  // viendra, donc rien ne déclencherait le chargement et le poste resterait
+  // indéfiniment sur son écran de connexion. C'est ce drapeau qui ouvre l'écran
+  // sur l'instantané de la machine.
+  const offlineSession = Boolean(options?.offlineSession);
+  useEffect(() => {
+    if (!offlineSession) return;
+    const userId = userIdRef.current;
+    if (userId) hydrateFromCache(userId);
+    setLoading(false);
+  }, [offlineSession, hydrateFromCache]);
 
   // Initial load is AUTH-GATED: no anon reads fire on the login screen. The
   // sessionStorage session is picked up by getSession() on mount; a fresh
   // sign-in (SIGNED_IN) triggers the fetch; SIGNED_OUT clears the domain
   // state so a shared computer never shows the previous account's rows (the
   // next sign-in refetches from scratch).
+  //
+  // The queue is drained BEFORE the load, in both entry points: an app reopened
+  // with internet after an offline day must SEND what it holds first, or the
+  // load that follows would erase from the screen exactly what is still waiting.
   useEffect(() => {
     let cancelled = false;
+    const boot = async () => {
+      await syncOfflineQueue();
+      if (!cancelled) void fetchAll();
+    };
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (cancelled) return;
-      if (event === 'SIGNED_IN') void fetchAll();
+      if (event === 'SIGNED_IN') void boot();
       if (event === 'SIGNED_OUT') {
         setParents([]);
         setStudents([]);
@@ -299,16 +469,19 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
         setTodos([]);
         setCustomClasses([]);
         setError(null);
+        // L'état vidé n'est pas une donnée : il ne doit jamais remplacer
+        // l'instantané du poste (le prochain chargement le réécrira).
+        snapshotLoadedRef.current = false;
       }
     });
     void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!cancelled && session?.user) void fetchAll();
+      if (!cancelled && session?.user) void boot();
     });
     return () => {
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [fetchAll]);
+  }, [fetchAll, syncOfflineQueue]);
 
   // ── Per-domain CRUD (split into factories) ─────────────────────────────
 
@@ -328,11 +501,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
   const { addStudent, updateStudent, deleteStudent, batchPromoteStudents } = createStudentOps(ctx);
   const { addPayment, addSalaryPayment } = createPaymentOps(ctx);
   const { addStaff, updateStaff, deleteStaff } = createStaffOps(ctx);
-  const { addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense } = createExpenseOps(ctx);
+  const { addExpense, updateExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense } = createExpenseOps(ctx);
   const { addTodo, updateTodo, deleteTodo } = createTodoOps(ctx);
 
   // ── Batch Import (Smart Excel Ingestion) ─────────────────────────────────
 
+  // `write` passe les fonctions du DOMAINE, pas le client Supabase : l'import
+  // emprunte donc exactement la voie de la saisie à l'écran, file d'attente
+  // hors ligne comprise (voir src/lib/batchImport.ts).
   const batchImportData = (
     category: 'students' | 'payments' | 'parents' | 'staff' | 'expenses',
     records: Record<string, unknown>[],
@@ -342,6 +518,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     fetchAll,
     notifySuccess,
     notifyError,
+    isOffline,
+    write: {
+      addStudent, updateStudent,
+      addParent, updateParent,
+      addStaff, updateStaff,
+      addExpense, updateExpense,
+      addPayment,
+    },
   });
 
   // ── Return ──────────────────────────────────────────────────────────────
@@ -359,6 +543,10 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     loading,
     error,
     pendingQueueCount,
+    /** Envoyées et refusées au moins une fois — toujours en file, jamais perdues. */
+    pendingFailures,
+    /** Heure du dernier instantané de ce poste (null : aucun jeu de données local). */
+    cacheSavedAt,
     isSyncing,
     auditLogs,
     setAuditLogs,
@@ -375,7 +563,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks) {
     addPayment,
     addStaff, updateStaff, deleteStaff,
     addSalaryPayment,
-    addExpense, deleteExpense,
+    addExpense, updateExpense, deleteExpense,
     addVendorExpense, updateVendorExpense, deleteVendorExpense,
     addTodo, updateTodo, deleteTodo,
     batchPromoteStudents,
