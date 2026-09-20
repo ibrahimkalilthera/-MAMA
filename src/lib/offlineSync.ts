@@ -10,7 +10,7 @@
  */
 import type { ReplayDb } from './offlineReplay';
 import { offlineAuditInfo, replayOfflineItem } from './offlineReplay';
-import { getOfflineQueue, removeOfflineAction } from './offlineQueue';
+import { getOfflineQueue, markOfflineAttempt, removeOfflineAction } from './offlineQueue';
 import type { LogAuditParams } from './auditLogger';
 
 /**
@@ -19,8 +19,11 @@ import type { LogAuditParams } from './auditLogger';
  * (getOfflineQueue → replayOfflineItem → removeOfflineAction).
  *
  * An item whose replay reports an error STAYS queued — it will be retried on
- * the next sync pass. A replay that THROWS stops the whole drain so later
- * mutations keep their relative order. Returns the number of synced items.
+ * the next sync pass — and the failed attempt is COUNTED (markOfflineAttempt),
+ * so the screen can distinguish « waiting to be sent » from « refused, and it
+ * will not go through on its own ». A replay that THROWS stops the whole drain
+ * so later mutations keep their relative order. Returns the number of synced
+ * items.
  *
  * `audit` is optional (unit tests call the drain without it): when provided,
  * every successfully replayed critical action is audited — the queue drain is
@@ -43,6 +46,10 @@ export async function drainOfflineQueue(
         if (audit) audit(offlineAuditInfo(item));
         removeOfflineAction(item.id);
         syncedCount++;
+      } else {
+        // Rien n'est perdu : l'action reste en file et repartira au prochain
+        // passage — mais elle est marquée comme ayant déjà été refusée.
+        markOfflineAttempt(item.id);
       }
     } catch (err) {
       console.error('Offline sync failed for item:', item, err);

@@ -22,9 +22,11 @@ import {
   enqueueOfflineAction,
   getOfflineQueue,
   getOfflineQueueCount,
+  getOfflineQueueFailures,
   removeOfflineAction,
   clearOfflineQueue,
 } from '../src/lib/offlineQueue';
+import { createRowId } from '../src/lib/rowMappers';
 import { makeFakeDb } from './fakes';
 
 // ─── Seeds (real enqueueOfflineAction calls with typed payloads) ─────────────
@@ -139,6 +141,25 @@ describe('offline sync (drainOfflineQueue — the full syncOfflineQueue behaviou
     assert.deepEqual(getOfflineQueue(), []);
   });
 
+  it("envoie l'id choisi hors ligne : l'élève inscrit sans réseau garde son identité", async () => {
+    clearOfflineQueue();
+    const studentId = createRowId();
+    enqueueOfflineAction(
+      'addStudent',
+      { name: 'Ada', parentName: 'P', parentEmail: 'p@x.com', parentPhone: '1', totalDue: 100, amountPaid: 0, dueDate: '2026-09-01', notes: '' },
+      studentId,
+    );
+    // …puis le règlement encaissé au même guichet, toujours sans réseau.
+    enqueueOfflineAction('addPayment', { studentId, payment: { date: '2026-09-02', amount: 100 } });
+
+    const { db, rows } = makeFakeDb();
+    const synced = await drainOfflineQueue(db);
+
+    assert.equal(synced, 2);
+    assert.equal(rows[0].row.id, studentId);
+    assert.equal(rows[1].row.student_id, studentId, 'le paiement suit l’élève, pas un id inventé');
+  });
+
   it('the hook drives this exact function — useSupabaseData has no inline replay loop left', () => {
     const hook = readFileSync('src/lib/useSupabaseData.ts', 'utf8');
     assert.match(hook, /import \{ drainOfflineQueue \} from '\.\/offlineSync';/);
@@ -147,5 +168,42 @@ describe('offline sync (drainOfflineQueue — the full syncOfflineQueue behaviou
       !/replayOfflineItem\(supabase, item\)/.test(hook),
       'the inline replay loop must be gone from the hook',
     );
+  });
+});
+
+// ─── Ce qui a été REFUSÉ doit se voir ───────────────────────────────────────
+// Un élément refusé reste en file (rien n'est jamais perdu), mais « en attente »
+// et « refusé » ne racontent pas la même chose à l'école : un paiement bloqué
+// sur un élève supprimé entre-temps tournerait sinon en silence, à chaque
+// passage, alors que le reçu est déjà dans la main du parent.
+
+describe('file hors ligne : distinguer « en attente » de « refusé »', () => {
+  it('compte chaque refus et le remonte, sans retirer l’élément de la file', async () => {
+    clearOfflineQueue();
+    const refused = seedExpense();
+    seedTodo();
+    assert.equal(getOfflineQueueFailures(), 0, 'rien n’a encore été refusé');
+
+    const { db } = makeFakeDb({ failTables: ['expenses'] });
+    await drainOfflineQueue(db);
+
+    assert.equal(getOfflineQueueCount(), 1, 'l’élément refusé reste en file');
+    assert.equal(getOfflineQueueFailures(), 1);
+    assert.equal(getOfflineQueue().find(i => i.id === refused.id)?.attempts, 1);
+  });
+
+  it('rejoue et vide la file quand la cause du refus disparaît', async () => {
+    clearOfflineQueue();
+    seedExpense();
+
+    await drainOfflineQueue(makeFakeDb({ failTables: ['expenses'] }).db);
+    assert.equal(getOfflineQueueFailures(), 1);
+
+    // Le blocage est levé (l’élève/l’entrée existe de nouveau) : le même
+    // élément part au passage suivant.
+    const synced = await drainOfflineQueue(makeFakeDb().db);
+    assert.equal(synced, 1);
+    assert.equal(getOfflineQueueCount(), 0);
+    assert.equal(getOfflineQueueFailures(), 0);
   });
 });
