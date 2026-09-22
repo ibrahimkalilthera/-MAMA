@@ -441,6 +441,28 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
     setLoading(false);
   }, [offlineSession, hydrateFromCache]);
 
+  // ── La session hors ligne vient d'être RÉTABLIE : vider la file ──────────
+  //
+  // C'est le moment qui compte, et c'est le SEUL qui marche — l'événement
+  // « online » ne peut pas le faire, pour une raison d'ORDRE : il part avant que
+  // le mot de passe gardé en mémoire soit rejoué, donc bien avant qu'un jeton
+  // existe. `syncOfflineQueue` le voit, s'arrête (à juste titre : envoyer sans
+  // jeton ne produirait qu'un refus de policy et marquerait « refusées » des
+  // saisies parfaitement valides), et plus RIEN ne repassait ensuite : la
+  // connexion silencieuse réussie ne redéclenche ni l'événement ni un drainage.
+  // La saisie de la journée — un élève, un paiement, le reçu imprimé — restait
+  // donc dans la file jusqu'au prochain démarrage de l'application.
+  //
+  // L'observation juste est donc la TRANSITION de la session, pas l'événement
+  // réseau : à cet instant le jeton existe (Supabase vient d'émettre une vraie
+  // session) et l'envoi passe.
+  const wasOfflineSessionRef = useRef(false);
+  useEffect(() => {
+    const was = wasOfflineSessionRef.current;
+    wasOfflineSessionRef.current = offlineSession;
+    if (was && !offlineSession) void syncOfflineQueue();
+  }, [offlineSession, syncOfflineQueue]);
+
   // Initial load is AUTH-GATED: no anon reads fire on the login screen. The
   // sessionStorage session is picked up by getSession() on mount; a fresh
   // sign-in (SIGNED_IN) triggers the fetch; SIGNED_OUT clears the domain

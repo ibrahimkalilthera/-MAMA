@@ -21,7 +21,14 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, before, after } from 'node:test';
-import { formatSupabaseError, isAuthTokenError, retryWithBackoff } from '../src/lib/networkUtils';
+import {
+  errorText,
+  formatSupabaseError,
+  isAuthTokenError,
+  isConnectivityFailure,
+  isServerRefusal,
+  retryWithBackoff,
+} from '../src/lib/networkUtils';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -149,5 +156,84 @@ describe('le câblage : la tentative suivante repart avec un jeton neuf', () => 
     // Le titre historique reste en tête : les scripts E2E qui pilotent
     // l'application empaquetée le cherchent pour détecter l'état dégradé.
     assert.match(shell, /\{t\.databaseConnectionIssue\}/);
+  });
+});
+
+// ─── « Le serveur a refusé » contre « je n'ai pas pu le joindre » ───────────
+//
+// WHY THIS EXISTS
+// ---------------
+// Mesuré : `isConnectivityFailure({ message: 'Failed to fetch' }, true)`
+// rendait **false**. La cause est la lecture de l'erreur — `error instanceof
+// Error ? error.message : String(error)`. Un objet d'erreur qui n'est PAS une
+// instance d'`Error` (erreur franchie par le pont IPC d'Electron, sérialisée,
+// ou construite à la main) se stringifiait en « [object Object] » : le mot
+// « fetch » y disparaissait, et `status` étant absent, la panne réseau se lisait
+// comme un refus du serveur. L'écran de connexion affichait alors le libellé brut
+// du transport — « Failed to fetch » — et un poste sans réseau restait fermé,
+// sans même consulter le vérificateur local qu'il possédait.
+//
+// Le second test tient la règle qui rend ce cas impossible : c'est le REFUS
+// explicite qui ferme la porte hors ligne, pas la reconnaissance de la panne. Un
+// objet d'erreur inattendu doit donc descendre au vérificateur (voir
+// `isServerRefusal` et son usage dans src/lib/useAuth.ts).
+describe('une panne de transport ne se lit jamais comme un refus du serveur', () => {
+  /** Formes d'une erreur réseau réellement rencontrées, avec leur verdict. */
+  const CONNECTIVITY = [
+    ['objet simple, sans statut (traversée IPC/sérialisation)', { message: 'Failed to fetch' }],
+    ['objet simple avec statut 0', { message: 'Failed to fetch', status: 0 }],
+    ['instance d’Error', new Error('Failed to fetch')],
+    ['TypeError de fetch', new TypeError('Failed to fetch')],
+    ['formulation Chromium/Electron : DNS', new TypeError('net::ERR_NAME_NOT_RESOLVED')],
+    ['formulation Chromium/Electron : pas de réseau', new Error('net::ERR_INTERNET_DISCONNECTED')],
+    ['formulation Electron : connexion refusée', new Error('net::ERR_CONNECTION_REFUSED')],
+    ['formulation Firefox', new TypeError('NetworkError when attempting to fetch resource.')],
+    ['formulation Safari', new TypeError('Load failed')],
+    ['objet sans `toString` (String() lèverait)', Object.assign(Object.create(null), { message: 'fetch failed' })],
+    ['passerelle morte pour un amont mort', { message: 'Bad gateway', status: 502 }],
+    ['service indisponible un instant', { message: 'Service unavailable', status: 503 }],
+  ] as const;
+
+  it('toutes les formes d’une panne réseau sont reconnues', () => {
+    for (const [nom, error] of CONNECTIVITY) {
+      assert.equal(isConnectivityFailure(error, true), true, nom);
+    }
+  });
+
+  it('aucune de ces formes n’est prise pour un refus du serveur', () => {
+    for (const [nom, error] of CONNECTIVITY) {
+      assert.equal(isServerRefusal(error), false, nom);
+    }
+  });
+
+  it('un refus RÉEL du serveur reste un refus, et n’est pas une panne', () => {
+    const REFUSALS = [
+      'Invalid login credentials',
+      'Email not confirmed',
+      'Too many requests',
+      'User is banned',
+    ] as const;
+    for (const message of REFUSALS) {
+      assert.equal(isServerRefusal({ message }), true, message);
+      assert.equal(isConnectivityFailure({ message }, true), false, message);
+    }
+    // Le statut seul suffit aussi (GoTrue/GoTrue-compatible sans libellé connu).
+    assert.equal(isServerRefusal({ message: 'refused', status: 400 }), true);
+    assert.equal(isServerRefusal({ message: 'refused', status: 429 }), true);
+    // Et le code, quand c'est lui qui porte le verdict.
+    assert.equal(isServerRefusal({ message: 'nope', code: 'invalid_credentials' }), true);
+  });
+
+  it('le texte d’une erreur se lit quelle que soit sa forme, sans jamais lever', () => {
+    assert.equal(errorText({ message: 'Failed to fetch' }), 'Failed to fetch');
+    assert.equal(errorText(new Error('Failed to fetch')), 'Failed to fetch');
+    // GoTrue écrit `error_description`, et un `msg` arrive des réponses brutes.
+    assert.equal(errorText({ error_description: 'Invalid login credentials' }), 'Invalid login credentials');
+    assert.equal(errorText({ msg: 'Email not confirmed' }), 'Email not confirmed');
+    assert.equal(errorText('plain'), 'plain');
+    assert.equal(errorText(null), '');
+    assert.equal(errorText(undefined), '');
+    // `String()` lèverait sur cet objet : on doit rendre la main, pas jeter.
+    assert.doesNotThrow(() => errorText(Object.create(null)));
   });
 });
