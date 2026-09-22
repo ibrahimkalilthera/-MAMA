@@ -1,3 +1,17 @@
+## [2026-09-22] La 1.0.18 part au parc : la connexion sans réseau marche, les saisies hors ligne partent, un seul compte par poste
+
+Demande : « publie et release la nouvelle version avec les correctifs ».
+
+**Pourquoi un numéro, et pas seulement des commits.** Les trois correctifs existent dans `main` mais n'atteignent **aucune école** tant que ce n'est pas publié : un poste installé ne lit pas le site, il lit le canal de mise à jour — et la 1.0.17 que ce canal sert porte la fonctionnalité hors ligne **avec** les trois défauts corrigés ici. C'est la raison qui a produit toutes les versions précédentes, et il n'y en a pas d'autre.
+
+**Ce que la 1.0.18 porte, mesuré dans la suite :** (1) la **connexion sans réseau** ne sort plus « Failed to fetch » — une panne de transport n'est plus lue comme un refus du serveur, et seul un refus **explicite** de la base ferme la porte hors ligne ; (2) les **saisies faites hors ligne sont transférées au retour de la ligne** — le drainage observe la transition de la session, seul instant où le jeton existe, au lieu de dépendre d'un événement réseau qui part trop tôt et ne revient pas ; (3) **un seul compte hors ligne par poste** — le dernier connecté en ligne, et lui seul, appliqué à l'écriture comme à la lecture.
+
+**Mêmes conditions de signature que la 1.0.12 : non signée** — la variable de dépôt `SIGNING_ENABLED` n'a pas été touchée depuis la 1.0.17, donc le publieur construit **sans** certificat, ne promet aucun `publisherName`, et `electron-updater` juge les octets par le sha512 du flux. Le prix reste l'avertissement SmartScreen ; ce qui est préservé, c'est la capacité du parc à se mettre à jour tout seul (signer avec le certificat de test graverait `CN=Mama Thera Finance (test)` dans le contrat que chaque poste lit, c'est-à-dire le gel mesuré des 1.0.6–1.0.8).
+
+**Mesures du dépôt avant l'envoi** : suite complète **2044/2044**, `tsc --noEmit` propre, `npm run lint` vert (27 contrôles), `npm run build` OK. Chaque correctif a été prouvé **dans les deux sens** — retiré : le cas échoue ; remis : il passe.
+
+**Un incident d'atelier, pour la transparence** : la chaîne qualité a passé (4 étapes vertes, 1 min 57 s), mais `git.exe` a échoué sur le fork msys documenté (`Win32 error 299`, `ERROR_PARTIAL_COPY`) et `git-retry.mjs` l'a classé « pas un fork-panic ». Le second passage a été instantané (le vert est en cache par arbre) et a abouti.
+
 ## [2026-09-22] Un seul compte hors ligne par poste : le dernier connecté en ligne, et lui seul
 
 Demande : « restreins la connexion hors ligne à un seul compte par poste : le dernier qui s'est connecté en ligne, et lui seul peut rouvrir l'application sans réseau ».
