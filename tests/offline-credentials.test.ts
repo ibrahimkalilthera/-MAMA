@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import {
   MAX_OFFLINE_ATTEMPTS,
   OFFLINE_PBKDF2_ITERATIONS,
+  RETAINED_OFFLINE_ACCOUNTS,
   clearOfflineAccounts,
   findOfflineAccount,
   forgetOfflineAccount,
@@ -149,25 +150,58 @@ describe('offline credentials (sign-in without a network)', () => {
     assert.equal((await verifyOfflineAccount('aggee@mamathera.org', 'first-password', store)).status, 'wrong-password');
   });
 
-  it('keeps at most ten stations accounts and drops the oldest', async () => {
+  it("ne retient qu'UN compte : le dernier qui s'est connecté ici, et lui seul", async () => {
     const store = memoryStation();
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 3; i++) {
       await remember(store, { email: `staff${i}@mamathera.org`, userId: `user-${i}` });
     }
     const emails = listOfflineAccounts(store).map((a) => a.email);
-    assert.equal(emails.length, 10);
-    assert.equal(emails[0], 'staff11@mamathera.org', 'most recent first');
-    assert.ok(!emails.includes('staff0@mamathera.org'), 'the eleventh and twelfth pushes pushed it out');
+    assert.equal(emails.length, RETAINED_OFFLINE_ACCOUNTS);
+    assert.equal(emails[0], 'staff2@mamathera.org', 'le plus récent, et un seul');
+
+    // Ce n'est pas seulement une liste plus courte : c'est une règle D'ACCÈS.
+    // Un compte qui s'est connecté ici plus tôt ne peut plus ouvrir le poste.
+    assert.equal((await verifyOfflineAccount('staff0@mamathera.org', 'Bamako-2026!', store)).status, 'unknown');
+    assert.equal((await verifyOfflineAccount('staff2@mamathera.org', 'Bamako-2026!', store)).status, 'ok');
   });
 
-  it('forgets one account, or all of them', async () => {
+  it("un poste mis à jour n'emporte pas ses anciens enregistrements", async () => {
+    // Un poste déjà installé peut contenir plusieurs enregistrements hérités,
+    // le plus récent en tête. La règle doit valoir TOUT DE SUITE — pas à la
+    // prochaine connexion en ligne, c'est-à-dire pas au moment où l'utilisateur
+    // n'en a plus besoin. C'est pourquoi le tri est fait à la LECTURE aussi.
+    const store = memoryStation();
+    await remember(store, { email: 'ancien@mamathera.org', userId: 'user-old' });
+    const legacy = store.getItem('mama_thera_offline_accounts_v1')!;
+    await remember(store, { email: 'recent@mamathera.org', userId: 'user-new' });
+    const newest = store.getItem('mama_thera_offline_accounts_v1')!;
+    store.setItem('mama_thera_offline_accounts_v1', JSON.stringify([
+      ...JSON.parse(newest), ...JSON.parse(legacy),
+    ]));
+    assert.equal(
+      (JSON.parse(store.getItem('mama_thera_offline_accounts_v1')!) as unknown[]).length,
+      2,
+      'le stockage hérité porte bien deux enregistrements',
+    );
+
+    assert.equal((await verifyOfflineAccount('ancien@mamathera.org', 'Bamako-2026!', store)).status, 'unknown');
+    assert.equal((await verifyOfflineAccount('recent@mamathera.org', 'Bamako-2026!', store)).status, 'ok');
+    // Et l'enregistrement hérité disparaît physiquement à la première écriture.
+    assert.equal(
+      (JSON.parse(store.getItem('mama_thera_offline_accounts_v1')!) as unknown[]).length,
+      RETAINED_OFFLINE_ACCOUNTS,
+    );
+  });
+
+  it('forgets the retained account, or all of them', async () => {
     const store = memoryStation();
     await remember(store);
-    await remember(store, { email: 'other@mamathera.org', userId: 'user-2' });
-
+    // La casse du courriel ne doit pas empêcher de le retirer.
     forgetOfflineAccount('AGGEE@mamathera.org', store);
-    assert.deepEqual(listOfflineAccounts(store).map((a) => a.email), ['other@mamathera.org']);
+    assert.deepEqual(listOfflineAccounts(store), []);
+    assert.equal((await verifyOfflineAccount('aggee@mamathera.org', 'Bamako-2026!', store)).status, 'unknown');
 
+    await remember(store, { email: 'other@mamathera.org', userId: 'user-2' });
     clearOfflineAccounts(store);
     assert.deepEqual(listOfflineAccounts(store), []);
     assert.equal((await verifyOfflineAccount('other@mamathera.org', 'Bamako-2026!', store)).status, 'unknown');
