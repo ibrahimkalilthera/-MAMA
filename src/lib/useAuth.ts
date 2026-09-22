@@ -25,7 +25,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabaseClient';
 import { isAdminRole } from './deleteRights';
-import { isConnectivityFailure, isStationOffline, setOfflineSessionActive } from './networkUtils';
+import { errorText, isConnectivityFailure, isServerRefusal, isStationOffline, setOfflineSessionActive } from './networkUtils';
 import { setAuditActor } from './auditLogger';
 import { enqueueOfflineAction } from './offlineQueue';
 import { ACCOUNT_NEEDS_CONNECTION } from './accountGestures';
@@ -110,6 +110,31 @@ function mapProfileRow(row: Record<string, unknown>): UserProfile {
   };
 }
 
+/**
+ * Le profil déduit des métadonnées du compte, quand la ligne de `user_profiles`
+ * est hors de portée (cache PostgREST pas encore rafraîchi, requête refusée) ou
+ * pas encore relue.
+ *
+ * Les métadonnées viennent de la session que Supabase vient d'émettre : c'est le
+ * compte lui-même qui les porte, donc rien n'est inventé ici — un rôle absent des
+ * valeurs connues retombe sur `staff`, le moins privilégié, jamais sur un rôle
+ * plus large que celui réellement accordé.
+ */
+function profileFromAuthMetadata(user: SupabaseUser | null | undefined, emailFallback: string): UserProfile | null {
+  if (!user) return null;
+  const meta = (user.user_metadata ?? {}) as { full_name?: unknown; role?: unknown };
+  const role = typeof meta.role === 'string' && ['admin', 'dev', 'general_manager', 'econome'].includes(meta.role)
+    ? meta.role
+    : 'staff';
+  const email = user.email || emailFallback;
+  return {
+    id: user.id,
+    email,
+    fullName: (typeof meta.full_name === 'string' && meta.full_name) || email || 'User',
+    role: role as UserProfile['role'],
+  };
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useAuth(): AuthState {
@@ -133,19 +158,13 @@ export function useAuth(): AuthState {
 
     if (profileError) {
       console.warn('[MAMA THERA Auth] user_profiles query failed:', profileError.message);
-      
+
       // Fallback: derive profile from Supabase Auth user metadata
       // This handles the case where PostgREST schema cache hasn't refreshed yet
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const meta = user.user_metadata || {};
         console.info('[MAMA THERA Auth] Using auth metadata as fallback profile');
-        return {
-          id: user.id,
-          email: user.email || '',
-          fullName: meta.full_name || user.email || 'User',
-          role: (['admin', 'dev', 'general_manager', 'econome'].includes(meta.role) ? meta.role : 'staff') as UserProfile['role'],
-        };
+        return profileFromAuthMetadata(user, '');
       }
       return null;
     }
@@ -214,7 +233,12 @@ export function useAuth(): AuthState {
         try {
           return await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
         } catch (thrown) {
-          const message = thrown instanceof Error ? thrown.message : String(thrown);
+          // `errorText` et pas `String(thrown)` : une erreur qui n'est pas une
+          // instance d'`Error` (objet venu d'un autre contexte, sérialisé) rend
+          // « [object Object] », et le mot « fetch » y est perdu — la panne se
+          // lisait alors comme un refus du serveur. `String()` peut même lever
+          // sur un objet sans conversion.
+          const message = errorText(thrown) || 'Sign-in failed';
           return {
             data: { user: null, session: null },
             error: { message, status: (thrown as { status?: number }).status ?? 0 } as unknown as AuthError,
@@ -230,26 +254,50 @@ export function useAuth(): AuthState {
         setReauthFailed(false);
         // L'empreinte hors ligne s'écrit APRÈS un succès RÉSEAU : c'est la base
         // qui a validé ce mot de passe, jamais cette vérification locale.
-        if (userProfile) {
+        //
+        // Elle s'écrit aussi quand la LIGNE DE PROFIL n'a pas pu être relue
+        // (`userProfile === null`) : la connexion a réussi, donc la base a bien
+        // validé ce mot de passe, et c'est tout ce qu'il faut pour rouvrir le
+        // compte sans réseau. Ne l'écrire que dans le premier cas laissait un
+        // poste — pourtant connecté à l'instant — sans aucune mémoire du compte,
+        // et le premier jour hors ligne il refusait un utilisateur qu'il venait
+        // d'ouvrir, en lui disant que ce compte ne s'était « jamais connecté
+        // ici ». Le profil de secours vient de la session qui vient d'être
+        // émise : identité et rôle à défaut d'autre source, jamais rien inventé.
+        const fingerprint = userProfile ?? profileFromAuthMetadata(outcome.data.user, trimmedEmail);
+        if (fingerprint) {
           void rememberOfflineAccount({
-            email: userProfile.email || trimmedEmail,
+            email: fingerprint.email || trimmedEmail,
             password,
-            userId: userProfile.id,
-            fullName: userProfile.fullName,
-            role: userProfile.role,
+            userId: fingerprint.id,
+            fullName: fingerprint.fullName,
+            role: fingerprint.role,
           });
         }
         return { success: true };
       }
 
-      // Un refus (mot de passe faux, compte désactivé) est RAPPORTÉ tel quel :
-      // le vérificateur local ne doit jamais répondre à la place du serveur.
-      if (!isConnectivityFailure(outcome.error, true)) {
-        const msg = outcome.error?.message || 'Sign-in failed';
+      // Un refus EXPLICITE (mot de passe faux, compte désactivé, trop de
+      // tentatives) est RAPPORTÉ tel quel : le vérificateur local ne doit jamais
+      // répondre à la place du serveur, sinon une empreinte périmée deviendrait
+      // une porte d'entrée.
+      //
+      // La règle est volontairement l'INVERSE de « la panne est-elle un problème
+      // de réseau ? ». Cette dernière obligeait à bien classer chaque forme
+      // d'erreur possible pour pouvoir ouvrir la porte hors ligne : une seule
+      // forme mal reconnue — un objet d'erreur qui n'est pas une instance
+      // d'`Error`, une formulation réseau inattendue — et l'utilisateur restait
+      // dehors, avec « Failed to fetch » sur l'écran de connexion sans réseau
+      // pour se rattraper. Ici, seul un verdict du serveur ferme la porte ;
+      // tout le reste descend au vérificateur de CE poste, qui ne laisse entrer
+      // que les comptes qu'il a déjà vus et le bon mot de passe.
+      if (isServerRefusal(outcome.error)) {
+        const msg = errorText(outcome.error) || 'Sign-in failed';
         setError(msg);
         return { success: false, error: msg };
       }
-      // Sinon : serveur injoignable — c'est exactement le cas prévu plus bas.
+      // Sinon : serveur injoignable (ou panne qu'on ne sait pas nommer) — c'est
+      // exactement le cas prévu plus bas, et le plus sûr est d'y aller.
     }
 
     // ── 2. Hors ligne : le vérificateur de CE poste ─────────────────────
