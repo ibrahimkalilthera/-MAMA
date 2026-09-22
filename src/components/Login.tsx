@@ -20,6 +20,7 @@ import {
   OFFLINE_UNKNOWN_ACCOUNT,
   OFFLINE_WRONG_PASSWORD,
 } from '../lib/offlineCredentials';
+import { formatSupabaseError } from '../lib/networkUtils';
 
 export const Login = ({ 
   onLogin, 
@@ -64,6 +65,18 @@ export const Login = ({
         errorMsg = t.pleaseConfirmYourEmailFirst;
       } else if (errorMsg.includes('Too many requests')) {
         errorMsg = t.tooManyAttemptsPleaseWaitAMoment;
+      } else if (errorMsg) {
+        // Dernier recours, et il compte : JAMAIS la chaîne brute du transport à
+        // l'écran. « Failed to fetch » est la phrase que le navigateur écrit
+        // quand il n'atteint pas le serveur — l'utilisateur, lui, doit lire une
+        // consigne dans sa langue (« impossible de joindre le serveur, vérifiez
+        // votre connexion ») et pas le nom d'une exception anglaise qui ne dit
+        // ni quoi faire, ni que son poste est peut-être capable de le laisser
+        // travailler. Le libellé technique reste dans la console, et la traduction
+        // passe par le MÊME formateur que le bandeau de la base : une seule
+        // table de correspondance, donc pas de message qui diverge d'un écran à
+        // l'autre.
+        errorMsg = formatSupabaseError({ message: errorMsg }, lang).message;
       }
       setError(errorMsg);
     }

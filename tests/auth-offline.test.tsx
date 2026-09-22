@@ -25,7 +25,7 @@ import { mockModule } from './module-mock';
 const win = installDomGlobals();
 
 // ── fake supabase client ─────────────────────────────────────────────────────
-type Answer = 'accept' | 'refuse' | 'unreachable';
+type Answer = 'accept' | 'refuse' | 'unreachable' | 'unreachable-flattened' | 'unreachable-electron';
 
 const state = {
   answer: 'accept' as Answer,
@@ -38,17 +38,44 @@ const state = {
   rpcCalls: [] as string[],
   /** Lignes que la policy laisse passer sur la mise à jour d'un rôle. */
   roleUpdateRows: 1,
+  /** `user_profiles` illisible (cache PostgREST froid, requête refusée). */
+  profileMissing: false,
 };
+
+/**
+ * Un compte = une ligne, comme dans la base : deux comptes ne partagent ni id ni
+ * courriel. Sans cela, une suite ne pourrait pas distinguer « le second compte
+ * remplace le premier » de « le même compte se réenregistre ».
+ */
+const userIdFor = (email: string): string =>
+  email === state.profileRow.email ? state.profileRow.id : `u-${email.split('@')[0]}`;
+
+function profileRowFor(id: string): Record<string, unknown> {
+  if (id === state.profileRow.id) return state.profileRow;
+  const email = `${id.replace(/^u-/, '')}@mamathera.org`;
+  return { id, email, full_name: email, role: 'staff' };
+}
 
 const fakeSupabase = {
   auth: {
     signInWithPassword: async ({ email, password }: { email: string; password: string }) => {
       state.signInCalls.push({ email, password });
       if (state.answer === 'unreachable') throw new TypeError('Failed to fetch');
+      // supabase-js ne LÈVE pas : il REND l'erreur. Les deux formes ci-dessous
+      // reproduisent une erreur qui a TRAVERSÉ une frontière — le pont IPC
+      // d'Electron, une sérialisation — donc un objet simple que
+      // `error instanceof Error` ne reconnaît pas, et sans `status`. C'est
+      // exactement cette forme qui faisait lire une panne réseau comme un refus
+      // du serveur, et affichait « Failed to fetch » sur l'écran de connexion.
+      if (state.answer === 'unreachable-flattened') {
+        return { data: { user: null, session: null }, error: { message: 'Failed to fetch' } };
+      }
+      if (state.answer === 'unreachable-electron') throw new TypeError('net::ERR_NAME_NOT_RESOLVED');
       if (state.answer === 'refuse') {
         return { data: { user: null, session: null }, error: { message: 'Invalid login credentials', status: 400 } };
       }
-      return { data: { user: { id: 'u1', email }, session: { user: { id: 'u1', email } } }, error: null };
+      const id = userIdFor(email);
+      return { data: { user: { id, email }, session: { user: { id, email } } }, error: null };
     },
     getSession: async () => ({ data: { session: null }, error: null }),
     getUser: async () => ({ data: { user: null }, error: null }),
@@ -62,8 +89,10 @@ const fakeSupabase = {
   },
   from: (table: string) => ({
     select: () => ({
-      eq: () => ({
-        single: async () => ({ data: state.profileRow, error: null }),
+      eq: (column: string, value: string) => ({
+        single: async () => state.profileMissing
+          ? { data: null, error: { message: 'relation "user_profiles" does not exist' } }
+          : { data: column === 'id' ? profileRowFor(value) : state.profileRow, error: null },
         maybeSingle: async () => ({ data: state.profileRow, error: null }),
       }),
       // La liste des comptes (fetchAllProfiles) lit sans filtre.
@@ -87,7 +116,7 @@ mockModule('../src/lib/supabaseClient', { supabase: fakeSupabase });
 
 const { useAuth } = await import('../src/lib/useAuth');
 const { ACCOUNT_NEEDS_CONNECTION, isConnectionRequiredError } = await import('../src/lib/accountGestures');
-const { listOfflineAccounts, rememberOfflineAccount } = await import('../src/lib/offlineCredentials');
+const { listOfflineAccounts, rememberOfflineAccount, verifyOfflineAccount } = await import('../src/lib/offlineCredentials');
 const { getOfflineQueue } = await import('../src/lib/offlineQueue');
 const { useUsers } = await import('../src/app/useUsers');
 const { translations } = await import('../src/i18n/translations');
@@ -148,6 +177,7 @@ describe('useAuth — connexion hors ligne', () => {
     setOnline(true);
     state.answer = 'accept';
     state.signInCalls = [];
+    state.profileMissing = false;
     localStorage.clear();
   });
 
@@ -165,6 +195,67 @@ describe('useAuth — connexion hors ligne', () => {
       'l’empreinte du compte sur le poste (pour pouvoir le rouvrir sans réseau)',
     );
     assert.equal(listOfflineAccounts()[0].email, 'aggee@mamathera.org');
+    r.unmount();
+    setOnline(realOnLine);
+  });
+
+  it("UN SEUL compte par poste : le dernier connecté en ligne prend le poste, et lui seul rouvre sans réseau", async () => {
+    const r = renderHook(useAuth, undefined);
+    await flush();
+
+    // Aggee se connecte en ligne : c'est lui que le poste retient.
+    const first = await act(async () => r.api.current!.signIn('aggee@mamathera.org', 'Bamako-2026!'));
+    assert.equal(first.success, true);
+    await waitFor(() => listOfflineAccounts().length === 1, 'le compte retenu par le poste');
+    assert.equal(listOfflineAccounts()[0].email, 'aggee@mamathera.org');
+
+    // Fanta se connecte en ligne à son tour, sur le MÊME poste.
+    const second = await act(async () => r.api.current!.signIn('fanta@mamathera.org', 'Fanta-2026!'));
+    assert.equal(second.success, true);
+    await waitFor(
+      () => listOfflineAccounts()[0]?.email === 'fanta@mamathera.org',
+      'le dernier compte remplace le précédent',
+    );
+    assert.equal(listOfflineAccounts().length, 1, 'jamais deux comptes sur un poste');
+
+    // Et c'est une règle D'ACCÈS, pas un simple nettoyage : Aggee, qui s'est
+    // pourtant connecté ici il y a une minute, ne peut plus ouvrir ce poste sans
+    // réseau — c'est exactement ce que « lui seul » veut dire.
+    await act(async () => { await r.api.current!.signOut(); });
+    setOnline(false);
+    assert.equal((await verifyOfflineAccount('aggee@mamathera.org', 'Bamako-2026!')).status, 'unknown');
+    assert.equal((await verifyOfflineAccount('fanta@mamathera.org', 'Fanta-2026!')).status, 'ok');
+    r.unmount();
+    setOnline(realOnLine);
+  });
+
+  it("garde l'empreinte du compte même quand la ligne de profil n'a pas pu être relue", async () => {
+    // Le profil est relu APRÈS un succès réseau ; s'il échoue, la connexion a
+    // quand même réussi. Ne rien écrire dans ce cas laissait un poste pourtant
+    // connecté sans aucune mémoire du compte — et le premier jour hors ligne il
+    // refusait un utilisateur qu'il venait d'ouvrir.
+    state.profileMissing = true;
+    const r = renderHook(useAuth, undefined);
+    await flush();
+
+    const result = await act(async () => r.api.current!.signIn('aggee@mamathera.org', 'Bamako-2026!'));
+
+    assert.equal(result.success, true);
+    await waitFor(
+      () => listOfflineAccounts().length === 1,
+      "l'empreinte du compte, écrite malgré le profil illisible",
+    );
+    const [record] = listOfflineAccounts();
+    assert.equal(record.email, 'aggee@mamathera.org', 'l’e-mail est la clé de recherche hors ligne');
+    assert.equal(record.role, 'staff', 'aucun rôle inventé : le moins privilégié');
+
+    // La preuve qui compte : ce poste peut ROUVRIR le compte sans réseau.
+    state.answer = 'accept';
+    await act(async () => { await r.api.current!.signOut(); });
+    setOnline(false);
+    const offline = await act(async () => r.api.current!.signIn('aggee@mamathera.org', 'Bamako-2026!'));
+    assert.equal(offline.success, true);
+    assert.equal(r.api.current?.isOfflineSession, true);
     r.unmount();
     setOnline(realOnLine);
   });
@@ -216,6 +307,47 @@ describe('useAuth — connexion hors ligne', () => {
     r.unmount();
     setOnline(realOnLine);
   });
+
+  // ── Toutes les formes d'une panne réseau mènent au vérificateur du poste ──
+  //
+  // La règle est l'INVERSE de « la panne est-elle bien un problème de réseau ? » :
+  // seul un refus EXPLICITE du serveur ferme la porte. Sans cela, il fallait
+  // reconnaître correctement chaque forme d'erreur possible pour pouvoir ouvrir
+  // la porte hors ligne, et une seule forme mal lue enfermait l'utilisateur
+  // dehors avec un message de transport anglais à l'écran.
+  for (const [nom, answer] of [
+    ['une erreur rendue et aplatie (objet simple, sans statut)', 'unreachable-flattened'],
+    ['une erreur lancée, formulée par Chromium', 'unreachable-electron'],
+  ] as const) {
+    it(`ouvre la session hors ligne malgré ${nom}`, async () => {
+      await stationKnowsTheAccount('Bamako-2026!');
+      state.answer = answer;
+      const r = renderHook(useAuth, undefined);
+      await flush();
+
+      const result = await act(async () => r.api.current!.signIn('aggee@mamathera.org', 'Bamako-2026!'));
+
+      assert.equal(result.success, true, `« ${answer} » ne doit pas enfermer dehors le compte que ce poste connaît`);
+      assert.equal(r.api.current?.isOfflineSession, true);
+      r.unmount();
+      setOnline(realOnLine);
+    });
+
+    it(`dit ce qu'il faut faire (et jamais « Failed to fetch ») quand le poste ne connaît pas le compte — ${nom}`, async () => {
+      state.answer = answer;
+      const r = renderHook(useAuth, undefined);
+      await flush();
+
+      const result = await act(async () => r.api.current!.signIn('inconnu@mamathera.org', 'peu-importe'));
+
+      assert.equal(result.success, false);
+      // Le message doit être un VERDICT exploitable, pas le libellé du transport.
+      assert.equal(result.error, 'OFFLINE_UNKNOWN_ACCOUNT');
+      assert.ok(!String(result.error).includes('Failed to fetch'));
+      r.unmount();
+      setOnline(realOnLine);
+    });
+  }
 
   it('refuse un mot de passe faux hors ligne — le poste ne laisse pas entrer', async () => {
     await stationKnowsTheAccount('Bamako-2026!');
