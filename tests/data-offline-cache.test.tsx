@@ -28,6 +28,49 @@ const rowsByTable: Record<string, Record<string, unknown>[]> = {
   students: [{ id: 's1', name: 'Sidi COULIBALY', total_due: 90000, amount_paid: 0 }],
 };
 
+type WriteResult = { data: Record<string, unknown>[] | null; error: { message: string } | null };
+
+/** Écritures acceptées : la file doit pouvoir se vider POUR DE VRAI. */
+const insertedRows: { table: string; row: Record<string, unknown> }[] = [];
+
+/**
+ * Builder thenable, comme celui de Supabase : lecture ET écriture.
+ *
+ * `data` est un TABLEAU : les rejeux qui mettent à jour ou suppriment lisent
+ * « zéro ligne » comme un refus (une écriture filtrée par la policy répond 200
+ * avec un corps vide), donc un faux client doit pouvoir distinguer les deux.
+ */
+interface FakeBuilder extends Promise<WriteResult> {
+  insert(row?: unknown): Promise<WriteResult>;
+  update(): FakeBuilder;
+  delete(): FakeBuilder;
+  eq(): FakeBuilder;
+  neq(): FakeBuilder;
+  select(): FakeBuilder;
+  single(): Promise<{ data: Record<string, unknown> | null; error: null }>;
+  order(): Promise<WriteResult>;
+  limit(): Promise<WriteResult>;
+}
+
+function builder(table: string, result: WriteResult): FakeBuilder {
+  const read: WriteResult = { data: rowsByTable[table] ?? [], error: null };
+  const touched: WriteResult = { data: [{ id: 'fake-row' }], error: null };
+  return Object.assign(Promise.resolve(result), {
+    insert: async (row?: unknown) => {
+      if (row) insertedRows.push({ table, row: row as Record<string, unknown> });
+      return { data: null, error: null } as WriteResult;
+    },
+    update: () => builder(table, touched),
+    delete: () => builder(table, touched),
+    eq: () => builder(table, result),
+    neq: () => builder(table, result),
+    select: () => builder(table, result),
+    single: async () => ({ data: (result.data ?? [])[0] ?? null, error: null }),
+    order: async () => read,
+    limit: async () => read,
+  }) as FakeBuilder;
+}
+
 const fakeSupabase = {
   auth: {
     getSession: async () => ({ data: { session: currentSession }, error: null }),
@@ -38,11 +81,7 @@ const fakeSupabase = {
   },
   from: (table: string) => {
     readTables.push(table);
-    return {
-      select: () => ({
-        order: async () => ({ data: rowsByTable[table] ?? [], error: null }),
-      }),
-    };
+    return builder(table, { data: [{ id: 'fake-row' }], error: null });
   },
   rpc: async () => ({ data: null, error: null }),
 };
@@ -51,6 +90,7 @@ mockModule('../src/lib/supabaseClient', { supabase: fakeSupabase });
 
 const { useSupabaseData } = await import('../src/lib/useSupabaseData');
 const { loadOfflineSnapshot, saveOfflineSnapshot } = await import('../src/lib/offlineSnapshot');
+const { enqueueOfflineAction, getOfflineQueue, clearOfflineQueue } = await import('../src/lib/offlineQueue');
 type SupabaseDataOptions = import('../src/lib/useSupabaseData').SupabaseDataOptions;
 type SnapshotData = import('../src/lib/offlineSnapshot').OfflineSnapshotData;
 
@@ -96,7 +136,9 @@ describe('useSupabaseData — le poste hors ligne travaille sur ses données', (
     setOnline(true);
     currentSession = null;
     readTables.length = 0;
+    insertedRows.length = 0;
     localStorage.clear();
+    clearOfflineQueue();
     hookOptions = {};
   });
 
@@ -141,6 +183,44 @@ describe('useSupabaseData — le poste hors ligne travaille sur ses données', (
     const saved = await waitForSnapshot('u1');
     assert.equal(saved.data.students[0].name, 'Sidi COULIBALY');
     assert.ok(!loadOfflineSnapshot('u2'), 'l’instantané ne vaut que pour son compte');
+    r.unmount();
+  });
+
+  // ── Le retour de la ligne : la file part toute seule ─────────────────────
+  //
+  // WHY THIS EXISTS
+  // ---------------
+  // L'événement « online » ne peut PAS être le déclencheur, pour une raison
+  // d'ORDRE : il part avant que le mot de passe gardé en mémoire soit rejoué,
+  // donc avant qu'un jeton existe. `syncOfflineQueue` le voit, s'arrête (à juste
+  // titre : sans jeton, l'envoi ne produirait qu'un refus de policy et des
+  // saisies valides seraient marquées « refusées »), et plus rien ne repassait —
+  // la connexion silencieuse réussie ne redéclenche ni l'événement ni un
+  // drainage. La saisie de la journée restait dans la file jusqu'au prochain
+  // démarrage. L'observation juste est la TRANSITION de la session.
+  it('le retour de la ligne vide la file tout seul : la saisie hors ligne part sans redémarrer', async () => {
+    saveOfflineSnapshot('u1', dataset());
+    // Ce que l'utilisateur a fait sans réseau.
+    enqueueOfflineAction('addTodo', { text: 'Appeler le parent', completed: false });
+    assert.equal(getOfflineQueue().length, 1);
+
+    // Il travaille hors ligne : session sans jeton.
+    hookOptions = { userId: 'u1', offlineSession: true };
+    const r = renderHook(useDataUnderTest, undefined);
+    await flush();
+    assert.equal(getOfflineQueue().length, 1, 'rien ne part tant qu’il n’y a pas de jeton');
+
+    // La reconnexion silencieuse a réussi : la session hors ligne se referme.
+    // L'événement « online », lui, est déjà passé et a été vu sans jeton.
+    hookOptions = { userId: 'u1', offlineSession: false };
+    await act(async () => { r.rerender(undefined); });
+    await flush();
+
+    assert.equal(getOfflineQueue().length, 0, 'la file doit être vidée quand la ligne revient');
+    assert.ok(
+      insertedRows.some((w) => w.table === 'todos'),
+      'la saisie doit avoir réellement atteint la base',
+    );
     r.unmount();
   });
 
