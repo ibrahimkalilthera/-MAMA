@@ -113,14 +113,114 @@ export function isConnectivityFailure(error: unknown, online?: boolean): boolean
   if (!isOnline) return true;
   if (error === null || error === undefined) return false;
 
-  const text = error instanceof Error ? error.message : String(error);
-  if (/failed to fetch|network ?error|fetch failed|load failed|timed? ?out|econnrefused|enotfound|err_internet|err_network|err_connection/i.test(text)) {
-    return true;
-  }
-  // supabase-js wraps an unreachable host in an error carrying status 0.
-  const status = (error as { status?: number }).status;
-  return status === 0;
+  if (CONNECTIVITY_TEXT.test(errorText(error))) return true;
+
+  // supabase-js wraps an unreachable host in an error carrying status 0, and a
+  // gateway that answered for a dead upstream (502/503/504, plus Cloudflare's
+  // 520-530 — the same list auth-js itself calls NETWORK_ERROR_CODES) did not
+  // judge the request either. None of these is a verdict about the password.
+  const status = errorStatus(error);
+  return status === 0 || (status !== undefined && INFRASTRUCTURE_STATUS.has(status));
 }
+
+/**
+ * « Le serveur a RÉPONDU, et il refuse » — à distinguer de « je n'ai pas pu
+ * joindre le serveur ».
+ *
+ * C'est ce verdict-là, et lui seul, qui interdit de consulter le vérificateur
+ * local : répondre localement à un refus du serveur (mot de passe faux, compte
+ * désactivé) transformerait une empreinte périmée en porte d'entrée.
+ *
+ * L'inverse est tout aussi important, et c'est la correction de fond : tout ce
+ * qui n'est PAS un refus explicite doit pouvoir descendre au vérificateur. Tant
+ * que la porte hors ligne exigeait un verdict positif de `isConnectivityFailure`
+ * (« la panne est bien un problème de réseau »), une seule forme d'erreur mal
+ * reconnue suffisait à enfermer l'utilisateur dehors : il voyait « Failed to
+ * fetch » — le message brut du transport — sur un écran de connexion, sans
+ * réseau pour se rattraper et sans savoir que son poste, lui, savait qui il est.
+ *
+ * La liste est donc volontairement étroite (400/401/403/422/429, ou le code et
+ * le libellé que GoTrue renvoie pour un refus), et un 5xx, un statut absent, un
+ * objet inattendu ou un mot de passe faux côté vérificateur local gardent la
+ * porte ouverte.
+ */
+export function isServerRefusal(error: unknown): boolean {
+  if (error === null || error === undefined) return false;
+  const text = errorText(error);
+  const code = errorCode(error);
+  if (code && SERVER_REFUSAL_CODE.test(code)) return true;
+  if (SERVER_REFUSAL_TEXT.test(text)) return true;
+  const status = errorStatus(error);
+  return status === 400 || status === 401 || status === 403 || status === 422 || status === 429;
+}
+
+/**
+ * Le texte d'une erreur, quelle que soit sa forme.
+ *
+ * `error instanceof Error` est FAUX plus souvent qu'on ne le croit : une erreur
+ * franchie par le pont IPC d'Electron, sérialisée en JSON, ou construite à la
+ * main (`{ message, status }`) n'est pas une instance d'`Error`, et
+ * `String(error)` rend alors « [object Object] » — le mot « fetch » n'y est plus
+ * lisible, donc la panne réseau devenait invisible et se lisait comme un refus
+ * du serveur. On lit donc les champs, dans l'ordre où les deux serveurs les
+ * écrivent (`.message` pour fetch, `.msg`/`error_description` pour GoTrue), et
+ * `String()` n'est tenté que sous garde — sur un objet sans `toString`, il
+ * lève.
+ */
+export function errorText(error: unknown): string {
+  if (typeof error === 'string') return error;
+  if (error === null || error === undefined) return '';
+  if (typeof error !== 'object') {
+    try {
+      return String(error);
+    } catch {
+      return '';
+    }
+  }
+  const fields = error as { message?: unknown; msg?: unknown; error_description?: unknown; code?: unknown; name?: unknown };
+  // Le MESSAGE d'abord, et lui seul quand il existe : c'est le libellé que le
+  // serveur ou le navigateur a écrit, donc celui qu'il faut citer à l'écran.
+  // `name`/`code` ne servent qu'en secours (une erreur réduite à son nom, un code
+  // GoTrue), et `String()` seulement en dernier — il lève sur un objet sans
+  // conversion en chaîne, et une classification ne doit jamais faire échouer
+  // l'appelant.
+  for (const value of [fields.message, fields.msg, fields.error_description]) {
+    if (typeof value === 'string' && value.trim() !== '') return value;
+  }
+  for (const value of [fields.code, fields.name]) {
+    if (typeof value === 'string' && value.trim() !== '') return value;
+  }
+  try {
+    return String(error);
+  } catch {
+    return '';
+  }
+}
+
+/** Le statut HTTP porté par une erreur, s'il y en a un (jamais `NaN`). */
+function errorStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === 'number' ? status : undefined;
+}
+
+/** Le code d'erreur (GoTrue : `invalid_credentials`, PostgREST : `42501`…). */
+function errorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+/** Pannes de transport — le serveur n'a rien jugé. */
+const CONNECTIVITY_TEXT = /failed to fetch|fetch failed|network ?error|load failed|timed? ?out|timeout|econnrefused|econnreset|enotfound|eai_again|name_not_resolved|err_internet|err_network|err_connection|err_name|net::err_|unreachable|offline|no internet|failed to load resource|bad gateway|service unavailable|gateway time-?out/i;
+
+/** Verdicts du serveur : jamais répondus par le vérificateur local. */
+const SERVER_REFUSAL_TEXT = /invalid login credentials|invalid_credentials|email not confirmed|email_not_confirmed|user_banned|user is banned|too many requests|too_many_requests|over_request_rate_limit|rate limit|weak_password|invalid password/i;
+
+const SERVER_REFUSAL_CODE = /^(?:invalid_credentials|email_not_confirmed|user_banned|too_many_requests|over_request_rate_limit|weak_password|invalid_password)$/i;
+
+/** Un intermédiaire a répondu pour un amont mort : pas un verdict non plus. */
+const INFRASTRUCTURE_STATUS = new Set<number>([500, 501, 502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 527, 528, 529, 530]);
 
 function isRetryableError(error: unknown): boolean {
   if (!navigator.onLine) return true;
@@ -130,7 +230,7 @@ function isRetryableError(error: unknown): boolean {
 
   // A rejected token is transient by nature (see isAuthTokenError): retry is
   // what turns the old one-shot red banner into a silent, successful load.
-  if (isAuthTokenError(error instanceof Error ? error.message : String(error ?? ''))) return true;
+  if (isAuthTokenError(errorText(error))) return true;
 
   // Supabase/PostgREST errors
   if (error && typeof error === 'object' && 'status' in error) {
