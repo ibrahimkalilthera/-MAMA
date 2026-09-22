@@ -16,13 +16,15 @@
  *     use it (see src/lib/useAuth.ts).
  *
  * WHAT IT DOES NOT DO
- * It is not a fifth account: only accounts that already signed in on THIS
- * station are known here, and the verifier is checked against the record — a
- * stranger's credentials cannot open the app. It is also honest about its own
- * limits: an offline verifier on disk can be attacked offline, so the
- * derivation is deliberately slow (PBKDF2, 210 000 iterations) and a record
- * stops answering after MAX_OFFLINE_ATTEMPTS wrong passwords — the station then
- * asks for a connection instead of continuing to guess.
+ * It is not a fifth account, and it is not a list either: only the ONE account
+ * this station retains — the last that signed in ONLINE here — is known, and the
+ * verifier is checked against that record. So a credential that this station has
+ * never validated, and equally a credential validated here long ago and since
+ * superseded, cannot open the app (see RETAINED_OFFLINE_ACCOUNTS). It is also
+ * honest about its own limits: an offline verifier on disk can be attacked
+ * offline, so the derivation is deliberately slow (PBKDF2, 210 000 iterations)
+ * and a record stops answering after MAX_OFFLINE_ATTEMPTS wrong passwords — the
+ * station then asks for a connection instead of continuing to guess.
  *
  * Storage: localStorage (the station's accounts must survive a restart), with
  * an in-memory fallback so this module stays usable without a DOM.
@@ -39,8 +41,30 @@ export const OFFLINE_PBKDF2_ITERATIONS = 210_000;
 /** Wrong passwords tolerated per account before the station demands a network. */
 export const MAX_OFFLINE_ATTEMPTS = 10;
 
-/** Records kept (most recent first) — one per account used on this station. */
-const MAX_OFFLINE_ACCOUNTS = 10;
+/**
+ * Comptes que ce poste RÉTIENT pour le hors ligne : **un seul** — le dernier qui
+ * s'est connecté EN LIGNE ici, et lui seul peut rouvrir l'application sans
+ * réseau.
+ *
+ * Deux raisons, et la seconde compte plus que la première. La première est la
+ * simplicité : « qui peut ouvrir ce poste sans réseau ? » a une réponse unique,
+ * vérifiable d'un coup d'œil sur la machine. La seconde est le sens de la règle
+ * dans une école : ce n'est **pas** « n'importe quel compte qui s'est déjà
+ * connecté ici », c'est le dernier — donc un compte qu'on a réellement utilisé
+ * récemment, et pas une liste qui s'allonge toute seule à chaque passage d'un
+ * membre du personnel devant le poste.
+ *
+ * La contrainte est appliquée des DEUX côtés, et c'est indispensable :
+ *   • à l'écriture (`saveAccounts`), pour que le stockage ne garde qu'un
+ *     enregistrement ;
+ *   • à la LECTURE (`listOfflineAccounts`), pour qu'un poste mis à jour
+ *     n'emporte pas ses anciens enregistrements — sinon la règle ne prendrait
+ *     effet qu'à la prochaine connexion en ligne, c'est-à-dire précisément au
+ *     moment où l'utilisateur n'en a plus besoin.
+ * Les enregistrements hérités ne sont pas effacés par la lecture (une lecture
+ * n'écrit pas) : ils deviennent inertes, et la première écriture les remplace.
+ */
+export const RETAINED_OFFLINE_ACCOUNTS = 1;
 
 const STORAGE_KEY = 'mama_thera_offline_accounts_v1';
 
@@ -152,7 +176,18 @@ async function derive(password: string, salt: Uint8Array, iterations: number): P
 
 // ─── Read / write the record store ──────────────────────────────────────────
 
-/** Every account remembered on this station, most recent first. Never throws. */
+/**
+ * Les comptes que ce poste RÉTIENT, le plus récent d'abord — donc, avec
+ * `RETAINED_OFFLINE_ACCOUNTS = 1`, le seul compte capable d'ouvrir sans réseau.
+ *
+ * Le TRIMMING est ici et pas seulement à l'écriture : c'est ce qui rend la règle
+ * immédiate sur un poste déjà installé, dont le stockage peut encore contenir
+ * plusieurs enregistrements. Le contenu BRUT du stockage reste lisible par
+ * `store.getItem` (les suites s'en servent) ; ce que le poste acceptera, lui, est
+ * décidé ici.
+ *
+ * Never throws.
+ */
 export function listOfflineAccounts(store: OfflineStore = defaultStore()): OfflineAccount[] {
   try {
     const raw = store.getItem(STORAGE_KEY);
@@ -163,7 +198,8 @@ export function listOfflineAccounts(store: OfflineStore = defaultStore()): Offli
       Boolean(entry) && typeof entry === 'object' &&
       typeof (entry as OfflineAccount).email === 'string' &&
       typeof (entry as OfflineAccount).salt === 'string' &&
-      typeof (entry as OfflineAccount).hash === 'string');
+      typeof (entry as OfflineAccount).hash === 'string')
+      .slice(0, RETAINED_OFFLINE_ACCOUNTS);
   } catch {
     return [];
   }
@@ -171,7 +207,7 @@ export function listOfflineAccounts(store: OfflineStore = defaultStore()): Offli
 
 function saveAccounts(accounts: OfflineAccount[], store: OfflineStore): void {
   try {
-    store.setItem(STORAGE_KEY, JSON.stringify(accounts.slice(0, MAX_OFFLINE_ACCOUNTS)));
+    store.setItem(STORAGE_KEY, JSON.stringify(accounts.slice(0, RETAINED_OFFLINE_ACCOUNTS)));
   } catch {
     // Storage full / private mode — no offline sign-in on this station, and the
     // online path keeps working exactly as before.
@@ -193,6 +229,9 @@ export async function rememberOfflineAccount(
   store: OfflineStore = defaultStore(),
   iterations: number = OFFLINE_PBKDF2_ITERATIONS,
 ): Promise<OfflineAccount | null> {
+  // Un succès en ligne REMPLACE le compte retenu : c'est ce qui fait que « le
+  // dernier qui s'est connecté ici » soit vrai à chaque connexion, sans qu'aucun
+  // geste de nettoyage soit nécessaire.
   const subtle = getSubtle();
   const cryptoObj = (globalThis as { crypto?: Crypto }).crypto;
   if (!subtle || !cryptoObj || !input.password) return null;
