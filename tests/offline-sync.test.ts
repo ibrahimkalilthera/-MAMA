@@ -206,4 +206,19 @@ describe('file hors ligne : distinguer « en attente » de « refusé »', () =>
     assert.equal(getOfflineQueueCount(), 0);
     assert.equal(getOfflineQueueFailures(), 0);
   });
+
+  it('rend au journal l’instant du GESTE, pas celui du drain', async () => {
+    // Le drain est exactement le moment où cette distinction se perdrait : une
+    // entrée rejouée qui ne porterait que `now()` se lirait « faite maintenant »,
+    // et une saisie du dimanche soir basculerait dans la semaine suivante.
+    clearOfflineQueue();
+    const item = seedExpense();
+
+    const captures: string[] = [];
+    await drainOfflineQueue(makeFakeDb().db, (info, capturedAt) => {
+      if (info) captures.push(capturedAt);
+    });
+
+    assert.deepEqual(captures, [item.createdAt], 'l’instant transmis est celui du geste, jamais celui du drain');
+  });
 });
