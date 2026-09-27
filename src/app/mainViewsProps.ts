@@ -254,6 +254,7 @@ export interface MainViewsProps {
   generalExpenseCategoryFilter: string;
   generalExpenseSearch: string;
   fetchAuditLogs: () => Promise<void>;
+  fetchAuditJournalRange: (fromIso: string, toIso: string) => Promise<AuditLogEntry[]>;
   filteredStaff: Staff[];
   filteredStudents: Student[];
   formatCurrency: (amount: number) => string;
