@@ -29,7 +29,7 @@
  * so the newest due/note/payroll alert sits at the top of the dropdown.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, BellOff, CheckCircle2, CheckCheck, RotateCcw, Trash2, X } from 'lucide-react';
+import { Archive, Bell, BellOff, CheckCircle2, CheckCheck, RotateCcw, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { DashboardNotification } from '../app/useDashboard';
 import type { TranslationDict } from '../i18n/translations';
@@ -51,9 +51,11 @@ export interface NotificationsPanelProps {
   onRestoreAll: () => void;
   onOpenCalendarDate: (date: string) => void;
   onOpenPayroll: () => void;
+  /** Où le rappel d'archive mène : les Réglages → Sauvegarde. */
+  onOpenSettings: () => void;
 }
 
-export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, deletedIds, onMarkRead, onMarkAllRead, onMarkUnread, onDelete, onClearAll, onRestoreAll, onOpenCalendarDate, onOpenPayroll }: NotificationsPanelProps) {
+export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, deletedIds, onMarkRead, onMarkAllRead, onMarkUnread, onDelete, onClearAll, onRestoreAll, onOpenCalendarDate, onOpenPayroll, onOpenSettings }: NotificationsPanelProps) {
   const now = new Date();
 
   const relativeLabel = (date: string): string => {
@@ -196,9 +198,11 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                 sorted.map(n => {
                   const isRead = read.has(n.id);
                   const openStudent = () => {
-                    // Student reminders open the profile; team alerts (payroll)
-                    // jump straight to the Payroll tab.
+                    // Student reminders open the profile; the archive reminder
+                    // goes where archiving happens (Settings → Backup); other
+                    // team alerts (payroll) jump straight to the Payroll tab.
                     if (n.studentId) onOpenStudent(n.studentId);
+                    else if (n.type === 'archive') onOpenSettings();
                     else onOpenPayroll();
                     onMarkRead(n.id);
                     setOpen(false);
@@ -223,10 +227,16 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                       className={`group w-full text-left px-5 py-3.5 flex items-start gap-3 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors last:border-b-0 cursor-pointer ${
                         isRead ? 'opacity-50' : ''
                       } ${
-                        n.type === 'due' ? 'text-amber-700 dark:text-amber-300' : 'text-rose-700 dark:text-rose-300'
+                        n.type === 'due'
+                          ? 'text-amber-700 dark:text-amber-300'
+                          : n.type === 'archive'
+                            ? 'text-sky-700 dark:text-sky-300'
+                            : 'text-rose-700 dark:text-rose-300'
                       }`}
                     >
-                      <Bell size={16} className={`mt-0.5 flex-shrink-0 ${n.type === 'due' ? 'text-amber-500' : 'text-rose-500'}`} />
+                      {n.type === 'archive'
+                        ? <Archive size={16} className="mt-0.5 flex-shrink-0 text-sky-500" />
+                        : <Bell size={16} className={`mt-0.5 flex-shrink-0 ${n.type === 'due' ? 'text-amber-500' : 'text-rose-500'}`} />}
                       <span className="min-w-0 flex-1">
                         <span className="block text-xs font-bold leading-relaxed">{n.message}</span>
                         <button
