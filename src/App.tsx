@@ -27,6 +27,7 @@ import { logAuditEvent } from './lib/auditLogger';
 import { preloadSchoolStamp } from './lib/pdfStamp';
 import { useYear } from './app/yearContext';
 import { useNotificationDismissal } from './app/useNotificationDismissal';
+import { useAuditArchiveReminder } from './app/useAuditArchiveReminder';
 import { playNotificationChime } from './lib/notificationSound';
 import { findNewNotifications } from './lib/notificationWatch';
 import { useYearOps } from './app/useYearOps';
@@ -326,6 +327,17 @@ const {
   // --- Notification dismissal (read + deleted), persisted per user ---
 
   const notifUserId = auth.profile?.id ?? 'guest';
+  // Le rappel d'archive s'ajoute aux rappels du tableau de bord : il vient du
+  // journal d'audit (partagé), pas de la mémoire du poste — voir le crochet.
+  const auditArchiveReminder = useAuditArchiveReminder({
+    enabled: Boolean(auth.isAdmin),
+    fetchAuditJournalRange: supabaseData.fetchAuditJournalRange,
+    t,
+  });
+  const allNotifications = useMemo(
+    () => (auditArchiveReminder ? [...notifications, auditArchiveReminder] : notifications),
+    [notifications, auditArchiveReminder],
+  );
   const {
     readIds: readNotificationIds,
     deletedIds: deletedNotificationIds,
@@ -335,7 +347,7 @@ const {
     deleteNotification,
     clearAllNotifications,
     restoreDeletedNotifications,
-  } = useNotificationDismissal(notifUserId, notifications);
+  } = useNotificationDismissal(notifUserId, allNotifications);
 
   const openCalendarOnDate = (date: string): void => {
     // Parse as a LOCAL calendar day (never UTC midnight — month display
@@ -354,8 +366,8 @@ const {
 
   useEffect(() => {
     const prev = prevNotifIdsRef.current;
-    const fresh = findNewNotifications(prev, notifications);
-    prevNotifIdsRef.current = new Set(notifications.map(n => n.id));
+    const fresh = findNewNotifications(prev, allNotifications);
+    prevNotifIdsRef.current = new Set(allNotifications.map(n => n.id));
     // First observation (session start) never alerts.
     if (!prev || fresh.length === 0) return;
     playNotificationChime();
@@ -364,7 +376,7 @@ const {
     } else {
       toast.warning(t.newNotifications.replace('{n}', String(fresh.length)));
     }
-  }, [notifications, t, toast]);
+  }, [allNotifications, t, toast]);
 
   // Le cachet de l'école (`public/tampon.png`) est un fichier chargé à
   // l'exécution : le mettre de côté maintenant, pendant que la ligne est là,

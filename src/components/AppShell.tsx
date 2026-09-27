@@ -306,6 +306,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
           onRestoreDeletedNotifications={restoreDeletedNotifications}
   onOpenCalendarDate={openCalendarOnDate}
 onOpenPayroll={() => setActiveTab('payroll')}
+onOpenSettings={() => setActiveTab('settings')}
 />
 
         <WelcomeBanner t={t} currentUser={currentUser} />
