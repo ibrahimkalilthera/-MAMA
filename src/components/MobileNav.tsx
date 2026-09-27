@@ -36,10 +36,12 @@ export interface MobileNavProps {
   currentUser?: Pick<User, 'role'> | null;
   /** Refresh the audit log before navigating to the audit tab. */
   fetchAuditLogs?: () => void;
+  /** Une semaine du journal attend son archive — pastille sur l'onglet Réglages. */
+  auditArchivePending?: boolean;
 }
 
 export function MobileNav(props: MobileNavProps) {
-  const { t, activeTab, setActiveTab, payrollWindowStatus, onToggleLanguage, currentUser, fetchAuditLogs } = props;
+  const { t, activeTab, setActiveTab, payrollWindowStatus, onToggleLanguage, currentUser, fetchAuditLogs, auditArchivePending = false } = props;
   const isAdminDev = currentUser?.role === 'admin' || currentUser?.role === 'dev';
 
   const items: { tab: AppTab; label: string; icon: React.ReactNode }[] = [
@@ -87,6 +89,12 @@ export function MobileNav(props: MobileNavProps) {
                   <span
                     className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-rose-500 animate-badge-pulse"
                     aria-label={t.overdue}
+                  />
+                )}
+                {tab === 'settings' && auditArchivePending && (
+                  <span
+                    className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-sky-400 animate-badge-pulse"
+                    aria-label={t.auditArchiveBadge}
                   />
                 )}
               </span>

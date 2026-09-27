@@ -307,6 +307,9 @@ export const en = {
     // reminder, and its label reads like every other action.
     auditActionExportJournal: "Audit journal archived (PDF)",
     auditArchiveReminder: "The {week} week journal has not been archived as a PDF yet (Settings → Backup).",
+    // Le badge qui rend le rappel visible depuis N'IMPORTE quelle page : court,
+    // parce qu'il vit dans le menu, à côté du mot « Réglages ».
+    auditArchiveBadge: "To archive",
     exportCsv: "Export CSV",
     noAuditEntriesMatchingFilters: "No entries match the filters.",
     noAuditLogEntriesRecordedYet: "No audit log entries recorded yet.",
