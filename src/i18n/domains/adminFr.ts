@@ -437,7 +437,10 @@ export const fr = {
     resetPass: "Réinit. MDP",
     restoringSession: "Restauration de la session",
     retry: "Réessayer",
-    updateAvailable: "Version {version} disponible — téléchargement en cours…",
+    // « téléchargement en cours » a été retiré : la question précède désormais
+    // les octets (`downloadConsent`), donc cette phrase aurait menti.
+    updateAvailable: "Version {version} disponible.",
+    updateDownloadFailed: "Échec du téléchargement de la version {version} : {detail}",
     updateDownloading: "Mise à jour en cours de téléchargement ({percent} %)",
     updateReady: "Version {version} prête : redémarrer pour l'installer.",
     updateReadyManual: "Version {version} disponible : la télécharger pour l'installer.",
