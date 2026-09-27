@@ -472,6 +472,8 @@ export interface Database {
           target_id: string | null;
           details: string | null;
           created_at: string;
+          recorded_offline: boolean;
+          synced_at: string;
         };
         Insert: {
           id?: string;
@@ -484,6 +486,8 @@ export interface Database {
           target_id?: string | null;
           details?: string | null;
           created_at?: string;
+          recorded_offline?: boolean;
+          synced_at?: string;
         };
         Update: {
           id?: string;
@@ -496,6 +500,8 @@ export interface Database {
           target_id?: string | null;
           details?: string | null;
           created_at?: string;
+          recorded_offline?: boolean;
+          synced_at?: string;
         };
         Relationships: [];
       };
