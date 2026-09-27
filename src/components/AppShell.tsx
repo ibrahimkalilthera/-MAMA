@@ -471,6 +471,7 @@ onOpenSettings={() => setActiveTab('settings')}
         onReport={(state) => reportBlockedStation(state)}
         labels={{
           available: t.updateAvailable,
+          downloadFailed: t.updateDownloadFailed,
           downloading: t.updateDownloading,
           ready: t.updateReady,
           readyManual: t.updateReadyManual,
