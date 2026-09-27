@@ -45,6 +45,7 @@ const files = [
   'src/lib/pdfPayrollDraft.ts',
   'src/lib/pdfExpensesReport.ts',
   'src/lib/pdfFinancialReport.ts',
+  'src/lib/pdfAuditJournal.ts',
   'src/lib/pdfMultiYearReport.ts',
   'src/app/useParents.ts',
   'src/app/usePayroll.ts',

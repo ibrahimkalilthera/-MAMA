@@ -83,6 +83,7 @@ function Harness(props: Fixture & {
   onMarkUnread: (id: string) => void;
   onOpenCalendarDate: (date: string) => void;
   onOpenPayroll?: () => void;
+  onOpenSettings?: () => void;
   onDelete?: (id: string) => void;
   onClearAll?: () => void;
   onRestoreAll?: () => void;
@@ -103,6 +104,7 @@ function Harness(props: Fixture & {
       onRestoreAll={props.onRestoreAll ?? noop}
       onOpenCalendarDate={props.onOpenCalendarDate}
       onOpenPayroll={props.onOpenPayroll ?? noop}
+      onOpenSettings={props.onOpenSettings ?? noop}
     />
   );
 }
@@ -326,6 +328,35 @@ describe('NotificationsPanel — happy-dom render', () => {
       assert.deepEqual(opened, [], 'no student profile for a payroll alert');
       assert.deepEqual(payrollOpened, [true], 'the payroll alert opens the Payroll tab');
       assert.deepEqual(marked, ['payroll-2026-5'], 'the payroll alert is marked read');
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('an archive reminder (no student) opens Settings, never Payroll', async () => {
+    const opened: string[] = [];
+    const marked: string[] = [];
+    const payrollOpened: boolean[] = [];
+    const settingsOpened: boolean[] = [];
+    const archive: DashboardNotification = {
+      id: 'audit-archive-2026-S39', type: 'archive', message: 'Le journal de la semaine 2026-S39 n\'a pas encore été archivé en PDF (Réglages → Sauvegarde).', date: '2026-09-27',
+    };
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [archive], readIds: [], onOpenStudent: (id: string) => opened.push(id), onMarkRead: (id: string) => marked.push(id), onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {}, onOpenPayroll: () => payrollOpened.push(true), onOpenSettings: () => settingsOpened.push(true),
+        }));
+      });
+      await act(async () => { click(bell() as Element); });
+      assert.ok(q('[role="dialog"]')?.textContent?.includes(archive.message), 'the archive reminder is listed');
+
+      act(() => { click(rowWithText(archive.message) as Element); });
+      assert.deepEqual(opened, [], 'no student profile for an archive reminder');
+      assert.deepEqual(settingsOpened, [true], 'the archive reminder opens Settings → Backup');
+      assert.deepEqual(payrollOpened, [], 'and it must NOT open Payroll');
+      assert.deepEqual(marked, ['audit-archive-2026-S39'], 'the archive reminder is marked read');
     } finally {
       act(() => root.unmount());
       container.remove();
