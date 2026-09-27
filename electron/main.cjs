@@ -119,7 +119,7 @@ function setupAutoUpdater(win) {
   }
   const { autoUpdater } = require('electron-updater');
   const {
-    shouldCheck, shouldPrompt, updateAction, updatePressure,
+    shouldCheck, shouldPrompt, downloadConsent, updateAction, updatePressure,
     holdsUrlFrom, holdDecision, updateGate, gateFailure,
     CHECK_INTERVAL_MS, FOCUS_COOLDOWN_MS, RE_PROMPT_MS, FORCED_RE_PROMPT_MS,
   } = require('./updater-policy.cjs');
@@ -200,7 +200,22 @@ function setupAutoUpdater(win) {
   // NSIS) : il VÉRIFIE quand même et reçoit un lien. Rester muet serait pire que
   // ne rien pouvoir faire — l'utilisateur ne saurait jamais qu'une version existe.
   const action = updateAction({ isPortable });
-  autoUpdater.autoDownload = !isPortable;
+  // AUCUN téléchargement sans que quelqu'un l'ait voulu — ni sur un poste
+  // installé, ni sur le portable.
+  //
+  // Mesuré : « l'app ne demande pas de faire la mise à jour quand on la lance ».
+  // Avec `autoDownload = true`, 129 Mo partaient en silence et la seule question
+  // du module n'arrivait qu'à `update-downloaded` — donc après la fin du
+  // téléchargement, un instant qui peut ne jamais venir sur un lien d'école. Sur
+  // le portable (`autoDownload = false`), il ne venait JAMAIS : rien ne lançait le
+  // téléchargement, donc `update-downloaded` ne se déclenchait pas, donc la
+  // boîte de dialogue qui existait déjà pour lui était **inatteignable**. Le
+  // poste apprenait qu'une version existait et n'en parlait à personne.
+  //
+  // La décision vit dans `electron/updater-policy.cjs` (`downloadConsent`) : la
+  // question vient AVANT les octets, et le mode preuve télécharge tout de suite
+  // pour que la séquence prouvée par l'E2E reste la même.
+  autoUpdater.autoDownload = false;
 
   // État poussé à l'interface : le bandeau du renderer lit cet objet. `diverges`
   // n'existe pas ici, mais l'état d'une mise à jour, lui, doit se voir même si
@@ -263,6 +278,10 @@ function setupAutoUpdater(win) {
 
   let lastCheckAt = null;
   let lastPromptAt = null;
+  // La question du téléchargement a sa propre horloge : « télécharger 129 Mo »
+  // et « redémarrer maintenant » sont deux consentements distincts, et reporter
+  // l'un ne doit pas taire l'autre.
+  let lastDownloadPromptAt = null;
   // Le retard de CE poste, recalculé dès qu'une version est annoncée. Il vit à
   // part de l'état poussé à l'interface : l'interface a besoin de le MONTRER
   // (et de bloquer tant qu'il est obligatoire), le main a besoin de le décider.
@@ -317,6 +336,8 @@ function setupAutoUpdater(win) {
     // l'installeur NSIS) : obligé et portable, c'est un blocage par construction,
     // et il faut une main humaine — donc on le dit tout de suite.
     reportBlocked({ forced: gate.forced, version: i.version });
+    // La question, MAINTENANT — pas après 129 Mo, et pas jamais sur le portable.
+    void askToDownload({ version: i.version });
   });
   autoUpdater.on('update-not-available', () => {
     broadcast({ status: 'current', version: app.getVersion() });
@@ -375,6 +396,15 @@ function setupAutoUpdater(win) {
     broadcast({ status: 'error', detail });
     log(`error ${detail}`);
     void reportFailure({ detail, version: state.version ?? null });
+    // Une question posée puis un téléchargement en échec doit REVENIR — mais
+    // seulement quand la porte est fermée : une obligation ne se reporte pas,
+    // donc elle se rappelle. Hors obligation, la boîte qui reviendrait toutes
+    // les 15 min serait du harcèlement là où le bandeau, lui, reste à l'écran
+    // avec un bouton « Réessayer » ; c'est lui qui porte ce cas-là.
+    const announced = state.version;
+    if (announced && pressure.forced) {
+      setTimeout(() => { void askToDownload({ version: announced }); }, FORCED_RE_PROMPT_MS).unref?.();
+    }
   });
   autoUpdater.on('download-progress', (p) => {
     broadcast({ status: 'downloading', percent: Math.round(p.percent) });
@@ -402,6 +432,95 @@ function setupAutoUpdater(win) {
     if (process.env.UPDATER_LOG_FILE) return; // proof mode — E2E reads the log
     await askToInstall(i);
   });
+
+  /**
+   * Demander, DÈS l'annonce, s'il faut télécharger — et pour le portable, où.
+   *
+   * Pendant de `askToInstall`, qui reste la question d'installation. Les deux
+   * existent parce que ce sont deux consentements distincts : vouloir 129 Mo sur
+   * le lien de l'école, puis vouloir perdre une minute à redémarrer.
+   *
+   * Le frein et les octets menteurs sont relus ICI comme partout ailleurs : une
+   * version retenue ne se demande pas, même depuis un rappel déjà programmé.
+   */
+  async function askToDownload(info) {
+    if (heldVersion === info.version) {
+      log(`téléchargement non demandé — ${info.version} est retenue`);
+      return;
+    }
+    if (refusedVersion === info.version) {
+      log(`téléchargement non demandé — les octets de ${info.version} ne répondent pas au flux`);
+      return;
+    }
+    const consent = downloadConsent({
+      announced: true,
+      proofMode: Boolean(process.env.UPDATER_LOG_FILE),
+      portable: isPortable,
+    });
+    // Mode preuve : personne devant l'écran, et l'E2E lit le journal — on
+    // télécharge tout de suite, sans modale, pour que la séquence prouvée
+    // (`checking-for-update` → `update-available` → `download-progress` →
+    // `update-downloaded`) reste exactement la même.
+    if (consent.kind === 'auto') {
+      log(`téléchargement lancé — ${consent.detail}`);
+      autoUpdater.downloadUpdate().catch((e) => log(`téléchargement refusé ${(e && e.message) || e}`));
+      return;
+    }
+    const forced = pressure.forced;
+    const reinvite = forced ? FORCED_RE_PROMPT_MS : RE_PROMPT_MS;
+    // `downloaded` vaut ici « il y a quelque chose à proposer », pas « les octets
+    // sont là » : la cadence du report est la même pour les deux questions.
+    const verdict = shouldPrompt({
+      downloaded: true,
+      lastPromptAt: lastDownloadPromptAt,
+      nowMs: Date.now(),
+      rePromptMs: reinvite,
+      forced,
+    });
+    if (!verdict.prompt) {
+      const waitMs = Math.max(1000, reinvite - (Date.now() - (lastDownloadPromptAt || Date.now())));
+      setTimeout(() => { void askToDownload(info); }, waitMs).unref?.();
+      return;
+    }
+    lastDownloadPromptAt = Date.now();
+    log(`question de téléchargement — ${verdict.reason} (${consent.kind})`);
+    if (consent.kind === 'open-download') {
+      const { response } = await dialog.showMessageBox(win, {
+        type: 'info',
+        title: forced ? 'Mise à jour obligatoire' : 'Mise à jour disponible',
+        message: `La version ${info.version} est disponible.`,
+        detail: forced
+          ? `Mise à jour obligatoire : ${pressure.detail}. ${consent.detail}`
+          : consent.detail,
+        buttons: forced ? ['Ouvrir la page de téléchargement'] : ['Ouvrir la page de téléchargement', 'Plus tard'],
+        defaultId: 0,
+        ...(forced ? {} : { cancelId: 1 }),
+      });
+      if (response === 0) shell.openExternal(RELEASES_URL);
+      else setTimeout(() => { void askToDownload(info); }, reinvite).unref?.();
+      return;
+    }
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'info',
+      title: forced ? 'Mise à jour obligatoire' : 'Mise à jour disponible',
+      message: forced
+        ? `Mise à jour obligatoire : vous êtes en ${app.getVersion()}, la version ${info.version} doit être installée.`
+        : `La version ${info.version} est disponible.`,
+      detail: forced
+        ? `Retard constaté : ${pressure.detail}. Le téléchargement puis l'installation suivent.`
+        : 'Télécharger la mise à jour maintenant ? L’installation sera proposée ensuite.',
+      buttons: forced ? ['Télécharger maintenant'] : ['Télécharger et installer', 'Plus tard'],
+      defaultId: 0,
+      ...(forced ? {} : { cancelId: 1 }),
+    });
+    if (response === 0) {
+      log(`téléchargement accepté ${info.version}`);
+      autoUpdater.downloadUpdate().catch((e) => log(`téléchargement refusé ${(e && e.message) || e}`));
+    } else {
+      log(`téléchargement reporté ${info.version}`);
+      setTimeout(() => { void askToDownload(info); }, reinvite).unref?.();
+    }
+  }
 
   /**
    * Pose la question — et la repose. « Plus tard » reporte, il ne refuse pas.
@@ -500,7 +619,13 @@ function setupAutoUpdater(win) {
     // L'interface peut relancer une vérification : une mise à jour obligatoire
     // dont le téléchargement a échoué doit offrir un remède, sinon la seule
     // issue serait d'attendre l'intervalle suivant — ou de fermer l'application.
+    //
+    // Le geste REMET AUSSI les deux questions à zéro. C'est un clic derrière une
+    // porte fermée ou un « Réessayer » : faire attendre le report en cours ferait
+    // d'un remède un bouton qui ne répond pas.
     ipcMain.handle('updates:check-now', async () => {
+      lastDownloadPromptAt = null;
+      lastPromptAt = null;
       await autoUpdater.checkForUpdates().catch((e) => log(`check-failed ${(e && e.message) || e}`));
       return state;
     });
@@ -550,11 +675,19 @@ function setupAutoUpdater(win) {
       // Le portable n'a jamais « rien de téléchargé » : sa seule action possible
       // est la page de téléchargement, et l'y renvoyer est le geste attendu —
       // surtout quand la mise à jour est obligatoire et qu'il n'a rien d'autre.
-      if (!isPortable && state.status !== 'downloaded') return { ok: false, reason: 'aucune mise à jour prête' };
       if (isPortable) {
         shell.openExternal(RELEASES_URL);
         return { ok: true, action: 'open-download' };
       }
+      // Une version ANNONCÉE mais pas encore téléchargée : le bouton doit
+      // télécharger, pas répondre « aucune mise à jour prête ». C'est le seul
+      // chemin qui reste au poste dont la question a été fermée puis oubliée.
+      if (state.version && state.status !== 'downloaded') {
+        log(`téléchargement demandé depuis l'interface ${state.version}`);
+        await autoUpdater.downloadUpdate().catch((e) => log(`téléchargement refusé ${(e && e.message) || e}`));
+        return { ok: true, action: 'download' };
+      }
+      if (state.status !== 'downloaded') return { ok: false, reason: 'aucune mise à jour prête' };
       try { fs.writeFileSync(installPendingFlag(), `${new Date().toISOString()}\n`); } catch { /* best-effort */ }
       autoUpdater.quitAndInstall();
       return { ok: true, action: 'restart' };
