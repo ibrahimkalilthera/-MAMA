@@ -124,6 +124,8 @@ function mapAuditLogRow(row: DbRow<'audit_logs'>): AuditLogEntry {
     targetId: row.target_id ?? '',
     details: row.details ?? '',
     createdAt: row.created_at,
+    recordedOffline: Boolean(row.recorded_offline),
+    syncedAt: row.synced_at,
   };
 }
 
@@ -446,8 +448,11 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
       // behaviour is unit-tested in tests/offline-sync.test.ts.
       // Replayed offline mutations are audited too (the queue drain is where
       // they materialize in the DB), with the [replay] tag in details.
-      syncedCount = await drainOfflineQueue(supabase, (info) => {
-        if (info) void logAuditEvent(info);
+      // `capturedAt` est l'instant du GESTE : sans lui, l'entrée rejouée
+      // porterait l'heure de la reconnexion et la semaine d'archive serait
+      // celle du câble — la faute que ce chemin répare (voir auditOffline.ts).
+      syncedCount = await drainOfflineQueue(supabase, (info, capturedAt) => {
+        if (info) void logAuditEvent({ ...info, offlineCaptureAt: capturedAt });
       });
     } finally {
       updateQueueCount();
