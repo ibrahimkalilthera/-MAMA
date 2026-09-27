@@ -207,6 +207,56 @@ function updatePressure({
 }
 
 /**
+ * ─── La question vient AVANT le téléchargement ────────────────────────────
+ *
+ * Mesuré sur un poste : « l'app ne demande pas de faire la mise à jour quand on
+ * la lance ». La cause n'est pas la cadence (elle est réglée plus haut) mais
+ * l'ORDRE : `autoDownload = true` faisait télécharger 129 Mo en silence, et la
+ * seule question de tout le module n'était posée qu'à `update-downloaded` — donc
+ * après la fin du téléchargement. Sur un lien d'école, cet instant peut ne jamais
+ * venir avant que l'application soit fermée ; et sur un poste **portable**, il ne
+ * vient JAMAIS : `autoDownload` y valait `false` (l'installation automatique
+ * exige l'installeur NSIS), rien ne lançait le téléchargement, donc
+ * `update-downloaded` ne se déclenchait pas et la boîte de dialogue qui existait
+ * déjà pour le portable était **inatteignable**. Le poste apprenait l'existence
+ * d'une version et n'en parlait à personne.
+ *
+ * Ce module rend donc la décision qui manquait : faut-il DEMANDER maintenant,
+ * dès qu'une version est annoncée ? Trois réponses, et chacune a sa raison :
+ *   • **installé** — la question précède le téléchargement. On ne consomme pas
+ *     129 Mo sur un lien d'école sans que quelqu'un l'ait voulu ;
+ *   • **portable** — la question mène à la page de téléchargement, parce que
+ *     c'est la seule chose que ce poste peut faire ; il est enfin prévenu ;
+ *   • **mode preuve** (`UPDATER_LOG_FILE`) — aucune modale, téléchargement
+ *     direct : c'est ce qui permet à l'E2E de jouer les sept passes sans
+ *     personne devant l'écran, et il lit le journal, pas une fenêtre.
+ *
+ * Ce que la fonction ne fait pas : décider si la version est livrable (c'est
+ * `updateGate`), ni si le poste est en retard (c'est `updatePressure`).
+ *
+ * @param {{ announced?: boolean, proofMode?: boolean, portable?: boolean }} input
+ * @returns {{ ask: boolean, kind: 'download' | 'open-download' | 'auto' | 'none', detail: string }}
+ */
+function downloadConsent({ announced = false, proofMode = false, portable = false } = {}) {
+  if (!announced) return { ask: false, kind: 'none', detail: 'aucune version annoncée — il n’y a rien à demander' };
+  if (proofMode) {
+    return {
+      ask: false,
+      kind: 'auto',
+      detail: 'mode preuve : téléchargement direct, aucune modale (l’E2E lit le journal du poste)',
+    };
+  }
+  if (portable) {
+    return {
+      ask: true,
+      kind: 'open-download',
+      detail: 'version portable : la question mène à la page de téléchargement (l’installation automatique exige l’installeur NSIS)',
+    };
+  }
+  return { ask: true, kind: 'download', detail: 'poste installé : la question précède le téléchargement' };
+}
+
+/**
  * Que peut faire une installation pour appliquer la mise à jour ?
  *
  * Le portable ne peut pas s'auto-installer : electron-updater a besoin de
@@ -425,6 +475,7 @@ module.exports = {
   parseVersion,
   shouldCheck,
   shouldPrompt,
+  downloadConsent,
   updatePressure,
   updateAction,
   holdsUrlFrom,

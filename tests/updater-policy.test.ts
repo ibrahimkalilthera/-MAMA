@@ -30,6 +30,7 @@ const {
   parseVersion,
   shouldCheck,
   shouldPrompt,
+  downloadConsent,
   updatePressure,
   updateAction,
   holdsUrlFrom,
@@ -56,6 +57,7 @@ const {
     detail: string;
   };
   updateAction: (i?: Record<string, unknown>) => { action: string; detail: string };
+  downloadConsent: (i?: Record<string, unknown>) => { ask: boolean; kind: string; detail: string };
   holdsUrlFrom: (i?: Record<string, unknown>) => string | null;
   gateFailure: (i?: Record<string, unknown>) => { blocked: boolean; code: string; detail: string };
   holdDecision: (i?: Record<string, unknown>) => {
@@ -442,6 +444,58 @@ describe('les octets qui ne répondent pas au flux sont une cause À PART', () =
   it('un échec ordinaire reste un échec de téléchargement', () => {
     const v = gateFailure({ forced: true, status: 'error', detail: 'net::ERR_CONNECTION_RESET' });
     assert.equal(v.code, 'download');
+  });
+
+  it('le téléchargement ne part jamais tout seul : la question vient AVANT les octets', () => {
+    // Le défaut mesuré : « l'app ne demande pas de faire la mise à jour quand on
+    // la lance ». La question n'était posée qu'à `update-downloaded`, donc après
+    // 129 Mo — et sur un portable, jamais.
+    const asked = downloadConsent({ announced: true });
+    assert.equal(asked.ask, true, 'un poste installé doit être prévenu tout de suite');
+    assert.equal(asked.kind, 'download');
+
+    const nothing = downloadConsent({ announced: false });
+    assert.equal(nothing.ask, false, 'sans version annoncée, il n’y a rien à demander');
+    assert.equal(nothing.kind, 'none');
+  });
+
+  it('le portable reçoit enfin sa question, et elle mène à la page de téléchargement', () => {
+    // Il ne pouvait PAS la recevoir : `autoDownload = false` chez lui, donc rien
+    // ne lançait le téléchargement, donc `update-downloaded` n'arrivait jamais —
+    // et la boîte de dialogue qui existait déjà pour lui était inatteignable.
+    const portable = downloadConsent({ announced: true, portable: true });
+    assert.equal(portable.ask, true, 'un portable doit apprendre qu’une version existe — bruyamment');
+    assert.equal(portable.kind, 'open-download');
+    assert.match(portable.detail, /NSIS/, 'le pourquoi reste écrit : electron-updater s’installe par NSIS');
+  });
+
+  it('le mode preuve télécharge sans modale — la séquence de l’E2E est préservée', () => {
+    const proof = downloadConsent({ announced: true, proofMode: true, portable: true });
+    assert.equal(proof.ask, false, 'personne n’est devant l’écran pendant l’E2E');
+    assert.equal(proof.kind, 'auto', 'le téléchargement part quand même, pour que le journal reste le même');
+  });
+
+  it('le main n’a plus AUCUN téléchargement implicite, et demande dès l’annonce', () => {
+    const main = read('electron/main.cjs');
+    assert.match(main, /autoUpdater\.autoDownload = false/, 'les octets ne partent pas avant la réponse');
+    assert.doesNotMatch(main, /autoDownload = !isPortable/, 'l’ancienne règle faisait du portable le seul poste jamais prévenu');
+    assert.match(
+      main,
+      /reportBlocked\(\{ forced: gate\.forced, version: i\.version \}\);\s*\/\/[^\n]*\n\s*void askToDownload\(\{ version: i\.version \}\)/,
+      'la question doit être posée dans `update-available`, pas après le téléchargement',
+    );
+    assert.match(main, /downloadConsent\(/, 'la décision vient de la politique, jamais du processus principal');
+    // Deux consentements distincts : « télécharger 129 Mo » et « redémarrer ».
+    assert.match(main, /let lastDownloadPromptAt = null/);
+    assert.match(main, /void askToDownload\(\{ version: announced \}\)/, 'une obligation se rappelle après un échec');
+  });
+
+  it('le bouton d’installation déclenche aussi le téléchargement quand rien n’est encore là', () => {
+    const main = read('electron/main.cjs');
+    // Sinon il répondait « aucune mise à jour prête » à qui venait de demander
+    // la mise à jour — un bouton qui ne fait rien est le silence, autrement.
+    assert.match(main, /state\.version && state\.status !== 'downloaded'/);
+    assert.match(main, /action: 'download'/);
   });
 
   it('le poste REFUSE ces octets sur chaque chemin qui mène à l’installation', () => {
