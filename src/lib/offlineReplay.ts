@@ -363,6 +363,12 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
   } else if (item.type === 'addAuditLog') {
     // L'entrée de journal écrite pendant la coupure : elle part telle quelle,
     // avec l'acteur FIGÉ au moment du geste (voir QueuedAuditEntry).
+    //
+    // `created_at` est celui du GESTE, pas celui du câble retrouvé : c'est lui
+    // qui décide de la semaine d'archive, et un geste du dimanche soir écrit le
+    // lundi matin ne doit pas changer de semaine. `recorded_offline` le DIT, au
+    // lieu de le laisser deviner (l'écran et le PDF lisent ce drapeau pour
+    // écrire la ligne en rouge).
     const { error } = await db.from('audit_logs').insert({
       user_id: item.payload.userId || null,
       user_email: item.payload.userEmail || 'system',
@@ -372,6 +378,8 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       target_type: item.payload.targetType || null,
       target_id: item.payload.targetId || null,
       details: item.payload.details || null,
+      created_at: item.createdAt,
+      recorded_offline: true,
     });
     if (!error) success = true;
   }
