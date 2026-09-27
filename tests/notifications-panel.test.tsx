@@ -16,6 +16,7 @@ import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { DashboardNotification } from '../src/app/useDashboard';
 import { NotificationsPanel } from '../src/components/NotificationsPanel';
+import { isAuditArchiveAnchor } from '../src/lib/settingsAnchor';
 import { installDomGlobals } from './harness';
 
 const t = translations.fr as TranslationDict;
@@ -352,14 +353,21 @@ describe('NotificationsPanel — happy-dom render', () => {
       await act(async () => { click(bell() as Element); });
       assert.ok(q('[role="dialog"]')?.textContent?.includes(archive.message), 'the archive reminder is listed');
 
+      win.location.hash = '';
       act(() => { click(rowWithText(archive.message) as Element); });
       assert.deepEqual(opened, [], 'no student profile for an archive reminder');
       assert.deepEqual(settingsOpened, [true], 'the archive reminder opens Settings → Backup');
       assert.deepEqual(payrollOpened, [], 'and it must NOT open Payroll');
       assert.deepEqual(marked, ['audit-archive-2026-S39'], 'the archive reminder is marked read');
+      assert.equal(
+        isAuditArchiveAnchor(win.location.hash),
+        true,
+        'l’ancre profonde est posée AVANT d’ouvrir les Réglages — la carte s’y désigne elle-même',
+      );
     } finally {
       act(() => root.unmount());
       container.remove();
+      win.location.hash = '';
     }
   });
 

@@ -1,3 +1,19 @@
+## [2026-09-27] La carte du journal d'audit devient impossible à manquer — et le rappel qui n'atteignait pas la cloche
+
+Demande : « Rends la carte d'export du journal d'audit impossible à manquer pour un compte dev : titre d'onglet, ancre profonde ou rappel, sans la sortir des Réglages. »
+
+**Le rappel existait, et personne ne pouvait le voir.** `useAuditArchiveReminder` calcule bien la notification de cloche, et `App.tsx` la fusionne dans `allNotifications`. Mais ce que la cloche **affiche** vient de la liste passée au shell — et `buildShellProps` la recevait du spread `...dashboardData`, donc **sans** le rappel. `allNotifications` n'alimentait que le marquage lu et le carillon : le rappel sonnait dans le vide, et tout le reste était vert. Le câblage est corrigé à la source (`notifications: allNotifications`), et un **scan de source** le retient — le domaine n'avait aucun test capable de voir ce fil coupé, tout étant « vrai » de chaque côté.
+
+**Un rappel qu'on peut manquer n'est pas un rappel.** Trois chemins mènent désormais à la carte, et aucun ne la sort des Réglages :
+
+- **le badge**, sur l'onglet Réglages du menu latéral et sur la barre mobile — les deux seuls éléments visibles depuis **n'importe quelle page**. Il s'allume quand une semaine attend son PDF et s'éteint avec elle (même source que le rappel) ;
+- **l'ancre profonde** `#audit-archive` (`src/lib/settingsAnchor.ts`) : le clic sur le rappel la pose AVANT d'ouvrir les Réglages, la carte se **défile jusqu'à elle** et se coiffe d'un halo. Le fragment est **consommé** — effacé dès qu'il est lu — parce qu'un repère qui crie à chaque visite ne repère plus rien. La lecture est pure (`isAuditArchiveAnchor`, testée chaîne par chaîne), seuls les deux gestes touchent au DOM ;
+- **l'ordre** : la carte passe en **premier** élément de la section « Sauvegarde », juste sous son titre. Un geste de fin de semaine rangé sous une carte d'export remplie se manque ; le titre, le badge et l'ancre disent maintenant tous les trois la même chose.
+
+Le libellé du badge vit dans les deux langues (`auditArchiveBadge`, parité 1164 clés vérifiée).
+
+**Mesuré** : `tests/settings-anchor.test.ts` (lecture pure + pose/consommation/effacement), `tests/sidebar-archive-badge.test.tsx` (le badge apparaît **et** disparaît), un cas mobile dans `tests/mobile-nav.test.tsx`, un cas d'ancre dans `tests/notifications-panel.test.tsx`, et le scan de livraison dans `tests/audit-archive.test.ts`. `tsc --noEmit` propre, budget de lignes respecté (`SettingsView.tsx` réordonné à nombre de lignes constant — il est à 700/700), `l10n-verify` vert.
+
 ## [2026-09-27] La 1.0.19 part au parc : le journal s'archive par semaine, la cloche le rappelle, non signée
 
 Demande : « mets l'app à jour, puis publie et release la nouvelle version avec les modifications ».

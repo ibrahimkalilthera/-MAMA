@@ -35,6 +35,7 @@ import type { DashboardNotification } from '../app/useDashboard';
 import type { TranslationDict } from '../i18n/translations';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { relativeDateLabel } from '../lib/relativeDate';
+import { requestAuditArchiveAnchor } from '../lib/settingsAnchor';
 
 export interface NotificationsPanelProps {
   notifications: DashboardNotification[];
@@ -202,8 +203,13 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                     // goes where archiving happens (Settings → Backup); other
                     // team alerts (payroll) jump straight to the Payroll tab.
                     if (n.studentId) onOpenStudent(n.studentId);
-                    else if (n.type === 'archive') onOpenSettings();
-                    else onOpenPayroll();
+                    else if (n.type === 'archive') {
+                      // L'ancre est posée AVANT d'ouvrir les Réglages : la carte
+                      // s'y désigne elle-même (défilement + halo), au lieu de
+                      // laisser l'administrateur chercher dans une page longue.
+                      requestAuditArchiveAnchor();
+                      onOpenSettings();
+                    } else onOpenPayroll();
                     onMarkRead(n.id);
                     setOpen(false);
                   };
