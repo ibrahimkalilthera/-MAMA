@@ -283,3 +283,37 @@ describe('offline replay audit mapping (offlineAuditInfo)', () => {
     });
   }
 });
+
+// ─── L'ORIGINE d'une entrée de journal écrite hors ligne ───────────────────
+// Le défaut mesuré : `created_at` a un défaut `now()`, donc un geste du dimanche
+// 22 h 50 écrit le lundi 8 h 05 se lisait « fait le lundi » — et il changeait de
+// semaine dans l'archive. Le rejeu doit donc envoyer l'instant du GESTE et dire
+// qu'il vient d'un poste coupé, sans quoi ni l'écran ni le PDF ne peuvent le
+// savoir (voir src/lib/auditOffline.ts).
+
+describe('origine hors ligne de l’entrée de journal', () => {
+  const offlineItem = (): QueueItem => ({
+    ...itemOf('addAuditLog', {
+      userId: 'u1',
+      userEmail: 'a@b.c',
+      userName: 'Ada',
+      userRole: 'admin',
+      action: 'UPDATE_SETTINGS',
+      targetType: 'settings',
+      targetId: null,
+      details: 'thème',
+    }),
+    createdAt: '2026-09-27T22:50:00.000Z',
+  });
+
+  it('rejoue avec l’instant du GESTE et le drapeau hors ligne', async () => {
+    const { db, rows } = makeFakeDb();
+    const ok = await replayOfflineItem(db, offlineItem());
+
+    assert.equal(ok, true);
+    const insert = rows.find((r) => r.table === 'audit_logs');
+    assert.ok(insert, 'l’entrée part vers audit_logs');
+    assert.equal(insert.row.created_at, '2026-09-27T22:50:00.000Z', 'la date est celle du geste, pas celle du câble');
+    assert.equal(insert.row.recorded_offline, true, 'le drapeau qui rend la ligne rouge');
+  });
+});
