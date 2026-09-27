@@ -306,6 +306,14 @@ export const fr = {
     auditWeeklyJournalPdfEntries: "Entrées",
     auditWeeklyJournalPdfIncidents: "Incidents groupés",
     auditWeeklyJournalPdfActors: "Comptes actifs",
+    // ─── Les saisies HORS LIGNE (écran d'audit + PDF) ─────────────────────────
+    // Un geste fait sans réseau n'atteint la base qu'au retour du câble : la
+    // ligne se lit en rouge, et elle dit ses DEUX dates — celle du geste (qui
+    // décide de la semaine d'archive) et celle de l'écriture.
+    auditWeeklyJournalPdfOffline: "Saisies hors ligne",
+    auditOfflineBadge: "Hors ligne",
+    auditOfflineRowCaptured: "saisi hors ligne le {at}",
+    auditOfflineRowSynced: "synchronisé le {at}",
     // ─── Le rappel d'archive (cloche) ─────────────────────────────────────────
     // L'archive s'inscrit ELLE-MÊME dans le journal : c'est cette entrée-là qui
     // éteint le rappel, et son libellé se lit comme les autres actions.
