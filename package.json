@@ -75,7 +75,7 @@
     "electron-updater": "^6.8.9",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.43.0",
-    "motion": "^13.2.0",
+    "motion": "^13.3.0",
     "pdf-lib": "^1.17.1",
     "react": "^19.0.0",
     "react-dom": "^19.2.8",
