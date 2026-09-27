@@ -1,3 +1,15 @@
+## [2026-09-27] La 1.0.19 part au parc : le journal s'archive par semaine, la cloche le rappelle, non signée
+
+Demande : « mets l'app à jour, puis publie et release la nouvelle version avec les modifications ».
+
+**Pourquoi un numéro, et pas seulement des commits.** Un poste installé ne lit pas le site, il lit le canal de mise à jour : la 1.0.18 que ce canal sert ne connaît ni l'archive hebdomadaire du journal d'audit, ni le rappel de la cloche, ni la veille d'origine réparée. Tant que le numéro ne monte pas, ce travail reste dans `main` et n'atteint **aucune école**. Monter la version est le seul geste humain de la publication : la chaîne qualité de `main` déclenche ensuite le publieur, qui construit, contrôle les octets téléversés contre `latest.yml`, promeut, puis relit le canal vivant.
+
+**Ce que la 1.0.19 porte**, mesuré par la suite : l'archive du journal d'audit par semaine ISO en PDF depuis **Réglages → Sauvegarde** — les octets venant d'une requête bornée par la semaine, jamais des cent dernières entrées, donc une semaine chargée ne peut pas être tronquée en silence ; le **rappel de la cloche** quand la semaine précédente n'est pas archivée, prouvé par le journal lui-même (l'archive s'y inscrit) et éteint pour qui ne peut pas agir ; et la veille de l'origine publique, qui ne lit plus un refus d'adresse machine comme un lien mort.
+
+**Mêmes conditions de signature que la 1.0.18 : non signée.** La variable de dépôt `SIGNING_ENABLED` n'est pas `true`, donc le publieur construit **sans** certificat, ne promet aucun `publisherName`, et `electron-updater` juge les octets par le sha512 du flux. Le prix reste l'avertissement SmartScreen ; ce qui est préservé, c'est la capacité du parc à se mettre à jour tout seul — signer avec un certificat de test graverait un signataire que Windows n'approuve que sur la machine qui l'a créé (le gel mesuré des 1.0.6–1.0.8), et `npm run check:updater-trust` refuse ce contrat quel que soit l'endroit d'où l'on publie.
+
+**Gates locaux avant l'envoi** : `check:release:tag` (v1.0.19 inédit — la 1.0.18, elle, est refusée : « un même numéro ne peut pas changer de contenu »), `check:release:needed` (needed=true), suite complète **2150/2150**, `tsc --noEmit` propre, `npm run lint` vert (29 contrôles), `npm run build` OK.
+
 ## [2026-09-27] « Public origin watch » était rouge pour un refus d'adresse MACHINE, pas pour un lien mort
 
 Demande : « répare public origin watch ». Cinq runs rouges de suite (2026-09-22 → 09-26), tous sur le MÊME lien, et la cause n'était lisible nulle part : les journaux de run et les annotations exigent un jeton, et le quota anonyme de l'API depuis cette IP était épuisé.
