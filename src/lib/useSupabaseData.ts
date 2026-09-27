@@ -105,6 +105,28 @@ export interface SupabaseDataOptions {
 /** How long a burst of local changes is gathered before the snapshot is written. */
 const SNAPSHOT_DEBOUNCE_MS = 1200;
 
+/**
+ * Une ligne `audit_logs` → l'entrée que l'application lit — un seul lecteur.
+ *
+ * L'écran de journal et la fenêtre hebdomadaire lisent la MÊME table : deux
+ * projections écrites à la main divergeraient au premier champ ajouté, et le
+ * PDF d'archive montrerait un autre journal que l'écran qui l'a produit.
+ */
+function mapAuditLogRow(row: DbRow<'audit_logs'>): AuditLogEntry {
+  return {
+    id: row.id,
+    userId: row.user_id ?? '',
+    userEmail: row.user_email ?? '',
+    userName: row.user_name ?? '',
+    userRole: row.user_role ?? '',
+    action: row.action,
+    targetType: row.target_type ?? '',
+    targetId: row.target_id ?? '',
+    details: row.details ?? '',
+    createdAt: row.created_at,
+  };
+}
+
 export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: SupabaseDataOptions) {
   const [parents, setParents] = useState<Parent[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -157,18 +179,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
       }
 
       if (data) {
-        const mapped: AuditLogEntry[] = data.map((row: DbRow<'audit_logs'>) => ({
-          id: row.id,
-          userId: row.user_id ?? '',
-          userEmail: row.user_email ?? '',
-          userName: row.user_name ?? '',
-          userRole: row.user_role ?? '',
-          action: row.action,
-          targetType: row.target_type ?? '',
-          targetId: row.target_id ?? '',
-          details: row.details ?? '',
-          createdAt: row.created_at,
-        }));
+        const mapped: AuditLogEntry[] = data.map((row: DbRow<'audit_logs'>) => mapAuditLogRow(row));
         auditBaseRef.current = mapped;
         if (userId) writeAuditJournalCache(userId, mapped);
         composeAuditLogs();
@@ -179,6 +190,51 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
       composeAuditLogs();
     }
   }, [composeAuditLogs]);
+
+  /**
+   * Le journal d'une FENÊTRE de dates — ce qu'une archive hebdomadaire doit lire.
+   *
+   * `fetchAuditLogs` charge les cent dernières entrées : suffisant à l'écran, qui
+   * les fait défiler, mais pas à un PDF qui prétend être « le journal de la
+   * semaine 39 ». Une semaine chargée dépasserait le plafond, et le document
+   * oublierait son début SANS le dire. La requête est donc bornée par les dates
+   * de la semaine, jamais par un compte.
+   *
+   * Hors ligne, la même fenêtre se lit sur le poste (les gestes encore en file,
+   * puis le cache) : l'archive d'une semaine se prépare le dimanche soir, réseau
+   * ou pas. Une réponse refusée retombe sur ce même journal local plutôt que sur
+   * une liste vide, qui se lirait « l'école n'a rien fait ».
+   */
+  const fetchAuditJournalRange = useCallback(async (fromIso: string, toIso: string): Promise<AuditLogEntry[]> => {
+    const from = Date.parse(fromIso);
+    const to = Date.parse(toIso);
+    // Une fenêtre illisible n'est pas « tout » ni « rien » : on le dit par une
+    // liste vide plutôt que de charger la base entière sous une étiquette fausse.
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return [];
+    const inRange = (entry: AuditLogEntry): boolean => {
+      const ms = Date.parse(String(entry.createdAt ?? ''));
+      return Number.isFinite(ms) && ms >= from && ms <= to;
+    };
+    const userId = userIdRef.current;
+    const readLocal = (): AuditLogEntry[] => [
+      ...pendingAuditEntries(actorRef.current).filter(inRange),
+      ...(userId ? readAuditJournalCache(userId) : []).filter(inRange),
+    ];
+    if (isStationOffline()) return readLocal();
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .gte('created_at', fromIso)
+        .lte('created_at', toIso)
+        .order('created_at', { ascending: false });
+      if (error || !data) return readLocal();
+      return data.map((row: DbRow<'audit_logs'>) => mapAuditLogRow(row));
+    } catch (err) {
+      console.warn('fetchAuditJournalRange exception:', err);
+      return readLocal();
+    }
+  }, []);
 
   // Stable (useCallback) parce que le drainage de la file en dépend : sans cela
   // le crochet se recréerait à chaque rendu, et avec lui l'écouteur « online ».
@@ -576,6 +632,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
     // Actions
     fetchAll,
     fetchAuditLogs,
+    fetchAuditJournalRange,
     syncOfflineQueue,
     addCustomClass,
     updateCustomClass,

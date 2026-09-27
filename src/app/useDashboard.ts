@@ -21,7 +21,8 @@ import { isPayrollWindowOpen, isPayrollWindowOverdue } from '../lib/payrollWindo
 
 export interface DashboardNotification {
   id: string;
-  type: 'due' | 'note' | 'payroll';
+  /** `archive` = le rappel du journal hebdomadaire (voir useAuditArchiveReminder). */
+  type: 'due' | 'note' | 'payroll' | 'archive';
   message: string;
   /** Present for student reminders; absent for team-wide alerts (payroll). */
   studentId?: string;
