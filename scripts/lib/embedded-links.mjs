@@ -46,10 +46,13 @@ const THIRD_PARTY_REFUSALS_ARE_NOT_OURS = (status) => Number(status) >= 400;
 
 /**
  * @param {{ link: { id: string, url: string, kind: string, where?: string, why?: string },
- *   status?: number|null, finalUrl?: string, error?: string|null, body?: string }} input
+ *   status?: number|null, finalUrl?: string, error?: string|null, body?: string,
+ *   apiProof?: { ok: boolean, tag?: string, error?: string }|null }} input
+ *   `apiProof` n'est renseigné que pour une `release-page` refusée à une lecture
+ *   ANONYME : c'est ce que la deuxième question a répondu (voir plus bas).
  * @returns {{ ok: boolean, problems: string[], warnings: string[], detail: string }}
  */
-export function embeddedLinkVerdict({ link, status = null, finalUrl = '', error = null, body = '' } = {}) {
+export function embeddedLinkVerdict({ link, status = null, finalUrl = '', error = null, body = '', apiProof = null } = {}) {
   const problems = [];
   const warnings = [];
   const id = String(link?.id ?? '');
@@ -76,11 +79,43 @@ export function embeddedLinkVerdict({ link, status = null, finalUrl = '', error 
     // 1. La page existe-t-elle ? Un 404 est le cas mesuré d'un dépôt supprimé,
     //    renommé ou rendu privé : le geste « reprendre une version » disparaît,
     //    et il ne reste alors aucune porte de sortie à un poste portable.
+    //
+    //    MAIS un 404 n'est pas toujours la mort du lien : MESURÉ le 2026-09-27,
+    //    `github.com/<dépôt>/releases/latest` répond 200 depuis un poste ordinaire
+    //    et **404 à une adresse machine** — cinq runs de suite, sur le même
+    //    runner où `api.github.com` (la liste des versions) et
+    //    `raw.githubusercontent.com` (le frein) répondaient 200. Ce n'est donc pas
+    //    « le lien est mort » : c'est « ce client-ci n'a pas le droit de lire
+    //    cette page ». Quand la deuxième question a pu être posée (`apiProof`),
+    //    c'est ELLE qui tranche — et le rapport dit que la page a été prouvée
+    //    autrement, jamais qu'un navigateur l'a lue.
+    //
+    //    Ce que ce repli ne fait pas, et c'est délibéré : il ne s'applique QU'À
+    //    un refus. Un 200 qui atterrit au mauvais endroit reste un refus ferme
+    //    (point 2), parce que là, la page a bien été servie — et elle ne permet
+    //    pas le geste attendu.
     if (status !== 200) {
+      if (apiProof?.ok) {
+        warnings.push(
+          `le lien ${at} a été refusé à CETTE lecture-ci (HTTP ${status}${firstLine ? ` — « ${firstLine.slice(0, 60)} »` : ''}) — ` +
+            `la page de version a donc été prouvée autrement : l'API du dépôt nomme la version publiée ${apiProof.tag}. ` +
+            'Ce n’est PAS une lecture de navigateur : ce rapport dit qu’une page de version existe et qu’elle a une cible, pas ce qu’un client humain voit — un refus de page entière, lui, resterait invisible ici',
+        );
+        return { ok: true, problems, warnings, detail: `HTTP ${status} → prouvé par l’API (version publiée ${apiProof.tag})` };
+      }
       problems.push(
         `le lien ${at} répond HTTP ${status}${firstLine ? ` — « ${firstLine.slice(0, 120)} »` : ''} — ` +
           "un poste portable n'a pas d'autre porte de sortie que cette page pour reprendre une version",
       );
+      // Le repli qui n'a pas pu répondre est NOMMÉ : sans ça, un refus de page et
+      // un refus d'API se liraient pareil, et le lecteur chercherait la panne du
+      // mauvais côté.
+      if (apiProof && !apiProof.ok) {
+        problems.push(
+          `et la preuve de repli n’a rien pu dire non plus (${apiProof.error}) — ` +
+            'un refus qu’on ne sait pas expliquer n’est pas un refus mesuré',
+        );
+      }
       return { ok: false, problems, warnings, detail: `HTTP ${status}` };
     }
     // 2. Et atterrit-elle sur une PAGE DE VERSION ? Mesuré : `/releases/latest`
