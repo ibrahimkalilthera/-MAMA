@@ -42,6 +42,7 @@ export const AUDIT_ACTION_KEYS: Record<string, string> = {
   DELETE_STAFF: 'auditActionDeleteStaff',
   DELETE_STUDENT: 'auditActionDeleteStudent',
   DELETE_VENDOR_EXPENSE: 'auditActionDeleteVendorExpense',
+  EXPORT_AUDIT_JOURNAL: 'auditActionExportJournal',
   PROMOTE_CLASS_BATCH: 'auditActionPromoteClassBatch',
   RECORD_PAYMENT: 'auditActionRecordPayment',
   RECORD_SALARY_PAYMENT: 'auditActionRecordSalaryPayment',
