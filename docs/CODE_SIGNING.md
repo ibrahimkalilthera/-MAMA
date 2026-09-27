@@ -7,6 +7,214 @@ portable). Ce document explique comment obtenir le certificat et l'activer.
 
 ---
 
+## 0. Ce que signer ENGAGE — à lire AVANT d'acheter
+
+**Le nom d'éditeur n'est pas dans l'installeur qu'on publie : il est gravé dans
+chaque poste qui l'installe.** L'installeur porte `resources/app-update.yml`
+(son contrat), et ce fichier est recopié dans le `resources/` de la version
+installée. C'est **ce** fichier-là qu'`electron-updater` relit à chaque
+vérification (`ElectronAppAdapter.js` → `path.join(process.resourcesPath,
+"app-update.yml")`), et sa règle est sèche (`NsisUpdater.js`) :
+
+```
+publisherName = (await this.configOnDisk.value).publisherName
+if (publisherName == null) { return null }   // aucune vérification de signature
+```
+
+Sans `publisherName`, le poste juge les octets par le **`sha512` du flux** et
+n'exige rien — c'est l'état de référence du parc depuis la 1.0.9. Avec, il exige
+une chaîne **approuvée** (`Status -eq Valid`) *et* un sujet qui porte le nom
+promis, sinon il lève `ERR_UPDATER_INVALID_SIGNATURE`.
+
+**Ce qui est gravé est le CN du certificat, et rien d'autre.** Mesuré dans la
+bibliothèque que le build exécute :
+`windowsSignToolManager.js` → `return certInfo == null ? null : [certInfo.commonName]`
+(quand `win.publisherName` n'est pas configuré). C'est donc une chaîne — le
+**common name** — qui doit rester la même pendant toute la vie du parc :
+
+| Ce qu'on livre | Ce que le parc fait |
+|---|---|
+| signé par `CN=X`, à des postes **sans** promesse | ils l'installent, et **gravent X** dans leur contrat |
+| non signé, alors qu'ils promettent X | **refus** (`ERR_UPDATER_INVALID_SIGNATURE`) — le poste reste sur sa version |
+| signé par `CN=Y` (renommage, autre fournisseur avec un autre CN) | **refus** chez ceux qui promettent X |
+| signé par `CN=X` après renouvellement (même CA ou non) | rien à faire chez eux : le CN est comparé au sujet, pas l'émetteur |
+| signé par un nom de **test** | gel immédiat — c'est la leçon mesurée des 1.0.6–1.0.8 |
+
+Trois conséquences opérationnelles, et aucune ne se rattrape après coup :
+
+1. **Le premier envoi signé est le moins cher** : les postes actuels ne
+   vérifient rien, donc ils l'acceptent. C'est le seul moment où la bascule est
+   gratuite ;
+2. **`SIGNING_ENABLED` ne se repasse plus à `false`** une fois qu'une version
+   signée est en service. Le publieur livre alors des octets non signés à des
+   postes qui exigent un signataire — un gel, machine par machine ;
+3. **Le CN se demande, il ne se subit pas** : c'est un champ qu'on saisit au
+   moment de la   commande (vérifié dans la documentation DigiCert, §A.b). Il faut
+   donc avoir décidé la chaîne exacte **avant** de payer, et la redemander à
+   chaque renouvellement.
+
+**La forme du contrat, mesurée sur le canal le 2026-09-22** (les deux époques,
+ochet pour octet, empreintes conformes aux manifestes publiés) :
+
+```yaml
+# 1.0.9 → 1.0.18 · 104 octets · sha256 b9cefbcaa012c806…  — aucune promesse
+owner: ibrahimkalilthera
+repo: '-MAMA'
+provider: github
+updaterCacheDirName: mama-thera-finance-updater
+```
+
+```yaml
+# 1.0.6, 1.0.7, 1.0.8 · 149 octets · sha256 b8c880ad9c06e5da…  — contrat de GEL
+… même tête …
+publisherName:
+  - Mama Thera Finance (test)
+```
+
+Ce que ces deux fichiers disent, en une phrase : **le parc se met à jour par
+empreinte aujourd'hui, et n'importe quelle version le fera par nom dès qu'une
+version signée aura été installée.**
+
+## A. Obtenir le certificat, dans l'ordre
+
+### A.a Choisir la voie
+
+| Voie | Coût | Ce qu'il faut savoir |
+|---|---|---|
+| **SignPath Foundation** (voie OSS, gratuite) | 0 | Certificats **EV**, donc confiance immédiate. Réservé aux projets open source avec build dans un système ouvert — le dossier du projet est décrit en **§1 bis**. |
+| **OV acheté** (DigiCert, Sectigo, GlobalSign, SSL.com) | 200–400 USD/an | Validation d'organisation ; signature via le service du fournisseur (la clé vit dans un HSM, cf. §1.b). |
+| **EV acheté** | 600–1 000 USD/an | Même contrainte de clé, réputation SmartScreen immédiate. Plus cher, sans bénéfice décisif ici. |
+| **Azure Trusted Signing** | ~10 USD/mois | Racine DigiCert, intégration `win.azureSignOptions` — mais la validation d'identité est limitée à quelques pays (**une organisation au Mali n'y est pas recevable**, vérifié le 2026-09-13). |
+
+Le produit s'appelle **« Code Signing »** — jamais un certificat TLS/SSL de site
+web, qui ne signe pas un exécutable.
+
+### A.b Ce qu'on demande à l'autorité (vérifié le 2026-09-22, doc DigiCert)
+
+- **Le CN se saisit au moment de la commande** (« Enter the required certificate
+  subject information ») : demander **exactement** la chaîne que le parc gravera,
+  par exemple `CN=COMPLEXE SCOLAIRE MAMA THERA`. Ni abréviation, ni fantaisie :
+  chaque poste comparera le sujet du certificat à cette chaîne-là.
+- **Durée maximale : 459 jours** (depuis le 24 février 2026 ; les certificats de
+  2 ou 3 ans ne sont plus émis). Autrement dit : **un renouvellement tous les
+  ~15 mois**, et à chaque renouvellement il faut redemander **le même CN**. Un
+  renouvellement qui change de CN gèle le parc ;
+- **l'organisation doit être validée pour la signature de code** (type de
+  validation `CS`, ou `EV CS`), un **contact vérifié** approuve la commande, et
+  l'autorité **appelle un numéro de l'organisation** pour confirmer l'autorité de
+  commander (l'appel arrive typiquement dans les 24 h). Prévoir les documents de
+  l'organisation (immatriculation, adresse, contact joignable) **avant** de
+  commander, et confirmer l'éligibilité d'une organisation malienne auprès du
+  fournisseur : une validation qui échoue coûte des semaines, pas des minutes ;
+- **la clé privée ne peut pas vivre dans un fichier** : HSM, service HSM ou jeton
+  matériel certifié FIPS 140-2 niveau 2 (ou équivalent) depuis le 1er juin 2023.
+  Pour un HSM, la clé est **générée sur le HSM avant** de soumettre la commande.
+
+### A.c Comment la CI signe, selon le mode de provisionnement
+
+| Provisionnement | Ce que la CI utilise |
+|---|---|
+| Jeton matériel fourni / personnel | Inutilisable sur un runner : il faut un **service** de signature (le jeton reste sur le bureau de quelqu'un) |
+| **HSM** | La commande est signée par le service du fournisseur, ou par outil local avec le HSM accessible |
+| **DigiCert KeyLocker** | `digicert/code-signing-software-trust-action` dans `.github/workflows/desktop-release.yml` |
+| **SignPath** | `signpath/github-action-submit-signing-request` (avec `wait-for-completion: true`) |
+
+Le point d'insertion est **unique** et déjà commenté dans le workflow (l'étape
+« Restore code-signing certificate »). Ce qui compte pour ce dépôt :
+
+1. l'artefact **non signé** est envoyé au service, l'artefact **signé** remplace
+   les octets avant `npm run release:publish` — le publieur, lui, ne signe rien ;
+2. les identifiants du service vont dans des **secrets** Actions, et
+   **`SIGNING_ENABLED`** (une **variable**) reste le seul interrupteur humain ;
+3. `npm run check:updater-trust` juge ensuite le contrat **embarqué dans le
+   binaire signé** et la signature réelle de ses octets — avant toute écriture
+   sur le canal. C'est lui qui refuse un nom promis que le certificat ne porte
+   pas, une chaîne non approuvée, ou un nom de test.
+
+⚠️ **Ne jamais remettre un `.pfx` dans ces secrets.** Depuis 2023 un certificat
+acheté n'arrive plus sous cette forme : un `.pfx` disponible ici est un
+certificat **auto-signé**, et c'est exactement par là que la 1.0.8 a été signée
+et le parc gelé. Le fichier qui peut exister dans les secrets d'un dépôt
+historique (`CSC_PFX_B64`) doit être **supprimé** le jour où un vrai certificat
+est branché.
+
+### A.d Essayer sans publier — le test qui ne coûte rien
+
+Un certificat reçu se vérifie **avant** de livrer quoi que ce soit : build signé
+(en local ou sur un runner), puis
+
+```bash
+npm run check:updater-trust        # lit le contrat embarqué + la signature réelle
+```
+
+Le vert qui compte est : `signature approuvée : CN=… — le parc pourra recevoir la
+version suivante`. Tout autre verdict nomme ce qui manque (chaîne non approuvée,
+nom promis absent du sujet, nom de test). **Ce build-là ne se publie pas** s'il
+porte un certificat de test : c'est un essai de câblage, pas une version.
+
+## B. Passer `SIGNING_ENABLED` — et ne plus jamais le repasser à `false`
+
+`SIGNING_ENABLED` est une **variable** de dépôt (Settings → Secrets and variables
+→ Actions → *Variables*), pas un secret. C'est elle qui rend la signature
+utilisable : sans elle, un certificat présent dans les secrets est **restauré
+mais pas utilisé**, et le workflow écrit « signature ÉTEINTE » puis publie non
+signé. La raison de ce choix est mesurée : un certificat de **test** resté dans
+les secrets a été pris par le runner, gravé dans le contrat de la 1.0.8, et a
+gelé le parc. Sans décision explicite, un secret oublié ne peut plus signer ce
+qu'on livre.
+
+Une fois `true` et une version signée publiée, **la variable ne repasse plus à
+`false`** : les postes qui l'ont installée promettent le CN, et des octets non
+signés sont refusés chez eux (voir §0). Si la signature doit s'arrêter pour de
+bon, le remède est **par poste** : `npm run repair:frozen-updater -- --apply`
+(§3), puis un redémarrage de l'application.
+
+Le même raisonnement vaut pour le **renouvellement** : un certificat qui expire
+sans successeur portant le même CN laisse le parc figé sur la dernière version
+signée. Garder une alerte sur la date d'expiration (≤ 459 jours) fait partie de
+l'exploitation, pas de l'achat.
+
+## C. La bascule, dans l'ordre
+
+Chaque étape a sa commande, et aucune ne se saute : la première lit ce que le
+parc promet **aujourd'hui**, la dernière prouve qu'un poste installé atteint
+réellement la version signée.
+
+```bash
+# 1. Ce que le parc promet, lu là où c'est vrai (un poste, ou les octets publiés)
+npm run check:signing-transition -- --station="%LOCALAPPDATA%\Programs\MamaTheraFinance"
+npm run check:signing-transition -- --channel          # empreintes des contrats publiés, sans jeton
+
+# 2. La répétition : « et si le certificat portait ce CN ? » (aucun octet à signer)
+npm run check:signing-transition -- --publisher="COMPLEXE SCOLAIRE MAMA THERA" --station="…"
+#    attendu : first-commitment, avec l'engagement affiché.
+#    promise-changed  ⇒ un poste promet DÉJÀ un autre nom : ne pas publier ainsi.
+#    unsigned-after-commitment ⇒ un poste exige un signataire : signer la version, ne pas la livrer non signée.
+
+# 3. Le build signé, jugé sur ses octets (Windows)
+npm run check:updater-trust
+
+# 4. Après publication : les octets PUBLIÉS portent-ils ce contrat, et quelle signature ?
+npm run check:updater-contract:live
+
+# 5. Un poste installé atteint-il la nouvelle version, sans clic ? (canal réel)
+npm run verify:updater:channel
+```
+
+Ce que le contrôle de bascule fait et ne fait pas, pour qu'on sache quoi lui
+demander : il lit le contrat **qu'on s'apprête à livrer** (build local, ou CN
+simulé), le confronte à ce que le parc promet (poste, installeur déjà téléchargé,
+ou empreintes des manifestes publiés), et **refuse de conclure** (sortie 2)
+quand le contrat change sans que la promesse du parc ait été lue — une empreinte
+qui change ne dit pas ce qui a changé. Il ne mesure **pas** la signature des
+octets : c'est `check:updater-trust`, sur Windows, sur le build réel.
+
+Après la bascule, noter le CN gravé dans `DEVELOPMENT_HISTORY.md` : c'est
+l'information qu'on cherchera dans deux ans, quand un renouvellement se
+présentera.
+
+---
+
 ## 1. Pourquoi SmartScreen persiste sans certificat de confiance
 
 Sans signature, Windows affiche « Éditeur inconnu » / « Windows a protégé votre
@@ -300,6 +508,14 @@ dont la clé privée circule en clair. La voie du fichier est plus courte, réve
    `sha512` du flux, donc il se met à jour. Ce qu'un certificat apporte en plus
    est le **nom de l'éditeur**, pas la livraison.
 
+   ⚠️ **Cette liberté a une fin, et elle est datée par le premier envoi signé.**
+   Tant qu'aucun poste ne promet de signataire, publier non signé est sans
+   conséquence ; dès qu'une version signée est **installée** quelque part, ce
+   poste-là exige son nom et refusera tout ce qui ne le porte pas (§0). C'est
+   exactement ce que refuse `npm run check:signing-transition`
+   (`unsigned-after-commitment`) — et le publieur, lui, ne peut pas le voir : sur
+   la machine de build, un contrat sans promesse est parfaitement sain.
+
 ## 5. Sécurité
 
 - **Ne committez jamais** le `.pfx` ni son mot de passe (`.gitignore` : les
@@ -318,3 +534,28 @@ Windows » de `DEVELOPMENT_HISTORY.md`. C'est exactement ce qui a produit
 l'installeur 1.0.8 au contrat empoisonné. Le publieur refuse désormais ce cas
 avant d'écrire quoi que ce soit sur le canal (`npm run check:updater-trust`),
 mais la règle tient aussi pour un binaire distribué à la main.
+
+## Mesurer le contrat sur les octets PUBLIÉS, pas seulement sur le build local
+
+`check:updater-trust` juge le dossier de sortie : c'est la bonne question avant
+de publier, et la mauvaise après — ce qu'un poste télécharge n'est pas
+`release/win-unpacked`, c'est un installeur NSIS posé sur le canal, et entre les
+deux il y a une compression et un téléversement. D'où
+`npm run check:updater-contract:live`, qui refait la mesure sur les octets
+servis : il lit la tête du canal **sans jeton** (comme un poste), vérifie que
+l'installeur téléchargé répond au `sha512` et à la taille de `latest.yml`,
+l'ouvre, en extrait la charge utile NSIS puis `resources/app-update.yml`, et
+confronte ce fichier au **manifeste d'arborescence publié**
+(`<produit>-<version>-unpacked.manifest.json`, qui scelle taille et `sha256` de
+chaque fichier du build). Sans cette référence, une extraction ne prouve que
+l'existence d'un fichier, pas que c'est celui du build — c'est pourquoi son
+absence est un refus.
+
+Le verdict de signature, lui, est le même : il interroge Windows sur les octets
+et passe la promesse lue dans le contrat extrait à `updaterTrustVerdict`. Hors
+Windows, il **refuse de conclure avant même de télécharger 129 Mo**, et sans
+7-Zip il refuse aussi : l'extraction EST la mesure. Mesuré sur la 1.0.18
+publiée : contrat extrait de **104 octets**, `sha256 b9cefbcaa012c806…`,
+identique à celui que le manifeste publie, aucun signataire promis, octets
+`NotSigned` — le parc garde donc son chemin de mise à jour, au prix de
+l'avertissement « éditeur inconnu ».

@@ -208,6 +208,42 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-signing-transition.mjs',
+    input: 'contract+artifact+network',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // Le sujet lu est le CONTRAT : celui qu'on s'apprête à livrer, et ceux que
+    // le parc exécute (l'un est lu sur un poste ou dans des octets publiés).
+    // Quand le contrat change sans que la promesse du parc ait été lue, le
+    // contrôle ne tranche pas : il sort en **2** (`SIGNING_TRANSITION_UNPROVEN`)
+    // — il refuse de conclure plutôt que de rendre un vert non mesuré, et c'est
+    // cette sortie-là qui prouve la non-vacuité. Le verdict qui décide est PUR :
+    // `signingTransitionVerdict` (scripts/lib/signing-transition.mjs) refuse un
+    // contrat non signé sous une promesse du parc, un nom promis différent de
+    // celui déjà gravé, une promesse vide et un signataire de test.
+    via: 'signing-transition.mjs',
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit un fichier de données (app-update.yml), une empreinte de manifeste publié, jamais du code source',
+    },
+  },
+  {
+    check: 'check-published-updater-contract.mjs',
+    input: 'channel-bytes+artifact+signature',
+    needs: [],
+    // Le sujet lu est l'INSTALLEUR PUBLIÉ : il n'y a pas de corpus de fichiers à
+    // parcourir, et chaque absence est un REFUS (exit 1) — pas de tête de canal,
+    // pas de flux, pas de manifeste scellé, pas de 7-Zip pour ouvrir le binaire,
+    // pas de contrat extrait, ou une plateforme qui ne peut pas mesurer la
+    // signature (`Get-AuthenticodeSignature` est un geste Windows, refusé même
+    // hors Windows, AVANT le téléchargement de 129 Mo). Les règles qui décident
+    // sont PURES : `published-contract.mjs` (confronter l'extrait au manifeste
+    // publié) et `updater-trust.mjs` (verdict de signature).
+    via: 'published-contract.mjs',
+    exempt: {
+      [IMMUNITY.NON_VACUOUS]: 'il ouvre les octets publiés d’un binaire du canal ; sans installeur, sans flux ou sans manifeste publié il refuse de conclure (exit 1), il n’y a pas de corpus à parcourir',
+      [IMMUNITY.PROSE_BLIND]: 'il lit un fichier de données (app-update.yml), un manifeste JSON et la sortie d’un cmdlet Windows, jamais du code source',
+    },
+  },
+  {
     check: 'check-backup-roundtrip.mjs',
     input: 'network+backup',
     needs: [IMMUNITY.NON_VACUOUS],

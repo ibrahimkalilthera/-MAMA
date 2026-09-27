@@ -25,6 +25,7 @@ import { describe, it } from 'node:test';
 import { createRequire } from 'node:module';
 
 import { KIND_JUDGED_BY, embeddedLinkVerdict } from '../scripts/lib/embedded-links.mjs';
+import { releaseApiProof } from '../scripts/lib/release-page-proof.mjs';
 import { MAX_PROBED_MODULES, moduleUrlsIn, originVerdict } from '../scripts/lib/public-origin.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -230,6 +231,50 @@ describe('les autres liens embarqués : chacun jugé par SA catégorie', () => {
     assert.match(good.detail, /page de version/);
   });
 
+  it('un 404 à une adresse MACHINE n’est un refus que si l’API ne prouve pas la page', () => {
+    // MESURÉ le 2026-09-27 : le vrai lien répond 200 depuis un poste ordinaire et
+    // 404 depuis un runner (cinq runs de suite), pendant que l'API et le frein du
+    // MÊME run répondaient 200. Sans cette distinction, la veille restait rouge
+    // pour toujours sur un lien sain — et un contrôle toujours allumé ne se lit plus.
+    const proven = embeddedLinkVerdict({
+      link: link(),
+      status: 404,
+      finalUrl: 'https://exemple.test/404',
+      body: 'Not Found\n',
+      apiProof: { ok: true, tag: 'v1.0.18' },
+    });
+    assert.equal(proven.ok, true, proven.problems.join('\n'));
+    assert.equal(proven.problems.length, 0, 'le refus machine n’est plus compté comme un lien mort');
+    assert.equal(proven.warnings.length, 1, 'mais il n’est PAS tu : le repli se nomme');
+    assert.match(proven.warnings[0], /HTTP 404/, 'l’avertissement dit ce que la lecture machine a reçu');
+    assert.match(proven.warnings[0], /v1\.0\.18/, 'et quelle version publiée le prouve');
+    assert.match(proven.warnings[0], /PAS une lecture de navigateur/, 'avec sa limite, en toutes lettres');
+    assert.match(proven.detail, /prouvé par l’API/, 'le rapport nomme la voie qui a tranché');
+
+    // Le repli qui échoue ne doit JAMAIS produire un vert : il ajoute un motif,
+    // et les deux causes se distinguent (page refusée / preuve impossible).
+    const unresolved = embeddedLinkVerdict({
+      link: link(),
+      status: 404,
+      body: 'Not Found\n',
+      apiProof: { ok: false, error: 'aucun jeton dans l’environnement (GITHUB_TOKEN absent)' },
+    });
+    assert.equal(unresolved.ok, false);
+    assert.match(unresolved.problems[0], /HTTP 404/);
+    assert.equal(unresolved.problems.length, 2, 'et il dit aussi que le repli n’a rien pu dire');
+    assert.match(unresolved.problems[1], /aucun jeton/);
+
+    // Un 200 qui atterrit ailleurs reste un refus FERME : la page a été servie,
+    // et c’est elle qui ne permet pas le geste. Le repli ne s’y applique pas.
+    const off = embeddedLinkVerdict({
+      link: link(),
+      status: 200,
+      finalUrl: 'https://exemple.test/',
+      apiProof: { ok: true, tag: 'v1.0.18' },
+    });
+    assert.equal(off.ok, false, 'une preuve d’existence ne rachète pas une page qui atterrit au mauvais endroit');
+  });
+
   it('un tiers qui répond est vert MÊME en 429 : on ne juge que ce qui nous appartient', () => {
     // C'est le cas qui décide si ce contrôle vit ou meurt : juger le code d'un
     // domaine qu'on ne sert pas produirait un rouge permanent sur un lien sain
@@ -285,5 +330,44 @@ describe('les autres liens embarqués : chacun jugé par SA catégorie', () => {
       read('src/app/useParents.ts').includes(WHATSAPP_URL),
       `les deux écritures de ${WHATSAPP_URL} doivent s’accorder (inventaire ↔ application)`,
     );
+  });
+});
+
+describe('la preuve de repli d’une page de version : l’API, et rien d’autre', () => {
+  it('sans jeton, elle refuse de conclure au lieu d’inventer un vert', () => {
+    // Le contrôle appelle le repli dès qu'une lecture est refusée : sans jeton,
+    // la réponse doit être un MOT (« aucun jeton »), pas un silence ni un accord.
+    return releaseApiProof('https://github.com/o/r/releases/latest', null).then((proof) => {
+      assert.equal(proof.ok, false);
+      assert.match(String(proof.error), /aucun jeton/);
+    });
+  });
+
+  it('une adresse qu’on ne sait pas découper ne se devine pas', async () => {
+    const proof = await releaseApiProof('https://exemple.test/releases/latest', 'jeton-de-test');
+    assert.equal(proof.ok, false);
+    assert.match(String(proof.error), /non reconnue/);
+  });
+
+  it('une page de version DÉJÀ nommée est sa propre preuve : aucun appel n’est payé', async () => {
+    const proof = await releaseApiProof('https://github.com/o/r/releases/tag/v1.0.8', 'jeton-de-test');
+    assert.equal(proof.ok, true);
+    assert.equal(proof.tag, 'v1.0.8');
+  });
+
+  it('le jeton ne part QUE vers api.github.com, et en un seul endroit', () => {
+    // Ce script tourne à côté d'un lien vers WhatsApp : un en-tête d'autorisation
+    // posé « au cas où » sur la lecture principale enverrait le jeton d'un job à
+    // un tiers. La contrainte est donc écrite ici, pas seulement dans un commentaire.
+    const module = read('scripts/lib/release-page-proof.mjs');
+    assert.equal((module.match(/Authorization:/g) ?? []).length, 1, 'une seule authorization, dans le module de repli');
+    assert.ok(
+      module.indexOf('api.github.com/repos') < module.indexOf('Authorization:'),
+      'et l’URL interrogée doit être celle de l’API, pas un hôte quelconque',
+    );
+    assert.doesNotMatch(read('scripts/check-public-origin.mjs'), /Authorization:/, 'la lecture anonyme ne porte aucun jeton');
+    // Le jeton doit exister côté workflow, sinon le repli ne se déclenche jamais.
+    const workflow = read('.github/workflows/public-origin-watch.yml');
+    assert.match(workflow, /GITHUB_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/, 'le job fournit le jeton au repli');
   });
 });
