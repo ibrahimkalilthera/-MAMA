@@ -28,6 +28,7 @@
  */
 import { createRequire } from 'node:module';
 import { embeddedLinkVerdict, KIND_JUDGED_BY } from './lib/embedded-links.mjs';
+import { releaseApiProof } from './lib/release-page-proof.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { originVerdict } from './lib/public-origin.mjs';
 
@@ -45,12 +46,25 @@ const flag = (name) => {
 const override = flag('url');
 const TIMEOUT_MS = 20000;
 
-/** Une lecture qui n'aboutit pas devient un MOT, jamais un silence. */
+/**
+ * Une lecture qui n'aboutit pas devient un MOT, jamais un silence.
+ *
+ * Les en-têtes imitent un NAVIGATEUR, et c'est de la fidélité, pas du camouflage :
+ * le sujet de ce contrôle est un lien qu'un HUMAIN ouvre, donc le client qui doit
+ * le relire est celui de l'utilisateur. Un agent de contrôle ne disant rien de ce
+ * qu'il accepte se fait juger comme un robot, et un refus de robot n'est pas un
+ * refus d'utilisateur — la confusion est exactement ce que ce contrôle existe
+ * pour éviter.
+ */
 async function read(target) {
   try {
     const res = await fetch(target, {
       redirect: 'follow',
-      headers: { 'User-Agent': 'embedded-links-check' },
+      headers: {
+        'User-Agent': 'embedded-links-check',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+      },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     const body = await res.text();
@@ -79,7 +93,16 @@ for (const link of EMBEDDED_LINKS) {
   const url = link.kind === 'app' && override ? override : link.url;
   if (link.kind !== 'app') {
     const got = await read(url);
-    const verdict = embeddedLinkVerdict({ link, status: got.status ?? null, finalUrl: got.finalUrl, error: got.error, body: got.body });
+    // La deuxième question, posée SEULEMENT quand la première a été refusée :
+    // « ce refus est-il celui de la page, ou celui de ce client-ci ? ». Elle
+    // n'existe que pour une page de version et que si l'environnement porte un
+    // jeton — sinon `apiProof` reste `null`, l'ancien refus est rendu tel quel, et
+    // un cul-de-sac n'est jamais transformé en feu vert.
+    const apiProof =
+      link.kind === 'release-page' && got.status && got.status !== 200
+        ? await releaseApiProof(url)
+        : null;
+    const verdict = embeddedLinkVerdict({ link, status: got.status ?? null, finalUrl: got.finalUrl, error: got.error, body: got.body, apiProof });
     problems.push(...verdict.problems);
     warnings.push(...verdict.warnings);
     read1.push({ id: link.id, url, detail: verdict.detail });

@@ -286,6 +286,27 @@ export const en = {
     auditExportRole: "Role",
     auditReplay: "Replay",
     auditFilterTo: "To",
+    // ─── The weekly audit journal (Settings → Backup) ─────────────────────────
+    // One end of week = one archive. The title, subtitle and PDF labels live
+    // here like the rest of the UI: the document follows the station's language.
+    auditWeeklyJournalTitle: "Weekly Audit Journal",
+    auditWeeklyJournalSubtitle: "Archive the week's journal as a PDF at the end of each week.",
+    auditWeeklyJournalWeek: "Week",
+    auditWeeklyJournalDownload: "Download PDF",
+    auditWeeklyJournalCount: "{count} entr(ies) this week",
+    auditWeeklyJournalEmpty: "No audit entries for this week.",
+    auditWeeklyJournalFailed: "The week's journal could not be generated.",
+    auditWeeklyJournalPdfTitle: "Audit Journal — Week {week}",
+    auditWeeklyJournalPdfPeriod: "From {from} to {to}",
+    auditWeeklyJournalPdfFooter: "MAMA THERA audit journal · generated {date} · page {page}/{pages}",
+    auditWeeklyJournalPdfEntries: "Entries",
+    auditWeeklyJournalPdfIncidents: "Grouped incidents",
+    auditWeeklyJournalPdfActors: "Active accounts",
+    // ─── The archive reminder (bell) ──────────────────────────────────────────
+    // The archive writes ITSELF into the journal: that entry is what clears the
+    // reminder, and its label reads like every other action.
+    auditActionExportJournal: "Audit journal archived (PDF)",
+    auditArchiveReminder: "The {week} week journal has not been archived as a PDF yet (Settings → Backup).",
     exportCsv: "Export CSV",
     noAuditEntriesMatchingFilters: "No entries match the filters.",
     noAuditLogEntriesRecordedYet: "No audit log entries recorded yet.",

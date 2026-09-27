@@ -40,13 +40,13 @@
  * de conclure plutôt que de rendre un vert qu'il n'a pas mesuré : un contrôle
  * qui ne peut pas mesurer est un contrôle absent, pas un contrôle satisfait.
  */
-import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parsePublisherNames, updaterTrustVerdict } from './lib/updater-trust.mjs';
 import { DEFAULT_RELEASE_DIR } from './lib/release-prune.mjs';
+import { readAuthenticodeSignatures, signatureMeasurementRefusal } from './lib/windows-signature.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -64,12 +64,10 @@ const fail = (title, problems = []) => {
   process.exit(1);
 };
 
-if (process.platform !== 'win32') {
-  fail('signature non mesurable hors Windows — ce contrôle refuse de rendre un vert qu’il n’a pas mesuré', [
-    `il vérifie ce que le poste vérifie (Get-AuthenticodeSignature) ; sur ${process.platform}, aucun verdict n’est possible`,
-    'les règles pures, elles, restent prouvées par tests/updater-trust.test.ts sur toutes les plateformes',
-  ]);
-}
+// La mesure est un geste Windows : le refus vient du module partagé, donc les
+// deux contrôles qui interrogent le même cmdlet refusent de la même façon.
+const measurement = signatureMeasurementRefusal({ tests: 'tests/updater-trust.test.ts' });
+if (!measurement.measurable) fail(measurement.title, measurement.problems);
 
 // Le contrat que le poste lit est EMBARQUÉ dans le binaire — pas dans ce dépôt.
 const contract = join(releaseDir, 'win-unpacked', 'resources', 'app-update.yml');
@@ -89,42 +87,10 @@ if (!installers.length) {
   ]);
 }
 
-/**
- * La signature Authenticode d'un fichier, lue par Windows lui-même.
- *
- * La sortie est forcée en UTF-8 : sans cela, le motif de Windows revient
- * mojibaké (« cha�ne de certificats »), et un refus illisible est un refus
- * qu'on ne peut pas réparer — c'est le même réglage que celui du poste, qui fait
- * `chcp 65001` avant d'interroger le même cmdlet.
- */
-function readSignatures(files) {
-  const script = files
-    .map(
-      (file) =>
-        `"${file.replace(/'/g, "''")}" | ForEach-Object { $s = Get-AuthenticodeSignature -LiteralPath $_; ` +
-        `[pscustomobject]@{ file = $_; status = $s.Status.ToString(); subject = $s.SignerCertificate.Subject; ` +
-        `statusMessage = $s.StatusMessage } }`,
-    )
-    .join('; ');
-  const out = execFileSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      `[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; ${script} | ConvertTo-Json -Compress`,
-    ],
-    { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
-  ).trim();
-  if (!out) return [];
-  const parsed = JSON.parse(out);
-  return Array.isArray(parsed) ? parsed : [parsed];
-}
-
 const { promised, names } = parsePublisherNames(readFileSync(contract, 'utf8'));
 const publisherNames = promised ? names : null;
 
-const measured = readSignatures(installers.map((name) => join(releaseDir, name)));
+const measured = readAuthenticodeSignatures(installers.map((name) => join(releaseDir, name)));
 const byFile = new Map(measured.map((row) => [String(row.file), row]));
 const signature = byFile.get(join(releaseDir, installers[0])) ?? null;
 
