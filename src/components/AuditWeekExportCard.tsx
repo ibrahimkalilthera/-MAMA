@@ -12,6 +12,12 @@
  * admin et dev (`auth.isAdmin`, qui couvre les deux — voir `deleteRights.ts`),
  * donc la carte hérite de ce droit au lieu d'en inventer un second.
  *
+ * Et elle est le PREMIER élément de la section « Sauvegarde », juste sous son
+ * titre : un geste de fin de semaine rangé au bas d'une section remplie se
+ * manque. Le titre de la section, le badge du menu et l'ancre (`#audit-archive`,
+ * posée par le rappel de la cloche) disent tous les trois la même chose — « la
+ * semaine attend son archive » — et mènent tous les trois à cette carte.
+ *
  * Deux choix qui font la différence entre un bouton et une archive :
  *   • les entrées viennent d'une requête BORNÉE par la semaine
  *     (`fetchAuditJournalRange`), pas des cent dernières entrées chargées pour
@@ -19,9 +25,10 @@
  *   • ce qui est annoncé avant le clic est ce qui sera écrit : le compte affiché
  *     est celui des entrées réellement chargées pour la semaine choisie.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Download, ShieldCheck } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
+import { consumeAuditArchiveAnchor } from '../lib/settingsAnchor';
 import { auditWeekOf, auditWeekFilename, recentAuditWeeks } from '../lib/auditWeek';
 import { generateAuditJournalPdf } from '../lib/pdfAuditJournal';
 import { recordWeekArchive } from '../lib/auditArchive';
@@ -30,6 +37,9 @@ import type { AuditWeek } from '../lib/auditWeek';
 
 /** Combien de semaines on peut rattraper : deux mois d'archives en arrière. */
 const OFFERED_WEEKS = 8;
+
+/** Combien de temps la carte se désigne (halo) après être venue par l'ancre. */
+const ANCHOR_HIGHLIGHT_MS = 4000;
 
 export function AuditWeekExportCard() {
   const { t, lang, currentTheme, fetchAuditJournalRange, auth } = useMainViews();
@@ -41,6 +51,14 @@ export function AuditWeekExportCard() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(false);
+  // ─── L'ancre profonde : « on vient ICI, pas ailleurs dans les Réglages » ──
+  // Le clic sur le rappel de la cloche a posé `#audit-archive` (voir
+  // `src/lib/settingsAnchor.ts`). La carte le CONSOMME au montage : elle se
+  // défile jusqu'à elle et se coiffe d'un halo le temps qu'on la voie. Le
+  // fragment est effacé par `consumeAuditArchiveAnchor`, donc une visite
+  // ordinaire des Réglages ne rejoue rien — un repère permanent ne repère rien.
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [anchored, setAnchored] = useState(false);
 
   const selected: AuditWeek = weeks.find((week) => week.key === selectedKey) ?? weeks[0]!;
 
@@ -65,6 +83,17 @@ export function AuditWeekExportCard() {
   useEffect(() => {
     void load(selected);
   }, [load, selected]);
+
+  // L'ancre se consomme au montage, avant la peinture : la carte est déjà à
+  // l'écran quand le défilement part. `scrollIntoView` est appelé seulement
+  // s'il existe (un DOM de test peut ne pas l'offrir) et le halo s'éteint seul.
+  useEffect(() => {
+    if (!consumeAuditArchiveAnchor()) return;
+    setAnchored(true);
+    anchorRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    const timer = setTimeout(() => setAnchored(false), ANCHOR_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   const onDownload = async () => {
     setGenerating(true);
@@ -102,7 +131,11 @@ export function AuditWeekExportCard() {
     : t.auditWeeklyJournalCount.replace('{count}', String(entries.length));
 
   return (
-    <div className={`p-8 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-[2.5rem] border ${currentTheme.border} flex flex-col gap-5`}>
+    <div
+      ref={anchorRef}
+      id="audit-week-export"
+      className={`p-8 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-[2.5rem] border ${currentTheme.border} flex flex-col gap-5 transition-shadow ${anchored ? 'ring-4 ring-sky-400/70 shadow-2xl shadow-sky-500/20' : ''}`}
+    >
       <div className="flex items-center gap-4">
         <div className={`p-4 ${currentTheme.card} rounded-3xl text-emerald-600 shadow-lg`}>
           <ShieldCheck size={32} />

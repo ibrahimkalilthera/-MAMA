@@ -150,6 +150,13 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
     setConfirmAction, inactivity,
   } = props;
 
+  // ── « La semaine précédente attend son archive » ───────────────────────────
+  // Le rappel est une notification de cloche (voir `useAuditArchiveReminder`),
+  // donc la liste reçue le porte déjà. On en dérive UN booléen, lu aux deux
+  // seuls endroits visibles depuis n'importe quelle page : le menu latéral
+  // (bureau) et la barre du bas (mobile). En rater un, c'est rater l'autre.
+  const auditArchivePending = notifications.some((n) => n.type === 'archive');
+
   // ─── La file d'attente du poste, vidée au premier démarrage CONNECTÉ ───────
   // Un poste d'école démarre bloqué SANS personne de connecté — c'est le cas
   // normal —, et à cet instant l'envoi au journal d'audit est structurellement
@@ -220,6 +227,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
         onAddStudent={() => openAddStudentModal()}
         onAddCr={() => openAddStudentModal('nursery')}
         onRecordPayment={() => setShowPaymentForm(true)}
+        auditArchivePending={auditArchivePending}
       />
 
       {/* --- Mobile Bottom Navigation (sidebar is hidden below lg) --- */}
@@ -231,6 +239,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
         onToggleLanguage={() => toggleLanguage(lang === 'en' ? 'fr' : 'en')}
         currentUser={currentUser}
         fetchAuditLogs={fetchAuditLogs}
+        auditArchivePending={auditArchivePending}
       />
 
       {/* --- Main Content --- */}
