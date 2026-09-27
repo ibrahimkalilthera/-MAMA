@@ -24,6 +24,18 @@ name: Release channel watch
 # qu'authentifié n'est pas prouvé pour un poste qui, lui, ne s'authentifie
 # jamais.
 #
+# ─── Et quand l'API anonyme refuse (quota), la veille juge quand même ────────
+# MESURÉ le 2026-09-26, en reproduisant ce cron : la LISTE des releases
+# (`/releases`, seule partie qui exige `api.github.com`) répond **403** depuis une
+# IP de runner, dont le quota anonyme est partagé — 60 requêtes par heure —, et
+# elle a fait rougir un canal parfaitement sain pendant trois jours. Le mode
+# `channel` ne la prend donc plus pour acquise : quand elle manque, il lit la tête
+# par la VOIE DU POSTE (`latest.yml` puis les fichiers annoncés, à l'URL de
+# téléchargement — `github.com`, sans quota ni autorisation), et il NOMME ce qu'il
+# n'a pas pu mesurer (le chemin des autres versions publiées, les actifs hors
+# flux). Le cron est donc vert sur ce qu'un poste peut prouver, et bavard sur ce
+# qu'il ne peut pas.
+#
 # Quatre déclencheurs, pour la raison déjà retenue ailleurs dans ce dépôt : un
 # canal se casse SANS commit (release supprimé à la main, fichier écrasé côté
 # dépôt), donc le cron quotidien est le vrai filet ; le push, filtré, exerce le
