@@ -891,8 +891,31 @@ describe('le canal tel que la CI doit le voir', () => {
     // qu'elles seraient nommées.
     const source = read('scripts/check-release-coherence.mjs');
     assert.match(source, /le plus récent publié \(notre tri\) : /);
-    assert.match(source, /for \(const invisibleTag of reach\.invisible\)/);
+    assert.match(source, /for \(const invisibleTag of reach\?\.invisible \?\? \[\]\)/);
     assert.match(source, /PRÉ-version — le canal stable l’ignore/, 'une pré-version publiée se NOMME, elle ne fait pas qu’exister');
+  });
+
+  it('un 403 de la LISTE ne fait plus rougir le cron : la tête se lit par la voie du poste', () => {
+    // MESURÉ le 2026-09-26, en rejouant le cron depuis cette machine : `/releases`
+    // répond 403 dès que le quota anonyme de l'IP est épuisé (60 requêtes par
+    // heure, partagées entre runners), et le cron a rougi trois jours de suite sur
+    // un canal SAIN. Le mode `channel` refuse le jeton par construction, donc la
+    // seule réparation possible est de ne plus dépendre de cette liste : quand
+    // elle manque, la tête se lit par la VOIE DU POSTE (`latest.yml` puis les
+    // fichiers annoncés, à l'URL de téléchargement), et ce qui n'a pas été mesuré
+    // est nommé au lieu d'être tu.
+    const source = read('scripts/check-release-coherence.mjs');
+    assert.match(
+      source,
+      /if \(!listRes\.ok && MODE !== 'channel'\)/,
+      'le refus d’API reste pour les modes qui, eux, ne peuvent pas s’en passer',
+    );
+    assert.match(source, /const releases = listRes\.ok \? await listRes\.json\(\) : \[\];/, 'sans liste, la lecture continue avec une liste vide');
+    assert.match(source, /stationHeadFacts/, 'et la tête se lit alors par la voie du poste');
+    assert.match(source, /liste d’API indisponible/, 'le repli se DIT : un repli silencieux serait un vert inexpliqué');
+    assert.match(source, /les actifs hors flux n’ont PAS été mesurés/, 'et ce qui n’a pas été mesuré est nommé');
+    assert.match(source, /reach\?\.problems\.length \?\? 0/, 'le verdict ne dépend plus du chemin des versions quand la liste manque');
+    assert.match(source, /readOutcome/, '404 = ABSENT et autre statut = ILLISIBLE restent deux faits distincts');
   });
 
   it('le câblage : le canal est vérifié SANS jeton, et tous les jours', () => {

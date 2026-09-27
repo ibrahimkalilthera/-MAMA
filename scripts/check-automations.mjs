@@ -41,6 +41,7 @@ import {
   EVIDENCE_STEP_NAME,
   VERDICT_ICON,
   auditAutomations,
+  dormancyAllowanceDays,
   parseWorkflowFile,
   promisedEvidence,
 } from './lib/automation-evidence.mjs';
@@ -190,6 +191,10 @@ const { results, ko, ok } = auditAutomations({
     file: workflow.file,
     name: workflow.name,
     hasSchedule: workflow.hasSchedule,
+    // La fenêtre de dormance vient de la CADENCE DU WORKFLOW, pas d'un chiffre
+    // global : un cron mensuel n'est pas en panne au bout de huit jours, il est
+    // dans son mois (défaut mesuré le 2026-09-26 sur `backup-roundtrip.yml`).
+    allowanceDays: dormancyAllowanceDays(workflow.crons),
     run,
     anyRun,
     absent,

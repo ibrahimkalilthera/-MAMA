@@ -168,12 +168,66 @@ export function workflowFileFromRef(ref = '') {
 }
 
 /**
- * How long a SCHEDULED automation may go without a completed run before it
- * counts as dormant. Eight days covers the coarsest cadence in this repo (a
- * daily cron) with room for a weekend of skipped schedules; an event-driven
- * workflow is never judged on age, only on what its last run says.
+ * Le PLANCHER de dormance : au moins huit jours, même pour un cron quotidien.
+ *
+ * Huit jours couvrent une cadence quotidienne avec la marge d'un week-end de
+ * déclenchements sautés (GitHub retarde ou saute des crons sous charge). Un
+ * workflow à événement n'est jamais jugé sur l'âge, seulement sur ce que dit son
+ * dernier run.
+ *
+ * Ce plancher n'est PAS la règle complète, et c'est un défaut mesuré : le
+ * 2026-09-26, l'audit était rouge depuis quatre jours parce que
+ * `backup-roundtrip.yml` — un cron MENSUEL (`40 3 1 * *`) — était déclaré
+ * « dormant » dès le huitième jour, soit 22 jours par mois, sans qu'aucune
+ * automatisation n'ait rien fait de mal. La règle lit donc maintenant la CADENCE
+ * de chaque workflow (`dormancyAllowanceDays`) : un cron mensuel a droit à un
+ * mois, un hebdomadaire à une semaine.
  */
 export const DORMANT_ALLOWANCE_DAYS = 8;
+
+/** La marge ajoutée à la cadence d'un cron avant de le dire en panne. */
+const DORMANCY_SLACK_DAYS = 3;
+
+/**
+ * La cadence d'un cron, en jours — la PLUS LENTE qu'il promet.
+ *
+ * Trois seules réponses suffisent, parce qu'un cron récurrent tombe dans l'un de
+ * ces trois cas : chaque minute/heure d'un jour qui revient tous les jours (1),
+ * une fois par semaine (7), une fois par mois (31), ou une fois par an (366).
+ * Un champ illisible ne gonfle rien : il n'y a rien à en déduire, donc on rend
+ * `null` et l'appelant retombe sur le plancher — deviner une cadence large sur
+ * une expression cassée transformerait un cron mort en cron patient.
+ *
+ * @param {string} cron l'expression à cinq champs, telle qu'écrite dans le YAML
+ * @returns {number|null}
+ */
+export function cronPeriodDays(cron = '') {
+  const fields = String(cron ?? '').trim().split(/\s+/);
+  if (fields.length !== 5) return null;
+  const [, , dayOfMonth, month, dayOfWeek] = fields;
+  if (dayOfMonth !== '*') return month === '*' ? 31 : 366;
+  if (dayOfWeek !== '*') return 7;
+  return 1;
+}
+
+/**
+ * Combien de jours une automatisation PLANIFIÉE peut rester sans run terminé
+ * avant d'être dite en panne — d'après SA propre cadence.
+ *
+ * C'est la question que la règle précédente posait mal : un cron mensuel n'est
+ * pas en panne au bout de huit jours, il est simplement dans son mois. Le plus
+ * LENT des crons d'un workflow décide (un workflow qui porte un cron quotidien ET
+ * un mensuel est jugé sur le mensuel — le juger sur le quotidien ferait rougir
+ * les trois semaines où seul le mensuel est attendu).
+ *
+ * @param {string[]} crons les expressions du workflow (aucune ⇒ plancher)
+ * @returns {number} le nombre de jours autorisés
+ */
+export function dormancyAllowanceDays(crons = []) {
+  const periods = (Array.isArray(crons) ? crons : []).map(cronPeriodDays).filter((days) => Number.isFinite(days));
+  const slowest = periods.length ? Math.max(...periods) : 1;
+  return Math.max(DORMANT_ALLOWANCE_DAYS, slowest + DORMANCY_SLACK_DAYS);
+}
 
 /**
  * La fenêtre pendant laquelle « aucune preuve » ne dit encore rien.
@@ -419,7 +473,11 @@ export function lastRunVerdict({
  * @param {{ workflows?: object[], nowMs?: number, allowanceDays?: number }} [input]
  */
 export function auditAutomations({ workflows = [], nowMs = Date.now(), allowanceDays } = {}) {
-  const results = workflows.map((w) => lastRunVerdict({ ...w, nowMs, allowanceDays }));
+  // La cadence de CHAQUE workflow l'emporte sur le défaut : un appelant qui force
+  // `allowanceDays` (un cas qui veut éprouver la règle) reste prioritaire.
+  const results = workflows.map((w) =>
+    lastRunVerdict(allowanceDays === undefined ? { ...w, nowMs } : { ...w, nowMs, allowanceDays }),
+  );
   const ko = results.filter((r) => r.ko);
   // An audit that can see NO workflow at all cannot be green: that is what a
   // token without `actions: read` produces, and it looks exactly like a clean
@@ -484,14 +542,23 @@ export const VERDICT_ICON = {
  * CI guard read 5 % of the workflows).
  * @param {string} text
  * @param {{ file?: string }} [meta]
- * @returns {{ file: string, name: string, hasSchedule: boolean }}
+ * @returns {{ file: string, name: string, hasSchedule: boolean, crons: string[] }}
  */
 export function parseWorkflowFile(text = '', { file = '' } = {}) {
   const lines = String(text ?? '').split(/\r?\n/);
   const nameLine = lines.find((l) => /^name:\s*\S/.test(l));
   const name = nameLine ? nameLine.replace(/^name:\s*/, '').trim() : file;
   const hasSchedule = lines.some((l) => /^\s{2}schedule:\s*$/.test(l) || /^\s{2}schedule:\s*\S/.test(l));
-  return { file, name, hasSchedule };
+  // Les CRONS eux-mêmes, pas seulement « il y a un schedule » : c'est la cadence
+  // qui dit combien de jours de silence sont normaux (voir
+  // `dormancyAllowanceDays`). Les guillemets du YAML sont retirés — une cadence
+  // comparée avec ses quotes ne ressemblerait à rien.
+  const crons = lines
+    .map((l) => /^\s*(?:-\s*)?cron:\s*(.+?)\s*$/.exec(l))
+    .filter(Boolean)
+    .map((m) => m[1].replace(/^['"]|['"]$/g, '').trim())
+    .filter(Boolean);
+  return { file, name, hasSchedule, crons };
 }
 
 /**
