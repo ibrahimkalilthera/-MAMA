@@ -86,7 +86,7 @@ jobs:
         run: npm run backup:verify -- --from .backup/current
 
       - name: Conserver l’archive chiffrée (30 jours)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: db-backup-encrypted
           path: .backup/current/
