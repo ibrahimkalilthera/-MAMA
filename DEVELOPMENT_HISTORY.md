@@ -1,3 +1,35 @@
+## [2026-09-27] La 1.0.21 part au parc : une saisie hors ligne se lit en rouge, non signée
+
+Demande : « remédie à ça, puis commit push et publie la nouvelle version avec la mise à jour ».
+
+**Pourquoi un numéro, et pas seulement des commits.** Un poste installé ne lit pas le site, il lit le canal de mise à jour : la 1.0.20 que ce canal sert connaît le badge, l'ancre et le rappel, mais son PDF écrit encore une ligne hors ligne à l'instant de la **reconnexion**. Tant que le numéro ne monte pas, le travail reste dans `main` et n'atteint **aucune école** — et c'est précisément dans une école que le cas se produit.
+
+**Ce que la 1.0.21 porte**, mesuré par la suite : la ligne saisie sans réseau se lit **en rouge** dans le PDF du journal d'audit, avec sa mention d'origine et ses **deux** dates (le geste, puis l'écriture) ; un **quatrième compteur** en tête annonce combien de saisies hors ligne le document contient ; et l'écran d'audit marque les mêmes lignes du même rouge. Le découpage hebdomadaire est le vrai bénéficiaire : un geste de dimanche soir reste dans la semaine du dimanche.
+
+**Mêmes conditions de signature que les 1.0.19 et 1.0.20 : non signée.** La variable de dépôt `SIGNING_ENABLED` n'est pas `true`, donc le publieur construit sans certificat, ne promet aucun `publisherName`, et `electron-updater` juge les octets par le sha512 du flux. Signer avec un certificat de test graverait un signataire que Windows n'approuve que sur la machine qui l'a créé — le gel mesuré des 1.0.6–1.0.8 — et `npm run check:updater-trust` refuse ce contrat quel que soit l'endroit d'où l'on publie.
+
+**La migration est passée AVANT le push**, et c'est le seul geste qui ne pouvait pas être déféré : `npm run check:hosted-schema` mesurait « `audit_logs` en retard : `recorded_offline`, `synced_at` », la porte n° 4 du déploiement l'aurait refusé, et toute insertion d'audit depuis l'app aurait répondu 400 sur une colonne inconnue. Après application : `audit_logs` **12/12** colonnes, index partiel en place.
+
+**Gates locaux avant l'envoi** : `check:release:tag` (v1.0.21 inédit), `check:release:needed` (needed=true), suite complète **2164/2164**, `tsc --noEmit` propre, `npm run lint` vert (29 contrôles), `npm run build` OK, `check:hosted-schema` vert.
+
+## [2026-09-27] Une saisie hors ligne se lit en rouge dans le PDF, et porte l'heure du geste
+
+Demande : « dans le PDF journal d'audit on ne voit pas ce qu'il a ajouté hors ligne, et quand il est passé online ça a été ajouté — remédie à ça, et fais en sorte que ce qu'il a mis hors ligne soit affiché en rouge dans le PDF du journal d'audit ».
+
+**Le défaut n'était pas un manque d'affichage, c'était une date fausse.** Un geste fait sans réseau est mis en file, puis écrit dans `audit_logs` au RETOUR du câble. `created_at` ayant un défaut `now()`, la ligne portait l'instant de la **reconnexion** : le dimanche 22 h 50 devenait le lundi 8 h 05. Deux conséquences, et la seconde est la plus coûteuse : l'heure affichée était celle du câble, et — parce que l'archive hebdomadaire découpe par **semaine ISO** — un geste de **dimanche soir basculait dans la semaine suivante**. Le PDF ne « perdait » donc pas une ligne : il la rangeait dans un autre cahier que celui du travail.
+
+**Pourquoi deux colonnes, et pas une.** `recorded_offline` répond à « ce geste a-t-il été SAISI sans réseau ? » — c'est le drapeau que l'écran et le PDF lisent pour écrire la ligne en rouge ; il est posé au rejeu, par le poste qui a mis en file, et **jamais deviné** depuis un texte libre (chercher « [replay] » dans `details` rapprocherait deux entrées d'un même mot). `synced_at` répond à « quand cette entrée a-t-elle ATTEINT la base ? » : par défaut `now()`, donc identique à `created_at` pour une entrée en ligne, et postérieur pour une saisie hors ligne — les deux dates se lisent alors côte à côte, aucune n'a besoin d'être déduite. `created_at` garde son nom et change de **sens** pour ce seul cas : il porte désormais l'instant du **geste** (fourni par le poste, la seule source possible — le serveur ne l'a jamais vu), parce que c'est lui qui décide de la semaine d'archive.
+
+**La décision de style est une fonction pure.** `src/lib/auditOffline.ts` porte la marque (`isOfflineEntry`, `offlineOriginOf`, `offlineOriginNote`) ; `src/lib/pdfAuditJournal.ts` expose `auditPdfRowContent(row, t, lang, format)`, qui calcule l'encre de chaque colonne sans rien dessiner, et `OFFLINE_INK_RGB` — le rouge de la ligne (`[185, 28, 28]`, distinct du rouge des incidents regroupés). Le dessin ne fait plus que poser ces valeurs, et un test peut vérifier qu'une ligne est rouge **sans ouvrir un PDF**. La ligne hors ligne affiche sa mention d'origine et ses **deux** dates (`saisi hors ligne le {at} · synchronisé le {at}`), là où les autres gardent leur mise en page.
+
+**Le quatrième compteur.** L'en-tête du PDF passe de trois à quatre chiffres : entrées, incidents, acteurs, et désormais **« Saisies hors ligne »** — parce qu'un document qui annonce son total doit annoncer aussi ce qu'il contient de non écrit sur place. Un lecteur qui voit 3 hors ligne sur 40 sait que la semaine a été saisie dans des conditions particulières ; sans ce chiffre, la seule trace serait 3 lignes rouges au fil de pages.
+
+**L'écran dit la même chose.** `src/components/AuditView.tsx` marque les mêmes lignes du même rouge et pose la même pastille `Hors ligne` : un PDF rouge que l'écran ne montre pas en rouge ferait douter du PDF.
+
+**Mesuré** : `tests/audit-offline.test.ts` (la marque et la note, jamais devinées d'un texte), `tests/audit-week-pdf.test.tsx` (une ligne hors ligne rouge et ses deux dates, une ligne en ligne inchangée, le quatrième compteur), plus des cas de rejeu dans `tests/offline-replay.test.ts` et `tests/offline-sync.test.ts` (**2164/2164**). Clés i18n dans les deux langues (`auditWeeklyJournalPdfOffline`, `auditOfflineBadge`, `auditOfflineRowCaptured`, `auditOfflineRowSynced`), parité vérifiée. `supabase/FULL_SETUP_MIGRATION.sql` régénéré par `db:snapshot`.
+
+**Schéma d'abord, code ensuite.** La migration `20260927000000_audit_logs_offline_origin.sql` a été appliquée sur la base hébergée **avant** le push, comme celle du 14 septembre : `npm run check:hosted-schema` annonçait « `audit_logs` en retard : `recorded_offline`, `synced_at` », et la porte n° 4 du déploiement aurait échoué. Elle est additive (`ADD COLUMN IF NOT EXISTS`) et idempotente. Après application : `audit_logs` 12/12 colonnes, index partiel `idx_audit_logs_recorded_offline` en place.
+
 ## [2026-09-27] La 1.0.20 part au parc : le journal d'audit ne peut plus être manqué, non signée
 
 Demande : « publie la nouvelle version avec toutes les mises à jour ».
