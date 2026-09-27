@@ -302,6 +302,14 @@ export const en = {
     auditWeeklyJournalPdfEntries: "Entries",
     auditWeeklyJournalPdfIncidents: "Grouped incidents",
     auditWeeklyJournalPdfActors: "Active accounts",
+    // ─── Les saisies HORS LIGNE (écran d'audit + PDF) ─────────────────────────
+    // Un geste fait sans réseau n'atteint la base qu'au retour du câble : la
+    // ligne se lit en rouge, et elle dit ses DEUX dates — celle du geste (qui
+    // décide de la semaine d'archive) et celle de l'écriture.
+    auditWeeklyJournalPdfOffline: "Offline entries",
+    auditOfflineBadge: "Offline",
+    auditOfflineRowCaptured: "recorded offline on {at}",
+    auditOfflineRowSynced: "synced on {at}",
     // ─── The archive reminder (bell) ──────────────────────────────────────────
     // The archive writes ITSELF into the journal: that entry is what clears the
     // reminder, and its label reads like every other action.
