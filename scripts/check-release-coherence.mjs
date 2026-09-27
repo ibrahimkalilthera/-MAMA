@@ -326,8 +326,21 @@ function reportFeed(verdict) {
   }
 }
 
+// ── La LISTE, et son repli : un quota n'est pas un défaut du canal ───────────
+// MESURÉ deux fois (2026-09-13, puis le 2026-09-26 en reproduisant le cron) :
+// depuis une IP de runner, /releases répond 403 — le quota anonyme de l'API est
+// partagé, 60 requêtes par heure. Le mode `channel` refusant le jeton PAR
+// CONSTRUCTION (« un canal relu authentifié n'est pas prouvé pour un poste »),
+// un cron quotidien rendait donc rouge un canal sain, pour son propre quota.
+//
+// La liste n'est pourtant PAS ce qu'un poste lit : elle sert à énumérer les
+// versions publiées et les actifs. Le mode `channel` la lit quand elle est là, et
+// la remplace sinon par la VOIE DU POSTE (`github.com`, l'URL que l'updater
+// suit), sans quota ni autorisation. Ce qui ne se mesure plus sans la liste — le
+// chemin de chaque version publiée, et les actifs hors flux — est NOMMÉ, jamais
+// tu : un repli qui se tait serait un vert qu'on ne saurait pas expliquer.
 const listRes = await api('/releases?per_page=100');
-if (!listRes.ok) {
+if (!listRes.ok && MODE !== 'channel') {
   fail(`GitHub injoignable (HTTP ${listRes.status}) — un dépôt qu'on ne peut pas interroger n'est pas un feu vert`, [
     listRes.status === 403
       ? 'un 403 sur l’API sans jeton est le QUOTA PARTAGÉ des runners, pas un défaut du canal : relancez avec un jeton ' +
@@ -336,7 +349,12 @@ if (!listRes.ok) {
     'la liste des actifs est la seule partie qui exige l’API ; le flux et l’installeur d’un poste sont sur github.com et se vérifient sans compte',
   ]);
 }
-const releases = await listRes.json();
+const listProblem =
+  listRes.ok || MODE !== 'channel'
+    ? null
+    : `liste d’API indisponible (HTTP ${listRes.status}) — le verdict porte sur la TÊTE ; ` +
+      'le chemin des autres versions publiées et les actifs hors flux n’ont PAS été mesurés';
+const releases = listRes.ok ? await listRes.json() : [];
 const sameTag = releases.filter((r) => r.tag_name === releaseTag(version));
 const release = sameTag[0] || null;
 
@@ -446,6 +464,88 @@ async function factsFor(rel) {
   };
 }
 
+/**
+ * Les faits de la TÊTE par la voie du POSTE — quand la liste d'API est
+ * indisponible (quota anonyme d'un runner).
+ *
+ * C'est exactement ce qu'un poste lit : `latest.yml` à l'URL de téléchargement
+ * de l'actif, puis chaque fichier que ce flux annonce, rehaché en flux. Aucun
+ * quota, aucune autorisation, et les MÊMES octets que la preuve habituelle.
+ *
+ * Ce que cette voie ne peut pas dire est dit par l'appelant (`listProblem`) :
+ * `assets` ne nomme que ce que le flux annonce — les actifs publiés hors flux ne
+ * sont pas énumérables sans la liste — et l'existence d'un brouillon en double
+ * non plus.
+ *
+ * @param {string} tag le tag de la tête, tel que l'endpoint du poste l'a nommé
+ */
+async function stationHeadFacts(tag) {
+  const at = (name) => `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(name)}`;
+  // `url: null` : la seule voie essayée est celle du poste (l'endpoint d'API de
+  // l'actif n'existe pas sans la liste, et l'inventer ferait une lecture morte).
+  const synthetic = (name) => ({ name, size: null, url: null, browser_download_url: at(name) });
+  const latestRead = await readAsset(synthetic('latest.yml'), { asText: true });
+  reportReadPath('latest.yml', latestRead);
+  const announced = latestRead.text ? parseLatestYml(latestRead.text) : null;
+  const announcedNames = [
+    ...new Set(
+      [announced?.path, ...(Array.isArray(announced?.files) ? announced.files.map((f) => f?.url) : [])]
+        .filter(Boolean)
+        .map(String),
+    ),
+  ];
+  const feedReads = [];
+  for (const name of announcedNames) {
+    const got = await readAsset(synthetic(name), { asText: false });
+    reportReadPath(name, got);
+    feedReads.push({ name, size: got.size ?? null, sha512: got.sha512 ?? null, statuses: got.statuses ?? null, outcome: readOutcome(got) });
+  }
+  const installerRead = feedReads.find((r) => r.name === String(announced?.path ?? '')) ?? null;
+  // `assets` est la réponse à « ce fichier est-il DANS le release ? » — la seule
+  // question que `compareFeedFiles` lui pose (il ne lit que les noms). Un 404 est
+  // donc une ABSENCE (il doit manquer de `assets`), tandis qu'un autre statut est
+  // une PRÉSENCE illisible : les confondre accuserait le canal d'un quota, ce
+  // que ce repli existe précisément pour ne plus faire.
+  const assets = [
+    ...(readOutcome(latestRead) === 'absent' ? [] : [{ name: 'latest.yml', size: null }]),
+    ...feedReads.filter((r) => r.outcome !== 'absent').map((r) => ({ name: r.name, size: r.size ?? null })),
+  ];
+  // La `blockmap` n'est PAS annoncée par le flux : un poste la découvre par
+  // convention (`<installeur>.blockmap`). Sans la liste, il faut donc la sonder,
+  // sinon le contrôle d'« artefact attendu » accuserait un fichier bien présent.
+  if (announced?.path) {
+    const blockmap = `${announced.path}.blockmap`;
+    const got = await readAsset(synthetic(blockmap), { asText: false });
+    if (readOutcome(got) === 'present') assets.push({ name: blockmap, size: got.size ?? null });
+  }
+  return {
+    assets,
+    announced,
+    installer: installerRead?.sha512
+      ? { name: installerRead.name, size: installerRead.size, sha512: installerRead.sha512 }
+      : null,
+    feedReads,
+    latestText: latestRead.text ?? null,
+    latestMissing: readOutcome(latestRead) === 'absent',
+    latestStatuses: latestRead.statuses ?? null,
+    installerMissing: !installerRead || installerRead.outcome === 'absent',
+    installerStatuses: installerRead?.statuses ?? null,
+  };
+}
+
+/**
+ * Ce qu'une lecture par la voie du poste a appris — et « absent » n'est pas
+ * « illisible » : un 404 dit que le fichier n'est pas dans le release, tout autre
+ * refus dit seulement qu'on n'a pas pu le lire.
+ * @param {{ ok?: boolean, statuses?: { status?: number }[] }} read
+ * @returns {'present'|'absent'|'unreadable'}
+ */
+function readOutcome(read) {
+  if (read?.ok) return 'present';
+  const statuses = Array.isArray(read?.statuses) ? read.statuses : [];
+  return statuses.length > 0 && statuses.every((s) => s.status === 404) ? 'absent' : 'unreadable';
+}
+
 /** Ce qu'un release doit contenir, d'après son PROPRE `latest.yml`. */
 const expectedFor = (announced) =>
   ['latest.yml', ...(announced?.path ? [announced.path, `${announced.path}.blockmap`] : [])];
@@ -455,9 +555,13 @@ if (MODE === 'channel') {
   // La tête vient d'abord de l'ENDPOINT DU POSTE : c'est lui qui décide laquelle
   // un poste installeur lit, pas notre propre tri.
   const head = await clientLatestTag();
-  const newestPublished = pickLatestPublished(releases);
+  const newestPublished = releases.length ? pickLatestPublished(releases) : null;
   const target =
-    (head.tag && releases.find((r) => r.tag_name === head.tag && r.draft !== true)) || newestPublished;
+    (head.tag && releases.find((r) => r.tag_name === head.tag && r.draft !== true)) ||
+    newestPublished ||
+    // Repli du repli : sans liste, la TÊTE de l'endpoint du poste est le seul
+    // release dont on puisse parler — et c'est celui qui compte.
+    (head.tag ? { tag_name: head.tag, draft: false, assets: null } : null);
   if (!target) {
     fail('aucun release PUBLIÉ — le canal est muet', [
       `${releases.length} release(s) existent, aucun n’est promu (brouillons ou liste vide) : aucun poste ne lit quoi que ce soit`,
@@ -474,14 +578,19 @@ if (MODE === 'channel') {
   const targetTag = target.tag_name;
   const targetVersion = String(targetTag).replace(/^v/, '');
   const targetSameTag = releases.filter((r) => r.tag_name === targetTag);
-  const facts = await factsFor(target);
+  // La liste est là : la voie d'API (qui seule voit aussi les actifs hors flux).
+  // Sinon : la voie du POSTE, qui lit les mêmes octets sans quota.
+  const facts = listRes.ok ? await factsFor(target) : await stationHeadFacts(targetTag);
   const expected = expectedFor(facts.announced);
   const verdict = compareRelease({
     mode: 'live',
     version: targetVersion,
     expected,
     remote: {
-      count: targetSameTag.length,
+      // Sans liste on ne peut pas compter les releases qui portent le tag : on
+      // dit ce qu'on SAIT (celui-ci existe, on vient de lire son flux) au lieu
+      // d'affirmer « 1 » comme si on l'avait compté.
+      count: listRes.ok ? targetSameTag.length : 1,
       isDraft: target.draft === true,
       tag: targetTag,
       assets: facts.assets,
@@ -526,17 +635,22 @@ if (MODE === 'channel') {
   // Chaque release publié est une population de postes. Une population sortie du
   // chemin ne le dit jamais : la tête reste cohérente, et rien ne rougit — sauf
   // si on demande, version par version, ce qu'elle recevrait.
-  const reach = deliveryReach({
-    published: releases,
-    headTag: head.tag ?? targetTag,
-    holds: brake.holds,
-  });
+  const reach = listRes.ok
+    ? deliveryReach({
+        published: releases,
+        headTag: head.tag ?? targetTag,
+        holds: brake.holds,
+      })
+    : null;
 
   console.log(
-    `🔎 canal — ${releases.length} release(s) dont ${releases.filter((r) => r.draft !== true).length} publié(s) ` +
+    `🔎 canal — ${listRes.ok ? `${releases.length} release(s) dont ${releases.filter((r) => r.draft !== true).length} publié(s)` : 'liste d’API indisponible — la TÊTE seule est jugée'} ` +
       `(mode channel, sans jeton${token ? ' — le jeton de l’environnement est délibérément ignoré' : ''})`,
   );
   console.log(`   la tête que le poste lit : ${head.detail}`);
+  // Le repli se DIT, à l'endroit où le rapport se lit : sans cette ligne, un
+  // verdict plus court se lirait comme un verdict complet.
+  if (listProblem) console.log(`   ⚠️  ${listProblem}`);
   // Le libellé dit ce qu'il montre : NOTRE tri, sur les seules entrées qu'un
   // poste peut voir. Y afficher `target` serait faux dès que la tête et « le plus
   // récent publié » ne sont pas la même entrée — c'est-à-dire exactement le cas
@@ -552,31 +666,41 @@ if (MODE === 'channel') {
   // ignore — mais elles sont NOMMÉES : sans cette ligne, une pré-version plus
   // récente resterait la raison invisible pour laquelle le tri ci-dessus ne la
   // désigne pas, et « publié » se lirait comme « livré ».
-  for (const invisibleTag of reach.invisible) {
+  for (const invisibleTag of reach?.invisible ?? []) {
     console.log(`   ℹ️  ${invisibleTag} est publiée mais c’est une PRÉ-version — le canal stable l’ignore, aucun poste ne la reçoit`);
   }
-  console.log(`   chemin de chaque version publiée — ce qu’un poste resté là recevrait :`);
-  for (const client of reach.clients) {
-    console.log(`   ${client.receives ? '✅' : '❌'} ${client.version} → ${client.detail}`);
+  if (reach) {
+    console.log(`   chemin de chaque version publiée — ce qu’un poste resté là recevrait :`);
+    for (const client of reach.clients) {
+      console.log(`   ${client.receives ? '✅' : '❌'} ${client.version} → ${client.detail}`);
+    }
   }
   for (const r of newerDrafts) {
     console.log(`   ℹ️  ${r.tag_name} est en BROUILLON plus récent — invisible pour les postes tant qu’il n’est pas promu`);
   }
-  if (!verdict.ok || brake.problems.length || reach.problems.length || !head.tag) {
+  if (!verdict.ok || brake.problems.length || (reach?.problems.length ?? 0) > 0 || !head.tag) {
     fail(
       `canal cassé — la tête, le frein d’urgence, ou le chemin de versions entières est inutilisable`,
       [
         ...verdict.problems,
         ...brake.problems,
-        ...reach.problems,
+        ...(reach?.problems ?? []),
         ...(head.tag ? [] : [head.detail]),
       ],
-      [...verdict.warnings, ...brake.warnings, ...reach.warnings, ...(divergence ? [divergence] : [])],
+      [
+        ...verdict.warnings,
+        ...brake.warnings,
+        ...(reach?.warnings ?? []),
+        ...(divergence ? [divergence] : []),
+        ...(listProblem ? [listProblem] : []),
+      ],
     );
   }
   console.log(
-    `✅ canal vivant : les ${reach.clients.filter((c) => c.receives).length} version(s) publiée(s) rejoignent la tête ` +
-      `${reach.head}, le frein est lisible`,
+    reach
+      ? `✅ canal vivant : les ${reach.clients.filter((c) => c.receives).length} version(s) publiée(s) rejoignent la tête ` +
+        `${reach.head}, le frein est lisible`
+      : `✅ canal vivant sur ce qu’un poste lit : la tête ${head.tag} est livrable (flux et installeur rehachés par la voie du poste), le frein est lisible`,
   );
   if (facts.installer) {
     console.log(
@@ -591,14 +715,17 @@ if (MODE === 'channel') {
   for (const w of brake.warnings) console.log(`   ⚠️  ${w}`);
   publishEvidence({
     acted: true,
-    count: reach.clients.filter((c) => c.receives).length,
-    reason:
-      `canal vérifié sans jeton : la tête ${head.tag} est livrable (${facts.installer ? 'installeur rehaché depuis le dépôt public' : 'latest.yml relu'}), ` +
-      `les ${reach.clients.length} version(s) publiées y sont rattachées (postes en ${reach.clients
-        .filter((c) => c.version !== reach.head)
-        .map((c) => c.version)
-        .join(', ') || 'aucune'}), ` +
-      `frein lisible (${brake.entries.length} retenue(s)${brake.holds.length ? ` : ${brake.holds.join(', ')}` : ''})`,
+    count: reach ? reach.clients.filter((c) => c.receives).length : 1,
+    reason: reach
+      ? `canal vérifié sans jeton : la tête ${head.tag} est livrable (${facts.installer ? 'installeur rehaché depuis le dépôt public' : 'latest.yml relu'}), ` +
+        `les ${reach.clients.length} version(s) publiées y sont rattachées (postes en ${reach.clients
+          .filter((c) => c.version !== reach.head)
+          .map((c) => c.version)
+          .join(', ') || 'aucune'}), ` +
+        `frein lisible (${brake.entries.length} retenue(s)${brake.holds.length ? ` : ${brake.holds.join(', ')}` : ''})`
+      : `canal vérifié par la voie du poste (liste d’API indisponible) : la tête ${head.tag} est livrable — ` +
+        `${facts.installer ? 'installeur rehaché depuis le dépôt public' : 'latest.yml relu'} — et le frein est lisible ` +
+        `(${brake.entries.length} retenue(s)) ; le chemin des autres versions publiées n’a PAS été mesuré`,
   });
   process.exit(0);
 }
