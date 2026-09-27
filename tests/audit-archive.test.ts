@@ -143,3 +143,20 @@ describe('auditArchive — quelle semaine, et qu’est-ce qui prouve une archive
     assert.match(source, /targetId:\s*week\.key/, 'la cible est la clé ISO de la semaine, pas une date');
   });
 });
+
+describe('le rappel d’archive ATTEINT la cloche', () => {
+  it('App.tsx passe au shell la liste FUSIONNÉE, pas celle du tableau de bord', () => {
+    // Le rappel est calculé dans App.tsx (`allNotifications` = rappels du tableau
+    // de bord + rappel d’archive), mais ce que la cloche AFFICHE vient de la
+    // liste passée au shell. Tant que le spread `...dashboardData` l’emportait,
+    // le rappel n’existait que pour le marquage lu et le carillon : il
+    // n’arrivait jamais à l’écran, et tout le reste restait vert — exactement le
+    // genre de câblage silencieux qu’un scan de source doit retenir.
+    const app = readFileSync(join(root, 'src/App.tsx'), 'utf8');
+    assert.match(
+      app,
+      /notifications:\s*allNotifications/,
+      'la cloche reçoit la liste fusionnée (tableau de bord + rappel d’archive)',
+    );
+  });
+});
