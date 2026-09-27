@@ -171,6 +171,12 @@ export function UpdateBanner({
   const available = state?.status === 'available';
   const failed = state?.status === 'error';
   const forced = state?.forced === true;
+  // Un téléchargement ANNONCÉ qui échoue ne doit pas être un silence. Sans
+  // obligation, personne n'a de porte fermée à satisfaire — mais le poste a bel
+  // et bien demandé, et l'échec doit se voir, avec un moyen de réessayer : c'est
+  // exactement le cas où l'application avait l'air de n'avoir jamais rien
+  // proposé (rien à l'écran, aucun moyen d'agir).
+  const failedAnnounce = failed && !forced && !!state?.version;
   const blocked = state?.blocked ?? null;
   // La porte : ouverte dès qu'une mise à jour obligatoire est connue — annoncée,
   // en cours, prête, ou même en échec (pour que l'échec soit VISIBLE, au lieu
@@ -299,7 +305,7 @@ export function UpdateBanner({
     );
   }
 
-  if (!(ready || downloading || available)) return null;
+  if (!(ready || downloading || available || failedAnnounce)) return null;
   // « Masquer » ne vaut que pour les états d'annonce et de progression :
   // signaler qu'un téléchargement avance, c'est du bruit si l'utilisateur s'en
   // fiche. Une mise à jour PRÊTE ne se masque pas — elle est déjà téléchargée,
@@ -308,13 +314,17 @@ export function UpdateBanner({
   if (dismissed && !ready) return null;
 
   const isRestart = state.action !== 'open-download';
-  const message = ready
-    ? isRestart
-      ? labels.ready.replace('{version}', state.version ?? '')
-      : labels.readyManual.replace('{version}', state.version ?? '')
-    : downloading
-      ? labels.downloading.replace('{percent}', String(state.percent ?? 0))
-      : labels.available.replace('{version}', state.version ?? '');
+  const message = failedAnnounce
+    ? labels
+        .downloadFailed.replace('{version}', state.version ?? '')
+        .replace('{detail}', state.detail ?? '')
+    : ready
+      ? isRestart
+        ? labels.ready.replace('{version}', state.version ?? '')
+        : labels.readyManual.replace('{version}', state.version ?? '')
+      : downloading
+        ? labels.downloading.replace('{percent}', String(state.percent ?? 0))
+        : labels.available.replace('{version}', state.version ?? '');
 
   return (
     <div
@@ -331,6 +341,16 @@ export function UpdateBanner({
           className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded-md uppercase tracking-wider text-[10px] disabled:opacity-50"
         >
           {isRestart ? labels.restart : labels.download}
+        </button>
+      )}
+      {failedAnnounce && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={retry}
+          className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded-md uppercase tracking-wider text-[10px] disabled:opacity-50"
+        >
+          {labels.forcedRetry}
         </button>
       )}
       {!ready && (
@@ -356,6 +376,11 @@ export interface UpdateLabels {
   restart: string;
   download: string;
   dismiss: string;
+  /**
+   * L'échec d'un téléchargement ANNONCÉ, hors obligation : le poste a demandé,
+   * le téléchargement a échoué — il le dit et propose de réessayer.
+   */
+  downloadFailed: string;
   /** La porte du retard : titre, motif chiffré, règle, échec, secours. */
   forcedTitle: string;
   forcedMajor: string;
