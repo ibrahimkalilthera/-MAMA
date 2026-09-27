@@ -180,6 +180,7 @@ export function SettingsView() {
                 {/* Backup & Export */}
                 <div className={`space-y-4 pt-8 border-t ${currentTheme.border}`}>
                   <h4 className={`text-sm font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.backupSettings}</h4>
+                  <AuditWeekExportCard />
                   <div className={`p-8 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-[2.5rem] border ${currentTheme.border} flex flex-col md:flex-row items-center justify-between gap-6`}>
                     <div className="flex items-center gap-4">
                       <div className={`p-4 ${currentTheme.card} rounded-3xl text-blue-600 shadow-lg`}>
@@ -198,7 +199,6 @@ export function SettingsView() {
                       {t.exportData}
                     </button>
                   </div>
-                  <AuditWeekExportCard />
                 </div>
                 {/* Classes & Sections Configuration Card */}
                 <div className={`space-y-4 pt-8 border-t ${currentTheme.border}`}>
