@@ -44,6 +44,7 @@ installDomGlobals();
 
 const LABELS: UpdateLabels = {
   available: 'dispo {version}',
+  downloadFailed: 'échec du téléchargement de {version} : {detail}',
   downloading: 'téléchargement {percent}%',
   ready: 'prête {version}',
   readyManual: 'manuelle {version}',
@@ -272,6 +273,33 @@ describe('la porte du retard — obligatoire veut dire obligatoire', () => {
     assert.equal(gateOf(container), null, 'rien d’obligatoire ⇒ pas d’écran plein');
     assert.match(textOf(container), /téléchargement 10%/, 'le bandeau habituel est là');
     assert.ok(container.querySelector('[aria-label="Masquer"]'), 'et il se masque — c’est du bruit, pas une obligation');
+
+    unmount(root, container);
+  });
+
+  it('téléchargement annoncé en échec, SANS obligation : le poste le dit et propose de réessayer', async () => {
+    // Le défaut mesuré : « l'app ne demande pas la mise à jour quand on la
+    // lance ». Hors obligation, un échec de téléchargement ne rendait RIEN —
+    // `!(ready || downloading || available)` — donc le poste restait sans
+    // version, sans question et sans un mot.
+    const state: FakeState = {
+      status: 'error',
+      version: '1.0.21',
+      currentVersion: '1.0.15',
+      detail: 'ERR_CONNECTION_RESET',
+      forced: false,
+      forcedCode: 'none',
+    };
+    const bridge = installBridge(state);
+    const { root, container } = await mount(state);
+
+    assert.equal(gateOf(container), null, 'un échec hors obligation n’enferme personne');
+    assert.match(textOf(container), /1\.0\.21/, 'la version qui a échoué est nommée');
+    assert.match(textOf(container), /ERR_CONNECTION_RESET/, 'la cause réelle est affichée');
+    const retry = buttonSaying(container, 'Relancer');
+    assert.ok(retry, 'un remède immédiat, sinon la question ne revient qu’à l’intervalle suivant');
+    act(() => (retry as HTMLButtonElement).click());
+    assert.equal(bridge.retried(), 1, 'la relance passe par le pont');
 
     unmount(root, container);
   });

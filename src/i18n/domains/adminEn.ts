@@ -433,7 +433,10 @@ export const en = {
     resetPass: "Reset Pass",
     restoringSession: "Restoring Session",
     retry: "Retry",
-    updateAvailable: "Version {version} available — downloading…",
+    // "downloading…" was removed: the question now comes before the bytes
+    // (`downloadConsent`), so that sentence would have been a lie.
+    updateAvailable: "Version {version} available.",
+    updateDownloadFailed: "Download of version {version} failed: {detail}",
     updateDownloading: "Update downloading ({percent}%)",
     updateReady: "Version {version} is ready: restart to install it.",
     updateReadyManual: "Version {version} is available: download it to install.",
