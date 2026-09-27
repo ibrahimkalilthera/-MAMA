@@ -289,6 +289,28 @@ export const fr = {
     auditExportRole: "Rôle",
     auditReplay: "Replay",
     auditFilterTo: "Au",
+    // ─── Le journal d'audit hebdomadaire (Réglages → Sauvegarde) ───────────────
+    // Une fin de semaine = une archive. Le titre, le sous-titre et les libellés du
+    // PDF vivent ici comme le reste de l'interface : le document suit la langue
+    // du poste qui le produit.
+    auditWeeklyJournalTitle: "Journal d'Audit Hebdomadaire",
+    auditWeeklyJournalSubtitle: "Archivez le journal de la semaine en PDF, à chaque fin de semaine.",
+    auditWeeklyJournalWeek: "Semaine",
+    auditWeeklyJournalDownload: "Télécharger le PDF",
+    auditWeeklyJournalCount: "{count} entrée(s) dans cette semaine",
+    auditWeeklyJournalEmpty: "Aucune entrée d'audit pour cette semaine.",
+    auditWeeklyJournalFailed: "Le journal de la semaine n'a pas pu être généré.",
+    auditWeeklyJournalPdfTitle: "Journal d'Audit — Semaine {week}",
+    auditWeeklyJournalPdfPeriod: "Du {from} au {to}",
+    auditWeeklyJournalPdfFooter: "Journal d'audit MAMA THERA · généré le {date} · page {page}/{pages}",
+    auditWeeklyJournalPdfEntries: "Entrées",
+    auditWeeklyJournalPdfIncidents: "Incidents groupés",
+    auditWeeklyJournalPdfActors: "Comptes actifs",
+    // ─── Le rappel d'archive (cloche) ─────────────────────────────────────────
+    // L'archive s'inscrit ELLE-MÊME dans le journal : c'est cette entrée-là qui
+    // éteint le rappel, et son libellé se lit comme les autres actions.
+    auditActionExportJournal: "Journal d'audit archivé (PDF)",
+    auditArchiveReminder: "Le journal de la semaine {week} n'a pas encore été archivé en PDF (Réglages → Sauvegarde).",
     exportCsv: "Exporter CSV",
     noAuditEntriesMatchingFilters: "Aucune entrée ne correspond aux filtres.",
     noAuditLogEntriesRecordedYet: "Aucune entrée dans le journal d'audit.",
