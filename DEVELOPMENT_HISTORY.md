@@ -1,3 +1,15 @@
+## [2026-09-27] La 1.0.20 part au parc : le journal d'audit ne peut plus être manqué, non signée
+
+Demande : « publie la nouvelle version avec toutes les mises à jour ».
+
+**Pourquoi un numéro, et pas seulement des commits.** Un poste installé ne lit pas le site, il lit le canal de mise à jour : la 1.0.19 que ce canal sert connaît l'archive hebdomadaire du journal, mais pas encore le **badge**, l'**ancre profonde**, ni la correction du **câblage** qui empêchait le rappel d'atteindre la cloche. Tant que le numéro ne monte pas, ce travail reste dans `main` et n'atteint **aucune école**.
+
+**Ce que la 1.0.20 porte**, mesuré par la suite : un **badge** sur l'onglet Réglages (menu latéral et barre mobile — les deux seuls éléments visibles depuis n'importe quelle page) tant qu'une semaine attend son PDF ; l'**ancre profonde** `#audit-archive` posée par le rappel de la cloche, qui **défile jusqu'à la carte** et l'entoure d'un halo, puis s'efface pour ne pas se rejouer ; la carte placée **en premier** dans la section « Sauvegarde » ; et le rappel d'archive qui **arrive enfin à la cloche** — `App.tsx` lui passait la liste du tableau de bord, donc `allNotifications` n'alimentait que le marquage lu et le carillon, et le rappel sonnait dans le vide.
+
+**Mêmes conditions de signature que la 1.0.19 : non signée.** La variable de dépôt `SIGNING_ENABLED` n'est pas `true`, donc le publieur construit sans certificat, ne promet aucun `publisherName`, et `electron-updater` juge les octets par le sha512 du flux. Signer avec un certificat de test graverait un signataire que Windows n'approuve que sur la machine qui l'a créé — le gel mesuré des 1.0.6–1.0.8 — et `npm run check:updater-trust` refuse ce contrat quel que soit l'endroit d'où l'on publie.
+
+**Gates locaux avant l'envoi** : `check:release:tag` (v1.0.20 inédit), `check:release:needed` (needed=true), suite complète **2156/2156**, `tsc --noEmit` propre, `npm run lint` vert (29 contrôles), `npm run build` OK.
+
 ## [2026-09-27] La carte du journal d'audit devient impossible à manquer — et le rappel qui n'atteignait pas la cloche
 
 Demande : « Rends la carte d'export du journal d'audit impossible à manquer pour un compte dev : titre d'onglet, ancre profonde ou rappel, sans la sortir des Réglages. »
