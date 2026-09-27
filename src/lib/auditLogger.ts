@@ -12,7 +12,22 @@ export interface AuditLogEntry {
   targetType?: string;
   targetId?: string;
   details?: string;
+  /**
+   * L'instant du GESTE. Pour une entrée saisie hors ligne, c'est celui du poste
+   * qui l'a faite — jamais l'instant où le câble est revenu (voir `syncedAt`).
+   */
   createdAt: string;
+  /**
+   * Le geste a été SAISI sans réseau, puis écrit à la reconnexion.
+   *
+   * C'est un DRAPEAU, pas une déduction : il est posé au rejeu. Le chercher dans
+   * `details` (un « [replay] » glissé dans un texte libre) rapprocherait deux
+   * entrées d'un même mot — le dépôt refuse ce raccourci partout ailleurs, il ne
+   * le prend pas ici.
+   */
+  recordedOffline?: boolean;
+  /** L'instant où la ligne a atteint la base. En ligne : ≈ `createdAt`. */
+  syncedAt?: string;
 }
 
 export interface LogAuditParams {
@@ -26,6 +41,15 @@ export interface LogAuditParams {
     full_name?: string;
     role?: string;
   } | null;
+  /**
+   * L'instant du geste, pour une entrée qui a attendu la ligne.
+   *
+   * Le drain de la file hors ligne est le SEUL appelant qui le pose : il rejoue
+   * un geste fait plus tôt, et sans cette date la base écrirait l'heure du
+   * câble retrouvé. Absent (le cas courant), l'entrée est en ligne et le serveur
+   * horodate lui-même.
+   */
+  offlineCaptureAt?: string;
 }
 
 // ─── Actor resolution ────────────────────────────────────────────────────────
@@ -103,8 +127,16 @@ export async function logAuditEvent({
   targetId,
   details,
   user,
+  offlineCaptureAt,
 }: LogAuditParams): Promise<boolean> {
   const actor = user ?? (await resolveActor());
+  // Une entrée rejouée porte la date de son GESTE et se déclare hors ligne : les
+  // deux vont ensemble, et c'est ce couple que l'écran et le PDF lisent pour
+  // écrire la ligne en rouge. Un rejeu sans date garderait `now()`, donc la
+  // semaine d'archive serait celle du câble — la faute exacte qu'on répare.
+  const offlineRow = offlineCaptureAt
+    ? { created_at: offlineCaptureAt, recorded_offline: true }
+    : {};
   if (isStationOffline()) {
     enqueueOfflineAction('addAuditLog', {
       userId: actor?.id ?? null,
@@ -128,6 +160,7 @@ export async function logAuditEvent({
       target_type: targetType || null,
       target_id: targetId || null,
       details: details || null,
+      ...offlineRow,
     });
 
     if (error) {
