@@ -12,6 +12,7 @@ import {
   UserPlus, Users, WifiOff, X, Zap,
 } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
+import { AuditWeekExportCard } from './AuditWeekExportCard';
 import type { RoleTab, ThemeOption } from '../app/mainViewsProps';
 import type { AppRole, UserProfile } from '../lib/useAuth';
 
@@ -197,6 +198,7 @@ export function SettingsView() {
                       {t.exportData}
                     </button>
                   </div>
+                  <AuditWeekExportCard />
                 </div>
                 {/* Classes & Sections Configuration Card */}
                 <div className={`space-y-4 pt-8 border-t ${currentTheme.border}`}>
