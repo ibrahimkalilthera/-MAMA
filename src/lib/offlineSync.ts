@@ -28,10 +28,15 @@ import type { LogAuditParams } from './auditLogger';
  * `audit` is optional (unit tests call the drain without it): when provided,
  * every successfully replayed critical action is audited — the queue drain is
  * where an offline mutation materializes in the DB, so it must leave a trail.
+ *
+ * Le second argument passé à `audit` est l'instant où le GESTE a été fait
+ * (`item.createdAt`), et pas celui du rejeu : le drain est précisément le moment
+ * où cette distinction se perdrait, et c'est elle qui décide de la semaine
+ * d'archive et de la ligne rouge du PDF.
  */
 export async function drainOfflineQueue(
   supabase: ReplayDb,
-  audit?: (info: Omit<LogAuditParams, 'user'> | null) => void
+  audit?: (info: Omit<LogAuditParams, 'user'> | null, capturedAt: string) => void
 ): Promise<number> {
   const queue = getOfflineQueue();
   if (queue.length === 0) return 0;
@@ -43,7 +48,7 @@ export async function drainOfflineQueue(
       const success = await replayOfflineItem(supabase, item);
 
       if (success) {
-        if (audit) audit(offlineAuditInfo(item));
+        if (audit) audit(offlineAuditInfo(item), item.createdAt);
         removeOfflineAction(item.id);
         syncedCount++;
       } else {
