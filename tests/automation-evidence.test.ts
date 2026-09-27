@@ -25,6 +25,8 @@ import {
   EVIDENCE_STEP_NAME,
   EVIDENCE_TITLE,
   auditAutomations,
+  cronPeriodDays,
+  dormancyAllowanceDays,
   evidenceAnnotation,
   evidenceFromAnnotations,
   evidencePayload,
@@ -533,9 +535,88 @@ describe('le dépôt — chaque automatisation promet une preuve, et la MESURE',
   it('l’audit connaît le nom du workflow qu’il juge, et sa cadence', () => {
     const asRead = (file: string) =>
       parseWorkflowFile(readFileSync(join(root, '.github', 'workflows', file), 'utf8'), { file });
-    assert.deepEqual(asRead('perf-guard.yml'), { file: 'perf-guard.yml', name: 'Quality & performance guard', hasSchedule: false });
+    assert.deepEqual(asRead('perf-guard.yml'), { file: 'perf-guard.yml', name: 'Quality & performance guard', hasSchedule: false, crons: [] });
     // Un cron qui ne part pas est en panne : c'est la cadence qui le rend jugable
     // sur son âge, donc elle doit être lue correctement.
     assert.equal(asRead('shared-db-watch.yml').hasSchedule, true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// La fenêtre de dormance se mesure à la CADENCE du workflow, pas à un chiffre
+// global — et c'est un défaut mesuré, pas une élégance.
+//
+// Le 2026-09-26, l'audit des automatisations était rouge depuis quatre jours à
+// cause de `backup-roundtrip.yml` : un cron MENSUEL (`40 3 1 * *`), donc
+// « dormant » dès le huitième jour avec la règle précédente, soit 22 jours par
+// mois, sans qu'aucune automatisation n'ait failli. Le remède n'est pas de lever
+// la dormance (un cron qui ne part pas EST en panne) mais de la comparer à ce que
+// le workflow a promis.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('la dormance se mesure à la cadence du workflow', () => {
+  const file = (name: string) =>
+    parseWorkflowFile(readFileSync(join(root, '.github', 'workflows', name), 'utf8'), { file: name });
+  /** Une preuve d'action complète, pour que seul l'ÂGE du run soit en cause. */
+  const proof = [annotationOf({ workflow: 'backup-roundtrip.yml', acted: true, reason: 'aller-retour recompté' })];
+
+  it('lit les CRONS du fichier, pas seulement « il y a un schedule »', () => {
+    assert.deepEqual(file('backup-roundtrip.yml').crons, ['40 3 1 * *']);
+    assert.deepEqual(file('vercel-pins-watch.yml').crons, ['0 6 * * 1']);
+    assert.deepEqual(file('shared-db-watch.yml').crons, ['12 7 * * *']);
+    assert.deepEqual(file('perf-guard.yml').crons, []);
+  });
+
+  it('une cadence plus lente donne une fenêtre plus large', () => {
+    assert.equal(cronPeriodDays('12 7 * * *'), 1, 'un cron quotidien promet un jour');
+    assert.equal(cronPeriodDays('0 6 * * 1'), 7, 'un cron hebdomadaire promet une semaine');
+    assert.equal(cronPeriodDays('40 3 1 * *'), 31, 'un cron mensuel promet un mois');
+    assert.equal(cronPeriodDays('0 3 1 1 *'), 366, 'un cron annuel promet un an');
+    assert.equal(cronPeriodDays('pas un cron'), null, 'une expression illisible ne se devine pas');
+
+    assert.equal(dormancyAllowanceDays(['12 7 * * *']), 8, 'le quotidien garde le plancher');
+    assert.equal(dormancyAllowanceDays(['0 6 * * 1']), 10);
+    assert.equal(dormancyAllowanceDays(['40 3 1 * *']), 34);
+    assert.equal(dormancyAllowanceDays([]), 8, 'aucun cron : le plancher');
+    assert.equal(dormancyAllowanceDays(['pas un cron']), 8, 'et une expression cassée ne gonfle rien');
+  });
+
+  it('le plus LENT des crons décide — un quotidien voisin ne rapetisse pas la fenêtre', () => {
+    assert.equal(dormancyAllowanceDays(['12 7 * * *', '40 3 1 * *']), 34);
+  });
+
+  it('un cron MENSUEL n’est plus déclaré en panne au bout de huit jours', () => {
+    // Le cas exact qui a rougi la CI : un run vert il y a douze jours.
+    const run = { conclusion: 'success', created_at: new Date(NOW - 12 * DAY).toISOString() };
+    const common = { file: 'backup-roundtrip.yml', name: 'Backup round-trip', hasSchedule: true, run, annotations: proof, promised: true, nowMs: NOW };
+    const before = lastRunVerdict(common);
+    assert.equal(before.verdict, 'dormant', 'sans cadence lue, douze jours restent une panne (l’ancienne règle, nommée)');
+    assert.equal(before.ko, true);
+
+    const today = lastRunVerdict({ ...common, allowanceDays: dormancyAllowanceDays(['40 3 1 * *']) });
+    assert.equal(today.verdict, 'acted', 'avec SA cadence, la même douleur devient un mois normal');
+    assert.equal(today.ko, false);
+  });
+
+  it('mais un cron mensuel VRAIMENT silencieux reste une panne', () => {
+    const run = { conclusion: 'success', created_at: new Date(NOW - 70 * DAY).toISOString() };
+    const verdict = lastRunVerdict({
+      file: 'backup-roundtrip.yml',
+      name: 'Backup round-trip',
+      hasSchedule: true,
+      run,
+      annotations: proof,
+      promised: true,
+      nowMs: NOW,
+      allowanceDays: dormancyAllowanceDays(['40 3 1 * *']),
+    });
+    assert.equal(verdict.verdict, 'dormant', 'deux mois sans un run, ce n’est plus une cadence');
+    assert.equal(verdict.ko, true);
+  });
+
+  it('l’audit du DÉPÔT passe à chaque workflow la fenêtre de sa propre cadence', () => {
+    // Le contrat est lu dans la source : c'est le seul endroit où le lien entre
+    // le fichier de workflow et la fenêtre jugée peut se rompre en silence.
+    const audit = readFileSync(join(root, 'scripts', 'check-automations.mjs'), 'utf8');
+    assert.match(audit, /allowanceDays: dormancyAllowanceDays\(workflow\.crons\)/);
   });
 });
