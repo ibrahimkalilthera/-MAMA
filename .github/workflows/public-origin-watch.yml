@@ -97,6 +97,14 @@ jobs:
         # lui, la preuve ne serait qu'une phrase écrite dans ce fichier.
         env:
           AUTOMATION_EVIDENCE: '1'
+          # Le jeton du job, et il ne sert qu'à UNE chose : prouver la page de
+          # version quand une lecture MACHINE en est refusée (mesuré le
+          # 2026-09-27 : `github.com/<dépôt>/releases/latest` répond 404 à une
+          # adresse de runner pendant que `api.github.com` répond 200 sur le même
+          # run). Il ne part QUE vers api.github.com — voir
+          # scripts/lib/release-page-proof.mjs, qui le reçoit en paramètre et
+          # refuse de l'envoyer ailleurs.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Sans saisie (le cron, le push), on relit l'origine du POSTE, la seule
         # qui compte pour un parc installé — le filet quotidien ne doit pas
         # pouvoir juger autre chose que ce que l'installeur embarque.
@@ -108,4 +116,4 @@ jobs:
       - name: Publier la preuve d’action — origine publique du poste
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "origine publique relue à l’adresse qu’un poste embarque (electron/public-origin.cjs), sans jeton : le détail mesuré (statut, taille de la coquille, modules réellement téléchargés) est publié par scripts/check-public-origin.mjs — une bascule de réglage côté hébergeur devient rouge ici sans attendre le prochain déploiement"
+          --reason "origine publique relue à l’adresse qu’un poste embarque (electron/public-origin.cjs) : le détail mesuré (statut, taille de la coquille, modules réellement téléchargés) est publié par scripts/check-public-origin.mjs — une bascule de réglage côté hébergeur devient rouge ici sans attendre le prochain déploiement. Les liens embarqués sont relus anonymement, comme un client humain les ouvre ; le jeton du job ne sert qu’à un repli NOMMÉ, quand une adresse machine se fait refuser la page de version (scripts/lib/release-page-proof.mjs)"

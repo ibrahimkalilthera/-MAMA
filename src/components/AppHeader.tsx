@@ -64,6 +64,8 @@ export interface AppHeaderProps {
   onRestoreDeletedNotifications: () => void;
   onOpenCalendarDate: (date: string) => void;
   onOpenPayroll: () => void;
+  /** Le rappel d'archive mène aux Réglages → Sauvegarde. */
+  onOpenSettings: () => void;
 }
 
 export function AppHeader(props: AppHeaderProps) {
@@ -76,7 +78,7 @@ export function AppHeader(props: AppHeaderProps) {
     notifications, onOpenStudent, readNotificationIds, deletedNotificationIds,
     onMarkNotificationRead, onMarkAllNotificationsRead, onMarkNotificationUnread,
     onDeleteNotification, onClearAllNotifications, onRestoreDeletedNotifications,
-    onOpenCalendarDate, onOpenPayroll,
+    onOpenCalendarDate, onOpenPayroll, onOpenSettings,
   } = props;
 
   return (
@@ -112,6 +114,7 @@ export function AppHeader(props: AppHeaderProps) {
             onRestoreAll={onRestoreDeletedNotifications}
             onOpenCalendarDate={onOpenCalendarDate}
             onOpenPayroll={onOpenPayroll}
+            onOpenSettings={onOpenSettings}
           />
         </div>
       </div>

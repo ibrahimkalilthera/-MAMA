@@ -119,6 +119,7 @@ function mount(
         onRestoreDeletedNotifications: noop,
         onOpenCalendarDate: noop,
         onOpenPayroll: noop,
+        onOpenSettings: noop,
       }),
     );
   });
