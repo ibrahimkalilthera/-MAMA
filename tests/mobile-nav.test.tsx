@@ -156,4 +156,30 @@ describe('MobileNav', () => {
     await act(async () => root.unmount());
     container.remove();
   });
+
+  it('affiche la pastille d’archive sur Réglages tant qu’une semaine attend son PDF', async () => {
+    const container = win.document.createElement('div');
+    win.document.body.appendChild(container);
+    const root = createRoot(container as unknown as Element);
+    const badge = () => container.querySelector('[aria-label="' + t.auditArchiveBadge + '"]');
+
+    const render = (auditArchivePending: boolean) => createElement(MobileNav, {
+      t,
+      activeTab: 'dashboard' as const,
+      setActiveTab: () => {},
+      payrollWindowStatus: windowStatus(),
+      onToggleLanguage: () => {},
+      currentUser: { role: 'dev' as const },
+      auditArchivePending,
+    });
+
+    await act(async () => { root.render(render(true)); });
+    assert.ok(badge(), 'la pastille est rendue pour un compte dev avec une archive en attente');
+
+    await act(async () => { root.render(render(false)); });
+    assert.equal(badge(), null, 'sans archive en attente, la pastille disparaît');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
 });

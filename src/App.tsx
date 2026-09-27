@@ -647,6 +647,8 @@ const {
     ...payrollData,
     ...classesData,
     ...yearData,
+    // La cloche lit la liste FUSIONNÉE (tableau de bord + rappel d'archive) : `...dashboardData` n'apporte que la première, et sans cette ligne le rappel n'atteignait que le marquage lu et le carillon — jamais l'écran.
+    notifications: allNotifications,
     supabaseLoading: supabaseData.loading,
     supabaseError: supabaseData.error,
     canDelete,
