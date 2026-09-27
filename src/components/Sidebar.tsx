@@ -47,6 +47,12 @@ export interface SidebarProps {
   /** « Ajouter CR » : le MÊME formulaire, ouvert sur les seules classes CR. */
   onAddCr: () => void;
   onRecordPayment: () => void;
+  /**
+   * Une semaine du journal attend son archive en PDF (voir `useAuditArchiveReminder`).
+   * Le badge vit sur l'onglet Réglages, où le geste se fait : c'est le seul
+   * endroit de l'écran visible depuis N'IMPORTE quelle page.
+   */
+  auditArchivePending?: boolean;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -54,6 +60,7 @@ export function Sidebar(props: SidebarProps) {
     t, schoolLogo, activeTab, setActiveTab, payrollWindowStatus, currentUser,
     fetchAuditLogs, showTodoSidebar, setShowTodoSidebar,
     onSignOut, onToggleLanguage, onAddStudent, onAddCr, onRecordPayment,
+    auditArchivePending = false,
   } = props;
 
   const navBtn = (tab: AppTab) =>
@@ -149,8 +156,16 @@ export function Sidebar(props: SidebarProps) {
             </button>
 
             <button onClick={() => setActiveTab('settings')} className={navBtn('settings')}>
-              <Globe size={20} />
+              <Globe size={20} className="flex-shrink-0" />
               <span className="font-semibold text-sm" data-i18n="navSettings">{t.navSettings}</span>
+              {auditArchivePending && (
+                <span
+                  className="ml-auto bg-sky-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0"
+                  data-i18n="auditArchiveBadge"
+                >
+                  {t.auditArchiveBadge}
+                </span>
+              )}
             </button>
           </>
         )}
