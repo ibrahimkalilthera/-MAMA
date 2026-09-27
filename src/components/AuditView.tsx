@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, Download, History, Layers, ShieldCheck } fro
 import { useMainViews } from '../app/mainViewsContext';
 import { incidentRows } from '../lib/blockedIncidents';
 import { auditActionLabel, localizeAuditDetails } from '../lib/auditDisplay';
+import { offlineOriginNote, offlineOriginOf } from '../lib/auditOffline';
 import { downloadBytes } from '../lib/browserDownload';
 import type { BlockedIncident } from '../lib/blockedIncidents';
 
@@ -294,6 +295,10 @@ export function AuditView() {
                           );
                         }
                         const log = row.log;
+                        // Une saisie hors ligne se lit ICI en rouge, comme dans le PDF
+                        // (`auditOffline.ts` est la seule définition d'« hors ligne ») :
+                        // l'écran et l'archive ne peuvent donc pas diverger.
+                        const offline = offlineOriginOf(log);
                         const isPayment = log.action === 'RECORD_PAYMENT';
                         const isExpense = log.action === 'ADD_EXPENSE' || log.action === 'ADD_VENDOR_EXPENSE';
                         const isDelete = log.action.includes('DELETE');
@@ -307,11 +312,16 @@ export function AuditView() {
                           : 'bg-blue-500/10 text-blue-600 border-blue-500/20';
 
                         return (
-                          <tr key={log.id} className={`${currentTheme.rowHover} transition-all`}>
+                          <tr key={log.id} className={`${currentTheme.rowHover} ${offline ? 'bg-rose-500/5' : ''} transition-all`}>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`text-xs font-mono ${currentTheme.muted}`}>
+                              <span className={`text-xs font-mono ${offline ? 'text-rose-600 dark:text-rose-300 font-bold' : currentTheme.muted}`}>
                                 {fmt(log.createdAt)}
                               </span>
+                              {offline && (
+                                <span className="ml-2 text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full border bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20">
+                                  {t.auditOfflineBadge}
+                                </span>
+                              )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex flex-col">
@@ -334,7 +344,12 @@ export function AuditView() {
                               )}
                             </td>
                             <td className="px-6 py-4">
-                              <span className={`text-xs font-medium ${currentTheme.text}`}>{localizeAuditDetails(log.details, lang) || '—'}</span>
+                              <span className={`text-xs font-medium ${offline ? 'text-rose-600 dark:text-rose-300' : currentTheme.text}`}>{localizeAuditDetails(log.details, lang) || '—'}</span>
+                              {offline && (
+                                <span className="block text-[10px] font-bold text-rose-600 dark:text-rose-300">
+                                  {offlineOriginNote(offline, fmt, { captured: t.auditOfflineRowCaptured, synced: t.auditOfflineRowSynced })}
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );
