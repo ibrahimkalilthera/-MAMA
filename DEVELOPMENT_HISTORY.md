@@ -12,6 +12,20 @@ Demande : « remédie à ça, puis commit push et publie la nouvelle version ave
 
 **Gates locaux avant l'envoi** : `check:release:tag` (v1.0.21 inédit), `check:release:needed` (needed=true), suite complète **2164/2164**, `tsc --noEmit` propre, `npm run lint` vert (29 contrôles), `npm run build` OK, `check:hosted-schema` vert.
 
+## [2026-09-27] La 1.0.22 part au parc : l'application demande la mise à jour au lancement, non signée
+
+Demande : « publie la 1.0.22 » — après « l'app ne demande pas de faire la mise à jour automatiquement quand on la lance ».
+
+**Pourquoi un numéro, et pas seulement un commit.** Un poste installé ne lit ni le site ni `main` : il lit le canal de mise à jour, et la 1.0.21 que ce canal sert demande la question **après** 129 Mo de téléchargement — sur un portable, jamais. Tant que le numéro ne monte pas, ce poste reste exactement dans l'état qui l'a fait se plaindre, et il ne peut pas se réparer tout seul : **le correctif ne peut pas atteindre un binaire qui ne le contient pas.** Ce poste devra donc être mis à jour **une fois à la main** (setup ou portable), après quoi il demandera tout seul pour toutes les suivantes.
+
+**Ce que la 1.0.22 porte**, mesuré par la suite : la question posée **dès l'annonce** (`downloadConsent`, pure) ; le **portable** qui reçoit enfin la sienne, vers la page de téléchargement ; un **échec visible et réessayable** hors obligation, là où `status: 'error'` ne rendait rien ; le **bouton d'installation qui télécharge** au lieu de répondre « aucune mise à jour prête » ; et un « Réessayer » qui remet les reports à zéro.
+
+**Prouvé sur le binaire empaqueté, parce que c'était le risque.** `Desktop E2E` ne tourne ni sur `push` ni sur `pull_request` (hebdomadaire + manuel) : un `main.cjs` faux — un updater qui ne télécharge plus jamais — serait parti en publication sans que rien ne rougisse. `scripts/verify-updater.mjs` a donc été joué sur l'exe construit depuis ce commit : **les sept passes** (`patch`, `age`, `minor`, `hold`, `major`, `blocked`, `tampered`) sont vertes, chaîne complète intacte (`checking-for-update → update-available → téléchargement lancé → download-progress → update-downloaded`), version retenue jamais téléchargée, octets menteurs toujours refusés avec leur cause distincte.
+
+**Mêmes conditions de signature que les 1.0.19 à 1.0.21 : non signée.** `SIGNING_ENABLED` n'est pas `true`, donc le publieur construit sans certificat, ne promet aucun `publisherName`, et `electron-updater` juge les octets par le sha512 du flux. Le prix reste l'avertissement SmartScreen ; ce qui est préservé, c'est la capacité du parc à se mettre à jour tout seul — la seule chose que cette version avait à réparer.
+
+**Gates locaux avant l'envoi** : `check:release:tag` (v1.0.22 inédit), `check:release:needed` (needed=true), suite complète **2170/2170**, `tsc --noEmit` propre, `npm run lint` vert (29 contrôles), `npm run build` OK, `l10n-verify` vert (1169 clés), `check:hosted-schema` vert.
+
 ## [2026-09-27] L'application DEMANDE la mise à jour quand on la lance — et un poste portable ne reste plus muet
 
 Demande : « l'app ne demande pas de faire la mise à jour automatiquement quand on la lance, règle ça » — puis « j'ai testé ça sur un autre ordinateur, ça ne demande pas la mise à jour quand j'ouvre l'app ».
