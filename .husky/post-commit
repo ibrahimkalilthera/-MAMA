@@ -1,0 +1,28 @@
+# Sauvegarde automatique — pousse le commit qui vient d'être créé vers origin,
+# sans intervention.
+#
+# Le token GitHub est lu par le credential helper LOCAL du dépôt
+# (`.git/github-credentials`, configuré en `store --file`) : aucune invite.
+#
+# Post-commit : son code de sortie n'annule JAMAIS le commit. Un échec réseau
+# laisse simplement le commit en local, récupéré au prochain push. On sort donc
+# toujours en 0, et on ne demande jamais rien :
+#   • GIT_TERMINAL_PROMPT=0 / GCM_INTERACTIVE=never : pas d'invite bloquante ;
+#   • timeout 60 : un réseau qui traîne ne fait pas traîner le commit.
+#
+# Le `git push` déclenche le pre-push habituel (chaîne qualité) : instantané
+# juste après le pre-commit, grâce au cache « déjà vérifié » sur cet arbre.
+#
+# Désactiver ponctuellement : `HUSKY=0 git commit …` (le lanceur husky sort
+# avant ce fichier) ou `git commit --no-verify`.
+
+branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null)"
+[ -n "$branch" ] || exit 0
+git remote get-url origin >/dev/null 2>&1 || exit 0
+
+if GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never timeout 60 git push origin "HEAD:refs/heads/$branch" >/dev/null 2>&1; then
+  exit 0
+fi
+
+echo "⚠️  sauvegarde : push automatique vers origin échoué — le commit reste local."
+exit 0
