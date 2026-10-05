@@ -13,8 +13,8 @@
 //                UI button when none exists, so the whole flow is exercised)
 //   • recu-parent (Élèves → fiche d'un élève → bouton « Reçu » d'un paiement
 //                → reçu-parent recu-parent.pdf — the parent payment receipt,
-//                filled with the payer name, the phone on the « Tél. : »
-//                dotted line, the amount in words, the amount in figures in
+//                filled with the pupil name, the SCHOOL's fixed number on the
+//                « Tél. : » dotted line, the amount in words, the figures in
 //                the BPF pill, the N° box, month/class/motif and the date; a
 //                demo student+payment is created via the API when the base
 //                holds no payment)
@@ -391,11 +391,12 @@ async function resolveTarget() {
     const pay = Array.isArray(body) ? body : [];
     const studentId = pay[0]?.student_id;
     if (studentId) {
-      const stu = await api(`/rest/v1/students?select=id,name,parent_name,grade,parent_phone&id=eq.${studentId}`);
-      // The Tél. line check needs the student to have a phone: prefer a real
-      // payment only when its student carries one, else fall through to the
-      // demo student (which is guaranteed to).
-      if (Array.isArray(stu.body) && stu.body[0] && (stu.body[0].parent_phone || '').trim()) {
+      const stu = await api(`/rest/v1/students?select=id,name,parent_name,grade&id=eq.${studentId}`);
+      // A real payment in the base is the best target. (Until 2026-10-05 this
+      // also required the student to HAVE A PHONE, because the « Tél. : » line
+      // printed it; that line now carries the school's fixed number, so the
+      // student no longer needs one for the zone to be filled.)
+      if (Array.isArray(stu.body) && stu.body[0]) {
         console.log('  ℹ️ reçu vérifié sur un paiement réel en base');
         return {
           member: null,
@@ -923,7 +924,7 @@ async function pixelCheck(pdfPath, mode) {
     // (measured 6k–25k px per zone on a real fill).
     const zones = [
       ['nom (M)', 20.5, 190, 79.5, 85.5],
-      ['téléphone (Tél.)', 93, 175, 44, 50.5],
+      ['numéro école (Tél.)', 93, 175, 44, 50.5],
       ['somme en lettres', 54.5, 191, 89.5, 97],
       ['montant en chiffres (pilule BPF)', 158, 190.5, 36, 45.5],
       ['mois', 31, 100, 111.5, 117.5],

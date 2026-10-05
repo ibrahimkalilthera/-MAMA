@@ -1,3 +1,13 @@
+## [2026-10-05] Le reçu porte le numéro de l'ÉCOLE, plus celui du parent
+
+Demande du propriétaire, capture à l'appui : sur le reçu de paiement, la ligne `Tél. :` de l'en-tête (encerclée en rouge) montre aujourd'hui le numéro du parent. Décision : ce n'est plus le numéro du parent qui va là, mais celui de l'école — **`77549752/70382542`**.
+
+**Ce qui change.** `src/lib/pdfReceipt.ts` gagne une constante exportée `SCHOOL_PHONE = '77549752/70382542'` et l'écrit toujours sur la ligne `Tél. :` (position et auto-ajustement inchangés). La ligne ne dépend plus de `student.parentPhone` : un reçu est un acte de l'école, et le numéro du payeur est déjà sur la fiche de l'élève. Un parent sans téléphone enregistré reçoit donc, lui aussi, un reçu complet.
+
+**Vérifié, pas supposé.** `tests/pdf-receipt.test.ts` : la ligne est désormais jugée sur ce qu'elle **dit** et sur où l'encre tombe — le texte extrait du PDF contient exactement `77549752/70382542` et aucun fragment `+223` (le téléphone du parent témoin), plus le scan pixel habituel (encre après le label `x ≥ 93`, sur la ligne `y 44–50.5`, rien qui déborde sur « République du Mali »). Un second cas prouve que le numéro est écrit **même quand le parent n'a pas de téléphone**. 14/14 sur la suite du reçu. `scripts/verify-pdf-download.mjs` : la zone pixel `téléphone (Tél.)` devient `numéro école (Tél.)`, et l'heuristique qui exigeait qu'un élève ait un téléphone pour servir de cible (le contrôle E2E du reçu) disparaît — elle n'avait plus d'objet.
+
+**Limite dite.** Le numéro est une constante du code : le changer demandera une modification et un redéploiement, comme les autres textes fixes du reçu.
+
 ## [2026-10-05] L'unicité des élèves est désormais tenue par la BASE, plus seulement par l'app
 
 Suite du nettoyage (`20261005000001_dedupe_students`) et du correctif applicatif (`49ec45b`, `f5ed1dc`). Les deux fermaient la cause côté APPLICATION (id du geste, `23505` lu « geste déjà enregistré ») et retiraient les 14 lignes en trop. Mais un INSERT écrit à la main — SQL direct, autre client, script, futur bug — créait encore un doublon sans que rien ne s'y oppose : la règle manquait là où elle compte le plus, dans la base.

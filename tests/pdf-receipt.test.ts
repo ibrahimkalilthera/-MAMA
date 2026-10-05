@@ -27,6 +27,7 @@ import { createCanvas } from '@napi-rs/canvas';
 import type { ReceiptDataOptions } from '../src/lib/pdfReceipt';
 import {
   buildParentReceiptPdf,
+  SCHOOL_PHONE,
   LINE_M,
   TEL,
   SOMME_LINE1,
@@ -111,7 +112,8 @@ describe('buildParentReceiptPdf — the school paper form with the payment overl
         const nameItem = items.find((item) => item.str === name)!;
         const media = (await PDFDocument.load(bytes)).getPage(0).getMediaBox();
         assert.ok(nameItem.transform[4] + nameItem.width <= media.x + 191 * 72 / 25.4 + 0.1, 'full name fits on the printed line');
-        assert.ok(items.some((item) => item.str === baseStudent.parentPhone), 'parent phone retained');
+        assert.ok(items.some((item) => item.str === SCHOOL_PHONE), 'the school number is on the « Tél. : » line');
+        assert.ok(!items.some((item) => item.str.includes('+223')), 'the parent phone is no longer printed');
       } finally {
         await loadingTask.destroy();
       }
@@ -241,11 +243,13 @@ describe('somme en lettres — stays on the printed dotted lines (pixel scan)', 
   });
 });
 
-describe('téléphone du parent — sur la ligne « Tél. : » (pixel scan)', () => {
+describe('numéro de l’école — sur la ligne « Tél. : » (pixel scan)', () => {
   // Renders the generated receipt and the paper form at 17 px/mm and diffs the
-  // « Tél. : » header line: the phone must be drawn right after the printed
+  // « Tél. : » header line: the number must be drawn right after the printed
   // label (x ≥ 93), ON the dotted line (baseline 48.0, band y 44–50.5), and
   // must not leak into the « République du Mali » line below (y 50.5–53.5).
+  // Since 2026-10-05 this line carries the SCHOOL's fixed number, never the
+  // parent's (the Direction asked for it) — so it is written on every receipt.
   const PX = 6 * 72 / 25.4; // 17.01 px/mm
   const mm = (px: number) => px / PX;
 
@@ -280,24 +284,43 @@ describe('téléphone du parent — sur la ligne « Tél. : » (pixel scan)', ()
     return count ? { minX: mm(minX), maxX: mm(maxX), minY: mm(minY), maxY: mm(maxY), count } : null;
   }
 
-  it('writes the parent phone on the « Tél. : » dotted line', async () => {
+  it('writes the school number on the « Tél. : » dotted line, never the parent phone', async () => {
     const { bytes } = await buildParentReceiptPdf(options());
+
+    // What the line SAYS, not only where the ink landed: the school's number,
+    // and the parent's phone nowhere on the page. Done BEFORE rasterising —
+    // pdfjs detaches the buffer it is handed, so the bytes must be read first
+    // (the copy below leaves `bytes` intact for raster(), which comes after).
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+    const doc = await loadingTask.promise;
+    try {
+      const content = await (await doc.getPage(1)).getTextContent();
+      const strs = content.items
+        .filter((item): item is Extract<typeof item, { str: string }> => 'str' in item)
+        .map((item) => item.str);
+      assert.ok(strs.some((s) => s === SCHOOL_PHONE), `the school number is written (${SCHOOL_PHONE})`);
+      assert.ok(!strs.some((s) => s.includes('+223')), 'the parent’s phone is not written');
+    } finally {
+      await loadingTask.destroy();
+    }
+
     const tpl = await raster(templateBytes);
     const live = await raster(bytes);
 
     const d = diffStats(live, tpl, 93, 175, 44, 50.5);
-    assert.ok(d && d.count > 500, `the phone is drawn after the « Tél. : » label (${d ? d.count : 0} px)`);
+    assert.ok(d && d.count > 500, `the number is drawn after the « Tél. : » label (${d ? d.count : 0} px)`);
     assert.ok(d!.minX >= 93, `it starts right after the label (minX ${d!.minX.toFixed(1)})`);
     assert.ok(d!.minY >= 44.0 && d!.maxY <= 50.5, `it sits on the dotted line (y ${d!.minY.toFixed(1)}–${d!.maxY.toFixed(1)})`);
     assert.ok(!diffStats(live, tpl, 93, 175, 50.5, 53.5), 'nothing leaks into the « République du Mali » line below');
   });
 
-  it('skips the Tél. entry when the parent has no phone', async () => {
+  it('writes the school number even when the parent has no phone', async () => {
     const { bytes } = await buildParentReceiptPdf(
       options({ student: { ...baseStudent, parentPhone: '' } }),
     );
     const tpl = await raster(templateBytes);
     const live = await raster(bytes);
-    assert.ok(!diffStats(live, tpl, 93, 175, 44, 50.5), 'no phone ink on the line when parentPhone is empty');
+    const d = diffStats(live, tpl, 93, 175, 44, 50.5);
+    assert.ok(d && d.count > 500, 'the school number is on the line — it does not depend on the parent');
   });
 });
