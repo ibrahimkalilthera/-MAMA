@@ -158,6 +158,25 @@
   color: #FFFFFF !important;
 }
 
+/* L'encre d'accent L'EMPORTE sur la protection blanche ci-dessus. Les puces
+   d'accent du rail (`accent-surface`/`accent-surface-text` — le badge « Ouverte »
+   d'un élément de nav, les CTA « Ajouter Crèches » et « Enregistrer le
+   Paiement ») portent leur PROPRE encre, dérivée par `readableInk` : c'est la
+   règle qui suit qui doit décider, pas le blanc forcé. Sans ce bloc, l'accent
+   levé des thèmes sombres recevait du blanc et mesurait 1,67:1 (midnight ambre
+   -400) ou 2,14:1 (slate sky-400) — les 78 paires que `npm run check:contrast`
+   refusait. La protection à une classe + type (0,1,1) perd contre ces sélecteurs
+   à deux classes (0,2,0) : l'ordre seul ne suffirait pas, la spécificité si. */
+.app-sidebar .accent-surface,
+.app-sidebar .accent-surface-text,
+.app-sidebar .accent-surface span,
+.app-sidebar .accent-surface button,
+.app-sidebar .accent-surface-text span,
+.theme-cream .app-sidebar .accent-surface,
+.theme-cream .app-sidebar .accent-surface-text {
+  color: var(--accent-ink, #FFFFFF) !important;
+}
+
 .app-sidebar .text-white\/40,
 .app-sidebar .text-white\/50,
 .app-sidebar .text-white\/60,
@@ -282,6 +301,13 @@
   --accent-primary-muted: rgba(56, 189, 248, 0.12);
   --accent-primary-shadow: rgba(56, 189, 248, 0.2);
   --accent-primary-border: rgba(56, 189, 248, 0.32);
+  /* L'encre d'accent VOYAGE avec la surface d'accent. Ce thème lève
+     `--accent-primary` au cran -400 (lisible sur un fond sombre), mais
+     `--accent-ink` restait celui calculé par `readableInk` pour le cran NON levé
+     (`#0284C7`, où le blanc passe 3,6:1) — et posait donc du blanc sur
+     `#38BDF8`, mesuré à 2,14:1 par `npm run check:contrast`. La couleur mesurée
+     est celle-ci : `readableInk(#38BDF8)` rend le même sombre. */
+  --accent-ink: #0B1220;
   /* Premium elevation ladder (R9): tight contact shadow over a wide ambient
      one, plus a 1px inner top highlight, so slate cards read as raised lit
      surfaces instead of flat fills. */
