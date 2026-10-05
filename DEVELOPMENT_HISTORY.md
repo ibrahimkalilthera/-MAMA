@@ -1,3 +1,28 @@
+## [2026-10-05] « 9 saisies refusées » sur le compte économe : l'écran offrait une paie que la base refuse
+
+Signalé avec une capture : le poste `econome` (aggeediarra@mamathera.org) affiche « 9 transaction(s) hors-ligne en attente » et « 9 saisie(s) refusée(s) par la base », et « Synchroniser maintenant » ne débloque rien. Ce n'était donc pas un hoquet réseau : un refus DÉTERMINISTE.
+
+**La cause, mesurée sur la base réelle.** J'ai rejoué chaque type d'action de la file contre la base hébergée (`replayOfflineItemDetailed`, sessions réelles des quatre comptes propriétaires). En `admin`, **les seize branches passent**. En `econome` et en `general_manager`, deux refus permanents apparaissent :
+
+```
+new row violates row-level security policy for table "salary_payments" [42501]
+new row violates row-level security policy for table "staff"          [42501]
+```
+
+`public.is_finance_admin()` vaut `admin`, `dev`, `general_manager` ; `20260902000001_econome_role.sql` en exclut explicitement l'`econome`. Or l'onglet Paie est visible par TOUS les rôles (seuls Réglages et Audit sont réservés), et `PayrollView.tsx` / `usePayroll.ts` n'avaient AUCUNE garde de rôle : l'écran proposait une écriture que la base refuse. La saisie partait en file et y restait — recomptée « refusée » à chaque passage, jamais envoyée.
+
+**La décision** (propriétaire, 2026-10-05) : l'économe ENREGISTRE la paie — c'est son métier (écritures financières quotidiennes, reçus & caisse) — mais ne GÈRE PAS le personnel.
+
+**Le correctif, des deux côtés du contrat.**
+- Migration `20261005000000_econome_payroll_writes.sql` : `public.is_payroll_writer()` = `is_finance_admin()` **plus `econome`** ; les policies INSERT et UPDATE de `salary_payments` passent par elle (la suppression reste à `is_finance_admin` : enregistrer et détruire ne sont pas le même droit). Appliquée à la base hébergée, elle lève le refus — vérifié : `addSalaryPayment` en `econome` → OK, `addStaff` → toujours refusé (comme décidé).
+- `src/lib/payrollRights.ts` : la règle en un seul endroit (`PAYROLL_WRITER_ROLES`, `STAFF_WRITER_ROLES`), et `PayrollView` masque désormais ce que la base refuse — paie hors rôles de paie, personnel hors finance admins. Un compte `staff`, qui pouvait ouvrir l'onglet sans rien pouvoir y écrire, ne voit plus aucune action.
+
+**Mesure.** `tests/payroll-rights.test.ts` : **11/11**, dont le rendu RÉEL de la vue (bouton de paie présent pour l'économe, absent pour `staff`) et la non-divergence rôles ↔ migration DANS LES DEUX SENS. `npm run db:snapshot` régénéré (27 migrations), `tsc --noEmit` propre, `npm run lint` exit 0.
+
+**Incident de manipulation, dit franchement.** Pour reproduire, mes sondes ont exécuté les branches `deleteClass`, dont la policy laisse passer tout compte connecté, et ont supprimé deux VRAIES classes de la base : CR-PETIT et CR-MOYEN. Elles ont été restaurées à l'identique par le seed idempotent de `20260914000002_nursery_classes.sql` (les élèves désignent la classe par son CODE, `students.grade`, jamais par son id — la recréation est donc fonctionnellement complète). Les autres branches de suppression de la sonde n'ont rien détruit : leurs policies admin ont filtré les requêtes (élèves 414 avant/après, parents 12, paiements 2).
+
+**Trouvé au passage, PAS encore réparé — à savoir.** Les branches de rejeu `deleteStudent`, `deleteParent`, `deleteExpense`, `deleteTodo`, `deleteVendorExpense`, `deleteStaff` et les `updateX` correspondantes comptent un succès sur la SEULE absence d'erreur, sans `.select('id')` : une écriture filtrée par la policy (200, zéro ligne) est donc comptée « réussie » et RETIRÉE de la file alors que la base n'a rien changé. C'est le défaut inverse de celui réparé ici, et il reste ouvert — les branches `deleteClass`, `deleteNote`, `updateClass` et `updateUserRole` montrent déjà la règle honnête à généraliser.
+
 ## [2026-10-05] Une saisie refusée restait muette : la file enregistre (et nomme) la raison
 
 Signalé par une capture d'écran : le bandeau affiche « 9 saisie(s) refusée(s) par la base — toujours en attente, à vérifier », et rien d'autre. L'école — comme nous — ne peut pas savoir POURQUOI : l'entrée de file ne portait qu'un compteur d'essais (`attempts`), jamais la cause. « Synchroniser maintenant » rejouait donc le même refus sans jamais le nommer.
