@@ -39,6 +39,7 @@ export const AUDIT_ACTION_KEYS: Record<string, string> = {
   BATCH_IMPORT: 'auditActionBatchImport',
   DELETE_EXPENSE: 'auditActionDeleteExpense',
   DELETE_PARENT: 'auditActionDeleteParent',
+  DELETE_PAYMENT: 'auditActionDeletePayment',
   DELETE_STAFF: 'auditActionDeleteStaff',
   DELETE_STUDENT: 'auditActionDeleteStudent',
   DELETE_VENDOR_EXPENSE: 'auditActionDeleteVendorExpense',

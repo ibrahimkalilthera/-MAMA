@@ -9,7 +9,7 @@
  */
 import type { Dispatch, SetStateAction, FormEvent } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense } from '../lib/useSupabaseData';
+import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense, Payment } from '../lib/useSupabaseData';
 import type { CalendarEvent, CurrentTheme, ExpenseForm, ManagedClass, ParentForm, SalaryForm, StaffForm, StaffModalMode, VendorExpenseForm } from './mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
@@ -54,6 +54,12 @@ export interface AppModalsProps {
   currentTheme: CurrentTheme;
   currentUser: { name?: string; role?: string; username?: string } | null;
   deleteStudent: (id: string) => Promise<boolean>;
+  /**
+   * Supprime UN paiement saisi par erreur (le seul recours était jusqu'ici de
+   * supprimer l'élève entier). Réservé aux administrateurs par la policy
+   * « Admin delete payments » — l'écran gate le bouton sur `canDelete`.
+   */
+  deletePayment: (studentId: string, payment: Payment) => Promise<boolean>;
   deleteTodo: (id: string) => Promise<boolean>;
   editClassForm: ClassForm;
   editingParent: Parent | null;

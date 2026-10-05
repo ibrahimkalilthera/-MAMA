@@ -554,3 +554,104 @@ describe('addPayment — l’id du geste empêche un second reçu', () => {
     assert.equal(s.amountPaid, 75000, 'le solde n’a été incrémenté qu’une fois');
   });
 });
+
+/**
+ * `deletePayment` — le recours quand un paiement a été saisi par erreur.
+ *
+ * Trois contrats, et chacun répare un mensonge possible :
+ *   • une ligne réellement retirée redescend le solde de l'élève ET laisse une
+ *     entrée `DELETE_PAYMENT` au journal (montant, reçu, élève) ;
+ *   • une suppression que la policy « Admin delete payments » a filtrée (0 ligne,
+ *     HTTP 200) ÉCHOUE et le DIT — la ligne reste à l'écran ;
+ *   • hors ligne, rien n'est tenté : le geste part dans la file, l'écran est
+ *     mis à jour tout de suite.
+ */
+describe('deletePayment — retirer le seul reçu fautif, et l’écrire au journal', () => {
+  const PAY1 = { id: 'pay1', date: '2026-10-01', amount: 25000, receiptNumber: 'REC-1' } as Payment;
+  const PAY2 = { id: 'pay2', date: '2026-10-03', amount: 50000, receiptNumber: 'REC-2' } as Payment;
+  const PAYING = {
+    id: 'st1', name: 'Ali Diallo', amountPaid: 75000, totalDue: 150000, dueDate: '2026-12-31',
+    parentName: '', parentEmail: '', parentPhone: '', notes: '', payments: [PAY1, PAY2],
+  };
+
+  function opsFor(list: unknown[] = [PAYING]) {
+    const { ctx, events, state } = opsCtx('students', 'setStudents', list);
+    return {
+      ctx,
+      events,
+      state,
+      ops: createPaymentOps(ctx as unknown as Parameters<typeof createPaymentOps>[0]),
+    };
+  }
+
+  it('supprime la ligne, redescend le solde, et écrit DELETE_PAYMENT avec montant + reçu', async () => {
+    rowsResult = { data: [{ id: 'pay1' }], error: null };
+    const { ops, events, state } = opsFor();
+
+    assert.equal(await ops.deletePayment('st1', PAY1), true);
+    assert.deepEqual(events, ['ok:deletePayment'], 'un seul succès, aucune erreur');
+
+    const s = state()[0] as { payments: { id: string }[]; amountPaid: number; lastPaymentDate?: string };
+    assert.equal(s.payments.length, 1, 'seul le paiement fautif part');
+    assert.equal(s.payments[0]!.id, 'pay2');
+    assert.equal(s.amountPaid, 50000, 'le solde redescend du montant annulé');
+    assert.equal(s.lastPaymentDate, '2026-10-03', 'la dernière date suit le paiement qui reste');
+
+    const deletion = calls.find((c) => c.op === 'delete');
+    assert.ok(deletion, 'un DELETE part vers payments');
+    assert.equal(deletion.table, 'payments');
+    assert.equal(deletion.eqColumn, 'id');
+    assert.equal(deletion.eqValue, 'pay1');
+    assert.ok(selects > 0, 'la requête demande CE QUI a été supprimé (.select)');
+
+    const audit = calls.find((c) => c.op === 'insert' && c.table === 'audit_logs');
+    assert.ok(audit, 'la suppression est consignée dans le journal');
+    assert.equal(audit.payload?.action, 'DELETE_PAYMENT');
+    assert.equal(audit.payload?.target_type, 'payment');
+    assert.equal(audit.payload?.target_id, 'st1', 'le journal nomme l’élève concerné');
+    assert.match(String(audit.payload?.details), /25000/, 'le montant annulé est écrit');
+    assert.match(String(audit.payload?.details), /REC-1/, 'le numéro de reçu est écrit');
+  });
+
+  it('ÉCHOUE et le dit quand la policy a filtré la cible (0 ligne, HTTP 200)', async () => {
+    rowsResult = { data: [], error: null };
+    const { ops, events, state } = opsFor();
+
+    assert.equal(await ops.deletePayment('st1', PAY1), false, 'pas de faux succès');
+    const s = state()[0] as { payments: unknown[]; amountPaid: number };
+    assert.equal(s.payments.length, 2, 'le paiement reste listé — il est toujours en base');
+    assert.equal(s.amountPaid, 75000, 'le solde ne bouge pas');
+    assert.equal(events.filter((e) => e.startsWith('ok:')).length, 0, 'aucun « Paiement supprimé » mensonger');
+    const failure = events.find((e) => e.startsWith('err:deletePayment'));
+    assert.ok(failure, 'l’échec est signalé');
+    assert.ok(failure.length > 'err:deletePayment:'.length, 'avec une raison lisible');
+    assert.equal(
+      calls.filter((c) => c.op === 'insert' && c.table === 'audit_logs').length,
+      0,
+      'rien n’est journalisé : la base n’a rien supprimé',
+    );
+  });
+
+  it('hors ligne, le geste part dans la file et l’écran est mis à jour tout de suite', async () => {
+    const { ctx, events, state } = opsFor();
+    (ctx as Record<string, unknown>).isOffline = () => true;
+    const offlineOps = createPaymentOps(ctx as unknown as Parameters<typeof createPaymentOps>[0]);
+
+    assert.equal(await offlineOps.deletePayment('st1', PAY1), true);
+    assert.ok(events.includes('queued'), 'la suppression est mise en file');
+    assert.equal(calls.filter((c) => c.op === 'delete').length, 0, 'aucune requête tentée sans réseau');
+    const s = state()[0] as { payments: { id: string }[]; amountPaid: number };
+    assert.equal(s.payments.length, 1, 'l’écran ne montre plus le paiement annulé');
+    assert.equal(s.amountPaid, 50000);
+  });
+
+  it('un solde déjà plus bas que le montant annulé ne devient pas négatif', async () => {
+    rowsResult = { data: [{ id: 'pay1' }], error: null };
+    // Dérive possible des données : le solde enregistré est INFÉRIEUR au montant
+    // du reçu qu'on retire. La forme honnête est 0, jamais une dette négative.
+    const { ops, state } = opsFor([{ ...PAYING, amountPaid: 10000 }]);
+
+    assert.equal(await ops.deletePayment('st1', PAY1), true);
+    assert.equal((state()[0] as { amountPaid: number }).amountPaid, 0);
+  });
+});

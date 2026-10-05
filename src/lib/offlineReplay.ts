@@ -213,6 +213,13 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
   } else if (item.type === 'deleteStudent') {
     const { error } = await db.from('students').delete().eq('id', item.payload.id);
     if (!error) success = true;
+  } else if (item.type === 'deletePayment') {
+    // La suppression mise en file : on retire la SEULE ligne de `payments`. Le
+    // solde `students.amount_paid` n'est PAS réécrit ici — même partage que le
+    // rejeu d'`addPayment`, qui ne touche pas non plus à cette colonne (voir la
+    // limite documentée dans `deletePayment`, dataOps/payments.ts).
+    const { error } = await db.from('payments').delete().eq('id', item.payload.paymentId);
+    if (!error) success = true;
   } else if (item.type === 'addStaff') {
     const { error } = await db.from('staff').insert({ ...rowIdColumn(item.localId), ...staffToRow(item.payload) });
     if (!error) success = true;
@@ -465,6 +472,11 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
       // Même forme que le chemin en ligne (dataOps/payments.ts) : un même fait
       // ne doit pas se lire de deux façons selon qu'il a été rejoué ou non.
       return { action: 'RECORD_PAYMENT', targetType: 'payment', targetId: item.payload.studentId, details: `Paiement de ${item.payload.payment.amount} FCFA (reçu ${item.payload.payment.receiptNumber || 'N/A'})${tag}` };
+    case 'deletePayment':
+      // Même forme que le chemin en ligne (dataOps/payments.ts) : montant, reçu,
+      // date — un même fait ne se lit pas de deux façons selon qu'il a été
+      // rejoué ou non.
+      return { action: 'DELETE_PAYMENT', targetType: 'payment', targetId: item.payload.studentId, details: `Paiement de ${item.payload.amount} FCFA (reçu ${item.payload.receiptNumber || 'N/A'}) du ${item.payload.date} supprimé${tag}` };
     case 'addExpense':
       return { action: 'ADD_EXPENSE', targetType: 'expense', targetId: null, details: `${item.payload.description} (${item.payload.category}) — ${item.payload.amount} FCFA${tag}` };
     case 'updateExpense':

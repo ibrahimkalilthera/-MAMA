@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Calendar, Copy, FileText, Printer, Receipt, StickyNote, Trash2, Users, X } from 'lucide-react';
-import type { Student } from '../lib/useSupabaseData';
+import type { Student, Payment } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
@@ -41,6 +41,13 @@ export interface StudentDetailsModalProps {
   onDeleteRequest: () => void;
   /** Le rôle peut-il supprimer ? Décidé par la base (`src/lib/deleteRights.ts`). */
   canDelete: boolean;
+  /**
+   * Supprime UN paiement saisi par erreur — la seule ligne, sans emporter
+   * l'élève ni ses autres reçus. La base réserve ce droit aux administrateurs
+   * (policy « Admin delete payments »), donc l'appel n'est proposé que quand
+   * `canDelete` est vrai.
+   */
+  onDeletePayment: (studentId: string, payment: Payment) => Promise<boolean>;
 }
 
 export function StudentDetailsModal(props: StudentDetailsModalProps) {
@@ -48,10 +55,29 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
     student: selectedStudent, t, lang, currentTheme, formatDate, formatCurrency,
     getGradeDisplay, generatePaymentReceiptPdf, currentUser, copyToClipboard,
     handleSaveNote, studentDetailTab, setStudentDetailTab, overlayRef,
-    onClose, onEdit, onPrint, onDeleteRequest, canDelete,
+    onClose, onEdit, onPrint, onDeleteRequest, canDelete, onDeletePayment,
   } = props;
   // Notes ⇄ Calendar bridge: optional date picked next to the sticky note.
   const [noteDateInput, setNoteDateInput] = useState('');
+  // Suppression d'un paiement : une confirmation EN LIGNE (pas de dialogue
+  // navigateur) puis l'appel. `deletingPaymentId` désactive le bouton pendant
+  // l'aller-retour et `deletingPaymentIdRef` ferme la course d'un double clic —
+  // le second appel verrait « zéro ligne supprimée » et crierait à tort
+  // « droits insuffisants » (même garde que le formulaire de paiement).
+  const [pendingDeletePaymentId, setPendingDeletePaymentId] = useState<string | null>(null);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const deletingPaymentIdRef = useRef<string | null>(null);
+  const handleDeletePayment = async (payment: Payment) => {
+    if (!payment.id || deletingPaymentIdRef.current) return;
+    deletingPaymentIdRef.current = payment.id;
+    setDeletingPaymentId(payment.id);
+    const ok = await onDeletePayment(selectedStudent.id, payment);
+    deletingPaymentIdRef.current = null;
+    setDeletingPaymentId(null);
+    // Succès : la ligne a quitté la liste, on referme la confirmation. Échec :
+    // on la laisse ouverte (le toast a déjà dit pourquoi).
+    if (ok) setPendingDeletePaymentId(null);
+  };
   return (
     <ModalShell
       overlayRef={overlayRef}
@@ -208,25 +234,65 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                     {selectedStudent.payments.length > 0 ? (
                       [...selectedStudent.payments].reverse().map((p, idx) => (
                         <div key={`${p.date}-${p.amount}-${idx}`} className={`flex items-center justify-between p-3 ${currentTheme.surfaceInset} rounded-xl text-xs`}>
-                          <div className="flex flex-col">
-                            <span className={currentTheme.muted}>{formatDate(p.date)}</span>
-                            {p.receiptNumber && <span className="text-2xs text-slate-400 font-mono">{t.receiptNoShort} {p.receiptNumber}</span>}
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-bold text-emerald-600">+{formatCurrency(p.amount)}</span>
-                            <button
-                              onClick={() => generatePaymentReceiptPdf({
-                                student: selectedStudent,
-                                payment: p,
-                                lang,
-                                cashierName: currentUser?.name || 'Administration'
-                              })}
-                              className={`px-2 py-1 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} rounded text-2xs font-bold transition-all shadow-sm flex items-center gap-1`}
-                              title={t.downloadReceiptPdf}
-                            >
-                              <Receipt size={12} /> {t.receipt2}
-                            </button>
-                          </div>
+                          {pendingDeletePaymentId === p.id ? (
+                            /* Confirmation EN LIGNE (pas de dialogue navigateur) :
+                               la phrase dit ce qui part, et le journal en gardera
+                               la trace sous « Paiement supprimé ». */
+                            <div className="flex flex-col gap-2 w-full">
+                              <span className="text-2xs font-bold text-rose-600">
+                                {t.deletePaymentConfirm
+                                  .replace('{amount}', formatCurrency(p.amount))
+                                  .replace('{receipt}', p.receiptNumber || 'N/A')}
+                              </span>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => { void handleDeletePayment(p); }}
+                                  disabled={deletingPaymentId === p.id}
+                                  className="px-2 py-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded text-2xs font-bold transition-all"
+                                >
+                                  {t.deletePayment}
+                                </button>
+                                <button
+                                  onClick={() => setPendingDeletePaymentId(null)}
+                                  className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 rounded text-2xs font-bold transition-all`}
+                                >
+                                  {t.cancel}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex flex-col">
+                                <span className={currentTheme.muted}>{formatDate(p.date)}</span>
+                                {p.receiptNumber && <span className="text-2xs text-slate-400 font-mono">{t.receiptNoShort} {p.receiptNumber}</span>}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="font-bold text-emerald-600">+{formatCurrency(p.amount)}</span>
+                                <button
+                                  onClick={() => generatePaymentReceiptPdf({
+                                    student: selectedStudent,
+                                    payment: p,
+                                    lang,
+                                    cashierName: currentUser?.name || 'Administration'
+                                  })}
+                                  className={`px-2 py-1 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} rounded text-2xs font-bold transition-all shadow-sm flex items-center gap-1`}
+                                  title={t.downloadReceiptPdf}
+                                >
+                                  <Receipt size={12} /> {t.receipt2}
+                                </button>
+                                {/* « Admin delete payments » : pas de rôle, pas de bouton. */}
+                                {canDelete && p.id && (
+                                  <button
+                                    onClick={() => setPendingDeletePaymentId(p.id ?? null)}
+                                    className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-all"
+                                    title={t.deletePayment}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))
                     ) : (

@@ -26,6 +26,7 @@ function itemOf<T extends OfflineActionType>(
 /** The player with the full typed payloads, and the table each one should hit. */
 const CASES: { type: OfflineActionType; build: () => QueueItem; table: string }[] = [
   { type: 'addPayment', build: () => itemOf('addPayment', { studentId: 's1', payment: { date: '2026-01-01', amount: 500, receiptNumber: 'R1' } }), table: 'payments' },
+  { type: 'deletePayment', build: () => itemOf('deletePayment', { studentId: 's1', paymentId: 'pay1', amount: 500, receiptNumber: 'R1', date: '2026-01-01' }), table: 'payments' },
   { type: 'addExpense', build: () => itemOf('addExpense', { category: 'stationery', description: 'desk', amount: 10, date: '2026-01-01' }), table: 'expenses' },
   { type: 'updateExpense', build: () => itemOf('updateExpense', { id: 'e1', updates: { amount: 12 } }), table: 'expenses' },
   { type: 'deleteExpense', build: () => itemOf('deleteExpense', { id: 'e1' }), table: 'expenses' },
@@ -62,7 +63,7 @@ describe('offline queue replay (replayOfflineItem)', () => {
     // Keep this list in sync with OfflineActionType so an added action forces a
     // deliberate test-case here instead of silently replaying into `false`.
     const all: OfflineActionType[] = [
-      'addPayment', 'addExpense', 'updateExpense', 'deleteExpense',
+      'addPayment', 'deletePayment', 'addExpense', 'updateExpense', 'deleteExpense',
       'addVendorExpense', 'updateVendorExpense', 'deleteVendorExpense',
       'addStudent', 'updateStudent', 'deleteStudent',
       'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment',
@@ -323,7 +324,7 @@ describe('ids des lignes créées hors ligne', () => {
 describe('offline replay audit mapping (offlineAuditInfo)', () => {
   // Actions whose online equivalent is audited → must produce an entry.
   const AUDITED: OfflineActionType[] = [
-    'addPayment', 'addExpense', 'updateExpense', 'deleteExpense',
+    'addPayment', 'deletePayment', 'addExpense', 'updateExpense', 'deleteExpense',
     'addVendorExpense', 'updateVendorExpense', 'deleteVendorExpense',
     'addStudent', 'updateStudent', 'deleteStudent',
     'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment',
