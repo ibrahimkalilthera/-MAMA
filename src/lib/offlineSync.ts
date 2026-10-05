@@ -9,8 +9,8 @@
  * React rendering, or a DOM. The hook drives this with the real client.
  */
 import type { ReplayDb } from './offlineReplay';
-import { offlineAuditInfo, replayOfflineItem } from './offlineReplay';
-import { getOfflineQueue, markOfflineAttempt, removeOfflineAction } from './offlineQueue';
+import { offlineAuditInfo, replayOfflineItemDetailed } from './offlineReplay';
+import { getOfflineQueue, markOfflineFailure, removeOfflineAction } from './offlineQueue';
 import type { LogAuditParams } from './auditLogger';
 
 /**
@@ -19,11 +19,11 @@ import type { LogAuditParams } from './auditLogger';
  * (getOfflineQueue → replayOfflineItem → removeOfflineAction).
  *
  * An item whose replay reports an error STAYS queued — it will be retried on
- * the next sync pass — and the failed attempt is COUNTED (markOfflineAttempt),
- * so the screen can distinguish « waiting to be sent » from « refused, and it
- * will not go through on its own ». A replay that THROWS stops the whole drain
- * so later mutations keep their relative order. Returns the number of synced
- * items.
+ * the next sync pass — and the failed attempt is COUNTED (markOfflineFailure)
+ * WITH ITS REASON, so the screen can distinguish « waiting to be sent » from
+ * « refused, and it will not go through on its own », and can NAME why. A
+ * replay that THROWS stops the whole drain so later mutations keep their
+ * relative order. Returns the number of synced items.
  *
  * `audit` is optional (unit tests call the drain without it): when provided,
  * every successfully replayed critical action is audited — the queue drain is
@@ -45,16 +45,17 @@ export async function drainOfflineQueue(
 
   for (const item of queue) {
     try {
-      const success = await replayOfflineItem(supabase, item);
+      const { ok, reason } = await replayOfflineItemDetailed(supabase, item);
 
-      if (success) {
+      if (ok) {
         if (audit) audit(offlineAuditInfo(item), item.createdAt);
         removeOfflineAction(item.id);
         syncedCount++;
       } else {
         // Rien n'est perdu : l'action reste en file et repartira au prochain
-        // passage — mais elle est marquée comme ayant déjà été refusée.
-        markOfflineAttempt(item.id);
+        // passage — mais elle est marquée comme ayant déjà été refusée, ET avec
+        // la raison du refus, pour que la bannière puisse la nommer.
+        markOfflineFailure(item.id, reason);
       }
     } catch (err) {
       console.error('Offline sync failed for item:', item, err);

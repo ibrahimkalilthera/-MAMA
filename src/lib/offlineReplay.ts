@@ -386,6 +386,68 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
   return success;
 }
 
+/**
+ * Une raison COURTE et sûre pour un objet d'erreur PostgREST/GoTrue.
+ *
+ * La bannière doit pouvoir la nommer ; on garde donc le message et le code,
+ * jamais l'objet entier (ni un `String(error)` qui, sur un objet sans
+ * conversion, lèverait — le piège déjà payé par `errorText`).
+ */
+export function describeReplayError(error: unknown): string {
+  if (!error) return 'écriture refusée par la base (aucune ligne touchée)';
+  const e = (typeof error === 'object' && error !== null ? error : {}) as { message?: unknown; code?: unknown };
+  const message = typeof e.message === 'string' && e.message.trim() ? e.message.trim() : 'refus sans message';
+  const code = typeof e.code === 'string' && e.code.trim() ? ` [${e.code.trim()}]` : '';
+  return `${message}${code}`.slice(0, 300);
+}
+
+/**
+ * Enregistre la PREMIÈRE erreur rendue par la base pendant un rejeu.
+ *
+ * On n'ajoute pas une raison à chacune des 28 branches : on enveloppe la seule
+ * surface que le rejeu utilise (`from()`, puis des builders thenables). Le
+ * contrat tenu est donc celui d'un THENABLE — celui du client Supabase comme du
+ * faux des tests. L'erreur lue est celle du premier résultat en échec, ce qui
+ * suffit : un refus interrompt la branche et le rejeu s'arrête là.
+ */
+function recordingDb(db: ReplayDb, sink: { error: unknown }): ReplayDb {
+  type Builder = { then: (onFulfilled?: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) => unknown };
+  const wrap = (builder: unknown): unknown =>
+    new Proxy(builder as object, {
+      get(target, prop) {
+        if (prop === 'then') {
+          return (onFulfilled?: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+            (target as Builder).then((value) => {
+              const error = (value as { error?: unknown } | null)?.error;
+              if (error && sink.error === null) sink.error = error;
+              return onFulfilled ? onFulfilled(value) : value;
+            }, onRejected);
+        }
+        const value = Reflect.get(target, prop, target);
+        return typeof value === 'function'
+          ? (...args: unknown[]) => wrap((value as (...a: unknown[]) => unknown).apply(target, args))
+          : value;
+      },
+    });
+  return {
+    from: (table: string) => wrap(db.from(table)),
+  } as unknown as ReplayDb;
+}
+
+/**
+ * Le rejeu AVEC sa raison : `ok` (comme `replayOfflineItem`) et, en cas de
+ * refus, la cause lisible qui sera inscrite sur l'entrée de file. C'est ce que
+ * le drainage utilise pour que l'école sache POURQUOI une saisie ne part pas.
+ */
+export async function replayOfflineItemDetailed(
+  db: ReplayDb,
+  item: QueueItem,
+): Promise<{ ok: boolean; reason: string | null }> {
+  const sink: { error: unknown } = { error: null };
+  const ok = await replayOfflineItem(recordingDb(db, sink), item);
+  return { ok, reason: ok ? null : describeReplayError(sink.error) };
+}
+
 // ─── Audit mapping for replayed actions ─────────────────────────────────────
 // Pure mapping from a queued item to the audit entry it should produce once
 // replayed, so it can be unit tested like replayOfflineItem itself. Returns

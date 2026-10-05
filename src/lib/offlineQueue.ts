@@ -108,6 +108,17 @@ export interface QueueItemBase {
    * database ever had, and would stay queued forever.
    */
   localId?: string;
+  /**
+   * Pourquoi la base a refusé la DERNIÈRE tentative de cette entrée.
+   *
+   * Sans lui, « refusée — à vérifier » ne dit rien d'exploitable : l'école ne
+   * peut pas savoir s'il faut corriger une donnée, rétablir un droit, ou
+   * constater qu'une cible a disparu. C'est un texte COURT, lu du message
+   * serveur (jamais un objet) — voir `describeReplayError` dans offlineReplay.
+   */
+  lastError?: string | null;
+  /** Quand la dernière tentative a eu lieu (ISO), ou absent. */
+  lastAttemptAt?: string;
 }
 
 export type QueueItem = QueueItemBase & OfflinePayload;
@@ -226,11 +237,32 @@ export function clearOfflineQueue(): void {
  * through on its own » — a payment stuck on a deleted pupil would otherwise be
  * retried forever, invisible, while the receipt is already in the parent's hand.
  */
-export function markOfflineAttempt(id: string): void {
+/**
+ * Compter une tentative en échec ET retenir POURQUOI.
+ *
+ * L'ancienne version ne comptait que le nombre d'essais : la bannière pouvait
+ * dire « refusée », jamais « refusée parce que… ». Une file qui ne peut pas
+ * dire la cause laisse l'école devant un bouton « Synchroniser » qui rejouera
+ * le même refus — c'est le défaut que la raison répare. `reason` absent laisse
+ * la dernière connue en place (un échec de transport ne doit pas effacer la
+ * cause réelle déjà apprise).
+ */
+export function markOfflineFailure(id: string, reason?: string | null): void {
+  const at = new Date().toISOString();
   const queue = getOfflineQueue().map(item =>
-    item.id === id ? { ...item, attempts: item.attempts + 1 } : item,
+    item.id === id
+      ? { ...item, attempts: item.attempts + 1, lastAttemptAt: at, lastError: reason ?? item.lastError ?? null }
+      : item,
   );
   saveOfflineQueue(queue);
+}
+
+/**
+ * Compatibilité : compter un essai sans raison connue. Délègue à
+ * `markOfflineFailure` pour qu'il n'existe qu'un seul chemin d'écriture.
+ */
+export function markOfflineAttempt(id: string): void {
+  markOfflineFailure(id, null);
 }
 
 /**
@@ -257,4 +289,43 @@ export function isActionQueued(type: OfflineActionType): boolean {
  */
 export function getOfflineQueueFailures(): number {
   return getOfflineQueue().filter(item => item.attempts > 0).length;
+}
+
+/** Une entrée refusée, vue par ce que l'école a besoin de savoir. */
+export interface OfflineQueueFailure {
+  id: string;
+  type: OfflineActionType;
+  attempts: number;
+  lastError: string | null;
+  lastAttemptAt: string | null;
+}
+
+/**
+ * Les entrées que la base a refusées, avec la raison du dernier refus.
+ *
+ * La bannière n'en montre qu'une ; un diagnostic (ou un futur écran) peut les
+ * parcourir toutes. L'ordre est celui de la file : le refus le plus ancien
+ * d'abord, le plus récent à la fin.
+ */
+export function getOfflineQueueFailureDetails(): OfflineQueueFailure[] {
+  return getOfflineQueue()
+    .filter(item => item.attempts > 0)
+    .map(item => ({
+      id: item.id,
+      type: item.type,
+      attempts: item.attempts,
+      lastError: item.lastError ?? null,
+      lastAttemptAt: item.lastAttemptAt ?? null,
+    }));
+}
+
+/**
+ * La raison du dernier refus CONNU, ou `null`.
+ *
+ * C'est ce que la bannière peut nommer : « refusée — colonne inconnue », etc.
+ * Une raison absente (refus sans message) rend `null`, jamais une phrase vide.
+ */
+export function getLastOfflineFailureReason(): string | null {
+  const reasons = getOfflineQueueFailureDetails().filter(failure => failure.lastError);
+  return reasons.length ? reasons[reasons.length - 1].lastError : null;
 }

@@ -3,7 +3,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { offlineAuditInfo, replayOfflineItem, rowIdColumn } from '../src/lib/offlineReplay';
+import { describeReplayError, offlineAuditInfo, replayOfflineItem, replayOfflineItemDetailed, rowIdColumn } from '../src/lib/offlineReplay';
 import type { ReplayDb } from '../src/lib/offlineReplay';
 import { createRowId, isUuid } from '../src/lib/rowMappers';
 import type { OfflineActionType, OfflinePayload, QueueItem } from '../src/lib/offlineQueue';
@@ -102,6 +102,44 @@ describe('offline queue replay (replayOfflineItem)', () => {
     const { db } = makeFakeDb({ allFail: true });
     const ok = await replayOfflineItem(db, itemOf('addExpense', { category: 'stationery', description: 'd', amount: 5, date: '2026-01-01' }));
     assert.equal(ok, false, 'an errored insert must not count as synced');
+  });
+});
+
+// ─── La RAISON d’un refus de rejeu ───────────────────────────────────────────
+// Un élément refusé reste en file, mais « refusée » sans cause ne dit pas quoi
+// faire. La raison est lue du message serveur (court, sûr) et posée sur l'entrée
+// par le drainage (voir offlineSync) — ces cas verrouillent la lecture.
+
+describe('raison d’un refus de rejeu', () => {
+  it('describeReplayError nomme le message et le code, sans jamais lever', () => {
+    assert.equal(describeReplayError({ message: 'permission denied', code: '42501' }), 'permission denied [42501]');
+    assert.equal(describeReplayError({ code: '23503' }), 'refus sans message [23503]');
+    assert.equal(describeReplayError(null), 'écriture refusée par la base (aucune ligne touchée)');
+    assert.doesNotThrow(() => describeReplayError({ toString: undefined }));
+  });
+
+  it('replayOfflineItemDetailed rend la raison d’un vrai refus', async () => {
+    const { db } = makeFakeDb({ failTables: ['expenses'] });
+    const outcome = await replayOfflineItemDetailed(db, itemOf('addExpense', { category: 'c', description: 'd', amount: 1, date: '2026-01-01' }));
+    assert.equal(outcome.ok, false);
+    assert.equal(outcome.reason, 'boom');
+  });
+
+  it('replayOfflineItemDetailed ne rend AUCUNE raison sur un succès', async () => {
+    const { db } = makeFakeDb();
+    const outcome = await replayOfflineItemDetailed(db, itemOf('addExpense', { category: 'c', description: 'd', amount: 1, date: '2026-01-01' }));
+    assert.equal(outcome.ok, true);
+    assert.equal(outcome.reason, null);
+  });
+
+  it('un refus SANS erreur serveur (écriture retirée par la policy) donne une raison nommée', async () => {
+    // updateClass/deleteNote/updateUserRole : 200 avec un corps vide n'est PAS
+    // un `error`, donc le rejeu rend false sans message — la raison ne doit pas
+    // être nulle pour autant, sinon la bannière resterait muette.
+    const { db } = makeFakeDb({ emptyWrites: ['custom_classes'] });
+    const outcome = await replayOfflineItemDetailed(db, itemOf('deleteClass', { id: 'c1' }));
+    assert.equal(outcome.ok, false);
+    assert.match(outcome.reason ?? '', /aucune ligne touchée/);
   });
 });
 
