@@ -38,6 +38,20 @@ import type { Parent, Staff, Student } from '../src/lib/domainTypes';
 
 const ROOT = join(import.meta.dirname, '..');
 const RLS_MIGRATION = join(ROOT, 'supabase', 'migrations', '20260809000000_auth_and_rls.sql');
+const PAYMENTS_MIGRATION = join(ROOT, 'supabase', 'migrations', '20261005000003_econome_delete_payments.sql');
+
+/**
+ * Les tables que le fichier de base déclare encore `is_admin()` mais qu'une
+ * migration PLUS RÉCENTE reprend — une migration ne se réécrit pas, donc le
+ * fichier de base garde le texte d'origine. `payments` en fait partie depuis le
+ * 2026-10-05 : sa suppression s'ouvre à l'économe
+ * (`20261005000003_econome_delete_payments.sql`). Retirer une table ici n'est
+ * honnête que si la migration dédiée la reprend VRAIMENT — c'est ce que vérifie
+ * le cas « payments est bien reprise… », sans quoi l'exclusion masquerait un
+ * abandon silencieux.
+ */
+const SUPERSEDED_IN_BASE = ['payments'];
+const SUPERSEDED_TABLES = new Set(SUPERSEDED_IN_BASE);
 
 // ─── La règle ────────────────────────────────────────────────────────────────
 
@@ -62,10 +76,10 @@ describe('deleteRights — qui la base accepte', () => {
     assert.equal(canDeleteRecords('Dev'), true);
   });
 
-  it('les huit tables de la règle sont celles des policies admin — et elles sont nommées', () => {
+  it('les sept tables de la règle sont celles des policies admin — et elles sont nommées', () => {
     assert.deepEqual(
       [...ADMIN_ONLY_DELETE_TABLES].sort(),
-      ['expenses', 'parents', 'payments', 'salary_payments', 'staff', 'students', 'user_profiles', 'vendor_expenses'],
+      ['expenses', 'parents', 'salary_payments', 'staff', 'students', 'user_profiles', 'vendor_expenses'],
     );
   });
 });
@@ -102,7 +116,9 @@ describe('la règle de l’app et les policies de la base ne peuvent pas diverge
         }
       }
     }
-    return tables.sort();
+    // `payments` est retirée ici : sa suppression appartient désormais à
+    // `public.is_payment_deleter()` (migration dédiée), pas à `is_admin()`.
+    return tables.filter((t) => !SUPERSEDED_TABLES.has(t)).sort();
   })();
 
   it('les rôles sont les mêmes, dans les deux sens', () => {
@@ -123,7 +139,20 @@ describe('la règle de l’app et les policies de la base ne peuvent pas diverge
 
   it('la migration est bien lue — un contrôle vide ne prouve rien', () => {
     assert.ok(rolesInSql.length >= 2, `rôles lus dans la migration : ${rolesInSql.join(', ')}`);
-    assert.ok(tablesInSql.length >= 8, `tables lues dans la migration : ${tablesInSql.length}`);
+    assert.ok(tablesInSql.length >= 7, `tables lues dans la migration : ${tablesInSql.length}`);
+  });
+
+  it('payments est bien reprise par sa migration dédiée (l’exclusion n’est pas un abandon)', () => {
+    const paymentsSql = readFileSync(PAYMENTS_MIGRATION, 'utf8');
+    assert.match(
+      paymentsSql,
+      /FOR DELETE USING \(public\.is_payment_deleter\(\)\)/,
+      'la migration dédiée doit bien (re)définir la suppression de payments',
+    );
+    assert.ok(
+      paymentsSql.includes('CREATE OR REPLACE FUNCTION public.is_payment_deleter()'),
+      'et définir le helper qui la porte',
+    );
   });
 });
 

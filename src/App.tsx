@@ -11,6 +11,7 @@ import { useAcademicYears } from './app/useAcademicYears';
 import { useFloatingChat } from './app/useFloatingChat';
 import { useAuthWelcome } from './app/useAuthWelcome';
 import { canDeleteRecords } from './lib/deleteRights';
+import { canDeletePayments } from './lib/paymentRights';
 import { useTodoSidebar } from './app/useTodoSidebar';
 import { useParents } from './app/useParents';
 import { usePayments } from './app/usePayments';
@@ -585,6 +586,9 @@ const {
   // fois ici et descendue aux vues. Une action que le serveur refuserait n'est
   // donc plus AFFICHÉE — l'échec est empêché au lieu d'être annoncé.
   const canDelete = canDeleteRecords(auth.profile?.role);
+  // Le droit de supprimer un PAIEMENT a sa propre liste : l'économe y figure
+  // (base : `public.is_payment_deleter()`), pas dans celle des tables admin.
+  const canDeletePayment = canDeletePayments(auth.profile?.role);
   const shellProps = buildShellProps({
     ...supabaseData,
     ...authWelcomeData,
@@ -607,6 +611,7 @@ const {
     supabaseLoading: supabaseData.loading,
     supabaseError: supabaseData.error,
     canDelete,
+    canDeletePayment,
     lang,
     t,
     toast,

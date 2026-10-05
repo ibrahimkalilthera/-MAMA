@@ -56,8 +56,9 @@ export interface AppModalsProps {
   deleteStudent: (id: string) => Promise<boolean>;
   /**
    * Supprime UN paiement saisi par erreur (le seul recours était jusqu'ici de
-   * supprimer l'élève entier). Réservé aux administrateurs par la policy
-   * « Admin delete payments » — l'écran gate le bouton sur `canDelete`.
+   * supprimer l'élève entier). Ouvert à `admin`, `dev` ET `econome` par la policy
+   * « Payment deleters delete payments » — l'écran gate le bouton sur
+   * `canDeletePayment`, pas sur `canDelete` (qui reste réservé aux tables admin).
    */
   deletePayment: (studentId: string, payment: Payment) => Promise<boolean>;
   deleteTodo: (id: string) => Promise<boolean>;
@@ -104,6 +105,9 @@ export interface AppModalsProps {
   /** Même règle que les vues : la suppression demandée à la base est réservée
    *  aux administrateurs (`src/lib/deleteRights.ts`). */
   canDelete: boolean;
+  /** Le droit de supprimer UN PAIEMENT a sa propre liste — `admin`, `dev` et
+   *  `econome` (`src/lib/paymentRights.ts`), pas la même que `canDelete`. */
+  canDeletePayment: boolean;
   /** Gestionnaire Principal — finance admin without user/settings/audit access. */
   isGeneralManager: boolean;
   lang: 'en' | 'fr';
