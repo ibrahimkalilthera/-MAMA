@@ -6,34 +6,54 @@ import { supabase } from '../supabaseClient';
 import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Student } from '../domainTypes';
 import { mapStudentRow, createRowId } from '../rowMappers';
-import { studentToRow, studentUpdatesToRow } from '../offlineReplay';
+import { rowIdColumn, studentToRow, studentUpdatesToRow } from '../offlineReplay';
 import { isNinthGradeClass, visibleStudentIdentifier } from '../studentIdentifiers';
 import { logAuditEvent } from '../auditLogger';
 
 export function createStudentOps(ctx: SupabaseDataCtx) {
   const { students, setStudents, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
 
-  const addStudent = async (student: Omit<Student, 'id' | 'payments'>): Promise<Student | null> => {
+  const addStudent = async (student: Omit<Student, 'id' | 'payments'> & { id?: string }): Promise<Student | null> => {
     const normalizedStudent = {
       ...student,
       studentId: visibleStudentIdentifier(student.grade, student.studentId),
     };
+    // L'id du GESTE — minté par l'écran (une fois par fiche ouverte) ou ici à
+    // défaut. C'est lui qui rend l'écriture IDEMPOTENTE : le même geste rejoué
+    // (double clic, reprise après coupure) retombe sur la MÊME clé primaire.
+    const rowId = student.id ?? createRowId();
     if (isOffline()) {
-      const rowId = createRowId();
       const local: Student = { id: rowId, ...normalizedStudent, payments: [] };
-      setStudents(prev => [...prev, local]);
+      setStudents(prev => prev.some(s => s.id === rowId) ? prev : [...prev, local]);
       enqueueOffline('addStudent', normalizedStudent, rowId);
       notifySuccess('addStudent');
       return local;
     }
     const { data, error } = await supabase
       .from('students')
-      .insert(studentToRow(normalizedStudent))
+      .insert({ ...rowIdColumn(rowId), ...studentToRow(normalizedStudent) })
       .select()
       .single();
-    if (error) { console.error('addStudent error:', error.message); notifyError('addStudent', error.message); return null; }
+    if (error) {
+      // `23505` : la clé primaire existe DÉJÀ — c'est le même geste, déjà
+      // enregistré (double envoi, reprise). On rend la ligne telle qu'elle est en
+      // base, et on n'écrit PAS une seconde entrée de journal : un élève, un
+      // geste, une ligne d'audit. C'est ce qui a créé des doublons le
+      // 2026-10-05 (« Mahamadou DJIRE » ×7) — et c'est ici que ça s'arrête.
+      if (error.code === '23505' && rowIdColumn(rowId).id) {
+        const existing = await supabase.from('students').select().eq('id', rowId).single();
+        if (existing.data) {
+          const already = mapStudentRow(existing.data, []);
+          setStudents(prev => prev.some(s => s.id === already.id) ? prev : [...prev, already]);
+          return already;
+        }
+      }
+      console.error('addStudent error:', error.message);
+      notifyError('addStudent', error.message);
+      return null;
+    }
     const mapped = mapStudentRow(data, []);
-    setStudents(prev => [...prev, mapped]);
+    setStudents(prev => prev.some(s => s.id === mapped.id) ? prev : [...prev, mapped]);
     void logAuditEvent({
       action: 'ADD_STUDENT',
       targetType: 'student',

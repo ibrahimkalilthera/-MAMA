@@ -34,34 +34,59 @@ import type { LogAuditParams } from './auditLogger';
  * où cette distinction se perdrait, et c'est elle qui décide de la semaine
  * d'archive et de la ligne rouge du PDF.
  */
+/**
+ * Un drainage est-il déjà en cours ?
+ *
+ * `syncOfflineQueue` (le crochet) est appelé par TROIS chemins : l'événement
+ * « online », le démarrage (getSession puis SIGNED_IN) et la fin d'une session
+ * hors ligne. Rien ne les empêchait de se CHEVAUCHER : deux appels concurrents
+ * lisaient la MÊME file et rejouaient donc chaque item une seconde fois.
+ *
+ * Mesuré le 2026-10-05 sur la base partagée : des élèves créés deux fois à
+ * 1 milliseconde d'écart (« Mamadou SIDIBE ») et six fois en quinze secondes
+ * (« Mahamadou DJIRE »). Une seule exclusion mutuelle suffit à l'empêcher — et
+ * elle vit ICI, dans le module pur, pour être prouvée par un test.
+ */
+let drainInFlight = false;
+
 export async function drainOfflineQueue(
   supabase: ReplayDb,
   audit?: (info: Omit<LogAuditParams, 'user'> | null, capturedAt: string) => void
 ): Promise<number> {
-  const queue = getOfflineQueue();
-  if (queue.length === 0) return 0;
+  // Un drainage à la fois : un second appel qui se chevauche ne rejoue RIEN.
+  // (Il rend 0 — pas une erreur : la file n'est pas perdue, elle est en cours.)
+  if (drainInFlight) return 0;
+  drainInFlight = true;
+  try {
+    const queue = getOfflineQueue();
+    if (queue.length === 0) return 0;
 
-  let syncedCount = 0;
+    let syncedCount = 0;
 
-  for (const item of queue) {
-    try {
-      const { ok, reason } = await replayOfflineItemDetailed(supabase, item);
+    for (const item of queue) {
+      try {
+        const { ok, reason } = await replayOfflineItemDetailed(supabase, item);
 
-      if (ok) {
-        if (audit) audit(offlineAuditInfo(item), item.createdAt);
-        removeOfflineAction(item.id);
-        syncedCount++;
-      } else {
-        // Rien n'est perdu : l'action reste en file et repartira au prochain
-        // passage — mais elle est marquée comme ayant déjà été refusée, ET avec
-        // la raison du refus, pour que la bannière puisse la nommer.
-        markOfflineFailure(item.id, reason);
+        if (ok) {
+          if (audit) audit(offlineAuditInfo(item), item.createdAt);
+          removeOfflineAction(item.id);
+          syncedCount++;
+        } else {
+          // Rien n'est perdu : l'action reste en file et repartira au prochain
+          // passage — mais elle est marquée comme ayant déjà été refusée, ET avec
+          // la raison du refus, pour que la bannière puisse la nommer.
+          markOfflineFailure(item.id, reason);
+        }
+      } catch (err) {
+        console.error('Offline sync failed for item:', item, err);
+        break;
       }
-    } catch (err) {
-      console.error('Offline sync failed for item:', item, err);
-      break;
     }
-  }
 
-  return syncedCount;
+    return syncedCount;
+  } finally {
+    // Libéré même si un rejeu JETTE : sans ce `finally`, une exception laisserait
+    // le drapeau levé et plus AUCUN drainage ne passerait — la file se figerait.
+    drainInFlight = false;
+  }
 }

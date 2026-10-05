@@ -1,3 +1,19 @@
+## [2026-10-05] Des doublons dans `students` : la création n'avait aucune clé, et le drainage pouvait courir deux fois
+
+Signalé : « j'ai remarqué des doublons créés par la base aussi, est-ce des doublons qui ont été créés par Electron ? »
+
+**Ce que la base porte (mesuré, lecture seule).** Les doublons sont UNIQUEMENT dans `students` (parents, paiements, classes : aucun). Neuf groupes concernent la **même personne** — même nom, même téléphone parent, même classe — soit **14 lignes en trop** : « Mahamadou DJIRE » en **sept** exemplaires, puis huit paires (Fousseyni BALLO, Gnide Youma BARRO, Fatou BOLLY, Cheickné COULIBALY, Thierno Hady TRAORE, Bourama DIARRA, Mamadou SIDIBE, Fatoumata A COULIBALY). Aucun paiement ne pointe sur ces lignes. Attention inverse, et c'est important : les autres noms répétés (« Awa DIARRA » ×3, « Bourama COULIBALY » ×2, « Adam TRAORE »…) sont des personnes DIFFÉRENTES — téléphones, classes et montants distincts — pas des doublons à fusionner.
+
+**La base n'en est pas l'auteur : le client a écrit plusieurs fois.** « Mahamadou DJIRE » : six lignes identiques au champ près (`created_at` seul diffère) semées en quinze secondes, avec QUATRE lignes de journal en quarante millisecondes. « Mamadou SIDIBE » : deux lignes créées à **1 milliseconde** d'écart. Aucune main humaine ne produit cela — c'est la même écriture émise plusieurs fois.
+
+**Les deux causes, toutes deux dans le client, toutes deux réparées.**
+1. **La création en ligne n'envoyait aucun id.** `dataOps/students.ts` insérait `studentToRow(...)` sans clé : chaque envoi répété créait donc une NOUVELLE ligne (`uuid PRIMARY KEY DEFAULT uuid_generate_v4()`). `addStudent` envoie désormais l'id du GESTE — minté une fois par fiche ouverte dans `useStudents.ts` (`createRowId()`) — et **`23505` est traité comme « déjà enregistré »** : la ligne existante est rendue, sans erreur affichée, sans seconde entrée de journal, sans second élève dans la liste. Un élève = un geste = une ligne.
+2. **Le drainage n'avait aucune exclusion mutuelle.** `drainOfflineQueue` lisait la file puis la rejouait ; `syncOfflineQueue` est appelé par trois chemins (événement « online », démarrage, fin de session hors ligne) et rien ne les empêchait de se chevaucher — deux appels lisaient la MÊME file et rejouaient les mêmes items. Un drapeau de module (`drainInFlight`), libéré dans un `finally`, n'en laisse courir qu'un ; il vit dans `offlineSync.ts` (le module pur) pour être prouvé par un test.
+
+**Mesure.** `tests/dataops-write-honesty.test.ts` : l'id du geste part bien dans l'INSERT, et un `23505` rend la ligne en base sans erreur ni doublon de journal. `tests/offline-sync.test.ts` : deux drainages concurrents ne rejouent la file qu'UNE fois (`Promise.all`, aucune table touchée deux fois). Suite complète **2304/2304**, `npm run lint` exit 0.
+
+**Reste ouvert, et dit.** Les autres créations (parents, personnel, dépenses, salaires, tâches, classes, notes) n'envoient toujours pas d'id sur le chemin en ligne : aucun doublon n'est mesuré sur ces tables, mais le défaut y est présent à l'identique. Les 14 lignes en trop sont laissées en base — leur retrait est une décision de l'école, pas de l'outil.
+
 ## [2026-10-05] « 9 saisies refusées » sur le compte économe : l'écran offrait une paie que la base refuse
 
 Signalé avec une capture : le poste `econome` (aggeediarra@mamathera.org) affiche « 9 transaction(s) hors-ligne en attente » et « 9 saisie(s) refusée(s) par la base », et « Synchroniser maintenant » ne débloque rien. Ce n'était donc pas un hoquet réseau : un refus DÉTERMINISTE.
