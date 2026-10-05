@@ -85,7 +85,7 @@ describe('ownerAccountsVerdict — un compte absent est le rouge de l’incident
       profile(),
       profile({ id: 'u-2', role: 'admin' }),
       profile({ id: 'u-3', role: 'general_manager' }),
-      profile({ id: 'u-4', role: 'staff' }),
+      profile({ id: 'u-4', role: 'econome' }),
     ];
     const verdict = ownerAccountsVerdict({ users, profiles });
     assert.equal(verdict.ok, true, verdict.problems.join(' | '));

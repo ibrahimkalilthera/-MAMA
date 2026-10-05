@@ -1,3 +1,19 @@
+## [2026-10-05] L'unicité des élèves est désormais tenue par la BASE, plus seulement par l'app
+
+Suite du nettoyage (`20261005000001_dedupe_students`) et du correctif applicatif (`49ec45b`, `f5ed1dc`). Les deux fermaient la cause côté APPLICATION (id du geste, `23505` lu « geste déjà enregistré ») et retiraient les 14 lignes en trop. Mais un INSERT écrit à la main — SQL direct, autre client, script, futur bug — créait encore un doublon sans que rien ne s'y oppose : la règle manquait là où elle compte le plus, dans la base.
+
+**Migration `20261005000002_students_business_key_unique.sql`** : un **index unique partiel** sur la clé métier des élèves, EXACTEMENT celle du nettoyage — `lower(btrim(name))`, `btrim(coalesce(parent_phone,''))`, `lower(btrim(coalesce(grade,'')))`, `coalesce(academic_year,'')`. Le prédicat partiel `WHERE btrim(name) <> ''` borne la règle aux lignes qui portent un nom : une ligne anonyme (import à moitié rempli) n'est pas une identité, deux brouillons sans nom restent permis. Idempotent (`IF NOT EXISTS`), réversible (`DROP INDEX`). C'est la clé déjà éprouvée : elle désignait exactement les 9 groupes de la même personne et épargnait les familles d'homonymes légitimes.
+
+**Appliquée le 2026-10-05** (production `rpcjdohfxwukbqngbprw`, connexion directe `postgres`). Vérifié en base, pas sur parole : l'index existe (`students_business_key_unique`), une copie EXACTE d'un élève est refusée (`23505 · duplicate key value violates unique constraint "students_business_key_unique"`), une variante de casse+espaces du nom l'est aussi, et une même personne avec une **classe différente PASSE** (la clé n'est pas trop stricte). Ligne de sonde supprimée ; `students` reste à **400 lignes, 0 doublon**.
+
+**Ce que ça change pour l'app.** Un doublon issu de deux gestes RÉELLEMENT distincts échoue maintenant à l'INSERT au lieu de s'écrire en silence : c'est voulu — l'app affiche l'erreur et n'ajoute pas la ligne. Le même geste rejoué (double clic, reprise) reste couvert par l'id du geste.
+
+## [2026-10-05] Le compte de l'économe est `econome` : la documentation réalignée sur le fait
+
+`owner-accounts-watch` était rouge sur `main` (`aggeediarra@mamathera.org » porte le rôle « econome » au lieu de « staff »`). Mesure en base : le compte porte bien **`econome`** — et c'est VOULU (confirmé par le propriétaire : « ce compte est bien econome et non staff »). Le rouge ne désignait donc pas une dérive de la base, mais une documentation restée sur l'ancien état, du temps du split econome.
+
+**Correction dans les trois endroits qui portaient l'attente** : `scripts/lib/owner-accounts.mjs` (roster : rôle `econome`, libellé « économe »), `scripts/audit-user-profiles.mjs` (`OWNER_ROLES` — le `--fix` aurait sinon RÉTROGRADÉ le compte à `staff`) et `tests/owner-accounts.test.ts` (le profil attendu). C'est le même type de correctif que la promotion `general_manager` de Mamadou Lamine : la source de vérité est le fait en base, et le contrôle se réaligne dessus.
+
 ## [2026-10-05] Le paiement d'un élève porte enfin l'id du geste : un double envoi, un seul reçu
 
 Suite immédiate de l'entrée du dessous, qui laissait ce trou ouvert (« `addPayment` n'a toujours pas d'id »). Le paiement d'un élève est maintenant idempotent comme les autres écritures.
