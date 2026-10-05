@@ -9,8 +9,12 @@
  * and only the payment data is printed on it:
  *
  *   • « M » gets the selected student's full name, never the parent's name;
- *   • « Tél. : » (header) gets the parent's phone number, written on the
- *     dotted line right after the printed label;
+ *   • « Tél. : » (header) gets the SCHOOL's own contact number — a fixed
+ *     number, the same on every receipt, written on the dotted line right
+ *     after the printed label. Until 2026-10-05 this line carried the PARENT's
+ *     phone; the Direction asked for the school number instead (a receipt is
+ *     an act of the school, and the payer's number is already on the pupil's
+ *     file). See `SCHOOL_PHONE` below;
  *   • « La somme de : » gets the paid amount IN WORDS (French, capitalized);
  *   • the BPF gradient pill (sous BPF) gets the paid amount IN FIGURES,
  *     « … FCFA »;
@@ -54,6 +58,14 @@ export interface GeneratedReceipt {
 /** Template asset served from the app's public directory. */
 const TEMPLATE_URL = 'templates/recu-parent.pdf';
 
+/**
+ * « Tél. : » (header) — the school's own contact number, the same on EVERY
+ * receipt. Asked for by the Direction le 2026-10-05 (the line used to carry the
+ * parent's phone). Both numbers are dialable as written; the separator is the
+ * one printed on the school's other documents.
+ */
+export const SCHOOL_PHONE = '77549752/70382542';
+
 // ─── Template geometry (mm from the top-left of the rendered page) ───────────
 // Calibrated against the paper receipt raster (12 px/mm render of the
 // 201.1 × 155.8 mm page). Landmarks were located by pixel scans:
@@ -83,7 +95,7 @@ const TEMPLATE_URL = 'templates/recu-parent.pdf';
 //     year digits;
 //   • the « Tél. : » header line: the label glyphs sit at x 75–92 (band
 //     y 45.0–48.0, center 46.5), then the dotted line runs x 93–174.5 at
-//     y 47.5–48.5 (baseline level 48.0) — the phone number starts right
+//     y 47.5–48.5 (baseline level 48.0) — the school's number starts right
 //     after the label (x 93.0), on the line;
 //   • the BPF box: dark blue label block x 158–192, y 20–33 (white « BPF »
 //     text at y 24–32), then the gradient pill x 158–190.5, y 36–45.5 — dark
@@ -210,15 +222,14 @@ export async function buildParentReceiptPdf({
   const nameSize = Math.min(DATA_SIZE, ((191 - LINE_M.x) / nameWidth) * DATA_SIZE);
   text(studentName, LINE_M.x, baseline(LINE_M.y, nameSize), { font: { font: helv, size: nameSize } });
 
-  // 1b. « Tél. : » — the parent's phone number, on the header dotted line
-  //     right after the printed label (fits the line at most, like the class).
-  const phone = (student.parentPhone || '').trim();
-  if (phone) {
-    const telMaxW = 174.5 - TEL.x;
-    const phoneW = helv.widthOfTextAtSize(phone, DATA_SIZE) / PT_PER_MM;
-    const phoneSize = Math.min(DATA_SIZE, (telMaxW / phoneW) * DATA_SIZE);
-    text(phone, TEL.x, baseline(TEL.y, phoneSize), { font: { font: helv, size: phoneSize } });
-  }
+  // 1b. « Tél. : » — the SCHOOL's own number (fixed, never the parent's), on
+  //     the header dotted line right after the printed label (fits the line at
+  //     most, like the class). Always written: it belongs to the school.
+  const phone = SCHOOL_PHONE;
+  const telMaxW = 174.5 - TEL.x;
+  const phoneW = helv.widthOfTextAtSize(phone, DATA_SIZE) / PT_PER_MM;
+  const phoneSize = Math.min(DATA_SIZE, (telMaxW / phoneW) * DATA_SIZE);
+  text(phone, TEL.x, baseline(TEL.y, phoneSize), { font: { font: helv, size: phoneSize } });
 
   // 2. « La somme de : » — the amount in words, wrapped on the two dotted lines.
   const words = amountInWords(amount);
