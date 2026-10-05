@@ -94,7 +94,7 @@ function baseProps(extra: Record<string, unknown> = {}): Record<string, unknown>
     handleAddTodo: asyncNoop, toggleTodo: asyncNoop, deleteTodo: asyncNoop,
     handleUpdateTodoDate: asyncNoop, handleAiQuery: asyncNoop,
     handleSaveNote: asyncNoop, saveNoteOnDate: asyncNoop,
-    deleteStudent: asyncNoop, deletePayment: asyncNoop,
+    deleteStudent: asyncNoop, deletePayment: asyncNoop, canDelete: true, canDeletePayment: true,
     setStudentForm: noop, setStaffForm: noop, setParentForm: noop, setExpenseForm: noop,
     setVendorExpenseForm: noop, setSalaryForm: noop, setPaymentAmount: noop,
     setPaymentDate: noop, setPaymentStudentId: noop, setNewClassForm: noop,

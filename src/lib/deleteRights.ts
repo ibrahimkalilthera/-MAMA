@@ -2,10 +2,16 @@
  * ─── Qui a le droit de SUPPRIMER, décidé par la BASE ────────────────────────
  *
  * `supabase/migrations/20260809000000_auth_and_rls.sql` réserve la SUPPRESSION
- * de huit tables à `public.is_admin()` — donc aux rôles `admin` et `dev` :
- * `students`, `parents`, `payments`, `staff`, `salary_payments`, `expenses`,
+ * de ces tables à `public.is_admin()` — donc aux rôles `admin` et `dev` :
+ * `students`, `parents`, `staff`, `salary_payments`, `expenses`,
  * `vendor_expenses`, `user_profiles`. (Les tâches et les classes, elles, ne sont
  * pas concernées : leurs policies laissent passer tout compte connecté.)
+ *
+ * `payments` a QUITTÉ cette liste le 2026-10-05 : sa suppression s'ouvre aussi à
+ * l'économe (`supabase/migrations/20261005000003_econome_delete_payments.sql`,
+ * `public.is_payment_deleter()`). Le droit de supprimer un paiement vit donc dans
+ * `src/lib/paymentRights.ts` — la suppression d'un ÉLÈVE reste, elle, réservée à
+ * `is_admin()` : « enregistrer et détruire ne sont pas le même droit ».
  *
  * Ce que ça donnait sans ce module, mesuré sur la base partagée le 2026-09-14 :
  * un utilisateur `staff` — le rôle que Supabase pose à l'inscription — voyait le
@@ -34,7 +40,6 @@ export const ADMIN_ROLES = ['admin', 'dev'] as const;
 export const ADMIN_ONLY_DELETE_TABLES = [
   'students',
   'parents',
-  'payments',
   'staff',
   'salary_payments',
   'expenses',

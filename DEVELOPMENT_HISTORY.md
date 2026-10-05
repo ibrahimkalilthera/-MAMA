@@ -1,3 +1,17 @@
+## [2026-10-05] L'économe peut supprimer un paiement — et RIEN d'autre
+
+Demande du propriétaire : « affiche le bouton supprimer un paiement aux économes aussi : fais valider côté base que le rôle econome obtient le droit de suppression des paiements ». Le diagnostic était net : le bouton était masqué à l'économe (aggeediarra@mamathera.org) parce que la base réservait la suppression de `payments` à `public.is_admin()` — `admin`, `dev` (policies « Admin delete payments » et l'héritée « Admin can delete payments »). L'économe, qui tient la caisse et saisit les reçus, ne pouvait donc pas corriger sa propre erreur. C'est le même défaut que la paie le 2026-10-05 : l'écran cache ce que la base refuse, et le refus était réel.
+
+**La décision, appliquée en base.** Migration `20261005000003_econome_delete_payments.sql` : un helper NOMMÉ `public.is_payment_deleter()` = `admin`, `dev`, **`econome`**, et la SEULE policy `FOR DELETE` de `payments` (« Payment deleters delete payments ») s'y adosse — les deux noms hérités sont retirés. **Appliquée à la production** (`rpcjdohfxwukbqngbprw`) le 2026-10-05.
+
+**Validé côté base, pas sur parole.** Contexte RLS simulé (le `sub` du JWT posé par identité), chaque compte interrogé sur `is_payment_deleter()` / `is_admin()` : `admin` → true/true, `dev` → true/true, **`econome` → true/false**, `general_manager` → false/false, sans contexte → false. L'économe obtient donc EXACTEMENT le droit demandé — supprimer un paiement — et **rien d'autre** : `is_admin()` reste faux pour lui, donc `students`, `parents`, `staff`, `expenses`, `salary_payments`… lui restent fermés. « Enregistrer et détruire ne sont pas le même droit. »
+
+**L'app suit la base.** Nouveau `src/lib/paymentRights.ts` (`PAYMENT_DELETER_ROLES`, `canDeletePayments`), calqué sur `payrollRights.ts`. `payments` QUITTE `ADMIN_ONLY_DELETE_TABLES` (`src/lib/deleteRights.ts`) : la suppression d'un paiement n'est plus « admin seulement ». Un prop `canDeletePayment` est calculé dans `App.tsx`, descendu par `viewsWiring` → `AppModals` → `StudentDetailsModal`, où la corbeille du paiement l'utilise — tandis que le bouton « supprimer l'élève » reste gaté sur `canDelete`. **Deux portes distinctes.**
+
+**Tests.** Nouveau `tests/payment-rights.test.ts` : règle (admin/dev/econome oui ; staff/general_manager/inconnu non), parité avec la MIGRATION dans les deux sens, et rendu RÉEL de la fiche — l'économe voit la corbeille du paiement mais PAS « supprimer l'élève ». `tests/delete-rights.test.ts` suit : `payments` retirée des tables admin, avec un garde-fou qui exige que la migration dédiée redéfinisse bien sa policy (l'exclusion ne peut pas masquer un abandon). Mesure : `npm run lint` exit 0, **2342/2342 tests**, 0 échec.
+
+**Limite dite.** Je n'ai pas pu me connecter comme économe (aucun mot de passe de ce compte n'est disponible) : le rendu du bouton est prouvé par le test DOM, et le droit par le contexte RLS simulé — pas par un clic manuel sur le compte réel.
+
 ## [2026-10-05] Le journal d'audit se filtre sur les reçus annulés, en un seul geste
 
 Demande du propriétaire : « make the audit journal screen filterable by DELETE_PAYMENT so an admin can see every cancelled receipt with its amount and student in one place ».

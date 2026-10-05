@@ -55,7 +55,7 @@ const STUDENT: Student = {
   notes: '', payments: [PAY],
 };
 
-function mount(opts: { canDelete: boolean; result: boolean }) {
+function mount(opts: { canDeletePayment: boolean; result: boolean }) {
   installDomGlobals();
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -80,7 +80,8 @@ function mount(opts: { canDelete: boolean; result: boolean }) {
     onEdit: () => {},
     onPrint: () => {},
     onDeleteRequest: () => {},
-    canDelete: opts.canDelete,
+    canDelete: true,
+    canDeletePayment: opts.canDeletePayment,
     onDeletePayment: async (studentId: string, payment: Payment) => {
       calls.push({ studentId, payment });
       return opts.result;
@@ -106,8 +107,8 @@ function mount(opts: { canDelete: boolean; result: boolean }) {
 }
 
 describe('StudentDetailsModal — supprimer un paiement saisi par erreur', () => {
-  it('canDelete : la corbeille ouvre une confirmation en ligne, et confirmer appelle onDeletePayment', async () => {
-    const h = mount({ canDelete: true, result: true });
+  it('canDeletePayment : la corbeille ouvre une confirmation en ligne, et confirmer appelle onDeletePayment', async () => {
+    const h = mount({ canDeletePayment: true, result: true });
     try {
       const trigger = h.trigger();
       assert.ok(trigger, 'la corbeille est offerte quand le rôle peut supprimer');
@@ -131,7 +132,7 @@ describe('StudentDetailsModal — supprimer un paiement saisi par erreur', () =>
   });
 
   it('sans droit de suppression : aucune corbeille, donc aucun appel possible', () => {
-    const h = mount({ canDelete: false, result: true });
+    const h = mount({ canDeletePayment: false, result: true });
     try {
       assert.equal(h.trigger(), null, 'pas de rôle, pas de bouton');
       assert.equal(h.calls.length, 0);
@@ -141,7 +142,7 @@ describe('StudentDetailsModal — supprimer un paiement saisi par erreur', () =>
   });
 
   it('échec : la confirmation reste ouverte, et rien n’a été supprimé du listing local', async () => {
-    const h = mount({ canDelete: true, result: false });
+    const h = mount({ canDeletePayment: true, result: false });
     try {
       h.click(h.trigger()!);
       await act(async () => { h.click(h.confirm()!); });

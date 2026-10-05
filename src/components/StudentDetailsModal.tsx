@@ -42,10 +42,16 @@ export interface StudentDetailsModalProps {
   /** Le rôle peut-il supprimer ? Décidé par la base (`src/lib/deleteRights.ts`). */
   canDelete: boolean;
   /**
+   * Le rôle peut-il supprimer UN PAIEMENT ? Décidé par la base
+   * (`src/lib/paymentRights.ts`) : `admin`, `dev` ET `econome`. Plus large que
+   * `canDelete`, qui reste réservé aux tables admin.
+   */
+  canDeletePayment: boolean;
+  /**
    * Supprime UN paiement saisi par erreur — la seule ligne, sans emporter
    * l'élève ni ses autres reçus. La base réserve ce droit aux administrateurs
    * (policy « Admin delete payments »), donc l'appel n'est proposé que quand
-   * `canDelete` est vrai.
+   * `canDeletePayment` est vrai.
    */
   onDeletePayment: (studentId: string, payment: Payment) => Promise<boolean>;
 }
@@ -55,7 +61,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
     student: selectedStudent, t, lang, currentTheme, formatDate, formatCurrency,
     getGradeDisplay, generatePaymentReceiptPdf, currentUser, copyToClipboard,
     handleSaveNote, studentDetailTab, setStudentDetailTab, overlayRef,
-    onClose, onEdit, onPrint, onDeleteRequest, canDelete, onDeletePayment,
+    onClose, onEdit, onPrint, onDeleteRequest, canDelete, canDeletePayment, onDeletePayment,
   } = props;
   // Notes ⇄ Calendar bridge: optional date picked next to the sticky note.
   const [noteDateInput, setNoteDateInput] = useState('');
@@ -280,8 +286,9 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                                 >
                                   <Receipt size={12} /> {t.receipt2}
                                 </button>
-                                {/* « Admin delete payments » : pas de rôle, pas de bouton. */}
-                                {canDelete && p.id && (
+                                {/* « Payment deleters delete payments » : pas de rôle
+                                    (admin, dev ou econome), pas de bouton. */}
+                                {canDeletePayment && p.id && (
                                   <button
                                     onClick={() => setPendingDeletePaymentId(p.id ?? null)}
                                     className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-all"
