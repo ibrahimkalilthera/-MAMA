@@ -730,6 +730,27 @@ async function runE2E(target) {
       }
       if (!clicked) throw new Error(`bouton « Reçu » de « ${studentName} » introuvable dans la fiche`);
       console.log(`✅ clic sur « Télécharger Reçu PDF » (paiement) de ${studentName}`);
+      // Depuis la 1.0.23, « Télécharger Reçu PDF » n'enregistre plus : il ouvre un
+      // APERÇU (le reçu est montré avant tout téléchargement). Le fichier ne part
+      // qu'au second clic, « Télécharger le reçu » (ReceiptPreviewModal). Le
+      // pixel-check suit donc le parcours RÉEL de l'utilisateur — sauter l'aperçu,
+      // c'est attendre un fichier qu'aucun clic ne déclenche.
+      const previewReady = await page.waitForFunction(() =>
+        [...document.querySelectorAll('button')].some((b) =>
+          /télécharger le reçu|download receipt/i.test(b.textContent || '')),
+        { timeout: 30000 }).then(() => true).catch(() => false);
+      if (!previewReady) {
+        throw new Error(`aperçu du reçu de « ${studentName} » non affiché — bouton « Télécharger le reçu » introuvable`);
+      }
+      const confirmed = await page.evaluate(() => {
+        const btn = [...document.querySelectorAll('button')].find((b) =>
+          /télécharger le reçu|download receipt/i.test(b.textContent || ''));
+        if (!btn) return false;
+        btn.click();
+        return true;
+      });
+      if (!confirmed) throw new Error('bouton « Télécharger le reçu » de l’aperçu introuvable');
+      console.log('✅ aperçu du reçu confirmé — téléchargement déclenché');
     } else {
       // technique mode with no existing member → create one through the REAL
       // « Ajouter un Membre du Centre Technique » button + form + submit.
