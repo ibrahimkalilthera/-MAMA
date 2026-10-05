@@ -12,12 +12,13 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import type { TranslationDict } from '../i18n/translations';
 import type { Todo } from '../lib/useSupabaseData';
+import { useGestureId } from '../lib/gestureId';
 
 interface TodoSidebarDeps {
   todos: Todo[];
   t: TranslationDict;
   handleSaveNote: (studentId: string, note: string) => Promise<void>;
-  addTodoItem: (todo: Omit<Todo, 'id'>) => Promise<Todo | null>;
+  addTodoItem: (todo: Omit<Todo, 'id'> & { id?: string }) => Promise<Todo | null>;
   updateTodoItem: (id: string, updates: Partial<Todo>) => Promise<boolean>;
   deleteTodoItem: (id: string) => Promise<boolean>;
 }
@@ -30,11 +31,17 @@ export function useTodoSidebar(deps: TodoSidebarDeps) {
   const [showTodoSidebar, setShowTodoSidebar] = useState(false);
   const [productivitySidebarTab, setProductivitySidebarTab] = useState<'tasks' | 'ai'>('tasks');
 
+  // L'id du GESTE de la tâche en cours de saisie : un double envoi (Entrée deux
+  // fois) retombe sur la même clé au lieu d'ajouter deux tâches. Libéré après
+  // un succès — la tâche suivante est un autre geste.
+  const { gestureId: todoGestureId, resetGestureId: resetTodoGesture } = useGestureId();
+
   const handleAddTodo = async (e: FormEvent) => {
     e.preventDefault();
     if (!todoInput.trim()) return;
-    const saved = await addTodoItem({ text: todoInput.trim(), completed: false, date: todoDate });
+    const saved = await addTodoItem({ text: todoInput.trim(), completed: false, date: todoDate, id: todoGestureId() });
     if (!saved) return;
+    resetTodoGesture();
     setTodoInput('');
   };
 

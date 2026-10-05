@@ -7,29 +7,46 @@ import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Parent } from '../domainTypes';
 import type { DbUpdate } from '../database.types';
 import { mapParentRow, createRowId } from '../rowMappers';
-import { parentToRow } from '../offlineReplay';
+import { parentToRow, rowIdColumn } from '../offlineReplay';
 import { logAuditEvent } from '../auditLogger';
 
 export function createParentOps(ctx: SupabaseDataCtx) {
   const { parents, setParents, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
 
-  const addParent = async (parent: Omit<Parent, 'id'>): Promise<Parent | null> => {
+  const addParent = async (parent: Omit<Parent, 'id'> & { id?: string }): Promise<Parent | null> => {
+    // L'id du GESTE — minté par l'écran (une fois par fiche ouverte) ou ici à
+    // défaut. C'est lui qui rend l'écriture IDEMPOTENTE : le même geste rejoué
+    // (double clic, reprise après coupure) retombe sur la MÊME clé primaire au
+    // lieu de créer une seconde ligne. Même règle que `addStudent`.
+    const rowId = parent.id ?? createRowId();
     if (isOffline()) {
-      const rowId = createRowId();
-      const local: Parent = { id: rowId, ...parent };
-      setParents(prev => [...prev, local]);
+      const local: Parent = { ...parent, id: rowId };
+      setParents(prev => prev.some(p => p.id === rowId) ? prev : [...prev, local]);
       enqueueOffline('addParent', parent, rowId);
       notifySuccess('addParent');
       return local;
     }
     const { data, error } = await supabase
       .from('parents')
-      .insert(parentToRow(parent))
+      .insert({ ...rowIdColumn(rowId), ...parentToRow(parent) })
       .select()
       .single();
-    if (error) { console.error('addParent error:', error.message); notifyError('addParent', error.message); return null; }
+    if (error) {
+      // `23505` : la clé primaire existe DÉJÀ — c'est le même geste, déjà
+      // enregistré. On rend la ligne en base, sans erreur et sans seconde entrée
+      // de journal (un parent, un geste, une ligne d'audit).
+      if (error.code === '23505' && rowIdColumn(rowId).id) {
+        const existing = await supabase.from('parents').select().eq('id', rowId).single();
+        if (existing.data) {
+          const already = mapParentRow(existing.data);
+          setParents(prev => prev.some(p => p.id === already.id) ? prev : [...prev, already]);
+          return already;
+        }
+      }
+      console.error('addParent error:', error.message); notifyError('addParent', error.message); return null;
+    }
     const mapped = mapParentRow(data);
-    setParents(prev => [...prev, mapped]);
+    setParents(prev => prev.some(p => p.id === mapped.id) ? prev : [...prev, mapped]);
     void logAuditEvent({
       action: 'ADD_PARENT',
       targetType: 'parent',

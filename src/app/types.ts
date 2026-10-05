@@ -16,6 +16,9 @@ export interface User {
 }
 
 export interface Payment {
+  /** L'id du GESTE — clé primaire de la ligne `payments` (idempotence : un
+   *  double envoi retombe sur la même clé, donc un seul reçu en base). */
+  id?: string;
   date: string;
   amount: number;
   academicYear?: string;

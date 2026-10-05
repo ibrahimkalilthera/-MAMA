@@ -26,7 +26,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { maskComments } from '../scripts/lib/source-text.mjs';
 import { mockModule } from './module-mock';
-import type { Parent, Student } from '../src/lib/domainTypes';
+import type { Expense, Parent, Payment, SalaryPayment, Staff, Student, Todo, VendorExpense } from '../src/lib/domainTypes';
 
 const DATAOPS_DIR = join(import.meta.dirname, '..', 'src', 'lib', 'dataOps');
 
@@ -108,6 +108,10 @@ mockModule('../src/lib/supabaseClient', { supabase: fakeSupabase });
 
 const { createStudentOps } = await import('../src/lib/dataOps/students');
 const { createParentOps } = await import('../src/lib/dataOps/parents');
+const { createStaffOps } = await import('../src/lib/dataOps/staff');
+const { createExpenseOps } = await import('../src/lib/dataOps/expenses');
+const { createTodoOps } = await import('../src/lib/dataOps/todos');
+const { createPaymentOps } = await import('../src/lib/dataOps/payments');
 
 const PUPIL: Student = {
   id: 'st1',
@@ -380,5 +384,173 @@ describe('toute suppression des dataOps est honnête — la règle vaut pour la 
       (name) => !/data\.length === 0/.test(sources.find((s) => s.name === name)!.masked),
     );
     assert.deepEqual(blind, [], 'ces fichiers suppriment sans vérifier ce que la base a rendu : ' + blind.join(', '));
+  });
+});
+
+/**
+ * L'id du GESTE n'est pas propre aux élèves.
+ *
+ * Le 2026-10-05, la création EN LIGNE d'un élève n'envoyait aucun id : chaque
+ * double envoi créait une ligne de plus (« Mahamadou DJIRE » ×7). Le défaut était
+ * identique sur les autres tables (« Reste ouvert, et dit »). Ce bloc exige, pour
+ * chaque domaine, que l'INSERT porte l'id du geste ET qu'un `23505` (même geste,
+ * déjà enregistré) rende la ligne EN BASE — sans erreur, sans doublon, sans une
+ * seconde ligne de journal.
+ */
+function opsCtx(stateKey: string, setterKey: string, initial: unknown[] = []) {
+  const events: string[] = [];
+  let current: unknown[] = [...initial];
+  const track = (next: unknown[] | ((prev: unknown[]) => unknown[])) => {
+    current = typeof next === 'function' ? next(current) : next;
+  };
+  // Les dataOps lisent aussi un état VOISIN (dépenses ↔ charges fournisseur,
+  // paiement ↔ élèves) : on les fournit vides, puis l'état SUIVI écrase le sien
+  // — sinon le faux setter secondaire masquerait celui qu'on veut observer.
+  const ctx: Record<string, unknown> = {
+    notifySuccess: (operation: string) => events.push(`ok:${operation}`),
+    notifyError: (operation: string, message: string) => events.push(`err:${operation}:${message}`),
+    isOffline: () => false,
+    enqueueOffline: () => events.push('queued'),
+    students: [], setStudents: () => {},
+    expenses: [], setExpenses: () => {},
+    vendorExpenses: [], setVendorExpenses: () => {},
+    salaryPayments: [], setSalaryPayments: () => {},
+    staff: [], setStaff: () => {}, parents: [], setParents: () => {}, todos: [], setTodos: () => {},
+    updateQueueCount: () => {},
+  };
+  ctx[stateKey] = current;
+  ctx[setterKey] = track;
+  return { ctx, events, state: () => current };
+}
+
+describe('l’idempotence de création vaut pour TOUTES les tables, pas seulement les élèves', () => {
+  const GESTURE_ID = '9f8b7a6c-1111-4222-8333-444455556666';
+  const CONFLICT = { message: 'duplicate key value violates unique constraint', code: '23505' };
+
+  type LooseOps = Record<string, (arg: unknown) => Promise<{ id?: string } | null>>;
+
+  // Chaque domaine : une fabrique d'ops, la table visée, la forme envoyée, la
+  // ligne que la base renvoie après l'INSERT.
+  const domains = [
+    {
+      label: 'parents', table: 'parents', stateKey: 'parents', setterKey: 'setParents',
+      ops: (ctx: unknown) => createParentOps(ctx as Parameters<typeof createParentOps>[0]),
+      call: (ops: LooseOps) => ops.addParent({ fullName: 'Moussa', phones: ['70'], address: 'N/A', occupation: 'N/A', relationship: 'Père', id: GESTURE_ID } as Omit<Parent, 'id'> & { id?: string }),
+      row: { id: GESTURE_ID, full_name: 'Moussa', phones: ['70'], address: 'N/A', occupation: 'N/A', relationship: 'Père' },
+    },
+    {
+      label: 'personnel', table: 'staff', stateKey: 'staff', setterKey: 'setStaff',
+      ops: (ctx: unknown) => createStaffOps(ctx as Parameters<typeof createStaffOps>[0]),
+      call: (ops: LooseOps) => ops.addStaff({ name: 'Awa', position: 'Comptable', salary: 120000, id: GESTURE_ID } as Omit<Staff, 'id'> & { id?: string }),
+      row: { id: GESTURE_ID, name: 'Awa', position: 'Comptable', salary: 120000, category: 'employee' },
+    },
+    {
+      label: 'dépenses', table: 'expenses', stateKey: 'expenses', setterKey: 'setExpenses',
+      ops: (ctx: unknown) => createExpenseOps(ctx as Parameters<typeof createExpenseOps>[0]),
+      call: (ops: LooseOps) => ops.addExpense({ category: 'internet', description: 'Fibre', amount: 25000, date: '2026-10-05', id: GESTURE_ID } as Omit<Expense, 'id'> & { id?: string }),
+      row: { id: GESTURE_ID, category: 'internet', description: 'Fibre', amount: 25000, date: '2026-10-05' },
+    },
+    {
+      label: 'charges fournisseur', table: 'vendor_expenses', stateKey: 'vendorExpenses', setterKey: 'setVendorExpenses',
+      ops: (ctx: unknown) => createExpenseOps(ctx as Parameters<typeof createExpenseOps>[0]),
+      call: (ops: LooseOps) => ops.addVendorExpense({ vendorName: 'X', category: 'internet', amount: 1000, dueDate: '2026-10-05', paymentStatus: 'unpaid', amountPaid: 0, id: GESTURE_ID } as Omit<VendorExpense, 'id'> & { id?: string }),
+      row: { id: GESTURE_ID, vendor_name: 'X', category: 'internet', amount: 1000, due_date: '2026-10-05', payment_status: 'unpaid', amount_paid: 0 },
+    },
+    {
+      label: 'tâches', table: 'todos', stateKey: 'todos', setterKey: 'setTodos',
+      ops: (ctx: unknown) => createTodoOps(ctx as Parameters<typeof createTodoOps>[0]),
+      call: (ops: LooseOps) => ops.addTodo({ text: 'Appeler parent', completed: false, id: GESTURE_ID } as Omit<Todo, 'id'> & { id?: string }),
+      row: { id: GESTURE_ID, text: 'Appeler parent', completed: false },
+    },
+    {
+      label: 'salaires', table: 'salary_payments', stateKey: 'salaryPayments', setterKey: 'setSalaryPayments',
+      ops: (ctx: unknown) => createPaymentOps(ctx as Parameters<typeof createPaymentOps>[0]),
+      call: (ops: LooseOps) => ops.addSalaryPayment({ staffId: 's1', amount: 50000, date: '2026-10-05', id: GESTURE_ID } as Omit<SalaryPayment, 'id'> & { id?: string }),
+      row: { id: GESTURE_ID, staff_id: 's1', amount: 50000, date: '2026-10-05' },
+    },
+  ];
+
+  for (const d of domains) {
+    it(`add(${d.label}) : l’id du geste part dans l’INSERT`, async () => {
+      const { ctx } = opsCtx(d.stateKey, d.setterKey);
+      const ops = d.ops(ctx) as unknown as LooseOps;
+      insertResult = { data: d.row, error: null };
+
+      await d.call(ops);
+
+      const insert = calls.find((c) => c.op === 'insert' && c.table === d.table);
+      assert.ok(insert, `un INSERT vers ${d.table} part`);
+      assert.equal(insert.payload?.id, GESTURE_ID, `la clé primaire de ${d.table} est celle du geste`);
+    });
+
+    it(`add(${d.label}) : un 23505 = geste déjà enregistré, la ligne en base est rendue (sans erreur ni journal)`, async () => {
+      const { ctx, events, state } = opsCtx(d.stateKey, d.setterKey);
+      const ops = d.ops(ctx) as unknown as LooseOps;
+      insertResult = { data: null, error: CONFLICT };
+      rowsResult = { data: d.row, error: null };
+
+      const existing = await d.call(ops);
+
+      assert.equal(existing?.id, GESTURE_ID, 'la ligne déjà en base est rendue');
+      assert.equal(events.filter((e) => e.startsWith('err:')).length, 0, 'un double envoi n’est pas un échec');
+      assert.equal(
+        calls.filter((c) => c.op === 'insert' && c.table === 'audit_logs').length,
+        0,
+        'un geste, une ligne d’audit — pas une de plus au second envoi',
+      );
+      assert.equal(state().filter((x) => (x as { id?: string }).id === GESTURE_ID).length, 1, 'une seule ligne locale');
+    });
+  }
+});
+
+describe('addPayment — l’id du geste empêche un second reçu', () => {
+  // Le paiement porte l'id du geste : un double envoi retombe sur la même clé
+  // primaire (`payments_pkey`), donc la base refuse au lieu d'écrire un second
+  // reçu — et le solde de l'élève n'est incrémenté qu'une fois.
+  const GESTURE_ID = '9f8b7a6c-1111-4222-8333-444455556666';
+  type PaymentDraft = Omit<Payment, 'receiptNumber'> & { receiptNumber?: string };
+  const PAYING_STUDENT = {
+    id: 'st1', name: 'Ali Diallo', amountPaid: 50000, totalDue: 150000, dueDate: '2026-12-31',
+    parentName: '', parentEmail: '', parentPhone: '', notes: '', payments: [],
+  };
+
+  function paymentOps() {
+    const { ctx, events, state } = opsCtx('students', 'setStudents', [PAYING_STUDENT]);
+    return {
+      ops: createPaymentOps(ctx as unknown as Parameters<typeof createPaymentOps>[0]),
+      events,
+      state,
+    };
+  }
+
+  it('envoie l’id du geste dans l’INSERT et n’ajoute le paiement qu’une fois à l’écran', async () => {
+    insertResult = { data: null, error: null };
+    const { ops, state } = paymentOps();
+
+    await ops.addPayment('st1', { date: '2026-10-05', amount: 25000, academicYear: '2026-2027', id: GESTURE_ID } as PaymentDraft);
+
+    const insert = calls.find((c) => c.op === 'insert' && c.table === 'payments');
+    assert.ok(insert, 'l’INSERT part vers payments');
+    assert.equal(insert.payload?.id, GESTURE_ID, 'la clé primaire est celle du geste');
+    const s = state()[0] as { payments: unknown[]; amountPaid: number };
+    assert.equal(s.payments.length, 1, 'un seul paiement local');
+    assert.equal(s.amountPaid, 75000, 'le solde de l’élève avance du montant');
+  });
+
+  it('un 23505 (geste déjà enregistré) ne crée pas un second reçu ni ne double le solde', async () => {
+    insertResult = { data: null, error: null };
+    const { ops, events, state } = paymentOps();
+    const draft = { date: '2026-10-05', amount: 25000, id: GESTURE_ID } as PaymentDraft;
+    await ops.addPayment('st1', draft);
+
+    // Second envoi du MÊME geste : Postgres refuse la clé primaire déjà prise.
+    insertResult = { data: null, error: { message: 'duplicate key value violates unique constraint "payments_pkey"', code: '23505' } };
+    const ok = await ops.addPayment('st1', draft);
+
+    assert.equal(ok, true, 'un double envoi n’est pas un échec');
+    assert.equal(events.filter((e) => e.startsWith('err:')).length, 0, 'aucun message d’erreur affiché');
+    const s = state()[0] as { payments: unknown[]; amountPaid: number };
+    assert.equal(s.payments.length, 1, 'un seul reçu local, pas deux');
+    assert.equal(s.amountPaid, 75000, 'le solde n’a été incrémenté qu’une fois');
   });
 });

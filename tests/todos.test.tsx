@@ -26,7 +26,7 @@ let hasSaveNotePayload: { studentId: string; note: string } | null = null;
 let addTodoResult: Todo | null = null;
 let updateTodoResult = true;
 let deleteTodoResult = true;
-const addCalls: Array<Omit<Todo, 'id'>> = [];
+const addCalls: Array<Omit<Todo, 'id'> & { id?: string }> = [];
 const updateCalls: Array<{ id: string; updates: Partial<Todo> }> = [];
 const deleteCalls: string[] = [];
 
@@ -90,7 +90,13 @@ describe('useTodoSidebar', () => {
     render(makeArgs([]), apiRef);
     act(() => { apiRef.current?.setTodoInput('  Appeler le parent de Fatou  '); });
     await act(async () => { await apiRef.current?.handleAddTodo(event()); });
-    assert.deepEqual(addCalls, [{ text: 'Appeler le parent de Fatou', completed: false, date: today }]);
+    // La création porte l'id du GESTE (idempotence) : on l'isole, puis on
+    // vérifie les champs — un double envoi retombe sur la même clé.
+    assert.equal(addCalls.length, 1);
+    const sent = addCalls[0]!;
+    assert.ok(typeof sent.id === 'string' && sent.id.length > 0, 'la création porte l’id du geste');
+    const { id: _gesture, ...fields } = sent;
+    assert.deepEqual(fields, { text: 'Appeler le parent de Fatou', completed: false, date: today });
     assert.equal(apiRef.current?.todoInput, '');
     unmount();
   });
@@ -104,7 +110,10 @@ describe('useTodoSidebar', () => {
       apiRef.current?.setTodoInput('Réunion parents');
     });
     await act(async () => { await apiRef.current?.handleAddTodo(event()); });
-    assert.deepEqual(addCalls, [{ text: 'Réunion parents', completed: false, date: '2026-09-15' }]);
+    assert.equal(addCalls.length, 1);
+    const { id: _gesture, ...fields } = addCalls[0]!;
+    assert.ok(typeof addCalls[0]!.id === 'string' && addCalls[0]!.id.length > 0, 'la création porte l’id du geste');
+    assert.deepEqual(fields, { text: 'Réunion parents', completed: false, date: '2026-09-15' });
     unmount();
   });
 

@@ -126,6 +126,16 @@ describe('saveCalendarDayNote', () => {
     assert.equal(saved.id, 'db-1', 'the real DB id is returned (not a temp id)');
   });
 
+  it('envoie l’id du GESTE — un même envoi rejoué ne crée pas une seconde note', async () => {
+    // Un double envoi (double clic) réutilise le même id : il retombe sur la
+    // MÊME clé primaire au lieu d'écrire deux fois la même note.
+    const GESTURE_ID = '9f8b7a6c-1111-4222-8333-444455556666';
+    insertResult = { data: { id: GESTURE_ID, note_date: '2026-09-03', text: 'x' }, error: null };
+    await saveCalendarDayNote('2026-09-03', 'x', GESTURE_ID);
+    const insert = calls.find(c => c.op === 'insert');
+    assert.equal(insert?.payload?.id, GESTURE_ID, 'la clé primaire est celle du geste, pas une clé de la base');
+  });
+
   it('returns null when the write fails (RLS denial, offline, …)', async () => {
     insertResult = { data: null, error: { message: 'permission denied' } };
     assert.equal(await saveCalendarDayNote('2026-09-03', 'x'), null);

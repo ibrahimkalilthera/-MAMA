@@ -370,6 +370,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
           if (!sid) return;
           if (!paymentsByStudent[sid]) paymentsByStudent[sid] = [];
           paymentsByStudent[sid].push({
+            id: p.id,
             date: p.date,
             amount: Number(p.amount),
             academicYear: p.academic_year ?? undefined,

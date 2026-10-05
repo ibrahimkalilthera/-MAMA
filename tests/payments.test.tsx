@@ -212,6 +212,10 @@ describe('usePayments.handlePaymentSubmit', () => {
       assert.equal(call.payment.date, '2026-05-12');
       assert.equal(call.payment.academicYear, '2026-2027', "the student's own academic year wins");
       assert.match(call.payment.receiptNumber ?? '', /^REC-\d{6}$/, 'a REC-###### receipt number is generated');
+      assert.ok(
+        typeof call.payment.id === 'string' && call.payment.id.length > 0,
+        'the payment carries the gesture id (idempotence: a double submit reuses it)',
+      );
 
       // receipt PDF: the student's amountPaid is incremented (balance up to date)
       assert.equal(pdfCalls.length, 1, 'exactly one receipt is generated');
@@ -280,6 +284,27 @@ describe('usePayments.handlePaymentSubmit', () => {
       assert.equal(spies.addPaymentCalls[0]?.studentId, 'ghost');
       assert.equal(pdfCalls.length, 0, 'no receipt without a target student');
       assert.equal(ref.current!.showPaymentForm, false);
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+
+  it('a double submit records ONE payment and prints ONE receipt (in-flight guard + gesture id)', async () => {
+    pdfCalls.length = 0;
+    const { args, spies } = baseDeps({ students: [ali()] });
+    const { ref, root, restoreAlert } = await setup(args, { studentId: 's1', amount: '25000', date: '2026-05-12' }, spies.alerts);
+    try {
+      const submit = { preventDefault: () => {} } as never;
+      await act(async () => {
+        const first = ref.current!.handlePaymentSubmit(submit);
+        const second = ref.current!.handlePaymentSubmit(submit);
+        await Promise.all([first, second]);
+      });
+
+      assert.equal(spies.addPaymentCalls.length, 1, 'un seul paiement enregistré');
+      assert.equal(pdfCalls.length, 1, 'un seul reçu imprimé');
+      assert.equal(ref.current!.showPaymentForm, false, 'la fiche se referme une fois');
     } finally {
       act(() => root.unmount());
       restoreAlert();
