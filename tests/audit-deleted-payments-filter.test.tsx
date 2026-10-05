@@ -12,6 +12,8 @@ import { MainViewsContext } from '../src/app/mainViewsContext';
 import { AuditView } from '../src/components/AuditView';
 import { translations } from '../src/i18n/translations';
 import type { AuditLogEntry } from '../src/lib/auditLogger';
+import { archivedPaymentFrom, paymentUndoMetadata } from '../src/lib/paymentUndo';
+import type { Payment } from '../src/lib/domainTypes';
 import { installDomGlobals } from './harness';
 import { makeProps } from './views-harness';
 
@@ -24,7 +26,7 @@ const logs: AuditLogEntry[] = [
   { id: 'l3', action: 'DELETE_STUDENT', userRole: 'admin', userName: 'Admin', createdAt: '2026-10-05T08:00:00Z', details: 'Élève Djenebou DIALLO supprimé' },
 ];
 
-function mount() {
+function mount(auditLogs: AuditLogEntry[] = logs) {
   installDomGlobals();
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -32,7 +34,7 @@ function mount() {
   act(() => root.render(
     createElement(
       MainViewsContext.Provider,
-      { value: makeProps({ auditLogs: logs, t, lang: 'fr' }) },
+      { value: makeProps({ auditLogs, t, lang: 'fr' }) },
       createElement(AuditView),
     ),
   ));
@@ -90,6 +92,59 @@ describe('AuditView — filtrer les reçus annulés', () => {
       assert.match(after, /REC-1/, 'la suppression de paiement reste');
       assert.match(after, /Djenebou DIALLO/, 'la suppression d’élève reste : c’est le groupe, pas le filtre dédié');
       assert.doesNotMatch(after, /REC-2/, 'l’enregistrement reste filtré');
+    } finally {
+      h.cleanup();
+    }
+  });
+});
+
+describe('AuditView — restaurer un paiement supprimé', () => {
+  const payment: Payment = { id: 'pay1', date: '2026-10-01', amount: 25000, receiptNumber: 'REC-1' };
+  // La suppression d'après la colonne `metadata` : elle porte de quoi remettre la ligne.
+  const deleteLog: AuditLogEntry = {
+    id: 'l1', action: 'DELETE_PAYMENT', userRole: 'admin', userName: 'Admin', createdAt: '2026-10-05T10:00:00Z',
+    details: 'Paiement de 25000 FCFA (reçu REC-1) du 2026-10-01 supprimé — élève Ali Diallo',
+    targetId: 'pay1',
+    metadata: paymentUndoMetadata(archivedPaymentFrom('st1', 'Ali Diallo', payment)),
+  };
+
+  const restoreButton = (container: HTMLElement) =>
+    container.querySelector(`button[title="${t.restorePaymentHint}"]`);
+
+  it('propose « Restaurer » sur une suppression encore annulable', () => {
+    const h = mount([deleteLog]);
+    try {
+      assert.ok(restoreButton(h.container), 'le bouton de restauration est offert');
+      assert.match(h.container.textContent ?? '', new RegExp(t.restorePayment), 'et il est libellé');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('ne le propose plus une fois le paiement restauré, mais la restauration se lit', () => {
+    const restoreLog: AuditLogEntry = {
+      id: 'l2', action: 'RESTORE_PAYMENT', userRole: 'admin', userName: 'Admin', createdAt: '2026-10-05T11:00:00Z',
+      details: 'Paiement de 25000 FCFA (reçu REC-1) du 2026-10-01 restauré — élève Ali Diallo',
+      targetId: 'pay1',
+    };
+    const h = mount([restoreLog, deleteLog]);
+    try {
+      assert.equal(restoreButton(h.container), null, 'rien à restaurer : le reçu est déjà revenu');
+      assert.match(
+        h.container.textContent ?? '',
+        new RegExp(t.auditActionRestorePayment),
+        'la restauration est lisible au journal',
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('ne le propose pas sans instantané (suppression d’avant la colonne)', () => {
+    const bare: AuditLogEntry = { ...deleteLog, id: 'l3', metadata: null };
+    const h = mount([bare]);
+    try {
+      assert.equal(restoreButton(h.container), null, 'on n’invente pas une ligne qu’on n’a pas gardée');
     } finally {
       h.cleanup();
     }

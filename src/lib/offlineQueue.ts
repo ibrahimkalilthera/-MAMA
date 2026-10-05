@@ -64,6 +64,8 @@ export interface QueuedAuditEntry {
   targetType?: string | null;
   targetId?: string | null;
   details?: string | null;
+  /** Instantané structuré (voir `AuditLogEntry.metadata`) — voyage avec l'entrée. */
+  metadata?: Record<string, unknown> | null;
 }
 
 /** Payload shape for each queued action type, so replay sites are type-checked. */
@@ -74,7 +76,7 @@ export type OfflinePayload =
    * voyagent avec le geste : le rejeu les écrit dans le journal d'audit, sans
    * avoir à relire une ligne qui n'existe plus.
    */
-  | { type: 'deletePayment'; payload: { studentId: string; paymentId: string; amount: number; receiptNumber?: string; date: string } }
+  | { type: 'deletePayment'; payload: { studentId: string; paymentId: string; amount: number; receiptNumber?: string; date: string; academicYear?: string; studentName?: string } }
   | { type: 'addExpense'; payload: Omit<Expense, 'id'> }
   | { type: 'updateExpense'; payload: { id: string; updates: Partial<Expense> } }
   | { type: 'deleteExpense'; payload: { id: string } }

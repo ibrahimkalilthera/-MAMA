@@ -12,6 +12,7 @@ import type { QueueItem } from './offlineQueue';
 import type { Parent, Student, Staff } from '../app/types';
 import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
 import { isUuid } from './rowMappers';
+import { paymentUndoMetadata } from './paymentUndo';
 import type { LogAuditParams } from './auditLogger';
 
 /** The surface of the Supabase client that replay touches. */
@@ -388,6 +389,9 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       target_type: item.payload.targetType || null,
       target_id: item.payload.targetId || null,
       details: item.payload.details || null,
+      // L'instantané structuré part avec l'entrée : une suppression faite hors
+      // ligne doit être annulable comme une suppression en ligne.
+      metadata: (item.payload.metadata ?? null) as Json,
       created_at: item.createdAt,
       recorded_offline: true,
     });
@@ -474,9 +478,23 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
       return { action: 'RECORD_PAYMENT', targetType: 'payment', targetId: item.payload.studentId, details: `Paiement de ${item.payload.payment.amount} FCFA (reçu ${item.payload.payment.receiptNumber || 'N/A'})${tag}` };
     case 'deletePayment':
       // Même forme que le chemin en ligne (dataOps/payments.ts) : montant, reçu,
-      // date — un même fait ne se lit pas de deux façons selon qu'il a été
-      // rejoué ou non.
-      return { action: 'DELETE_PAYMENT', targetType: 'payment', targetId: item.payload.studentId, details: `Paiement de ${item.payload.amount} FCFA (reçu ${item.payload.receiptNumber || 'N/A'}) du ${item.payload.date} supprimé${tag}` };
+      // date, élève, PLUS l'instantané qui rend le geste annulable — un même fait
+      // ne se lit pas de deux façons selon qu'il a été rejoué ou non.
+      return {
+        action: 'DELETE_PAYMENT',
+        targetType: 'payment',
+        targetId: item.payload.paymentId,
+        details: `Paiement de ${item.payload.amount} FCFA (reçu ${item.payload.receiptNumber || 'N/A'}) du ${item.payload.date} supprimé — élève ${item.payload.studentName ?? item.payload.studentId}${tag}`,
+        metadata: paymentUndoMetadata({
+          paymentId: item.payload.paymentId,
+          studentId: item.payload.studentId,
+          studentName: item.payload.studentName,
+          date: item.payload.date,
+          amount: item.payload.amount,
+          academicYear: item.payload.academicYear,
+          receiptNumber: item.payload.receiptNumber,
+        }),
+      };
     case 'addExpense':
       return { action: 'ADD_EXPENSE', targetType: 'expense', targetId: null, details: `${item.payload.description} (${item.payload.category}) — ${item.payload.amount} FCFA${tag}` };
     case 'updateExpense':

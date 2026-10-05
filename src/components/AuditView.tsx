@@ -3,19 +3,21 @@
  * MainViews.tsx. Admin/dev only; reads its data through the MainViewsContext.
  */
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Download, History, Layers, ShieldCheck } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, History, Layers, RotateCcw, ShieldCheck } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
 import { incidentRows } from '../lib/blockedIncidents';
 import { auditActionLabel, localizeAuditDetails } from '../lib/auditDisplay';
 import { offlineOriginNote, offlineOriginOf } from '../lib/auditOffline';
 import { downloadBytes } from '../lib/browserDownload';
+import { restorablePayment } from '../lib/paymentUndo';
+import type { ArchivedPayment } from '../lib/paymentUndo';
 import type { BlockedIncident } from '../lib/blockedIncidents';
 
 /** Combien de postes un incident nomme avant de compter les autres. */
 const STATION_LIMIT = 4;
 
 export function AuditView() {
-  const { t, lang, currentTheme, auditLogs, fetchAuditLogs, auth } = useMainViews();
+  const { t, lang, currentTheme, auditLogs, fetchAuditLogs, restorePayment, auth } = useMainViews();
   // The audit tab is admin/dev-only (sidebar hides it for other roles too).
   const [roleFilter, setRoleFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
@@ -28,6 +30,9 @@ export function AuditView() {
   // n'est caché — c'est un mode de LECTURE, pas une réécriture du journal.
   const [groupIncidents, setGroupIncidents] = useState(true);
   const [openIncidents, setOpenIncidents] = useState<Record<string, boolean>>({});
+  // L'id du paiement en cours de restauration : le bouton se désactive le temps
+  // de l'aller-retour (même garde que la suppression d'un paiement).
+  const [restoringPaymentId, setRestoringPaymentId] = useState<string | null>(null);
 
   if (!auth?.isAdmin) return null;
 
@@ -46,6 +51,21 @@ export function AuditView() {
   // Les lignes affichées : un incident par panne (regroupé), ou l'entrée brute.
   const viewRows = groupIncidents ? incidentRows(filtered) : filtered.map((log) => ({ kind: 'log' as const, at: log.createdAt, log }));
   const fmt = (iso: string) => new Date(iso).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US');
+
+  // Restaurer est offert à qui voit ce journal — et le journal est déjà réservé
+  // à `admin`/`dev` (`if (!auth?.isAdmin) return null;` ci-dessus), qui sont les
+  // rôles que la base laisse supprimer (et donc remettre) un paiement
+  // (`src/lib/paymentRights.ts`). L'économe, lui, supprime un paiement mais ne
+  // voit pas ce journal : il ne peut donc pas défaire — limite dite au rapport.
+  const canRestorePayment = Boolean(auth?.isAdmin);
+  const restore = async (archived: ArchivedPayment) => {
+    setRestoringPaymentId(archived.paymentId);
+    const ok = await restorePayment(archived);
+    setRestoringPaymentId(null);
+    // Le journal porte une NOUVELLE entrée (`RESTORE_PAYMENT`) : on relit pour
+    // que la ligne affiche la restauration, et que le bouton disparaisse.
+    if (ok) await fetchAuditLogs();
+  };
 
   /** Le résumé d'un incident — ce que le CSV emporte, et ce que l'écran déplie. */
   const incidentSummary = (incident: BlockedIncident) =>
@@ -317,6 +337,10 @@ export function AuditView() {
                           ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
                           : 'bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20';
 
+                        // Une suppression de paiement ANNULABLE : son instantané vit
+                        // dans le `metadata` de l'entrée (voir paymentUndo.ts).
+                        const archived = canRestorePayment ? restorablePayment(log, auditLogs) : null;
+
                         return (
                           <tr key={log.id} className={`${currentTheme.rowHover} ${offline ? 'bg-rose-500/5' : ''} transition-all`}>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -336,9 +360,22 @@ export function AuditView() {
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`text-2xs font-black tracking-wider uppercase px-2.5 py-1 rounded-full border ${badgeColor}`}>
-                                {auditActionLabel(log.action, t)}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-2xs font-black tracking-wider uppercase px-2.5 py-1 rounded-full border ${badgeColor}`}>
+                                  {auditActionLabel(log.action, t)}
+                                </span>
+                                {archived && (
+                                  <button
+                                    onClick={() => { void restore(archived); }}
+                                    disabled={restoringPaymentId === archived.paymentId}
+                                    title={t.restorePaymentHint}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 text-2xs font-bold transition-all hover:bg-emerald-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <RotateCcw size={12} />
+                                    <span>{t.restorePayment}</span>
+                                  </button>
+                                )}
+                              </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               {(log.details || '').includes('[replay]') ? (

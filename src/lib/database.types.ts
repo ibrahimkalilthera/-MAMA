@@ -471,6 +471,7 @@ export interface Database {
           target_type: string | null;
           target_id: string | null;
           details: string | null;
+          metadata: Json | null;
           created_at: string;
           recorded_offline: boolean;
           synced_at: string;
@@ -485,6 +486,7 @@ export interface Database {
           target_type?: string | null;
           target_id?: string | null;
           details?: string | null;
+          metadata?: Json | null;
           created_at?: string;
           recorded_offline?: boolean;
           synced_at?: string;
@@ -499,6 +501,7 @@ export interface Database {
           target_type?: string | null;
           target_id?: string | null;
           details?: string | null;
+          metadata?: Json | null;
           created_at?: string;
           recorded_offline?: boolean;
           synced_at?: string;

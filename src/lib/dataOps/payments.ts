@@ -8,6 +8,8 @@ import type { Payment, SalaryPayment, Student } from '../domainTypes';
 import { mapSalaryPaymentRow, createRowId } from '../rowMappers';
 import { rowIdColumn } from '../offlineReplay';
 import { enqueueOfflineAction } from '../offlineQueue';
+import { archivedPaymentFrom, paymentUndoMetadata } from '../paymentUndo';
+import type { ArchivedPayment } from '../paymentUndo';
 import { logAuditEvent } from '../auditLogger';
 
 export function createPaymentOps(ctx: SupabaseDataCtx) {
@@ -157,6 +159,10 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         amount: payment.amount,
         receiptNumber: payment.receiptNumber,
         date: payment.date,
+        // L'année ET l'élève voyagent aussi : sans eux, le rejeu ne pourrait pas
+        // écrire l'instantané complet, et la suppression ne serait pas annulable.
+        academicYear: payment.academicYear,
+        studentName,
       });
       updateQueueCount();
       notifySuccess('deletePayment');
@@ -192,13 +198,100 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
     void logAuditEvent({
       action: 'DELETE_PAYMENT',
       targetType: 'payment',
-      targetId: studentId,
+      // `target_id` est l'ID DU PAIEMENT (pas l'élève) : c'est lui qui relie
+      // l'entrée à son instantané, donc à une éventuelle restauration.
+      targetId: paymentId,
       // Même forme que `RECORD_PAYMENT` (montant + reçu), plus l'élève : le
       // journal doit dire QUEL reçu a été retiré et de qui.
       details: `Paiement de ${payment.amount} FCFA (reçu ${payment.receiptNumber || 'N/A'}) du ${payment.date} supprimé — élève ${studentName}`,
+      // L'instantané qui rend le geste ANNULABLE : la ligne entière, de quoi la
+      // réinsérer à l'identique (voir `restorePayment`).
+      metadata: paymentUndoMetadata(archivedPaymentFrom(studentId, studentName, payment)),
     });
 
     notifySuccess('deletePayment');
+    return true;
+  };
+
+  /**
+   * RESTAURER un paiement supprimé — l'annulation, depuis le journal d'audit.
+   *
+   * L'instantané (`ArchivedPayment`) vient du `metadata` de l'entrée
+   * `DELETE_PAYMENT` : la vue Audit le relit et le passe ici. On réinsère la ligne
+   * avec son ID D'ORIGINE — le reçu retrouve son identité, et une restau-
+   * ration rejouée retombe sur la même ligne (23505 = « déjà revenu ») au lieu
+   * d'en créer une seconde.
+   *
+   * Deux choses suivent, comme à la suppression mais à l'envers :
+   *   • `students.amount_paid` REMONTE du montant restauré, et `last_payment_date`
+   *     repart sur le paiement le plus récent ;
+   *   • une entrée `RESTORE_PAYMENT` est écrite — le journal garde les DEUX gestes,
+   *     la suppression et sa réparation, dans l'ordre.
+   *
+   * Limite dite : la restauration demande le RÉSEAU. L'instantané vit dans le
+   * journal de la base ; hors ligne on ne peut ni le relire de source sûre ni
+   * garantir la réinsertion, donc on refuse au lieu de faire semblant.
+   */
+  const restorePayment = async (archived: ArchivedPayment): Promise<boolean> => {
+    if (!archived.paymentId || !archived.studentId) {
+      notifyError('restorePayment', 'Instantané incomplet — restauration impossible.');
+      return false;
+    }
+    if (isOffline()) {
+      notifyError('restorePayment', 'La restauration demande le réseau : l’instantané est relu dans le journal de la base.');
+      return false;
+    }
+    const studentName = archived.studentName
+      ?? students.find(s => s.id === archived.studentId)?.name
+      ?? archived.studentId;
+
+    const { error } = await supabase.from('payments').insert({
+      id: archived.paymentId,
+      student_id: archived.studentId,
+      date: archived.date,
+      amount: archived.amount,
+      academic_year: archived.academicYear ?? null,
+      receipt_number: archived.receiptNumber ?? null,
+    });
+    if (error && error.code !== '23505') {
+      console.error('restorePayment error:', error.message);
+      notifyError('restorePayment', error.message);
+      return false;
+    }
+    // `23505` : la ligne est déjà revenue (seconde restauration, ou rejeu). On ne
+    // crie pas et on n'ajoute pas le montant deux fois — l'état local est calculé
+    // à partir de ce que l'écran montre DÉJÀ.
+    const student = students.find(s => s.id === archived.studentId);
+    if (student) {
+      const already = student.payments.some(p => p.id === archived.paymentId);
+      const restored: Payment = {
+        id: archived.paymentId,
+        date: archived.date,
+        amount: archived.amount,
+        academicYear: archived.academicYear,
+        receiptNumber: archived.receiptNumber,
+      };
+      const payments = already ? student.payments : [...student.payments, restored];
+      const dates = payments.map(p => p.date).filter(Boolean).sort();
+      const amountPaid = already ? student.amountPaid : student.amountPaid + archived.amount;
+      setStudents(prev => prev.map(s => s.id === archived.studentId
+        ? { ...s, payments, amountPaid, lastPaymentDate: dates.length ? dates[dates.length - 1] : undefined }
+        : s));
+      await supabase.from('students').update({
+        amount_paid: amountPaid,
+        last_payment_date: dates.length ? dates[dates.length - 1] : null,
+      }).eq('id', archived.studentId);
+    }
+
+    void logAuditEvent({
+      action: 'RESTORE_PAYMENT',
+      targetType: 'payment',
+      targetId: archived.paymentId,
+      details: `Paiement de ${archived.amount} FCFA (reçu ${archived.receiptNumber || 'N/A'}) du ${archived.date} restauré — élève ${studentName}`,
+      metadata: paymentUndoMetadata(archived),
+    });
+
+    notifySuccess('restorePayment');
     return true;
   };
 
@@ -249,5 +342,5 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
     return mapped;
   };
 
-  return { addPayment, deletePayment, addSalaryPayment };
+  return { addPayment, deletePayment, restorePayment, addSalaryPayment };
 }

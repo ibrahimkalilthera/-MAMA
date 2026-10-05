@@ -17,6 +17,7 @@
 import type { ComponentType, Dispatch, SetStateAction, FormEvent, ChangeEvent, ReactNode, RefObject } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense } from '../lib/useSupabaseData';
+import type { ArchivedPayment } from '../lib/paymentUndo';
 import type { AuthState, UserProfile } from '../lib/useAuth';
 import type { AuditLogEntry } from '../lib/auditLogger';
 import type { TranslationDict } from '../i18n/translations';
@@ -300,6 +301,12 @@ export interface MainViewsProps {
   generalExpenseSearch: string;
   fetchAuditLogs: () => Promise<void>;
   fetchAuditJournalRange: (fromIso: string, toIso: string) => Promise<AuditLogEntry[]>;
+  /**
+   * Annule la suppression d'un paiement à partir de son instantané (le
+   * `metadata` de l'entrée `DELETE_PAYMENT`, relu par la vue Audit). Écrit une
+   * entrée `RESTORE_PAYMENT`. Voir `src/lib/paymentUndo.ts`.
+   */
+  restorePayment: (archived: ArchivedPayment) => Promise<boolean>;
   filteredStaff: Staff[];
   filteredStudents: Student[];
   formatCurrency: (amount: number) => string;
