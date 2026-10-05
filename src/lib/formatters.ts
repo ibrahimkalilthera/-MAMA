@@ -9,12 +9,17 @@ import type { TranslationDict, Language } from '../i18n/translations';
 
 export type T = TranslationDict;
 
+/** No-break space (U+00A0): the one Latin-1 space that never starts a new line. */
+const NBSP = '\u00a0';
+
 export const formatCurrency = (amount: unknown) => {
   const val = Number(amount);
-  if (isNaN(val)) return '0 FCFA';
+  if (isNaN(val)) return `0${NBSP}FCFA`;
   // fr-FR may emit a narrow no-break space (U+202F) or a no-break space (U+00A0)
-  // depending on the runtime's ICU; normalize both to a plain space.
-  return val.toLocaleString('fr-FR').replace(/[\u00a0\u202f]/g, ' ') + ' FCFA';
+  // depending on the runtime's ICU; normalize both to a plain no-break space so
+  // a currency figure never breaks mid-amount ("16 069" / "979 FCFA"). The PDF
+  // builders format their own figures, so this only affects on-screen text.
+  return val.toLocaleString('fr-FR').replace(/[\u00a0\u202f]/g, NBSP) + `${NBSP}FCFA`;
 };
 
 export const formatDate = (dateStr: string) => {

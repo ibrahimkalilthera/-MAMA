@@ -81,10 +81,13 @@ export function AppHeader(props: AppHeaderProps) {
     onOpenCalendarDate, onOpenPayroll, onOpenSettings,
   } = props;
 
+  // The action bar is wide: below xl the title used to get squeezed into a
+  // three-line "Gestion / des / Élèves". Stack the two blocks until there is
+  // genuinely room for them side by side.
   return (
-    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-      <div>
-        <h2 className={`text-3xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} tracking-tight`}>
+    <header data-slot="app-header" className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+      <div className="min-w-0">
+        <h2 className={`text-2xl sm:text-3xl font-bold ${currentTheme.isDark ? currentTheme.accentSoftText : 'text-slate-800'} tracking-tight whitespace-nowrap`}>
           {activeTab === 'dashboard' ? t.dashboard : 
            activeTab === 'students' ? t.students :
            activeTab === 'parents' ? t.parents :
@@ -94,13 +97,14 @@ export function AppHeader(props: AppHeaderProps) {
            activeTab === 'archives' ? t.yearlyArchives : 
            activeTab === 'audit' ? (t.auditTrail) : t.settings}
         </h2>
-        <div className="flex items-center gap-4 mt-1">
-          <p className={`${currentTheme.muted} text-sm flex items-center gap-2`}>
-            <Calendar size={14} />
+        <div className="flex items-center gap-4 mt-1 min-w-0">
+          <p className={`${currentTheme.muted} text-sm flex items-center gap-2 whitespace-nowrap`}>
+            <Calendar size={14} className="flex-shrink-0" />
             {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR', { month: 'long', day: 'numeric', year: 'numeric' })}
           </p>
           <NotificationsPanel
             notifications={notifications}
+            currentTheme={currentTheme}
             onOpenStudent={onOpenStudent}
             t={t}
             lang={lang}
@@ -119,12 +123,16 @@ export function AppHeader(props: AppHeaderProps) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 w-full md:w-auto md:min-w-0 no-print">
-        <div className="relative">
+      <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto xl:min-w-0 no-print">
+        <div className="relative flex-1 min-w-[10rem] sm:flex-none">
+          {/* `focus:ring-${currentTheme.accent}/5` used to live here: Tailwind
+              never sees an interpolated class, so nothing was generated. The
+              focus ring now comes from the one global `:focus-visible` rule in
+              index.css, which follows the active theme's accent token. */}
           <select 
             value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
-            className={`pl-10 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-${currentTheme.accent}/5 focus:border-${currentTheme.accent} transition-all text-sm font-bold ${currentTheme.text} appearance-none cursor-pointer`}
+            className={`w-full pl-10 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm transition-all text-sm font-bold ${currentTheme.text} appearance-none cursor-pointer`}
           >
             <option value="">{t.allYears}</option>
             {academicYears.map(year => (
@@ -137,7 +145,7 @@ export function AppHeader(props: AppHeaderProps) {
         {activeTab === 'students' && (
           <button 
             onClick={onPromoteClass}
-            className="px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-2xl shadow-lg shadow-emerald-700/20 transition-all flex items-center gap-2"
+            className={`px-4 py-3 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} font-bold text-xs rounded-2xl shadow-lg ${currentTheme.accentShadow} transition-all flex items-center gap-2`}
           >
             <GraduationCap size={18} />
             <span className="hidden sm:inline uppercase tracking-widest">{t.promoteClass}</span>
@@ -148,7 +156,7 @@ export function AppHeader(props: AppHeaderProps) {
         {(activeTab === 'students' || activeTab === 'parents' || activeTab === 'payroll' || activeTab === 'expenses') && (currentUser?.role === 'admin' || currentUser?.role === 'dev' || currentUser?.role === 'general_manager') && (
           <button 
             onClick={onImportExcel}
-            className="px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-violet-600/20 transition-all flex items-center gap-2 active:scale-[0.97]"
+            className={`px-4 py-3 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} font-bold text-xs rounded-2xl shadow-lg ${currentTheme.accentShadow} transition-all flex items-center gap-2 active:scale-[0.97]`}
           >
             <FileSpreadsheet size={18} />
             <span className="hidden sm:inline uppercase tracking-widest">{t.importExcel}</span>
@@ -158,7 +166,7 @@ export function AppHeader(props: AppHeaderProps) {
         {activeTab === 'payroll' && (
           <button 
             onClick={onOpenMonthlyDraft}
-            className="px-4 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-2xl shadow-lg shadow-emerald-700/20 transition-all flex items-center gap-2 active:scale-[0.97]"
+            className={`px-4 py-3 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} font-bold text-xs rounded-2xl shadow-lg ${currentTheme.accentShadow} transition-all flex items-center gap-2 active:scale-[0.97]`}
             title={t.monthlyPayrollDraft}
           >
             <FileText size={18} />
@@ -169,7 +177,7 @@ export function AppHeader(props: AppHeaderProps) {
         {(activeTab === 'students' || activeTab === 'payroll' || activeTab === 'archives' || activeTab === 'expenses') && (
           <button 
             onClick={onPrintReport}
-            className={`p-3 rounded-2xl ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center gap-2`}
+            className={`p-3 rounded-2xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} transition-all shadow-sm flex items-center gap-2`}
             title={activeTab === 'archives' ? (t.downloadMultiYearPdf) : activeTab === 'expenses' ? (t.downloadExpensesPdf) : t.printReport}
           >
             {(activeTab === 'archives' || activeTab === 'expenses') ? <FileText size={20} /> : <Printer size={20} />}
@@ -179,14 +187,14 @@ export function AppHeader(props: AppHeaderProps) {
           </button>
         )}
         {(activeTab === 'students' || activeTab === 'parents') && (
-          <div className="relative flex-1 md:w-80 md:min-w-[220px] min-w-0">
+          <div className="relative flex-1 basis-64 min-w-[15rem]">
             <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={18} />
             <input 
-              type="text" 
+              type="text"
               placeholder={t.searchPlaceholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full min-w-0 pl-12 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-${currentTheme.accent}/5 focus:border-${currentTheme.accent} transition-all text-sm ${currentTheme.text}`}
+              className={`w-full min-w-0 pl-12 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm transition-all text-sm ${currentTheme.text}`}
             />
           </div>
         )}
@@ -195,7 +203,7 @@ export function AppHeader(props: AppHeaderProps) {
             <select
               value={studentGradeFilter}
               onChange={(e) => setStudentGradeFilter(e.target.value)}
-              className={`w-full pl-10 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-bold ${currentTheme.text} appearance-none cursor-pointer`}
+              className={`w-full pl-10 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm focus:outline-none ${currentTheme.accentRing} transition-all text-xs font-bold ${currentTheme.text} appearance-none cursor-pointer`}
             >
               <option value="all">{t.allClasses}</option>
               <optgroup label={t.firstCycle1stTo6th}>
@@ -230,7 +238,7 @@ export function AppHeader(props: AppHeaderProps) {
           <div className="flex items-center gap-3">
             <button 
               onClick={onFinancialReportPdf}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98]"
+              className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} px-5 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow} active:scale-[0.98]`}
               title={t.exportFinancialReportPdf}
             >
               <FileText size={18} />

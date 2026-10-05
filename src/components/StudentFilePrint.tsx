@@ -26,11 +26,11 @@ export function StudentFilePrint({ t, student, currentUser, getGradeDisplay, for
         <div>
           <h1 className="font-black text-2xl tracking-tight text-slate-900">COMPLEXE SCOLAIRE MAMA THERA</h1>
           <p className="text-xs uppercase tracking-widest text-slate-500 font-bold mt-1">{t.officialStudentProfileAcademicFile}</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">{t.phone2}: +223 70 00 00 00 | {t.email2} contact@mamathera.edu.ml</p>
+          <p className="text-2xs text-slate-400 mt-0.5">{t.phone2}: +223 70 00 00 00 | {t.email2} contact@mamathera.edu.ml</p>
         </div>
         {visibleStudentIdentifier(student.grade, student.studentId) && (
           <div className={`border border-slate-300 px-4 py-2 text-center rounded-xl ${tokens.paperFillLight}`}>
-            <span className="text-[9px] font-black uppercase tracking-widest block text-slate-400">{t.studentId}</span>
+            <span className="text-3xs font-black uppercase tracking-widest block text-slate-400">{t.studentId}</span>
             <span className="font-mono font-bold text-sm text-slate-800">
               {visibleStudentIdentifier(student.grade, student.studentId)}
             </span>
@@ -41,7 +41,7 @@ export function StudentFilePrint({ t, student, currentUser, getGradeDisplay, for
       {/* Profile Grid: Photo and Details */}
       <div className="grid grid-cols-4 gap-8">
         {/* Photo placeholder on Left */}
-        <div className={`col-span-1 border-2 border-slate-300 rounded-[2rem] h-40 overflow-hidden ${tokens.paperFillLight} flex items-center justify-center relative shadow-inner`}>
+        <div className={`col-span-1 border-2 border-slate-300 rounded-3xl h-40 overflow-hidden ${tokens.paperFillLight} flex items-center justify-center relative shadow-inner`}>
           {student.photo ? (
             <img
               src={student.photo}
@@ -52,7 +52,7 @@ export function StudentFilePrint({ t, student, currentUser, getGradeDisplay, for
           ) : (
             <div className="text-center">
               <Users size={32} className="text-slate-400 mx-auto mb-1" />
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">PASSPORT</span>
+              <span className="text-3xs font-black text-slate-400 uppercase tracking-widest">PASSPORT</span>
             </div>
           )}
         </div>
@@ -85,19 +85,19 @@ export function StudentFilePrint({ t, student, currentUser, getGradeDisplay, for
       </div>
 
       {/* General Info & Financial Ledger Section */}
-      <div className="border border-slate-300 rounded-[2rem] p-6 space-y-4">
+      <div className="border border-slate-300 rounded-3xl p-6 space-y-4">
         <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{t.financialStatusLedger}</h3>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div className={`${tokens.paperFillLight} p-4 rounded-xl border border-slate-100`}>
-            <span className="text-[10px] font-bold text-slate-400 block uppercase">{t.totalTuitionDue}</span>
+            <span className="text-2xs font-bold text-slate-400 block uppercase">{t.totalTuitionDue}</span>
             <span className="text-lg font-black text-slate-800">{formatCurrency(student.totalDue)}</span>
           </div>
           <div className={`${tokens.paperFillLight} p-4 rounded-xl border border-slate-100`}>
-            <span className="text-[10px] font-bold text-slate-400 block uppercase">{t.paidTuition}</span>
+            <span className="text-2xs font-bold text-slate-400 block uppercase">{t.paidTuition}</span>
             <span className="text-lg font-black text-emerald-600">+{formatCurrency(student.amountPaid)}</span>
           </div>
           <div className={`${tokens.paperFillAlert} p-4 rounded-xl border border-rose-100`}>
-            <span className="text-[10px] font-bold text-rose-500 block uppercase">{t.remainingBalance2}</span>
+            <span className="text-2xs font-bold text-rose-500 block uppercase">{t.remainingBalance2}</span>
             <span className="text-lg font-black text-rose-600">{formatCurrency(student.totalDue * (1 - (student.scholarshipDiscount || 0) / 100) - student.amountPaid)}</span>
           </div>
         </div>
@@ -105,7 +105,7 @@ export function StudentFilePrint({ t, student, currentUser, getGradeDisplay, for
 
       {/* Parent & Emergency Info */}
       <div className="grid grid-cols-2 gap-6">
-        <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
+        <div className="border border-slate-300 rounded-3xl p-6 space-y-3">
           <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{t.guardianTitle}</h3>
           <div className="space-y-1.5 text-xs">
             <p><strong className="text-slate-400">{t.name}</strong> <span className="font-bold text-slate-800">{student.parentName}</span></p>
@@ -114,7 +114,7 @@ export function StudentFilePrint({ t, student, currentUser, getGradeDisplay, for
           </div>
         </div>
 
-        <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
+        <div className="border border-slate-300 rounded-3xl p-6 space-y-3">
           <h3 className="text-xs font-black uppercase tracking-widest text-rose-500 border-b pb-2">{t.emergencyContact2}</h3>
           <div className="space-y-1.5 text-xs">
             <p><strong className="text-slate-400">{t.contactPerson}</strong> <span className="font-bold text-slate-800">{student.emergencyContactName || 'N/A'}</span></p>
@@ -125,7 +125,7 @@ export function StudentFilePrint({ t, student, currentUser, getGradeDisplay, for
       </div>
 
       {/* History & Medical Records */}
-      <div className="border border-slate-300 rounded-[2rem] p-6 space-y-3">
+      <div className="border border-slate-300 rounded-3xl p-6 space-y-3">
         <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 border-b pb-2">{t.medicalHistoryFile}</h3>
         <div className="grid grid-cols-2 gap-6 text-xs">
           <div>
@@ -144,12 +144,12 @@ export function StudentFilePrint({ t, student, currentUser, getGradeDisplay, for
         <div>
           <p className="font-bold">{t.generatedAndVerifiedSincerelyBy}</p>
           <p className="font-black mt-1 text-slate-900">{currentUser?.name || 'Direction Complexe Scolaire MAMA THERA'}</p>
-          <p className="text-slate-500 text-[10px]">{t.complexeScolaireMamaTheraAdministration}</p>
+          <p className="text-slate-500 text-2xs">{t.complexeScolaireMamaTheraAdministration}</p>
         </div>
         <div className="text-right">
           <p className="font-bold">{t.officialSealSignature}</p>
           <div className="h-12 w-48 border-b border-dashed border-slate-400 mt-2 ml-auto" />
-          <p className="text-[8px] text-slate-400 mt-1">{t.officialBoardRepresentative}</p>
+          <p className="text-3xs text-slate-400 mt-1">{t.officialBoardRepresentative}</p>
         </div>
       </div>
     </div>

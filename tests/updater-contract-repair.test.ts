@@ -14,6 +14,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
@@ -42,7 +43,11 @@ const CLI = 'scripts/repair-frozen-updater.mjs';
 
 /** Un dossier d'installation jetable : `<tmp>/resources/app-update.yml`. */
 function fixture(contract: string): string {
-  const dir = mkdtempSync('.probe-repair-');
+  // Hors du dépôt : un dossier temporaire créé DANS la racine du projet passe
+  // sous le watcher de Vite, qui tombe en EBUSY (Windows) pendant l'écriture et
+  // CRASHE le serveur de dev — d'où l'import dynamique de la vue Dépenses qui
+  // échoue ensuite dans le navigateur.
+  const dir = mkdtempSync(join(tmpdir(), 'mama-probe-repair-'));
   mkdirSync(join(dir, 'resources'), { recursive: true });
   writeFileSync(join(dir, 'resources', 'app-update.yml'), contract, 'utf8');
   return dir;
@@ -216,7 +221,7 @@ describe('le CLI : il répare ce qui est gelé, et rien d’autre', () => {
   });
 
   it('un dossier sans contrat est un refus NOMMÉ, pas un vert silencieux', () => {
-    const dir = mkdtempSync('.probe-repair-empty-');
+    const dir = mkdtempSync(join(tmpdir(), 'mama-probe-repair-empty-'));
     try {
       const { code, output } = runCli([`--dir=${dir}`]);
       assert.equal(code, 2, 'viser un dossier qui n’en est pas un ne peut pas conclure « rien à faire »');

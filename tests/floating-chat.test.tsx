@@ -104,6 +104,8 @@ function Harness(): ReactNode {
     vendorExpenses: [],
     formatCurrency: (value: number) => `${value} XOF`,
     formatDate: (dateStr: string) => dateStr,
+    // Pinned clock: the monthly answers must not depend on the day the suite runs.
+    now: () => new Date(2026, 8, 2),
   });
   return (
     <FloatingChat
@@ -114,7 +116,15 @@ function Harness(): ReactNode {
       floatingChatInput={chat.floatingChatInput}
       setFloatingChatInput={chat.setFloatingChatInput}
       handleFloatingAiQuery={chat.handleFloatingAiQuery}
-      currentTheme={{ bg: 'bg-slate-100', card: 'bg-white', text: 'text-slate-900', muted: 'text-slate-500', border: 'border-slate-200', header: '#0F172A', sidebar: 'bg-slate-800', accent: 'text-blue-600', accentBg: 'bg-blue-50', accentText: 'text-white', accentHover: 'hover:bg-blue-100', accentShadow: 'shadow-blue-200', tableHeader: 'bg-slate-100', rowHover: 'hover:bg-slate-50', input: 'bg-white', isDark: false }}
+      currentTheme={{ bg: 'bg-slate-100', card: 'bg-white', text: 'text-slate-900', muted: 'text-slate-500', border: 'border-slate-200', header: '#0F172A', sidebar: 'bg-slate-800', accent: 'text-blue-600', accentBg: 'bg-blue-50', accentText: 'text-white', accentHover: 'hover:bg-blue-100', accentGroupHover: 'accent-group-hover', accentShadow: 'shadow-blue-200', accentSoft: 'bg-blue-50', accentSoftText: 'text-blue-600', accentSoftHover: 'hover:bg-blue-100', accentSoftTextHover: 'hover:text-blue-700', accentHex: '#2563EB', accentHexDeep: '#1D4ED8', 
+  accentRing: 'focus:ring-blue-500/20',
+  accentBorder: 'border-slate-300',
+  accentBorderHover: 'hover:border-slate-400',
+  surfaceInset: 'bg-slate-50',
+  inkStrong: 'text-slate-800',
+  accentSoftDark: 'bg-blue-500/15',
+  accentSoftDarkHover: 'hover:bg-blue-500/25',
+  accentSoftDarkText: 'text-blue-300', tableHeader: 'bg-slate-100', rowHover: 'hover:bg-slate-50', input: 'bg-white', isDark: false }}
     />
   );
 }

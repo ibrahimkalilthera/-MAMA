@@ -75,9 +75,9 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
         {/* Body Content */}
         <div className="px-10 pb-10 pt-4 space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
           {/* --- Student Card Layout --- */}
-          <div className={`flex flex-col sm:flex-row items-center gap-6 p-6 rounded-[2.5rem] border ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-900/5' : 'bg-slate-50/50'}`}>
+          <div className={`flex flex-col sm:flex-row items-center gap-6 p-6 rounded-3xl border ${currentTheme.border} ${currentTheme.surfaceInset}`}>
             {/* Photo Placeholder / Image */}
-            <div className={`w-28 h-28 flex-shrink-0 border-2 ${currentTheme.border} rounded-[2rem] overflow-hidden ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} flex items-center justify-center relative shadow-inner`}>
+            <div className={`w-28 h-28 flex-shrink-0 border-2 ${currentTheme.border} rounded-3xl overflow-hidden ${currentTheme.surfaceInset} ${currentTheme.inkStrong} flex items-center justify-center relative shadow-inner`}>
               {selectedStudent.photo ? (
                 <img
                   src={selectedStudent.photo}
@@ -88,7 +88,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               ) : (
                 <div className="text-center">
                   <Users size={32} className="mx-auto mb-1" />
-                  <span className="text-[9px] font-black uppercase tracking-widest">PHOTO</span>
+                  <span className="text-3xs font-black uppercase tracking-widest">PHOTO</span>
                 </div>
               )}
             </div>
@@ -97,11 +97,11 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
             <div className="flex-1 text-center sm:text-left space-y-2">
               <div>
                 {visibleStudentIdentifier(selectedStudent.grade, selectedStudent.studentId) && (
-                  <span className={`text-[10px] ${currentTheme.muted} font-black uppercase tracking-widest font-mono`}>
+                  <span className={`text-2xs ${currentTheme.muted} font-black uppercase tracking-widest font-mono`}>
                     {t.studentId}: {visibleStudentIdentifier(selectedStudent.grade, selectedStudent.studentId)}
                   </span>
                 )}
-                <h3 id="modal-title-student-details" className={`text-2xl font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} tracking-tight`}>
+                <h3 id="modal-title-student-details" className={`text-2xl font-black ${currentTheme.inkStrong} tracking-tight`}>
                   {selectedStudent.name}
                 </h3>
               </div>
@@ -133,7 +133,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               onClick={() => setStudentDetailTab('general')}
               className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
                 studentDetailTab === 'general'
-                  ? 'border-blue-600 text-blue-600'
+                  ? `${currentTheme.accentBorder} ${currentTheme.accentText}`
                   : `${currentTheme.muted} border-transparent hover:text-slate-600`
               }`}
             >
@@ -143,7 +143,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               onClick={() => setStudentDetailTab('parent')}
               className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
                 studentDetailTab === 'parent'
-                  ? 'border-blue-600 text-blue-600'
+                  ? `${currentTheme.accentBorder} ${currentTheme.accentText}`
                   : `${currentTheme.muted} border-transparent hover:text-slate-600`
               }`}
             >
@@ -153,7 +153,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               onClick={() => setStudentDetailTab('medical')}
               className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
                 studentDetailTab === 'medical'
-                  ? 'border-blue-600 text-blue-600'
+                  ? `${currentTheme.accentBorder} ${currentTheme.accentText}`
                   : `${currentTheme.muted} border-transparent hover:text-slate-600`
               }`}
             >
@@ -166,35 +166,35 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
             {studentDetailTab === 'general' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className={`p-5 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-2xl`}>
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.enrollmentDate}</span>
-                    <p className={`text-sm font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} mt-1`}>
+                  <div className={`p-5 ${currentTheme.surfaceInset} rounded-2xl`}>
+                    <span className={`text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.enrollmentDate}</span>
+                    <p className={`text-sm font-bold ${currentTheme.inkStrong} mt-1`}>
                       {selectedStudent.enrollmentDate || '2026-07-16'}
                     </p>
                   </div>
-                  <div className={`p-5 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-2xl`}>
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.academicYear}</span>
-                    <p className={`text-sm font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} mt-1`}>
+                  <div className={`p-5 ${currentTheme.surfaceInset} rounded-2xl`}>
+                    <span className={`text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.academicYear}</span>
+                    <p className={`text-sm font-bold ${currentTheme.inkStrong} mt-1`}>
                       {selectedStudent.academicYear || '2025-2026'}
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">
-                  <div className={`p-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-2xl text-center`}>
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.totalDue}</span>
+                  <div className={`p-4 ${currentTheme.surfaceInset} rounded-2xl text-center`}>
+                    <span className={`text-3xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.totalDue}</span>
                     <p className={`text-xs font-extrabold ${currentTheme.muted} mt-1`}>
                       {formatCurrency(selectedStudent.totalDue)}
                     </p>
                   </div>
-                  <div className={`p-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-2xl text-center`}>
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.paid}</span>
+                  <div className={`p-4 ${currentTheme.surfaceInset} rounded-2xl text-center`}>
+                    <span className={`text-3xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.paid}</span>
                     <p className="text-xs font-extrabold text-emerald-600 mt-1">
                       {formatCurrency(selectedStudent.amountPaid)}
                     </p>
                   </div>
                   <div className={`p-4 bg-rose-50 dark:bg-rose-950/30 rounded-2xl text-center`}>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-rose-500">{t.balance}</span>
+                    <span className="text-3xs font-black uppercase tracking-widest text-rose-500">{t.balance}</span>
                     <p className="text-xs font-black text-rose-600 mt-1">
                       {formatCurrency(selectedStudent.totalDue * (1 - (selectedStudent.scholarshipDiscount || 0) / 100) - selectedStudent.amountPaid)}
                     </p>
@@ -203,14 +203,14 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
 
                 {/* Mini Payment Ledger */}
                 <div className="space-y-2">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.paymentHistoryLedger}</span>
+                  <span className={`text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.paymentHistoryLedger}</span>
                   <div className="space-y-2 max-h-24 overflow-y-auto pr-2 custom-scrollbar">
                     {selectedStudent.payments.length > 0 ? (
                       [...selectedStudent.payments].reverse().map((p, idx) => (
-                        <div key={`${p.date}-${p.amount}-${idx}`} className={`flex items-center justify-between p-3 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-xl text-xs`}>
+                        <div key={`${p.date}-${p.amount}-${idx}`} className={`flex items-center justify-between p-3 ${currentTheme.surfaceInset} rounded-xl text-xs`}>
                           <div className="flex flex-col">
                             <span className={currentTheme.muted}>{formatDate(p.date)}</span>
-                            {p.receiptNumber && <span className="text-[10px] text-slate-400 font-mono">{t.receiptNoShort} {p.receiptNumber}</span>}
+                            {p.receiptNumber && <span className="text-2xs text-slate-400 font-mono">{t.receiptNoShort} {p.receiptNumber}</span>}
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="font-bold text-emerald-600">+{formatCurrency(p.amount)}</span>
@@ -221,7 +221,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                                 lang,
                                 cashierName: currentUser?.name || 'Administration'
                               })}
-                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-all shadow-sm flex items-center gap-1"
+                              className={`px-2 py-1 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} rounded text-2xs font-bold transition-all shadow-sm flex items-center gap-1`}
                               title={t.downloadReceiptPdf}
                             >
                               <Receipt size={12} /> {t.receipt2}
@@ -241,15 +241,15 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               <div className="space-y-4">
                 {/* Guardian Info Card */}
                 <div className={`p-5 ${currentTheme.isDark ? 'bg-[#1e293b]/50' : 'bg-slate-50'} rounded-2xl space-y-3`}>
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.guardianTitle}</h4>
+                  <h4 className="text-2xs font-black text-slate-400 uppercase tracking-widest">{t.guardianTitle}</h4>
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
                       <span className={currentTheme.muted}>{t.parentName}</span>
-                      <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{selectedStudent.parentName}</p>
+                      <p className={`font-bold ${currentTheme.inkStrong}`}>{selectedStudent.parentName}</p>
                     </div>
                     <div>
                       <span className={currentTheme.muted}>{t.phone}</span>
-                      <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{selectedStudent.parentPhone}</p>
+                      <p className={`font-bold ${currentTheme.inkStrong}`}>{selectedStudent.parentPhone}</p>
                     </div>
                     <div className="col-span-2 border-t border-slate-100 pt-2 flex justify-between items-center">
                       <div>
@@ -273,17 +273,17 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
 
                 {/* Emergency Contact Card */}
                 <div className={`p-5 ${currentTheme.isDark ? 'bg-[#1e293b]/50' : 'bg-slate-50'} rounded-2xl space-y-3`}>
-                  <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{t.emergencyTitle}</h4>
+                  <h4 className="text-2xs font-black text-rose-500 uppercase tracking-widest">{t.emergencyTitle}</h4>
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
                       <span className={currentTheme.muted}>{t.contactName}</span>
-                      <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>
+                      <p className={`font-bold ${currentTheme.inkStrong}`}>
                         {selectedStudent.emergencyContactName || 'N/A'}
                       </p>
                     </div>
                     <div>
                       <span className={currentTheme.muted}>{t.relationshipLabel}</span>
-                      <p className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>
+                      <p className={`font-bold ${currentTheme.inkStrong}`}>
                         {selectedStudent.emergencyContactRelation || 'N/A'}
                       </p>
                     </div>
@@ -302,16 +302,16 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               <div className="space-y-4">
                 {/* Previous School */}
                 <div className={`p-5 ${currentTheme.isDark ? 'bg-[#1e293b]/50' : 'bg-slate-50'} rounded-2xl`}>
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.previousSchoolHistory}</span>
-                  <p className={`text-sm font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} mt-1`}>
+                  <span className={`text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.previousSchoolHistory}</span>
+                  <p className={`text-sm font-bold ${currentTheme.inkStrong} mt-1`}>
                     {selectedStudent.previousSchool || (t.noneFirstEnrollmentEntry)}
                   </p>
                 </div>
 
                 {/* Medical Notes */}
                 <div className={`p-5 ${currentTheme.isDark ? 'bg-[#1e293b]/50' : 'bg-slate-50'} rounded-2xl`}>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-rose-500">{t.medicalNotesTitle}</span>
-                  <p className={`text-xs font-semibold ${currentTheme.isDark ? 'text-emerald-400/80' : 'text-slate-700'} mt-1 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700`}>
+                  <span className="text-2xs font-black uppercase tracking-widest text-rose-500">{t.medicalNotesTitle}</span>
+                  <p className={`text-xs font-semibold ${currentTheme.isDark ? 'text-[#E2E8F0]/80' : 'text-slate-700'} mt-1 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700`}>
                     {selectedStudent.medicalNotes || 'None'}
                   </p>
                 </div>
@@ -321,11 +321,11 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
 
           {/* --- Accounting Notes (Sticky Note) --- */}
           <div className="pt-2">
-            <div className="bg-[#FEF9C3] p-6 rounded-[2rem] shadow-inner border border-yellow-200/50 relative transform rotate-1">
+            <div className="bg-[#FEF9C3] p-6 rounded-3xl shadow-inner border border-yellow-200/50 relative transform rotate-1">
               <div className="absolute top-5 right-6 text-yellow-600/30">
                 <StickyNote size={24} />
               </div>
-              <h4 className="text-[9px] font-black text-yellow-900 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+              <h4 className="text-3xs font-black text-yellow-900 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                 <FileText size={12} />
                 {t.accountingNotes}
               </h4>
@@ -340,17 +340,17 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                 className="w-full bg-transparent border-none focus:ring-0 text-xs font-bold text-yellow-900 placeholder-yellow-700/40 resize-none min-h-[80px] custom-scrollbar"
               />
               <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
-                <label className="flex items-center gap-1.5 text-[9px] font-black text-yellow-800 uppercase tracking-widest">
+                <label className="flex items-center gap-1.5 text-3xs font-black text-yellow-800 uppercase tracking-widest">
                   <Calendar size={12} />
                   {t.alsoShowOnCalendar}
                   <input
                     type="date"
                     value={noteDateInput}
                     onChange={(e) => setNoteDateInput(e.target.value)}
-                    className="ml-1 px-2 py-1 rounded-lg border border-yellow-300 dark:border-yellow-900/60 bg-white/80 dark:bg-slate-800 text-[10px] font-bold text-yellow-900 dark:text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-500/30"
+                    className="ml-1 px-2 py-1 rounded-lg border border-yellow-300 dark:border-yellow-900/60 bg-white/80 dark:bg-slate-800 text-2xs font-bold text-yellow-900 dark:text-yellow-300 focus:outline-none focus:ring-2 focus:ring-yellow-500/30"
                   />
                 </label>
-                <span className="text-[9px] font-black text-yellow-800/70 uppercase tracking-widest">
+                <span className="text-3xs font-black text-yellow-800/70 uppercase tracking-widest">
                   {selectedStudent.lastNoteDate ? `${t.lastUpdated}: ${formatDate(selectedStudent.lastNoteDate)}` : ''}
                 </span>
               </div>
@@ -361,7 +361,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100">
             <button
               onClick={onEdit}
-              className="h-11 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap"
+              className={`h-11 px-3 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap`}
             >
               <FileText size={16} className="flex-shrink-0" />
               <span className="truncate">{t.editProfile}</span>

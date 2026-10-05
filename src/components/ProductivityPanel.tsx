@@ -236,13 +236,13 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
         <div className="flex border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10">
           <button
             onClick={() => setProductivitySidebarTab('tasks')}
-            className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest border-b-2 transition-all ${productivitySidebarTab === 'tasks' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+            className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest border-b-2 transition-all ${productivitySidebarTab === 'tasks' ? `${currentTheme.accentBorder} ${currentTheme.accentSoftText}` : 'border-transparent text-slate-400 hover:text-slate-600'}`}
           >
             {t.toDo}
           </button>
           <button
             onClick={() => setProductivitySidebarTab('ai')}
-            className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest border-b-2 transition-all ${productivitySidebarTab === 'ai' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+            className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest border-b-2 transition-all ${productivitySidebarTab === 'ai' ? `${currentTheme.accentBorder} ${currentTheme.accentSoftText}` : 'border-transparent text-slate-400 hover:text-slate-600'}`}
           >
             {t.aiAssistant}
           </button>
@@ -254,7 +254,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
             <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
               {aiMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs font-semibold ${msg.sender === 'user' ? 'bg-blue-600 text-white' : (currentTheme.isDark ? 'bg-slate-800 text-emerald-400 border border-emerald-900/20' : 'bg-slate-100 text-slate-700')}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs font-semibold ${msg.sender === 'user' ? `${currentTheme.accentBg} ${currentTheme.accentText}` : (currentTheme.isDark ? 'bg-slate-800 text-[#E2E8F0] border border-emerald-900/20' : 'bg-slate-100 text-slate-700')}`}>
                     <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                   </div>
                 </div>
@@ -263,31 +263,31 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
 
             {/* Suggestions Chips */}
             <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+              <span className="text-2xs font-black uppercase tracking-widest text-slate-400 block">
                 {t.quickQuestions}
               </span>
               <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto custom-scrollbar">
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion1)}
-                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-[#E2E8F0]' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion1}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion2)}
-                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-[#E2E8F0]' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion2}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion3)}
-                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-[#E2E8F0]' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion3}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion4)}
-                  className={`text-[10px] font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-emerald-400' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-[#E2E8F0]' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion4}
                 </button>
@@ -307,11 +307,11 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                 value={aiInput}
                 onChange={(e) => setAiInput(e.target.value)}
                 placeholder={t.aiAskPlaceholder}
-                className={`flex-1 px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-emerald-500 border-emerald-900/20' : 'border-slate-200 text-slate-800'} border rounded-xl text-xs font-semibold`}
+                className={`flex-1 px-4 py-3 bg-white ${currentTheme.isDark ? 'bg-slate-800 text-[#E2E8F0] border-emerald-900/20' : 'border-slate-200 text-slate-800'} border rounded-xl text-xs font-semibold`}
               />
               <button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl transition-all flex items-center justify-center flex-shrink-0"
+                className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} p-3 rounded-xl transition-all flex items-center justify-center flex-shrink-0`}
               >
                 <Sparkles size={16} />
               </button>
@@ -325,18 +325,18 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                 value={todoInput}
                 onChange={(e) => setTodoInput(e.target.value)}
                 placeholder={t.taskPlaceholder}
-                className={`w-full px-5 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                className={`w-full px-5 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
               />
               <input
                 type="date"
                 value={todoDate}
                 onChange={(e) => setTodoDate(e.target.value)}
                 aria-label={t.taskDate}
-                className={`w-full px-5 py-3.5 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-semibold ${currentTheme.isDark ? 'text-emerald-500 [color-scheme:dark]' : 'text-slate-800'}`}
+                className={`w-full px-5 py-3.5 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl ${currentTheme.accentRing} transition-all text-xs font-semibold ${currentTheme.isDark ? 'text-[#E2E8F0] [color-scheme:dark]' : 'text-slate-800'}`}
               />
               <button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2"
+                className={`w-full ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} py-4 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2`}
               >
                 <Plus size={16} />
                 <span data-i18n="addTask">{t.addTask}</span>
@@ -351,7 +351,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                     className={`flex items-center gap-2 ${idx > 0 ? 'pt-5 mt-1 border-t border-slate-100 dark:border-slate-800' : ''}`}
                   >
                     <span
-                      className={`text-[10px] font-black uppercase tracking-widest ${
+                      className={`text-2xs font-black uppercase tracking-widest ${
                         section.key === 'overdue' ? 'text-rose-500' :
                         section.key === 'today' ? 'text-amber-500' :
                         section.key === 'upcoming' ? 'text-emerald-500' :
@@ -360,7 +360,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                     >
                       {section.label}
                     </span>
-                    <span className={`min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center ${currentTheme.isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                    <span className={`min-w-[18px] h-[18px] px-1.5 rounded-full text-2xs font-black flex items-center justify-center ${currentTheme.isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                       {section.count}
                     </span>
                   </div>
@@ -368,16 +368,16 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                   <motion.div
                     layout
                     key={section.todo.id}
-                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${section.todo.completed ? (currentTheme.isDark ? 'bg-emerald-900/10 border-emerald-900/20 opacity-60' : 'bg-slate-50 border-slate-100 opacity-60') : (currentTheme.isDark ? 'bg-emerald-900/20 border-emerald-800/50 shadow-sm' : 'bg-white border-slate-100 shadow-sm')}`}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${section.todo.completed ? `${currentTheme.surfaceInset} ${currentTheme.border} opacity-60` : `${currentTheme.card} ${currentTheme.border} shadow-sm`}`}
                   >
                     <div className="flex items-center gap-3 flex-1">
                       <button
                         onClick={() => toggleTodo(section.todo.id)}
-                        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${section.todo.completed ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 hover:border-blue-400'}`}
+                        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${section.todo.completed ? `${currentTheme.accentBg} ${currentTheme.accentBorder} ${currentTheme.accentText}` : `border-slate-200 ${currentTheme.accentBorderHover}`}`}
                       >
                         {section.todo.completed && <CheckCircle2 size={14} />}
                       </button>
-                      <span className={`text-sm font-bold ${section.todo.completed ? (currentTheme.isDark ? 'text-emerald-500/50 line-through' : 'text-slate-400 line-through') : (currentTheme.isDark ? 'text-emerald-500' : 'text-slate-700')}`}>
+                      <span className={`text-sm font-bold ${section.todo.completed ? (currentTheme.isDark ? 'text-[#E2E8F0]/50 line-through' : 'text-slate-400 line-through') : (currentTheme.inkStrong)}`}>
                         {section.todo.text}
                       </span>
                       {editingDateId === section.todo.id ? (
@@ -391,14 +391,14 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                             void handleUpdateTodoDate(section.todo.id, e.target.value);
                           }}
                           onBlur={() => setEditingDateId(null)}
-                          className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${currentTheme.isDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40 [color-scheme:dark]' : 'bg-white text-slate-700 border-blue-200'}`}
+                          className={`px-1.5 py-0.5 rounded-md text-2xs font-bold border ${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentBorder} ${currentTheme.isDark ? '[color-scheme:dark]' : ''}`}
                         />
                       ) : (
                         <button
                           type="button"
                           onClick={() => setEditingDateId(section.todo.id)}
                           title={t.taskDate}
-                          className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all hover:ring-2 hover:ring-blue-400/50 ${currentTheme.isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                          className={`px-2 py-0.5 rounded-md text-3xs font-black uppercase tracking-widest transition-all ${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover}`}
                         >
                           {section.todo.date ? section.todo.date.split('-').reverse().join('/') : t.addDate}
                         </button>
@@ -436,7 +436,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
           onKeyDown={handleResizeKeyDown}
           className="absolute left-0 top-0 z-10 hidden h-full w-2.5 cursor-col-resize touch-none select-none items-center justify-center group lg:flex"
         >
-          <span className="h-16 w-1 rounded-full bg-slate-400/50 transition-colors group-hover:bg-blue-500 group-focus-visible:bg-blue-500" />
+          <span className={`h-16 w-1 rounded-full bg-slate-400/50 transition-colors ${currentTheme.accentGroupHover}`} />
         </button>
       </motion.aside>
     </>

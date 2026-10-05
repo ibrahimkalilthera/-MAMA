@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { Search, Users } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
 import type { Student } from '../lib/useSupabaseData';
 import { ConfirmDialog } from './ConfirmDialog';
+import { EmptyState } from './SharedUi';
 
 export function StudentsView() {
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
@@ -13,25 +15,25 @@ export function StudentsView() {
             <div className="hidden print:block mb-8 p-6 bg-slate-50 border-2 border-slate-200 rounded-2xl">
               <div className="flex justify-around text-center">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{t.totalCollected}</p>
+                  <p className="text-2xs font-black uppercase tracking-widest text-slate-500 mb-1">{t.totalCollected}</p>
                   <p className="text-xl font-black text-emerald-600">{formatCurrency(stats.totalCollected)}</p>
                 </div>
                 <div className="w-px h-10 bg-slate-200"></div>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{t.totalOutstanding}</p>
+                  <p className="text-2xs font-black uppercase tracking-widest text-slate-500 mb-1">{t.totalOutstanding}</p>
                   <p className="text-xl font-black text-rose-600">{formatCurrency(stats.totalOutstanding)}</p>
                 </div>
               </div>
             </div>
 
-            <div className={`${currentTheme.card} rounded-[2.5rem] border ${currentTheme.border} shadow-2xl shadow-slate-200/50 overflow-hidden`}>
-            <div className="overflow-x-auto">
+            <div className={`${currentTheme.card} rounded-3xl border ${currentTheme.border} shadow-2xl shadow-slate-200/50 overflow-hidden`}>
+            <div className="max-h-[70vh] overflow-auto">
               <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className={`${currentTheme.isDark ? 'bg-emerald-900/20' : 'bg-slate-50/50'} ${currentTheme.muted} text-[10px] font-black uppercase tracking-[0.2em]`}>
+                <thead className="sticky top-0 z-10">
+                  <tr className={`${currentTheme.surfaceInset} ${currentTheme.muted} text-2xs font-black uppercase tracking-[0.2em]`}>
                     <th 
                       onClick={() => handleSort('name')}
-                      className={`px-8 py-6 cursor-pointer ${currentTheme.isDark ? 'hover:bg-emerald-900/10' : 'hover:bg-slate-100'} transition-all group/sort select-none`}
+                      className={`px-8 py-6 cursor-pointer ${currentTheme.rowHover} transition-all group/sort select-none`}
                     >
                       <div className="flex items-center gap-2">
                         <span>{t.studentName}</span>
@@ -44,7 +46,7 @@ export function StudentsView() {
                     </th>
                     <th 
                       onClick={() => handleSort('parentName')}
-                      className={`px-8 py-6 cursor-pointer ${currentTheme.isDark ? 'hover:bg-emerald-900/10' : 'hover:bg-slate-100'} transition-all group/sort select-none`}
+                      className={`px-8 py-6 cursor-pointer ${currentTheme.rowHover} transition-all group/sort select-none`}
                     >
                       <div className="flex items-center gap-2">
                         <span>{t.parentName}</span>
@@ -58,7 +60,7 @@ export function StudentsView() {
                     <th className="px-8 py-6 select-none">{t.totalDue}</th>
                     <th 
                       onClick={() => handleSort('balance')}
-                      className={`px-8 py-6 cursor-pointer ${currentTheme.isDark ? 'hover:bg-emerald-900/10' : 'hover:bg-slate-100'} transition-all group/sort select-none`}
+                      className={`px-8 py-6 cursor-pointer ${currentTheme.rowHover} transition-all group/sort select-none`}
                     >
                       <div className="flex items-center gap-2">
                         <span>{t.balance}</span>
@@ -71,7 +73,7 @@ export function StudentsView() {
                     </th>
                     <th 
                       onClick={() => handleSort('dueDate')}
-                      className={`px-8 py-6 cursor-pointer ${currentTheme.isDark ? 'hover:bg-emerald-900/10' : 'hover:bg-slate-100'} transition-all group/sort select-none`}
+                      className={`px-8 py-6 cursor-pointer ${currentTheme.rowHover} transition-all group/sort select-none`}
                     >
                       <div className="flex items-center gap-2">
                         <span>{t.status} / {t.dueDate}</span>
@@ -86,7 +88,22 @@ export function StudentsView() {
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${currentTheme.border}`}>
-                  {filteredStudents.map((student) => {
+                  {filteredStudents.length === 0 ? (
+                    // A table with headers and no rows reads as a broken screen.
+                    // A search that matches nothing and a register with nobody in
+                    // it are different states, so they get different words — and
+                    // only the empty register offers the next step.
+                    <tr>
+                      <td colSpan={6}>
+                        <EmptyState
+                          icon={searchTerm.trim() ? <Search size={22} /> : <Users size={22} />}
+                          title={searchTerm.trim() ? t.noStudentsMatchingFilters : t.noStudentsInSystemTitle}
+                          hint={searchTerm.trim() ? undefined : t.noStudentsInSystemHint}
+                          isDark={currentTheme.isDark}
+                        />
+                      </td>
+                    </tr>
+                  ) : filteredStudents.map((student) => {
                     const discount = student.scholarshipDiscount || 0;
                     const balance = student.totalDue * (1 - discount / 100) - student.amountPaid;
                     const status = getStatus(student);
@@ -126,28 +143,30 @@ export function StudentsView() {
                               className="flex items-center gap-4 cursor-pointer"
                               onClick={() => setSelectedStudent(student)}
                             >
-                              <div className={`w-10 h-10 rounded-xl ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} font-bold text-xs group-hover:bg-blue-600 group-hover:text-white transition-all flex items-center justify-center`}>
+                              <div className={`w-10 h-10 rounded-xl ${currentTheme.surfaceInset} ${currentTheme.inkStrong} font-bold text-xs ${currentTheme.accentGroupHover} transition-all flex items-center justify-center`}>
                                 {student.name.split(' ').map(n => n[0]).join('')}
                               </div>
                               <div>
-                                <span className={`block font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} text-sm`}>
+                                <span className={`block font-bold ${currentTheme.inkStrong} text-sm`}>
                                   <HighlightText text={student.name} highlight={searchTerm} />
                                 </span>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className={`text-[10px] ${currentTheme.muted} font-bold tracking-widest uppercase`}>{student.id}</span>
-                                  {student.grade && (
-                                    <span className="inline-block px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 rounded-md text-[9px] font-extrabold uppercase tracking-wider">
+                                {/* The raw UUID used to live here; it is an internal
+                                    identifier with no meaning for the user, so the row
+                                    now shows the class badge only. */}
+                                {student.grade && (
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="inline-block px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 rounded-md text-3xs font-extrabold uppercase tracking-wider">
                                       {getGradeDisplay(student.grade, lang)}
                                     </span>
-                                  )}
-                                </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-8 py-6">
                           <div className="flex flex-col">
-                            <span className={`text-sm ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-600'} font-semibold`}>
+                            <span className={`text-sm ${currentTheme.inkStrong} font-semibold`}>
                               <HighlightText text={student.parentName} highlight={searchTerm} />
                             </span>
                             <span className={`text-xs ${currentTheme.muted}`}>{student.parentEmail || student.parentPhone || '—'}</span>
@@ -157,20 +176,20 @@ export function StudentsView() {
                           <div className="flex flex-col">
                             <span>{formatCurrency(student.totalDue)}</span>
                             {(student.scholarshipDiscount || 0) > 0 && (
-                              <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">-{student.scholarshipDiscount}% {t.scholarship}</span>
+                              <span className="text-2xs text-emerald-500 font-black uppercase tracking-widest">-{student.scholarshipDiscount}% {t.scholarship}</span>
                             )}
                           </div>
                         </td>
-                        <td className={`px-8 py-6 text-sm font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
+                        <td className={`px-8 py-6 text-sm font-black ${currentTheme.inkStrong}`}>
                           {formatCurrency(balance)}
                         </td>
                         <td className="px-8 py-6">
                           <div className="flex flex-col gap-1 items-start">
-                            <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${status.color}`}>
+                            <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-2xs font-black uppercase tracking-widest border ${status.color}`}>
                               {status.icon}
                               {status.label}
                             </div>
-                            <span className={`text-[10px] ${currentTheme.muted} font-bold mt-1 uppercase tracking-wider`}>
+                            <span className={`text-2xs ${currentTheme.muted} font-bold mt-1 uppercase tracking-wider`}>
                               {t.dueDate}: {formatDate(student.dueDate)}
                             </span>
                           </div>
@@ -213,19 +232,19 @@ export function StudentsView() {
             </div>
             
             {/* Legend */}
-            <div className={`px-8 py-4 border-t ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50/30'} flex flex-wrap gap-6 items-center`}>
-              <span className={`text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.legend}:</span>
+            <div className={`px-8 py-4 border-t ${currentTheme.border} ${currentTheme.surfaceInset} flex flex-wrap gap-6 items-center`}>
+              <span className={`text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.legend}:</span>
               <div className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-sm ${currentTheme.isDark ? 'bg-rose-900/30' : 'bg-rose-100'} border border-rose-200`}></div>
-                <span className={`text-[10px] font-bold ${currentTheme.muted}`}>{t.overdue30}</span>
+                <span className={`text-2xs font-bold ${currentTheme.muted}`}>{t.overdue30}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-sm border-l-2 border-l-amber-400 bg-transparent"></div>
-                <span className={`text-[10px] font-bold ${currentTheme.muted}`}>{t.due48}</span>
+                <span className={`text-2xs font-bold ${currentTheme.muted}`}>{t.due48}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-sm ${currentTheme.isDark ? 'bg-amber-900/30' : 'bg-amber-100'} border border-amber-200`}></div>
-                <span className={`text-[10px] font-bold ${currentTheme.muted}`}>{t.flaggedLabel}</span>
+                <span className={`text-2xs font-bold ${currentTheme.muted}`}>{t.flaggedLabel}</span>
               </div>
             </div>
           </div>

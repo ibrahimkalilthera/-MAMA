@@ -59,6 +59,41 @@ export const GUARD_INVENTORY = [
   { check: 'check-jsx-i18n.mjs', input: 'source', needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND] },
   { check: 'check-css-selectors.mjs', input: 'source-css', needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND] },
   {
+    check: 'check-theme-accents.mjs',
+    input: 'source',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // L'allowlist EST un corpus de littéraux : il nomme des fichiers .tsx, et
+    // blanchir les littéraux effacerait les chemins, donc l'immunité au silence.
+    // Le contrôle lit les classes DANS les chaînes — c'est la donnée, pas la
+    // prose — et masque les seuls commentaires, où l'en-tête du fichier parle
+    // justement de `bg-blue-600`.
+    literals: 'kept',
+  },
+  {
+    check: 'check-dark-green-ink.mjs',
+    input: 'source',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // La classe vit dans un littéral : blanchir les littéraux effacerait la
+    // donnée même que le contrôle lit. Seuls les commentaires sont masqués, pour
+    // qu'une JSDoc qui CITE `'text-emerald-500'` ne soit pas accusée. Et son
+    // refus de la vacuité est double : `assertScanned` (aucun fichier) ET une
+    // sortie 2 quand AUCUNE ligne `isDark` n'est lue — un motif disparu n'est
+    // pas un vert.
+    literals: 'kept',
+  },
+  {
+    check: 'check-green-surface.mjs',
+    input: 'source',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // La surface vit dans un littéral : blanchir les littéraux effacerait la
+    // donnée même que le contrôle lit. Seuls les commentaires sont masqués, pour
+    // qu'une JSDoc qui CITE `'bg-emerald-900/10'` ne soit pas accusée. Et son
+    // refus de la vacuité est double : `assertScanned` (aucun fichier) ET une
+    // sortie 2 quand AUCUNE surface verte n'est lue — un motif disparu n'est
+    // pas un vert.
+    literals: 'kept',
+  },
+  {
     check: 'check-line-budget.mjs',
     input: 'source',
     needs: [IMMUNITY.NON_VACUOUS],
@@ -88,6 +123,30 @@ export const GUARD_INVENTORY = [
     input: 'fixed-files',
     needs: [IMMUNITY.NON_VACUOUS],
     exempt: { [IMMUNITY.PROSE_BLIND]: 'il lit des interfaces TypeScript par motif, pas du texte libre à interpréter' },
+  },
+  {
+    check: 'check-settings-composition.mjs',
+    input: 'fixed-files',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // Il lit la SOURCE d'une coquille. La prose est blanchie par la couche
+    // partagée : `maskComments` pour lire les chefs de module (les chaînes sont
+    // conservées), `maskProse` pour blanchir aussi les littéraux au scan de
+    // rendu (un rendu est du CODE). Sa vacuité est double et nommée : liste de
+    // sections vide, puis fichier coquille absent ou vide — sortie 2 dans les
+    // deux cas, jamais un vert sur rien.
+  },
+  {
+    check: 'check-data-slots.mjs',
+    input: 'source+tests+styles',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // Il lit des marqueurs dans des composants, des tests et des feuilles de
+    // style. La prose est blanchie par la couche partagée (`maskComments` pour
+    // le TypeScript, un blanchiment CSS local pour les styles) : un commentaire
+    // qui CITE `data-slot="settings-panel"` — les tests en sont pleins — n'est
+    // pas une référence. Sa vacuité est double et nommée : `assertScanned` sur
+    // chaque corpus, puis une sortie 2 quand aucun marqueur n'est déclaré ou
+    // qu'aucun n'est cité — un scan vide n'est pas un vert.
+    literals: 'kept',
   },
   {
     check: 'check-ci-commands.mjs',

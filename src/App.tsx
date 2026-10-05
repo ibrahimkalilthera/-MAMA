@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, useRef, FormEvent } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSupabaseData } from './lib/useSupabaseData';
 import { sameYearMonth } from './lib/dateWindows';
 import { useToast } from './lib/useToast';
@@ -28,10 +28,13 @@ import { preloadSchoolStamp } from './lib/pdfStamp';
 import { useYear } from './app/yearContext';
 import { useNotificationDismissal } from './app/useNotificationDismissal';
 import { useAuditArchiveReminder } from './app/useAuditArchiveReminder';
-import { playNotificationChime } from './lib/notificationSound';
-import { findNewNotifications } from './lib/notificationWatch';
 import { useYearOps } from './app/useYearOps';
 import { buildShellProps } from './app/viewsWiring';
+import { OPERATION_LABELS } from './app/operationLabels';
+import { applyLanguage } from './app/applyLanguage';
+import { useNotificationAlerts } from './app/useNotificationAlerts';
+import { useBackgroundRefresh } from './app/useBackgroundRefresh';
+import { DensityContext, useDensityState } from './app/densityContext';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { AppShell } from './components/AppShell';
 
@@ -52,17 +55,7 @@ export default function App() {
 
   const toggleLanguage = (newLang: Language) => {
     setLang(newLang);
-    setTimeout(() => {
-      document.querySelectorAll('[data-i18n]').forEach((el) => {
-        const key = el.getAttribute('data-i18n');
-        if (key) {
-          const text = translations[newLang][key as keyof typeof translations['en']];
-          if (text) {
-            el.textContent = text;
-          }
-        }
-      });
-    }, 0);
+    applyLanguage(newLang);
   };
 
   // Data is now fetched from Supabase via the useSupabaseData hook
@@ -84,29 +77,9 @@ export default function App() {
     welcomeMessage, setWelcomeMessage,
   } = authWelcomeData;
 
-  // Bilingual operation labels for toast messages
-  const operationLabels: Record<string, { en: string; fr: string }> = useMemo(() => ({
-    addParent: { en: 'Parent added', fr: 'Parent ajouté' },
-    updateParent: { en: 'Parent updated', fr: 'Parent mis à jour' },
-    deleteParent: { en: 'Parent deleted', fr: 'Parent supprimé' },
-    addStudent: { en: 'Student added', fr: 'Élève ajouté(e)' },
-    updateStudent: { en: 'Student updated', fr: 'Élève mis(e) à jour' },
-    deleteStudent: { en: 'Student deleted', fr: 'Élève supprimé(e)' },
-    addPayment: { en: 'Payment recorded', fr: 'Paiement enregistré' },
-    addStaff: { en: 'Staff added', fr: 'Employé ajouté' },
-    updateStaff: { en: 'Staff updated', fr: 'Employé mis à jour' },
-    deleteStaff: { en: 'Staff deleted', fr: 'Employé supprimé' },
-    addSalaryPayment: { en: 'Salary recorded', fr: 'Salaire enregistré' },
-    addExpense: { en: 'Expense added', fr: 'Dépense ajoutée' },
-    addVendorExpense: { en: 'Vendor expense added', fr: 'Charge fournisseur ajoutée' },
-    updateVendorExpense: { en: 'Vendor expense updated', fr: 'Charge fournisseur mise à jour' },
-    deleteVendorExpense: { en: 'Vendor expense deleted', fr: 'Charge fournisseur supprimée' },
-    addTodo: { en: 'Task added', fr: 'Tâche ajoutée' },
-  }), []);
-
   const supabaseData = useSupabaseData({
     onMutationSuccess: (operation) => {
-      const label = operationLabels[operation];
+      const label = OPERATION_LABELS[operation];
       if (label) {
         toast.success(label[lang]);
       }
@@ -305,13 +278,18 @@ const {
     handleSaveNote,
     toggleFlag,
   } = studentsData;
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
+  // ONE reference date for the month/year pair handed to the views: reading two
+  // `new Date()` here could straddle midnight on Dec 31 and pair December's
+  // month with next year's year. The views that compare month+year (payroll
+  // balance, "this month" expenses) then agree on a single instant.
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
 
   // --- Calculations ---
 
   const dashboardData = useDashboard({
-    t, today, currentMonth, selectedYear,
+    t, today, selectedYear,
     students, staff, expenses, vendorExpenses, salaryPayments,
   });
 const {
@@ -361,22 +339,7 @@ const {
   };
 
   // --- In-session notification alerts (chime + toast) ---
-
-  const prevNotifIdsRef = useRef<ReadonlySet<string> | null>(null);
-
-  useEffect(() => {
-    const prev = prevNotifIdsRef.current;
-    const fresh = findNewNotifications(prev, allNotifications);
-    prevNotifIdsRef.current = new Set(allNotifications.map(n => n.id));
-    // First observation (session start) never alerts.
-    if (!prev || fresh.length === 0) return;
-    playNotificationChime();
-    if (fresh.length === 1) {
-      toast.warning(fresh[0].message);
-    } else {
-      toast.warning(t.newNotifications.replace('{n}', String(fresh.length)));
-    }
-  }, [allNotifications, t, toast]);
+  useNotificationAlerts(allNotifications, t, toast);
 
   // Le cachet de l'école (`public/tampon.png`) est un fichier chargé à
   // l'exécution : le mettre de côté maintenant, pendant que la ligne est là,
@@ -389,15 +352,7 @@ const {
   // Light background refresh so reminders can actually appear mid-session
   // (another staff member's changes). Silent: no loading flash, no error
   // banner; skipped when the tab is hidden or the device is offline.
-  useEffect(() => {
-    if (!auth.user) return;
-    const poll = setInterval(() => {
-      if (document.visibilityState === 'visible' && navigator.onLine) {
-        void fetchAll({ silent: true });
-      }
-    }, 60000);
-    return () => clearInterval(poll);
-  }, [auth.user, fetchAll]);
+  useBackgroundRefresh(Boolean(auth.user), fetchAll);
 
   // --- Handlers ---
 
@@ -660,6 +615,7 @@ const {
     activeTab,
     setActiveTab,
     currentMonth,
+    currentYear,
     today,
     generateInstallmentMemo,
     showSuccessToast,
@@ -691,7 +647,13 @@ const {
     formatCurrency,
   });
 
+  // Densité des tableaux (confort/compact) — possédée ici, fournie à la racine
+  // du shell (la classe `density-*`) et à la carte Réglages → Préférences.
+  const densityValue = useDensityState();
+
   return (
-    <AppShell {...shellProps} />
+    <DensityContext.Provider value={densityValue}>
+      <AppShell {...shellProps} />
+    </DensityContext.Provider>
   );
 }

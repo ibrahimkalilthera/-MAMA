@@ -42,32 +42,37 @@ const RE_PROMPT_MS = 15 * 60 * 1000;
  * est publiée n'est pas « en retard de quelques jours » : il exécute un autre
  * logiciel, avec ses correctifs absents.
  *
- * Trois seuils, et pas un seul, parce qu'un retard ne se mesure pas de la même
- * façon selon la distance :
- *   • **une version majeure** — le saut le plus coûteux à laisser traîner ;
- *   • **deux versions mineures** dans la même majeure — un trimestre de
- *     correctifs, et le signal qu'un poste n'a pas été mis à jour depuis
- *     longtemps alors que rien ne l'empêchait ;
- *   • **une publication vieille de 45 jours toujours pas installée** — le filet
- *     qui attrape le cas le plus courant, celui d'une version « mineure » qui
- *     reste, parce que ce n'est pas le numéro qui compte mais le fait :
- *     quelqu'un l'a publiée, personne ne l'a prise.
+ * UNE SEULE règle, désormais : **toute version de retard force**. Les seuils qui
+ * laissaient passer « une mineure » puis « un correctif récent » ont été
+ * retirés : un poste en 1.0.22 pendant qu'une 1.0.23 est publiée n'a aucune
+ * raison de garder la 1.0.22, et le report de quinze minutes ne doit pas pouvoir
+ * le décider à sa place. La règle de date (45 jours) qui servait de filet pour
+ * ces versions « trop petites pour forcer » est partie avec eux : elle ne
+ * pouvait plus se déclencher qu'après une règle de retard, donc jamais.
+ *
+ * Le code du verdict dit seulement POURQUOI, pour que le message du poste soit
+ * chiffré — une majeure, une mineure, ou un simple correctif. Ce ne sont pas des
+ * seuils : les trois codent la MÊME obligation.
  *
  * Deux asymétries assumées, dans le même sens que l'horloge qui recule :
  *   • une version illisible ne force RIEN. Forcer est une contrainte sur
  *     l'utilisateur ; on ne l'impose pas sur une supposition. Ici, se tromper
  *     dans le sens permissif coûte un poste en retard — dans l'autre sens, ça
  *     bloque un poste sous un prétexte inventé ;
- *   • la date de publication absente n'empêche que la règle de date, pas les
- *     deux autres : chaque règle juge ce qu'elle sait.
+ *   • un poste à jour, ou en avance, n'est jamais forcé : il n'exécute pas « un
+ *     autre logiciel ».
+ *
+ * Ce que cela déplace : le frein d'urgence (`updates/holds.json`) devient, plus
+ * qu'avant, le SEUL geste qui protège le parc d'une version défectueuse — dès
+ * le premier correctif de retard, une version publiée est imposée.
  */
 const FORCED_MAJOR_BEHIND = 1;
 
-/** Deux mineures de retard, même majeure. */
-const FORCED_MINOR_BEHIND = 2;
+/** Une mineure de retard, même majeure. */
+const FORCED_MINOR_BEHIND = 1;
 
-/** Une version publiée depuis 45 jours et toujours pas installée. */
-const FORCED_RELEASE_AGE_DAYS = 45;
+/** Un simple correctif de retard, même mineure. */
+const FORCED_PATCH_BEHIND = 1;
 
 /** Une obligation ne se reporte pas : elle se rappelle, et vite. */
 const FORCED_RE_PROMPT_MS = 60 * 1000;
@@ -147,20 +152,18 @@ function parseVersion(value) {
 /**
  * Le retard de ce poste est-il devenu intolérable ?
  *
- * @param {{ currentVersion?: unknown, availableVersion?: unknown, releaseDate?: unknown,
- *   nowMs?: number, majorBehind?: number, minorBehind?: number, releaseAgeDays?: number }} input
- * @returns {{ forced: boolean, code: 'major' | 'minor' | 'age' | 'none' | 'unknown',
- *   behindMajor: number | null, behindMinor: number | null, releaseAgeDays: number | null,
+ * @param {{ currentVersion?: unknown, availableVersion?: unknown,
+ *   majorBehind?: number, minorBehind?: number, patchBehind?: number }} input
+ * @returns {{ forced: boolean, code: 'major' | 'minor' | 'patch' | 'none' | 'unknown',
+ *   behindMajor: number | null, behindMinor: number | null, behindPatch: number | null,
  *   detail: string }}
  */
 function updatePressure({
   currentVersion = null,
   availableVersion = null,
-  releaseDate = null,
-  nowMs = Date.now(),
   majorBehind = FORCED_MAJOR_BEHIND,
   minorBehind = FORCED_MINOR_BEHIND,
-  releaseAgeDays = FORCED_RELEASE_AGE_DAYS,
+  patchBehind = FORCED_PATCH_BEHIND,
 } = {}) {
   const current = parseVersion(currentVersion);
   const available = parseVersion(availableVersion);
@@ -170,40 +173,28 @@ function updatePressure({
       code: 'unknown',
       behindMajor: null,
       behindMinor: null,
-      releaseAgeDays: null,
+      behindPatch: null,
       detail: 'version locale ou disponible illisible — forcer serait deviner',
     };
   }
   const behindMajor = available.major - current.major;
   // Un écart de mineure ne veut rien dire entre deux majeures différentes
-  // (2.0.0 vs 1.9.0 n'est pas « une mineure de retard »).
+  // (2.0.0 vs 1.9.0 n'est pas « une mineure de retard ») — pas plus qu'un écart
+  // de correctif entre deux mineures.
   const behindMinor = behindMajor === 0 ? available.minor - current.minor : null;
-  const ageMs = releaseDate === null || releaseDate === undefined ? NaN : nowMs - Date.parse(String(releaseDate));
-  const ageDays = Number.isFinite(ageMs) && ageMs >= 0 ? Math.floor(ageMs / 86400000) : null;
+  const behindPatch = behindMinor === 0 ? available.patch - current.patch : null;
 
-  const base = { behindMajor: Math.max(0, behindMajor), behindMinor, releaseAgeDays: ageDays };
+  const base = { behindMajor: Math.max(0, behindMajor), behindMinor, behindPatch };
   if (behindMajor >= majorBehind) {
     return { ...base, forced: true, code: 'major', detail: `${behindMajor} version(s) majeure(s) de retard` };
   }
   if (behindMinor !== null && behindMinor >= minorBehind) {
     return { ...base, forced: true, code: 'minor', detail: `${behindMinor} version(s) mineure(s) de retard` };
   }
-  if (ageDays !== null && ageDays >= releaseAgeDays) {
-    return {
-      ...base,
-      forced: true,
-      code: 'age',
-      detail: `version publiée il y a ${ageDays} jour(s), toujours pas installée`,
-    };
+  if (behindPatch !== null && behindPatch >= patchBehind) {
+    return { ...base, forced: true, code: 'patch', detail: `${behindPatch} correctif(s) de retard` };
   }
-  return {
-    ...base,
-    forced: false,
-    code: 'none',
-    detail: ageDays === null
-      ? 'retard sous le seuil (date de publication illisible — la règle de date ne juge pas)'
-      : 'retard sous le seuil',
-  };
+  return { ...base, forced: false, code: 'none', detail: 'poste à jour ou en avance — rien à imposer' };
 }
 
 /**
@@ -228,7 +219,7 @@ function updatePressure({
  *   • **portable** — la question mène à la page de téléchargement, parce que
  *     c'est la seule chose que ce poste peut faire ; il est enfin prévenu ;
  *   • **mode preuve** (`UPDATER_LOG_FILE`) — aucune modale, téléchargement
- *     direct : c'est ce qui permet à l'E2E de jouer les sept passes sans
+ *     direct : c'est ce qui permet à l'E2E de jouer les six passes sans
  *     personne devant l'écran, et il lit le journal, pas une fenêtre.
  *
  * Ce que la fonction ne fait pas : décider si la version est livrable (c'est
@@ -468,7 +459,7 @@ module.exports = {
   RE_PROMPT_MS,
   FORCED_MAJOR_BEHIND,
   FORCED_MINOR_BEHIND,
-  FORCED_RELEASE_AGE_DAYS,
+  FORCED_PATCH_BEHIND,
   FORCED_RE_PROMPT_MS,
   HOLD_FILE,
   HOLD_BRANCH_DEFAULT,

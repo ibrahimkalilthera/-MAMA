@@ -63,7 +63,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
       titleId="modal-title-parent-form"
       ariaLabel={editingParent ? t.editParent : t.addParent}
       maxWidth="max-w-xl"
-      panelRadius="rounded-[2rem]"
+      panelRadius="rounded-3xl"
       rootClassName="no-print"
       header={
         <div className="flex items-center justify-between px-8 pt-8 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -86,7 +86,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
             if (linkedStudents.length === 0) return null;
             return (
               <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2.5">{t.linkedStudents}</p>
+                <p className="text-2xs font-black uppercase tracking-widest text-slate-400 mb-2.5">{t.linkedStudents}</p>
                 <div className="space-y-2">
                   {linkedStudents.map(s => {
                     const discount = s.scholarshipDiscount || 0;
@@ -101,7 +101,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                           <p className={`text-xs font-bold truncate ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
                             {s.name}
                           </p>
-                          <p className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10px] ${currentTheme.muted}`}>
+                          <p className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-2xs ${currentTheme.muted}`}>
                             {visibleStudentIdentifier(s.grade, s.studentId) && (
                               <span className="flex items-center gap-1">
                                 <span className="font-black uppercase tracking-wide text-slate-400">{t.studentId}:</span>
@@ -121,7 +121,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                           type="button"
                           title={t.recordPayment}
                           onClick={() => onRecordPayment(s.id)}
-                          className="p-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm flex-shrink-0"
+                          className={`p-2 rounded-lg ${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover} ${currentTheme.accentShadow} transition-all flex-shrink-0`}
                         >
                           <DollarSign size={14} />
                         </button>
@@ -129,7 +129,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                           type="button"
                           title={t.viewStudentRecord}
                           onClick={() => onViewStudent(s)}
-                          className={`p-2 rounded-lg border ${currentTheme.border} text-blue-500 hover:bg-blue-50 dark:hover:bg-white/10 transition-all flex-shrink-0`}
+                          className={`p-2 rounded-lg border ${currentTheme.border} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} transition-all flex-shrink-0`}
                         >
                           <ExternalLink size={14} />
                         </button>
@@ -163,7 +163,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
             });
             return (
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectStudent}</label>
+                <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.selectStudent}</label>
                 {parentForm.linkedStudentIds.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {parentForm.linkedStudentIds.map(id => {
@@ -172,7 +172,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                       return (
                         <span
                           key={id}
-                          className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-emerald-600/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-black max-w-full"
+                          className={`inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full border ${currentTheme.accentBorder} ${currentTheme.accentSoft} ${currentTheme.accentSoftText} text-2xs font-black max-w-full`}
                         >
                           <span className="truncate">{st.name}</span>
                           <button
@@ -181,7 +181,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                               ...parentForm,
                               linkedStudentIds: parentForm.linkedStudentIds.filter(sid => sid !== id),
                             })}
-                            className="p-0.5 rounded-full text-emerald-600 dark:text-emerald-300 hover:bg-emerald-600/20 transition-all flex-shrink-0"
+                            className={`p-0.5 rounded-full ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} transition-all flex-shrink-0`}
                             title="×"
                           >
                             <X size={12} />
@@ -197,13 +197,13 @@ export function ParentFormModal(props: ParentFormModalProps) {
                       <Users size={18} className="text-slate-400" />
                     </div>
                     <div className="space-y-1">
-                      <p className={`text-xs font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-700'}`}>{t.noStudentsInSystemTitle}</p>
-                      <p className="text-[10px] font-semibold text-slate-400 leading-relaxed max-w-[250px] mx-auto">{t.noStudentsInSystemHint}</p>
+                      <p className={`text-xs font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-700'}`}>{t.noStudentsToLinkTitle}</p>
+                      <p className="text-2xs font-semibold text-slate-400 leading-relaxed max-w-[250px] mx-auto">{t.noStudentsToLinkHint}</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => { onClose(); onOpenStudentForm(); }}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-[10px] font-black hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-600/20"
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg ${currentTheme.accentBg} ${currentTheme.accentText} text-2xs font-black ${currentTheme.accentHover} transition-all ${currentTheme.accentShadow}`}
                     >
                       <Plus size={12} />
                       {t.addStudent}
@@ -233,7 +233,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                       <select
                         value={parentClassFilter}
                         onChange={(e) => setParentClassFilter(e.target.value)}
-                        className={`text-[10px] font-black rounded-lg border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-700'} px-2 py-1.5 flex-shrink-0 outline-none cursor-pointer`}
+                        className={`text-2xs font-black rounded-lg border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-700'} px-2 py-1.5 flex-shrink-0 outline-none cursor-pointer`}
                       >
                         <option value="all" className="bg-slate-800 text-white">{t.allClasses}</option>
                         {availableClasses.map(c => (
@@ -258,7 +258,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                                 setParentStudentSearch('');
                                 setParentClassFilter('all');
                               }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-[10px] font-black text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-2xs font-black text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
                             >
                               <X size={12} />
                               {t.clearSearch}
@@ -271,7 +271,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                         return (
                           <label
                             key={s.id}
-                            className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${checked ? (currentTheme.isDark ? 'bg-emerald-900/30' : 'bg-emerald-50') : 'hover:bg-white/10'}`}
+                            className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${checked ? `${currentTheme.accentSoft} ${currentTheme.accentSoftText}` : 'hover:bg-white/10'}`}
                           >
                             <input
                               type="checkbox"
@@ -291,7 +291,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                               <span className={`block text-xs font-bold truncate ${currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
                                 {s.name}
                               </span>
-                              <span className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-[10px] ${currentTheme.muted}`}>
+                              <span className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-2xs ${currentTheme.muted}`}>
                                 {visibleStudentIdentifier(s.grade, s.studentId) && (
                                   <span className="flex items-center gap-1">
                                     <span className="font-black uppercase tracking-wide text-slate-400">{t.studentId}:</span>
@@ -307,7 +307,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                               </span>
                             </span>
                             {s.parentId && (
-                              <span className="text-[9px] font-black uppercase tracking-wider text-amber-500 flex-shrink-0">{t.alreadyLinked}</span>
+                              <span className="text-3xs font-black uppercase tracking-wider text-amber-500 flex-shrink-0">{t.alreadyLinked}</span>
                             )}
                           </label>
                         );
@@ -317,13 +317,13 @@ export function ParentFormModal(props: ParentFormModalProps) {
                 )}
                 {parentForm.linkedStudentIds.length > 0 && (
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] font-black text-emerald-600">
+                    <p className={`text-2xs font-black ${currentTheme.accentSoftText}`}>
                       {t.studentsSelected.replace('{n}', String(parentForm.linkedStudentIds.length))}
                     </p>
                     <button
                       type="button"
                       onClick={() => setParentForm({ ...parentForm, linkedStudentIds: [] })}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black text-rose-500 hover:bg-rose-500/10 transition-all"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-2xs font-black text-rose-500 hover:bg-rose-500/10 transition-all"
                     >
                       <X size={12} />
                       {t.deselectAll}
@@ -335,7 +335,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
           })()}
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.parentName} *</label>
+            <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.parentName} *</label>
             <input
               type="text"
               required
@@ -348,7 +348,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.primaryPhone} *</label>
+              <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.primaryPhone} *</label>
               <input
                 type="text"
                 required
@@ -360,7 +360,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.secondaryPhone}</label>
+              <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.secondaryPhone}</label>
               <input
                 type="text"
                 value={parentForm.secondaryPhone}
@@ -373,7 +373,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.email}</label>
+              <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.email}</label>
               <input
                 type="email"
                 value={parentForm.email}
@@ -384,7 +384,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.relationship} *</label>
+              <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.relationship} *</label>
               <select
                 value={parentForm.relationship}
                 onChange={(e) => setParentForm({ ...parentForm, relationship: e.target.value })}
@@ -401,7 +401,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.occupation}</label>
+            <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.occupation}</label>
             <input
               type="text"
               value={parentForm.occupation}
@@ -412,7 +412,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.address}</label>
+            <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.address}</label>
             <input
               type="text"
               value={parentForm.address}
@@ -423,7 +423,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.accountingNotes}</label>
+            <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.accountingNotes}</label>
             <textarea
               rows={3}
               value={parentForm.notes}
@@ -443,7 +443,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
             </button>
             <button
               type="submit"
-              className="h-11 px-4 rounded-2xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 whitespace-nowrap"
+              className={`h-11 px-4 rounded-2xl ${currentTheme.accentBg} ${currentTheme.accentText} font-black text-xs ${currentTheme.accentHover} ${currentTheme.accentShadow} whitespace-nowrap`}
             >
               {t.saveChanges}
             </button>

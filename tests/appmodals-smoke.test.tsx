@@ -26,7 +26,23 @@ const theme: CurrentTheme = {
   accentBg: 'bg-emerald-50',
   accentText: 'text-white',
   accentHover: 'hover:bg-emerald-100',
+  accentGroupHover: 'accent-group-hover',
   accentShadow: 'shadow-emerald-200',
+  accentSoft: 'bg-emerald-50',
+  accentSoftText: 'text-emerald-600',
+  accentSoftHover: 'hover:bg-emerald-100', accentSoftTextHover: 'hover:text-emerald-700',
+  accentHex: '#059669',
+  accentHexDeep: '#047857',
+  
+  accentRing: 'focus:ring-emerald-500/20',
+  accentBorder: 'border-slate-300',
+  accentBorderHover: 'hover:border-slate-400',
+  surfaceInset: 'bg-slate-50',
+  
+  inkStrong: 'text-slate-800',
+  accentSoftDark: 'bg-blue-500/15',
+  accentSoftDarkHover: 'hover:bg-blue-500/25',
+  accentSoftDarkText: 'text-blue-300',
   tableHeader: 'bg-slate-100',
   rowHover: 'hover:bg-slate-50',
   input: 'bg-white',
@@ -127,6 +143,7 @@ describe('AppModals porté', () => {
     const html = renderToString(createElement(AppModals, props as never));
     assert.ok(html.includes(t.addExpense), 'titre de la modale de dépense simple');
     assert.ok(html.includes(t.supplies) && html.includes(t.utilities), 'catégories du formulaire');
+    assert.ok(html.includes('<option value="bnda_transfer">' + t.bnda_transfer + '</option>'), 'catégorie BNDA stockée par sa clé stable');
     assert.ok(html.includes(t.submit), 'bouton d’enregistrement');
   });
 

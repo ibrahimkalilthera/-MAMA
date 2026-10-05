@@ -16,6 +16,7 @@ export interface RecordSalaryModalProps {
   staff: Staff[];
   salaryPayments: SalaryPayment[];
   currentMonth: number;
+  currentYear: number;
   salaryForm: SalaryForm;
   setSalaryForm: Dispatch<SetStateAction<SalaryForm>>;
   formatCurrency: (amount: number) => string;
@@ -27,13 +28,14 @@ export interface RecordSalaryModalProps {
 }
 
 export function RecordSalaryModal(props: RecordSalaryModalProps) {
-  const { t, currentTheme, staff, salaryPayments, currentMonth, salaryForm, setSalaryForm, formatCurrency, generateInstallmentMemo, handleSalarySubmit, overlayRef, onClose } = props;
+  const { t, currentTheme, staff, salaryPayments, currentMonth, currentYear, salaryForm, setSalaryForm, formatCurrency, generateInstallmentMemo, handleSalarySubmit, overlayRef, onClose } = props;
 
   // Remaining balance for the CURRENT calendar month (year AND month): a
   // payment dated the same month of a previous year must not count against
-  // this month's salary. Single derivation feeding the select labels, the
+  // this month's salary. Both parts come from the SAME injected instant
+  // (`currentMonth` + `currentYear` from App.tsx) — never one prop and one
+  // wall-clock read. Single derivation feeding the select labels, the
   // auto-fill amount and the summary — they can never disagree.
-  const currentYear = new Date().getFullYear();
   const remainingFor = (staffId: string): number => {
     const member = staff.find((s) => s.id === staffId);
     if (!member) return 0;
@@ -58,7 +60,7 @@ export function RecordSalaryModal(props: RecordSalaryModalProps) {
 
               <form onSubmit={handleSalarySubmit} className="p-10 space-y-6">
                 <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffName}</label>
+                  <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffName}</label>
                   <select 
                     required
                     value={salaryForm.staffId}
@@ -70,7 +72,7 @@ export function RecordSalaryModal(props: RecordSalaryModalProps) {
                           : { ...salaryForm, staffId: sId },
                       );
                     }}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                   >
                     <option value="">{t.selectStaff}</option>
                     {staff.map(s => (
@@ -79,7 +81,7 @@ export function RecordSalaryModal(props: RecordSalaryModalProps) {
                   </select>
                 </div>
                 {salaryForm.staffId && (
-                  <div className={`p-4 rounded-2xl ${currentTheme.isDark ? 'bg-emerald-900/20' : 'bg-slate-50'} border ${currentTheme.border}`}>
+                  <div className={`p-4 rounded-2xl ${currentTheme.surfaceInset} border ${currentTheme.border}`}>
                     <div className="flex justify-between items-center text-xs">
                       <span className={currentTheme.muted}>{t.remainingBalance}</span>
                       <span className="font-black text-rose-600">
@@ -90,7 +92,7 @@ export function RecordSalaryModal(props: RecordSalaryModalProps) {
                 )}
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amount} ({t.currency})</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amount} ({t.currency})</label>
                     <input 
                       required
                       type="number" 
@@ -98,17 +100,17 @@ export function RecordSalaryModal(props: RecordSalaryModalProps) {
                       max={(() => { const member = staff.find((s) => s.id === salaryForm.staffId); return member ? member.salary : undefined; })()}
                       value={salaryForm.amount}
                       onChange={(e) => setSalaryForm({ ...salaryForm, amount: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.date}</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.date}</label>
                     <input 
                       required
                       type="date" 
                       value={salaryForm.date}
                       onChange={(e) => setSalaryForm({ ...salaryForm, date: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                     />
                   </div>
                 </div>
@@ -117,14 +119,14 @@ export function RecordSalaryModal(props: RecordSalaryModalProps) {
                   <button 
                     type="button"
                     onClick={() => generateInstallmentMemo(salaryForm.staffId, parseFloat(salaryForm.amount))}
-                    className={`w-full py-4 rounded-2xl border ${currentTheme.isDark ? 'border-emerald-900/30 text-emerald-500 hover:bg-emerald-900/10' : 'border-slate-100 text-slate-600 hover:bg-slate-50'} text-xs font-bold transition-all flex items-center justify-center gap-2`}
+                    className={`w-full py-4 rounded-2xl border ${currentTheme.border} ${currentTheme.inkStrong} ${currentTheme.rowHover} text-xs font-bold transition-all flex items-center justify-center gap-2`}
                   >
                     <Copy size={16} />
                     {t.generateMemo}
                   </button>
                 )}
 
-                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-emerald-500/20">
+                <button type="submit" className={`w-full ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} py-5 rounded-2xl font-black text-sm transition-all shadow-xl ${currentTheme.accentShadow}`}>
                   {t.submit}
                 </button>
               </form>

@@ -134,14 +134,14 @@ export function AuditWeekExportCard() {
     <div
       ref={anchorRef}
       id="audit-week-export"
-      className={`p-8 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} rounded-[2.5rem] border ${currentTheme.border} flex flex-col gap-5 transition-shadow ${anchored ? 'ring-4 ring-sky-400/70 shadow-2xl shadow-sky-500/20' : ''}`}
+      className={`p-8 ${currentTheme.surfaceInset} rounded-3xl border ${currentTheme.border} flex flex-col gap-5 transition-shadow ${anchored ? `ring-4 ring-[var(--accent-primary)] shadow-2xl ${currentTheme.accentShadow}` : ''}`}
     >
       <div className="flex items-center gap-4">
         <div className={`p-4 ${currentTheme.card} rounded-3xl text-emerald-600 shadow-lg`}>
           <ShieldCheck size={32} />
         </div>
         <div>
-          <p className={`text-lg font-black ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>
+          <p className={`text-lg font-black ${currentTheme.inkStrong}`}>
             {t.auditWeeklyJournalTitle}
           </p>
           <p className={`text-xs ${currentTheme.muted}`}>{t.auditWeeklyJournalSubtitle}</p>
@@ -154,7 +154,7 @@ export function AuditWeekExportCard() {
             aria-label={t.auditWeeklyJournalWeek}
             value={selectedKey}
             onChange={(event) => setSelectedKey(event.target.value)}
-            className={`appearance-none cursor-pointer pl-4 pr-10 py-2.5 ${currentTheme.card} border ${currentTheme.border} rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+            className={`appearance-none cursor-pointer pl-4 pr-10 py-2.5 ${currentTheme.card} border ${currentTheme.border} rounded-xl focus:outline-none ${currentTheme.accentRing} transition-all text-xs font-bold ${currentTheme.inkStrong}`}
           >
             {weeks.map((week) => (
               <option key={week.key} value={week.key}>
@@ -168,7 +168,7 @@ export function AuditWeekExportCard() {
         <button
           onClick={() => void onDownload()}
           disabled={entries.length === 0 || loading || generating}
-          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-black text-xs transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95"
+          className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} disabled:opacity-40 disabled:cursor-not-allowed px-6 py-2.5 rounded-xl font-black text-xs transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow} active:scale-95`}
         >
           <Download size={16} />
           {t.auditWeeklyJournalDownload}
@@ -177,15 +177,15 @@ export function AuditWeekExportCard() {
         <button
           onClick={() => void load(selected)}
           title={t.refreshLogs}
-          className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-600'} transition-all text-xs font-bold`}
+          className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.inkStrong} transition-all text-xs font-bold`}
         >
           <span>↻</span>
         </button>
       </div>
 
-      <p className={`text-[11px] font-bold ${currentTheme.muted}`}>{countText}</p>
+      <p className={`text-2xs font-bold ${currentTheme.muted}`}>{countText}</p>
       {error && (
-        <p className="text-[11px] font-black text-rose-500">{t.auditWeeklyJournalFailed}</p>
+        <p className="text-2xs font-black text-rose-500">{t.auditWeeklyJournalFailed}</p>
       )}
     </div>
   );

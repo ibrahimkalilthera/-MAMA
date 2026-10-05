@@ -42,6 +42,13 @@ import { installDomGlobals } from './harness';
 
 installDomGlobals();
 
+const currentTheme = {
+  accentBg: 'accent-surface',
+  accentText: 'accent-surface-text',
+  accentHover: 'accent-surface-hover',
+  accentShadow: 'accent-shadow',
+};
+
 const LABELS: UpdateLabels = {
   available: 'dispo {version}',
   downloadFailed: 'échec du téléchargement de {version} : {detail}',
@@ -54,7 +61,7 @@ const LABELS: UpdateLabels = {
   forcedTitle: 'Mise à jour obligatoire',
   forcedMajor: 'vous êtes en {current}, version {version} : {behind} majeure(s) de retard',
   forcedMinor: 'vous êtes en {current}, version {version} : {behind} mineure(s) de retard',
-  forcedAge: 'version {version} publiée depuis {days} jours',
+  forcedPatch: 'vous êtes en {current}, version {version} : {behind} correctif(s) de retard',
   forcedNote: 'report impossible',
   forcedFailed: 'échec {detail}',
   forcedRetry: 'Relancer',
@@ -140,7 +147,7 @@ async function mount(
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
-  const props = { labels: LABELS, ...(options.onReport ? { onReport: options.onReport } : {}) };
+  const props = { labels: LABELS, currentTheme, ...(options.onReport ? { onReport: options.onReport } : {}) };
   await act(async () => {
     root.render(createElement(UpdateBanner, props));
   });
@@ -168,6 +175,26 @@ const buttonSaying = (container: HTMLElement, text: string) =>
 const textOf = (el: Element | null) => el?.textContent ?? '';
 
 describe('la porte du retard — obligatoire veut dire obligatoire', () => {
+  for (const status of ['downloaded', 'error'] as const) {
+    it(`bandeau ${status} : surface, encre et CTA suivent les tokens d’accent`, async () => {
+      const state: FakeState = { status, version: '2.0.0', action: 'restart' };
+      installBridge(state);
+      const { root, container } = await mount(state);
+      try {
+        const banner = container.querySelector('[role="status"]');
+        assert.ok(banner);
+        for (const token of [currentTheme.accentBg, currentTheme.accentText, currentTheme.accentShadow]) {
+          assert.ok(banner.classList.contains(token), `bandeau utilise ${token}`);
+        }
+        const cta = buttonSaying(container, status === 'downloaded' ? LABELS.restart : LABELS.forcedRetry);
+        assert.ok(cta);
+        for (const token of [currentTheme.accentBg, currentTheme.accentText, currentTheme.accentHover]) {
+          assert.ok(cta.classList.contains(token), `CTA utilise ${token}`);
+        }
+      } finally { unmount(root, container); }
+    });
+  }
+
   it('version prête et obligatoire : écran plein, aucune croix, un bouton pour appliquer', async () => {
     const bridge = installBridge({
       status: 'downloaded',
@@ -200,6 +227,7 @@ describe('la porte du retard — obligatoire veut dire obligatoire', () => {
     assert.equal(buttonSaying(container, 'Continuer'), undefined, 'aucune issue quand tout va bien');
     const apply = buttonSaying(container, 'Redémarrer');
     assert.ok(apply, 'un bouton applique la mise à jour');
+    for (const token of Object.values(currentTheme)) assert.ok(apply.classList.contains(token), `CTA utilise ${token}`);
     act(() => (apply as HTMLButtonElement).click());
     assert.equal(bridge.installed(), 1, 'le bouton demande vraiment l’installation');
 
@@ -235,15 +263,15 @@ describe('la porte du retard — obligatoire veut dire obligatoire', () => {
       currentVersion: '1.0.0',
       detail: 'réseau injoignable',
       forced: true,
-      forcedCode: 'age',
-      releaseAgeDays: 60,
+      forcedCode: 'patch',
+      behindPatch: 1,
     };
     const bridge = installBridge(state);
     const { root, container } = await mount(state);
 
     const gate = gateOf(container);
     assert.ok(gate, 'un échec de téléchargement ne doit pas faire disparaître l’obligation — il doit se voir');
-    assert.match(textOf(gate), /60 jours/, 'le motif de retard survit à l’échec');
+    assert.match(textOf(gate), /1 correctif\(s\) de retard/, 'le motif de retard survit à l’échec');
     assert.match(textOf(gate), /réseau injoignable/, 'la cause réelle est affichée');
     const retry = buttonSaying(container, 'Relancer');
     assert.ok(retry, 'un remède immédiat, pas « attendez 30 minutes »');

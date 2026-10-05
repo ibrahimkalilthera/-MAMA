@@ -13,7 +13,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { basename } from 'node:path';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
@@ -256,7 +257,9 @@ describe('le CLI refuse de conclure plutôt que de rendre un vert non mesuré', 
     // poste qui vient de livrer — ce cas mesurait le VRAI binaire et passait au
     // vert en n'éprouvant plus rien : exactement le faux vert que ce contrôle
     // existe pour refuser, cette fois dans sa propre suite.
-    const dir = mkdtempSync('.probe-updater-trust-');
+    // Hors du dépôt : un dossier temporaire créé dans la racine passe sous le
+    // watcher de Vite, qui peut tomber en EBUSY et crasher le serveur de dev.
+    const dir = mkdtempSync(join(tmpdir(), 'mama-probe-updater-trust-'));
     let code = 0;
     let stderr = '';
     try {

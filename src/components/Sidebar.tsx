@@ -27,13 +27,19 @@ import {
 } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import type { User } from '../app/types';
-import type { PayrollWindowStatus } from '../app/mainViewsProps';
+import type { CurrentTheme, PayrollWindowStatus } from '../app/mainViewsProps';
 
 export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit';
 
 export interface SidebarProps {
   t: TranslationDict;
   schoolLogo: string | null;
+  /**
+   * The sidebar is a fixed dark rail in every theme, so it cannot inherit the
+   * theme background — but its two ACTION buttons are brand accents and must
+   * still follow the active theme (they stayed blue/emerald in Cyber Minuit).
+   */
+  currentTheme: CurrentTheme;
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
   payrollWindowStatus: PayrollWindowStatus;
@@ -57,7 +63,7 @@ export interface SidebarProps {
 
 export function Sidebar(props: SidebarProps) {
   const {
-    t, schoolLogo, activeTab, setActiveTab, payrollWindowStatus, currentUser,
+    t, schoolLogo, currentTheme, activeTab, setActiveTab, payrollWindowStatus, currentUser,
     fetchAuditLogs, showTodoSidebar, setShowTodoSidebar,
     onSignOut, onToggleLanguage, onAddStudent, onAddCr, onRecordPayment,
     auditArchivePending = false,
@@ -67,19 +73,19 @@ export function Sidebar(props: SidebarProps) {
     `nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === tab ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`;
 
   return (
-    <aside className="app-sidebar w-64 text-white fixed h-full z-40 hidden lg:flex flex-col transition-colors duration-300" style={{ background: 'linear-gradient(180deg, #0C1222 0%, #111827 50%, #0F172A 100%)' }}>
+    <aside data-slot="app-sidebar" className="app-sidebar w-64 text-white fixed h-full z-40 hidden lg:flex flex-col transition-colors duration-300" style={{ background: 'linear-gradient(180deg, #0C1222 0%, #111827 50%, #0F172A 100%)' }}>
       <div className="p-6 pb-4" style={{ backgroundColor: 'transparent' }}>
         <div className="flex items-center gap-3 mb-1">
           {schoolLogo ? (
             <img src={schoolLogo} alt="Logo" className="w-9 h-9 rounded-lg object-cover ring-2 ring-white/10" referrerPolicy="no-referrer" />
           ) : (
-            <div className="bg-emerald-600/90 p-2 rounded-lg shadow-lg shadow-emerald-500/20">
+            <div className={`p-2 rounded-lg shadow-lg ${currentTheme.accentShadow}`} style={{ backgroundColor: currentTheme.accentHex }}>
               <ShieldCheck size={24} />
             </div>
           )}
           <div>
             <h1 className="font-bold text-base leading-tight tracking-tight" style={{ color: '#FFFFFF' }}>{t.title}</h1>
-            <p className="text-[9px] uppercase tracking-[0.12em] font-semibold mt-0.5" style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{t.subtitle}</p>
+            <p className="text-3xs uppercase tracking-[0.12em] font-semibold mt-0.5" style={{ color: 'rgba(255, 255, 255, 0.65)' }}>{t.subtitle}</p>
           </div>
         </div>
       </div>
@@ -109,11 +115,11 @@ export function Sidebar(props: SidebarProps) {
               <span className="font-semibold text-sm truncate" data-i18n="payroll">{t.payroll}</span>
             </div>
             {payrollWindowStatus.isOverdue ? (
-              <span className="bg-rose-700 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0" data-i18n="overdue">
+              <span className="bg-rose-700 text-white text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0" data-i18n="overdue">
                 {t.overdue}
               </span>
             ) : payrollWindowStatus.isOpen ? (
-              <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm flex-shrink-0">
+              <span className={`${currentTheme.accentBg} ${currentTheme.accentText} text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm flex-shrink-0`}>
                 {t.open}
               </span>
             ) : (
@@ -160,7 +166,7 @@ export function Sidebar(props: SidebarProps) {
               <span className="font-semibold text-sm" data-i18n="navSettings">{t.navSettings}</span>
               {auditArchivePending && (
                 <span
-                  className="ml-auto bg-sky-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0"
+                  className={`ml-auto ${currentTheme.accentBg} ${currentTheme.accentText} text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0`}
                   data-i18n="auditArchiveBadge"
                 >
                   {t.auditArchiveBadge}
@@ -179,7 +185,9 @@ export function Sidebar(props: SidebarProps) {
         </button>
 
         <div className="pt-4 pb-2 px-4">
-          <p className="text-[10px] font-black text-white/20 uppercase tracking-widest" data-i18n="actions">{t.actions}</p>
+          {/* white/20 was near-invisible on the dark panel; this is a section
+              label, so it should be quiet but readable. */}
+          <p className="text-2xs font-black text-white/65 uppercase tracking-widest" data-i18n="actions">{t.actions}</p>
         </div>
 
         <button onClick={onSignOut} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 mt-auto">
@@ -190,15 +198,15 @@ export function Sidebar(props: SidebarProps) {
         <div className="space-y-2 pt-2">
           <button
             onClick={onAddStudent}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 transition-all font-bold text-xs"
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${currentTheme.accentSoftDark} ${currentTheme.accentSoftDarkHover} ${currentTheme.accentSoftDarkText} border border-white/10 transition-all font-bold text-xs`}
           >
-            <Plus size={18} className="text-emerald-400" />
+            <Plus size={18} />
             <span>{t.addStudent}</span>
           </button>
 
           <button
             onClick={onAddCr}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 transition-all font-bold text-xs"
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} shadow-lg ${currentTheme.accentShadow} transition-all font-bold text-xs`}
           >
             <Baby size={18} />
             <span>{t.addCrStudent}</span>
@@ -206,7 +214,7 @@ export function Sidebar(props: SidebarProps) {
 
           <button
             onClick={onRecordPayment}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition-all font-bold text-xs"
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} shadow-lg ${currentTheme.accentShadow} transition-all font-bold text-xs`}
           >
             <DollarSign size={18} />
             <span>{t.recordPayment}</span>

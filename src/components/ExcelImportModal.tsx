@@ -142,12 +142,12 @@ export function ExcelImportModal({
           {/* Title bar */}
           <div className="p-6 bg-[#0F172A] text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30">
+            <div className={`w-10 h-10 rounded-2xl ${currentTheme.accentBg} flex items-center justify-center shadow-lg ${currentTheme.accentShadow}`}>
               <FileSpreadsheet size={20} className="text-white" />
             </div>
             <div>
               <h3 id="modal-title-excel-import" className="font-bold text-base">{t.title}</h3>
-              <p className="text-[11px] text-white/50">{t.subtitle}</p>
+              <p className="text-2xs text-white/50">{t.subtitle}</p>
             </div>
           </div>
           <button
@@ -162,11 +162,11 @@ export function ExcelImportModal({
         <div className="px-6 py-3 bg-[#0F172A]/80 border-b border-white/5 flex items-center gap-1 flex-shrink-0">
           {stepLabels.map((label, i) => (
             <React.Fragment key={i}>
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all ${
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-2xs font-black uppercase tracking-wider transition-all ${
                 step === i + 1
-                  ? 'bg-blue-600 text-white shadow-sm'
+                  ? `${currentTheme.accentBg} ${currentTheme.accentText} shadow-sm`
                   : step > i + 1
-                  ? 'bg-emerald-500/20 text-emerald-400'
+                  ? `${currentTheme.accentSoftDark} ${currentTheme.accentSoftDarkText}`
                   : 'text-white/30'
               }`}>
                 {step > i + 1 ? <Check size={12} /> : <span>{i + 1}</span>}
@@ -195,8 +195,8 @@ export function ExcelImportModal({
                     onClick={() => fileInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all ${
                       dragOver
-                        ? 'border-blue-500 bg-blue-500/10'
-                        : `${currentTheme.border} hover:border-blue-400 ${bgMuted}`
+                        ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}`
+                        : `${currentTheme.border} ${currentTheme.accentBorderHover} ${bgMuted}`
                     }`}
                   >
                     <Upload size={40} className={`mx-auto mb-4 ${dragOver ? 'text-blue-500' : currentTheme.muted}`} />
@@ -204,7 +204,7 @@ export function ExcelImportModal({
                     <p className={`text-xs ${textSecondary} mb-4`}>
                       {t.supportsXlsxXlsCsv}
                     </p>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg shadow-blue-600/20">
+                    <button className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} px-6 py-2.5 rounded-xl text-xs font-black transition-all shadow-lg ${currentTheme.accentShadow}`}>
                       {t.browse}
                     </button>
                     <input
@@ -220,7 +220,7 @@ export function ExcelImportModal({
                 {/* Parsing indicator */}
                 {isParsing && (
                   <div className={`${bgMuted} rounded-2xl p-8 text-center border ${currentTheme.border}`}>
-                    <div className="w-8 h-8 border-3 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
+                    <div className="w-8 h-8 border-3 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--accent-primary-muted)', borderTopColor: 'transparent' }} />
                     <p className={`text-sm font-bold ${textPrimary}`}>
                       {t.analyzingFileStructure}
                     </p>
@@ -250,7 +250,7 @@ export function ExcelImportModal({
                     {/* Sheet selector (if multiple) */}
                     {sheets.length > 1 && (
                       <div className="space-y-2">
-                        <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
                           {t.selectSheet}
                         </label>
                         <div className="flex flex-wrap gap-2">
@@ -260,7 +260,7 @@ export function ExcelImportModal({
                               onClick={() => handleSheetChange(i)}
                               className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
                                 selectedSheetIdx === i
-                                  ? 'border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                                  ? `${currentTheme.accentBorder} ${currentTheme.accentSoft} ${currentTheme.accentSoftText}`
                                   : `${currentTheme.border} ${textSecondary} hover:bg-white/5`
                               }`}
                             >
@@ -273,7 +273,7 @@ export function ExcelImportModal({
 
                     {/* Auto-detection result */}
                     <div className={`p-5 rounded-2xl border-2 ${
-                      detection.confidence >= 60 ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/5'
+                      detection.confidence >= 60 ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}` : 'border-amber-500/40 bg-amber-500/5'
                     }`}>
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
@@ -286,7 +286,7 @@ export function ExcelImportModal({
                           </div>
                         </div>
                         {detection.confidence >= 60 ? (
-                          <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                          <div className={`w-8 h-8 rounded-full ${currentTheme.accentSoft} flex items-center justify-center`}>
                             <Check size={16} className="text-emerald-500" />
                           </div>
                         ) : (
@@ -299,7 +299,7 @@ export function ExcelImportModal({
                       {/* Progress bar */}
                       <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-3">
                         <div
-                          className={`h-full rounded-full transition-all ${detection.confidence >= 60 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                          className={`h-full rounded-full transition-all ${detection.confidence >= 60 ? currentTheme.accentBg : 'bg-amber-500'}`}
                           style={{ width: `${detection.confidence}%` }}
                         />
                       </div>
@@ -307,7 +307,7 @@ export function ExcelImportModal({
 
                     {/* Category override */}
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
                         {t.overrideCategory}
                       </label>
                       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -317,12 +317,12 @@ export function ExcelImportModal({
                             onClick={() => setCategory(cat)}
                             className={`p-2.5 rounded-xl text-center border transition-all ${
                               category === cat
-                                ? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/30'
+                                ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}`
                                 : `${currentTheme.border} hover:bg-white/5`
                             }`}
                           >
                             <span className="text-lg block">{CATEGORY_LABELS[cat].icon}</span>
-                            <span className={`text-[10px] font-bold block mt-1 ${category === cat ? 'text-blue-500' : textSecondary}`}>
+                            <span className={`text-2xs font-bold block mt-1 ${category === cat ? currentTheme.accentSoftText : textSecondary}`}>
                               {CATEGORY_LABELS[cat][lang].split(' ')[0]}
                             </span>
                           </button>
@@ -341,18 +341,18 @@ export function ExcelImportModal({
                   <p className={`text-xs font-bold ${textPrimary} mb-1`}>
                     {CATEGORY_LABELS[category].icon} {t.mappingColumnsFor} {CATEGORY_LABELS[category][lang]}
                   </p>
-                  <p className={`text-[11px] ${textSecondary}`}>
+                  <p className={`text-2xs ${textSecondary}`}>
                     {t.reviewTheAutoMappedColumnsBelowAdjustAnyMismatchedFieldsUsingTheDropdown}
                   </p>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="max-h-[55vh] overflow-auto">
                   <table className="w-full text-xs">
-                    <thead>
+                    <thead className="sticky top-0 z-10">
                       <tr className={`border-b ${currentTheme.border}`}>
-                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${currentTheme.muted} text-[10px]`}>{t.excelCol}</th>
-                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${currentTheme.muted} text-[10px]`}>{t.targetField}</th>
-                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${currentTheme.muted} text-[10px]`}>{t.sample}</th>
+                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${currentTheme.muted} text-2xs`}>{t.excelCol}</th>
+                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${currentTheme.muted} text-2xs`}>{t.targetField}</th>
+                        <th className={`text-left py-2 px-3 font-black uppercase tracking-wider ${currentTheme.muted} text-2xs`}>{t.sample}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -373,8 +373,8 @@ export function ExcelImportModal({
                                 className={`w-full px-3 py-1.5 rounded-lg border ${currentTheme.border} text-xs font-bold ${
                                   m.targetField === '__skip__'
                                     ? 'text-slate-400 bg-white/5'
-                                    : 'text-emerald-500 bg-emerald-500/5'
-                                } focus:outline-none focus:ring-1 focus:ring-blue-500/30`}
+                                    : `${currentTheme.accentSoftText} ${currentTheme.accentSoft}`
+                                } focus:outline-none ${currentTheme.accentRing}`}
                               >
                                 <option value="__skip__">{t.skip}</option>
                                 {fields.map((f) => (
@@ -405,19 +405,19 @@ export function ExcelImportModal({
                 <div className="grid grid-cols-2 gap-3">
                   <div className={`p-4 rounded-2xl border ${currentTheme.border} ${bgMuted}`}>
                     <div className="flex items-center justify-between">
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${currentTheme.muted}`}>{t.validRows}</span>
+                      <span className={`text-2xs font-black uppercase tracking-wider ${currentTheme.muted}`}>{t.validRows}</span>
                       <span className="text-xl font-black text-emerald-500">{validation.validRows.length}</span>
                     </div>
                     <div className="w-full h-1.5 bg-white/10 rounded-full mt-2">
                       <div
-                        className="h-full bg-emerald-500 rounded-full"
+                        className={`h-full ${currentTheme.accentBg} rounded-full`}
                         style={{ width: `${(validation.validRows.length / Math.max(validation.totalRows, 1)) * 100}%` }}
                       />
                     </div>
                   </div>
                   <div className={`p-4 rounded-2xl border ${currentTheme.border} ${bgMuted}`}>
                     <div className="flex items-center justify-between">
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${currentTheme.muted}`}>{t.invalidRows}</span>
+                      <span className={`text-2xs font-black uppercase tracking-wider ${currentTheme.muted}`}>{t.invalidRows}</span>
                       <span className={`text-xl font-black ${validation.invalidRows.length > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                         {validation.invalidRows.length}
                       </span>
@@ -439,7 +439,7 @@ export function ExcelImportModal({
                     </p>
                     <div className="space-y-1 max-h-24 overflow-y-auto">
                       {validation.warnings.slice(0, 10).map((w, i) => (
-                        <p key={i} className="text-[11px] text-amber-400/80">{w}</p>
+                        <p key={i} className="text-2xs text-amber-400/80">{w}</p>
                       ))}
                     </div>
                   </div>
@@ -453,7 +453,7 @@ export function ExcelImportModal({
                     </p>
                     <div className="space-y-1 max-h-24 overflow-y-auto">
                       {validation.invalidRows.slice(0, 5).map((r) => (
-                        <p key={r.rowIndex} className="text-[11px] text-rose-400/80">
+                        <p key={r.rowIndex} className="text-2xs text-rose-400/80">
                           {t.row} {r.rowIndex}: {r.errors.join(', ')}
                         </p>
                       ))}
@@ -464,11 +464,11 @@ export function ExcelImportModal({
                 {/* Settings */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.academicYear}</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.academicYear}</label>
                     <select
                       value={importOptions.academicYear}
                       onChange={(e) => setImportOptions((p) => ({ ...p, academicYear: e.target.value }))}
-                      className={`w-full px-4 py-2.5 rounded-xl border ${currentTheme.border} ${bgMuted} text-xs font-bold ${textPrimary} focus:outline-none focus:ring-2 focus:ring-blue-500/30`}
+                      className={`w-full px-4 py-2.5 rounded-xl border ${currentTheme.border} ${bgMuted} text-xs font-bold ${textPrimary} focus:outline-none ${currentTheme.accentRing}`}
                     >
                       {academicYears.map((y) => (
                         <option key={y} value={y}>{y}</option>
@@ -476,11 +476,11 @@ export function ExcelImportModal({
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.duplicates}</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.duplicates}</label>
                     <select
                       value={importOptions.duplicateStrategy}
                       onChange={(e) => setImportOptions((p) => ({ ...p, duplicateStrategy: e.target.value as 'skip' | 'update' }))}
-                      className={`w-full px-4 py-2.5 rounded-xl border ${currentTheme.border} ${bgMuted} text-xs font-bold ${textPrimary} focus:outline-none focus:ring-2 focus:ring-blue-500/30`}
+                      className={`w-full px-4 py-2.5 rounded-xl border ${currentTheme.border} ${bgMuted} text-xs font-bold ${textPrimary} focus:outline-none ${currentTheme.accentRing}`}
                     >
                       <option value="skip">{t.skipDuplicates}</option>
                       <option value="update">{t.updateExisting}</option>
@@ -490,7 +490,7 @@ export function ExcelImportModal({
 
                 {/* Ready banner */}
                 {validation.validRows.length > 0 && (
-                  <div className={`p-5 rounded-2xl border-2 border-emerald-500/40 bg-emerald-500/5 text-center`}>
+                  <div className={`p-5 rounded-2xl border-2 ${currentTheme.accentBorder} ${currentTheme.accentSoft} text-center`}>
                     <ShieldCheck size={24} className="text-emerald-500 mx-auto mb-2" />
                     <p className="text-sm font-black text-emerald-500">
                       {t.readyToImport}: {validation.validRows.length} {CATEGORY_LABELS[category][lang].toLowerCase()}
@@ -505,7 +505,7 @@ export function ExcelImportModal({
               <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
                 {isProcessing ? (
                   <div className={`${bgMuted} rounded-2xl p-10 text-center border ${currentTheme.border}`}>
-                    <div className="w-12 h-12 border-4 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-5" />
+                    <div className="w-12 h-12 border-4 rounded-full animate-spin mx-auto mb-5" style={{ borderColor: 'var(--accent-primary-muted)', borderTopColor: 'transparent' }} />
                     <p className={`text-base font-black ${textPrimary} mb-2`}>{t.importing}</p>
                     <p className={`text-xs ${textSecondary}`}>
                       {CATEGORY_LABELS[category].icon} {validation?.validRows.length} {CATEGORY_LABELS[category][lang].toLowerCase()}
@@ -514,12 +514,12 @@ export function ExcelImportModal({
                 ) : importResult ? (
                   <div className="space-y-5">
                     <div className={`p-8 rounded-2xl border-2 ${
-                      importResult.errors === 0 ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/5'
+                      importResult.errors === 0 ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}` : 'border-amber-500/40 bg-amber-500/5'
                     } text-center`}>
                       <div className={`w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg ${
-                        importResult.errors === 0 ? 'bg-emerald-600 shadow-emerald-500/30' : 'bg-amber-600 shadow-amber-500/30'
+                        importResult.errors === 0 ? `${currentTheme.accentBg} ${currentTheme.accentShadow}` : 'bg-amber-600 shadow-amber-500/30'
                       }`}>
-                        {importResult.errors === 0 ? <Check size={32} className="text-white" /> : <AlertCircle size={32} className="text-white" />}
+                        {importResult.errors === 0 ? <Check size={32} className={currentTheme.accentText} /> : <AlertCircle size={32} className="text-white" />}
                       </div>
                       <p className={`text-xl font-black ${importResult.errors === 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
                         {t.success}
@@ -529,15 +529,15 @@ export function ExcelImportModal({
                     <div className="grid grid-cols-3 gap-3">
                       <div className={`p-4 ${bgMuted} rounded-2xl border ${currentTheme.border} text-center`}>
                         <p className="text-2xl font-black text-emerald-500">{importResult.inserted}</p>
-                        <p className={`text-[10px] font-bold ${currentTheme.muted} uppercase tracking-wider mt-1`}>{t.inserted}</p>
+                        <p className={`text-2xs font-bold ${currentTheme.muted} uppercase tracking-wider mt-1`}>{t.inserted}</p>
                       </div>
                       <div className={`p-4 ${bgMuted} rounded-2xl border ${currentTheme.border} text-center`}>
                         <p className="text-2xl font-black text-blue-500">{importResult.updated}</p>
-                        <p className={`text-[10px] font-bold ${currentTheme.muted} uppercase tracking-wider mt-1`}>{t.updated}</p>
+                        <p className={`text-2xs font-bold ${currentTheme.muted} uppercase tracking-wider mt-1`}>{t.updated}</p>
                       </div>
                       <div className={`p-4 ${bgMuted} rounded-2xl border ${currentTheme.border} text-center`}>
                         <p className={`text-2xl font-black ${importResult.errors > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>{importResult.errors}</p>
-                        <p className={`text-[10px] font-bold ${currentTheme.muted} uppercase tracking-wider mt-1`}>{t.errors}</p>
+                        <p className={`text-2xs font-bold ${currentTheme.muted} uppercase tracking-wider mt-1`}>{t.errors}</p>
                       </div>
                     </div>
                   </div>
@@ -583,7 +583,7 @@ export function ExcelImportModal({
             {step === 1 && file && !isParsing && (
               <button
                 onClick={proceedToMapping}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95"
+                className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow} active:scale-95`}
               >
                 {t.next}
                 <ChevronRight size={14} />
@@ -593,7 +593,7 @@ export function ExcelImportModal({
             {step === 2 && (
               <button
                 onClick={proceedToValidation}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95"
+                className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow} active:scale-95`}
               >
                 {t.next}
                 <ChevronRight size={14} />
@@ -603,7 +603,7 @@ export function ExcelImportModal({
             {step === 3 && validation && validation.validRows.length > 0 && (
               <button
                 onClick={executeImport}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95"
+                className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow} active:scale-95`}
               >
                 <Upload size={14} />
                 {t.import} ({validation.validRows.length})
@@ -613,7 +613,7 @@ export function ExcelImportModal({
             {step === 4 && !isProcessing && (
               <button
                 onClick={() => { resetWizard(); onClose(); }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95"
+                className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow} active:scale-95`}
               >
                 <Check size={14} />
                 {t.done}

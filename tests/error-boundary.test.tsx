@@ -47,6 +47,10 @@ const theme = {
   border: 'border-slate-200',
   muted: 'text-slate-500',
   isDark: false,
+  accentBg: 'accent-surface',
+  accentHover: 'accent-surface-hover',
+  accentText: 'accent-surface-text',
+  accentShadow: 'accent-shadow',
 };
 
 function mount(node: React.ReactNode): { root: Root; container: HTMLElement } {

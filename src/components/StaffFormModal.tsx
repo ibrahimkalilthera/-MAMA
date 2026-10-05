@@ -55,18 +55,18 @@ export function StaffFormModal(props: StaffFormModalProps) {
               <form onSubmit={handleStaffSubmit} className="p-10 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffName}</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffName}</label>
                     <input 
                       required
                       type="text" 
                       value={staffForm.name}
                       onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                       placeholder="Jane Doe"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest inline-flex items-center gap-1.5`}>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest inline-flex items-center gap-1.5`}>
                       {t.position}
                       {isEditingAdmin && <ShieldCheck size={12} className="text-violet-500" />}
                     </label>
@@ -76,7 +76,7 @@ export function StaffFormModal(props: StaffFormModalProps) {
                           required
                           value={staffForm.position}
                           onChange={(e) => setStaffForm({ ...staffForm, position: e.target.value })}
-                          className={`w-full px-6 py-4 pr-12 appearance-none cursor-pointer ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                          className={`w-full px-6 py-4 pr-12 appearance-none cursor-pointer ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                         >
                           <option value="" disabled>{t.position}</option>
                           {positionOptions.map((p) => (
@@ -90,7 +90,7 @@ export function StaffFormModal(props: StaffFormModalProps) {
                         type="text" 
                         value={staffForm.position}
                         onChange={(e) => setStaffForm({ ...staffForm, position: e.target.value })}
-                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                         placeholder="Teacher"
                       />
                     )}
@@ -99,59 +99,59 @@ export function StaffFormModal(props: StaffFormModalProps) {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.phone}</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.phone}</label>
                     <input 
                       required
                       type="text" 
                       value={staffForm.phone}
                       onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                       placeholder="+223 70 00 00 00"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.email}</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.email}</label>
                     <input 
                       required
                       type="email" 
                       value={staffForm.email}
                       onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-                      className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                      className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                       placeholder="jane.doe@school.com"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.monthlySalary} ({t.currency})</label>
+                  <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.monthlySalary} ({t.currency})</label>
                   <input 
                     required
                     type="number" 
                     value={staffForm.salary}
                     onChange={(e) => setStaffForm({ ...staffForm, salary: e.target.value })}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                     placeholder="150 000"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.bankDetails}</label>
+                  <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.bankDetails}</label>
                   <input
                     type="text"
                     value={staffForm.bankDetails}
                     onChange={(e) => setStaffForm({ ...staffForm, bankDetails: e.target.value })}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                     placeholder="RIB: ML01 00001 ..."
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.emergencyContact}</label>
+                  <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.emergencyContact}</label>
                   <input
                     type="text"
                     value={staffForm.emergencyContact}
                     onChange={(e) => setStaffForm({ ...staffForm, emergencyContact: e.target.value })}
-                    className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                     placeholder="Spouse: +223 60 00 00 00"
                   />
                 </div>
@@ -160,40 +160,40 @@ export function StaffFormModal(props: StaffFormModalProps) {
                     bulletin / fiche de paiement PDFs (INPS, hire date, family
                     status, children, allowances). */}
                 <div className="pt-4 border-t border-dashed space-y-6">
-                  <div className="text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-1.5">
+                  <div className="text-2xs font-black uppercase tracking-widest inline-flex items-center gap-1.5">
                     <span className={`px-3 py-1.5 rounded-full ${currentTheme.accentBg}`}>{t.staffPayrollDetails}</span>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffInpsNumber}</label>
+                      <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffInpsNumber}</label>
                       <input
                         type="text"
                         value={staffForm.inpsNumber}
                         onChange={(e) => setStaffForm({ ...staffForm, inpsNumber: e.target.value })}
-                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                         placeholder="12 345 678 901"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffHireDate}</label>
+                      <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffHireDate}</label>
                       <input
                         type="date"
                         value={staffForm.hireDate}
                         onChange={(e) => setStaffForm({ ...staffForm, hireDate: e.target.value })}
-                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffFamilyStatus}</label>
+                      <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffFamilyStatus}</label>
                       <div className="relative">
                         <select
                           value={staffForm.familyStatus}
                           onChange={(e) => setStaffForm({ ...staffForm, familyStatus: e.target.value })}
-                          className={`w-full px-6 py-4 pr-12 appearance-none cursor-pointer ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                          className={`w-full px-6 py-4 pr-12 appearance-none cursor-pointer ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                         >
                           <option value="">{t.staffFamilyStatus}</option>
                           <option value="single">{t.familySingle}</option>
@@ -205,13 +205,13 @@ export function StaffFormModal(props: StaffFormModalProps) {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffChildrenCount}</label>
+                      <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffChildrenCount}</label>
                       <input
                         type="number"
                         min="0"
                         value={staffForm.childrenCount}
                         onChange={(e) => setStaffForm({ ...staffForm, childrenCount: e.target.value })}
-                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                         placeholder="0"
                       />
                     </div>
@@ -219,42 +219,42 @@ export function StaffFormModal(props: StaffFormModalProps) {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffTravelAllowance} ({t.currency})</label>
+                      <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffTravelAllowance} ({t.currency})</label>
                       <input
                         type="number"
                         min="0"
                         value={staffForm.travelAllowance}
                         onChange={(e) => setStaffForm({ ...staffForm, travelAllowance: e.target.value })}
-                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                         placeholder="0"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffCommunicationAllowance} ({t.currency})</label>
+                      <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffCommunicationAllowance} ({t.currency})</label>
                       <input
                         type="number"
                         min="0"
                         value={staffForm.communicationAllowance}
                         onChange={(e) => setStaffForm({ ...staffForm, communicationAllowance: e.target.value })}
-                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                         placeholder="0"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffHousingAllowance} ({t.currency})</label>
+                      <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.staffHousingAllowance} ({t.currency})</label>
                       <input
                         type="number"
                         min="0"
                         value={staffForm.housingAllowance}
                         onChange={(e) => setStaffForm({ ...staffForm, housingAllowance: e.target.value })}
-                        className={`w-full px-6 py-4 ${currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50'} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                        className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                         placeholder="0"
                       />
                     </div>
                   </div>
                 </div>
 
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-blue-500/20">
+                <button type="submit" className={`w-full ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} py-5 rounded-2xl font-black text-sm transition-all shadow-xl ${currentTheme.accentShadow}`}>
                   {editingStaff ? t.saveChanges : t.submit}
                 </button>
               </form>

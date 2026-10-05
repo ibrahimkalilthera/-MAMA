@@ -150,13 +150,13 @@ export function MonthlyPayrollDraftModal({
         titleId="modal-title-payroll-draft"
         ariaLabel={t.monthlyPayrollDisbursementDraft}
         maxWidth="max-w-5xl"
-        panelRadius="rounded-[2.5rem]"
+        panelRadius="rounded-3xl"
         panelClassName="flex flex-col max-h-[90vh]"
         rootClassName="animate-fade-in no-print"
         header={
           <div className={`p-6 sm:p-8 border-b ${currentTheme.border} flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 text-white`}>
             <div className="flex items-center gap-3.5">
-              <div className="p-3 bg-emerald-600/90 rounded-2xl text-white shadow-lg shadow-emerald-500/20">
+              <div className={`p-3 ${currentTheme.accentBg} ${currentTheme.accentText} rounded-2xl shadow-lg ${currentTheme.accentShadow}`}>
                 <FileText size={24} />
               </div>
               <div>
@@ -207,7 +207,7 @@ export function MonthlyPayrollDraftModal({
             {/* KPI Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className={`p-5 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
-                <p className={`text-[10px] font-bold uppercase tracking-widest ${currentTheme.muted} mb-1`}>
+                <p className={`text-2xs font-bold uppercase tracking-widest ${currentTheme.muted} mb-1`}>
                   {t.totalBudget}
                 </p>
                 <h4 className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -216,7 +216,7 @@ export function MonthlyPayrollDraftModal({
               </div>
 
               <div className="p-5 rounded-2xl border border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900/30">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400 mb-1">
+                <p className="text-2xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400 mb-1">
                   {t.paidThisMonth}
                 </p>
                 <h4 className="text-xl font-black text-emerald-700 dark:text-emerald-400">
@@ -225,7 +225,7 @@ export function MonthlyPayrollDraftModal({
               </div>
 
               <div className="p-5 rounded-2xl border border-rose-200 bg-rose-50/60 dark:bg-rose-950/20 dark:border-rose-900/30">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-rose-700 dark:text-rose-400 mb-1">
+                <p className="text-2xs font-bold uppercase tracking-widest text-rose-700 dark:text-rose-400 mb-1">
                   {t.remainingArrears}
                 </p>
                 <h4 className="text-xl font-black text-rose-700 dark:text-rose-400">
@@ -234,7 +234,7 @@ export function MonthlyPayrollDraftModal({
               </div>
 
               <div className={`p-5 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-800/60' : 'bg-slate-50'}`}>
-                <p className={`text-[10px] font-bold uppercase tracking-widest ${currentTheme.muted} mb-1`}>
+                <p className={`text-2xs font-bold uppercase tracking-widest ${currentTheme.muted} mb-1`}>
                   {t.employeesSettled}
                 </p>
                 <h4 className={`text-xl font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -245,10 +245,10 @@ export function MonthlyPayrollDraftModal({
 
             {/* Staff Breakdown Table */}
             <div className={`rounded-2xl border ${currentTheme.border} overflow-hidden`}>
-              <div className="overflow-x-auto">
+              <div className="max-h-[55vh] overflow-auto">
                 <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className={`text-[10px] font-black uppercase tracking-wider ${currentTheme.isDark ? 'bg-slate-800/80 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                  <thead className="sticky top-0 z-10">
+                    <tr className={`text-2xs font-black uppercase tracking-wider ${currentTheme.isDark ? 'bg-slate-800/80 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                       <th className="px-6 py-4">{t.employeeRole}</th>
                       <th className="px-6 py-4 text-right">{t.baseSalary}</th>
                       <th className="px-6 py-4 text-right">{t.paidThisMonth2}</th>
@@ -264,7 +264,7 @@ export function MonthlyPayrollDraftModal({
                         <tr key={st.id} className={`${currentTheme.isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'} transition-all`}>
                           <td className="px-6 py-4">
                             <p className="font-bold">{st.name}</p>
-                            <p className={`text-[10px] ${currentTheme.muted} uppercase font-semibold`}>{st.position}</p>
+                            <p className={`text-2xs ${currentTheme.muted} uppercase font-semibold`}>{st.position}</p>
                           </td>
                           <td className="px-6 py-4 text-right font-semibold">
                             {formatCurrency(st.salary)}
@@ -275,20 +275,20 @@ export function MonthlyPayrollDraftModal({
                           <td className={`px-6 py-4 text-right font-black ${st.balance > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                             {formatCurrency(st.balance)}
                           </td>
-                          <td className="px-6 py-4 text-slate-500 font-mono text-[11px]">
+                          <td className="px-6 py-4 text-slate-500 font-mono text-2xs">
                             {st.lastPayDate}
                           </td>
                           <td className="px-6 py-4 text-center">
                             {st.statusType === 'paid' ? (
-                              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-wider">
+                              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 rounded-full text-2xs font-black uppercase tracking-wider">
                                 {t.paid2}
                               </span>
                             ) : st.statusType === 'partial' ? (
-                              <span className="px-2.5 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 rounded-full text-[10px] font-black uppercase tracking-wider">
+                              <span className="px-2.5 py-1 bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 rounded-full text-2xs font-black uppercase tracking-wider">
                                 {t.partial2}
                               </span>
                             ) : (
-                              <span className="px-2.5 py-1 bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400 rounded-full text-[10px] font-black uppercase tracking-wider">
+                              <span className="px-2.5 py-1 bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-400 rounded-full text-2xs font-black uppercase tracking-wider">
                                 {t.unpaid}
                               </span>
                             )}
@@ -300,7 +300,7 @@ export function MonthlyPayrollDraftModal({
                                   onRecordPayment(st.id, st.balance);
                                   onClose();
                                 }}
-                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] transition-all flex items-center gap-1 ml-auto shadow-sm"
+                                className={`px-3 py-1.5 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} rounded-lg font-bold text-2xs transition-all flex items-center gap-1 ml-auto shadow-sm`}
                               >
                                 <Plus size={12} />
                                 <span>{t.pay}</span>
@@ -339,7 +339,7 @@ export function MonthlyPayrollDraftModal({
 
               <button
                 onClick={() => onExportExcel(monthIndex, year)}
-                className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-emerald-700/20 flex items-center gap-2 active:scale-95"
+                className={`px-5 py-2.5 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} rounded-xl text-xs font-black transition-all shadow-md ${currentTheme.accentShadow} flex items-center gap-2 active:scale-95`}
               >
                 <Download size={16} />
                 <span>{t.exportExcel}</span>

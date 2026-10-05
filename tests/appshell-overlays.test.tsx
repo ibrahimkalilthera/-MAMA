@@ -17,8 +17,17 @@ import type { Root } from 'react-dom/client';
 import type { LucideIcon } from 'lucide-react';
 import { translations } from '../src/i18n/translations';
 import { AppShell } from '../src/components/AppShell';
+import { DensityContext } from '../src/app/densityContext';
 import type { CurrentTheme } from '../src/app/mainViewsProps';
 import { installDomGlobals } from './harness';
+import {
+  APPSHELL_SLOTS,
+  APPSHELL_SLOT_PREFIX,
+  APPSHELL_ENV_BADGE_SLOT,
+  APPSHELL_OFFLINE_BANNER_SLOT,
+  APPSHELL_TOASTS_SLOT,
+} from '../scripts/lib/appshell-slots.mjs';
+import { slotSelector, slotPrefixSelector } from '../scripts/lib/slot-selector.mjs';
 
 const t = translations.fr;
 
@@ -34,7 +43,23 @@ const theme: CurrentTheme = {
   accentBg: 'bg-emerald-50',
   accentText: 'text-white',
   accentHover: 'hover:bg-emerald-100',
+  accentGroupHover: 'accent-group-hover',
   accentShadow: 'shadow-emerald-200',
+  accentSoft: 'bg-emerald-50',
+  accentSoftText: 'text-emerald-600',
+  accentSoftHover: 'hover:bg-emerald-100', accentSoftTextHover: 'hover:text-emerald-700',
+  accentHex: '#059669',
+  accentHexDeep: '#047857',
+  
+  accentRing: 'focus:ring-emerald-500/20',
+  accentBorder: 'border-slate-300',
+  accentBorderHover: 'hover:border-slate-400',
+  surfaceInset: 'bg-slate-50',
+  
+  inkStrong: 'text-slate-800',
+  accentSoftDark: 'bg-blue-500/15',
+  accentSoftDarkHover: 'hover:bg-blue-500/25',
+  accentSoftDarkText: 'text-blue-300',
   tableHeader: 'bg-slate-100',
   rowHover: 'hover:bg-slate-50',
   input: 'bg-white',
@@ -46,6 +71,12 @@ const asyncNoop = async () => {};
 const icon = (() => null) as unknown as LucideIcon;
 
 const TOAST_MESSAGE = 'Toast de test — rendu unique';
+
+// Les régions et panneaux que le shell DOIT monter, dans l'ordre du DOM, vivent
+// dans la table partagée `scripts/lib/appshell-slots.mjs` (`APPSHELL_SLOTS`) : le
+// test les LIT, il ne les recopie pas — un nom qui divergerait du composant est
+// impossible à écrire ici. La preuve croisée (table ↔ composants déclarants) vit
+// dans `scripts/check-data-slots.mjs`.
 
 /** Props du shell : union MainViewsProps & AppModalsProps & AppShellExtras. */
 function shellProps(): Record<string, unknown> {
@@ -322,10 +353,12 @@ describe('AppShell — overlays rendus une seule fois', () => {
       root.render(createElement(AppShell, shellProps() as never));
     });
 
-    // Chaque overlay porte un z-index unique — compter ses occurrences.
-    const envBadges = container.querySelectorAll('[class*="z-[9997]"]');
-    const offlineBanners = container.querySelectorAll('[class*="z-[9998]"]');
-    const toastContainers = container.querySelectorAll('[class*="z-[9999]"]');
+    // Chaque overlay porte un MARQUEUR STABLE (`data-slot`) — on compte SES
+    // occurrences, jamais un z-index ni une classe de mise en page : le test ne
+    // doit ni casser ni rester vert parce qu'un z-index a bougé.
+    const envBadges = container.querySelectorAll(slotSelector(APPSHELL_ENV_BADGE_SLOT));
+    const offlineBanners = container.querySelectorAll(slotSelector(APPSHELL_OFFLINE_BANNER_SLOT));
+    const toastContainers = container.querySelectorAll(slotSelector(APPSHELL_TOASTS_SLOT));
 
     assert.equal(envBadges.length, 1, `EnvBadge rendu ${envBadges.length} fois (attendu 1)`);
     assert.equal(offlineBanners.length, 1, `OfflineBanner rendu ${offlineBanners.length} fois (attendu 1)`);
@@ -339,6 +372,68 @@ describe('AppShell — overlays rendus une seule fois', () => {
     // Un double ToastContainer produirait DEUX cartes avec le même message :
     const messageCount = container.textContent?.split(TOAST_MESSAGE).length ?? 1;
     assert.equal(messageCount, 2, `le message du toast apparaît ${messageCount - 1} fois (attendu 1)`);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('la composition du shell est verrouillée : chaque panneau monté, dans l’ordre (data-slot)', async () => {
+    const container = win.document.createElement('div');
+    win.document.body.appendChild(container);
+    const root: Root = createRoot(container as unknown as Element);
+
+    // On force l'année sélectionnée à être VERROUILLÉE : sans cela le bandeau
+    // « année clôturée » rend `null` et le cas passerait sur un panneau absent.
+    // Les autres panneaux conditionnels (bannière hors ligne, badge d'env,
+    // toasts) sont déjà rendus visibles par shellProps().
+    const props = { ...shellProps(), lockedYears: ['2026-2027'] };
+    await act(async () => {
+      root.render(createElement(AppShell, props as never));
+    });
+
+    const slots = Array.from(container.querySelectorAll(slotPrefixSelector(APPSHELL_SLOT_PREFIX))).map(
+      (el) => el.getAttribute('data-slot'),
+    );
+    assert.deepEqual(
+      slots,
+      APPSHELL_SLOTS,
+      'le shell monte chaque région et chaque panneau, dans l’ordre du DOM — un retrait ou une inversion tombe ici',
+    );
+    assert.equal(
+      new Set(slots).size,
+      slots.length,
+      'chaque marqueur est UNIQUE : deux panneaux ne peuvent pas se confondre',
+    );
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('la densité des tableaux choisie est portée par la racine (density-compact)', async () => {
+    const container = win.document.createElement('div');
+    win.document.body.appendChild(container);
+    const root: Root = createRoot(container as unknown as Element);
+
+    await act(async () => {
+      root.render(
+        createElement(
+          DensityContext.Provider,
+          { value: { density: 'compact', setDensity: noop } },
+          createElement(AppShell, shellProps() as never),
+        ),
+      );
+    });
+
+    const shell = container.querySelector('[data-slot="app-shell"]');
+    assert.ok(shell, 'la racine du shell est rendue');
+    assert.ok(
+      shell.classList.contains('density-compact'),
+      'la classe que le CSS `.density-compact` cible est posée sur la racine',
+    );
 
     await act(async () => {
       root.unmount();

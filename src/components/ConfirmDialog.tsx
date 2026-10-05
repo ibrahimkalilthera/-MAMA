@@ -12,7 +12,7 @@ export interface ConfirmDialogProps {
   cancelLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
-  currentTheme: { card: string; border: string; muted: string; isDark: boolean };
+  currentTheme: { card: string; border: string; muted: string; isDark: boolean; accentBorder: string };
   /**
    * Mode danger pour les actions irréversibles :
    *  - 'type' : l'utilisateur doit taper `danger.text` pour activer le bouton
@@ -121,10 +121,10 @@ export function ConfirmDialog({
                   onChange={(e) => setTyped(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && canConfirm) onConfirm(); }}
                   placeholder={requiredText}
-                  className={`w-full px-4 py-3 text-xs font-black rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-rose-500/30 transition-all ${typed === requiredText ? 'border-emerald-500' : ''}`}
+                  className={`w-full px-4 py-3 text-xs font-black rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-rose-500/30 transition-all ${typed === requiredText ? currentTheme.accentBorder : ''}`}
                 />
                 {danger?.hint && (
-                  <p className={`text-[10px] font-semibold ${currentTheme.muted}`}>{danger.hint}</p>
+                  <p className={`text-2xs font-semibold ${currentTheme.muted}`}>{danger.hint}</p>
                 )}
               </div>
             )}

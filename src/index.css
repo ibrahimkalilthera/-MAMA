@@ -16,6 +16,28 @@
    always follow the app theme. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ─── Radius ladder — one step per role, and only one ────────────────────────
+   The views mixed `rounded-lg`, `rounded-xl`, `rounded-2xl`, `rounded-3xl` AND
+   raw `rounded-[2rem]` / `[2.5rem]` / `[3rem]` (56 call sites) with no rule
+   about which meant what: a button and a hero panel could carry the same
+   radius while two sibling cards disagreed by 8px.
+
+   This pins the scale so the role decides the radius:
+     controls (buttons, inputs, chips, icon buttons)  → 12px
+     cards (card-elevated, card-stat, action cards)    → 20px
+     hero / overlay panels (card-hero)                 → 28px
+
+   Declared in @theme (not :root) because that is what Tailwind reads to emit
+   `rounded-lg` / `-xl` / `-2xl` / `-3xl` — the utilities and the `.card-*`
+   classes then agree by construction instead of by coincidence. */
+@theme {
+  --radius-md: 12px;
+  --radius-lg: 12px;
+  --radius-xl: 12px;
+  --radius-2xl: 20px;
+  --radius-3xl: 28px;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MAMA Finance — Design System
    Taste-Skill Redesign: Geist typography, tinted surfaces, refined depth
@@ -28,12 +50,30 @@
   --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'Geist Mono', 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 
-  /* ─── Radius Hierarchy ─── */
+  /* ─── Type Scale ───
+     Five steps, not eleven. The views were authored with 8/9/10/11px inline
+     utilities (355 call sites, 290 of them `text-[10px]`), which is not a scale
+     but a habit: a 10px label beside an 11px one is a decision nobody made.
+     The steps below are the only sizes the app is allowed to name, and the
+     utilities that carry them (`.text-2xs`…`.text-3xl`) live further down.
+     Sizes in between (13px, 15px, 17px) are deliberately absent: pick a step. */
+  --text-3xs: 0.6875rem;  /* 11px — dense meta: table sub-lines, badges */
+  --text-2xs: 0.75rem;    /* 12px — the real-content floor below */
+  --text-xs: 0.75rem;     /* 12px — secondary body */
+  --text-sm: 0.875rem;    /* 14px — body */
+  --text-base: 1rem;      /* 16px — emphasised body */
+  --text-xl: 1.25rem;     /* 20px — section title */
+  --text-3xl: 1.75rem;    /* 28px — page title */
+
+  /* ─── Radius tokens (see the @theme ladder above for the utilities) ───
+     These are the values the `.card-*` / `.nav-item` / `.badge-*` classes
+     consume, so a card is 20px by token, not by whichever utility it happens
+     to carry. Keep in step with @theme. */
   --radius-xs: 6px;
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
   --radius-full: 9999px;
 
   /* ─── Surface Tokens (Navy theme default) ─── */
@@ -44,11 +84,20 @@
   --surface-inset: #F8FAFC;
   --surface-body: #F1F5F9;
 
-  /* ─── Accent Tokens ─── */
+  /* ─── Accent Tokens ───
+     Fallbacks only: useTheme (src/app/useTheme.ts) overwrites these on the
+     document root for the active theme, and with the school's logo colour when
+     one is set. They exist so the very first paint — before the effect runs —
+     has a complete accent instead of an undefined one. */
   --accent-primary: #10B981;
   --accent-primary-hover: #059669;
   --accent-primary-muted: rgba(16, 185, 129, 0.12);
+  --accent-primary-muted-hover: rgba(16, 185, 129, 0.2);
   --accent-primary-shadow: rgba(16, 185, 129, 0.2);
+  --accent-primary-border: rgba(16, 185, 129, 0.32);
+  --accent-ink: #FFFFFF;
+  --accent-soft-ink: #047857;
+  --accent-soft-ink-lifted: #6EE7B7;
 
   /* ─── Shadow Tokens (tinted, not pure black) ─── */
   --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -67,9 +116,10 @@
 /* ─── Global Defaults ─── */
 
 body, html {
-  /* Fallback so the page is never raw white before React paints (useTheme.ts
-     sets html/body to the active theme's bg hex once mounted — navy default). */
-  background-color: #F8FAFC;
+  /* Fallback so the page never flashes raw white before React paints: useTheme
+     (src/app/useTheme.ts) repaints html/body with the active theme's bg hex on
+     mount, and the app ships Cyber Minuit (#090D16) as its default theme. */
+  background-color: #090D16;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -100,6 +150,138 @@ h1, h2, h3,
   text-transform: uppercase;
 }
 
+/* ─── The type scale, as utilities ───────────────────────────────────────────
+   `.text-2xs` / `.text-3xs` are the two steps Tailwind does not ship. They are
+   declared here rather than as @theme values on purpose: `--text-*` in @theme
+   also rewrites the DEFAULT `text-xs`/`text-sm` sizes, which would silently
+   resize every stock utility in the app — a redesign disguised as a token.
+
+   These exist so the 355 `text-[Npx]` call sites can name a step instead of a
+   pixel value. They deliberately preserve the LEGIBILITY FLOOR the previous
+   session established: that clamp raised every 8-11px class to 11px, and to
+   12px when the element was not an uppercase label, because 8-10px is unreadable
+   on a field tablet. A migration that swapped `text-[8px]` for a 10px step would
+   have quietly undone it — so the floor lives on, now as the two steps’ VALUES:
+   11px is the smallest thing the app can say, 12px is everything else. */
+.text-3xs {
+  font-size: var(--text-3xs);
+  line-height: 1rem;
+}
+
+.text-2xs {
+  font-size: var(--text-2xs);
+  line-height: 1.1rem;
+}
+
+/* ─── Accent surfaces, driven by custom properties ───────────────────────────
+   The accent has to be able to change colour at RUNTIME: the school's logo
+   decides it (src/lib/brandAccent.ts). Tailwind cannot help there, and it fails
+   silently — a class assembled in JS (`bg-[` + colour + `]`) is never found by
+   the scanner, so it ships no CSS at all and the button simply has no
+   background. These utilities are literal strings in THIS file, so they always
+   ship; the colour arrives through the variables useTheme writes on the root.
+
+   Without a logo the variables hold the theme accent (written per theme by the
+   same effect), so the theme behaves exactly as before; with one, the brand
+   takes over the primary surface, the focus ring and the soft chips. */
+.accent-surface {
+  background-color: var(--accent-primary);
+}
+
+.accent-surface-text {
+  color: var(--accent-ink, #FFFFFF);
+}
+
+.accent-surface-hover:hover {
+  background-color: var(--accent-primary-hover);
+}
+
+/* A card's affordance becomes a solid accent when its `.group` is hovered.
+   Use the primary (not its darker hover stop), like group-hover:bg-blue-600.
+   Pair the ink here too: white would be unreadable on the midnight amber.
+   `:focus-visible` is included so a keyboard-focused `.group` (the Productivité
+   resize handle) reads the same solid accent as a hover, with no extra colour
+   class. */
+.group:is(:hover, :focus-visible) .accent-group-hover {
+  background-color: var(--accent-primary);
+  color: var(--accent-ink, #FFFFFF);
+}
+
+.accent-shadow {
+  box-shadow: 0 10px 15px -3px var(--accent-primary-shadow), 0 4px 6px -4px var(--accent-primary-shadow);
+}
+
+.accent-soft-surface {
+  background-color: var(--accent-primary-muted);
+}
+
+.accent-soft-text {
+  color: var(--accent-soft-ink, var(--accent-primary));
+}
+
+.accent-soft-hover:hover {
+  background-color: var(--accent-primary-muted-hover);
+}
+
+/* Accent ink that appears on HOVER — a quiet control (dismiss button, inline
+   link) that is neutral at rest and lights up to the accent when hovered. Same
+   ink as `.accent-soft-text`, so it stays readable on a dark theme (lightened
+   accent) and on a light one (deepened accent). */
+.accent-soft-text-hover:hover {
+  color: var(--accent-soft-ink, var(--accent-primary));
+}
+
+/* The sidebar rail is dark in every theme, so its quiet accent chip needs the
+   LIFTED ink even on a light theme — the deep stop would be unreadable there. */
+.accent-on-dark-text {
+  color: var(--accent-soft-ink-lifted, var(--accent-primary));
+}
+
+.accent-ring:focus {
+  box-shadow: 0 0 0 3px var(--accent-primary-muted);
+  outline: none;
+}
+
+/* Accent border, for tinted chips and role pills. Kept apart from `.accent-ring`
+   because a border and a focus ring answer different questions: the ring marks
+   the focused element, the border marks WHICH accent family a card belongs to. */
+.accent-border {
+  border-color: var(--accent-primary-border);
+}
+
+/* Solid accent border on hover — the logo dropzone asks "drop here" when the
+   pointer is over it, and a soft hairline is too quiet to say that. */
+.accent-border-hover:hover {
+  border-color: var(--accent-primary);
+}
+
+/* A table header is a row of short labels. Left to wrap freely, a long one
+   ("STATUT / DATE D'ÉCHÉANCE") becomes a three-line stack that stretches the
+   row and makes the cards uneven. Keep each label on one line; the tables are
+   already wrapped in `overflow-x-auto`, so the width goes to horizontal
+   scroll rather than to broken layout. */
+table thead th {
+  white-space: nowrap;
+}
+
+/* ─── Table density (R11) ──────────────────────────────────────────────────
+   `density-compact` is set on the app-shell root when the user picks the
+   compact table density (Réglages → Préférences). It tightens the vertical
+   padding of table cells ONLY — the rest of the layout is untouched. The
+   selector out-specifies the per-cell Tailwind `py-*` utilities (0,1,2 vs
+   0,1,0), so no `!important` is needed. Comfort (default) adds no class.
+
+   Deux sélecteurs plutôt qu'un `:is(thead th, tbody td)` : le groupe faisait
+   compter quatre sélecteurs composés par chemin face au maximum de trois de
+   `selector-max-compound-selectors`, alors que `thead`/`tbody` n'ajoutaient rien
+   que `th`/`td` ne disent déjà. Et `padding-bottom` passe avant `padding-top`
+   parce que `order/properties-alphabetical-order` lit l'ordre. */
+.density-compact table th,
+.density-compact table td {
+  padding-bottom: 0.5rem;
+  padding-top: 0.5rem;
+}
+
 /* ─── 2. Card & Surface System ─────────────────────────────────────────────── */
 
 .card-elevated {
@@ -119,6 +301,16 @@ h1, h2, h3,
   background: var(--surface-inset);
   border: 1px solid rgba(15, 23, 42, 0.04);
   border-radius: var(--radius-md);
+}
+
+/* Background-only twin of `.card-inset`: the theme's neutral inset surface, for
+   fields, avatars, chips and panel headers that must sit apart from their card
+   WITHOUT carrying their own border or radius. It replaces the old
+   `isDark ? 'bg-emerald-900/10' : 'bg-slate-50'` pairing, whose dark branch
+   painted a NEUTRAL field green — and green is the semantic colour for PAID
+   here, so a green input or avatar read as a state it did not carry. */
+.surface-inset {
+  background-color: var(--surface-inset);
 }
 
 .card-stat {
@@ -150,6 +342,15 @@ h1, h2, h3,
 
 .card-stat:hover::before {
   opacity: 1;
+}
+
+/* The stat value is a currency figure: it must read as one unit, so it never
+   wraps (the amount would split), and it sizes down on narrower viewports
+   instead of spilling past the card edge — the longest real total,
+   "16 069 979 FCFA", has to fit at every width. */
+.card-stat h3 {
+  font-size: clamp(1.125rem, 1.5vw, 1.5rem);
+  white-space: nowrap;
 }
 
 /* Hero stat card — the primary metric */

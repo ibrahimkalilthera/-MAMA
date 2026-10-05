@@ -13,17 +13,34 @@
  *   1. ANY production/runtime dependency has a known vulnerability
  *      (`npm audit --omit=dev` non-empty) — nothing vulnerable may ship.
  *   2. The total vulnerability count exceeds the documented baseline
- *      (DEV_BASELINE = 0) — i.e. a brand-new vulnerability appears anywhere
- *      in the tree.
+ *      (DEV_BASELINE = 7) — i.e. a brand-new vulnerability appears anywhere
+ *      in the tree, beyond the documented dev-only set (see below).
  *   3. (CI only) the registry is unreachable and the audit cannot run —
  *      an unverifiable dependency tree must not pass silently.
  *
  * Originally DEV_BASELINE was 29 (exact, dev-only Vercel-CLI pins — tar,
  * undici, js-yaml, … — tracked upstream in vercel/vercel#11543). They left the
  * root lockfile entirely when the vercel CLI moved to the isolated tools/
- * manifest (deployed via GitHub Actions). The baseline is 0 now: any single
- * vulnerability fails the gate. Deliberately raising it requires updating
- * DEV_BASELINE here *and* DEVELOPMENT_HISTORY.md.
+ * manifest (deployed via GitHub Actions); the baseline went back to 0, and any
+ * single vulnerability then failed the gate.
+ *
+ * ─── Pourquoi 7, et pourquoi ce n'est pas un abandon (2026-10-05) ──────────
+ *
+ * Sept avis dev-only sont apparus dans la chaîne de `stylelint` (`globby` →
+ * `fast-glob` → `micromatch` → `braces`) et AUCUN correctif n'existe en amont :
+ * `braces@3.0.3`, `micromatch@4.0.8` et `fast-glob@3.3.3` sont les DERNIÈRES
+ * versions publiées, et l'avis couvre `braces <= 3.0.3`. Un `overrides` ne peut
+ * pas viser une version qui n'existe pas, et le « correctif » que npm propose
+ * est un DOWNGRADE (stylelint 7.7.0) qui casserait la chaîne CSS. Le gate de
+ * PRODUCTION, lui, n'a pas bougé : il reste à ZÉRO vulnérabilité runtime —
+ * c'est lui qui protège ce qui est livré — et c'est ce premier volet que
+ * `npm audit fix` a payé ici (`dompurify` 3.4.14 → 3.4.16, en plage, sans
+ * `--force`).
+ *
+ * Relever cette base est un acte délibéré, daté et chiffré, jamais un silence :
+ * il exige de mettre à jour DEV_BASELINE ici *et* DEVELOPMENT_HISTORY.md. À
+ * rabaisser dès que l'amont publie un correctif — le gate annonce de lui-même,
+ * dans son verdict vert, combien de vulnérabilités ont été corrigées depuis.
  *
  * Cache (AUDIT_CACHE=1): `node_modules/.cache/audit-gate.json`, keyed on the
  * sha256 of package-lock.json, valid for AUDIT_CACHE_TTL_HOURS (default 24).
@@ -35,7 +52,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 
-const DEV_BASELINE = 0;
+const DEV_BASELINE = 7;
 const CACHED = process.env.AUDIT_CACHE === '1';
 const SOFT_OFFLINE = process.env.AUDIT_SOFT_OFFLINE === '1';
 const FORCE_REFRESH = process.env.AUDIT_CACHE_REFRESH === '1';

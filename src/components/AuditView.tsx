@@ -126,7 +126,7 @@ export function AuditView() {
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
                     aria-label={t.auditFilterAllRoles}
-                    className={`appearance-none cursor-pointer pl-4 pr-10 py-2.5 ${currentTheme.card} border ${currentTheme.border} rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    className={`appearance-none cursor-pointer pl-4 pr-10 py-2.5 ${currentTheme.card} border ${currentTheme.border} rounded-xl focus:outline-none ${currentTheme.accentRing} transition-all text-xs font-bold ${currentTheme.inkStrong}`}
                   >
                     <option value="all">{t.auditFilterAllRoles}</option>
                     {roles.map((role) => (
@@ -140,7 +140,7 @@ export function AuditView() {
                     value={actionFilter}
                     onChange={(e) => setActionFilter(e.target.value)}
                     aria-label={t.auditFilterAction}
-                    className={`appearance-none cursor-pointer pl-4 pr-10 py-2.5 ${currentTheme.card} border ${currentTheme.border} rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-xs font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    className={`appearance-none cursor-pointer pl-4 pr-10 py-2.5 ${currentTheme.card} border ${currentTheme.border} rounded-xl focus:outline-none ${currentTheme.accentRing} transition-all text-xs font-bold ${currentTheme.inkStrong}`}
                   >
                     <option value="all">{t.auditFilterAllActions}</option>
                     <option value="ADD">{t.auditFilterGroupAdd}</option>
@@ -151,23 +151,23 @@ export function AuditView() {
                   <ChevronDown size={14} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${currentTheme.muted}`} />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-black uppercase tracking-wider ${currentTheme.muted}`}>{t.auditFilterFrom}</span>
+                  <span className={`text-2xs font-black uppercase tracking-wider ${currentTheme.muted}`}>{t.auditFilterFrom}</span>
                   <input
                     type="date"
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
                     aria-label={t.auditFilterFrom}
-                    className={`${currentTheme.card} border ${currentTheme.border} rounded-xl px-3 py-2 text-xs font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all`}
+                    className={`${currentTheme.card} border ${currentTheme.border} rounded-xl px-3 py-2 text-xs font-bold ${currentTheme.inkStrong} focus:outline-none ${currentTheme.accentRing} transition-all`}
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-black uppercase tracking-wider ${currentTheme.muted}`}>{t.auditFilterTo}</span>
+                  <span className={`text-2xs font-black uppercase tracking-wider ${currentTheme.muted}`}>{t.auditFilterTo}</span>
                   <input
                     type="date"
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
                     aria-label={t.auditFilterTo}
-                    className={`${currentTheme.card} border ${currentTheme.border} rounded-xl px-3 py-2 text-xs font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all`}
+                    className={`${currentTheme.card} border ${currentTheme.border} rounded-xl px-3 py-2 text-xs font-bold ${currentTheme.inkStrong} focus:outline-none ${currentTheme.accentRing} transition-all`}
                   />
                 </div>
                 <button
@@ -195,16 +195,16 @@ export function AuditView() {
                   <span>{t.auditFilterGroupIncidents}</span>
                 </button>
               </div>
-              <span className={`text-[10px] font-bold uppercase tracking-wider ${currentTheme.muted}`}>
+              <span className={`text-2xs font-bold uppercase tracking-wider ${currentTheme.muted}`}>
                 {t.auditFilterCount.replace('{shown}', String(viewRows.length)).replace('{total}', String(auditLogs.length))}
               </span>
             </div>
 
             <div className={`${currentTheme.card} border ${currentTheme.border} rounded-2xl overflow-hidden shadow-sm`}>
-              <div className="overflow-x-auto">
+              <div className="max-h-[70vh] overflow-auto">
                 <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className={`${currentTheme.isDark ? 'bg-emerald-900/20' : 'bg-slate-50/50'} ${currentTheme.muted} text-[10px] font-black uppercase tracking-[0.2em]`}>
+                  <thead className="sticky top-0 z-10">
+                    <tr className={`${currentTheme.surfaceInset} ${currentTheme.muted} text-2xs font-black uppercase tracking-[0.2em]`}>
                       <th className="px-6 py-4">{t.timestamp}</th>
                       <th className="px-6 py-4">{t.staffUser}</th>
                       <th className="px-6 py-4">{t.actions}</th>
@@ -226,7 +226,7 @@ export function AuditView() {
                                 <div className="flex flex-col gap-1">
                                   <span className={`text-xs font-mono ${currentTheme.muted}`}>{fmt(incident.lastAt)}</span>
                                   {incident.firstAt !== incident.lastAt && (
-                                    <span className={`text-[10px] ${currentTheme.muted}`}>
+                                    <span className={`text-2xs ${currentTheme.muted}`}>
                                       {t.auditIncidentSpan.replace('{from}', fmt(incident.firstAt)).replace('{to}', fmt(incident.lastAt))}
                                     </span>
                                   )}
@@ -235,7 +235,7 @@ export function AuditView() {
                               <td className="px-6 py-4 whitespace-nowrap align-top">
                                 <div className="flex flex-col">
                                   <span className={`text-lg font-black ${currentTheme.text}`}>{incident.stations.length}</span>
-                                  <span className={`text-[10px] font-bold uppercase tracking-wider ${currentTheme.muted}`}>
+                                  <span className={`text-2xs font-bold uppercase tracking-wider ${currentTheme.muted}`}>
                                     {t.auditIncidentStations}
                                   </span>
                                 </div>
@@ -250,7 +250,7 @@ export function AuditView() {
                                   >
                                     {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                   </button>
-                                  <span className="text-[10px] font-black tracking-wider uppercase px-2.5 py-1 rounded-full border bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20">
+                                  <span className="text-2xs font-black tracking-wider uppercase px-2.5 py-1 rounded-full border bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20">
                                     {t.auditIncidentAction.replace('{code}', auditActionLabel(incident.code, t))}
                                   </span>
                                 </div>
@@ -265,26 +265,26 @@ export function AuditView() {
                                     {shown.map((station) => (
                                       <span
                                         key={station}
-                                        className={`text-[10px] font-mono px-2 py-0.5 rounded-md border ${currentTheme.border} ${currentTheme.muted}`}
+                                        className={`text-2xs font-mono px-2 py-0.5 rounded-md border ${currentTheme.border} ${currentTheme.muted}`}
                                       >
                                         {station}
                                       </span>
                                     ))}
                                     {others > 0 && (
-                                      <span className={`text-[10px] font-bold ${currentTheme.muted}`}>
+                                      <span className={`text-2xs font-bold ${currentTheme.muted}`}>
                                         {t.auditIncidentMore.replace('{count}', String(others))}
                                       </span>
                                     )}
                                   </div>
-                                  <span className={`text-[10px] ${currentTheme.muted}`}>
+                                  <span className={`text-2xs ${currentTheme.muted}`}>
                                     {t.auditIncidentOccurrences.replace('{count}', String(incident.occurrences))}
                                   </span>
                                   {open && (
                                     <div className={`mt-1 flex flex-col gap-1 border-l-2 pl-3 ${currentTheme.border}`}>
                                       {incident.reports.map((log) => (
                                         <div key={log.id} className="flex flex-col">
-                                          <span className={`text-[10px] font-mono ${currentTheme.muted}`}>{fmt(log.createdAt)}</span>
-                                          <span className={`text-[11px] ${currentTheme.text}`}>{localizeAuditDetails(log.details, lang) || '—'}</span>
+                                          <span className={`text-2xs font-mono ${currentTheme.muted}`}>{fmt(log.createdAt)}</span>
+                                          <span className={`text-2xs ${currentTheme.text}`}>{localizeAuditDetails(log.details, lang) || '—'}</span>
                                         </div>
                                       ))}
                                     </div>
@@ -304,12 +304,12 @@ export function AuditView() {
                         const isDelete = log.action.includes('DELETE');
 
                         const badgeColor = isPayment
-                          ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                          ? `${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentBorder}`
                           : isExpense
                           ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
                           : isDelete
                           ? 'bg-rose-500/10 text-rose-600 border-rose-500/20'
-                          : 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+                          : 'bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20';
 
                         return (
                           <tr key={log.id} className={`${currentTheme.rowHover} ${offline ? 'bg-rose-500/5' : ''} transition-all`}>
@@ -318,7 +318,7 @@ export function AuditView() {
                                 {fmt(log.createdAt)}
                               </span>
                               {offline && (
-                                <span className="ml-2 text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full border bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20">
+                                <span className="ml-2 text-2xs font-black tracking-wider uppercase px-2 py-0.5 rounded-full border bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20">
                                   {t.auditOfflineBadge}
                                 </span>
                               )}
@@ -326,17 +326,17 @@ export function AuditView() {
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex flex-col">
                                 <span className={`text-xs font-bold ${currentTheme.text}`}>{log.userName || t.roleStaff}</span>
-                                <span className="text-[10px] text-slate-400 font-mono">{log.userEmail}</span>
+                                <span className="text-2xs text-slate-400 font-mono">{log.userEmail}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`text-[10px] font-black tracking-wider uppercase px-2.5 py-1 rounded-full border ${badgeColor}`}>
+                              <span className={`text-2xs font-black tracking-wider uppercase px-2.5 py-1 rounded-full border ${badgeColor}`}>
                                 {auditActionLabel(log.action, t)}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               {(log.details || '').includes('[replay]') ? (
-                                <span className="text-[10px] font-black tracking-wider uppercase px-2.5 py-1 rounded-full border bg-violet-500/10 text-violet-600 dark:text-violet-300 border-violet-500/20">
+                                <span className="text-2xs font-black tracking-wider uppercase px-2.5 py-1 rounded-full border bg-violet-500/10 text-violet-600 dark:text-violet-300 border-violet-500/20">
                                   [replay]
                                 </span>
                               ) : (
@@ -346,7 +346,7 @@ export function AuditView() {
                             <td className="px-6 py-4">
                               <span className={`text-xs font-medium ${offline ? 'text-rose-600 dark:text-rose-300' : currentTheme.text}`}>{localizeAuditDetails(log.details, lang) || '—'}</span>
                               {offline && (
-                                <span className="block text-[10px] font-bold text-rose-600 dark:text-rose-300">
+                                <span className="block text-2xs font-bold text-rose-600 dark:text-rose-300">
                                   {offlineOriginNote(offline, fmt, { captured: t.auditOfflineRowCaptured, synced: t.auditOfflineRowSynced })}
                                 </span>
                               )}

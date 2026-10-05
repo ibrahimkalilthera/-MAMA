@@ -17,23 +17,21 @@
 //
 // ─── Ce que les passes ajoutent, et pourquoi une seule ne suffisait pas ──────
 //
-// `updater-policy.cjs` rend l'installation OBLIGATOIRE pour TROIS raisons
-// distinctes (une majeure de retard, deux mineures, ou une publication vieille
-// de 45 jours toujours pas installée), et une passe unique ne peut en prouver
-// qu'une : le script ne savait montrer que « majeure de retard ⇒ obligatoire »,
-// à la main, avec `UPDATER_FAKE_VERSION`. Or la règle qui attrape le cas réel
-// des postes d'école est la DATE — une « petite » version publiée un jour où
-// personne n'était devant le poste — et elle ne se prouve qu'en servant une date
-// ancienne avec une version de la même majeure. D'où quatre passes, par défaut,
-// chacune isolant UNE règle :
+// `updater-policy.cjs` rend l'installation OBLIGATOIRE dès qu'un poste est en
+// retard d'UNE SEULE version — majeure, mineure ou simple correctif — et une
+// passe unique ne peut en prouver qu'une : le script ne savait montrer que
+// « majeure de retard ⇒ obligatoire », à la main, avec `UPDATER_FAKE_VERSION`.
+// Le cas réel des postes d'école est le plus PETIT des trois — un correctif
+// publié un jour où personne n'était devant le poste — et il se prouve en
+// annonçant le correctif suivant. D'où six passes, par défaut, chacune isolant
+// UNE règle :
 //
-//   patch  même majeure, correctif récent      → NE DOIT PAS être obligatoire
-//   age    même majeure, publié il y a > 45 j  → obligatoire, motif « toujours
-//                                                pas installée »
-//   minor  deux mineures de retard             → obligatoire, motif « mineure(s) »
-//   major  une majeure de retard               → obligatoire, motif « majeure(s) »
+//   patch  un correctif de retard             → obligatoire, motif « correctif(s)
+//                                                de retard »
+//   minor  une mineure de retard              → obligatoire, motif « mineure(s) »
+//   major  une majeure de retard              → obligatoire, motif « majeure(s) »
 //   hold   version RETENUE qui serait sinon obligatoire (même version et même
-//          date que « age », avec une ligne de retenue dans le frein)
+//          date que « patch », avec une ligne de retenue dans le frein)
 //                                              → AUCUNE obligation, et
 //                                                `update-retenue <v>` au journal
 //   blocked version OBLIGATOIRE dont le téléchargement ÉCHOUE (l'installeur
@@ -75,12 +73,12 @@
 //
 // L'assertion ne porte pas seulement sur « OBLIGATOIRE oui/non » mais sur le
 // MOTIF annoncé : sans ça, une règle qui forcerait tout le temps passerait pour
-// verte dans les trois passes obligatoires. Les seuils (45 jours, 2 mineures,
+// verte dans les passes obligatoires. Les seuils (1 correctif, 1 mineure,
 // 1 majeure) sont LUS dans `electron/updater-policy.cjs` — jamais recopiés ici,
 // sinon la preuve suivrait une valeur que le code a quittée.
 //
-// `UPDATER_PASSES=age,major` restreint le run (mise au point) ; sans variable,
-// les sept passes tournent.
+// `UPDATER_PASSES=patch,major` restreint le run (mise au point) ; sans variable,
+// les six passes tournent.
 //
 // Exit 0 + PROOF_OK = l'exe empaqueté vérifie, trouve, télécharge et valide une
 // mise à jour, et annonce l'obligation EXACTEMENT quand la politique la décide,
@@ -101,7 +99,7 @@ const require = createRequire(import.meta.url);
 const {
   FORCED_MAJOR_BEHIND,
   FORCED_MINOR_BEHIND,
-  FORCED_RELEASE_AGE_DAYS,
+  FORCED_PATCH_BEHIND,
 } = require('../electron/updater-policy.cjs');
 // Le journal local est lu par le MODULE qui l'écrit dans l'application : une
 // preuve qui reparserait le fichier à sa façon prouverait son propre parseur.
@@ -144,19 +142,11 @@ const ageDate = (days) => new Date(Date.now() - days * 86400000).toISOString();
 const SCENARIOS = LOCAL ? [
   {
     id: 'patch',
-    title: `même majeure, correctif récent (${LOCAL.major}.${LOCAL.minor}.${LOCAL.patch + 1})`,
+    title: `${FORCED_PATCH_BEHIND} correctif de retard (${LOCAL.major}.${LOCAL.minor}.${LOCAL.patch + 1})`,
     version: `${LOCAL.major}.${LOCAL.minor}.${LOCAL.patch + 1}`,
     releaseDate: ageDate(0),
-    forced: false,
-    detail: 'aucune règle ne doit s’appliquer',
-  },
-  {
-    id: 'age',
-    title: `correctif publié il y a ${FORCED_RELEASE_AGE_DAYS + 1} jours`,
-    version: `${LOCAL.major}.${LOCAL.minor}.${LOCAL.patch + 1}`,
-    releaseDate: ageDate(FORCED_RELEASE_AGE_DAYS + 1),
     forced: true,
-    because: 'jour(s), toujours pas installée',
+    because: 'correctif(s) de retard',
   },
   {
     id: 'minor',
@@ -168,12 +158,12 @@ const SCENARIOS = LOCAL ? [
   },
   {
     id: 'hold',
-    title: `version RETENUE qui serait obligatoire (${LOCAL.major}.${LOCAL.minor}.${LOCAL.patch + 1}, publiée il y a ${FORCED_RELEASE_AGE_DAYS + 1} jours)`,
+    title: `version RETENUE qui serait obligatoire (${LOCAL.major}.${LOCAL.minor}.${LOCAL.patch + 1}, un correctif de retard)`,
     version: `${LOCAL.major}.${LOCAL.minor}.${LOCAL.patch + 1}`,
-    releaseDate: ageDate(FORCED_RELEASE_AGE_DAYS + 1),
-    // Même version et même date que la passe « age » — qui force. La SEULE
-    // différence est la ligne de retenue : si l'obligation tombe quand même, le
-    // frein a échoué, et c'est la seule chose que cette passe mesure.
+    releaseDate: ageDate(0),
+    // Même version que la passe « patch » — qui force. La SEULE différence est la
+    // ligne de retenue : si l'obligation tombe quand même, le frein a échoué, et
+    // c'est la seule chose que cette passe mesure.
     held: true,
     forced: false,
     chainRequired: false,
@@ -502,7 +492,7 @@ async function runScenario(scenario) {
   } else {
     console.log(reasonRight
       ? `✅ l'exe empaqueté n'impose RIEN — ${scenario.detail}`
-      : `❌ obligation annoncée pour un correctif récent : ${announced}`);
+      : `❌ obligation annoncée alors qu'aucune règle de retard ne devait s'appliquer : ${announced}`);
   }
   if (chainRequired) {
     console.log(`${chain ? '✅' : '❌'} chaîne ${chain ? 'complète' : 'incomplète'} pour ${scenario.version} (checking → available → progress → downloaded)`);

@@ -38,6 +38,18 @@ describe('Sidebar — le badge d’archive sur Réglages', () => {
       root.render(createElement(Sidebar, {
         t,
         schoolLogo: null,
+        currentTheme: {
+          bg: 'bg-slate-100', card: 'bg-white', text: 'text-slate-900', muted: 'text-slate-500',
+          border: 'border-slate-200', header: '#0F172A', sidebar: 'bg-slate-800',
+          accent: 'text-blue-600', accentBg: 'bg-blue-600', accentText: 'text-white',
+          accentHover: 'hover:bg-blue-700', accentGroupHover: 'accent-group-hover', accentShadow: 'shadow-blue-500/20',
+          accentSoft: 'bg-blue-50', accentSoftText: 'text-blue-600', accentSoftHover: 'hover:bg-blue-100', accentSoftTextHover: 'hover:text-blue-700',
+          accentHex: '#2563EB', accentHexDeep: '#1D4ED8', accentRing: 'focus:ring-blue-500/20', inkStrong: 'text-slate-800', accentBorder: 'border-slate-300', accentBorderHover: 'hover:border-slate-400',
+          surfaceInset: 'bg-slate-50',
+          accentSoftDark: 'bg-blue-500/15', accentSoftDarkHover: 'hover:bg-blue-500/25',
+          accentSoftDarkText: 'text-blue-300',
+          tableHeader: 'bg-slate-50', rowHover: 'hover:bg-slate-50', input: 'bg-white', isDark: false,
+        },
         activeTab: 'dashboard',
         setActiveTab: () => {},
         payrollWindowStatus: windowStatus(),

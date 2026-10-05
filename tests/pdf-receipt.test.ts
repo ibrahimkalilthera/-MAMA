@@ -93,6 +93,31 @@ describe('buildParentReceiptPdf — the school paper form with the payment overl
     assert.equal(reparsed.getPageCount(), 1, 'single page after the round-trip');
   });
 
+  for (const lang of ['fr', 'en'] as const) {
+    it(`prints the selected student's full name instead of the parent's name (${lang})`, async () => {
+      const name = 'Aïssata Mariam Fatoumata Aminata Coulibaly Traoré Diallo';
+      const { bytes } = await buildParentReceiptPdf(options({
+        lang,
+        student: { ...baseStudent, name, parentName: 'Parent à ne pas imprimer' },
+      }));
+      const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+      const doc = await loadingTask.promise;
+      try {
+        const page = await doc.getPage(1);
+        const content = await page.getTextContent();
+        const items = content.items.filter((item): item is Extract<typeof item, { str: string }> => 'str' in item);
+        assert.ok(items.some((item) => item.str === name), 'full student name preserved in the actual PDF');
+        assert.ok(!items.some((item) => item.str.includes('Parent à ne pas imprimer')), 'parent name never replaces the student');
+        const nameItem = items.find((item) => item.str === name)!;
+        const media = (await PDFDocument.load(bytes)).getPage(0).getMediaBox();
+        assert.ok(nameItem.transform[4] + nameItem.width <= media.x + 191 * 72 / 25.4 + 0.1, 'full name fits on the printed line');
+        assert.ok(items.some((item) => item.str === baseStudent.parentPhone), 'parent phone retained');
+      } finally {
+        await loadingTask.destroy();
+      }
+    });
+  }
+
   it('falls back to a generated REC-###### number in the file name when the payment has none', async () => {
     const { filename } = await buildParentReceiptPdf(
       options({ payment: { date: '2026-09-02', amount: 25000 } }),

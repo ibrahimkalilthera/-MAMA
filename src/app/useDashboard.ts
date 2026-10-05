@@ -4,19 +4,22 @@
  * Owns the seven derived memos that feed the dashboard KPIs, the charts and
  * the payroll window alerts: `stats`, `notifications`, `lateStudents`,
  * `chartData`, `pieData`, `missedMonths` and `payrollWindowStatus`. All deps
- * (data + `today`/`currentMonth` + `selectedYear` + `t`) are injected as
- * arguments; the hook is pure derivation — no state, no side effects.
+ * (data + `today` + `selectedYear` + `t`) are injected as arguments; the hook
+ * is pure derivation — no state, no side effects. The "this month" KPIs read
+ * BOTH the month and the year from the same clock (`now`): mixing the injected
+ * `currentMonth` with the clock's year let the two drift apart, which is why
+ * the month is no longer an injected arg.
  * `filteredStudents` (the students-list filter/sort) intentionally stays in
  * App.tsx: it is list-view state, not dashboard derivation.
  *
- * Call-site note: App.tsx calls this hook after `today`/`currentMonth` are
- * declared and before `useFloatingChat` (which consumes `stats`).
+ * Call-site note: App.tsx calls this hook after `today` is declared and before
+ * `useFloatingChat` (which consumes `stats`).
  */
 import { useMemo } from 'react';
 import type { Student, Staff, Expense, VendorExpense, SalaryPayment } from './types';
 import type { DashboardStats, PayrollWindowStatus } from './mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
-import { inAcademicYear } from '../lib/dateWindows';
+import { inAcademicYear, systemClock, type Clock } from '../lib/dateWindows';
 import { isPayrollWindowOpen, isPayrollWindowOverdue } from '../lib/payrollWindow';
 
 export interface DashboardNotification {
@@ -35,17 +38,22 @@ const MONTH_KEYS: (keyof TranslationDict)[] = ['jan', 'feb', 'mar', 'apr', 'may'
 export interface UseDashboardDeps {
   t: TranslationDict;
   today: string;
-  currentMonth: number;
   selectedYear: string | null;
   students: Student[];
   staff: Staff[];
   expenses: Expense[];
   vendorExpenses: VendorExpense[];
   salaryPayments: SalaryPayment[];
+  /**
+   * Reference clock for the monthly KPIs. Defaults to `systemClock`; a test
+   * pins it (e.g. `() => new Date(2026, 8, 2)`) so "this month" is decided by
+   * the injected date rather than the wall clock.
+   */
+  now?: Clock;
 }
 
 export function useDashboard(deps: UseDashboardDeps) {
-  const { t, today, currentMonth, selectedYear, students, staff, expenses, vendorExpenses, salaryPayments } = deps;
+  const { t, today, selectedYear, students, staff, expenses, vendorExpenses, salaryPayments, now: nowFn = systemClock } = deps;
 
   const stats = useMemo<DashboardStats>(() => {
     const filteredStudents = students.filter(s => !selectedYear || s.academicYear === selectedYear || !s.academicYear);
@@ -74,11 +82,15 @@ export function useDashboard(deps: UseDashboardDeps) {
                           filteredSalaryPayments.reduce((acc, s) => acc + s.amount, 0) +
                           totalVendorExpensesPaid;
 
-    const now = new Date();
+    // One clock for every "this month" KPI below: month AND year are read from
+    // the SAME reference date, so a month that disagrees with the year can no
+    // longer leak the previous month's figures into the current-month totals —
+    // and an injected clock makes the whole block deterministic in test.
+    const now = nowFn();
 
     const totalArrears = staff.reduce((acc, s) => {
       const paidThisMonth = filteredSalaryPayments
-        .filter(p => p.staffId === s.id && new Date(p.date).getMonth() === currentMonth && new Date(p.date).getFullYear() === now.getFullYear())
+        .filter(p => p.staffId === s.id && new Date(p.date).getMonth() === now.getMonth() && new Date(p.date).getFullYear() === now.getFullYear())
         .reduce((sum, p) => sum + p.amount, 0);
       return acc + Math.max(0, s.salary - paidThisMonth);
     }, 0);
@@ -87,13 +99,13 @@ export function useDashboard(deps: UseDashboardDeps) {
       const thisMonthPayments = s.payments.filter(p => {
         const payDate = new Date(p.date);
         // Filter by both month AND year so previous years' payments don't leak into this month's KPIs
-        return payDate.getMonth() === currentMonth && payDate.getFullYear() === now.getFullYear();
+        return payDate.getMonth() === now.getMonth() && payDate.getFullYear() === now.getFullYear();
       });
       return acc + thisMonthPayments.reduce((sum, p) => sum + p.amount, 0);
     }, 0);
 
-    const prevMonth = (currentMonth + 11) % 12;
-    const prevMonthYear = currentMonth === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const prevMonth = (now.getMonth() + 11) % 12;
+    const prevMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
 
     const prevMonthCollected = filteredStudents.reduce((acc, s) => {
       const prevMonthPayments = s.payments.filter(p => {
@@ -111,7 +123,7 @@ export function useDashboard(deps: UseDashboardDeps) {
 
     const vendorExpensesThisMonth = filteredVendorExpenses.reduce((acc, v) => {
       const dueDateObj = new Date(v.dueDate);
-      if (dueDateObj.getMonth() === currentMonth && dueDateObj.getFullYear() === now.getFullYear()) {
+      if (dueDateObj.getMonth() === now.getMonth() && dueDateObj.getFullYear() === now.getFullYear()) {
         if (v.paymentStatus === 'paid') {
           return acc + v.amount;
         } else if (v.paymentStatus === 'partial') {
@@ -123,10 +135,10 @@ export function useDashboard(deps: UseDashboardDeps) {
 
     const expensesThisMonth = filteredExpenses.reduce((acc, e) => {
       const expDate = new Date(e.date);
-      return expDate.getMonth() === currentMonth && expDate.getFullYear() === now.getFullYear() ? acc + e.amount : acc;
+      return expDate.getMonth() === now.getMonth() && expDate.getFullYear() === now.getFullYear() ? acc + e.amount : acc;
     }, 0) + filteredSalaryPayments.reduce((acc, s) => {
       const salDate = new Date(s.date);
-      return salDate.getMonth() === currentMonth && salDate.getFullYear() === now.getFullYear() ? acc + s.amount : acc;
+      return salDate.getMonth() === now.getMonth() && salDate.getFullYear() === now.getFullYear() ? acc + s.amount : acc;
     }, 0) + vendorExpensesThisMonth;
 
     const enrolledStudentsCount = filteredStudents.length;
@@ -144,7 +156,7 @@ export function useDashboard(deps: UseDashboardDeps) {
       expensesThisMonth,
       enrolledStudentsCount
     };
-  }, [students, today, currentMonth, expenses, vendorExpenses, salaryPayments, staff, selectedYear]);
+  }, [students, today, expenses, vendorExpenses, salaryPayments, staff, selectedYear, nowFn]);
 
   const lateStudents = useMemo<Student[]>(() => {
     return students.filter(s => {
@@ -202,8 +214,9 @@ export function useDashboard(deps: UseDashboardDeps) {
     // If no staff members exist yet, do not trigger false missed-payroll warnings
     if (staff.length === 0) return [];
 
-    const currentCalendarYear = new Date().getFullYear();
-    const currentCalendarMonth = new Date().getMonth();
+    const now = nowFn();
+    const currentCalendarYear = now.getFullYear();
+    const currentCalendarMonth = now.getMonth();
     // The school year starts in September. Months before September belong to
     // the previous school year — they are never flagged (the app launched in
     // September 2026; pre-launch months do not count).
@@ -225,7 +238,7 @@ export function useDashboard(deps: UseDashboardDeps) {
       }
     }
     return missed;
-  }, [salaryPayments, staff.length, selectedYear]);
+  }, [salaryPayments, staff.length, selectedYear, nowFn]);
 
   const notifications = useMemo<DashboardNotification[]>(() => {
     const list: DashboardNotification[] = [];
@@ -287,9 +300,10 @@ export function useDashboard(deps: UseDashboardDeps) {
   }, [students, today, t, selectedYear, missedMonths]);
 
   const payrollWindowStatus = useMemo<PayrollWindowStatus>(() => {
-    const currentDay = new Date().getDate();
-    const currentCalendarYear = new Date().getFullYear();
-    const currentCalendarMonth = new Date().getMonth();
+    const now = nowFn();
+    const currentDay = now.getDate();
+    const currentCalendarYear = now.getFullYear();
+    const currentCalendarMonth = now.getMonth();
 
     // If no staff members exist yet, payroll window alerts are inactive
     if (staff.length === 0) {
@@ -322,7 +336,7 @@ export function useDashboard(deps: UseDashboardDeps) {
       isOverdue,
       isOpen
     };
-  }, [salaryPayments, staff.length, selectedYear]);
+  }, [salaryPayments, staff.length, selectedYear, nowFn]);
 
   return {
     stats,

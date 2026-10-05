@@ -7,10 +7,10 @@ export function ParentsView() {
   return (
           <div className="space-y-8">
             {/* Header & Search Bar */}
-            <div className={`p-8 rounded-[2rem] ${currentTheme.card} border ${currentTheme.border} shadow-xl shadow-slate-200/50 flex flex-col md:flex-row md:items-center justify-between gap-6`}>
+            <div className={`p-8 rounded-3xl ${currentTheme.card} border ${currentTheme.border} shadow-xl shadow-slate-200/50 flex flex-col md:flex-row md:items-center justify-between gap-6`}>
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-2xl ${currentTheme.isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>
+                  <div className={`p-3 rounded-2xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText}`}>
                     <Users size={24} />
                   </div>
                   <div>
@@ -33,7 +33,7 @@ export function ParentsView() {
                     value={parentSearchTerm}
                     onChange={(e) => setParentSearchTerm(e.target.value)}
                     placeholder={t.searchParentsPlaceholder}
-                    className={`w-full pl-11 pr-4 py-3 text-xs font-semibold rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'} focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all`}
+                    className={`w-full pl-11 pr-4 py-3 text-xs font-semibold rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'} focus:outline-none focus:ring-2 ${currentTheme.accentRing} transition-all`}
                   />
                   {parentSearchTerm && (
                     <button
@@ -62,7 +62,7 @@ export function ParentsView() {
                     });
                     setShowParentModal(true);
                   }}
-                  className="px-5 py-3 rounded-2xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2"
+                  className={`px-5 py-3 rounded-2xl ${currentTheme.accentBg} ${currentTheme.accentText} font-bold text-xs ${currentTheme.accentHover} shadow-lg ${currentTheme.accentShadow} transition-all flex items-center gap-2`}
                 >
                   <Plus size={16} />
                   <span>{t.addParent}</span>
@@ -86,7 +86,7 @@ export function ParentsView() {
                   hasMatchingChild;
               }).length === 0 ? (
                 parents.length === 0 ? (
-                  <div className={`p-12 text-center rounded-[2rem] ${currentTheme.card} border ${currentTheme.border} space-y-4`}>
+                  <div className={`p-12 text-center rounded-3xl ${currentTheme.card} border ${currentTheme.border} space-y-4`}>
                     <div className="mx-auto w-16 h-16 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center">
                       <Users size={24} className="text-slate-400" />
                     </div>
@@ -110,14 +110,14 @@ export function ParentsView() {
                         });
                         setShowParentModal(true);
                       }}
-                      className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition-all"
+                      className={`inline-flex items-center gap-2 px-5 py-3 rounded-2xl ${currentTheme.accentBg} ${currentTheme.accentText} font-bold text-xs ${currentTheme.accentHover} shadow-lg ${currentTheme.accentShadow} transition-all`}
                     >
                       <Plus size={16} />
                       <span>{t.addParent}</span>
                     </button>
                   </div>
                 ) : (
-                  <div className={`p-12 text-center rounded-[2rem] ${currentTheme.card} border ${currentTheme.border}`}>
+                  <div className={`p-12 text-center rounded-3xl ${currentTheme.card} border ${currentTheme.border}`}>
                     <Users size={32} className="mx-auto mb-4 text-slate-300" />
                     <p className={`text-sm font-bold ${currentTheme.muted}`}>
                       {t.noParentProfilesFoundMatchingYourSearch}
@@ -149,12 +149,12 @@ export function ParentsView() {
                       key={parent.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className={`${currentTheme.card} rounded-[2rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 overflow-hidden transition-all`}
+                      className={`${currentTheme.card} rounded-3xl border ${currentTheme.border} shadow-xl shadow-slate-200/50 overflow-hidden transition-all`}
                     >
                       {/* Main Card Header Bar */}
                       <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 cursor-pointer hover:bg-slate-500/5 transition-colors" onClick={() => setExpandedParentId(isExpanded ? null : parent.id)}>
                         <div className="flex items-center gap-4">
-                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black ${currentTheme.isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-slate-100 text-slate-700'}`}>
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black ${currentTheme.surfaceInset} ${currentTheme.inkStrong}`}>
                             {parent.fullName.charAt(0).toUpperCase()}
                           </div>
                           <div>
@@ -162,7 +162,7 @@ export function ParentsView() {
                               <h4 className={`text-lg font-black ${currentTheme.isDark ? 'text-white' : 'text-slate-900'}`}>
                                 <HighlightText text={parent.fullName} highlight={parentSearchTerm} />
                               </h4>
-                              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                              <span className="px-3 py-1 rounded-full text-2xs font-black uppercase tracking-wider bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                                 {t[parent.relationship.toLowerCase() as keyof typeof t] || parent.relationship}
                               </span>
                             </div>
@@ -183,16 +183,16 @@ export function ParentsView() {
                         <div className="flex items-center gap-4 flex-wrap justify-between lg:justify-end" onClick={(e) => e.stopPropagation()}>
                           {/* Children Count Pill */}
                           <div className="flex flex-col items-start lg:items-end">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.listOfChildren}</span>
+                            <span className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.listOfChildren}</span>
                             <span className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                              <Users size={14} className="text-emerald-500 flex-shrink-0" />
+                              <Users size={14} className={`${currentTheme.accentSoftText} flex-shrink-0`} />
                               {children.length} {t.studentsCountLabel}
                             </span>
                           </div>
 
                           {/* Family Balance Badge (Highlighted in Red if overdue with direct Notify button) */}
                           <div className="flex flex-col items-start lg:items-end">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.totalOutstandingBalance}</span>
+                            <span className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.totalOutstandingBalance}</span>
                             {totalOutstanding > 0 ? (
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="px-3 py-1.5 rounded-xl bg-rose-500/10 dark:bg-rose-950/30 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 font-black text-sm flex items-center gap-1 animate-pulse">
@@ -212,7 +212,7 @@ export function ParentsView() {
                                 </button>
                               </div>
                             ) : (
-                              <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60 font-bold text-xs flex items-center gap-1 mt-1">
+                              <span className={`px-3 py-1.5 rounded-xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText} border ${currentTheme.accentBorder} font-bold text-xs flex items-center gap-1 mt-1`}>
                                 <CheckCircle2 size={14} />
                                 0 {t.currency} ({t.settle})
                               </span>
@@ -234,7 +234,7 @@ export function ParentsView() {
                                     setPaymentAmount('');
                                     setShowPaymentForm(true);
                                   }}
-                                  className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center"
+                                  className={`p-2.5 rounded-xl ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} shadow-md ${currentTheme.accentShadow} transition-all flex items-center justify-center`}
                                 >
                                   <DollarSign size={16} className="flex-shrink-0" />
                                 </button>
@@ -249,7 +249,7 @@ export function ParentsView() {
                                 setStudentToLinkId('');
                                 setShowLinkStudentModal(true);
                               }}
-                              className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all flex items-center justify-center"
+                              className={`p-2.5 rounded-xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} transition-all flex items-center justify-center`}
                             >
                               <UserPlus size={16} className="flex-shrink-0" />
                             </button>
@@ -300,23 +300,26 @@ export function ParentsView() {
                             className={`border-t ${currentTheme.border} p-6 lg:p-8 bg-slate-50/50 dark:bg-slate-900/30 space-y-8`}
                           >
                             {/* Summary Banner Row: Sum of all payments ever made by parent across all children */}
-                            <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-600/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div
+                              className={`p-5 rounded-2xl text-white shadow-lg ${currentTheme.accentShadow} flex flex-col sm:flex-row sm:items-center justify-between gap-4`}
+                              style={{ background: `linear-gradient(135deg, ${currentTheme.accentHex} 0%, ${currentTheme.accentHexDeep} 100%)` }}
+                            >
                               <div className="flex items-center gap-3">
                                 <div className="p-3 rounded-xl bg-white/10 backdrop-blur-md">
-                                  <CreditCard size={24} className="text-emerald-200" />
+                                  <CreditCard size={24} className="text-white/80" />
                                 </div>
                                 <div>
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200">
+                                  <p className="text-2xs font-black uppercase tracking-widest text-white/80">
                                     {t.totalPaymentsAllChildren}
                                   </p>
-                                  <p className="text-xs font-medium text-emerald-50/90">
+                                  <p className="text-xs font-medium text-white/75">
                                     {t.cumulativePaymentsSum.replace('{name}', parent.fullName)}
                                   </p>
                                 </div>
                               </div>
                               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border-t sm:border-t-0 border-white/10 pt-3 sm:pt-0">
                                 <div className="text-left sm:text-right">
-                                  <span className="text-[10px] uppercase font-bold text-emerald-200 block sm:hidden">{t.amountPaid}</span>
+                                  <span className="text-2xs uppercase font-bold text-white/80 block sm:hidden">{t.amountPaid}</span>
                                   <span className="text-xl sm:text-2xl font-black text-white font-mono tracking-tight block">
                                     {formatCurrency(totalPaymentsEver)}
                                   </span>
@@ -324,9 +327,10 @@ export function ParentsView() {
                                 <button
                                   type="button"
                                   onClick={() => handleExportParentLedgerPdf(parent)}
-                                  className="px-4 py-2.5 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 font-black text-xs shadow-md flex items-center gap-2 transition-all active:scale-95"
+                                  className="px-4 py-2.5 rounded-xl bg-white hover:bg-white/90 font-black text-xs shadow-md flex items-center gap-2 transition-all active:scale-95"
+                                  style={{ color: currentTheme.accentHexDeep }}
                                 >
-                                  <Download size={16} className="text-emerald-600" />
+                                  <Download size={16} />
                                   <span>{t.downloadLedger}</span>
                                 </button>
                               </div>
@@ -335,7 +339,7 @@ export function ParentsView() {
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                               {/* Column 1: Contact, Employment & Residence Details */}
                               <div className="space-y-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm">
-                                <h5 className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                                <h5 className={`text-xs font-black uppercase tracking-widest ${currentTheme.accentSoftText} flex items-center gap-2`}>
                                   <UserCheck size={16} />
                                   {t.parentDetails} & {t.contactCard}
                                 </h5>
@@ -344,7 +348,7 @@ export function ParentsView() {
                                   <div className="flex items-center gap-3">
                                     <Phone size={16} className="text-slate-400" />
                                     <div>
-                                      <p className="font-bold text-slate-400 uppercase text-[9px]">{t.primaryPhone}</p>
+                                      <p className="font-bold text-slate-400 uppercase text-3xs">{t.primaryPhone}</p>
                                       <p className="font-bold text-slate-800 dark:text-slate-200">{parent.phones[0] || 'N/A'}</p>
                                     </div>
                                   </div>
@@ -353,7 +357,7 @@ export function ParentsView() {
                                     <div className="flex items-center gap-3">
                                       <Phone size={16} className="text-slate-400" />
                                       <div>
-                                        <p className="font-bold text-slate-400 uppercase text-[9px]">{t.secondaryPhone}</p>
+                                        <p className="font-bold text-slate-400 uppercase text-3xs">{t.secondaryPhone}</p>
                                         <p className="font-bold text-slate-800 dark:text-slate-200">{parent.phones[1]}</p>
                                       </div>
                                     </div>
@@ -363,7 +367,7 @@ export function ParentsView() {
                                     <div className="flex items-center gap-3">
                                       <Mail size={16} className="text-slate-400" />
                                       <div>
-                                        <p className="font-bold text-slate-400 uppercase text-[9px]">{t.email}</p>
+                                        <p className="font-bold text-slate-400 uppercase text-3xs">{t.email}</p>
                                         <p className="font-bold text-slate-800 dark:text-slate-200">{parent.email}</p>
                                       </div>
                                     </div>
@@ -372,7 +376,7 @@ export function ParentsView() {
                                   <div className="flex items-center gap-3">
                                     <MapPin size={16} className="text-slate-400" />
                                     <div>
-                                      <p className="font-bold text-slate-400 uppercase text-[9px]">{t.address}</p>
+                                      <p className="font-bold text-slate-400 uppercase text-3xs">{t.address}</p>
                                       <p className="font-bold text-slate-800 dark:text-slate-200">{parent.address}</p>
                                     </div>
                                   </div>
@@ -380,7 +384,7 @@ export function ParentsView() {
                                   <div className="flex items-center gap-3">
                                     <Briefcase size={16} className="text-slate-400" />
                                     <div>
-                                      <p className="font-bold text-slate-400 uppercase text-[9px]">{t.occupation}</p>
+                                      <p className="font-bold text-slate-400 uppercase text-3xs">{t.occupation}</p>
                                       <p className="font-bold text-slate-800 dark:text-slate-200">{parent.occupation}</p>
                                     </div>
                                   </div>
@@ -389,7 +393,7 @@ export function ParentsView() {
                                     <div className="flex items-start gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                                       <FileText size={16} className="text-slate-400 mt-0.5" />
                                       <div>
-                                        <p className="font-bold text-slate-400 uppercase text-[9px]">{t.accountingNotes}</p>
+                                        <p className="font-bold text-slate-400 uppercase text-3xs">{t.accountingNotes}</p>
                                         <p className="italic text-slate-600 dark:text-slate-400">{parent.notes}</p>
                                       </div>
                                     </div>
@@ -400,7 +404,7 @@ export function ParentsView() {
                               {/* Column 2: Connected Children List */}
                               <div className="space-y-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                  <h5 className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                                  <h5 className={`text-xs font-black uppercase tracking-widest ${currentTheme.accentSoftText} flex items-center gap-2`}>
                                     <Users size={16} />
                                     {t.listOfChildren} ({children.length})
                                   </h5>
@@ -408,13 +412,13 @@ export function ParentsView() {
                                   <div className="flex items-center gap-2 flex-wrap">
                                     {children.length > 1 && (
                                       <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs">
-                                        <span className="text-[10px] font-bold text-slate-400 pl-1 hidden sm:inline">{t.sortByLabel}</span>
+                                        <span className="text-2xs font-bold text-slate-400 pl-1 hidden sm:inline">{t.sortByLabel}</span>
                                         <button
                                           type="button"
                                           onClick={() => setParentChildrenSortBy('highest_balance')}
-                                          className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition-all flex items-center gap-1 ${
+                                          className={`px-2.5 py-1 rounded-lg font-bold text-2xs transition-all flex items-center gap-1 ${
                                             parentChildrenSortBy === 'highest_balance'
-                                              ? 'bg-emerald-600 text-white shadow-xs'
+                                              ? `${currentTheme.accentBg} ${currentTheme.accentText} shadow-xs`
                                               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                                           }`}
                                           title={t.sortHighestBalance}
@@ -425,9 +429,9 @@ export function ParentsView() {
                                         <button
                                           type="button"
                                           onClick={() => setParentChildrenSortBy('alphabetical')}
-                                          className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition-all flex items-center gap-1 ${
+                                          className={`px-2.5 py-1 rounded-lg font-bold text-2xs transition-all flex items-center gap-1 ${
                                             parentChildrenSortBy === 'alphabetical'
-                                              ? 'bg-emerald-600 text-white shadow-xs'
+                                              ? `${currentTheme.accentBg} ${currentTheme.accentText} shadow-xs`
                                               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                                           }`}
                                           title={t.sortAlphabetical}
@@ -443,7 +447,7 @@ export function ParentsView() {
                                         setStudentToLinkId('');
                                         setShowLinkStudentModal(true);
                                       }}
-                                      className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 text-xs font-bold flex items-center gap-1 transition-all"
+                                      className={`px-3 py-1.5 rounded-xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} text-xs font-bold flex items-center gap-1 transition-all`}
                                     >
                                       <Plus size={14} />
                                       {t.linkStudent}
@@ -460,7 +464,7 @@ export function ParentsView() {
                                         setStudentToLinkId('');
                                         setShowLinkStudentModal(true);
                                       }}
-                                      className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs"
+                                      className={`px-4 py-2 rounded-xl ${currentTheme.accentBg} ${currentTheme.accentText} font-bold text-xs`}
                                     >
                                       {t.linkStudent}
                                     </button>
@@ -483,7 +487,7 @@ export function ParentsView() {
                                       return (
                                         <div
                                           key={child.id}
-                                          className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-4 hover:border-emerald-500/40 transition-all"
+                                          className={`p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-4 ${currentTheme.accentBorderHover} transition-all`}
                                         >
                                           <div>
                                             <div className="flex items-center gap-2">
@@ -491,18 +495,18 @@ export function ParentsView() {
                                                 {child.name}
                                               </span>
                                               {visibleStudentIdentifier(child.grade, child.studentId) && (
-                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                                <span className="px-2 py-0.5 rounded text-2xs font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
                                                   {visibleStudentIdentifier(child.grade, child.studentId)}
                                                 </span>
                                               )}
                                               {child.grade && (
-                                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                                                <span className="px-2 py-0.5 rounded text-2xs font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
                                                   {child.grade}
                                                 </span>
                                               )}
                                             </div>
 
-                                            <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-3">
+                                            <div className="text-2xs text-slate-500 mt-1 flex items-center gap-3">
                                               <span>{t.totalDue}: <strong className="text-slate-700 dark:text-slate-300">{formatCurrency(child.totalDue)}</strong></span>
                                               <span>•</span>
                                               <span>
@@ -523,7 +527,7 @@ export function ParentsView() {
                                                 setShowPaymentForm(true);
                                               }}
                                               title={t.recordPayment}
-                                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 transition-all shadow-sm shadow-emerald-600/20"
+                                              className={`px-3 py-1.5 rounded-xl ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} text-xs font-bold flex items-center gap-1 transition-all shadow-sm ${currentTheme.accentShadow}`}
                                             >
                                               <DollarSign size={14} className="flex-shrink-0" />
                                               <span className="hidden md:inline">{t.recordPayment}</span>
@@ -533,7 +537,7 @@ export function ParentsView() {
                                             <button
                                               onClick={() => setSelectedStudent(child)}
                                               title={t.studentDetails}
-                                              className="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 text-xs font-bold flex items-center gap-1"
+                                              className={`px-3 py-1.5 rounded-xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} text-xs font-bold flex items-center gap-1`}
                                             >
                                               <span>{t.studentDetails}</span>
                                               <ChevronRight size={14} />
@@ -559,14 +563,14 @@ export function ParentsView() {
                             {/* Consolidated Ledger / Payment History Table */}
                             <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm space-y-4">
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <h5 className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                                <h5 className={`text-xs font-black uppercase tracking-widest ${currentTheme.accentSoftText} flex items-center gap-2`}>
                                   <Receipt size={16} />
                                   {t.paymentHistory} ({t.consolidatedFamilyLedger})
                                 </h5>
                                 <button
                                   type="button"
                                   onClick={() => handleExportParentLedgerPdf(parent)}
-                                  className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 font-bold text-xs flex items-center gap-1.5 border border-emerald-200/50 dark:border-emerald-800/50 transition-all self-start sm:self-auto"
+                                  className={`px-3 py-1.5 rounded-xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} font-bold text-xs flex items-center gap-1.5 border ${currentTheme.border} transition-all self-start sm:self-auto`}
                                 >
                                   <Download size={14} />
                                   <span>{t.downloadLedger}</span>
@@ -578,10 +582,10 @@ export function ParentsView() {
                                   {t.noHistoricalReceiptsFoundAcrossConnectedChildren}
                                 </p>
                               ) : (
-                                <div className="overflow-x-auto">
+                                <div className="max-h-[70vh] overflow-auto">
                                   <table className="w-full text-left border-collapse text-xs">
-                                    <thead>
-                                      <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    <thead className="sticky top-0 z-10">
+                                      <tr className="border-b border-slate-200 dark:border-slate-800 text-2xs font-black uppercase tracking-widest text-slate-400">
                                         <th className="py-2.5 px-3">{t.receiptNo}</th>
                                         <th className="py-2.5 px-3">{t.studentName}</th>
                                         <th className="py-2.5 px-3">{t.date}</th>
@@ -592,11 +596,11 @@ export function ParentsView() {
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                       {paymentHistory.map((item, idx) => (
                                         <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                                          <td className="py-2.5 px-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                          <td className={`py-2.5 px-3 font-mono font-bold ${currentTheme.accentSoftText}`}>
                                             {item.receiptNumber}
                                           </td>
                                           <td className="py-2.5 px-3 font-bold text-slate-800 dark:text-slate-200">
-                                            {item.studentName}{item.studentId && <span className="text-[10px] font-normal text-slate-400"> ({item.studentId})</span>}
+                                            {item.studentName}{item.studentId && <span className="text-2xs font-normal text-slate-400"> ({item.studentId})</span>}
                                           </td>
                                           <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">
                                             {item.date}
@@ -610,15 +614,16 @@ export function ParentsView() {
                                         </tr>
                                       ))}
                                     </tbody>
-                                    <tfoot className="border-t-2 border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-950/40 font-bold">
+
+                                    <tfoot className={`border-t-2 ${currentTheme.border} ${currentTheme.accentSoft} font-bold`}>
                                       <tr>
-                                        <td colSpan={3} className="py-3 px-3 font-black text-slate-800 dark:text-slate-200 uppercase text-[10px] tracking-wider">
+                                        <td colSpan={3} className="py-3 px-3 font-black text-slate-800 dark:text-slate-200 uppercase text-2xs tracking-wider">
                                           {t.totalPaymentsAllChildren}
                                         </td>
-                                        <td className="py-3 px-3 font-black text-emerald-700 dark:text-emerald-400 text-sm font-mono">
+                                        <td className={`py-3 px-3 font-black ${currentTheme.accentSoftText} text-sm font-mono`}>
                                           {formatCurrency(totalPaymentsEver)}
                                         </td>
-                                        <td className="py-3 px-3 text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
+                                        <td className="py-3 px-3 text-2xs text-slate-500 dark:text-slate-400 font-semibold">
                                           {paymentHistory.length} {t.receiptS}
                                         </td>
                                       </tr>

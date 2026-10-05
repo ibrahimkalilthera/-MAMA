@@ -18,6 +18,8 @@ import type { StudentFormScope, User } from '../app/types';
 import { formatSupabaseError } from '../lib/networkUtils';
 import { database } from '../lib/sharedDatabase';
 import { UpdateBanner } from './UpdateBanner';
+import { ReceiptPreviewModal } from './ReceiptPreviewModal';
+import { useDensity } from '../app/densityContext';
 import { flushJournalReports, reportBlockedStation } from '../lib/desktopUpdateReport';
 import type { JournalQueueApi } from '../lib/desktopUpdateReport';
 import type { AppEnv } from '../lib/networkUtils';
@@ -34,6 +36,7 @@ import { FloatingChat } from './FloatingChat';
 import { InactivityWarning } from './InactivityWarning';
 import { ConfirmDialog } from './ConfirmDialog';
 import { AppLoadingScreen } from './AppLoadingScreen';
+import { ViewSkeleton } from './SharedUi';
 import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
 import { AppHeader } from './AppHeader';
@@ -150,6 +153,10 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
     setConfirmAction, inactivity,
   } = props;
 
+  // Densité des tableaux (confort/compact) — la classe racine que le CSS
+  // `.density-compact` cible; fournie par <App> via le contexte.
+  const { density } = useDensity();
+
   // ── « La semaine précédente attend son archive » ───────────────────────────
   // Le rappel est une notification de cloche (voir `useAuditArchiveReminder`),
   // donc la liste reçue le porte déjà. On en dérive UN booléen, lu aux deux
@@ -185,13 +192,13 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
       ) : supabaseLoading ? (
 <AppLoadingScreen title={t.loadingFinanceSuite} subtitle={t.connectingToDatabase} />
       ) : (
-        <div className={`min-h-screen ${currentTheme.bg} flex font-sans ${currentTheme.text} transition-colors duration-300 theme-${theme} ${currentTheme.isDark ? 'dark ' : ''}${ticketStudent ? 'no-print-ticket' : ''}`}>
+        <div data-slot="app-shell" className={`min-h-screen ${currentTheme.bg} flex font-sans ${currentTheme.text} transition-colors duration-300 theme-${theme} density-${density} ${currentTheme.isDark ? 'dark ' : ''}${ticketStudent ? 'no-print-ticket' : ''}`}>
           {supabaseError && (
             <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white text-center py-2 text-xs font-semibold flex items-center justify-center gap-3">
               <span className="flex items-center gap-1.5"><AlertTriangle size={14} className="flex-shrink-0" /> {t.databaseConnectionIssue}: {formatSupabaseError(supabaseError, lang).message}</span>
               <button
                 onClick={() => fetchAll()}
-                className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors"
+                className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-2xs uppercase tracking-wider transition-colors"
               >
                 {t.retry}
               </button>
@@ -199,7 +206,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
           )}
           
           {/* Print Header */}
-      <div className="hidden print:block print-header">
+      <div data-slot="app-shell-print-header" className="hidden print:block print-header">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
@@ -215,6 +222,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
       <Sidebar
         t={t}
         schoolLogo={schoolLogo}
+        currentTheme={currentTheme}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         payrollWindowStatus={payrollWindowStatus}
@@ -243,7 +251,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
       />
 
       {/* --- Main Content --- */}
-      <main className={`flex-1 min-w-0 lg:ml-64 p-8 pb-24 lg:p-12 transition-all duration-300 ${showTodoSidebar ? 'lg:mr-80' : ''}`}>
+      <main data-slot="app-shell-main" className={`flex-1 min-w-0 lg:ml-64 p-8 pb-24 lg:p-12 transition-all duration-300 ${showTodoSidebar ? 'lg:mr-80' : ''}`}>
         
         <AppHeader
           t={t}
@@ -262,8 +270,10 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
           onPromoteClass={() => setIsPromotionWizardOpen(true)}
           onImportExcel={() => setShowExcelImport(true)}
           onOpenMonthlyDraft={() => {
-            setSelectedDraftMonth(new Date().getMonth());
-            setSelectedDraftYear(new Date().getFullYear());
+            // Une seule lecture d'horloge pour le couple mois/année du brouillon.
+            const anchor = new Date();
+            setSelectedDraftMonth(anchor.getMonth());
+            setSelectedDraftYear(anchor.getFullYear());
             setShowMonthlyDraftModal(true);
           }}
           onAddStudent={() => openAddStudentModal()}
@@ -324,7 +334,7 @@ onOpenSettings={() => setActiveTab('settings')}
 
         {/* --- Views (dashboard, students, parents, payroll, expenses, calendar, notes, audit, settings) --- */}
         <ErrorBoundary currentTheme={currentTheme} label="la vue">
-          <Suspense fallback={<div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}><div className="h-6 w-64 bg-slate-300 dark:bg-slate-700 rounded-lg mb-8" /><div className="h-[400px] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" /></div>}>
+          <Suspense fallback={<ViewSkeleton card={currentTheme.card} border={currentTheme.border} />}>
             <MainViews {...viewsProps} />
           </Suspense>
         </ErrorBoundary>
@@ -332,7 +342,7 @@ onOpenSettings={() => setActiveTab('settings')}
         {/* --- Yearly Comparison & Archives View --- */}
         {activeTab === 'archives' && (
           <ErrorBoundary currentTheme={currentTheme} label="la vue des archives">
-          <Suspense fallback={<div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}><div className="h-6 w-72 bg-slate-300 dark:bg-slate-700 rounded-lg mb-8" /><div className="h-[320px] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" /></div>}>
+          <Suspense fallback={<ViewSkeleton card={currentTheme.card} border={currentTheme.border} titleClassName="h-6 w-72" bodyClassName="h-[320px]" />}>
             <ArchivesView
               lang={lang}
               t={t}
@@ -381,6 +391,7 @@ onOpenSettings={() => setActiveTab('settings')}
       {/* Academic Year Promotion Wizard Modal */}
       <Suspense fallback={null}>
         <PromotionWizardModal
+          currentTheme={currentTheme}
           isOpen={isPromotionWizardOpen}
           onClose={() => setIsPromotionWizardOpen(false)}
           students={students}
@@ -465,6 +476,7 @@ onOpenSettings={() => setActiveTab('settings')}
       {/* Bandeau de mise à jour du poste installé : ne s'affiche que dans
           l'application de bureau, où `window.desktop.updates` existe. */}
       <UpdateBanner
+        currentTheme={currentTheme}
         // Le signalement part d'ici, pas du bandeau : c'est ce niveau qui sait
         // qu'un poste bloqué doit être inscrit au journal d'audit quand une
         // session existe. Le bandeau reçoit le résultat et l'affiche.
@@ -481,7 +493,7 @@ onOpenSettings={() => setActiveTab('settings')}
           forcedTitle: t.updateForcedTitle,
           forcedMajor: t.updateForcedMajor,
           forcedMinor: t.updateForcedMinor,
-          forcedAge: t.updateForcedAge,
+          forcedPatch: t.updateForcedPatch,
           forcedNote: t.updateForcedNote,
           forcedFailed: t.updateForcedFailed,
           forcedRetry: t.updateForcedRetry,
@@ -494,6 +506,7 @@ onOpenSettings={() => setActiveTab('settings')}
           blockedJournal: t.updateBlockedJournal,
         }}
       />
+      <ReceiptPreviewModal currentTheme={currentTheme} />
       <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
 
       {/* --- Global Confirmation Dialog --- */}

@@ -44,7 +44,7 @@ export function LatePaymentTicketModal(props: LatePaymentTicketModalProps) {
                   <div className={`border border-slate-200 rounded-2xl p-6 ${tokens.paperFillLight} font-mono text-xs text-slate-800 space-y-4 shadow-inner`}>
                     <div className="text-center border-b border-dashed border-slate-300 pb-4">
                       <h3 className="font-bold text-base uppercase tracking-wider">{t.title}</h3>
-                      <p className="text-[10px] text-slate-500">{t.subtitle}</p>
+                      <p className="text-2xs text-slate-500">{t.subtitle}</p>
                       <h4 className="font-black text-rose-600 mt-2 text-sm uppercase tracking-widest">
                         {t.latePaymentTicket2}
                       </h4>
@@ -73,7 +73,7 @@ export function LatePaymentTicketModal(props: LatePaymentTicketModalProps) {
                       </div>
                     </div>
 
-                    <div className="border-t border-dashed border-slate-300 pt-4 text-center text-[10px] text-slate-600 leading-relaxed italic">
+                    <div className="border-t border-dashed border-slate-300 pt-4 text-center text-2xs text-slate-600 leading-relaxed italic">
                       {t.overdueNotice}
                     </div>
                   </div>
@@ -133,9 +133,9 @@ export function LatePaymentTicketModal(props: LatePaymentTicketModalProps) {
               {t.overdueNotice}
             </div>
 
-            <div className="text-center text-[10px] pt-8 border-t border-black/10">
+            <div className="text-center text-2xs pt-8 border-t border-black/10">
               <p>{t.generatedOn} {formatDate(new Date().toISOString())}</p>
-              <p className="mt-2 text-[8px] tracking-widest uppercase">{t.officialFinancialReceipt}</p>
+              <p className="mt-2 text-3xs tracking-widest uppercase">{t.officialFinancialReceipt}</p>
             </div>
           </div>
     </>

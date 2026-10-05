@@ -3,12 +3,16 @@
  * src/App.tsx so the component file stays under the line budget.
  *
  * buildShellProps(deps) rebuilds the two wiring objects App used to inline:
- *   • viewsProps      — the MainViewsProps & AppModalsProps contract
- *   • appShellExtras  — the AppShellExtras shell values
- * deps is typed as the three contracts' intersection, so tsc fails if the
- * call site forgets a required prop; the wiring guard
- * (scripts/check-component-props.mjs) resolves THIS file's viewsProps
- * literal against both component interfaces.
+ *   • viewsProps      — the MainViewsProps & AppModalsProps contract, built HERE
+ *   • appShellExtras  — the AppShellExtras shell values, built by
+ *                       buildShellExtras (src/app/shellExtras.ts)
+ * deps is typed as the three contracts' intersection (ShellDeps, in
+ * src/app/shellDeps.ts), so tsc fails if the call site forgets a required prop.
+ *
+ * viewsProps stays a literal in THIS file on purpose: the wiring guard
+ * (scripts/check-component-props.mjs) resolves it here against the MainViews /
+ * AppModals / ArchivesView / PromotionWizardModal interfaces, so moving it away
+ * would silently retire that check.
  */
 import { Suspense, lazy } from 'react';
 import {
@@ -18,29 +22,15 @@ import { HighlightText, ChartsFallback } from '../components/SharedUi';
 import { generateExpensesReportPdf } from '../lib/pdfExpensesReport';
 import { generateStaffPayslipPdf } from '../lib/pdfPayroll';
 import { generatePaymentReceiptPdf } from '../lib/pdfReceipt';
-import { generateMultiYearReportPdf } from '../lib/pdfMultiYearReport';
-import { generateFinancialReportPdf } from '../lib/pdfFinancialReport';
 import { makeStatusHelpers } from './statusHelpers';
 import type { MainViewsProps } from './mainViewsProps';
 import type { AppModalsProps } from '../components/AppModals';
 import type { AppShellExtras } from '../components/AppShell';
+import type { ShellDeps } from './shellDeps';
+import { buildShellExtras } from './shellExtras';
 import type { Student } from './types';
 
 const DashboardCharts = lazy(() => import('../components/DashboardCharts').then((m) => ({ default: m.DashboardCharts })));
-
-/** Every value the shell wiring needs, checked against all three contracts. */
-export type ShellDeps = Omit<
-  MainViewsProps & AppModalsProps & Omit<AppShellExtras, 'viewsProps'>,
-  'AlertCircle' | 'ArrowDown' | 'ArrowUp' | 'ArrowUpDown' | 'Award' | 'Bell' | 'BookOpen' | 'Briefcase' | 'Calendar' |
-  'ChartsFallback' | 'CheckCircle2' | 'CheckSquare' | 'ChevronDown' | 'ChevronLeft' | 'ChevronRight' | 'ChevronUp' |
-  'Clock' | 'Coins' | 'Copy' | 'Cpu' | 'CreditCard' | 'DashboardCharts' | 'DollarSign' | 'Download' | 'Droplet' |
-  'Edit2' | 'FileText' | 'Flag' | 'Globe' | 'GraduationCap' | 'Hammer' | 'Heart' | 'HighlightText' | 'Landmark' |
-  'Layers' | 'Mail' | 'MapPin' | 'MessageSquare' | 'Phone' | 'PieChart' | 'Plus' | 'Printer' | 'Receipt' | 'Search' |
-  'Shield' | 'ShieldCheck' | 'Sparkles' | 'Sprout' | 'StickyNote' | 'Sun' | 'Suspense' | 'Trash2' | 'TrendingDown' |
-  'TrendingUp' | 'Unlink' | 'UploadCloud' | 'UserCheck' | 'UserPlus' | 'Users' | 'Utensils' | 'Wallet' | 'Wifi' |
-  'X' | 'Zap' | 'formatDate' | 'getGradeDisplay' | 'generateExpensesReportPdf' | 'generateStaffPayslipPdf' |
-  'generatePaymentReceiptPdf' | 'generateMultiYearReportPdf' | 'generateFinancialReportPdf' | 'getStatus'
->;
 
 export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProps & AppShellExtras {
   // Quelques entrées voisines sont appariées deux par ligne : budget de lignes.
@@ -67,6 +57,7 @@ export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProp
   copiedToast,
   copyToClipboard,
   currentMonth,
+  currentYear,
   currentTheme,
   currentUser,
   deleteNotification, deletedNotificationIds,
@@ -402,6 +393,7 @@ export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProp
   changeMonth,
   chartData,
   currentMonth,
+  currentYear,
   currentTheme,
   deleteStaff,
   deleteStudent,
@@ -640,60 +632,7 @@ export function buildShellProps(deps: ShellDeps): MainViewsProps & AppModalsProp
   vendorExpenseForm,
   welcomeMessage,
   };
-  const appShellExtras: AppShellExtras = {
-    viewsProps,
-    fetchAll,
-    authLoading,
-    currentUser,
-    supabaseLoading,
-    supabaseError,
-    appEnv,
-    toast,
-    setActiveTab,
-    openAddStudentModal,
-    setSelectedYear,
-    setSearchTerm,
-    studentGradeFilter,
-    setStudentGradeFilter,
-    setIsPromotionWizardOpen,
-    setShowExcelImport,
-    generateMultiYearReportPdf,
-    lockedYears,
-    vendorExpensesTab,
-    handleExport,
-    generateFinancialReportPdf,
-    notifications,
-    // Carillon (lu / supprimé) — apparié deux par ligne : budget de lignes.
-    readNotificationIds, deletedNotificationIds,
-    markNotificationRead, markAllNotificationsRead,
-    markNotificationUnread, deleteNotification,
-    clearAllNotifications, restoreDeletedNotifications,
-    openCalendarOnDate,
-    handleCloseCurrentYear,
-    setAuditYear,
-    isFloatingChatOpen,
-    setIsFloatingChatOpen,
-    floatingChatMessages,
-    floatingChatInput,
-    setFloatingChatInput,
-    handleFloatingAiQuery,
-    isPromotionWizardOpen,
-    batchPromoteStudents,
-    showAddUserModal,
-    showExcelImport,
-    batchImportData,
-    showMonthlyDraftModal,
-    selectedDraftMonth,
-    selectedDraftYear,
-    handleExportMonthlyPayrollExcel,
-    pendingQueueCount, isSyncing, syncOfflineQueue,
-    // File hors ligne : ce qui attend, et ce que la base a déjà refusé.
-    pendingFailures: deps.pendingFailures, cacheSavedAt: deps.cacheSavedAt,
-    confirmAction,
-    setConfirmAction,
-    inactivity,
-    formatCurrency,
-  };
+  const appShellExtras = buildShellExtras(deps, viewsProps);
   const shellProps: MainViewsProps & AppModalsProps & AppShellExtras = { ...viewsProps, ...appShellExtras };
   return shellProps;
 }

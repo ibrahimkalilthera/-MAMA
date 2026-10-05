@@ -38,15 +38,15 @@ export function AuditReportPrint({ t, auditYear, students, getYearStats, formatC
 
       <div className="grid grid-cols-3 gap-4 text-center py-4 border-b border-black">
         <div className="border border-black p-4 rounded-xl">
-          <span className="text-[10px] font-bold block uppercase tracking-wide">{t.totalRevenue}</span>
+          <span className="text-2xs font-bold block uppercase tracking-wide">{t.totalRevenue}</span>
           <span className="text-lg font-black">{formatCurrency(revenue)}</span>
         </div>
         <div className="border border-black p-4 rounded-xl">
-          <span className="text-[10px] font-bold block uppercase tracking-wide">{t.totalExpenses2}</span>
+          <span className="text-2xs font-bold block uppercase tracking-wide">{t.totalExpenses2}</span>
           <span className="text-lg font-black">{formatCurrency(expenses)}</span>
         </div>
         <div className="border border-black p-4 rounded-xl">
-          <span className="text-[10px] font-bold block uppercase tracking-wide">{t.netClosingBalance}</span>
+          <span className="text-2xs font-bold block uppercase tracking-wide">{t.netClosingBalance}</span>
           <span className="text-lg font-black">{formatCurrency(balance)}</span>
         </div>
       </div>
@@ -90,16 +90,16 @@ export function AuditReportPrint({ t, auditYear, students, getYearStats, formatC
         <div>
           <p className="font-bold">{t.certifiedSincerelyBy}</p>
           <p className="font-black mt-1">Ibrahim Thera, Executive Admin</p>
-          <p className="text-black/60 text-[10px]">{t.schoolDirectorController}</p>
+          <p className="text-black/60 text-2xs">{t.schoolDirectorController}</p>
         </div>
         <div className="text-right">
           <p className="font-bold">{t.authorizedSignature}</p>
           <div className="h-12 w-48 border-b border-dashed border-black mt-2 ml-auto" />
-          <p className="text-[8px] text-black/60 mt-1">Ibrahim Thera / Official Board Seal</p>
+          <p className="text-3xs text-black/60 mt-1">Ibrahim Thera / Official Board Seal</p>
         </div>
       </div>
 
-      <div className="text-center text-[10px] pt-8 border-t border-black/10">
+      <div className="text-center text-2xs pt-8 border-t border-black/10">
         <p>{t.systemCertifiedClosingDocument}</p>
         <p className="mt-1 font-bold">Finance Exécutive Admin Portal</p>
       </div>

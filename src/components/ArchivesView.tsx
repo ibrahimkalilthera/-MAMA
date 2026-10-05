@@ -1,14 +1,15 @@
 import { Suspense, useState } from 'react';
-import { FileText, Printer, Lock, CheckCircle2 } from 'lucide-react';
+import { FileText, Printer, Lock, CheckCircle2, Archive } from 'lucide-react';
 import type { Student, Expense, VendorExpense, SalaryPayment } from '../lib/useSupabaseData';
 import type { MultiYearReportOptions } from '../lib/pdfMultiYearReport';
 import { MultiYearChart } from './MultiYearChart';
 import { ConfirmDialog } from './ConfirmDialog';
+import { EmptyState } from './SharedUi';
 
 export interface ArchivesViewProps {
   lang: 'en' | 'fr';
   t: Record<string, string> & { revenueVsExpenses: string };
-  currentTheme: { card: string; border: string; isDark: boolean; muted: string; text: string };
+  currentTheme: { card: string; border: string; isDark: boolean; muted: string; text: string; inkStrong: string; accentBg: string; accentHover: string; accentText: string; accentShadow: string; accentBorder: string };
   academicYears: string[];
   lockedYears: string[];
   students: Student[];
@@ -33,7 +34,7 @@ export function ArchivesView(props: ArchivesViewProps) {
     <>
           <div className="space-y-12 animate-fade-in">
             {/* Print-Only Official Header */}
-            <div className="hidden print:block mb-6 p-6 bg-emerald-700 text-white rounded-2xl">
+            <div className="hidden print:block mb-6 p-6 accent-surface accent-surface-text rounded-2xl">
               <div className="flex justify-between items-center">
                 <div>
                   <h1 className="text-2xl font-black">COMPLEXE SCOLAIRE MAMA THERA</h1>
@@ -49,10 +50,10 @@ export function ArchivesView(props: ArchivesViewProps) {
             {/* Grid for annual aggregates & multi-year chart */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
               {/* Aggregation Table Card */}
-              <div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50`}>
+              <div className={`${currentTheme.card} p-8 rounded-3xl border ${currentTheme.border} shadow-xl shadow-slate-200/50`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                   <div>
-                    <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
+                    <h3 className={`text-xl font-bold ${currentTheme.inkStrong}`}>
                       {t.annualAggregation}
                     </h3>
                     <p className={`text-xs ${currentTheme.muted} mt-1`}>
@@ -70,7 +71,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                         salaryPayments,
                         lang,
                       })}
-                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
+                      className={`px-4 py-2.5 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} rounded-xl text-xs font-bold transition-all shadow-md ${currentTheme.accentShadow} flex items-center gap-2 active:scale-95`}
                       title={t.downloadMultiYearPdfReport}
                     >
                       <FileText size={16} />
@@ -87,9 +88,9 @@ export function ArchivesView(props: ArchivesViewProps) {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto rounded-3xl border border-slate-100 dark:border-slate-800">
+                <div className="max-h-[70vh] overflow-auto rounded-3xl border border-slate-100 dark:border-slate-800">
                   <table className="w-full text-left border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-10">
                       <tr className={`${currentTheme.isDark ? 'bg-slate-800/50 text-slate-300' : 'bg-slate-50 text-slate-600'} text-xs font-black uppercase tracking-wider`}>
                         <th className="px-6 py-4">{t.schoolYear}</th>
                         <th className="px-6 py-4 text-right">{t.totalRevenueArchive}</th>
@@ -99,7 +100,18 @@ export function ArchivesView(props: ArchivesViewProps) {
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${currentTheme.isDark ? 'divide-slate-800' : 'divide-slate-100'} text-sm`}>
-                      {academicYears.map(year => {
+                      {academicYears.length === 0 ? (
+                        <tr>
+                          <td colSpan={5}>
+                            <EmptyState
+                              icon={<Archive size={22} />}
+                              title={t.noArchivedYearsTitle}
+                              hint={t.noArchivedYearsHint}
+                              isDark={currentTheme.isDark}
+                            />
+                          </td>
+                        </tr>
+                      ) : academicYears.map(year => {
                         const { revenue, expenses, balance } = getYearStats(year);
                         const isLocked = lockedYears.includes(year);
                         return (
@@ -122,7 +134,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-black rounded-full uppercase tracking-wider border border-emerald-200 dark:border-emerald-900/60">
-                                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                  <span className={`w-1.5 h-1.5 ${currentTheme.accentBg} rounded-full animate-pulse`} />
                                   {t.active}
                                 </span>
                               )}
@@ -137,7 +149,7 @@ export function ArchivesView(props: ArchivesViewProps) {
 
               {/* Multi-Year Comparative Chart Card */}
               <Suspense fallback={
-                <div className={`${currentTheme.card} p-8 rounded-[2.5rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}>
+                <div className={`${currentTheme.card} p-8 rounded-3xl border ${currentTheme.border} shadow-xl shadow-slate-200/50 animate-pulse`}>
                   <div className="h-6 w-72 bg-slate-300 dark:bg-slate-700 rounded-lg mb-8" />
                   <div className="h-[320px] w-full bg-slate-200 dark:bg-slate-800 rounded-2xl" />
                 </div>
@@ -155,7 +167,7 @@ export function ArchivesView(props: ArchivesViewProps) {
 
             {/* Ibrahim / Admin - Close Out Current Year Section */}
             {(currentUser?.role === 'admin' || currentUser?.role === 'dev') && (
-              <div className={`${currentTheme.card} p-10 rounded-[2.5rem] border-2 border-rose-100 dark:border-rose-950/50 bg-rose-50/20 shadow-xl shadow-rose-100/10 no-print`}>
+              <div className={`${currentTheme.card} p-10 rounded-3xl border-2 border-rose-100 dark:border-rose-950/50 bg-rose-50/20 shadow-xl shadow-rose-100/10 no-print`}>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                   <div className="space-y-3 max-w-2xl">
                     <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-black rounded-full uppercase tracking-wider border border-rose-200 dark:border-rose-900/60">

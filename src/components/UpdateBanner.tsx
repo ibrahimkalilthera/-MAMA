@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download, RefreshCw, ShieldAlert, X } from 'lucide-react';
 
+import type { CurrentTheme } from '../app/mainViewsProps';
 import type { BlockedUpdate, ReportOutcome } from '../lib/desktopUpdateReport';
 
 /**
@@ -16,11 +17,11 @@ import type { BlockedUpdate, ReportOutcome } from '../lib/desktopUpdateReport';
  *
  * Pourquoi une porte, en plus du bandeau : « Plus tard » offert indéfiniment,
  * c'est un poste qui peut rester des mois sur la même version sans que personne
- * n'ait jamais décidé de ne pas la faire. Quand le retard dépasse le seuil
- * (`electron/updater-policy.cjs` : une majeure, deux mineures, ou 45 jours de
- * publication sans installation), la décision n'appartient plus à l'utilisateur
- * du poste : le bandeau devient un écran plein, sans croix, sans « plus tard »,
- * qui ne se lève qu'en installant.
+ * n'ait jamais décidé de ne pas la faire. Dès qu'un retard est constaté
+ * (`electron/updater-policy.cjs` : une version de retard, majeure, mineure ou
+ * simple correctif), la décision n'appartient plus à l'utilisateur du poste : le
+ * bandeau devient un écran plein, sans croix, sans « plus tard », qui ne se lève
+ * qu'en installant.
  *
  * La seule issue de secours existe là où l'obligation serait un BLOCAGE, et
  * jamais ailleurs : quand la mise à jour annoncée n'est plus joignable
@@ -59,10 +60,10 @@ export interface UpdateState {
   detail?: string;
   /** Décidé par le processus principal (`updatePressure`), jamais par l'interface. */
   forced?: boolean;
-  forcedCode?: 'major' | 'minor' | 'age' | 'none' | 'unknown';
+  forcedCode?: 'major' | 'minor' | 'patch' | 'none' | 'unknown';
   behindMajor?: number | null;
   behindMinor?: number | null;
-  releaseAgeDays?: number | null;
+  behindPatch?: number | null;
   /**
    * Le blocage constaté par le processus principal (`gateFailure`), ou null.
    * Posé à part de `forced` : une installation qui n'a pas abouti est un
@@ -101,10 +102,13 @@ function forcedReason(state: UpdateState, labels: UpdateLabels): string {
     return labels.forcedMinor
       .replace('{current}', current)
       .replace('{version}', version)
-      .replace('{behind}', String(state.behindMinor ?? 2));
+      .replace('{behind}', String(state.behindMinor ?? 1));
   }
-  if (state.forcedCode === 'age') {
-    return labels.forcedAge.replace('{version}', version).replace('{days}', String(state.releaseAgeDays ?? 0));
+  if (state.forcedCode === 'patch') {
+    return labels.forcedPatch
+      .replace('{current}', current)
+      .replace('{version}', version)
+      .replace('{behind}', String(state.behindPatch ?? 1));
   }
   return labels.forcedTitle;
 }
@@ -112,8 +116,10 @@ function forcedReason(state: UpdateState, labels: UpdateLabels): string {
 export function UpdateBanner({
   labels,
   onReport,
+  currentTheme,
 }: {
   labels: UpdateLabels;
+  currentTheme: Pick<CurrentTheme, 'accentBg' | 'accentText' | 'accentHover' | 'accentShadow'>;
   /**
    * Envoie le blocage au journal d'audit et rend ce qui s'est réellement passé.
    * Injecté : ce composant ne connaît ni Supabase ni la session — il montre, il
@@ -218,28 +224,28 @@ export function UpdateBanner({
         className="fixed inset-0 z-[9997] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
       >
         <div className="w-full max-w-md rounded-2xl bg-slate-900 text-white shadow-2xl p-5 space-y-3">
-          <div className="flex items-center gap-2 text-amber-300 font-bold uppercase tracking-wider text-[11px]">
+          <div className="flex items-center gap-2 text-amber-300 font-bold uppercase tracking-wider text-2xs">
             <ShieldAlert size={16} className="flex-shrink-0" />
             <span>{forced ? labels.forcedTitle : labels.blockedTitle}</span>
           </div>
           <p className="text-sm font-semibold leading-snug">
             {forced ? forcedReason(state, labels) : labels.blockedDetail.replace('{detail}', blocked?.detail ?? '')}
           </p>
-          {forced && <p className="text-[11px] text-slate-300 leading-snug">{labels.forcedNote}</p>}
+          {forced && <p className="text-2xs text-slate-300 leading-snug">{labels.forcedNote}</p>}
           {failed && (
-            <p className="text-[11px] text-amber-200 leading-snug">
+            <p className="text-2xs text-amber-200 leading-snug">
               {labels.forcedFailed.replace('{detail}', state.detail ?? '')}
             </p>
           )}
           {blocked && (
             <div className="space-y-1" data-update-block={blocked.code}>
               {forced && (
-                <p className="text-[11px] text-amber-200 leading-snug">
+                <p className="text-2xs text-amber-200 leading-snug">
                   {labels.blockedDetail.replace('{detail}', blocked.detail)}
                 </p>
               )}
               <p
-                className="text-[11px] text-slate-300 leading-snug"
+                className="text-2xs text-slate-300 leading-snug"
                 data-update-report={reported ? (reported.sent ? 'sent' : 'local') : 'pending'}
               >
                 {!reported
@@ -256,7 +262,7 @@ export function UpdateBanner({
                 type="button"
                 disabled={busy}
                 onClick={install}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-bold uppercase tracking-wider text-[10px] disabled:opacity-50"
+                className={`px-3 py-1.5 ${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover} shadow-lg ${currentTheme.accentShadow} rounded-lg font-bold uppercase tracking-wider text-2xs disabled:opacity-50`}
               >
                 {isRestart ? labels.restart : labels.download}
               </button>
@@ -266,7 +272,7 @@ export function UpdateBanner({
                 type="button"
                 disabled={busy}
                 onClick={secondary}
-                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg font-bold uppercase tracking-wider text-[10px] disabled:opacity-50"
+                className={`px-3 py-1.5 ${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover} shadow-lg ${currentTheme.accentShadow} rounded-lg font-bold uppercase tracking-wider text-2xs disabled:opacity-50`}
               >
                 {needsCheck ? labels.forcedRetry : labels.download}
               </button>
@@ -275,7 +281,7 @@ export function UpdateBanner({
               <button
                 type="button"
                 onClick={openJournal}
-                className="px-2 py-1.5 text-slate-300 hover:text-white text-[10px] underline"
+                className="px-2 py-1.5 text-slate-300 hover:text-white text-2xs underline"
               >
                 {labels.blockedJournal}
               </button>
@@ -284,18 +290,18 @@ export function UpdateBanner({
               <button
                 type="button"
                 onClick={() => setBypassed(true)}
-                className="px-2 py-1.5 text-slate-400 hover:text-slate-200 text-[10px] underline"
+                className="px-2 py-1.5 text-slate-400 hover:text-slate-200 text-2xs underline"
               >
                 {labels.forcedContinue}
               </button>
             )}
             {downloading && !failed && (
-              <span className="text-[11px] text-slate-300">
+              <span className="text-2xs text-slate-300">
                 {labels.downloading.replace('{percent}', String(state.percent ?? 0))}
               </span>
             )}
             {available && !failed && (
-              <span className="text-[11px] text-slate-300">
+              <span className="text-2xs text-slate-300">
                 {labels.available.replace('{version}', state.version ?? '')}
               </span>
             )}
@@ -329,7 +335,7 @@ export function UpdateBanner({
   return (
     <div
       role="status"
-      className="fixed top-11 left-2 z-[9996] flex items-center gap-2 bg-emerald-700 text-white text-[11px] font-bold px-3 py-2 rounded-xl shadow-lg max-w-[min(92vw,520px)]"
+      className={`fixed top-11 left-2 z-[9996] flex items-center gap-2 ${currentTheme.accentBg} ${currentTheme.accentText} text-2xs font-bold px-3 py-2 rounded-xl shadow-lg ${currentTheme.accentShadow} max-w-[min(92vw,520px)]`}
     >
       {isRestart && ready ? <RefreshCw size={14} className="flex-shrink-0" /> : <Download size={14} className="flex-shrink-0" />}
       <span>{message}</span>
@@ -338,7 +344,7 @@ export function UpdateBanner({
           type="button"
           disabled={busy}
           onClick={install}
-          className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded-md uppercase tracking-wider text-[10px] disabled:opacity-50"
+          className={`px-2 py-1 ${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover} rounded-md uppercase tracking-wider text-2xs disabled:opacity-50`}
         >
           {isRestart ? labels.restart : labels.download}
         </button>
@@ -348,7 +354,7 @@ export function UpdateBanner({
           type="button"
           disabled={busy}
           onClick={retry}
-          className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded-md uppercase tracking-wider text-[10px] disabled:opacity-50"
+          className={`px-2 py-1 ${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover} rounded-md uppercase tracking-wider text-2xs disabled:opacity-50`}
         >
           {labels.forcedRetry}
         </button>
@@ -385,7 +391,7 @@ export interface UpdateLabels {
   forcedTitle: string;
   forcedMajor: string;
   forcedMinor: string;
-  forcedAge: string;
+  forcedPatch: string;
   forcedNote: string;
   forcedFailed: string;
   forcedRetry: string;

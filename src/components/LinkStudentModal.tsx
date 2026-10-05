@@ -32,7 +32,7 @@ export function LinkStudentModal(props: LinkStudentModalProps) {
       titleId="modal-title-link-student"
       ariaLabel={t.linkStudent}
       maxWidth="max-w-md"
-      panelRadius="rounded-[2rem]"
+      panelRadius="rounded-3xl"
       rootClassName="animate-fade-in no-print"
       header={
         <div className="flex items-center justify-between px-8 pt-8 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -56,7 +56,7 @@ export function LinkStudentModal(props: LinkStudentModalProps) {
       <div className="p-8 space-y-6">
         <form onSubmit={handleLinkStudentSubmit} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectStudent}</label>
+                <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.selectStudent}</label>
                 <select
                   required
                   value={studentToLinkId}
@@ -83,7 +83,7 @@ export function LinkStudentModal(props: LinkStudentModalProps) {
                 <button
                   type="submit"
                   disabled={!studentToLinkId}
-                  className="h-11 px-4 rounded-2xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-600/20 whitespace-nowrap"
+                  className={`h-11 px-4 rounded-2xl ${currentTheme.accentBg} ${currentTheme.accentText} font-black text-xs ${currentTheme.accentHover} disabled:opacity-50 shadow-lg ${currentTheme.accentShadow} whitespace-nowrap`}
                 >
                   {t.linkStudent}
                 </button>

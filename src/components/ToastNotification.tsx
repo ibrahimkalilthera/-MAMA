@@ -14,7 +14,10 @@ import type { Toast, ToastType } from '../lib/useToast';
 const TOAST_STYLES: Record<ToastType, { bg: string; border: string; text: string; icon: typeof CheckCircle2 }> = {
   success: {
     bg: 'bg-emerald-900/90',
-    border: 'border-emerald-500/30',
+    // Neutral hairline: the dark-green surface already carries the "success"
+    // meaning (see scripts/check-green-surface.mjs), so the border must not
+    // re-introduce a SATURATED green accent that no theme can re-tint.
+    border: 'border-white/10',
     text: 'text-emerald-100',
     icon: CheckCircle2,
   },
@@ -57,6 +60,7 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
   // symmetric margins (audit: this was the last overlay clipping on mobile).
   return (
     <div
+      data-slot="app-toasts"
       className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none"
       style={{ maxWidth: 'min(380px, calc(100vw - 3rem))' }}
     >
@@ -172,7 +176,7 @@ export function OfflineBanner({
   const refused = !isOffline && pendingFailures > 0;
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-[9998] ${reauthFailed && !isOffline ? 'bg-rose-700' : isOffline ? 'bg-amber-600' : 'bg-emerald-700'} text-white text-center py-2 px-4 shadow-lg transition-colors`}>
+    <div data-slot="app-offline-banner" className={`fixed top-0 left-0 right-0 z-[9998] ${reauthFailed && !isOffline ? 'bg-rose-700 text-white' : isOffline ? 'bg-amber-600 text-white' : 'accent-surface accent-surface-text'} text-center py-2 px-4 shadow-lg transition-colors`}>
       <div className="flex items-center justify-center gap-3">
         {isOffline ? <WifiOff size={16} className="flex-shrink-0" /> : <RefreshCw size={16} className={`flex-shrink-0 ${isSyncing ? 'animate-spin' : ''}`} />}
 
@@ -208,7 +212,7 @@ export function OfflineBanner({
       {/* Seconde ligne, uniquement quand elle apprend quelque chose : d'où
           viennent les données affichées, ou ce que la base a refusé. */}
       {(isOffline || offlineSession) && (
-        <div className="text-[10px] font-semibold opacity-90 mt-0.5">
+        <div className="text-2xs font-semibold opacity-90 mt-0.5">
           {cacheSavedAt
             ? t.offlineCachedData.replace('{date}', formatSnapshotAge(cacheSavedAt, isFr))
             : t.offlineNoCachedData}
@@ -216,7 +220,7 @@ export function OfflineBanner({
         </div>
       )}
       {refused && (
-        <div className="text-[10px] font-semibold opacity-90 mt-0.5">
+        <div className="text-2xs font-semibold opacity-90 mt-0.5">
           {t.offlinePendingFailures.replace('{count}', String(pendingFailures))}
         </div>
       )}
@@ -244,7 +248,7 @@ export function EnvBadge({ env, database }: EnvBadgeProps) {
   const diverged =
     database && !database.isShared && database.diverges ? (
       <div
-        className="fixed top-2 left-2 z-[9997] bg-red-700 text-white text-[10px] font-black tracking-widest px-2.5 py-1 rounded-full shadow-lg uppercase pointer-events-none"
+        className="fixed top-2 left-2 z-[9997] bg-red-700 text-white text-2xs font-black tracking-widest px-2.5 py-1 rounded-full shadow-lg uppercase pointer-events-none"
         title={`Base de données non partagée (${database.ref ?? 'ref inconnue'}) — les autres installations ne verront pas ces données.`}
       >
         Base non partagée
@@ -254,10 +258,13 @@ export function EnvBadge({ env, database }: EnvBadgeProps) {
   // Only show in non-production environments
   const envBadge =
     env === 'production' ? null : (
-      // Solid accent fills: white text needs ≥ 4.5:1, so the 500-level fills
-      // (blue-500 3.7:1, amber-500 2.2:1) are too light — use 700-level.
+      // The DEV badge follows the theme accent (`accent-surface` + its readable
+      // ink), so it can no longer stay a hard-coded blue in an amber theme;
+      // staging keeps its semantic amber. The accent token guarantees the
+      // ≥ 4.5:1 contrast the old 500-level fills lacked.
       <div
-        className={`fixed top-2 ${diverged ? 'left-40' : 'left-2'} z-[9997] ${env === 'staging' ? 'bg-amber-700' : 'bg-blue-700'} text-white text-[10px] font-black tracking-widest px-2.5 py-1 rounded-full shadow-lg uppercase pointer-events-none`}
+        data-slot="app-env-badge"
+        className={`fixed top-2 ${diverged ? 'left-40' : 'left-2'} z-[9997] ${env === 'staging' ? 'bg-amber-700 text-white' : 'accent-surface accent-surface-text'} text-2xs font-black tracking-widest px-2.5 py-1 rounded-full shadow-lg uppercase pointer-events-none`}
       >
         {env === 'staging' ? 'STAGING' : 'DEV'}
       </div>

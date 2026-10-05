@@ -50,7 +50,7 @@ export function CalendarDayModal(props: CalendarDayModalProps) {
                   if (dayEvents.length === 0 && dayNotes.length === 0) {
                     return (
                       <div className="py-10 text-center">
-                        <div className={`w-16 h-16 rounded-full ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} flex items-center justify-center mx-auto mb-4`}>
+                        <div className={`w-16 h-16 rounded-full ${currentTheme.surfaceInset} ${currentTheme.inkStrong} flex items-center justify-center mx-auto mb-4`}>
                           <Calendar size={32} />
                         </div>
                         <p className={currentTheme.muted}>{t.noTasks}</p>
@@ -67,10 +67,10 @@ export function CalendarDayModal(props: CalendarDayModalProps) {
                               <StickyNote size={20} />
                             </div>
                             <div>
-                              <h4 className="font-black uppercase tracking-widest text-[10px] text-yellow-700">
+                              <h4 className="font-black uppercase tracking-widest text-2xs text-yellow-700">
                                 {t.notes}
                               </h4>
-                              <p className={`text-lg font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
+                              <p className={`text-lg font-bold ${currentTheme.inkStrong}`}>
                                 {dayNotes.length}
                               </p>
                             </div>
@@ -79,7 +79,7 @@ export function CalendarDayModal(props: CalendarDayModalProps) {
                             {dayNotes.map((n) => (
                               <div key={n.id} className="flex justify-between items-start gap-3 text-sm py-2 border-t border-yellow-200">
                                 {n.studentName && (
-                                  <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'} flex-shrink-0`}>{n.studentName}</span>
+                                  <span className={`font-bold ${currentTheme.inkStrong} flex-shrink-0`}>{n.studentName}</span>
                                 )}
                                 <span className={`${currentTheme.muted} text-right`}>{n.text}</span>
                               </div>
@@ -106,7 +106,7 @@ export function CalendarDayModal(props: CalendarDayModalProps) {
                               {event.type === 'due' ? <Users size={20} /> : event.type === 'salary' ? <Briefcase size={20} /> : event.type === 'note' ? <StickyNote size={20} /> : event.type === 'todo' ? <CheckSquare size={20} /> : <Receipt size={20} />}
                             </div>
                             <div>
-                              <h4 className={`font-black uppercase tracking-widest text-[10px] ${
+                              <h4 className={`font-black uppercase tracking-widest text-2xs ${
                                 event.type === 'due' ? 'text-rose-600' :
                                 event.type === 'salary' ? 'text-emerald-600' :
                                 event.type === 'note' ? 'text-yellow-700' :
@@ -119,7 +119,7 @@ export function CalendarDayModal(props: CalendarDayModalProps) {
                                  event.type === 'todo' ? (t.tasks) : 
                                  (t.expenses)}
                               </h4>
-                              <p className={`text-lg font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
+                              <p className={`text-lg font-bold ${currentTheme.inkStrong}`}>
                                 {event.count}
                               </p>
                             </div>
@@ -130,7 +130,7 @@ export function CalendarDayModal(props: CalendarDayModalProps) {
                               <div key={dIdx} className={`flex justify-between items-center text-sm py-2 border-t ${currentTheme.border}`}>
                                 <span className={`${currentTheme.muted} ${detail.completed ? 'line-through opacity-60' : ''}`}>{detail.name}</span>
                                 {detail.amount !== undefined && (
-                                  <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{formatCurrency(detail.amount)}</span>
+                                  <span className={`font-bold ${currentTheme.inkStrong}`}>{formatCurrency(detail.amount)}</span>
                                 )}
                               </div>
                             ))}
@@ -143,7 +143,7 @@ export function CalendarDayModal(props: CalendarDayModalProps) {
 
                 {/* Add a note on this date (Notes ⇄ Calendar bridge) */}
                 <div className="pt-2 border-t border-slate-100">
-                  <div className="bg-[#FEF9C3] p-5 rounded-2xl border border-yellow-200/70">                      <h4 className="text-[9px] font-black text-yellow-900 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <div className="bg-[#FEF9C3] p-5 rounded-2xl border border-yellow-200/70">                      <h4 className="text-3xs font-black text-yellow-900 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                       <StickyNote size={12} />
                       {t.addNoteForThisDay}
                     </h4>

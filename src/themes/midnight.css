@@ -7,24 +7,31 @@
    border-slate-100, the pastel alert surfaces) stayed light inside midnight,
    producing white cards / invisible text. This layer mirrors the slate
    remap strategy with midnight's own palette (#090D16 body, #111827 card,
-   #1F2937 borders) so the same families are covered: light surfaces become
+   #243047 borders) so the same families are covered: light surfaces become
    dark, dark text becomes light, pastel alerts become deep tints, and the
    scoped heading rule only whitens text inside containers this theme paints
    dark — same contract as the slate block above (kept in sync by
    scripts/check-css-selectors.mjs for the slate family; midnight follows
    the same discipline). */
 .theme-midnight {
-  --surface-sidebar: linear-gradient(180deg, #030712 0%, #090D16 100%);
+  --surface-sidebar: linear-gradient(180deg, #05070F 0%, #0D1526 100%);
   --surface-card: #111827;
-  --surface-inset: #090D16;
+  --surface-inset: #0C1220;
   --surface-body: #090D16;
   --accent-primary: #FBBF24;
   --accent-primary-hover: #F59E0B;
   --accent-primary-muted: rgba(251, 191, 36, 0.12);
   --accent-primary-shadow: rgba(251, 191, 36, 0.2);
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.40), 0 4px 6px -4px rgba(0, 0, 0, 0.28);
+  --accent-primary-border: rgba(251, 191, 36, 0.32);
+  /* Premium elevation ladder (R9): each step layers a tight contact shadow
+     over a wide ambient one and draws a 1px inner top highlight, so a dark
+     card reads as a lit, raised surface instead of a flat fill. */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.26), 0 3px 8px -2px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.38), 0 2px 5px -2px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-lg: 0 16px 34px -8px rgba(0, 0, 0, 0.50), 0 6px 14px -6px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-xl: 0 28px 52px -14px rgba(0, 0, 0, 0.56), 0 10px 22px -10px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-card-hover: 0 18px 38px -8px rgba(0, 0, 0, 0.54), 0 6px 16px -6px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   background-color: #090D16 !important;
 }
 
@@ -56,18 +63,17 @@
 .theme-midnight .bg-emerald-500 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-midnight .bg-emerald-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-midnight .bg-blue-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-emerald-900\/10 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-emerald-900\/20 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-midnight .card-elevated :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-midnight .card-stat :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-midnight .card-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .surface-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
 .theme-midnight .card-hero :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600) {
   color: #F9FAFB !important;
 }
 
 .theme-midnight .text-slate-400,
 .theme-midnight .text-slate-500 {
-  color: #9CA3AF !important;
+  color: #A9B4C4 !important;
 }
 .theme-midnight .text-slate-600,
 .theme-midnight .text-slate-700 {
@@ -88,7 +94,7 @@
 .theme-midnight .border-slate-100,
 .theme-midnight .border-slate-200,
 .theme-midnight .border-slate-300 {
-  border-color: #1F2937 !important;
+  border-color: #243047 !important;
 }
 
 /* Pastel alert/badge surfaces → deep tints (same family as slate) */
@@ -195,18 +201,8 @@
   border-color: #064E3B !important;
 }
 .theme-midnight .border-emerald-900\/20,
-.theme-midnight .border-emerald-900\/30,
-.theme-midnight .border-emerald-800\/50 {
+.theme-midnight .border-emerald-900\/30 {
   border-color: #1F2937 !important;
-}
-
-.theme-midnight .bg-emerald-900\/10,
-.theme-midnight .bg-emerald-900\/20 {
-  background-color: #111827 !important;
-}
-
-.theme-midnight .hover\:bg-emerald-900\/5:hover {
-  background-color: #1F2937 !important;
 }
 
 /* Midnight accent mapping (amber) + card system */
@@ -221,17 +217,24 @@
 .theme-midnight .card-elevated,
 .theme-midnight .card-stat {
   background: #111827;
-  border-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.09);
 }
 
 .theme-midnight .card-inset {
-  background: #090D16;
-  border-color: rgba(255, 255, 255, 0.04);
+  background: #0C1220;
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .theme-midnight .card-hero {
-  background: linear-gradient(135deg, #030712 0%, #111827 100%);
-  border-color: rgba(251, 191, 36, 0.1);
+  background: linear-gradient(135deg, #05070F 0%, #131B2B 100%);
+  border-color: rgba(251, 191, 36, 0.14);
+}
+
+/* The nav rail carries an inline gradient (Sidebar.tsx) for the whole app.
+   A scoped !important background lets Cyber Minuit give it its own cooler,
+   deeper falloff without touching the component or the light themes. */
+.theme-midnight .app-sidebar {
+  background: linear-gradient(180deg, #05070F 0%, #0B1120 55%, #0E1728 100%) !important;
 }
 
 .theme-midnight .table-row-hover:hover {
@@ -246,24 +249,18 @@
   background: rgba(255, 255, 255, 0.20);
 }
 
-/* Cream card system */
-.theme-cream .card-elevated,
-.theme-cream .card-stat {
-  background: #FFFDF9;
-  border-color: rgba(139, 125, 96, 0.12);
-}
-
-.theme-cream .card-inset {
-  background: #FDFBF7;
-  border-color: rgba(139, 125, 96, 0.08);
-}
-
-.theme-cream .card-hero {
-  background: linear-gradient(135deg, #1A3A2A 0%, #1E5E3A 100%);
-}
-
-.theme-cream .table-row-hover:hover {
-  background-color: rgba(139, 125, 96, 0.04);
+/* The `.skeleton` primitive paints dark-on-light by default (see src/index.css)
+   and was darkened for slate only — so on midnight the loading bars were a
+   near-invisible 4%-black on a #090D16 body. Same shape as the slate rule,
+   because a skeleton must read the same in both dark themes. */
+.theme-midnight .skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
 }
 
 /* stylelint-enable declaration-no-important -- midnight remap layer ends */

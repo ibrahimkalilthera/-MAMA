@@ -18,14 +18,14 @@ export function WelcomeToast(props: WelcomeToastProps) {
             initial={{ opacity: 0, y: -100, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -100, scale: 0.9 }}
-            className="fixed top-10 left-1/2 -translate-x-1/2 z-[110] bg-slate-900 text-white dark:bg-emerald-600 px-8 py-5 rounded-3xl shadow-2xl flex items-center gap-4 font-black text-sm border-2 border-emerald-500/20"
+            className="fixed top-10 left-1/2 -translate-x-1/2 z-[110] accent-surface accent-surface-text px-8 py-5 rounded-3xl shadow-2xl flex items-center gap-4 font-black text-sm border-2 border-white/10"
           >
-            <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center text-white">
+            <div className="w-8 h-8 bg-white/15 rounded-xl flex items-center justify-center accent-surface-text">
               <ShieldCheck size={18} />
             </div>
             <div className="text-left">
               <p className="leading-tight">{welcomeMessage}</p>
-              <p className="text-[10px] text-white/90 font-medium">
+              <p className="text-2xs text-white/90 font-medium">
                 {currentUser?.role === 'dev'
                   ? (t.systemDeveloperPortal)
                   : currentUser?.role === 'admin' 

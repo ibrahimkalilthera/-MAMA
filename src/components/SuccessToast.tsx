@@ -16,7 +16,7 @@ export function SuccessToast(props: SuccessToastProps) {
             initial={{ opacity: 0, y: 100 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
-            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] bg-emerald-600 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold"
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] accent-surface accent-surface-text px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold"
           >
             <CheckCircle2 size={20} />
             {t.successMessage}
