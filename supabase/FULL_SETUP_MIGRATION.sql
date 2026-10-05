@@ -1523,11 +1523,22 @@ AS $$
 $$;
 
 -- ─── salary_payments : insertion et correction ouvertes à l'économe ─────────
+-- DEUX noms hérités se sont succédé sur cette même table (« Admin can insert
+-- salary_payments », puis « Finance admins insert salary_payments ») : les deux
+-- sont retirés. Les policies permissives se cumulent par OR, donc en laisser une
+-- n'aurait pas changé le RÉSULTAT — mais elle laisserait croire que
+-- `is_admin()` (admin, dev) est encore la règle de la paie. Elle ne l'est plus.
+-- Rejouable (une migration a été appliquée deux fois, mesuré : le second
+-- passage échouait sur « policy already exists » et annulait tout le bloc) :
+-- on retire AUSSI les noms que cette migration crée, avant de les recréer.
+DROP POLICY IF EXISTS "Admin can insert salary_payments" ON public.salary_payments;
 DROP POLICY IF EXISTS "Finance admins insert salary_payments" ON public.salary_payments;
+DROP POLICY IF EXISTS "Payroll writers insert salary_payments" ON public.salary_payments;
 CREATE POLICY "Payroll writers insert salary_payments" ON public.salary_payments
     FOR INSERT WITH CHECK (public.is_payroll_writer());
 
 DROP POLICY IF EXISTS "Finance admins update salary_payments" ON public.salary_payments;
+DROP POLICY IF EXISTS "Payroll writers update salary_payments" ON public.salary_payments;
 CREATE POLICY "Payroll writers update salary_payments" ON public.salary_payments
     FOR UPDATE USING (public.is_payroll_writer());
 

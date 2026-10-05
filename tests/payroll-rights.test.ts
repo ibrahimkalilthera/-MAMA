@@ -106,11 +106,30 @@ describe('la règle de l’app et les fonctions de la base ne peuvent pas diverg
     );
   });
 
-  it('la disparition de la policy d’insertion est bien neutralisée (DROP avant CREATE)', () => {
+  it('la migration est REJOUABLE — elle retire aussi les noms qu’elle crée', () => {
+    // Mesuré : appliquée deux fois, le second passage échouait sur
+    // « policy already exists » et annulait tout le bloc (transaction).
+    for (const name of ['Payroll writers insert salary_payments', 'Payroll writers update salary_payments']) {
+      assert.ok(
+        payrollSql.includes(`DROP POLICY IF EXISTS "${name}" ON public.salary_payments;`),
+        `« ${name} » doit être retirée avant d’être recréée`,
+      );
+    }
+  });
+
+  it('les policies d’insertion héritées sont retirées (DROP avant CREATE)', () => {
     assert.match(
       payrollSql,
       /DROP POLICY IF EXISTS "Finance admins insert salary_payments"/,
       'sans le DROP, la policy is_finance_admin resterait active et l’econome serait encore refusé',
+    );
+    // Deux noms se sont succédé sur la même table : les policies permissives se
+    // cumulent par OR, donc en laisser une ne change pas le RÉSULTAT — mais elle
+    // ferait croire que `is_admin()` est encore la règle de la paie.
+    assert.match(
+      payrollSql,
+      /DROP POLICY IF EXISTS "Admin can insert salary_payments"/,
+      'la policy héritée is_admin — plus restrictive que is_payroll_writer() — doit partir aussi',
     );
   });
 
