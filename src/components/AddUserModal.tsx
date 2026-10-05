@@ -112,14 +112,14 @@ export const AddUserModal = ({
       header={
         <div className="p-6 border-b border-white/10 bg-[#0F172A] text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/30">
-              <UserPlus size={20} className="text-white" />
+            <div className={`w-10 h-10 rounded-2xl ${currentTheme.accentBg} flex items-center justify-center shadow-lg ${currentTheme.accentShadow}`}>
+              <UserPlus size={20} className={currentTheme.accentText} />
             </div>
             <div>
               <h3 id="modal-title-add-staff-account" className="font-bold text-base">
                 {t.addStaffAccount}
               </h3>
-              <p className="text-[11px] text-white/50">
+              <p className="text-2xs text-white/50">
                 {t.createALoginAndAssignInitialAccessRole}
               </p>
             </div>
@@ -137,7 +137,7 @@ export const AddUserModal = ({
         {/* Form */}
         <form onSubmit={handleCreateUser} className="p-6 space-y-4">
           <div className="space-y-1.5">
-            <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+            <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
               {t.fullName2}
             </label>
             <input
@@ -148,12 +148,12 @@ export const AddUserModal = ({
               placeholder={t.eGAminataTraor}
               className={`w-full px-4 py-3 rounded-xl border ${currentTheme.border} ${
                 currentTheme.isDark ? 'bg-white/5 text-white' : 'bg-slate-50 text-slate-900'
-              } text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30`}
+              } text-xs font-semibold focus:outline-none ${currentTheme.accentRing}`}
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+            <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
               {t.email}
             </label>
             <input
@@ -165,12 +165,12 @@ export const AddUserModal = ({
               placeholder="nom@mamathera.org"
               className={`w-full px-4 py-3 rounded-xl border ${currentTheme.border} ${
                 currentTheme.isDark ? 'bg-white/5 text-white' : 'bg-slate-50 text-slate-900'
-              } text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30`}
+              } text-xs font-semibold focus:outline-none ${currentTheme.accentRing}`}
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+            <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
               {t.initialPasswordMin6Characters}
             </label>
             {/* Un mot de passe INITIAL, pas une connexion : le dire évite que le
@@ -188,13 +188,13 @@ export const AddUserModal = ({
               placeholder="••••••••"
               className={`w-full px-4 py-3 rounded-xl border ${currentTheme.border} ${
                 currentTheme.isDark ? 'bg-white/5 text-white' : 'bg-slate-50 text-slate-900'
-              } text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30`}
+              } text-xs font-semibold focus:outline-none ${currentTheme.accentRing}`}
             />
           </div>
 
           {/* Role selection */}
           <div className="space-y-2 pt-1">
-            <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+            <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
               {t.assignedRolePermissions}
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -203,17 +203,17 @@ export const AddUserModal = ({
                 onClick={() => setNewUserForm({ ...newUserForm, role: 'staff' })}
                 className={`p-3.5 rounded-2xl border text-left transition-all ${
                   newUserForm.role === 'staff'
-                    ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30'
+                    ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}`
                     : `${currentTheme.border} hover:bg-white/5`
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Briefcase size={16} className="text-sky-500 flex-shrink-0" />
-                  <span className={`text-xs font-bold ${newUserForm.role === 'staff' ? 'text-blue-500' : currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
+                  <span className={`text-xs font-bold ${newUserForm.role === 'staff' ? currentTheme.accentSoftText : currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
                     {t.roleStaff}
                   </span>
                 </div>
-                <p className={`text-[10px] ${currentTheme.muted} leading-snug`}>
+                <p className={`text-2xs ${currentTheme.muted} leading-snug`}>
                   {t.dailyEntriesFeesReceiptsStudentsExpenses}
                 </p>
               </button>
@@ -222,17 +222,17 @@ export const AddUserModal = ({
                 onClick={() => setNewUserForm({ ...newUserForm, role: 'econome' })}
                 className={`p-3.5 rounded-2xl border text-left transition-all ${
                   newUserForm.role === 'econome'
-                    ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30'
+                    ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}`
                     : `${currentTheme.border} hover:bg-white/5`
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Receipt size={16} className="text-violet-500 flex-shrink-0" />
-                  <span className={`text-xs font-bold ${newUserForm.role === 'econome' ? 'text-blue-500' : currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
+                  <span className={`text-xs font-bold ${newUserForm.role === 'econome' ? currentTheme.accentSoftText : currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
                     {t.roleEconome}
                   </span>
                 </div>
-                <p className={`text-[10px] ${currentTheme.muted} leading-snug`}>
+                <p className={`text-2xs ${currentTheme.muted} leading-snug`}>
                   {t.dailyEntriesFeesReceiptsStudentsExpenses}
                 </p>
               </button>
@@ -250,7 +250,7 @@ export const AddUserModal = ({
                     {t.generalManager}
                   </span>
                 </div>
-                <p className={`text-[10px] ${currentTheme.muted} leading-snug`}>
+                <p className={`text-2xs ${currentTheme.muted} leading-snug`}>
                   {t.generalManagerFullAdministrationFinancialAccess}
                 </p>
               </button>
@@ -260,16 +260,16 @@ export const AddUserModal = ({
                 onClick={() => setNewUserForm({ ...newUserForm, role: 'admin' })}
                 className={`p-3.5 rounded-2xl border text-left transition-all ${
                   newUserForm.role === 'admin'
-                    ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30'
+                    ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}`
                     : `${currentTheme.border} hover:bg-white/5`
                 }`}>
                 <div className="flex items-center gap-2 mb-1">
                   <Crown size={16} className="text-amber-500 flex-shrink-0" />
-                  <span className={`text-xs font-bold ${newUserForm.role === 'admin' ? 'text-emerald-500' : currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
+                  <span className={`text-xs font-bold ${newUserForm.role === 'admin' ? currentTheme.accentSoftText : currentTheme.isDark ? 'text-white' : 'text-slate-800'}`}>
                     {t.promoterAdmin}
                   </span>
                 </div>
-                <p className={`text-[10px] ${currentTheme.muted} leading-snug`}>
+                <p className={`text-2xs ${currentTheme.muted} leading-snug`}>
                   {t.fullAdministrativeControlClosingYearsRoleEdits}
                 </p>
               </button>
@@ -288,7 +288,7 @@ export const AddUserModal = ({
             <button
               type="submit"
               disabled={isCreatingUser}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white h-11 px-4 rounded-2xl text-xs font-black transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95 whitespace-nowrap"
+              className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} disabled:opacity-50 h-11 px-4 rounded-2xl text-xs font-black transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow} active:scale-95 whitespace-nowrap`}
             >
               {isCreatingUser ? (
                 <>

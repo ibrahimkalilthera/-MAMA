@@ -25,7 +25,7 @@ const {
   RE_PROMPT_MS,
   FORCED_MAJOR_BEHIND,
   FORCED_MINOR_BEHIND,
-  FORCED_RELEASE_AGE_DAYS,
+  FORCED_PATCH_BEHIND,
   FORCED_RE_PROMPT_MS,
   parseVersion,
   shouldCheck,
@@ -43,7 +43,7 @@ const {
   RE_PROMPT_MS: number;
   FORCED_MAJOR_BEHIND: number;
   FORCED_MINOR_BEHIND: number;
-  FORCED_RELEASE_AGE_DAYS: number;
+  FORCED_PATCH_BEHIND: number;
   FORCED_RE_PROMPT_MS: number;
   parseVersion: (v: unknown) => { major: number; minor: number; patch: number } | null;
   shouldCheck: (i?: Record<string, unknown>) => { check: boolean; reason: string };
@@ -53,7 +53,7 @@ const {
     code: string;
     behindMajor: number | null;
     behindMinor: number | null;
-    releaseAgeDays: number | null;
+    behindPatch: number | null;
     detail: string;
   };
   updateAction: (i?: Record<string, unknown>) => { action: string; detail: string };
@@ -136,7 +136,7 @@ describe('« Plus tard » reporte, il ne refuse pas', () => {
   });
 });
 
-describe('au-delà du seuil, la mise à jour n’est plus une question', () => {
+describe('tout retard rend la mise à jour obligatoire', () => {
   const pressure = (over: Record<string, unknown>) =>
     updatePressure({
       currentVersion: '1.0.0',
@@ -153,10 +153,15 @@ describe('au-delà du seuil, la mise à jour n’est plus une question', () => {
     assert.equal(parseVersion(undefined), null);
   });
 
-  it('un correctif récent ne force rien — sinon tout serait obligatoire', () => {
+  it('un SEUL correctif de retard force — le seuil « trop récent pour forcer » est parti', () => {
+    // C'est ce seuil qui laissait un poste des mois derrière : « Plus tard »
+    // offert, une version « trop petite pour compter » ne revenait jamais.
     const v = pressure({ availableVersion: '1.0.1' });
-    assert.equal(v.forced, false);
-    assert.equal(v.code, 'none');
+    assert.equal(v.forced, true);
+    assert.equal(v.code, 'patch');
+    assert.equal(v.behindPatch, 1);
+    assert.equal(FORCED_PATCH_BEHIND, 1);
+    assert.match(v.detail, /correctif/);
   });
 
   it('une version majeure de retard force l’installation', () => {
@@ -167,40 +172,40 @@ describe('au-delà du seuil, la mise à jour n’est plus une question', () => {
     assert.equal(FORCED_MAJOR_BEHIND, 1);
   });
 
-  it('deux mineures de retard forcent, une seule non', () => {
-    assert.equal(pressure({ availableVersion: '1.2.0' }).forced, true);
-    assert.equal(pressure({ availableVersion: '1.2.0' }).code, 'minor');
-    assert.equal(pressure({ availableVersion: '1.1.0' }).forced, false);
-    assert.equal(FORCED_MINOR_BEHIND, 2);
+  it('une seule mineure de retard force', () => {
+    assert.equal(pressure({ availableVersion: '1.1.0' }).forced, true);
+    assert.equal(pressure({ availableVersion: '1.1.0' }).code, 'minor');
+    assert.equal(FORCED_MINOR_BEHIND, 1);
   });
 
   it('un écart de mineures entre deux majeures ne compte pas comme « une mineure »', () => {
     // 2.0.0 vs 1.9.0 n'est pas « zéro mineure de retard » : c'est une majeure,
-    // et c'est la règle de la majeure qui doit répondre.
+    // et c'est la règle de la majeure qui doit répondre. Même raison pour le
+    // correctif : 1.1.0 vs 1.0.9 n'est pas « un correctif de retard ».
     const v = pressure({ currentVersion: '1.9.0', availableVersion: '2.0.0' });
     assert.equal(v.code, 'major');
     assert.equal(v.behindMinor, null);
+    assert.equal(v.behindPatch, null);
   });
 
-  it('une version publiée depuis 45 jours et toujours pas installée force', () => {
-    // Le filet du cas le plus courant : une « petite » version publiée un jour
-    // où personne n'était devant le poste, et jamais reprise ensuite.
-    const stale = pressure({
-      availableVersion: '1.0.1',
-      releaseDate: new Date(NOW - (FORCED_RELEASE_AGE_DAYS + 1) * 86400000).toISOString(),
-    });
-    assert.equal(stale.forced, true);
-    assert.equal(stale.code, 'age');
-    assert.equal(stale.releaseAgeDays, FORCED_RELEASE_AGE_DAYS + 1);
-    const fresh = pressure({
-      availableVersion: '1.0.1',
-      releaseDate: new Date(NOW - (FORCED_RELEASE_AGE_DAYS - 1) * 86400000).toISOString(),
-    });
-    assert.equal(fresh.forced, false);
+  it('la date de publication ne participe plus au verdict', () => {
+    // La règle des 45 jours servait de filet pour les versions « trop petites
+    // pour forcer ». Depuis que TOUT retard force, elle ne pouvait plus se
+    // déclencher — elle est partie, et la politique ne lit plus `releaseDate`.
+    // Le champ reste inoffensif s'il est encore envoyé : un appelant plus ancien
+    // ne doit pas pouvoir faire mentir le verdict.
+    const ignored = pressure({ availableVersion: '1.0.1', releaseDate: null });
+    assert.equal(ignored.forced, true);
+    assert.equal(ignored.code, 'patch');
+    const withDate = pressure({ availableVersion: '1.0.1', releaseDate: new Date(NOW).toISOString() });
+    assert.equal(withDate.code, 'patch', 'la date ne change rien, dans aucun sens');
   });
 
   it('un poste à jour, ou en avance, n’est jamais forcé', () => {
-    assert.equal(pressure({ currentVersion: '1.4.0', availableVersion: '1.4.0' }).forced, false);
+    const current = pressure({ currentVersion: '1.4.0', availableVersion: '1.4.0' });
+    assert.equal(current.forced, false);
+    assert.equal(current.code, 'none');
+    assert.equal(current.behindPatch, 0);
     assert.equal(pressure({ currentVersion: '1.5.0', availableVersion: '1.4.0' }).forced, false);
   });
 
@@ -214,20 +219,6 @@ describe('au-delà du seuil, la mise à jour n’est plus une question', () => {
     assert.match(v.detail, /illisible/);
   });
 
-  it('une date de publication illisible n’annule que la règle de date', () => {
-    const noDate = pressure({ availableVersion: '1.0.1', releaseDate: null });
-    assert.equal(noDate.releaseAgeDays, null);
-    assert.equal(noDate.forced, false, 'la règle de date ne juge pas');
-    const major = pressure({ availableVersion: '2.0.0', releaseDate: 'pas une date' });
-    assert.equal(major.forced, true, 'les autres règles continuent de juger');
-    assert.equal(major.code, 'major');
-  });
-
-  it('une date de publication dans le futur ne force pas', () => {
-    const v = pressure({ availableVersion: '1.0.1', releaseDate: new Date(NOW + 86400000).toISOString() });
-    assert.equal(v.releaseAgeDays, null);
-    assert.equal(v.forced, false);
-  });
 });
 
 describe('le portable n’est pas laissé muet', () => {
@@ -303,7 +294,7 @@ describe('le câblage : les trois étages se répondent', () => {
     assert.match(banner, /data-update-gate="forced"/, 'la porte doit exister à l’écran');
     assert.match(banner, /forcedCode === 'major'/);
     assert.match(banner, /forcedCode === 'minor'/);
-    assert.match(banner, /forcedCode === 'age'/);
+    assert.match(banner, /forcedCode === 'patch'/);
     // L'issue de secours n'est rendue que dans l'état d'échec, et rien ne la
     // garde une fois la version téléchargée : une obligation qu'on peut
     // contourner quand tout va bien n'est pas une obligation.
@@ -314,7 +305,7 @@ describe('le câblage : les trois étages se répondent', () => {
     assert.match(preload, /retry: \(\) => ipcRenderer\.invoke\('updates:check-now'\)/);
     assert.match(main, /ipcMain\.handle\('updates:check-now'/);
 
-    for (const key of ['updateForcedTitle', 'updateForcedMajor', 'updateForcedMinor', 'updateForcedAge', 'updateForcedNote', 'updateForcedFailed', 'updateForcedRetry', 'updateForcedContinue']) {
+    for (const key of ['updateForcedTitle', 'updateForcedMajor', 'updateForcedMinor', 'updateForcedPatch', 'updateForcedNote', 'updateForcedFailed', 'updateForcedRetry', 'updateForcedContinue']) {
       assert.match(fr, new RegExp(`${key}:`), `${key} manque en français`);
       assert.match(en, new RegExp(`${key}:`), `${key} manque en anglais`);
     }
@@ -328,11 +319,11 @@ describe('le câblage : les trois étages se répondent', () => {
 // versions retenues, publiée HORS du release (donc modifiable après coup, sans
 // toucher à la version fautive) et relue à chaque vérification.
 describe('frein d’urgence : une version retenue n’est ni imposée ni installée', () => {
-  const forcedByAge = () => updatePressure({
+  // Un poste en retard d'un seul correctif suffit désormais à rendre la version
+  // obligatoire : c'est ce forçage que le frein doit pouvoir battre.
+  const forcedByPatch = () => updatePressure({
     currentVersion: '1.0.2',
     availableVersion: '1.0.3',
-    releaseDate: new Date(NOW - 60 * 86400000).toISOString(),
-    nowMs: NOW,
   });
   const holds = (version: string, reason?: string) => [{ version, ...(reason === undefined ? {} : { reason }) }];
 
@@ -357,7 +348,7 @@ describe('frein d’urgence : une version retenue n’est ni imposée ni install
   });
 
   it('une retenue bat le forçage, même au-delà d’un seuil', () => {
-    const pressure = forcedByAge();
+    const pressure = forcedByPatch();
     assert.equal(pressure.forced, true, 'sans frein, cette version serait imposée');
     const gated = updateGate({ pressure, hold: holdDecision({ version: '1.0.3', holds: holds('1.0.3', 'régression de paie'), readOk: true }) });
     assert.equal(gated.forced, false, 'le frein doit battre l’obligation');
@@ -367,7 +358,7 @@ describe('frein d’urgence : une version retenue n’est ni imposée ni install
   });
 
   it('une liste illisible ne force RIEN mais propose toujours', () => {
-    const gated = updateGate({ pressure: forcedByAge(), hold: holdDecision({ version: '1.0.3', readOk: false }) });
+    const gated = updateGate({ pressure: forcedByPatch(), hold: holdDecision({ version: '1.0.3', readOk: false }) });
     assert.equal(gated.forced, false, 'on ne contraint personne sur une supposition');
     assert.equal(gated.deliverable, true, 'l’utilisateur garde la mise à jour');
     assert.equal(gated.held, false, 'illisible n’est pas retenu : ce sont deux états distincts');

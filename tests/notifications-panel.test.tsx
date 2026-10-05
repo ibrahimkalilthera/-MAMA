@@ -15,11 +15,45 @@ import type { Root } from 'react-dom/client';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { DashboardNotification } from '../src/app/useDashboard';
+import type { CurrentTheme } from '../src/app/mainViewsProps';
 import { NotificationsPanel } from '../src/components/NotificationsPanel';
 import { isAuditArchiveAnchor } from '../src/lib/settingsAnchor';
 import { installDomGlobals } from './harness';
 
 const t = translations.fr as TranslationDict;
+
+const theme: CurrentTheme = {
+  bg: 'bg-slate-100',
+  card: 'bg-white',
+  input: 'bg-white',
+  text: 'text-slate-800',
+  muted: 'text-slate-500',
+  border: 'border-slate-200',
+  header: 'bg-slate-800',
+  sidebar: 'bg-slate-900',
+  accent: 'text-emerald-600',
+  accentBg: 'accent-surface',
+  accentText: 'accent-surface-text',
+  accentHover: 'accent-surface-hover',
+  accentGroupHover: 'accent-group-hover',
+  accentShadow: 'accent-shadow',
+  accentSoft: 'accent-soft-surface',
+  accentSoftText: 'accent-soft-text',
+  accentSoftHover: 'accent-soft-hover', accentSoftTextHover: 'accent-soft-text-hover',
+  accentHex: '#059669',
+  accentHexDeep: '#047857',
+  accentRing: 'accent-ring',
+  accentBorder: 'accent-border',
+  accentBorderHover: 'accent-border-hover',
+  surfaceInset: 'surface-inset',
+  inkStrong: 'text-slate-800',
+  accentSoftDark: 'accent-soft-surface',
+  accentSoftDarkHover: 'accent-soft-hover',
+  accentSoftDarkText: 'accent-on-dark-text',
+  tableHeader: 'bg-slate-50',
+  rowHover: 'hover:bg-slate-50',
+  isDark: false,
+};
 
 const win = installDomGlobals({
   extra: {
@@ -92,6 +126,7 @@ function Harness(props: Fixture & {
   return (
     <NotificationsPanel
       notifications={props.notifications}
+      currentTheme={theme}
       onOpenStudent={props.onOpenStudent}
       t={t}
       lang="fr"
@@ -531,6 +566,71 @@ describe('NotificationsPanel — happy-dom render', () => {
       assert.equal(bell()?.getAttribute('aria-label'), 'Notifications');
       await act(async () => { click(bell() as Element); });
       assert.ok(q('[role="dialog"]')?.textContent?.includes(t.noNotifications));
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('la cloche et « marquer comme lu » suivent le thème, sans vert d’accent en dur', async () => {
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [due], readIds: [], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
+        }));
+      });
+      const closed = bell() as Element;
+      assert.ok(closed.classList.contains(theme.border), 'cloche fermée : bordure du thème');
+      await act(async () => { click(closed); });
+      const opened = bell() as Element;
+      for (const token of [theme.accentBg, theme.accentText, theme.accentBorder, theme.accentShadow]) {
+        assert.ok(opened.classList.contains(token), `cloche ouverte utilise ${token}`);
+      }
+      const markAll = buttonWithText(t.markAllRead);
+      assert.ok(markAll, 'bouton « marquer comme lu » rendu');
+      for (const token of [theme.accentSoftText, theme.accentSoftHover]) {
+        assert.ok(markAll?.classList.contains(token), `marquer comme lu utilise ${token}`);
+      }
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('l’état « masqués » porte le bouton restaurer sur les tokens d’accent', async () => {
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [due], readIds: [], deletedIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {}, onRestoreAll: () => {},
+        }));
+      });
+      await act(async () => { click(bell() as Element); });
+      const restore = buttonWithText(t.restoreNotifications);
+      assert.ok(restore, 'bouton restaurer rendu');
+      for (const token of [theme.accentSoftText, theme.accentBorder, theme.accentSoftHover]) {
+        assert.ok(restore?.classList.contains(token), `restaurer utilise ${token}`);
+      }
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  });
+
+  it('« marquer comme non lu » suit l’encre d’accent au survol, sans vert textuel codé en dur', async () => {
+    const { root, container } = mount();
+    try {
+      await act(async () => {
+        root.render(createElement(Harness, {
+          notifications: [due], readIds: ['due-s1'], onOpenStudent: () => {}, onMarkRead: () => {}, onMarkAllRead: () => {}, onMarkUnread: () => {}, onOpenCalendarDate: () => {},
+        }));
+      });
+      await act(async () => { click(bell() as Element); });
+      const markUnread = dialogButtons().find(b => b.getAttribute('aria-label') === t.markAsUnread);
+      assert.ok(markUnread, 'bouton « marquer comme non lu » rendu sur un rappel lu');
+      assert.ok(markUnread?.classList.contains(theme.accentSoftTextHover), 'il porte l’encre d’accent au survol');
+      assert.ok(!(markUnread?.className ?? '').includes('hover:text-emerald-600'), 'plus de vert textuel codé en dur');
     } finally {
       await act(async () => root.unmount());
       container.remove();

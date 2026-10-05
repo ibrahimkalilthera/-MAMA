@@ -1,16 +1,17 @@
 /**
  * happy-dom unit tests for the useTheme domain hook.
  *
- * Real hook rendered through a probe: default theme, the legacy
- * `midnight`→`slate` / `modern`→`cream` localStorage migrations, the
- * theme/logo/color persistence effects, the currentTheme token derivation
- * and the logo upload handler (base64 saved to localStorage; FileReader is
- * stubbed globally because happy-dom has no file input runtime).
+ * Real hook rendered through a probe: the default theme (Cyber Minuit) and its
+ * one-time reprise, the legacy `modern`→`cream` rename, the theme/logo/color
+ * persistence effects, the currentTheme token derivation and the logo upload
+ * handler (base64 saved to localStorage; FileReader is stubbed globally because
+ * happy-dom has no file input runtime).
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { act } from 'react';
 import { useTheme } from '../src/app/useTheme';
+import { parseColor } from '../src/lib/brandAccent';
 import { installDomGlobals, renderHook } from './harness';
 import type { HookRender } from './harness';
 
@@ -50,23 +51,76 @@ function unmount(): void {
 const KEY_THEME = 'school-finance-theme';
 const KEY_LOGO = 'school-finance-logo';
 const KEY_COLOR = 'school-finance-logo-color';
+/** Which default theme this browser has already adopted (see useTheme). */
+const KEY_DEFAULT = 'school-finance-theme-default';
 
 describe('useTheme', () => {
-  it('defaults to the navy theme with light tokens', () => {
+  it('defaults to the Cyber Minuit theme (the midnight id)', () => {
+    win.localStorage.clear();
     const api: ApiRef = { current: null };
     render(api);
-    assert.equal(api.current?.theme, 'navy');
-    assert.equal(api.current?.currentTheme.isDark, false);
-    assert.equal(api.current?.currentTheme.bg, 'bg-[#F8FAFC]');
-    assert.equal(api.current?.currentTheme.accent, 'blue-600');
+    assert.equal(api.current?.theme, 'midnight');
+    assert.equal(api.current?.currentTheme.isDark, true);
+    assert.equal(api.current?.currentTheme.bg, 'bg-[#090D16]');
+    assert.equal(api.current?.currentTheme.accent, 'amber-400');
     unmount();
+  });
+
+  it('adopts the default ONCE for a browser that had saved another theme', () => {
+    // A saved 'navy' cannot be told apart from the old default (the persist
+    // effect wrote that same value on first load) — which is why the reprise
+    // reads its own marker: a browser that predates the default change adopts
+    // Cyber Minuit once, and the marker records that it happened.
+    win.localStorage.clear();
+    win.localStorage.setItem(KEY_THEME, 'navy');
+    const api: ApiRef = { current: null };
+    render(api);
+    assert.equal(api.current?.theme, 'midnight');
+    assert.equal(win.localStorage.getItem(KEY_THEME), 'midnight');
+    assert.equal(win.localStorage.getItem(KEY_DEFAULT), 'midnight');
+    unmount();
+  });
+
+  it('honours the theme the user picked after that reprise', () => {
+    win.localStorage.clear();
+    win.localStorage.setItem(KEY_DEFAULT, 'midnight'); // default already adopted
+    win.localStorage.setItem(KEY_THEME, 'emerald');
+    const api: ApiRef = { current: null };
+    render(api);
+    assert.equal(api.current?.theme, 'emerald');
+    assert.equal(api.current?.currentTheme.isDark, false);
+    assert.equal(api.current?.currentTheme.accent, 'emerald-600');
+    unmount();
+  });
+
+  it('exposes the group-hover token for every theme and a custom logo accent', () => {
+    win.localStorage.clear();
+    const api: ApiRef = { current: null };
+    render(api);
+    try {
+      for (const theme of ['navy', 'slate', 'emerald', 'bordeaux', 'cream', 'midnight'] as const) {
+        act(() => { api.current?.setTheme(theme); });
+        assert.equal(api.current?.currentTheme.accentGroupHover, 'accent-group-hover', theme);
+        assert.deepEqual(parseColor(document.documentElement.style.getPropertyValue('--accent-primary')), parseColor(api.current!.currentTheme.accentHex));
+        assert.ok(document.documentElement.style.getPropertyValue('--accent-ink'), `${theme}: readable ink supplied`);
+      }
+      act(() => { api.current?.setLogoColor('rgb(10, 20, 30)'); });
+      assert.equal(api.current?.currentTheme.accentGroupHover, 'accent-group-hover');
+      assert.equal(document.documentElement.style.getPropertyValue('--accent-primary'), 'rgb(10,20,30)');
+    } finally {
+      unmount();
+      win.localStorage.clear();
+    }
   });
 
   it('applies the legacy modern→cream migration but keeps midnight as itself', () => {
     // `midnight` (Cyber Minuit) is a real picker theme with its own palette —
     // a saved midnight must restore as midnight, NOT be silently flipped to
     // slate (the old midnight→slate migration predates midnight being its own
-    // theme and broke Cyber Minuit persistence on every reload).
+    // theme and broke Cyber Minuit persistence on every reload). The default
+    // marker is set so the reprise cannot mask the saved value under test.
+    win.localStorage.clear();
+    win.localStorage.setItem(KEY_DEFAULT, 'midnight');
     win.localStorage.setItem(KEY_THEME, 'midnight');
     let api: ApiRef = { current: null };
     render(api);
@@ -76,6 +130,7 @@ describe('useTheme', () => {
     unmount();
 
     // Only the true legacy id (`modern`, no such theme exists) is migrated.
+    win.localStorage.setItem(KEY_DEFAULT, 'midnight');
     win.localStorage.setItem(KEY_THEME, 'modern');
     api = { current: null };
     render(api);
@@ -87,7 +142,7 @@ describe('useTheme', () => {
   });
 
   it('persists the theme to localStorage when changed', () => {
-    win.localStorage.removeItem(KEY_THEME);
+    win.localStorage.clear();
     const api: ApiRef = { current: null };
     render(api);
     act(() => { api.current?.setTheme('emerald'); });

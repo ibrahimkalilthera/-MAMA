@@ -32,6 +32,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, Bell, BellOff, CheckCircle2, CheckCheck, RotateCcw, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { DashboardNotification } from '../app/useDashboard';
+import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { relativeDateLabel } from '../lib/relativeDate';
@@ -39,6 +40,8 @@ import { requestAuditArchiveAnchor } from '../lib/settingsAnchor';
 
 export interface NotificationsPanelProps {
   notifications: DashboardNotification[];
+  /** Thème d'accent — la cloche et ses actions suivent le thème au lieu d'un vert en dur. */
+  currentTheme: CurrentTheme;
   onOpenStudent: (studentId: string) => void;
   t: TranslationDict;
   lang: 'en' | 'fr';
@@ -56,7 +59,7 @@ export interface NotificationsPanelProps {
   onOpenSettings: () => void;
 }
 
-export function NotificationsPanel({ notifications, onOpenStudent, t, lang, readIds, deletedIds, onMarkRead, onMarkAllRead, onMarkUnread, onDelete, onClearAll, onRestoreAll, onOpenCalendarDate, onOpenPayroll, onOpenSettings }: NotificationsPanelProps) {
+export function NotificationsPanel({ notifications, currentTheme, onOpenStudent, t, lang, readIds, deletedIds, onMarkRead, onMarkAllRead, onMarkUnread, onDelete, onClearAll, onRestoreAll, onOpenCalendarDate, onOpenPayroll, onOpenSettings }: NotificationsPanelProps) {
   const now = new Date();
 
   const relativeLabel = (date: string): string => {
@@ -112,13 +115,13 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
         aria-expanded={open}
         className={`relative z-50 p-2.5 rounded-xl border transition-all ${
           open
-            ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-600/20'
-            : 'text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400'
+            ? `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentBorder} ${currentTheme.accentShadow}`
+            : `${currentTheme.muted} ${currentTheme.border} ${currentTheme.accentSoftHover}`
         }`}
       >
         <Bell size={16} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center shadow">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-2xs font-black flex items-center justify-center shadow">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -136,7 +139,7 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
             className="absolute left-0 top-full mt-3 w-[min(92vw,380px)] z-50 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden"
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <span className="text-2xs font-black uppercase tracking-widest text-slate-400">
                 {t.notifications}
               </span>
               <div className="flex items-center gap-1">
@@ -146,7 +149,7 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                     onClick={onClearAll}
                     aria-label={t.clearNotifications}
                     title={t.clearNotifications}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-2xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all"
                   >
                     <Trash2 size={12} />
                     <span>{t.clearNotifications}</span>
@@ -156,7 +159,7 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                   <button
                     type="button"
                     onClick={onMarkAllRead}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-2xs font-black uppercase tracking-wider ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} transition-all`}
                   >
                     <CheckCheck size={12} />
                     <span className="hidden sm:inline">{t.markAllRead}</span>
@@ -189,7 +192,7 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                   <button
                     type="button"
                     onClick={onRestoreAll}
-                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all"
+                    className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-2xs font-black uppercase tracking-wider ${currentTheme.accentSoftText} border ${currentTheme.accentBorder} ${currentTheme.accentSoftHover} transition-all`}
                   >
                     <RotateCcw size={12} />
                     {t.restoreNotifications}
@@ -254,7 +257,7 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                           }}
                           onKeyDown={(e) => e.stopPropagation()}
                           title={t.openInCalendar}
-                          className="block text-[10px] font-semibold opacity-60 mt-0.5 hover:opacity-100 hover:underline transition-opacity text-left"
+                          className="block text-2xs font-semibold opacity-60 mt-0.5 hover:opacity-100 hover:underline transition-opacity text-left"
                         >
                           {relativeLabel(n.date)}
                         </button>
@@ -268,7 +271,7 @@ export function NotificationsPanel({ notifications, onOpenStudent, t, lang, read
                           }}
                           aria-label={t.markAsUnread}
                           title={t.markAsUnread}
-                          className="flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                          className={`flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 text-slate-400 dark:text-slate-500 ${currentTheme.accentSoftTextHover} hover:bg-slate-100 dark:hover:bg-slate-800 transition-all`}
                         >
                           <RotateCcw size={12} />
                         </button>

@@ -38,12 +38,35 @@ export const Login = ({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    const result = await onLogin(email.trim(), password);
+    // ── La source de vérité est le CHAMP, pas l'état React seul ────────────
+    //
+    // Un remplissage qui écrit la valeur SANS émettre d'événement `input` —
+    // gestionnaire de mots de passe, remplissage programmatique, automatisation
+    // — laissait l'état React vide. Le formulaire soumettait alors des
+    // identifiants VIDES, et le serveur répondait `Invalid login credentials` :
+    // un refus qui accuse le mot de passe alors que rien n'avait été envoyé.
+    // C'est exactement l'écart avec le script de contrôle, qui poste la valeur
+    // au serveur sans passer par l'état d'un composant et n'en souffre jamais.
+    //
+    // On lit donc ce que les champs CONTIENNENT au moment de soumettre, puis on
+    // resynchronise l'état : sans ça, le champ se viderait à l'écran dès le
+    // prochain rendu, et l'utilisateur verrait ses identifiants s'effacer.
+    const form = e.currentTarget;
+    const fieldValue = (name: string, fallback: string): string => {
+      const field = form.elements.namedItem(name) as HTMLInputElement | null;
+      return field ? field.value : fallback;
+    };
+    const submittedEmail = fieldValue('username', email).trim();
+    const submittedPassword = fieldValue('password', password);
+    if (submittedEmail !== email) setEmail(submittedEmail);
+    if (submittedPassword !== password) setPassword(submittedPassword);
+
+    const result = await onLogin(submittedEmail, submittedPassword);
     
     if (!result.success) {
       // Translate common Supabase auth errors, and the four verdicts of the
@@ -98,7 +121,7 @@ export const Login = ({
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+        className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
       >
         <div className="bg-slate-800 p-10 text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-full opacity-10">
@@ -109,8 +132,8 @@ export const Login = ({
               </div>
           </div>
           <div className="relative z-10">
-            <div className="w-20 h-20 bg-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-500/20">
-              <ShieldCheck size={40} className="text-white" />
+            <div className="w-20 h-20 accent-surface rounded-3xl flex items-center justify-center mx-auto mb-6 accent-shadow">
+              <ShieldCheck size={40} className="accent-surface-text" />
             </div>
             <h1 className="text-2xl font-black text-white tracking-tight mb-2">{t.loginTitle}</h1>
             <p className="text-emerald-400 text-xs font-bold uppercase tracking-[0.2em]">{t.loginSubtitle}</p>
@@ -133,7 +156,7 @@ export const Login = ({
           )}
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.email2}</label>
+            <label className="text-2xs font-black text-slate-400 uppercase tracking-widest ml-1">{t.email2}</label>
             <div className="relative">
               <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
@@ -142,7 +165,7 @@ export const Login = ({
                 autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold text-slate-800 animate-fade-in"
+                className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none accent-ring transition-all text-sm font-semibold text-slate-800 animate-fade-in"
                 placeholder="name@mamathera.org"
                 required
                 disabled={isLoading}
@@ -151,7 +174,7 @@ export const Login = ({
           </div>
           
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.password}</label>
+            <label className="text-2xs font-black text-slate-400 uppercase tracking-widest ml-1">{t.password}</label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
@@ -160,7 +183,7 @@ export const Login = ({
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold text-slate-800"
+                className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none accent-ring transition-all text-sm font-semibold text-slate-800"
                 placeholder="••••••••"
                 required
                 disabled={isLoading}
@@ -189,7 +212,7 @@ export const Login = ({
           {/* Ce que ce poste sait faire sans réseau — sans quoi un utilisateur
               devant un écran où il ne peut pas se connecter n'a aucun moyen de
               savoir qu'il PEUT le faire. */}
-          <p className="text-[10px] leading-relaxed text-slate-500 font-semibold text-center">
+          <p className="text-2xs leading-relaxed text-slate-500 font-semibold text-center">
             {t.offlineLoginHint}
           </p>
         </form>

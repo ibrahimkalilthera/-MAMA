@@ -22,6 +22,7 @@ import { generateEmployeeFichePdf } from '../lib/pdfPayrollFiche';
 import { generateTechniqueFichePdf } from '../lib/pdfPayrollTechnique';
 import { staffCategory } from '../lib/adminPositions';
 import type { StaffCategory } from '../lib/adminPositions';
+import { localIsoDate, systemClock, type Clock } from '../lib/dateWindows';
 import type { StaffModalMode, StaffPositionFilter } from './mainViewsProps';
 
 /** The kind of member a modal mode CREATES — the one place that mapping lives. */
@@ -46,23 +47,33 @@ interface UsePayrollDeps {
   addSalaryPayment: (sp: Omit<SalaryPayment, 'id'>) => Promise<SalaryPayment | null>;
   /** Uploaded school logo (data URL) — embedded in the bulletin / fiche headers. */
   schoolLogo: string | null;
+  /** Reference clock for the monthly payroll window (draft month/year, salary
+   *  form default day). Defaults to `systemClock`; a test pins it. */
+  now?: Clock;
 }
 
 export function usePayroll(deps: UsePayrollDeps) {
-  const { t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast, toastError, addStaff, updateStaff, addSalaryPayment, schoolLogo } = deps;
+  const { t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast, toastError, addStaff, updateStaff, addSalaryPayment, schoolLogo, now: nowFn = systemClock } = deps;
 
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [staffModalMode, setStaffModalMode] = useState<StaffModalMode>('employee');
   const [showMonthlyDraftModal, setShowMonthlyDraftModal] = useState(false);
-  const [selectedDraftMonth, setSelectedDraftMonth] = useState<number>(new Date().getMonth());
-  const [selectedDraftYear, setSelectedDraftYear] = useState<number>(new Date().getFullYear());
+  // Le couple mois/année du brouillon vient d'UNE seule lecture d'horloge : deux
+  // `new Date()` séparés pourraient enjamber la Saint-Sylvestre et apparier
+  // décembre avec l'année suivante. Le repère est lu une fois, à l'initialisation.
+  const [draftAnchor] = useState(() => {
+    const d = nowFn();
+    return { month: d.getMonth(), year: d.getFullYear() };
+  });
+  const [selectedDraftMonth, setSelectedDraftMonth] = useState<number>(draftAnchor.month);
+  const [selectedDraftYear, setSelectedDraftYear] = useState<number>(draftAnchor.year);
   const [showSalaryModal, setShowSalaryModal] = useState(false);
 
   const [staffForm, setStaffForm] = useState({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
   const [staffSearchTerm, setStaffSearchTerm] = useState('');
   const [staffPositionFilter, setStaffPositionFilter] = useState<StaffPositionFilter>('all');
   const [visibleBankDetails, setVisibleBankDetails] = useState<Record<string, boolean>>({});
-  const [salaryForm, setSalaryForm] = useState({ staffId: '', amount: '', date: new Date().toISOString().split('T')[0] });
+  const [salaryForm, setSalaryForm] = useState(() => ({ staffId: '', amount: '', date: localIsoDate(nowFn()) }));
 
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
@@ -153,7 +164,7 @@ export function usePayroll(deps: UsePayrollDeps) {
     });
     if (!saved) return;
     setShowSalaryModal(false);
-    setSalaryForm({ staffId: '', amount: '', date: new Date().toISOString().split('T')[0] });
+    setSalaryForm({ staffId: '', amount: '', date: localIsoDate(nowFn()) });
     showToast();
   };
 

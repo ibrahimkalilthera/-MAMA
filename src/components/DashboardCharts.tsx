@@ -41,8 +41,8 @@ export function DashboardCharts({ chartData, pieData, t, currentTheme }: Dashboa
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#064e3b' : '#f1f5f9'} />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: isDark ? '#10b981' : '#64748b' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: isDark ? '#10b981' : '#64748b' }} />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: isDark ? '#94A3B8' : '#64748b' }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: isDark ? '#94A3B8' : '#64748b' }} />
               <Tooltip
                 contentStyle={{ backgroundColor: isDark ? '#1e1e1e' : '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}

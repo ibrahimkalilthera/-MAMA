@@ -135,7 +135,48 @@ export interface CurrentTheme {
   accentBg: string;
   accentText: string;
   accentHover: string;
+  /** Solid accent surface and readable ink when an ancestor `.group` is hovered. */
+  accentGroupHover: string;
   accentShadow: string;
+  /** Soft accent surface (icon chips, quiet buttons, section headings).
+   *  Authored per-view as `bg-emerald-50 text-emerald-600` before it became a
+   *  token; `accentSoftText` is its readable ink. */
+  accentSoft: string;
+  accentSoftText: string;
+  accentSoftHover: string;
+  /** Accent ink applied on hover — a quiet control that lights up to the accent
+   *  (dismiss buttons, inline text links). Carries the same readable ink as
+   *  `accentSoftText`, so it does not darken or lighten beyond the theme. */
+  accentSoftTextHover: string;
+  /** Solid accent as a raw colour — feeds gradients and banner icon ink. */
+  accentHex: string;
+  /** Darker stop paired with `accentHex` in accent gradients. */
+  accentHexDeep: string;
+  /** Input/search focus ring that follows the accent. */
+  accentRing: string;
+  /** Accent-tinted hairline border — chips, role pills and soft role cards. */
+  accentBorder: string;
+  /**
+   * Neutral inset surface that follows the theme (fields, avatars, chips, panel
+   * headers). Replaces the old `isDark ? 'bg-emerald-900/*' : 'bg-slate-50'`
+   * pairing, which tinted a neutral surface green on dark themes.
+   */
+  surfaceInset: string;
+  /** Solid accent border on hover — the logo dropzone's "drop here" state. */
+  accentBorderHover: string;
+
+  /**
+   * Neutral strong ink for body/label text — replaces the old
+   * `isDark ? 'text-emerald-500' : 'text-slate-800'` convention. On dark themes
+   * body text is near-white; on light themes it stays slate-800. Green is thus
+   * reserved for its semantic role (paid/success) and never used as ordinary
+   * text ink in a dark theme.
+   */
+  inkStrong: string;
+  /** Accent surfaces for the always-dark sidebar rail (low-alpha tints). */
+  accentSoftDark: string;
+  accentSoftDarkHover: string;
+  accentSoftDarkText: string;
   tableHeader: string;
   rowHover: string;
   input: string;
@@ -244,6 +285,10 @@ export interface MainViewsProps {
   changeMonth: (offset: number) => void;
   chartData: { name: string; income: number; expenses: number }[];
   currentMonth: number;
+  /** Le millésime du MÊME instant que `currentMonth` (une seule horloge dans
+   *  App.tsx) : les vues qui filtrent « ce mois-ci » comparent mois ET année,
+   *  qui doivent venir du même référentiel. */
+  currentYear: number;
   currentTheme: CurrentTheme;
   deleteStaff: (id: string) => Promise<boolean>;
   deleteStudent: (id: string) => Promise<boolean>;

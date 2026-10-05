@@ -15,7 +15,7 @@ import type { TranslationDict } from '../i18n/translations';
 import type { DashboardStats } from './mainViewsProps';
 import type { Student, Staff, SalaryPayment, Expense, VendorExpense } from '../lib/useSupabaseData';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
-import { sameYearMonth } from '../lib/dateWindows';
+import { sameYearMonth, systemClock, type Clock } from '../lib/dateWindows';
 
 export type ChatMessage = { sender: 'user' | 'assistant'; text: string };
 
@@ -30,10 +30,16 @@ interface FloatingChatDeps {
   vendorExpenses: VendorExpense[];
   formatCurrency: (value: number) => string;
   formatDate: (dateStr: string) => string;
+  /**
+   * Reference clock for the monthly answers. Defaults to `systemClock`; a test
+   * pins it so "this month" (and the "June" of the current school year) is
+   * decided by the injected date rather than the wall clock.
+   */
+  now?: Clock;
 }
 
 export function useFloatingChat(deps: FloatingChatDeps) {
-  const { lang, t, stats, students, staff, salaryPayments, expenses, vendorExpenses, formatCurrency, formatDate } = deps;
+  const { lang, t, stats, students, staff, salaryPayments, expenses, vendorExpenses, formatCurrency, formatDate, now: nowFn = systemClock } = deps;
 
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([
     { sender: 'assistant', text: 'Hello! I am your Mama Thera Finance Assistant. How can I assist you with calculations or school statistics today?' }
@@ -70,8 +76,9 @@ export function useFloatingChat(deps: FloatingChatDeps) {
     let responseText = '';
 
     const isFrench = lang === 'fr';
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
+    const now = nowFn();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
 
     if (query.includes('balance') || query.includes('solde') || query.includes('caisse') || query.includes('cash') || query.includes('liquidity') || query.includes('liquidit')) {
       const balance = stats.totalFees - stats.totalExpenses;
@@ -238,7 +245,8 @@ export function useFloatingChat(deps: FloatingChatDeps) {
     } else if (isExpensesJuneQuery) {
       // "June" of the CURRENT academic year: the June that has started (or is
       // the current month) — September-start school years cross calendar years.
-      const juneYear = new Date().getMonth() >= 5 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+      const now = nowFn();
+      const juneYear = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;
       const juneExpensesList = expenses.filter(e => {
         const d = new Date(e.date);
         return d.getMonth() === 5 && d.getFullYear() === juneYear; // June is 5
@@ -278,8 +286,9 @@ export function useFloatingChat(deps: FloatingChatDeps) {
       }
 
     } else if (isTuitionQuery) {
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
+      const now = nowFn();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
       const collectedThisMonth = students.reduce((acc, s) => {
         const thisMonthPayments = s.payments.filter(p => {
           const payDate = new Date(p.date);

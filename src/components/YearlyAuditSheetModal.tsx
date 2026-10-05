@@ -58,7 +58,7 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
       titleId="modal-title-audit-sheet"
       ariaLabel={t.auditSheet}
       maxWidth="max-w-4xl"
-      panelRadius="rounded-[2.5rem]"
+      panelRadius="rounded-3xl"
       panelClassName="max-h-[85vh] overflow-y-auto p-8 md:p-12 custom-scrollbar"
       rootClassName="no-print"
       header={
@@ -98,14 +98,14 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
                       {t.title}
                     </h4>
                     <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-bold">{t.subtitle}</p>
-                    <p className="text-[10px] text-slate-400">Ségou, Mali</p>
+                    <p className="text-2xs text-slate-400">Ségou, Mali</p>
                   </div>
                   <div className="text-right">
-                    <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-black rounded-full uppercase tracking-wider">
+                    <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-2xs font-black rounded-full uppercase tracking-wider">
                       {t.archivedCertified}
                     </span>
                     <p className="text-xs text-slate-500 mt-2 font-bold">{t.date2} {new Date().toLocaleDateString(lang === 'en' ? 'en-US' : 'fr-FR')}</p>
-                    <p className="text-[10px] text-slate-400">{t.auditId} AUD-{auditYear}-{Math.floor(1000 + Math.random() * 9000)}</p>
+                    <p className="text-2xs text-slate-400">{t.auditId} AUD-{auditYear}-{Math.floor(1000 + Math.random() * 9000)}</p>
                   </div>
                 </div>
 
@@ -118,19 +118,19 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
                         <div className="p-6 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-2xl border border-emerald-100 dark:border-emerald-950">
                           <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">{t.totalRevenueA}</span>
                           <p className="text-2xl font-black text-emerald-600 mt-1">{formatCurrency(revenue)}</p>
-                          <p className="text-[10px] text-slate-400 mt-1">{t.actualStudentFeesPaid}</p>
+                          <p className="text-2xs text-slate-400 mt-1">{t.actualStudentFeesPaid}</p>
                         </div>
 
                         <div className="p-6 bg-rose-50/50 dark:bg-rose-950/10 rounded-2xl border border-rose-100 dark:border-rose-950">
                           <span className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">{t.totalExpensesB}</span>
                           <p className="text-2xl font-black text-rose-600 mt-1">{formatCurrency(expenses)}</p>
-                          <p className="text-[10px] text-slate-400 mt-1">{t.salariesVendorsUtilityPayments}</p>
+                          <p className="text-2xs text-slate-400 mt-1">{t.salariesVendorsUtilityPayments}</p>
                         </div>
 
                         <div className={`p-6 ${balance >= 0 ? 'bg-teal-50/50 dark:bg-teal-950/10 border-teal-100 dark:border-teal-950' : 'bg-red-50/50 dark:bg-red-950/10 border-red-100 dark:border-red-950'} rounded-2xl border`}>
                           <span className={`text-xs font-bold ${balance >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-red-700 dark:text-red-400'} uppercase tracking-wider`}>{t.netBalanceAB}</span>
                           <p className={`text-2xl font-black ${balance >= 0 ? 'text-teal-600' : 'text-red-600'} mt-1`}>{formatCurrency(balance)}</p>
-                          <p className="text-[10px] text-slate-400 mt-1">{t.finalCashLedgerBalance}</p>
+                          <p className="text-2xs text-slate-400 mt-1">{t.finalCashLedgerBalance}</p>
                         </div>
                       </div>
 
@@ -149,9 +149,9 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
                               {t.outstandingParentDebtsCarriedForward}
                             </h5>
                             {studentsWithDebt.length > 0 ? (
-                              <div className="max-h-[200px] overflow-y-auto rounded-2xl border border-slate-100 dark:border-slate-800">
+                              <div className="max-h-[200px] overflow-auto rounded-2xl border border-slate-100 dark:border-slate-800">
                                 <table className="w-full text-left text-xs">
-                                  <thead>
+                                  <thead className="sticky top-0 z-10">
                                     <tr className="bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-300">
                                       <th className="px-4 py-2.5">{t.studentName2}</th>
                                       <th className="px-4 py-2.5">{t.parentContact2}</th>
@@ -191,12 +191,12 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
                   <div>
                     <p className="font-bold text-slate-500">{t.certifiedBy}</p>
                     <p className="font-black text-slate-800 dark:text-slate-200 mt-1">Ibrahim Thera, Portal Admin</p>
-                    <p className="text-slate-400 text-[10px]">{t.financeController}</p>
+                    <p className="text-slate-400 text-2xs">{t.financeController}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-slate-500">{t.sealSignature}</p>
                     <div className="h-10 w-40 border-b border-dashed border-slate-300 dark:border-slate-600 mt-2 ml-auto" />
-                    <p className="text-[9px] text-slate-400 mt-1">Ibrahim Thera / Executive Signature</p>
+                    <p className="text-3xs text-slate-400 mt-1">Ibrahim Thera / Executive Signature</p>
                   </div>
                 </div>
               </div>
@@ -213,7 +213,7 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
                   onClick={() => {
                     setTimeout(() => window.print(), 100);
                   }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold h-11 px-4 rounded-2xl text-xs transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 whitespace-nowrap"
+                  className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} font-extrabold h-11 px-4 rounded-2xl text-xs transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow} whitespace-nowrap`}
                 >
                   <Printer size={16} className="flex-shrink-0" />
                   {t.printAudit}

@@ -24,6 +24,10 @@ const CATEGORY_KEY: Record<string, keyof TranslationDict> = {
   'Services Publics': 'utilities',
   Maintenance: 'maintenance',
   Entretien: 'maintenance',
+  // Le versement à la BNDA est stocké par sa CLÉ, comme les catégories
+  // fournisseur : la table de traduction la résout, donc le rapport reste
+  // correct dans les deux langues.
+  bnda_transfer: 'bnda_transfer',
   Other: 'other',
   Autre: 'other',
   stationery: 'stationery',

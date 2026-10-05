@@ -8,7 +8,7 @@
  * Mois & Classe / Motif fill-in lines and the Date, le … 20 …  N° footer) —
  * and only the payment data is printed on it:
  *
- *   • « M » (the payer) gets the parent/guardian name;
+ *   • « M » gets the selected student's full name, never the parent's name;
  *   • « Tél. : » (header) gets the parent's phone number, written on the
  *     dotted line right after the printed label;
  *   • « La somme de : » gets the paid amount IN WORDS (French, capitalized);
@@ -28,6 +28,7 @@
  * itself; only `lang` localizes the month name and the payment motif.
  */
 import type { Student, Payment } from './useSupabaseData';
+import { showReceiptPreview } from './receiptPreview';
 import { downloadBytes } from './browserDownload';
 import { montantEnLettres } from './pdfPayrollBulletin';
 import { translations } from '../i18n/translations';
@@ -202,9 +203,12 @@ export async function buildParentReceiptPdf({
     text(str, cx - wMm / 2, baseline(cy, font.size), { font });
   };
 
-  // 1. « M » — the payer (parent/guardian, falling back to the student).
-  const payer = student.parentName || student.name || '—';
-  text(payer, LINE_M.x, baseline(LINE_M.y, DATA_SIZE), { font: { font: helv, size: DATA_SIZE } });
+  // 1. « M » — identify the selected student, even when a parent pays.
+  // Keep the full name and shrink it to fit the dotted line rather than truncate.
+  const studentName = student.name.trim() || '—';
+  const nameWidth = helv.widthOfTextAtSize(studentName, DATA_SIZE) / PT_PER_MM;
+  const nameSize = Math.min(DATA_SIZE, ((191 - LINE_M.x) / nameWidth) * DATA_SIZE);
+  text(studentName, LINE_M.x, baseline(LINE_M.y, nameSize), { font: { font: helv, size: nameSize } });
 
   // 1b. « Tél. : » — the parent's phone number, on the header dotted line
   //     right after the printed label (fits the line at most, like the class).
@@ -289,11 +293,14 @@ export async function buildParentReceiptPdf({
 }
 
 /**
- * Generates and triggers the download of the official parent payment receipt.
- * Same contract as before (callers await it); the bytes are available through
- * {@link buildParentReceiptPdf} for tests.
+ * Prepares the official receipt and opens its preview. Download is explicit
+ * in the preview, using these exact bytes (no second PDF generation).
  */
+export function downloadPreparedReceipt(receipt: GeneratedReceipt): void {
+  downloadBytes(receipt.bytes, receipt.filename);
+}
+
 export async function generatePaymentReceiptPdf(opts: ReceiptDataOptions): Promise<void> {
-  const { bytes, filename } = await buildParentReceiptPdf(opts);
-  downloadBytes(bytes, filename);
+  const receipt = await buildParentReceiptPdf(opts);
+  showReceiptPreview(receipt, opts);
 }

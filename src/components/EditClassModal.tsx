@@ -61,12 +61,12 @@ export function EditClassModal(props: EditClassModalProps) {
       icon={<Layers size={20} className="text-blue-400" />}
       title={<span>{t.editClassSection}</span>}
       maxWidth="max-w-md"
-      panelRadius="rounded-[2.5rem]"
+      panelRadius="rounded-3xl"
     >
 
         <form onSubmit={handleEditClassSubmit} className="p-6 space-y-5">
           <div className="space-y-1.5">
-            <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+            <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
               {t.schoolCycle}
             </label>
             <select
@@ -89,7 +89,7 @@ export function EditClassModal(props: EditClassModalProps) {
           {editClassForm.cycle !== 'other' ? (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
                   {t.gradeLevel2}
                 </label>
                 <select
@@ -132,7 +132,7 @@ export function EditClassModal(props: EditClassModalProps) {
               </div>
 
               <div className="space-y-1.5">
-                <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
                   {t.sectionEGDE}
                 </label>
                 <input
@@ -148,7 +148,7 @@ export function EditClassModal(props: EditClassModalProps) {
             </div>
           ) : (
             <div className="space-y-1.5">
-              <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+              <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
                 {t.customClassName}
               </label>
               <input
@@ -164,7 +164,7 @@ export function EditClassModal(props: EditClassModalProps) {
 
           {/* Preview Badge */}
           <div className={`p-4 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900/40' : 'bg-slate-50'}`}>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+            <p className="text-2xs font-black uppercase tracking-widest text-slate-400 mb-1">
               {t.generatedClassCode}
             </p>
             <div className="flex items-center gap-2">
@@ -189,7 +189,7 @@ export function EditClassModal(props: EditClassModalProps) {
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-1.5"
+              className={`px-5 py-2.5 rounded-xl ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} font-bold text-xs shadow-lg ${currentTheme.accentShadow} active:scale-95 transition-all flex items-center gap-1.5`}
             >
               <CheckCircle2 size={14} />
               <span>{t.saveChanges}</span>

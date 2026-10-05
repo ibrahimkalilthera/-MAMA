@@ -18,16 +18,16 @@ export function CalendarView() {
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => changeMonth(-1)}
-                  className={`p-2 rounded-xl ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} hover:bg-blue-600 hover:text-white transition-all`}
+                  className={`p-2 rounded-xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} transition-all`}
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <h3 className={`text-2xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'} min-w-[200px] text-center`}>
+                <h3 className={`text-2xl font-bold ${currentTheme.inkStrong} min-w-[200px] text-center`}>
                   {getMonthName(calendarDate.getMonth())} {calendarDate.getFullYear()}
                 </h3>
                 <button
                   onClick={() => changeMonth(1)}
-                  className={`p-2 rounded-xl ${currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600'} hover:bg-blue-600 hover:text-white transition-all`}
+                  className={`p-2 rounded-xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} transition-all`}
                 >
                   <ChevronRight size={20} />
                 </button>
@@ -40,10 +40,10 @@ export function CalendarView() {
               </button>
             </div>
 
-            <div className={`${currentTheme.card} rounded-[2.5rem] border ${currentTheme.border} shadow-xl overflow-hidden`}>
-              <div className={`grid grid-cols-7 border-b ${currentTheme.border} ${currentTheme.isDark ? 'bg-emerald-900/20' : 'bg-slate-50/50'}`}>
+            <div className={`${currentTheme.card} rounded-3xl border ${currentTheme.border} shadow-xl overflow-hidden`}>
+              <div className={`grid grid-cols-7 border-b ${currentTheme.border} ${currentTheme.surfaceInset}`}>
                 {[0, 1, 2, 3, 4, 5, 6].map(i => (
-                  <div key={i} className={`py-4 text-center text-[10px] font-black uppercase tracking-widest ${currentTheme.muted}`}>
+                  <div key={i} className={`py-4 text-center text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>
                     {getDayName(i)}
                   </div>
                 ))}
@@ -62,7 +62,7 @@ export function CalendarView() {
                       }}
                       className={`min-h-[120px] p-4 border-b border-r ${currentTheme.border} cursor-pointer hover:bg-blue-50/30 transition-all relative ${!day.isCurrentMonth ? 'opacity-30' : ''}`}
                     >
-                      <span className={`text-sm font-bold ${isToday ? 'bg-blue-600 text-white w-7 h-7 flex items-center justify-center rounded-full' : (currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800')}`}>
+                      <span className={`text-sm font-bold ${isToday ? `${currentTheme.accentBg} ${currentTheme.accentText} w-7 h-7 flex items-center justify-center rounded-full` : (currentTheme.inkStrong)}`}>
                         {day.date.getDate()}
                       </span>
 
@@ -70,7 +70,7 @@ export function CalendarView() {
                         {events.map((event, idx) => (
                           <div
                             key={idx}
-                            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${
+                            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-3xs font-black uppercase tracking-widest ${
                               event.type === 'due' ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300' :
                               event.type === 'salary' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300' :
                               event.type === 'note' ? 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300' :
@@ -79,11 +79,11 @@ export function CalendarView() {
                             }`}
                           >
                             <div className={`w-1.5 h-1.5 rounded-full ${
-                              event.type === 'due' ? 'bg-rose-500' :
-                              event.type === 'salary' ? 'bg-emerald-500' :
-                              event.type === 'note' ? 'bg-yellow-500' :
-                              event.type === 'todo' ? 'bg-violet-500' :
-                              'bg-blue-500'
+                              event.type === 'due' ? 'bg-current' :
+                              event.type === 'salary' ? 'bg-current' :
+                              event.type === 'note' ? 'bg-current' :
+                              event.type === 'todo' ? 'bg-current' :
+                              'bg-current'
                             }`} />
                             {event.count}
                           </div>

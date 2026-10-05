@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import type { CurrentTheme } from '../app/mainViewsProps';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useFocusTrap } from '../lib/focusStack';
 import { Student } from '../lib/useSupabaseData';
@@ -21,6 +22,7 @@ interface PromotionWizardModalProps {
   ) => Promise<boolean>;
   language?: 'fr' | 'en';
   t: Record<string, string>;
+  currentTheme: CurrentTheme;
 }
 
 /** Current academic year based on the date (Malian school year starts in Sept/Oct). */
@@ -69,6 +71,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
   onPromote,
   language = 'fr',
   t,
+  currentTheme,
 }) => {
   const isFr = language === 'fr';
 
@@ -169,23 +172,23 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden transition-all my-8">
         
         {/* Header */}
-        <div className="p-6 bg-emerald-700 text-white flex items-center justify-between">
+        <div className={`p-6 ${currentTheme.accentBg} ${currentTheme.accentText} flex items-center justify-between`}>
           <div className="flex items-center gap-3">
             <div className="p-3 bg-white/10 rounded-xl">
-              <GraduationCap className="w-7 h-7 text-emerald-200" />
+              <GraduationCap className="w-7 h-7" />
             </div>
             <div>
               <h2 id="modal-title-promotion-wizard" className="text-xl font-bold">
                 {t.classPromotionReEnrollmentWizard}
               </h2>
-              <p className="text-xs text-emerald-100">
+              <p className="text-xs opacity-90">
                 {t.mamaTheraSchoolAcademicYearTransition}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+            className="p-2 hover:bg-white/20 rounded-full transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -195,7 +198,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
         <div className="p-6 space-y-6">
 
           {successMessage && (
-            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 rounded-xl text-emerald-800 dark:text-emerald-200 flex items-center gap-3">
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-300/30 rounded-xl text-emerald-800 dark:text-emerald-200 flex items-center gap-3">
               <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span className="font-semibold text-sm">{successMessage}</span>
             </div>
@@ -212,7 +215,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
               <select
                 value={sourceYear}
                 onChange={e => setSourceYear(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                className={`w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 ${currentTheme.accentRing}`}
               >
                 {availableAcademicYears.map(yr => (
                   <option key={yr} value={yr}>{yr}</option>
@@ -228,7 +231,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
               <select
                 value={selectedGrade}
                 onChange={e => handleGradeChange(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500 font-medium text-emerald-700 dark:text-emerald-400"
+                className={`w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 ${currentTheme.accentRing} font-medium ${currentTheme.inkStrong}`}
               >
                 <option value="">{t.selectGrade2}</option>
                 {availableGrades.map(g => (
@@ -245,7 +248,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
               <select
                 value={targetYear}
                 onChange={e => setTargetYear(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                className={`w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 ${currentTheme.accentRing}`}
               >
                 {availableAcademicYears.concat(['2026-2027', '2027-2028']).filter((v, i, a) => a.indexOf(v) === i).map(yr => (
                   <option key={yr} value={yr}>{yr}</option>
@@ -259,9 +262,9 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
             <div className="space-y-4">
               
               {/* Promotion Mapping Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-emerald-50 dark:bg-slate-800 border border-emerald-200 dark:border-slate-700 rounded-xl">
+              <div className={`flex flex-wrap items-center justify-between gap-4 p-4 ${currentTheme.accentSoft} border ${currentTheme.accentBorder} rounded-xl`}>
                 <div className="flex items-center gap-3">
-                  <span className="px-3 py-1 bg-emerald-700 text-white text-xs font-bold rounded-full">
+                  <span className={`px-3 py-1 ${currentTheme.accentBg} ${currentTheme.accentText} text-xs font-bold rounded-full`}>
                     {selectedGrade}
                   </span>
                   <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -273,7 +276,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
                       type="text"
                       value={targetGrade}
                       onChange={e => setTargetGrade(e.target.value)}
-                      className="px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-semibold text-emerald-700 dark:text-emerald-400"
+                      className={`px-2 py-1 text-sm bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded font-semibold ${currentTheme.inkStrong}`}
                       placeholder={t.newClass2}
                     />
                   </div>
@@ -307,9 +310,9 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSelectAllAction('promote')}
-                    className="px-2 py-1 text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 rounded font-medium hover:bg-emerald-200 transition-colors"
+                    className={`px-2 py-1 text-xs ${currentTheme.accentSoft} ${currentTheme.accentSoftText} rounded font-medium ${currentTheme.accentSoftHover} transition-colors`}
                   >
-                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-500" /> {t.promoteAll}
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${currentTheme.accentBg}`} /> {t.promoteAll}
                   </button>
                   <button
                     type="button"
@@ -324,7 +327,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
               {/* Student Roster Table */}
               <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold sticky top-0">
+                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold sticky top-0 z-10">
                     <tr>
                       <th className="p-3">#</th>
                       <th className="p-3">{t.studentName}</th>
@@ -344,7 +347,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
                           <td className="p-3 font-medium text-slate-800 dark:text-slate-100">{st.name}</td>
                           <td className="p-3 text-slate-500">{st.parentName || st.parentPhone || 'N/A'}</td>
                           <td className="p-3">
-                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                            <span className={`px-2 py-0.5 text-2xs font-bold rounded-full ${
                               isPaidFull ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
                             }`}>
                               {st.amountPaid.toLocaleString()} / {st.totalDue.toLocaleString()} FCFA
@@ -354,7 +357,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
                             <select
                               value={action}
                               onChange={e => setStudentActions(prev => ({ ...prev, [st.id]: e.target.value as 'promote' | 'repeat' | 'graduate' | 'leave' }))}
-                              className="px-2 py-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-semibold focus:ring-2 focus:ring-emerald-500"
+                              className={`px-2 py-1 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-semibold focus:ring-2 ${currentTheme.accentRing}`}
                             >
                               <option value="promote">🟢 {t.promote}</option>
                               <option value="repeat">🟠 {t.repeat}</option>
@@ -388,7 +391,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
             type="button"
             disabled={!selectedGrade || filteredStudents.length === 0 || isSubmitting}
             onClick={handleSubmit}
-            className="px-6 py-2.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 rounded-xl shadow-lg transition-all flex items-center gap-2"
+            className={`px-6 py-2.5 text-xs font-bold ${currentTheme.accentText} ${currentTheme.accentBg} ${currentTheme.accentHover} disabled:opacity-50 rounded-xl shadow-lg ${currentTheme.accentShadow} transition-all flex items-center gap-2`}
           >
             {isSubmitting ? (
               <>

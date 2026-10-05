@@ -10,6 +10,16 @@
  * `.getMonth()` comparisons that are not paired with a `.getFullYear()`.
  */
 
+/**
+ * A clock: returns the reference "now". The monthly KPIs of the dashboard and
+ * of the floating chat read ONE reference date per computation, so a test can
+ * pin the month/year (and the payroll-window day) instead of tracking the wall
+ * clock. `systemClock` is the production default — a module constant, so its
+ * identity is stable and never invalidates a `useMemo`.
+ */
+export type Clock = () => Date;
+export const systemClock: Clock = () => new Date();
+
 /** Parse a Date-like value (ISO string or Date) into a Date. */
 function toDate(date: Date | string): Date {
   return typeof date === 'string' ? new Date(date) : date;
@@ -23,6 +33,15 @@ function toDate(date: Date | string): Date {
 export function sameYearMonth(date: Date | string, year: number, month: number): boolean {
   const d = toDate(date);
   return d.getFullYear() === year && d.getMonth() === month;
+}
+
+/**
+ * Local YYYY-MM-DD for a date — NEVER `toISOString()` (UTC). A form default
+ * must read the user's OWN day, and a test that pins a clock expects the date it
+ * injected, not its UTC shift. Mirrors the key used by usePayments.
+ */
+export function localIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 /** The current calendar { year, month } — always read the pair together. */

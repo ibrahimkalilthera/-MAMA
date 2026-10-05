@@ -49,8 +49,11 @@ export function FloatingChat(props: FloatingChatProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   useFocusTrap(isFloatingChatOpen, () => rootRef.current);
 
+  // Sits above the mobile bottom nav (hence bottom-24) and clears the viewport
+  // edge on phones. On small screens it collapses to a round icon button: the
+  // full label was wide enough to cover a whole card.
   return (
-    <div className="fixed bottom-24 lg:bottom-6 right-6 z-50 no-print font-sans">
+    <div data-slot="app-floating-chat" className="fixed bottom-24 lg:bottom-6 right-4 lg:right-6 z-50 no-print font-sans">
       <AnimatePresence>
         {/* Below the lg breakpoint the w-[360px] chat card covers ~86% of a
             360px-wide viewport with no visual cue — the same silent-takeover
@@ -79,7 +82,7 @@ export function FloatingChat(props: FloatingChatProps) {
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className={`relative z-20 w-[360px] sm:w-96 h-[500px] max-w-[calc(100vw_-_3rem)] max-h-[calc(100dvh_-_3rem)] rounded-[2.5rem] shadow-2xl border ${currentTheme.border} ${currentTheme.card} flex flex-col overflow-hidden`}
+            className={`relative z-20 w-[360px] sm:w-96 h-[500px] max-w-[calc(100vw_-_3rem)] max-h-[calc(100dvh_-_3rem)] rounded-3xl shadow-2xl border ${currentTheme.border} ${currentTheme.card} flex flex-col overflow-hidden`}
           >
             {/* Header */}
             <div
@@ -92,7 +95,7 @@ export function FloatingChat(props: FloatingChatProps) {
                   <h4 id="modal-title-floating-chat" className="font-bold text-sm">
                     {t.floatingChatTitle ?? 'Mama Thera Assistant'}
                   </h4>
-                  <p className="text-[10px] text-white/75 font-semibold">
+                  <p className="text-2xs text-white/75 font-semibold">
                     {t.liveFinancialIntelligence}
                   </p>
                 </div>
@@ -116,7 +119,7 @@ export function FloatingChat(props: FloatingChatProps) {
                   <div
                     className={`max-w-[85%] px-4 py-2.5 text-xs font-semibold leading-relaxed shadow-sm ${
                       msg.sender === 'user'
-                        ? `${currentTheme.isDark ? 'bg-emerald-700 text-white' : 'bg-blue-600 text-white'} rounded-t-2xl rounded-bl-2xl`
+                        ? `${currentTheme.accentBg} ${currentTheme.accentText} rounded-t-2xl rounded-bl-2xl`
                         : `${currentTheme.isDark ? 'bg-[#334155] border-[#475569] text-white' : 'bg-white border-slate-100 text-slate-800'} border rounded-t-2xl rounded-br-2xl`
                     }`}
                     style={{ whiteSpace: 'pre-line' }}
@@ -143,7 +146,7 @@ export function FloatingChat(props: FloatingChatProps) {
                   key={idx}
                   type="button"
                   onClick={() => q && handleFloatingAiQuery(q)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-100 font-bold rounded-full text-[10px] transition-all shrink-0 border border-slate-200/50 dark:border-slate-600"
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-100 font-bold rounded-full text-2xs transition-all shrink-0 border border-slate-200/50 dark:border-slate-600"
                 >
                   {(q ?? '').length > 35 ? (q ?? '').substring(0, 32) + '...' : q}
                 </button>
@@ -163,15 +166,15 @@ export function FloatingChat(props: FloatingChatProps) {
                 value={floatingChatInput}
                 onChange={(e) => setFloatingChatInput(e.target.value)}
                 placeholder={t.askAFinancialQuestion}
-                className="flex-1 px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className={`flex-1 px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 focus:outline-none ${currentTheme.accentRing}`}
               />
               <button
                 type="submit"
                 disabled={!floatingChatInput.trim()}
-                className={`px-4 py-2 rounded-xl text-white font-extrabold text-xs transition-all ${
+                className={`px-4 py-2 rounded-xl font-extrabold text-xs transition-all ${
                   floatingChatInput.trim()
-                    ? `${currentTheme.isDark ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-blue-600 hover:bg-blue-700'} shadow-lg`
-                    : 'bg-slate-500 cursor-not-allowed'
+                    ? `${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} shadow-lg`
+                    : 'bg-slate-500 text-white cursor-not-allowed'
                 }`}
               >
                 {t.send}
@@ -185,14 +188,10 @@ export function FloatingChat(props: FloatingChatProps) {
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => setIsFloatingChatOpen(true)}
             aria-label={t.mamaTheraAiAssistant}
-            className={`px-6 py-4 rounded-full text-white font-extrabold text-sm transition-all flex items-center gap-2 shadow-2xl active:scale-[0.98] ${
-              currentTheme.isDark
-                ? 'bg-emerald-700 hover:bg-emerald-800 shadow-emerald-500/30'
-                : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'
-            }`}
+            className={`rounded-full font-extrabold text-sm transition-all flex items-center gap-2 shadow-2xl active:scale-[0.98] p-4 lg:px-6 lg:py-4 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText}`}
           >
             <Bot size={18} className="flex-shrink-0" />
-            <span>{t.mamaTheraAiAssistant}</span>
+            <span className="hidden lg:inline">{t.mamaTheraAiAssistant}</span>
           </motion.button>
         )}
       </AnimatePresence>

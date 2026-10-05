@@ -16,6 +16,7 @@ import { createRoot } from 'react-dom/client';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { CurrentTheme, ParentForm } from '../src/app/mainViewsProps';
+import type { Student } from '../src/lib/useSupabaseData';
 import { ParentFormModal } from '../src/components/ParentFormModal';
 import { installDomGlobals } from './harness';
 
@@ -57,7 +58,23 @@ const theme: CurrentTheme = {
   accentBg: 'bg-blue-600',
   accentText: 'text-white',
   accentHover: 'hover:bg-blue-700',
+  accentGroupHover: 'accent-group-hover',
   accentShadow: 'shadow-blue-500/20',
+  accentSoft: 'bg-blue-50',
+  accentSoftText: 'text-blue-600',
+  accentSoftHover: 'hover:bg-blue-100', accentSoftTextHover: 'hover:text-blue-700',
+  accentHex: '#2563EB',
+  accentHexDeep: '#1D4ED8',
+  
+  accentRing: 'focus:ring-blue-500/20',
+  accentBorder: 'border-slate-300',
+  accentBorderHover: 'hover:border-slate-400',
+  surfaceInset: 'bg-slate-50',
+  
+  inkStrong: 'text-slate-800',
+  accentSoftDark: 'bg-blue-500/15',
+  accentSoftDarkHover: 'hover:bg-blue-500/25',
+  accentSoftDarkText: 'text-blue-300',
   tableHeader: 'bg-slate-50',
   isDark: false,
   rowHover: 'hover:bg-slate-50',
@@ -136,5 +153,64 @@ describe('ParentFormModal — l’adresse n’est plus obligatoire', () => {
     assert.equal(fieldByPlaceholder(container, '+223 70 00 00 00').required, true);
     root.unmount();
     document.body.removeChild(container);
+  });
+});
+
+describe('ParentFormModal — les CTA suivent le thème', () => {
+  const linkedStudent = {
+    id: 's1', name: 'Awa Traoré', grade: '1A', studentId: '', parentId: 'p1',
+    scholarshipDiscount: 0, totalDue: 100000, amountPaid: 100000,
+    dueDate: '', notes: '', payments: [],
+  } as unknown as Student;
+
+  it('le CTA primaire, les pastilles liées et le solde séparés : tokens d’accent vs vert sémantique', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        createElement(ParentFormModal, {
+          t,
+          lang: 'fr',
+          currentTheme: theme,
+          editingParent: { id: 'p1' },
+          students: [linkedStudent],
+          availableClasses: [],
+          parentForm: { ...emptyParentForm, linkedStudentIds: ['s1'] },
+          setParentForm: () => {},
+          handleParentSubmit: async (e) => e.preventDefault(),
+          formatCurrency: (amount: number) => String(amount),
+          overlayRef: () => {},
+          onClose: () => {},
+          onOpenStudentForm: () => {},
+          onRecordPayment: () => {},
+          onViewStudent: () => {},
+        }),
+      );
+    });
+    try {
+      const submit = container.querySelector('button[type="submit"]');
+      assert.ok(submit, 'bouton d’enregistrement rendu');
+      for (const token of [theme.accentBg, theme.accentText, theme.accentHover, theme.accentShadow]) {
+        assert.ok(submit?.classList.contains(token), `CTA d’enregistrement utilise ${token}`);
+      }
+      const record = container.querySelector(`button[title="${t.recordPayment}"]`);
+      assert.ok(record, 'raccourci « enregistrer le paiement » rendu');
+      for (const token of [theme.accentBg, theme.accentText, theme.accentHover, theme.accentShadow]) {
+        assert.ok(record?.classList.contains(token), `CTA paiement utilise ${token}`);
+      }
+      const view = container.querySelector(`button[title="${t.viewStudentRecord}"]`);
+      assert.ok(view, 'raccourci « voir la fiche » rendu');
+      for (const token of [theme.accentSoftText, theme.accentSoftHover]) {
+        assert.ok(view?.classList.contains(token), `CTA fiche utilise ${token}`);
+      }
+      assert.ok(
+        [...container.querySelectorAll('span')].some((s) => s.classList.contains('text-emerald-600')),
+        'le solde réglé reste vert sémantique',
+      );
+    } finally {
+      act(() => root.unmount());
+      document.body.removeChild(container);
+    }
   });
 });

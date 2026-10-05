@@ -291,8 +291,6 @@ function setupAutoUpdater(win) {
     pressure = updatePressure({
       currentVersion: app.getVersion(),
       availableVersion: info && info.version,
-      releaseDate: info && info.releaseDate,
-      nowMs: Date.now(),
     });
     return {
       currentVersion: app.getVersion(),
@@ -302,7 +300,7 @@ function setupAutoUpdater(win) {
       forcedDetail: pressure.detail,
       behindMajor: pressure.behindMajor,
       behindMinor: pressure.behindMinor,
-      releaseAgeDays: pressure.releaseAgeDays,
+      behindPatch: pressure.behindPatch,
     };
   };
 

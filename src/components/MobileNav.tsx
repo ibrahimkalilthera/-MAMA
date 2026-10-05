@@ -68,11 +68,16 @@ export function MobileNav(props: MobileNavProps) {
 
   return (
     <nav
+      data-slot="app-mobile-nav"
       className="lg:hidden fixed bottom-0 inset-x-0 z-40 no-print"
       style={{ background: 'linear-gradient(180deg, #0C1222 0%, #111827 50%, #0F172A 100%)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
+      {/* Every tab must fit on the bar: the row used to overflow, so the last
+          items (Calendrier) were cut off and unreachable. A grid of equal
+          columns guarantees the whole set stays visible at any phone width. */}
       <div
-        className="flex items-stretch border-t border-white/[0.06] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="grid items-stretch border-t border-white/[0.06]"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr)) 2.5rem` }}
       >
         {items.map(({ tab, label, icon }) => {
           const active = activeTab === tab;
@@ -81,7 +86,8 @@ export function MobileNav(props: MobileNavProps) {
               key={tab}
               onClick={() => go(tab)}
               aria-current={active ? 'page' : undefined}
-              className={`flex flex-col items-center justify-center gap-1 py-2.5 px-1.5 flex-1 min-w-[64px] shrink-0 transition-colors ${active ? 'text-white' : 'text-white/45 hover:text-white/75'}`}
+              title={label}
+              className={`flex min-w-0 flex-col items-center justify-center gap-1 py-2 px-0.5 transition-colors ${active ? 'text-white' : 'text-white/45 hover:text-white/75'}`}
             >
               <span className="relative">
                 {icon}
@@ -93,27 +99,25 @@ export function MobileNav(props: MobileNavProps) {
                 )}
                 {tab === 'settings' && auditArchivePending && (
                   <span
-                    className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-sky-400 animate-badge-pulse"
+                    className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full accent-surface animate-badge-pulse"
                     aria-label={t.auditArchiveBadge}
                   />
                 )}
               </span>
-              <span className={`text-[9px] font-bold text-center leading-tight ${active ? '' : 'font-semibold'}`}>{label}</span>
-              {active && <span className="w-8 h-0.5 rounded-full bg-blue-500" />}
+              <span className="w-full truncate text-center text-2xs font-bold leading-tight">{label}</span>
+              {active && <span className="w-6 h-0.5 rounded-full accent-surface" />}
             </button>
           );
         })}
-
-        <div className="w-px bg-white/10 my-2 flex-shrink-0" />
 
         <button
           onClick={onToggleLanguage}
           aria-label={t.langToggle}
           title={t.langToggle}
-          className="flex flex-col items-center justify-center gap-1 px-3 flex-shrink-0 text-white/45 hover:text-white transition-colors"
+          className="flex flex-col items-center justify-center gap-1 border-l border-white/10 text-white/45 hover:text-white transition-colors"
         >
           <Globe size={18} />
-          <span className="text-[9px] font-bold">{t.langToggle}</span>
+          <span className="text-2xs font-bold">{t.langToggle}</span>
         </button>
       </div>
     </nav>

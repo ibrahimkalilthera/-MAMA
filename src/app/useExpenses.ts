@@ -23,6 +23,7 @@ import type { VendorExpenseForm } from './mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import { getCalendarDays } from '../lib/classes';
 import { getMonthName as getMonthNameImpl, getDayName as getDayNameImpl } from '../lib/formatters';
+import { localIsoDate, systemClock, type Clock } from '../lib/dateWindows';
 
 export interface ExpenseForm {
   category: string;
@@ -48,20 +49,23 @@ export interface UseExpensesDeps {
   showToast: () => void;
   /** Toast an error/validation message (replaces the native alert()). */
   toastError: (message: string) => void;
+  /** Reference clock for the calendar's visible month and the form default
+   *  day. Defaults to `systemClock`; a test pins it. */
+  now?: Clock;
 }
 
-const emptyExpenseForm = (): ExpenseForm => ({
+const emptyExpenseForm = (today: string): ExpenseForm => ({
   category: 'Other',
   description: '',
   amount: '',
-  date: new Date().toISOString().split('T')[0],
+  date: today,
 });
 
-const emptyVendorExpenseForm = (): VendorExpenseForm => ({
+const emptyVendorExpenseForm = (today: string): VendorExpenseForm => ({
   vendorName: '',
   category: 'stationery',
   amount: '',
-  dueDate: new Date().toISOString().split('T')[0],
+  dueDate: today,
   paymentStatus: 'unpaid',
   amountPaid: '',
   description: '',
@@ -70,8 +74,10 @@ const emptyVendorExpenseForm = (): VendorExpenseForm => ({
   beneficiaryStudentGrade: '',
 });
 
-export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser, addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast, toastError
+export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser, addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast, toastError, now: nowFn = systemClock
   } = deps;
+  // Le jour local du repère d'horloge, calculé à l'initialisation une fois.
+  const todayIso = localIsoDate(nowFn());
   // Finance admins (promoter/admin, dev, general manager) share the vendor
   // create/delete powers; only the promoter keeps the amount/vendorName edit
   // monopoly on existing records.
@@ -86,10 +92,10 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
   const [vendorCategoryFilter, setVendorCategoryFilter] = useState<string>('all');
   const [vendorStatusFilter, setVendorStatusFilter] = useState<string>('all');
 
-  const [calendarDate, setCalendarDate] = useState(new Date());
+  const [calendarDate, setCalendarDate] = useState(() => nowFn());
   const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [expenseForm, setExpenseForm] = useState<ExpenseForm>(emptyExpenseForm);
-  const [vendorExpenseForm, setVendorExpenseForm] = useState<VendorExpenseForm>(emptyVendorExpenseForm);
+  const [expenseForm, setExpenseForm] = useState<ExpenseForm>(() => emptyExpenseForm(todayIso));
+  const [vendorExpenseForm, setVendorExpenseForm] = useState<VendorExpenseForm>(() => emptyVendorExpenseForm(todayIso));
 
   const [editingVendorExpense, setEditingVendorExpense] = useState<VendorExpense | null>(null);
 
@@ -133,7 +139,7 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
     const saved = await addExpense({ ...expenseForm, amount, academicYear: selectedYear });
     if (!saved) return;
     setShowExpenseModal(false);
-    setExpenseForm(emptyExpenseForm());
+    setExpenseForm(emptyExpenseForm(todayIso));
     showToast();
   };
 
@@ -176,7 +182,7 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
     }
 
     setShowVendorExpenseModal(false);
-    setVendorExpenseForm(emptyVendorExpenseForm());
+    setVendorExpenseForm(emptyVendorExpenseForm(todayIso));
     showToast();
   };
 

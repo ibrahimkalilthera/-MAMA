@@ -91,6 +91,27 @@ describe('theme-css — corpus réel du dépôt', () => {
   const files = themeCssFiles(ROOT);
   const css = readThemeCss(ROOT);
 
+  it('group-hover (and keyboard focus) applies the primary surface and readable ink only under the group', () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const rule = code.match(/\.group:is\(:hover,\s*:focus-visible\)\s+\.accent-group-hover\s*\{([^}]+)\}/);
+    assert.ok(rule, 'group descendant hover/focus selector is shipped');
+    assert.match(rule[0], /:focus-visible/, 'keyboard focus shares the solid accent');
+    assert.match(rule[1], /background-color:\s*var\(--accent-primary\)/);
+    assert.match(rule[1], /color:\s*var\(--accent-ink,\s*#FFFFFF\)/);
+    assert.ok(!/\.accent-group-hover\s*\{/.test(code.replace(rule[0], '')), 'no always-on group-hover surface');
+  });
+
+  it('le jeton d’encre d’accent AU SURVOL est publié et suit l’accent', () => {
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const rule = code.match(/\.accent-soft-text-hover:hover\s*\{([^}]+)\}/);
+    assert.ok(rule, 'la règle .accent-soft-text-hover:hover est publiée');
+    assert.match(
+      rule[1],
+      /color:\s*var\(--accent-soft-ink,\s*var\(--accent-primary\)\)/,
+      'l’encre au survol est la même que .accent-soft-text (lisible sur clair et sombre)',
+    );
+  });
+
   it('la couche extraite en fait partie', () => {
     assert.ok(files.includes('src/themes/overrides.css'), `corpus: ${files.join(', ')}`);
     assert.ok(files.includes('src/themes/midnight.css'));
@@ -136,5 +157,55 @@ describe('theme-css — corpus réel du dépôt', () => {
     assert.ok(textOverrides.size >= 8, `remaps clairs lus : ${textOverrides.size}`);
     assert.ok(slateTextRemap.size >= 5, `remaps slate lus : ${slateTextRemap.size}`);
     assert.ok(whitenSurfaces.size >= 10, `surfaces :is() lues : ${whitenSurfaces.size}`);
+  });
+});
+
+/**
+ * R9 — les deux thèmes sombres doivent rester « premium » : trois niveaux de
+ * surface distincts (corps / carte / inset), une échelle d'ombre à étages avec
+ * liseré interne, et un rail latéral qui suit leur palette au lieu du dégradé
+ * navy inline. Ce sont les invariants que la refonte a posés : sans verrou, une
+ * retouche de palette peut remettre une surface plate (inset == corps) ou une
+ * ombre sans relief sans qu'aucun autre test ne bouge.
+ */
+describe('R9 — refonte premium des thèmes sombres (midnight + slate)', () => {
+  const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  const corpus = strip(readThemeCss(ROOT));
+  const themeBlock = (name: string): string => {
+    const m = corpus.match(new RegExp(`\\.theme-${name}\\s*\\{([^}]*)\\}`));
+    assert.ok(m, `bloc .theme-${name} introuvable dans le corpus`);
+    return m![1];
+  };
+
+  it('empile corps, carte et inset sur trois niveaux distincts', () => {
+    for (const [name, body] of [['midnight', '#090D16'], ['slate', '#1E293B']] as const) {
+      const block = themeBlock(name);
+      const inset = block.match(/--surface-inset:\s*(#[0-9A-Fa-f]{6})/)?.[1]?.toUpperCase();
+      const card = block.match(/--surface-card:\s*(#[0-9A-Fa-f]{6})/)?.[1]?.toUpperCase();
+      assert.ok(inset, `${name}: --surface-inset manquant`);
+      assert.notEqual(inset, body, `${name}: l'inset ne doit pas être le corps (surface plate)`);
+      assert.notEqual(inset, card, `${name}: l'inset ne doit pas être la carte (surface plate)`);
+    }
+  });
+
+  it('définit une échelle d’ombre à étages avec liseré interne', () => {
+    for (const name of ['midnight', 'slate']) {
+      const block = themeBlock(name);
+      for (const step of ['sm', 'md', 'lg', 'card-hover']) {
+        const val = block.match(new RegExp(`--shadow-${step}:\\s*([^;]+);`))?.[1];
+        assert.ok(val, `${name}: --shadow-${step} manquant`);
+        assert.match(val, /inset 0 1px 0 rgba\(255, 255, 255/, `${name}: --shadow-${step} sans liseré interne`);
+      }
+    }
+  });
+
+  it('donne au rail latéral la palette du thème, pas le dégradé navy inline', () => {
+    for (const name of ['midnight', 'slate']) {
+      assert.match(
+        corpus,
+        new RegExp(`\\.theme-${name} \\.app-sidebar\\s*\\{[^}]*background:\\s*linear-gradient[^}]*!important`),
+        `${name}: aucune palette de rail scoppée (le style inline navy reste)`,
+      );
+    }
   });
 });

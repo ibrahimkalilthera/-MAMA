@@ -37,8 +37,8 @@ export interface ModalShellProps {
   rootClassName?: string;
   /** Panel width token (default `max-w-lg`). */
   maxWidth?: 'max-w-sm' | 'max-w-md' | 'max-w-lg' | 'max-w-xl' | 'max-w-3xl' | 'max-w-4xl' | 'max-w-5xl';
-  /** Panel corner radius (default `rounded-[3rem]`). */
-  panelRadius?: 'rounded-3xl' | 'rounded-[2rem]' | 'rounded-[2.5rem]' | 'rounded-[3rem]';
+  /** Panel corner radius (default `rounded-3xl`). */
+  panelRadius?: 'rounded-3xl' | 'rounded-3xl' | 'rounded-3xl' | 'rounded-3xl';
   /** Extra classes appended to the panel (scroll/padding overrides). */
   panelClassName?: string;
   /** Fully custom header node — replaces the standard accent bar. */
@@ -64,7 +64,7 @@ export function ModalShell({
   ariaLabel,
   rootClassName = '',
   maxWidth = 'max-w-lg',
-  panelRadius = 'rounded-[3rem]',
+  panelRadius = 'rounded-3xl',
   panelClassName = '',
   header,
   icon,

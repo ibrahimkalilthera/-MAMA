@@ -7,6 +7,7 @@ import { sameYearMonth } from '../lib/dateWindows';
 import { isPayrollWindowOverdue } from '../lib/payrollWindow';
 import { payrollGridCellStatus } from '../lib/payrollGrid';
 import { ConfirmDialog } from './ConfirmDialog';
+import { EmptyState } from './SharedUi';
 import { staffCategory } from '../lib/adminPositions';
 
 /** School-year month sequence: September → August (12 cells). */
@@ -16,15 +17,14 @@ const SCHOOL_YEAR_MONTH_INDEXES = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7];
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, ChevronDown, Download, FileText, Globe, GraduationCap, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, canDelete, currentMonth, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails } = useMainViews();
-  const currentYear = new Date().getFullYear();
+  const { AlertCircle, ChevronDown, Download, FileText, Globe, GraduationCap, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, canDelete, currentMonth, currentYear, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails  } = useMainViews();
   return (
     <>
           <div className="space-y-8">
             {/* Print Summary */}
             <div className="hidden print:block mb-8 p-6 bg-slate-50 border-2 border-slate-200 rounded-2xl">
               <h4 className="text-sm font-black uppercase tracking-widest text-slate-800 mb-4">{t.payroll} - {getMonthName(currentMonth)}</h4>
-              <div className="grid grid-cols-4 gap-4 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-200 pb-2">
+              <div className="grid grid-cols-4 gap-4 text-2xs font-black uppercase tracking-widest text-slate-500 border-b border-slate-200 pb-2">
                 <span>{t.staffName}</span>
                 <span>{t.monthlySalary}</span>
                 <span>{t.installment}</span>
@@ -48,19 +48,19 @@ export function PayrollView() {
             </div>
 
             {/* 12-Month Payroll Summary Grid — school year (September → August) */}
-            <div className={`${currentTheme.card} p-8 rounded-[2rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 no-print`}>
+            <div className={`${currentTheme.card} p-8 rounded-3xl border ${currentTheme.border} shadow-xl shadow-slate-200/50 no-print`}>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
-                  <h4 className={`text-lg font-black ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
+                  <h4 className={`text-lg font-black ${currentTheme.inkStrong}`}>
                     {t.automaticPayrollAudit}
                   </h4>
                   <p className={`text-xs ${currentTheme.muted} mt-1`}>
                     {t.n12MonthPayrollTrackingForTheCurrentSchoolYear.replace('{year}', selectedYear)}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-4 text-[10px] font-black uppercase tracking-widest">
+                <div className="flex flex-wrap gap-4 text-2xs font-black uppercase tracking-widest">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                    <div className={`w-2.5 h-2.5 rounded-full ${currentTheme.accentBg}`}></div>
                     <span className={currentTheme.muted}>{t.fullPayment}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -107,13 +107,13 @@ export function PayrollView() {
                   if (cellStatus === 'scheduled' || cellStatus === 'open') {
                     // Future month, or current month while the window is still
                     // open (1st–10th): neutral — not late yet.
-                    boxClass = `${currentTheme.isDark ? 'bg-emerald-950/10 border-emerald-950/20 text-emerald-500/80' : 'bg-slate-50 border-slate-100 text-slate-500'}`;
+                    boxClass = `${currentTheme.isDark ? 'bg-emerald-950/10 border-emerald-950/20 text-[#E2E8F0]/80' : 'bg-slate-50 border-slate-100 text-slate-500'}`;
                     statusText = cellStatus === 'open' ? t.open : t.scheduled;
                   } else if (cellStatus === 'unpaid') {
                     boxClass = "bg-rose-500 text-white border-rose-600 animate-pulse shadow-lg shadow-rose-500/20";
                     statusText = t.unpaid;
                   } else if (cellStatus === 'settle') {
-                    boxClass = "bg-emerald-600 text-white border-emerald-700 shadow-lg shadow-emerald-600/20";
+                    boxClass = `${currentTheme.accentBg} ${currentTheme.accentText} border ${currentTheme.accentBorder} shadow-lg ${currentTheme.accentShadow}`;
                     statusText = t.settle;
                   } else {
                     boxClass = "bg-amber-500 text-amber-950 border-amber-600 shadow-lg shadow-amber-500/20";
@@ -132,9 +132,9 @@ export function PayrollView() {
                       title={t.clickToViewDraft.replace('{month}', monthName)}
                     >
                       <span className="text-xs font-black uppercase tracking-wider">{monthName.substring(0, 3)}</span>
-                      <span className="text-[9px] font-bold opacity-85 mt-1.5">{statusText}</span>
+                      <span className="text-3xs font-bold opacity-85 mt-1.5">{statusText}</span>
                       {totalPaid > 0 && (
-                        <span className="text-[8px] font-mono mt-1 font-bold opacity-75">{formatCurrency(totalPaid)}</span>
+                        <span className="text-3xs font-mono mt-1 font-bold opacity-75">{formatCurrency(totalPaid)}</span>
                       )}
                     </div>
                   );
@@ -145,7 +145,7 @@ export function PayrollView() {
 
             <div className="flex flex-col md:flex-row flex-wrap justify-between items-start md:items-center gap-6 no-print">
               <div className="min-w-0">
-                <h3 className={`text-2xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.staffDirectory}</h3>
+                <h3 className={`text-2xl font-bold ${currentTheme.inkStrong}`}>{t.staffDirectory}</h3>
                 <p className={`text-sm ${currentTheme.muted}`}>{t.manageEmployeeProfilesAndPayroll}</p>
               </div>
               <div className="flex flex-col sm:flex-row flex-wrap items-center justify-end gap-4 w-full md:w-auto md:min-w-0 md:flex-1">
@@ -154,7 +154,7 @@ export function PayrollView() {
                     value={staffPositionFilter}
                     onChange={(e) => setStaffPositionFilter(e.target.value as StaffPositionFilter)}
                     aria-label={t.staffPositionFilterLabel}
-                    className={`appearance-none cursor-pointer pl-4 pr-10 py-3 ${currentTheme.card} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    className={`appearance-none cursor-pointer pl-4 pr-10 py-3 ${currentTheme.card} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                   >
                     <option value="all">{t.staffFilterAll}</option>
                     <option value="admin">{t.staffFilterAdmin}</option>
@@ -163,14 +163,17 @@ export function PayrollView() {
                   </select>
                   <ChevronDown size={16} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${currentTheme.muted}`} />
                 </div>
-                <div className="relative flex-1 sm:w-80">
+                {/* The placeholder is the only hint of what the field searches;
+                    it must never be clipped, so the field keeps a readable
+                    floor width instead of shrinking with the flex row. */}
+                <div className="relative flex-1 basis-64 min-w-[14rem] sm:w-80 sm:flex-none">
                   <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={18} />
                   <input 
                     type="text" 
                     placeholder={t.staffSearchPlaceholder}
                     value={staffSearchTerm}
                     onChange={(e) => setStaffSearchTerm(e.target.value)}
-                    className={`w-full pl-12 pr-6 py-3 ${currentTheme.card} border ${currentTheme.border} rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-500 transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}
+                    className={`w-full pl-12 pr-6 py-3 ${currentTheme.card} border ${currentTheme.border} rounded-2xl transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                   />
                 </div>
                 <div className={`inline-flex items-center gap-2 px-3.5 py-3 rounded-2xl bg-violet-100 dark:bg-violet-950/60`}>
@@ -183,11 +186,14 @@ export function PayrollView() {
                 </div>
                 <button 
                   onClick={() => {
-                    setSelectedDraftMonth(new Date().getMonth());
-                    setSelectedDraftYear(new Date().getFullYear());
+                    // Une seule lecture d'horloge pour le couple mois/année : deux
+                    // `new Date()` séparés pourraient enjamber la Saint-Sylvestre.
+                    const anchor = new Date();
+                    setSelectedDraftMonth(anchor.getMonth());
+                    setSelectedDraftYear(anchor.getFullYear());
                     setShowMonthlyDraftModal(true);
                   }}
-                  className="px-5 py-3 rounded-2xl border border-emerald-600/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-xs font-bold transition-all flex items-center gap-2"
+                  className={`px-5 py-3 rounded-2xl border ${currentTheme.accentBorder} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} text-xs font-bold transition-all flex items-center gap-2`}
                   title={t.openMonthlyPayrollDraft}
                 >
                   <FileText size={16} />
@@ -200,9 +206,9 @@ export function PayrollView() {
                     setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
                     setShowStaffModal(true);
                   }}
-                  className="bg-amber-500 hover:bg-amber-600 text-amber-950 px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
+                  className="px-5 py-3 rounded-2xl border border-amber-500/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/20 text-xs font-bold transition-all flex items-center gap-2"
                 >
-                  <GraduationCap size={18} />
+                  <GraduationCap size={16} />
                   {t.addTechMember}
                 </button>
                 <button 
@@ -215,6 +221,8 @@ export function PayrollView() {
                   className={`${currentTheme.accentBg} ${currentTheme.accentText} px-6 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
                 >
                   <Plus size={18} />
+                  {/* The single primary action on this screen. The two other
+                      "add" buttons are outlines so this one is unmistakable. */}
                   {t.addStaff}
                 </button>
                 <button 
@@ -224,14 +232,38 @@ export function PayrollView() {
                     setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
                     setShowStaffModal(true);
                   }}
-                  className="bg-violet-600 hover:bg-violet-700 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-violet-500/20"
+                  className="px-5 py-3 rounded-2xl border border-violet-500/40 text-violet-700 hover:bg-violet-50 dark:text-violet-300 dark:hover:bg-violet-950/20 text-xs font-bold transition-all flex items-center gap-2"
                 >
-                  <ShieldCheck size={18} />
+                  <ShieldCheck size={16} />
                   {t.addAdminMember}
                 </button>
               </div>
             </div>
 
+            {filteredStaff.length === 0 ? (
+              <div className={`${currentTheme.card} rounded-3xl border ${currentTheme.border} shadow-sm`}>
+                <EmptyState
+                  isDark={currentTheme.isDark}
+                  icon={<GraduationCap size={22} />}
+                  title={staffSearchTerm || staffPositionFilter !== 'all' ? t.noStaffMatchingFilters : t.noStaffMembersRegistered}
+                  hint={staffSearchTerm || staffPositionFilter !== 'all' ? undefined : t.staffEmptyHint}
+                  action={staffSearchTerm || staffPositionFilter !== 'all' ? undefined : (
+                    <button
+                      onClick={() => {
+                        setEditingStaff(null);
+                        setStaffModalMode('employee');
+                        setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
+                        setShowStaffModal(true);
+                      }}
+                      className={`${currentTheme.accentBg} ${currentTheme.accentText} px-4 py-2.5 rounded-xl text-xs font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
+                    >
+                      <Plus size={16} />
+                      {t.addStaff}
+                    </button>
+                  )}
+                />
+              </div>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredStaff.map(s => {
                 const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && sameYearMonth(p.date, currentYear, currentMonth));
@@ -243,6 +275,7 @@ export function PayrollView() {
                 
                 let statusColor = "";
                 let statusLabel = "";
+                let statusStyle: { backgroundColor: string } | undefined;
                 
                 if (paidThisMonth === 0) {
                   if (payDatePassed) {
@@ -256,7 +289,8 @@ export function PayrollView() {
                   statusColor = "bg-amber-700 text-white shadow-lg shadow-amber-700/40 border-amber-800";
                   statusLabel = t.partialPaid;
                 } else {
-                  statusColor = "bg-emerald-700 text-white shadow-lg shadow-emerald-700/40 border-emerald-800";
+                  statusColor = `text-white border-white/20 shadow-lg ${currentTheme.accentShadow}`;
+                  statusStyle = { backgroundColor: currentTheme.accentHexDeep };
                   statusLabel = t.fullyPaid;
                 }
 
@@ -267,21 +301,22 @@ export function PayrollView() {
                     key={s.id}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className={`${statusColor} p-8 rounded-[2rem] border transition-all group relative`}
+                    className={`${statusColor} p-8 rounded-3xl border transition-all group relative`}
+                    style={statusStyle}
                   >
                     <div className="flex items-start justify-between mb-6">
                       <div className="flex items-center gap-4">
-                        <div className={`w-14 h-14 rounded-2xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : (currentTheme.isDark ? 'bg-emerald-900/20 text-emerald-500' : 'bg-slate-100 text-slate-600')} flex items-center justify-center font-bold text-xl`}>
+                        <div className={`w-14 h-14 rounded-2xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : `${currentTheme.surfaceInset} ${currentTheme.inkStrong}`} flex items-center justify-center font-bold text-xl`}>
                           {s.name.charAt(0)}
                         </div>
                         <div>
-                          <h4 className={`font-bold ${paidThisMonth > 0 || payDatePassed ? 'text-white' : (currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800')}`}>
+                          <h4 className={`font-bold ${paidThisMonth > 0 || payDatePassed ? 'text-white' : (currentTheme.inkStrong)}`}>
                             <HighlightText text={s.name} highlight={staffSearchTerm} />
                           </h4>
                           <p className={`text-xs ${paidThisMonth > 0 || payDatePassed ? 'text-white/70' : currentTheme.muted} font-bold uppercase tracking-widest flex items-center gap-2`}>
                             {s.position}
                             {staffCategory(s) === 'admin' && (
-                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300'}`}>
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-3xs font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300'}`}>
                                 <ShieldCheck size={9} />
                                 {t.admin}
                               </span>
@@ -308,7 +343,7 @@ export function PayrollView() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/70' : currentTheme.muted}>{t.monthlySalary}</span>
-                        <span className={`font-bold ${paidThisMonth > 0 || payDatePassed ? 'text-white' : (currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800')}`}>{formatCurrency(s.salary)}</span>
+                        <span className={`font-bold ${paidThisMonth > 0 || payDatePassed ? 'text-white' : (currentTheme.inkStrong)}`}>{formatCurrency(s.salary)}</span>
                       </div>
                       
                       {/* Contact Details */}
@@ -332,9 +367,9 @@ export function PayrollView() {
                       </div>
 
                       {/* Bank Details with Privacy Toggle */}
-                      <div className={`p-4 rounded-2xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/10' : (currentTheme.isDark ? 'bg-emerald-900/10' : 'bg-slate-50')} border ${paidThisMonth > 0 || payDatePassed ? 'border-white/10' : currentTheme.border}`}>
+                      <div className={`p-4 rounded-2xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/10' : `${currentTheme.surfaceInset}`} border ${paidThisMonth > 0 || payDatePassed ? 'border-white/10' : currentTheme.border}`}>
                         <div className="flex justify-between items-center mb-2">
-                          <span className={`text-[10px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted}`}>{t.bankDetails}</span>
+                          <span className={`text-2xs font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted}`}>{t.bankDetails}</span>
                           <button 
                             onClick={() => setVisibleBankDetails(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
                             className={`p-1 rounded-lg ${paidThisMonth > 0 || payDatePassed ? 'hover:bg-white/10 text-white/80' : 'hover:bg-slate-200 text-slate-400'} transition-all`}
@@ -365,9 +400,9 @@ export function PayrollView() {
                       {/* Ledger View (Mini) */}
                       {paymentsThisMonth.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
-                          <p className={`text-[10px] font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted}`}>{t.paymentHistory}</p>
+                          <p className={`text-2xs font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted}`}>{t.paymentHistory}</p>
                           {paymentsThisMonth.map(p => (
-                            <div key={p.id} className="flex justify-between text-[10px] font-bold">
+                            <div key={p.id} className="flex justify-between text-2xs font-bold">
                               <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/60' : currentTheme.muted}>{p.date}</span>
                               <span className={paidThisMonth > 0 || payDatePassed ? 'text-white' : 'text-emerald-600'}>{formatCurrency(p.amount)}</span>
                             </div>
@@ -415,7 +450,7 @@ export function PayrollView() {
                     </div>
 
                     <div className="absolute top-4 right-4">
-                      <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
+                      <span className={`text-3xs font-black uppercase tracking-widest px-2 py-1 rounded-full ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
                         {statusLabel}
                       </span>
                     </div>
@@ -423,16 +458,17 @@ export function PayrollView() {
                 );
               })}
             </div>
+            )}
 
             {/* Salary History */}
-            <div className={`${currentTheme.card} rounded-[2rem] border ${currentTheme.border} shadow-xl shadow-slate-200/50 overflow-hidden`}>
+            <div className={`${currentTheme.card} rounded-3xl border ${currentTheme.border} shadow-xl shadow-slate-200/50 overflow-hidden`}>
               <div className="p-8 border-b border-slate-100">
-                <h3 className={`text-xl font-bold ${currentTheme.isDark ? 'text-emerald-400' : 'text-slate-800'}`}>{t.payrollHistory}</h3>
+                <h3 className={`text-xl font-bold ${currentTheme.inkStrong}`}>{t.payrollHistory}</h3>
               </div>
-              <div className="overflow-x-auto">
+              <div className="max-h-[70vh] overflow-auto">
                 <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className={`${currentTheme.isDark ? 'bg-emerald-900/20' : 'bg-slate-50/50'} ${currentTheme.muted} text-[10px] font-black uppercase tracking-[0.2em]`}>
+                  <thead className="sticky top-0 z-10">
+                    <tr className={`${currentTheme.surfaceInset} ${currentTheme.muted} text-2xs font-black uppercase tracking-[0.2em]`}>
                       <th className="px-8 py-6">{t.staffName}</th>
                       <th className="px-8 py-6">{t.date}</th>
                       <th className="px-8 py-6">{t.amount}</th>
@@ -445,7 +481,7 @@ export function PayrollView() {
                       return (
                         <tr key={p.id} className={`${currentTheme.rowHover} transition-all`}>
                           <td className="px-8 py-6">
-                            <span className={`font-bold ${currentTheme.isDark ? 'text-emerald-500' : 'text-slate-800'}`}>{staffMember?.name || (t.unknown)}</span>
+                            <span className={`font-bold ${currentTheme.inkStrong}`}>{staffMember?.name || (t.unknown)}</span>
                           </td>
                           <td className="px-8 py-6">
                             <span className={`text-sm ${currentTheme.muted}`}>{p.date}</span>

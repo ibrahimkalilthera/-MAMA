@@ -50,7 +50,7 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
       titleId="modal-title-reminder"
       ariaLabel={t.reminderModalTitle}
       maxWidth="max-w-xl"
-      panelRadius="rounded-[2rem]"
+      panelRadius="rounded-3xl"
       rootClassName="animate-fade-in no-print"
       header={
         <div className="flex items-start justify-between px-6 sm:px-8 pt-6 sm:pt-8 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -81,12 +81,12 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
             {/* Parent Summary Card */}
             <div className="p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">{t.parentName}</span>
+                <span className="text-2xs font-black uppercase tracking-widest text-slate-400 block">{t.parentName}</span>
                 <span className="text-sm font-black text-slate-900 dark:text-white">{notifyParent.fullName}</span>
                 <span className="text-xs text-slate-500 block">({t[notifyParent.relationship.toLowerCase() as keyof typeof t] || notifyParent.relationship})</span>
               </div>
               <div className="text-left sm:text-right">
-                <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 dark:text-rose-300 block">{t.totalOutstandingBalance}</span>
+                <span className="text-2xs font-black uppercase tracking-widest text-rose-500 dark:text-rose-300 block">{t.totalOutstandingBalance}</span>
                 <span className="text-lg font-black text-rose-600 dark:text-rose-400 font-mono">
                   {formatCurrency(getParentOutstandingBalance(notifyParent))}
                 </span>
@@ -96,7 +96,7 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
             <div className="space-y-4">
               {/* Recipient Phone Selection */}
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectPhone} *</label>
+                <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.selectPhone} *</label>
                 <div className="flex items-center gap-2">
                   <Phone size={16} className="text-slate-400" />
                   <select
@@ -115,14 +115,14 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
 
               {/* Template Selection Radio Buttons / Pills */}
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.selectTemplate}</label>
+                <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.selectTemplate}</label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => handleNotifyTemplateChange('polite')}
                     className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
                       notifyTemplateType === 'polite'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
+                        ? `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentBorder} shadow-md ${currentTheme.accentShadow}`
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
                     }`}
                   >
@@ -156,9 +156,9 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
               {/* Editable Message Text Box */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t.customMessage}</label>
+                  <label className="text-2xs font-black uppercase tracking-widest text-slate-400">{t.customMessage}</label>
                   {copiedToast && (
-                    <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 animate-pulse">
+                    <span className="text-2xs font-bold text-emerald-600 flex items-center gap-1 animate-pulse">
                       <CheckCircle2 size={12} />
                       {t.copiedToClipboard}
                     </span>
@@ -196,9 +196,9 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
                 <button
                   type="button"
                   onClick={handleSendWhatsApp}
-                  className="flex-1 sm:flex-initial h-11 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all whitespace-nowrap"
+                  className={`flex-1 sm:flex-initial h-11 px-4 rounded-2xl ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} font-bold text-xs shadow-lg ${currentTheme.accentShadow} flex items-center justify-center gap-2 transition-all whitespace-nowrap`}
                 >
-                  <MessageSquare size={16} className="text-emerald-200 flex-shrink-0" />
+                  <MessageSquare size={16} className="flex-shrink-0" />
                   <span>{t.openWhatsApp}</span>
                 </button>
               </div>

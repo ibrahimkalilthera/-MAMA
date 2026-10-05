@@ -48,6 +48,9 @@ export interface AppModalsProps {
   copiedToast: boolean;
   copyToClipboard: (text: string) => void;
   currentMonth: number;
+  /** Le millésime du MÊME instant que `currentMonth` (App.tsx) — RecordSalaryModal
+   *  s'en sert pour ne pas compter un paiement du même mois d'une autre année. */
+  currentYear: number;
   currentTheme: CurrentTheme;
   currentUser: { name?: string; role?: string; username?: string } | null;
   deleteStudent: (id: string) => Promise<boolean>;

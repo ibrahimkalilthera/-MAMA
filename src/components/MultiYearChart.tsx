@@ -22,9 +22,9 @@ export function MultiYearChart({ academicYears, getYearStats, lang, t, currentTh
   const { isDark, card, border, muted } = currentTheme;
 
   return (
-    <div className={`${card} p-8 rounded-[2.5rem] border ${border} shadow-xl shadow-slate-200/50`}>
+    <div className={`${card} p-8 rounded-3xl border ${border} shadow-xl shadow-slate-200/50`}>
       <div className="mb-8">
-        <h3 className={`text-xl font-bold ${isDark ? 'text-emerald-400' : 'text-slate-800'}`}>
+        <h3 className={`text-xl font-bold ${isDark ? 'text-[#E2E8F0]' : 'text-slate-800'}`}>
           {t.revenueVsExpenses}
         </h3>
         <p className={`text-xs ${muted} mt-1`}>

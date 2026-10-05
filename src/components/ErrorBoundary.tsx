@@ -13,19 +13,26 @@
  * TOUJOURS dans la console (le débogage n'est jamais masqué) et affiche une
  * carte d'erreur stylée avec le thème courant + un bouton « Recharger »
  * (window.location.reload). Un bouton « Réessayer » remonte le sous-arbre
- * fautif localement quand l'erreur est transitoire.
+ * fautif localement quand l'erreur est transitoire — SAUF pour un import
+ * dynamique échoué, que React.lazy mémorise : là, « Réessayer » déclenche un
+ * rechargement gardé (voir lib/chunkLoadRecovery.ts), seule reprise réelle.
  */
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RotateCcw, RefreshCw } from 'lucide-react';
+import { isChunkLoadError, recoverFromChunkLoadError } from '../lib/chunkLoadRecovery';
 
 interface ErrorBoundaryProps {
-  /** Theme tokens from the app theme engine (card, border, muted, isDark). */
+  /** Theme tokens from the app theme engine (card, border, muted, isDark, accents). */
   currentTheme: {
     card: string;
     border: string;
     muted: string;
     isDark: boolean;
+    accentBg: string;
+    accentHover: string;
+    accentText: string;
+    accentShadow: string;
   };
   children: ReactNode;
   /** Short label of the guarded zone, e.g. « la vue » / « cette fenêtre ». */
@@ -49,6 +56,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   private handleRetry = (): void => {
+    // Un import dynamique rejeté est mémorisé par React.lazy : remonter le
+    // sous-arbre relancerait la même promesse rejetée. La reprise réelle est un
+    // rechargement — gardé pour ne pas boucler si le serveur est éteint. Si le
+    // garde le refuse, on laisse la carte affichée au lieu de rejouer l'échec.
+    if (isChunkLoadError(this.state.error) && typeof window !== 'undefined') {
+      recoverFromChunkLoadError(Date.now(), window.sessionStorage, () => window.location.reload());
+      return;
+    }
     this.setState({ error: null });
   };
 
@@ -77,14 +92,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             console (touche F12) pour le débogage — rechargez la page pour repartir.
           </p>
           {error.message ? (
-            <pre className={`text-[10px] leading-relaxed whitespace-pre-wrap break-words p-3 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-rose-300' : 'bg-slate-50 text-rose-600'}`}>
+            <pre className={`text-2xs leading-relaxed whitespace-pre-wrap break-words p-3 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-slate-900 text-rose-300' : 'bg-slate-50 text-rose-600'}`}>
               {error.message}
             </pre>
           ) : null}
           <div className="flex items-center gap-3">
             <button
               onClick={this.handleRetry}
-              className="h-11 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-[0.97]"
+              className={`h-11 px-4 rounded-2xl ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} text-xs font-bold transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow} active:scale-[0.97]`}
             >
               <RotateCcw size={14} />
               Réessayer

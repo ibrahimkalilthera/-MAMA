@@ -3,7 +3,15 @@ import { AlertTriangle } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import { RootBoundary } from './app/rootBoundary';
 import { registerServiceWorker } from './lib/serviceWorker';
+import { registerChunkLoadRecovery } from './lib/chunkLoadRecovery';
 import './index.css';
+
+// Vite émet `vite:preloadError` quand un import dynamique échoue (chunk périmé
+// après un redémarrage du serveur de dev ou un déploiement). Sans cela, la vue
+// paresseuse reste morte : React.lazy mémorise le rejet, donc « Réessayer » ne
+// peut rien reprendre. Le rechargement est gardé (une fois par fenêtre) pour
+// qu'un serveur éteint ne piège pas l'utilisateur dans une boucle.
+registerChunkLoadRecovery(typeof window !== 'undefined' ? window : undefined);
 
 const root = createRoot(document.getElementById('root')!);
 

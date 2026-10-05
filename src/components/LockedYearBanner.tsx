@@ -13,7 +13,7 @@ export interface LockedYearBannerProps {
 export function LockedYearBanner({ t, show }: LockedYearBannerProps) {
   if (!show) return null;
   return (
-    <div className="mb-8 flex items-center justify-between p-6 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-3xl text-rose-800 dark:text-rose-300 shadow-sm no-print">
+    <div data-slot="app-locked-year-banner" className="mb-8 flex items-center justify-between p-6 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-3xl text-rose-800 dark:text-rose-300 shadow-sm no-print">
       <div className="flex items-center gap-4">
         <div className="p-3 bg-rose-100 dark:bg-rose-950/60 rounded-2xl text-rose-600 dark:text-rose-300">
           <Lock size={24} />

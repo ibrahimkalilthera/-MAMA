@@ -16,9 +16,9 @@ export function AppLoadingScreen({ title, subtitle }: AppLoadingScreenProps) {
       <div className="text-center">
         <div className="relative w-14 h-14 mx-auto mb-8">
           <div className="absolute inset-0 rounded-full border-2 border-white/[0.06]"></div>
-          <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"></div>
-          <div className="absolute inset-2 rounded-full bg-emerald-500/10 flex items-center justify-center">
-            <ShieldCheck size={18} className="text-emerald-400" />
+          <div className="absolute inset-0 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }}></div>
+          <div className="absolute inset-2 rounded-full accent-soft-surface flex items-center justify-center">
+            <ShieldCheck size={18} className="accent-on-dark-text" />
           </div>
         </div>
         <h2 className="text-xl font-semibold text-white tracking-tight mb-2">{title}</h2>

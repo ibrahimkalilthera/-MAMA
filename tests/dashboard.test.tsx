@@ -19,10 +19,15 @@ const t = translations.fr as TranslationDict;
 
 installDomGlobals();
 
-/** Real current date — the hook reads `new Date()` for month/year filters. */
-const now = new Date();
-const month = now.getMonth();
-const year = now.getFullYear();
+/**
+ * Pinned reference date. The hook reads its injected `now` clock, so every
+ * monthly KPI below is decided by THIS date — the suite no longer tracks the
+ * wall clock (which used to make the payroll-window case day-dependent).
+ */
+const NOW = new Date(2026, 8, 2, 10, 0, 0); // 2 September 2026, 10:00 local
+const clock = (): Date => NOW;
+const month = NOW.getMonth();
+const year = NOW.getFullYear();
 const prevMonth = (month + 11) % 12;
 const prevMonthYear = month === 0 ? year - 1 : year;
 const pad = (n: number): string => String(n).padStart(2, '0');
@@ -69,13 +74,13 @@ const staff: Staff[] = [{ id: 'st1', name: 'Awa Traoré', position: 'Enseignante
 const baseArgs = (partial?: Partial<Parameters<typeof useDashboard>[0]>): Parameters<typeof useDashboard>[0] => ({
   t,
   today: '2026-09-02',
-  currentMonth: 8, // septembre — used by the arrears KPI only
   selectedYear: '2026-2027',
   students: [],
   staff: [],
   expenses: [],
   vendorExpenses: [],
   salaryPayments: [],
+  now: clock,
   ...partial,
 });
 
@@ -231,7 +236,7 @@ describe('useDashboard', () => {
   });
 
   it('reflects the real payroll window: open before the 11th when unpaid, overdue after', () => {
-    const day = now.getDate();
+    const day = NOW.getDate();
     const api = compute(baseArgs({ staff, salaryPayments: [] }));
     const w = api.payrollWindowStatus;
     assert.equal(w.isOpen, day >= 1 && day <= 10);
@@ -253,5 +258,36 @@ describe('useDashboard', () => {
     // totalExpenses = cash expenses + salaries + vendor partial 5000
     assert.equal(api.stats.totalExpenses, 3000 + 75000 + 5000);
     assert.equal(api.stats.expensesThisMonth, 3000 + 75000 + 5000);
+  });
+
+  it('reads "this month" and "last month" from the INJECTED clock, not the wall clock', () => {
+    const students2 = [student({ payments: [
+      { date: '2026-09-05', amount: 30000 },
+      { date: '2026-10-05', amount: 12000 },
+    ] })];
+
+    const september = compute(baseArgs({ students: students2, now: () => new Date(2026, 8, 2) }));
+    const october = compute(baseArgs({ students: students2, now: () => new Date(2026, 9, 2) }));
+
+    assert.equal(september.stats.collectedMonth, 30000, 'a September clock sees the September payment');
+    assert.equal(october.stats.collectedMonth, 12000, 'an October clock sees the October payment');
+    assert.equal(september.stats.prevMonthCollected, 0, 'September’s previous month (August) has no payment');
+    assert.equal(october.stats.prevMonthCollected, 30000, 'October’s previous month (September) has 30000');
+    // The two clocks disagree by construction — so the figures come from the
+    // injected clock, never from the real date on the machine running the suite.
+    assert.notEqual(september.stats.collectedMonth, october.stats.collectedMonth);
+  });
+
+  it('answers the payroll window from the injected clock day', () => {
+    const early = compute(baseArgs({ staff, salaryPayments: [], now: () => new Date(2026, 8, 5) }));
+    const late = compute(baseArgs({ staff, salaryPayments: [], now: () => new Date(2026, 8, 15) }));
+
+    assert.equal(early.payrollWindowStatus.currentDay, 5);
+    assert.equal(early.payrollWindowStatus.isOpen, true, 'the 5th is inside the 1st–10th window');
+    assert.equal(early.payrollWindowStatus.isOverdue, false);
+
+    assert.equal(late.payrollWindowStatus.currentDay, 15);
+    assert.equal(late.payrollWindowStatus.isOpen, false, 'the 15th is past the window');
+    assert.equal(late.payrollWindowStatus.isOverdue, true, 'unpaid past the 10th is overdue');
   });
 });

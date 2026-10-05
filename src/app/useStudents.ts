@@ -20,6 +20,7 @@ import type { Student } from './types';
 import type { StudentForm } from '../components/StudentFormModal';
 import type { TranslationDict } from '../i18n/translations';
 import { isNinthGradeClass, visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { localIsoDate, systemClock, type Clock } from '../lib/dateWindows';
 
 export type StudentSortKey = 'name' | 'parentName' | 'balance' | 'dueDate';
 
@@ -38,16 +39,19 @@ export interface UseStudentsDeps {
   showToast: () => void;
   /** Toast an error/validation message (replaces the native alert()). */
   toastError: (message: string) => void;
+  /** Reference clock for the form's default day (dueDate/enrollmentDate of the
+   *  current month). Defaults to `systemClock`; a test pins it. */
+  now?: Clock;
 }
 
-const emptyStudentForm = (): StudentForm => ({
+const emptyStudentForm = (today: string): StudentForm => ({
   name: '',
   parentName: '',
   parentEmail: '',
   parentPhone: '',
   totalDue: '',
   scholarshipDiscount: '0',
-  dueDate: new Date().toISOString().split('T')[0],
+  dueDate: today,
   // Plus d'année en dur : le formulaire naît SANS année et c'est l'année de
   // travail (`selectedYear`) qui s'applique à l'enregistrement. Un littéral ici
   // écrivait une année que les listes ne filtraient pas — l'élève était en base
@@ -61,14 +65,17 @@ const emptyStudentForm = (): StudentForm => ({
   emergencyContactRelation: '',
   emergencyContactPhone: '',
   medicalNotes: 'None',
-  enrollmentDate: new Date().toISOString().split('T')[0],
+  enrollmentDate: today,
   previousSchool: '',
   status: 'Active' as 'Active' | 'Graduated' | 'Left',
   classScope: 'all'
 });
 
 export function useStudents(deps: UseStudentsDeps) {
-  const { t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager, students, addStudent, updateStudent, showToast, toastError } = deps;
+  const { t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager, students, addStudent, updateStudent, showToast, toastError, now: nowFn = systemClock } = deps;
+  // Le jour local du repère d'horloge : les défauts de formulaire (dueDate /
+  // enrollmentDate) naissent au mois courant de ce repère, pas d'une horloge murale.
+  const todayIso = localIsoDate(nowFn());
   // Scholarship discounts are a finance-admin power: promoter/admin AND the
   // Gestionnaire Principal.
   const canEditScholarship = isPromoter || isGeneralManager;
@@ -94,7 +101,7 @@ export function useStudents(deps: UseStudentsDeps) {
   };
 
   // Student Form State
-  const [studentForm, setStudentForm] = useState<StudentForm>(emptyStudentForm);
+  const [studentForm, setStudentForm] = useState<StudentForm>(() => emptyStudentForm(todayIso));
 
   // State for active tab in student detailed viewer
   const [studentDetailTab, setStudentDetailTab] = useState<'general' | 'parent' | 'medical'>('general');
@@ -222,7 +229,7 @@ export function useStudents(deps: UseStudentsDeps) {
       parentPhone: '',
       totalDue: '',
       scholarshipDiscount: '0',
-      dueDate: new Date().toISOString().split('T')[0],
+      dueDate: todayIso,
       academicYear: selectedYear,
       grade: '',
       studentId: '',
@@ -231,7 +238,7 @@ export function useStudents(deps: UseStudentsDeps) {
       emergencyContactRelation: '',
       emergencyContactPhone: '',
       medicalNotes: 'None',
-      enrollmentDate: new Date().toISOString().split('T')[0],
+      enrollmentDate: todayIso,
       previousSchool: '',
       status: 'Active',
       classScope: 'all'
@@ -259,7 +266,7 @@ export function useStudents(deps: UseStudentsDeps) {
       emergencyContactRelation: student.emergencyContactRelation || '',
       emergencyContactPhone: student.emergencyContactPhone || '',
       medicalNotes: student.medicalNotes || 'None',
-      enrollmentDate: student.enrollmentDate || new Date().toISOString().split('T')[0],
+      enrollmentDate: student.enrollmentDate || todayIso,
       previousSchool: student.previousSchool || '',
       status: student.status || 'Active',
       classScope: 'all'

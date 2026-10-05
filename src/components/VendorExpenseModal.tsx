@@ -72,7 +72,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
             currentTheme={currentTheme}
             titleId="modal-title-vendor-expense-form"
             ariaLabel={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense}
-            headerClassName={`p-8 border-b ${currentTheme.border} flex justify-between items-center ${currentTheme.isDark ? 'bg-emerald-800' : 'bg-blue-600'} text-white`}
+            headerClassName={`p-8 border-b ${currentTheme.border} flex justify-between items-center ${currentTheme.accentBg} ${currentTheme.accentText}`}
             icon={<Receipt size={24} />}
             title={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense}
           >
@@ -80,9 +80,9 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
               <form onSubmit={handleVendorExpenseSubmit} className="p-10 space-y-6">
                 {/* Vendor Name */}
                 <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
+                  <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
                     <span>{t.vendorName}</span>
-                    {financialFieldsLocked && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
+                    {financialFieldsLocked && <span className="text-3xs text-rose-500 font-bold">({t.promoterOnly})</span>}
                   </label>
                   <input 
                     required
@@ -98,7 +98,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                 <div className="grid grid-cols-2 gap-6">
                   {/* Category */}
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.category}</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.category}</label>
                     <select 
                       value={vendorExpenseForm.category}
                       onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, category: e.target.value })}
@@ -112,7 +112,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
 
                   {/* Payment Status */}
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.paymentStatus}</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.paymentStatus}</label>
                     <select 
                       value={vendorExpenseForm.paymentStatus}
                       onChange={(e) => setVendorExpenseForm({ ...vendorExpenseForm, paymentStatus: e.target.value })}
@@ -135,7 +135,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                     
                     {/* Aid Type Dropdown */}
                     <div className="space-y-2">
-                      <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                      <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
                         {t.typeOfAid}
                       </label>
                       <select 
@@ -154,7 +154,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                     {/* Student Link Fields */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
                           {t.beneficiaryStudentNameOptional}
                         </label>
                         <input 
@@ -166,7 +166,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>
+                        <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>
                           {t.studentGradeOptional}
                         </label>
                         <select 
@@ -201,9 +201,9 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                 <div className="grid grid-cols-2 gap-6">
                   {/* Total Amount */}
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest flex items-center justify-between`}>
                       <span>{t.amount} ({t.currency})</span>
-                      {financialFieldsLocked && <span className="text-[9px] text-rose-500 font-bold">({t.promoterOnly})</span>}
+                      {financialFieldsLocked && <span className="text-3xs text-rose-500 font-bold">({t.promoterOnly})</span>}
                     </label>
                     <input 
                       required
@@ -218,7 +218,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
 
                   {/* Due Date */}
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.dueDate2}</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.dueDate2}</label>
                     <input 
                       required
                       type="date" 
@@ -232,7 +232,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
                 {/* Amount Paid - Only visible if Partially Paid */}
                 {vendorExpenseForm.paymentStatus === 'partial' && (
                   <div className="space-y-2">
-                    <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amountPaid} ({t.currency})</label>
+                    <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.amountPaid} ({t.currency})</label>
                     <input 
                       required
                       type="number" 
@@ -246,7 +246,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
 
                 {/* Description */}
                 <div className="space-y-2">
-                  <label className={`text-[10px] font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.description}</label>
+                  <label className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.description}</label>
                   <input 
                     type="text" 
                     value={vendorExpenseForm.description}
@@ -258,7 +258,7 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
 
                 <button 
                   type="submit" 
-                  className={`w-full ${currentTheme.isDark ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl`}
+                  className={`w-full ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} py-5 rounded-2xl font-black text-sm transition-all shadow-xl`}
                 >
                   {t.submit}
                 </button>
