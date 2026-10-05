@@ -7,16 +7,20 @@ import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Expense, VendorExpense } from '../domainTypes';
 import type { DbUpdate } from '../database.types';
 import { mapExpenseRow, mapVendorExpenseRow, createRowId } from '../rowMappers';
+import { rowIdColumn } from '../offlineReplay';
 import { logAuditEvent } from '../auditLogger';
 
 export function createExpenseOps(ctx: SupabaseDataCtx) {
   const { vendorExpenses, expenses, setExpenses, setVendorExpenses, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
 
-  const addExpense = async (exp: Omit<Expense, 'id'>): Promise<Expense | null> => {
+  const addExpense = async (exp: Omit<Expense, 'id'> & { id?: string }): Promise<Expense | null> => {
+    // L'id du GESTE — minté par l'écran (une fois par fiche ouverte) ou ici à
+    // défaut. Le même geste rejoué retombe sur la MÊME clé primaire : pas de
+    // double dépense sur un double clic.
+    const rowId = exp.id ?? createRowId();
     if (isOffline()) {
-      const rowId = createRowId();
-      const local: Expense = { id: rowId, ...exp };
-      setExpenses(prev => [...prev, local]);
+      const local: Expense = { ...exp, id: rowId };
+      setExpenses(prev => prev.some(e => e.id === rowId) ? prev : [...prev, local]);
       enqueueOffline('addExpense', exp, rowId);
       notifySuccess('addExpense');
       return local;
@@ -24,6 +28,7 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     const { data, error } = await supabase
       .from('expenses')
       .insert({
+        ...rowIdColumn(rowId),
         category: exp.category,
         description: exp.description,
         amount: exp.amount,
@@ -32,9 +37,21 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
       })
       .select()
       .single();
-    if (error) { console.error('addExpense error:', error.message); notifyError('addExpense', error.message); return null; }
+    if (error) {
+      // `23505` : même geste déjà enregistré — la ligne en base est rendue, sans
+      // erreur ni seconde entrée de journal.
+      if (error.code === '23505' && rowIdColumn(rowId).id) {
+        const existing = await supabase.from('expenses').select().eq('id', rowId).single();
+        if (existing.data) {
+          const already = mapExpenseRow(existing.data);
+          setExpenses(prev => prev.some(e => e.id === already.id) ? prev : [...prev, already]);
+          return already;
+        }
+      }
+      console.error('addExpense error:', error.message); notifyError('addExpense', error.message); return null;
+    }
     const mapped = mapExpenseRow(data);
-    setExpenses(prev => [...prev, mapped]);
+    setExpenses(prev => prev.some(e => e.id === mapped.id) ? prev : [...prev, mapped]);
     void logAuditEvent({
       action: 'ADD_EXPENSE',
       targetType: 'expense',
@@ -45,11 +62,12 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     return mapped;
   };
 
-  const addVendorExpense = async (ve: Omit<VendorExpense, 'id'>): Promise<VendorExpense | null> => {
+  const addVendorExpense = async (ve: Omit<VendorExpense, 'id'> & { id?: string }): Promise<VendorExpense | null> => {
+    // Même id du GESTE que `addExpense` : le double clic ne crée pas deux dettes.
+    const rowId = ve.id ?? createRowId();
     if (isOffline()) {
-      const rowId = createRowId();
-      const local: VendorExpense = { id: rowId, ...ve };
-      setVendorExpenses(prev => [...prev, local]);
+      const local: VendorExpense = { ...ve, id: rowId };
+      setVendorExpenses(prev => prev.some(v => v.id === rowId) ? prev : [...prev, local]);
       enqueueOffline('addVendorExpense', ve, rowId);
       notifySuccess('addVendorExpense');
       return local;
@@ -57,6 +75,7 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
     const { data, error } = await supabase
       .from('vendor_expenses')
       .insert({
+        ...rowIdColumn(rowId),
         vendor_name: ve.vendorName,
         category: ve.category,
         amount: ve.amount,
@@ -71,9 +90,19 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
       })
       .select()
       .single();
-    if (error) { console.error('addVendorExpense error:', error.message); notifyError('addVendorExpense', error.message); return null; }
+    if (error) {
+      if (error.code === '23505' && rowIdColumn(rowId).id) {
+        const existing = await supabase.from('vendor_expenses').select().eq('id', rowId).single();
+        if (existing.data) {
+          const already = mapVendorExpenseRow(existing.data);
+          setVendorExpenses(prev => prev.some(v => v.id === already.id) ? prev : [...prev, already]);
+          return already;
+        }
+      }
+      console.error('addVendorExpense error:', error.message); notifyError('addVendorExpense', error.message); return null;
+    }
     const mapped = mapVendorExpenseRow(data);
-    setVendorExpenses(prev => [...prev, mapped]);
+    setVendorExpenses(prev => prev.some(v => v.id === mapped.id) ? prev : [...prev, mapped]);
     void logAuditEvent({
       action: 'ADD_VENDOR_EXPENSE',
       targetType: 'vendor_expense',

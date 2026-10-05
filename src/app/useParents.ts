@@ -19,6 +19,7 @@ import type { TranslationDict } from '../i18n/translations';
 import type { Language, Parent, Student } from './types';
 import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
 import { downloadBytes } from '../lib/browserDownload';
+import { useGestureId } from '../lib/gestureId';
 import { drawSchoolStamp } from '../lib/pdfStamp';
 
 export interface UseParentsArgs {
@@ -27,7 +28,7 @@ export interface UseParentsArgs {
   formatCurrency: (amount: number) => string;
   students: Student[];
   setStudents: Dispatch<SetStateAction<Student[]>>;
-  addParent: (parent: Omit<Parent, 'id'>) => Promise<Parent | null>;
+  addParent: (parent: Omit<Parent, 'id'> & { id?: string }) => Promise<Parent | null>;
   updateParent: (id: string, updates: Partial<Parent>) => Promise<boolean>;
   deleteParent: (id: string) => Promise<boolean>;
   updateStudent: (id: string, updates: Partial<Student>) => Promise<boolean>;
@@ -424,6 +425,11 @@ export function useParents({
     downloadBytes(doc.output('arraybuffer'), `Releve_Parent_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
+  // L'id du GESTE d'ajout — minté au premier envoi, réutilisé par tout réessai
+  // du même geste (double clic), libéré après un succès (la fiche suivante est
+  // un autre parent). C'est ce qui rend la création en ligne idempotente.
+  const { gestureId, resetGestureId } = useGestureId();
+
   const handleParentSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!parentForm.fullName.trim()) return;
@@ -444,11 +450,13 @@ export function useParents({
     if (editingParent) {
       saved = await updateParent(editingParent.id, parentData);
     } else {
-      createdParent = await addParent(parentData);
+      createdParent = await addParent({ ...parentData, id: gestureId() });
       saved = !!createdParent;
       newParentId = createdParent?.id ?? null;
     }
     if (!saved) return;
+    // Geste terminé : la fiche suivante mint un autre id.
+    resetGestureId();
 
     // If students were selected in the form, link them all to the newly created parent.
     // Stop on the first failed update so we do not falsely confirm a partial linkage.

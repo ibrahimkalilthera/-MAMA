@@ -1,3 +1,43 @@
+## [2026-10-05] Le paiement d'un élève porte enfin l'id du geste : un double envoi, un seul reçu
+
+Suite immédiate de l'entrée du dessous, qui laissait ce trou ouvert (« `addPayment` n'a toujours pas d'id »). Le paiement d'un élève est maintenant idempotent comme les autres écritures.
+
+**Le défaut.** `addPayment` insérait dans `payments` sans clé : `payments.id` a un `DEFAULT uuid_generate_v4()`, donc chaque double envoi (double clic sur « Enregistrer ») créait une NOUVELLE ligne — un second reçu — et incrémentait `students.amount_paid` deux fois.
+
+**La réparation.** L'id du GESTE voyage DÉSORMAIS AVEC le paiement (nouveau champ optionnel `Payment.id`), minté une fois par saisie par `useGestureId` dans le formulaire. `addPayment` l'envoie comme clé primaire (`rowIdColumn`), traite `23505` comme « déjà enregistré » (rend « enregistré », sans erreur, SANS remettre en file — sinon le rejeu boucle — et sans seconde ligne d'audit), et n'ajoute le paiement au solde local qu'UNE fois (dédup par id). Le rejeu hors ligne envoie aussi l'id (`...rowIdColumn(item.localId)`), donc un drainage qui repasse ne duplique pas.
+
+**En plus du geste.** Une garde d'envoi (`useRef`) empêche deux handlers concurrents : un double clic produit UN seul reçu PDF, pas deux. Et les paiements récupérés en base portent maintenant leur `id` réel (`useSupabaseData`), donc la dédup reste vraie après un rafraîchissement.
+
+**Tests.** `tests/dataops-write-honesty.test.ts` +2 (l'id part dans l'INSERT ; un 23505 ne double ni le reçu ni le solde) ; `tests/payments.test.tsx` +1 (double submit → un seul `addPayment`, un seul PDF) ; `tests/offline-replay.test.ts` : `addPayment` rejoint la couverture « CREATING » (le rejeu envoie l'id).
+
+**Mesure.** Chaîne complète verte : `npm run lint` exit 0, **2321/2321 tests**, 0 échec.
+
+## [2026-10-05] L'id du GESTE s'étend à TOUTES les créations : parents, personnel, dépenses, salaires, tâches, notes
+
+Suite de la réparation des élèves. L'entrée du dessous le disait déjà : « les autres créations (parents, personnel, dépenses, salaires, tâches, classes, notes) n'envoient toujours pas d'id sur le chemin EN LIGNE : aucun doublon n'est mesuré sur ces tables, mais le défaut y est présent à l'identique ». Ce défaut est fermé. Mesuré en base (lecture seule) avant d'écrire : **aucun doublon** sur `staff` (0 ligne), `parents` (12), `expenses`, `salary_payments`, `todos`, `calendar_notes`, `custom_classes` (4) — le nettoyage des élèves était le seul nécessaire.
+
+**Le défaut.** Chaque `add*` EN LIGNE insérait `parentToRow(...)`/`staffToRow(...)`/… sans clé : la base générait l'id (`uuid DEFAULT uuid_generate_v4()`), donc chaque envoi répété (double clic, reprise) créait une NOUVELLE ligne. Seul `addStudent` envoyait déjà l'id du geste — et seule la branche HORS LIGNE en mintait un pour les autres.
+
+**La réparation, une règle appliquée à la classe.** Les opérations de création de `parents`, `staff`, `expenses` (+ `vendor_expenses`), `todos`, `salary_payments` et `calendar_notes` acceptent maintenant un `id` optionnel, envoient `rowIdColumn(rowId)` dans l'INSERT, et traitent **`23505` comme « geste déjà enregistré »** : la ligne en base est rendue, sans erreur, sans seconde entrée de journal, sans doublon dans la liste locale. L'id est minté par l'écran via un nouveau crochet `useGestureId` ([src/lib/gestureId.ts](src/lib/gestureId.ts)) : stable à travers les réessais du MÊME geste, libéré après un succès — la fiche suivante mint un autre id. Les classes personnalisées étaient déjà protégées par l'unicité du `code`.
+
+**Câblage.** `useParents`, `usePayroll` (membre + salaire), `useExpenses` (dépense + charge fournisseur), `useTodoSidebar` et `usePayments` (note du calendrier) passent l'id du geste à leur `add*`. Le `23505` était déjà géré pour `export/excel` et `addCustomClass`.
+
+**Tests.** `tests/dataops-write-honesty.test.ts` : nouveau bloc paramétré, 12 cas — pour chaque domaine, « l'id du geste part dans l'INSERT » et « un 23505 rend la ligne en base sans erreur ni journal ». `tests/calendar-notes-db.test.ts` +1 (l'id du geste part dans l'INSERT). Les suites `expenses`/`todos` vérifient désormais la clé transmise explicitement (l'`id` n'est plus un bruit dans une égalité stricte).
+
+**Reste ouvert, et dit.** `addPayment` (paiement d'un élève) n'avait alors toujours pas d'id : la demande listait les tables ci-dessus, pas `payments`. Un double envoi y restait possible — **fermé dans l'entrée du dessus, le même jour.**
+
+**Mesure.** Chaîne complète verte : `npm run lint` exit 0 (tsc strict + guards + stylelint + snapshot), **2317/2317 tests**, 0 échec.
+
+## [2026-10-05] Nettoyage des doublons de `students` : migration réversible, préparée pour la décision de l'école
+
+Suite directe de l'entrée suivante (le correctif de la CAUSE). Re-mesuré en base (production `rpcjdohfxwukbqngbprw`, lecture seule, service role) : **414 lignes**, toujours **9 groupes / 14 lignes en trop** — identique à la mesure d'origine (« Mahamadou DJIRE » en sept exemplaires, etc.). Le correctif du commit `49ec45b` arrête les NOUVEAUX doublons ; il n'a jamais retiré ceux déjà écrits (choix explicite de l'entrée du dessous : « leur retrait est une décision de l'école, pas de l'outil »).
+
+**Le risque de perte, levé avant d'écrire une ligne de SQL.** Les seules tables qui cascadent sur `students.id` sont `payments` et `todos` (`ON DELETE CASCADE`, `20260801000000_init.sql`). Vérifié : les **2 seuls paiements** de la base pointent sur d'autres élèves, **0 tâche** renvoie à un doublon → supprimer les jumelles ne détruit aucun reçu. La sauvegarde intégrale des lignes condamnées rend malgré tout l'opération réversible.
+
+**Migration `20261005000001_dedupe_students.sql`** (rejouable) : (1) copie les jumelles dans `students_dupe_backup_20261005` ; (2) re-pointe paiements/tâches vers la survivante (défensif) ; (3) supprime les jumelles en gardant la plus ANCIENNE (`created_at`, puis `id` — ordre déterministe). Clé de regroupement = nom (lower), téléphone parent, classe (lower), **année** — les homonymes légitimes (« Awa DIARRA » ×3, « Bourama COULIBALY », « Adam TRAORE »… : personnes distinctes) ne sont PAS fusionnés. Vérifié hors base sur les données réelles : la clé SQL désigne exactement les 14 lignes en trop et épargne les 10 familles d'homonymes.
+
+**Appliquée le 2026-10-05** (accord du propriétaire, connexion directe `postgres` sur `rpcjdohfxwukbqngbprw`). Mesure avant/après dans la même transaction : **414 → 400 lignes, 14 → 0 doublon** ; les 14 lignes sont dans `students_dupe_backup_20261005` (réversibles). Vérifié après commit (API REST, lecture seule) : `students total: 400 | doublons restants: 0 | sauvegarde: 14 lignes`. La table de sauvegarde se supprimera une fois le nettoyage confirmé côté école.
+
 ## [2026-10-05] Des doublons dans `students` : la création n'avait aucune clé, et le drainage pouvait courir deux fois
 
 Signalé : « j'ai remarqué des doublons créés par la base aussi, est-ce des doublons qui ont été créés par Electron ? »

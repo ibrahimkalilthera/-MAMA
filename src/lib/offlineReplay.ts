@@ -141,7 +141,10 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
   let success = false;
   if (item.type === 'addPayment') {
     const { studentId, payment } = item.payload;
+    // L'id du GESTE part aussi au rejeu (même règle que les autres tables) :
+    // un drainage qui repasserait sur le même item retombe sur la même clé.
     const { error } = await db.from('payments').insert({
+      ...rowIdColumn(item.localId),
       student_id: studentId,
       date: payment.date,
       amount: payment.amount,

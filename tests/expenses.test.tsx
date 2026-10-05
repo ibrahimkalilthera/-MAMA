@@ -53,8 +53,8 @@ const vendor: VendorExpense = {
 
 interface Spies {
   alerts: string[];
-  addExpenseCalls: Array<Omit<Expense, 'id'>>;
-  addVendorCalls: Array<Omit<VendorExpense, 'id'>>;
+  addExpenseCalls: Array<Omit<Expense, 'id'> & { id?: string }>;
+  addVendorCalls: Array<Omit<VendorExpense, 'id'> & { id?: string }>;
   updateVendorCalls: Array<{ id: string; updates: Partial<VendorExpense> }>;
   deleteVendorCalls: string[];
   deleteResults: boolean[];
@@ -171,9 +171,15 @@ describe('useExpenses.handleExpenseSubmit', () => {
         ref.current!.setExpenseForm({ category: 'internet', description: 'Fibre', amount: '25000', date: '2026-05-02' });
       });
       await act(async () => { await ref.current!.handleExpenseSubmit(submitEvent); });
-      assert.deepEqual(spies.addExpenseCalls, [
-        { category: 'internet', description: 'Fibre', amount: 25000, date: '2026-05-02', academicYear: '2026-2027' },
-      ]);
+      // La création porte l'id du GESTE (idempotence) : on l'isole, puis on
+      // vérifie les champs métier — un double clic retombera sur cette même clé.
+      assert.equal(spies.addExpenseCalls.length, 1);
+      const sent = spies.addExpenseCalls[0]!;
+      assert.ok(typeof sent.id === 'string' && sent.id.length > 0, 'la création porte l’id du geste');
+      const { id: _gesture, ...fields } = sent;
+      assert.deepEqual(fields, {
+        category: 'internet', description: 'Fibre', amount: 25000, date: '2026-05-02', academicYear: '2026-2027',
+      });
       assert.equal(ref.current!.showExpenseModal, false);
       assert.equal(ref.current!.expenseForm.amount, '', 'form reset');
       assert.equal(spies.toasts, 1);

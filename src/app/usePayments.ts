@@ -13,11 +13,12 @@
  * currentUser and the `addPayment` mutator as arguments, so App.tsx must
  * call it after those are declared.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { generatePaymentReceiptPdf } from '../lib/pdfReceipt';
 import { PAYROLL_WINDOW_LAST_DAY } from '../lib/payrollWindow';
 import { fetchCalendarDayNotes, saveCalendarDayNote, deleteCalendarDayNote } from '../lib/calendarNotes';
+import { useGestureId } from '../lib/gestureId';
 import type { Student, Staff, Expense, Payment, User, Todo } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import type { CalendarEvent } from './mainViewsProps';
@@ -109,6 +110,10 @@ export function usePayments(deps: UsePaymentsDeps) {
     return [...standalone, ...studentNotes];
   };
 
+  // L'id du GESTE de la note en cours : un double envoi écrit la note UNE fois.
+  // Libéré après succès.
+  const { gestureId: noteGestureId, resetGestureId: resetNoteGesture } = useGestureId();
+
   const saveNoteOnDate = async (date: Date): Promise<boolean> => {
     const text = noteText.trim();
     if (!text) return false;
@@ -118,11 +123,12 @@ export function usePayments(deps: UsePaymentsDeps) {
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     // Team-wide write: the note goes to the calendar_notes table; on success
     // the returned row (real UUID) replaces the optimistic state + cache.
-    const saved = await saveCalendarDayNote(dateStr, text);
+    const saved = await saveCalendarDayNote(dateStr, text, noteGestureId());
     if (!saved) {
       setSavingNoteOnDate(false);
       return false;
     }
+    resetNoteGesture();
     setDayNotes(prev => {
       const next = [...prev, { id: saved.id, date: saved.date, text: saved.text }];
       writeDayNotesCache(next);
@@ -133,8 +139,16 @@ export function usePayments(deps: UsePaymentsDeps) {
     return true;
   };
 
+  // L'id du GESTE de la saisie de paiement : un double envoi retombe sur la
+  // même clé primaire (un seul reçu en base). Libéré après un succès.
+  const { gestureId: paymentGestureId, resetGestureId: resetPaymentGesture } = useGestureId();
+  // Un seul envoi à la fois : sans cette garde, un double clic lancerait DEUX
+  // handlers concurrents, et donc deux reçus PDF pour un seul paiement.
+  const paymentSubmittingRef = useRef(false);
+
   const handlePaymentSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (paymentSubmittingRef.current) return;
     if (lockedYears.includes(selectedYear)) {
       toastError(t.thisAcademicYearIsLocked);
       return;
@@ -150,30 +164,38 @@ export function usePayments(deps: UsePaymentsDeps) {
       amount,
       academicYear: targetStudent?.academicYear || selectedYear,
       receiptNumber: receiptNo,
+      // L'id du GESTE : le même si l'envoi est répété → un seul reçu.
+      id: paymentGestureId(),
     };
 
-    await addPayment(paymentStudentId, newPayment);
+    paymentSubmittingRef.current = true;
+    try {
+      await addPayment(paymentStudentId, newPayment);
 
-    // Auto-generate printable PDF receipt
-    if (targetStudent) {
-      try {
-        await generatePaymentReceiptPdf({
-          student: {
-            ...targetStudent,
-            amountPaid: targetStudent.amountPaid + amount,
-          },
-          payment: newPayment,
-          lang,
-          cashierName: currentUser?.name || 'Administration',
-        });
-      } catch (pdfErr) {
-        console.error('PDF receipt generation error:', pdfErr);
+      // Auto-generate printable PDF receipt
+      if (targetStudent) {
+        try {
+          await generatePaymentReceiptPdf({
+            student: {
+              ...targetStudent,
+              amountPaid: targetStudent.amountPaid + amount,
+            },
+            payment: newPayment,
+            lang,
+            cashierName: currentUser?.name || 'Administration',
+          });
+        } catch (pdfErr) {
+          console.error('PDF receipt generation error:', pdfErr);
+        }
       }
-    }
 
-    setPaymentStudentId('');
-    setPaymentAmount('');
-    setShowPaymentForm(false);
+      resetPaymentGesture();
+      setPaymentStudentId('');
+      setPaymentAmount('');
+      setShowPaymentForm(false);
+    } finally {
+      paymentSubmittingRef.current = false;
+    }
   };
 
   const getEventsForDay = (date: Date): CalendarEvent[] => {

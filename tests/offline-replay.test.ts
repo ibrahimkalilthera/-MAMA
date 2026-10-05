@@ -279,6 +279,9 @@ describe('ids des lignes créées hors ligne', () => {
     { type: 'addSalaryPayment', build: () => itemOf('addSalaryPayment', { staffId: 't1', amount: 5, date: '2026-01-01' }), table: 'salary_payments' },
     { type: 'addTodo', build: () => itemOf('addTodo', { text: 'Call', completed: false }), table: 'todos' },
     { type: 'addClass', build: () => itemOf('addClass', { code: '2D', cycle: 'other', year: '', section: '', nameFr: '2D', nameEn: '2D' }), table: 'custom_classes' },
+    // Le paiement rejoué garde aussi l'identité du geste : un drainage qui
+    // repasserait sur le même item retombe sur la même clé (un seul reçu).
+    { type: 'addPayment', build: () => itemOf('addPayment', { studentId: 's1', payment: { date: '2026-01-01', amount: 5 } }), table: 'payments' },
   ];
 
   for (const { type, build, table } of CREATING) {

@@ -23,6 +23,7 @@ import { generateTechniqueFichePdf } from '../lib/pdfPayrollTechnique';
 import { staffCategory } from '../lib/adminPositions';
 import type { StaffCategory } from '../lib/adminPositions';
 import { localIsoDate, systemClock, type Clock } from '../lib/dateWindows';
+import { useGestureId } from '../lib/gestureId';
 import type { StaffModalMode, StaffPositionFilter } from './mainViewsProps';
 
 /** The kind of member a modal mode CREATES — the one place that mapping lives. */
@@ -42,9 +43,9 @@ interface UsePayrollDeps {
   showToast: () => void;
   /** Toast an error/validation message (replaces the native alert()). */
   toastError: (message: string) => void;
-  addStaff: (s: Omit<Staff, 'id'>) => Promise<Staff | null>;
+  addStaff: (s: Omit<Staff, 'id'> & { id?: string }) => Promise<Staff | null>;
   updateStaff: (id: string, updates: Partial<Staff>) => Promise<boolean>;
-  addSalaryPayment: (sp: Omit<SalaryPayment, 'id'>) => Promise<SalaryPayment | null>;
+  addSalaryPayment: (sp: Omit<SalaryPayment, 'id'> & { id?: string }) => Promise<SalaryPayment | null>;
   /** Uploaded school logo (data URL) — embedded in the bulletin / fiche headers. */
   schoolLogo: string | null;
   /** Reference clock for the monthly payroll window (draft month/year, salary
@@ -94,6 +95,11 @@ export function usePayroll(deps: UsePayrollDeps) {
     });
   }, [staff, staffSearchTerm, staffPositionFilter]);
 
+  // Un id de GESTE par formulaire : un double envoi retombe sur la même clé,
+  // donc un seul membre / un seul paiement. Libéré après un succès.
+  const { gestureId: staffGestureId, resetGestureId: resetStaffGesture } = useGestureId();
+  const { gestureId: salaryGestureId, resetGestureId: resetSalaryGesture } = useGestureId();
+
   const handleStaffSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
@@ -131,8 +137,9 @@ export function usePayroll(deps: UsePayrollDeps) {
     };
     const saved = editingStaff
       ? await updateStaff(editingStaff.id, staffData)
-      : await addStaff(staffData);
+      : await addStaff({ ...staffData, id: staffGestureId() });
     if (!saved) return;
+    resetStaffGesture();
     setShowStaffModal(false);
     setEditingStaff(null);
     setStaffForm({ name: '', position: '', salary: '', email: '', phone: '', bankDetails: '', emergencyContact: '', inpsNumber: '', hireDate: '', familyStatus: '', childrenCount: '', travelAllowance: '', communicationAllowance: '', housingAllowance: '' });
@@ -161,8 +168,10 @@ export function usePayroll(deps: UsePayrollDeps) {
       amount,
       date: salaryForm.date,
       academicYear: selectedYear || undefined,
+      id: salaryGestureId(),
     });
     if (!saved) return;
+    resetSalaryGesture();
     setShowSalaryModal(false);
     setSalaryForm({ staffId: '', amount: '', date: localIsoDate(nowFn()) });
     showToast();

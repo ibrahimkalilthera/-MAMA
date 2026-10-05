@@ -16,6 +16,7 @@
 import { supabase } from './supabaseClient';
 import { enqueueOfflineAction } from './offlineQueue';
 import { createRowId } from './rowMappers';
+import { rowIdColumn } from './offlineReplay';
 import { isStationOffline } from './networkUtils';
 
 /** A standalone calendar day note as displayed in the day modal. */
@@ -56,15 +57,18 @@ export async function fetchCalendarDayNotes(): Promise<CalendarDayNote[] | null>
  * fonction) aurait fermé le geste en laissant croire à un échec alors que rien
  * n'empêchait de l'enregistrer.
  */
-export async function saveCalendarDayNote(date: string, text: string): Promise<CalendarDayNote | null> {
+export async function saveCalendarDayNote(date: string, text: string, gestureId?: string): Promise<CalendarDayNote | null> {
+  // L'id du GESTE — minté par l'écran (une fois par note) ou ici à défaut. Un
+  // double envoi de la même note retombe sur la MÊME clé primaire au lieu d'en
+  // écrire deux (même règle que `addStudent`).
+  const localId = gestureId ?? createRowId();
   if (isStationOffline()) {
-    const localId = createRowId();
     enqueueOfflineAction('addNote', { date, text }, localId);
     return { id: localId, date, text };
   }
   const { data, error } = await supabase
     .from('calendar_notes')
-    .insert({ note_date: date, text })
+    .insert({ ...rowIdColumn(localId), note_date: date, text })
     .select('id,note_date,text')
     .single();
   if (error || !data) return null;

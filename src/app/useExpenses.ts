@@ -24,6 +24,7 @@ import type { TranslationDict } from '../i18n/translations';
 import { getCalendarDays } from '../lib/classes';
 import { getMonthName as getMonthNameImpl, getDayName as getDayNameImpl } from '../lib/formatters';
 import { localIsoDate, systemClock, type Clock } from '../lib/dateWindows';
+import { useGestureId } from '../lib/gestureId';
 
 export interface ExpenseForm {
   category: string;
@@ -41,9 +42,9 @@ export interface UseExpensesDeps {
   /** Gestionnaire Principal — finance admin without user/settings/audit access. */
   isGeneralManager: boolean;
   currentUser: User | null;
-  addExpense: (exp: Omit<Expense, 'id'>) => Promise<Expense | null>;
+  addExpense: (exp: Omit<Expense, 'id'> & { id?: string }) => Promise<Expense | null>;
   deleteExpense: (id: string) => Promise<boolean>;
-  addVendorExpense: (ve: Omit<VendorExpense, 'id'>) => Promise<VendorExpense | null>;
+  addVendorExpense: (ve: Omit<VendorExpense, 'id'> & { id?: string }) => Promise<VendorExpense | null>;
   updateVendorExpense: (id: string, updates: Partial<VendorExpense>) => Promise<boolean>;
   deleteVendorExpense: (id: string) => Promise<boolean>;
   showToast: () => void;
@@ -127,6 +128,11 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
       .sort((a, b) => a.label.localeCompare(b.label, lang === 'en' ? 'en' : 'fr', { sensitivity: 'base' }));
   }, [t, lang]);
 
+  // Un id de GESTE par formulaire : un double envoi de la même dépense
+  // retombe sur la même clé, donc une seule écriture. Libéré après succès.
+  const { gestureId: expenseGestureId, resetGestureId: resetExpenseGesture } = useGestureId();
+  const { gestureId: vendorGestureId, resetGestureId: resetVendorGesture } = useGestureId();
+
   const handleExpenseSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockedYears.includes(selectedYear)) {
@@ -136,8 +142,9 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
     const amount = parseFloat(expenseForm.amount);
     if (isNaN(amount) || amount < 0) return;
 
-    const saved = await addExpense({ ...expenseForm, amount, academicYear: selectedYear });
+    const saved = await addExpense({ ...expenseForm, amount, academicYear: selectedYear, id: expenseGestureId() });
     if (!saved) return;
+    resetExpenseGesture();
     setShowExpenseModal(false);
     setExpenseForm(emptyExpenseForm(todayIso));
     showToast();
@@ -174,8 +181,9 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
 
     const saved = editingVendorExpense
       ? await updateVendorExpense(editingVendorExpense.id, vendorData)
-      : await addVendorExpense(vendorData);
+      : await addVendorExpense({ ...vendorData, id: vendorGestureId() });
     if (!saved) return;
+    resetVendorGesture();
 
     if (editingVendorExpense) {
       setEditingVendorExpense(null);

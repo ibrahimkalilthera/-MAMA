@@ -7,15 +7,18 @@ import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Todo } from '../domainTypes';
 import type { DbUpdate } from '../database.types';
 import { mapTodoRow, createRowId } from '../rowMappers';
+import { rowIdColumn } from '../offlineReplay';
 
 export function createTodoOps(ctx: SupabaseDataCtx) {
   const { setTodos, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
 
-  const addTodo = async (todo: Omit<Todo, 'id'>): Promise<Todo | null> => {
+  const addTodo = async (todo: Omit<Todo, 'id'> & { id?: string }): Promise<Todo | null> => {
+    // L'id du GESTE — minté par l'écran (une fois par saisie) ou ici à défaut.
+    // Un double envoi de la même tâche retombe sur la MÊME clé primaire.
+    const rowId = todo.id ?? createRowId();
     if (isOffline()) {
-      const rowId = createRowId();
-      const local: Todo = { id: rowId, ...todo };
-      setTodos(prev => [...prev, local]);
+      const local: Todo = { ...todo, id: rowId };
+      setTodos(prev => prev.some(t => t.id === rowId) ? prev : [...prev, local]);
       enqueueOffline('addTodo', todo, rowId);
       notifySuccess('addTodo');
       return local;
@@ -23,6 +26,7 @@ export function createTodoOps(ctx: SupabaseDataCtx) {
     const { data, error } = await supabase
       .from('todos')
       .insert({
+        ...rowIdColumn(rowId),
         text: todo.text,
         completed: todo.completed,
         student_id: todo.studentId || null,
@@ -30,9 +34,21 @@ export function createTodoOps(ctx: SupabaseDataCtx) {
       })
       .select()
       .single();
-    if (error) { console.error('addTodo error:', error.message); notifyError('addTodo', error.message); return null; }
+    if (error) {
+      // `23505` : la même tâche est déjà enregistrée — la ligne est rendue sans
+      // erreur, et l'écran ne la montre pas deux fois.
+      if (error.code === '23505' && rowIdColumn(rowId).id) {
+        const existing = await supabase.from('todos').select().eq('id', rowId).single();
+        if (existing.data) {
+          const already = mapTodoRow(existing.data);
+          setTodos(prev => prev.some(t => t.id === already.id) ? prev : [...prev, already]);
+          return already;
+        }
+      }
+      console.error('addTodo error:', error.message); notifyError('addTodo', error.message); return null;
+    }
     const mapped = mapTodoRow(data);
-    setTodos(prev => [...prev, mapped]);
+    setTodos(prev => prev.some(t => t.id === mapped.id) ? prev : [...prev, mapped]);
     notifySuccess('addTodo');
     return mapped;
   };

@@ -30,6 +30,13 @@ export interface StudentNoteEntry {
 }
 
 export interface Payment {
+  /**
+   * L'id du GESTE — minté par l'écran (une fois par paiement saisi) et envoyé
+   * comme clé primaire de la ligne `payments`. Un double envoi retombe sur la
+   * MÊME clé : la base refuse (23505) au lieu d'écrire un second reçu. Sur un
+   * paiement déjà enregistré, c'est l'id réel de la ligne en base.
+   */
+  id?: string;
   date: string;
   amount: number;
   academicYear?: string;
