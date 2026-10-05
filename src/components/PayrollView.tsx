@@ -9,6 +9,7 @@ import { payrollGridCellStatus } from '../lib/payrollGrid';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EmptyState } from './SharedUi';
 import { staffCategory } from '../lib/adminPositions';
+import { canWritePayroll as canWritePayrollRights, canManageStaff as canManageStaffRights } from '../lib/payrollRights';
 
 /** School-year month sequence: September → August (12 cells). */
 const SCHOOL_YEAR_MONTH_KEYS = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'];
@@ -17,7 +18,15 @@ const SCHOOL_YEAR_MONTH_INDEXES = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7];
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, ChevronDown, Download, FileText, Globe, GraduationCap, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, canDelete, currentMonth, currentYear, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails  } = useMainViews();
+  const { AlertCircle, ChevronDown, Download, FileText, Globe, GraduationCap, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, auth, canDelete, currentMonth, currentYear, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails  } = useMainViews();
+  // Le droit d'ÉCRIRE la paie et le personnel vient de la BASE, pas de l'écran :
+  // les mêmes listes de rôles que `public.is_payroll_writer()` et
+  // `public.is_finance_admin()` (`src/lib/payrollRights.ts`). Un compte `econome`
+  // enregistre la paie mais ne gère pas le personnel ; un compte `staff` ne fait
+  // ni l'un ni l'autre — dans les deux cas l'action n'est plus AFFICHÉE, donc
+  // l'écriture que la base refuserait (42501) n'est plus mise en file.
+  const canWritePayroll = canWritePayrollRights(auth.profile?.role);
+  const canManageStaff = canManageStaffRights(auth.profile?.role);
   return (
     <>
           <div className="space-y-8">
@@ -199,6 +208,7 @@ export function PayrollView() {
                   <FileText size={16} />
                   <span>{t.monthlyDraft}</span>
                 </button>
+                {canManageStaff && (
                 <button
                   onClick={() => {
                     setEditingStaff(null);
@@ -211,6 +221,8 @@ export function PayrollView() {
                   <GraduationCap size={16} />
                   {t.addTechMember}
                 </button>
+                )}
+                {canManageStaff && (
                 <button 
                   onClick={() => {
                     setEditingStaff(null);
@@ -225,6 +237,8 @@ export function PayrollView() {
                       "add" buttons are outlines so this one is unmistakable. */}
                   {t.addStaff}
                 </button>
+                )}
+                {canManageStaff && (
                 <button 
                   onClick={() => {
                     setEditingStaff(null);
@@ -237,6 +251,7 @@ export function PayrollView() {
                   <ShieldCheck size={16} />
                   {t.addAdminMember}
                 </button>
+                )}
               </div>
             </div>
 
@@ -247,7 +262,7 @@ export function PayrollView() {
                   icon={<GraduationCap size={22} />}
                   title={staffSearchTerm || staffPositionFilter !== 'all' ? t.noStaffMatchingFilters : t.noStaffMembersRegistered}
                   hint={staffSearchTerm || staffPositionFilter !== 'all' ? undefined : t.staffEmptyHint}
-                  action={staffSearchTerm || staffPositionFilter !== 'all' ? undefined : (
+                  action={staffSearchTerm || staffPositionFilter !== 'all' || !canManageStaff ? undefined : (
                     <button
                       onClick={() => {
                         setEditingStaff(null);
@@ -411,13 +426,15 @@ export function PayrollView() {
                       )}
 
                       <div className={`pt-4 border-t ${paidThisMonth > 0 || payDatePassed ? 'border-white/20' : currentTheme.border} flex gap-2`}>
+                        {canManageStaff && (
                         <button 
                           onClick={() => openEditStaffModal(s)}
                           className={`flex-1 py-2 rounded-xl border ${paidThisMonth > 0 || payDatePassed ? 'border-white/30 text-white hover:bg-white/10' : 'border-slate-100 text-slate-600 hover:bg-slate-50'} text-xs font-bold transition-all`}
                         >
                           {t.edit}
                         </button>
-                        {balance > 0 && (
+                        )}
+                        {canWritePayroll && balance > 0 && (
                           <button 
                             onClick={() => {
                               setSalaryForm({ ...salaryForm, staffId: s.id, amount: balance.toString() });
