@@ -1,3 +1,13 @@
+## [2026-10-05] Le pixel-check du reçu parent attendait un fichier qu'un seul clic ne déclenche plus
+
+Suite de l'entrée ci-dessous : le run « PDF E2E — pixel check après déploiement » du commit `4c04455` est sorti **rouge** sur la seule étape « reçu parent (mode recu-parent) » — le mode `auto` (fiche de paie) passait ses 9 vérifications. Le log nommait la panne : clic réel sur « Télécharger Reçu PDF » (`✅`), modèle `recu-parent.pdf` servi (`[net] 200`), puis **60 s sans fichier** → « ❌ aucun PDF téléchargé ». Le reste de la chaîne (fraîcheur du build, en-têtes de sécurité, garde CSP, nettoyage des comptes éphémères) était vert : la régression ne portait que sur le parcours du reçu.
+
+**La cause.** La 1.0.23 a doté le reçu des parents d'un **aperçu** : `generatePaymentReceiptPdf` ne télécharge plus, il publie le reçu dans `receiptPreview` et `ReceiptPreviewModal` l'affiche — le fichier ne part qu'au **second** clic, « Télécharger le reçu » (`downloadPreparedReceipt`). C'est un comportement délibéré (la modale est dédiée, traduite, et couverte par `tests/receipt-preview.test.tsx`, qui affirme justement qu'« ouvrir l'aperçu ne télécharge jamais »). Mais `scripts/verify-pdf-download.mjs` cliquait encore le seul premier bouton puis attendait le fichier : depuis la 1.0.23, ce clic ouvre la modale et rien ne tombe. Le pixel-check n'était pas faux — il ne suivait plus le parcours réel de l'utilisateur.
+
+**Le correctif, dans le test et pas dans l'application.** Après le clic « Télécharger Reçu PDF », le script attend l'aperçu (bouton « Télécharger le reçu », FR/EN) jusqu'à 30 s puis clique ce bouton — l'étape que l'app exige désormais, et le seul geste qui émet le téléchargement. Rien n'est affaibli : les zones, les seuils et l'assertion de pixels sont inchangés, et le parcours exercé est même plus complet qu'avant (l'aperçu est réellement traversé). Un aperçu qui ne s'affiche pas est un échec **nommé** (« aperçu du reçu de « … » non affiché »), pas une attente muette.
+
+**Vérification** : `eslint` sur `scripts/verify-pdf-download.mjs` exit 0 ; la preuve vivante est le run PDF E2E rejoué sur `main` après le push (l'étape « reçu parent » doit rendre ses 12/12, la paie ses 9/9).
+
 ## [2026-10-05] Le gate de contraste refusait la 1.0.23 : l'encre d'accent du rail latéral était écrasée par la protection blanche
 
 Suite de l'entrée ci-dessous : le run qualité de `main` (commit `c962843`) est sorti **rouge** sur le job « Contraste thèmes (WCAG >= 3:1) », donc `desktop-release.yml` (déclenché en `workflow_run`) a conclu `success` en 8 s **sans rien publier** — et sans publication, aucune demande de mise à jour ne peut atteindre une ancienne version. Ce blocage devait tomber en premier.
