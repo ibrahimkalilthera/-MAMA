@@ -123,6 +123,8 @@ function mapAuditLogRow(row: DbRow<'audit_logs'>): AuditLogEntry {
     targetType: row.target_type ?? '',
     targetId: row.target_id ?? '',
     details: row.details ?? '',
+    // L'instantané structuré (ex : ligne `payments` retirée, pour la restaurer).
+    metadata: (row.metadata ?? null) as Record<string, unknown> | null,
     createdAt: row.created_at,
     recordedOffline: Boolean(row.recorded_offline),
     syncedAt: row.synced_at,
@@ -583,7 +585,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
   const { addCustomClass, updateCustomClass, deleteCustomClass } = createClassOps(ctx);
   const { addParent, updateParent, deleteParent } = createParentOps(ctx);
   const { addStudent, updateStudent, deleteStudent, batchPromoteStudents } = createStudentOps(ctx);
-  const { addPayment, deletePayment, addSalaryPayment } = createPaymentOps(ctx);
+  const { addPayment, deletePayment, restorePayment, addSalaryPayment } = createPaymentOps(ctx);
   const { addStaff, updateStaff, deleteStaff } = createStaffOps(ctx);
   const { addExpense, updateExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense } = createExpenseOps(ctx);
   const { addTodo, updateTodo, deleteTodo } = createTodoOps(ctx);
@@ -645,7 +647,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
     deleteCustomClass,
     addParent, updateParent, deleteParent,
     addStudent, updateStudent, deleteStudent,
-    addPayment, deletePayment,
+    addPayment, deletePayment, restorePayment,
     addStaff, updateStaff, deleteStaff,
     addSalaryPayment,
     addExpense, updateExpense, deleteExpense,

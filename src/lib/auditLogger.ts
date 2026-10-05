@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import type { Json } from './database.types';
 import { enqueueOfflineAction } from './offlineQueue';
 import { isConnectivityFailure, isStationOffline } from './networkUtils';
 
@@ -12,6 +13,15 @@ export interface AuditLogEntry {
   targetType?: string;
   targetId?: string;
   details?: string;
+  /**
+   * L'instantané STRUCTURÉ du geste, quand une phrase ne suffit pas à le défaire.
+   *
+   * Aujourd'hui, une seule chose en a besoin : la ligne `payments` retirée, afin
+   * de pouvoir être RÉINSÉRÉE à l'identique (voir `restorePayment`). La phrase
+   * `details` reste écrite à côté : elle raconte le geste à l'œil, `metadata` le
+   * rend exécutable — les deux disent le même fait, à deux lecteurs différents.
+   */
+  metadata?: Record<string, unknown> | null;
   /**
    * L'instant du GESTE. Pour une entrée saisie hors ligne, c'est celui du poste
    * qui l'a faite — jamais l'instant où le câble est revenu (voir `syncedAt`).
@@ -35,6 +45,8 @@ export interface LogAuditParams {
   targetType?: string;
   targetId?: string | null;
   details?: string;
+  /** Même objet que `AuditLogEntry.metadata` : part avec l'entrée, en ligne comme au rejeu. */
+  metadata?: Record<string, unknown> | null;
   user?: {
     id?: string;
     email?: string;
@@ -126,6 +138,7 @@ export async function logAuditEvent({
   targetType,
   targetId,
   details,
+  metadata,
   user,
   offlineCaptureAt,
 }: LogAuditParams): Promise<boolean> {
@@ -147,6 +160,7 @@ export async function logAuditEvent({
       targetType: targetType ?? null,
       targetId: targetId ?? null,
       details: details ?? null,
+      metadata: metadata ?? null,
     });
     return true;
   }
@@ -160,6 +174,9 @@ export async function logAuditEvent({
       target_type: targetType || null,
       target_id: targetId || null,
       details: details || null,
+      // La colonne est `jsonb` (type `Json`) : un `Record<string, unknown>` y est
+      // valide à l'exécution, mais le type généré ne le voit pas — on le dit.
+      metadata: (metadata ?? null) as Json,
       ...offlineRow,
     });
 

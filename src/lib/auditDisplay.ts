@@ -47,6 +47,7 @@ export const AUDIT_ACTION_KEYS: Record<string, string> = {
   PROMOTE_CLASS_BATCH: 'auditActionPromoteClassBatch',
   RECORD_PAYMENT: 'auditActionRecordPayment',
   RECORD_SALARY_PAYMENT: 'auditActionRecordSalaryPayment',
+  RESTORE_PAYMENT: 'auditActionRestorePayment',
   UPDATE_EXPENSE: 'auditActionUpdateExpense',
   UPDATE_PARENT: 'auditActionUpdateParent',
   UPDATE_SETTING: 'auditActionUpdateSetting',

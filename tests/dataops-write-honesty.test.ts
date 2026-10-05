@@ -608,9 +608,21 @@ describe('deletePayment — retirer le seul reçu fautif, et l’écrire au jour
     assert.ok(audit, 'la suppression est consignée dans le journal');
     assert.equal(audit.payload?.action, 'DELETE_PAYMENT');
     assert.equal(audit.payload?.target_type, 'payment');
-    assert.equal(audit.payload?.target_id, 'st1', 'le journal nomme l’élève concerné');
+    // `target_id` = l'id du PAIEMENT : c'est lui qui relie l'entrée à son
+    // instantané, donc à une restauration.
+    assert.equal(audit.payload?.target_id, 'pay1', 'le journal vise l’id du paiement');
     assert.match(String(audit.payload?.details), /25000/, 'le montant annulé est écrit');
     assert.match(String(audit.payload?.details), /REC-1/, 'le numéro de reçu est écrit');
+    assert.match(String(audit.payload?.details), /Ali Diallo/, 'et le nom de l’élève');
+    // L'instantané qui rend le geste ANNULABLE : la ligne entière, de quoi la
+    // réinsérer à l'identique.
+    const meta = audit.payload?.metadata as Record<string, unknown>;
+    assert.equal(meta?.kind, 'payment_row');
+    assert.equal(meta?.payment_id, 'pay1');
+    assert.equal(meta?.student_id, 'st1');
+    assert.equal(meta?.date, '2026-10-01');
+    assert.equal(meta?.amount, 25000);
+    assert.equal(meta?.receipt_number, 'REC-1');
   });
 
   it('ÉCHOUE et le dit quand la policy a filtré la cible (0 ligne, HTTP 200)', async () => {
@@ -653,5 +665,86 @@ describe('deletePayment — retirer le seul reçu fautif, et l’écrire au jour
 
     assert.equal(await ops.deletePayment('st1', PAY1), true);
     assert.equal((state()[0] as { amountPaid: number }).amountPaid, 0);
+  });
+});
+
+/**
+ * `restorePayment` — l'ANNULATION d'une suppression, depuis le journal d'audit.
+ *
+ * Deux contrats, et chacun répare un mensonge possible :
+ *   • restaurer RÉINSÈRE la ligne (même id, donc même reçu), remonte le solde et
+ *     écrit une entrée `RESTORE_PAYMENT` ;
+ *   • une seconde restauration (ou un rejeu) ne double ni la ligne ni le solde —
+ *     la base répond 23505, et on le lit « déjà revenu », pas « erreur ».
+ */
+describe('restorePayment — remettre le reçu retiré, et l’écrire au journal', () => {
+  const PAY1 = { id: 'pay1', date: '2026-10-01', amount: 25000, receiptNumber: 'REC-1' } as Payment;
+  const PAY2 = { id: 'pay2', date: '2026-10-03', amount: 50000, receiptNumber: 'REC-2' } as Payment;
+  // L'élève APRÈS la suppression : il ne reste que le second paiement.
+  const AFTER_DELETE = {
+    id: 'st1', name: 'Ali Diallo', amountPaid: 50000, totalDue: 150000, dueDate: '2026-12-31',
+    parentName: '', parentEmail: '', parentPhone: '', notes: '', payments: [PAY2],
+  };
+  const ARCHIVED = {
+    paymentId: 'pay1', studentId: 'st1', studentName: 'Ali Diallo', date: '2026-10-01',
+    amount: 25000, receiptNumber: 'REC-1', academicYear: '2026-2027',
+  };
+
+  function opsFor(list: unknown[] = [AFTER_DELETE]) {
+    const { ctx, events, state } = opsCtx('students', 'setStudents', list);
+    return { ctx, events, state, ops: createPaymentOps(ctx as unknown as Parameters<typeof createPaymentOps>[0]) };
+  }
+
+  it('réinsère la ligne avec son id d’origine, remonte le solde, et journalise RESTORE_PAYMENT', async () => {
+    insertResult = { data: null, error: null };
+    rowsResult = { data: null, error: null };
+    const { ops, events, state } = opsFor();
+
+    assert.equal(await ops.restorePayment(ARCHIVED), true);
+    assert.deepEqual(events, ['ok:restorePayment']);
+
+    const insert = calls.find((c) => c.op === 'insert' && c.table === 'payments');
+    assert.ok(insert, 'un INSERT part vers payments');
+    assert.equal(insert.payload?.id, 'pay1', 'la ligne retrouve son id d’origine');
+    assert.equal(insert.payload?.student_id, 'st1');
+    assert.equal(insert.payload?.date, '2026-10-01');
+    assert.equal(insert.payload?.amount, 25000);
+    assert.equal(insert.payload?.receipt_number, 'REC-1');
+
+    const s = state()[0] as { payments: { id: string }[]; amountPaid: number; lastPaymentDate?: string };
+    assert.equal(s.payments.length, 2, 'le reçu revient dans la liste');
+    assert.ok(s.payments.some((p) => p.id === 'pay1'), 'avec son id');
+    assert.equal(s.amountPaid, 75000, 'le solde remonte du montant restauré');
+    assert.equal(s.lastPaymentDate, '2026-10-03');
+
+    const audit = calls.find((c) => c.op === 'insert' && c.table === 'audit_logs');
+    assert.ok(audit, 'la restauration est consignée dans le journal');
+    assert.equal(audit.payload?.action, 'RESTORE_PAYMENT');
+    assert.equal(audit.payload?.target_id, 'pay1');
+    assert.match(String(audit.payload?.details), /restauré/);
+    assert.match(String(audit.payload?.details), /Ali Diallo/);
+  });
+
+  it('une seconde restauration (23505) ne double ni la ligne ni le solde', async () => {
+    insertResult = { data: null, error: { code: '23505', message: 'duplicate key' } };
+    rowsResult = { data: null, error: null };
+    const withPayment = [{ ...AFTER_DELETE, payments: [PAY2, PAY1], amountPaid: 75000 }];
+    const { ops, events, state } = opsFor(withPayment);
+
+    assert.equal(await ops.restorePayment(ARCHIVED), true, 'déjà revenu = succès, pas erreur');
+    assert.equal(events.filter((e) => e.startsWith('err:')).length, 0, 'aucune erreur criée');
+    const s = state()[0] as { payments: unknown[]; amountPaid: number };
+    assert.equal(s.payments.length, 2, 'pas de seconde ligne');
+    assert.equal(s.amountPaid, 75000, 'pas de second crédit');
+  });
+
+  it('hors ligne, rien n’est tenté : la restauration demande le réseau', async () => {
+    const { ctx, events } = opsFor();
+    (ctx as Record<string, unknown>).isOffline = () => true;
+    const offlineOps = createPaymentOps(ctx as unknown as Parameters<typeof createPaymentOps>[0]);
+
+    assert.equal(await offlineOps.restorePayment(ARCHIVED), false);
+    assert.equal(calls.filter((c) => c.op === 'insert').length, 0, 'aucune requête tentée sans réseau');
+    assert.ok(events.find((e) => e.startsWith('err:restorePayment')), 'l’échec est dit');
   });
 });
