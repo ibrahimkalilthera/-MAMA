@@ -23,6 +23,11 @@
   --accent-primary-muted: rgba(251, 191, 36, 0.12);
   --accent-primary-shadow: rgba(251, 191, 36, 0.2);
   --accent-primary-border: rgba(251, 191, 36, 0.32);
+  /* L'encre d'accent VOYAGE avec la surface d'accent. Ce thème lève
+     `--accent-primary` à l'ambre -400, mais `--accent-ink` restait celui du cran
+     -500 : la paire blanche mesure 1,67:1 sur `#FBBF24` (`readableInk(#FBBF24)`
+     rend le même sombre, et c'est ce que `npm run check:contrast` exige). */
+  --accent-ink: #0B1220;
   /* Premium elevation ladder (R9): each step layers a tight contact shadow
      over a wide ambient one and draws a 1px inner top highlight, so a dark
      card reads as a lit, raised surface instead of a flat fill. */

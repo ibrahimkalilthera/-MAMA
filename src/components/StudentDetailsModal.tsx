@@ -133,7 +133,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               onClick={() => setStudentDetailTab('general')}
               className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
                 studentDetailTab === 'general'
-                  ? `${currentTheme.accentBorder} ${currentTheme.accentText}`
+                  ? `${currentTheme.accentBorder} ${currentTheme.accentSoftText}`
                   : `${currentTheme.muted} border-transparent hover:text-slate-600`
               }`}
             >
@@ -143,7 +143,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               onClick={() => setStudentDetailTab('parent')}
               className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
                 studentDetailTab === 'parent'
-                  ? `${currentTheme.accentBorder} ${currentTheme.accentText}`
+                  ? `${currentTheme.accentBorder} ${currentTheme.accentSoftText}`
                   : `${currentTheme.muted} border-transparent hover:text-slate-600`
               }`}
             >
@@ -153,7 +153,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               onClick={() => setStudentDetailTab('medical')}
               className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
                 studentDetailTab === 'medical'
-                  ? `${currentTheme.accentBorder} ${currentTheme.accentText}`
+                  ? `${currentTheme.accentBorder} ${currentTheme.accentSoftText}`
                   : `${currentTheme.muted} border-transparent hover:text-slate-600`
               }`}
             >
