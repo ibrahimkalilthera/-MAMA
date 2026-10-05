@@ -9,6 +9,7 @@ import type { Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Tod
 
 export type OfflineActionType =
   | 'addPayment'
+  | 'deletePayment'
   | 'addExpense'
   | 'updateExpense'
   | 'deleteExpense'
@@ -68,6 +69,12 @@ export interface QueuedAuditEntry {
 /** Payload shape for each queued action type, so replay sites are type-checked. */
 export type OfflinePayload =
   | { type: 'addPayment'; payload: { studentId: string; payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string } } }
+  /**
+   * Suppression d'un paiement saisi par erreur. Le montant, le reçu et la date
+   * voyagent avec le geste : le rejeu les écrit dans le journal d'audit, sans
+   * avoir à relire une ligne qui n'existe plus.
+   */
+  | { type: 'deletePayment'; payload: { studentId: string; paymentId: string; amount: number; receiptNumber?: string; date: string } }
   | { type: 'addExpense'; payload: Omit<Expense, 'id'> }
   | { type: 'updateExpense'; payload: { id: string; updates: Partial<Expense> } }
   | { type: 'deleteExpense'; payload: { id: string } }
