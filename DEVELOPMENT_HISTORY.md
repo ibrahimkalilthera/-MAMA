@@ -1,3 +1,15 @@
+## [2026-10-05] Le journal d'audit se filtre sur les reçus annulés, en un seul geste
+
+Demande du propriétaire : « make the audit journal screen filterable by DELETE_PAYMENT so an admin can see every cancelled receipt with its amount and student in one place ».
+
+**Le défaut.** Le menu d'actions du journal ne proposait que quatre groupes (`ADD`, `UPDATE`, `DELETE`, `RECORD`). Un paiement annulé se noyait donc sous « DELETE » parmi les élèves, parents, employés et dépenses supprimés — pour retrouver un reçu annulé, il fallait parcourir tout ce que l'école a supprimé. Or la ligne d'un `DELETE_PAYMENT` porte déjà, dans `details`, le montant, le numéro de reçu, la date ET le nom de l'élève : ce qu'il manquait n'était pas l'information, c'était le moyen de l'isoler.
+
+**La réparation.** `src/components/AuditView.tsx` gagne une option dédiée au menu d'actions (`<option value="DELETE_PAYMENT">`), libellée « Paiements supprimés » / « Deleted payments » (`auditFilterDeletedPayments`, écrit dans les DEUX dictionnaires). Le filtre existant (`log.action.startsWith(...)`) suffit : aucun autre code d'action ne commence par `DELETE_PAYMENT`, donc l'option n'attrape QUE les reçus annulés. L'export CSV suivant déjà la vue filtrée, l'administrateur peut isoler puis exporter la liste en un geste — tout au même endroit.
+
+**Vérifié, pas supposé.** Nouveau `tests/audit-deleted-payments-filter.test.tsx` : 3 cas qui montent la vue sur un vrai DOM et CHANGENT le menu — l'option existe et porte son libellé ; la choisir ne laisse QUE le reçu annulé (montant, reçu et élève lisibles) et fait disparaître un enregistrement de paiement ET une suppression d'élève ; le groupe générique `DELETE`, lui, garde bien les deux suppressions (la distinction est mesurée, pas supposée). Mesure : `npm run lint` exit 0 (tsc strict + guards + stylelint + snapshot), **2333/2333 tests**, 0 échec.
+
+**Éprouvé en production, le même jour.** Le bouton « supprimer un paiement » de l'entrée du dessous a été utilisé par le compte `dev` : la ligne REC-549205 de Djenebou DIALLO a quitté `payments` (2 → 1) et le journal a reçu son entrée `DELETE_PAYMENT` — montant, reçu, date et élève — exactement sous la forme documentée. Le filtre de cette entrée est ce qui permet de la retrouver.
+
 ## [2026-10-05] Un paiement saisi par erreur peut être supprimé — et le journal le dit
 
 Demande du propriétaire : « ajoute un bouton supprimer un paiement, si on a enregistré un paiement par erreur, et documente-le correctement dans le journal d'audit au cas où un paiement enregistré a été supprimé ». Jusqu'ici le SEUL recours était de supprimer l'ÉLÈVE ENTIER : `ON DELETE CASCADE` emportait alors tous ses reçus — disproportionné pour corriger une caisse qui se trompe (montant saisi deux fois, mauvais élève, reçu annulé). On retire désormais la SEULE ligne fautive.

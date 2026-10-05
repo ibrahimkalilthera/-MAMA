@@ -255,6 +255,7 @@ export const en = {
     auditFilterFrom: "From",
     auditFilterGroupAdd: "ADD",
     auditFilterGroupDelete: "DELETE",
+    auditFilterDeletedPayments: "Deleted payments",
     auditFilterGroupRecord: "RECORD",
     auditFilterGroupUpdate: "UPDATE",
     auditFilterReplayOnly: "Offline replay",

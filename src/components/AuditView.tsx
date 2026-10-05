@@ -146,6 +146,12 @@ export function AuditView() {
                     <option value="ADD">{t.auditFilterGroupAdd}</option>
                     <option value="UPDATE">{t.auditFilterGroupUpdate}</option>
                     <option value="DELETE">{t.auditFilterGroupDelete}</option>
+                    {/* Filtre DÉDIÉ aux reçus annulés : sous « DELETE », un
+                        paiement supprimé se noie parmi les élèves, parents et
+                        dépenses supprimés. Ici il est seul, et sa ligne porte le
+                        montant, le reçu et l'élève (`details`). `startsWith`
+                        suffit : aucun autre code ne commence par DELETE_PAYMENT. */}
+                    <option value="DELETE_PAYMENT">{t.auditFilterDeletedPayments}</option>
                     <option value="RECORD">{t.auditFilterGroupRecord}</option>
                   </select>
                   <ChevronDown size={14} className={`absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${currentTheme.muted}`} />
