@@ -14,13 +14,14 @@
  * `handleSaveNote`); `showToast` is passed as a dep, so App defines it above
  * the call site.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Student } from './types';
 import type { StudentForm } from '../components/StudentFormModal';
 import type { TranslationDict } from '../i18n/translations';
 import { isNinthGradeClass, visibleStudentIdentifier } from '../lib/studentIdentifiers';
 import { localIsoDate, systemClock, type Clock } from '../lib/dateWindows';
+import { createRowId } from '../lib/rowMappers';
 
 export type StudentSortKey = 'name' | 'parentName' | 'balance' | 'dueDate';
 
@@ -34,7 +35,7 @@ export interface UseStudentsDeps {
   /** Gestionnaire Principal — may edit scholarship discounts like the promoter. */
   isGeneralManager: boolean;
   students: Student[];
-  addStudent: (s: Omit<Student, 'id' | 'payments'>) => Promise<Student | null>;
+  addStudent: (s: Omit<Student, 'id' | 'payments'> & { id?: string }) => Promise<Student | null>;
   updateStudent: (id: string, updates: Partial<Student>) => Promise<boolean>;
   showToast: () => void;
   /** Toast an error/validation message (replaces the native alert()). */
@@ -102,6 +103,32 @@ export function useStudents(deps: UseStudentsDeps) {
 
   // Student Form State
   const [studentForm, setStudentForm] = useState<StudentForm>(() => emptyStudentForm(todayIso));
+
+  /**
+   * L'id du GESTE d'ajout — minté UNE fois par fiche ouverte, puis réutilisé par
+   * tous les envois de cette fiche (voir `handleStudentSubmit`).
+   *
+   * Le défaut mesuré le 2026-10-05 sur la base partagée : « Mahamadou DJIRE » en
+   * SEPT lignes identiques, semées en quinze secondes, dont deux créées à
+   * 1 milliseconde d'écart — et « Mamadou SIDIBE » en double. La cause n'était
+   * pas la file : le chemin EN LIGNE n'envoyait aucun id, donc chaque envoi
+   * répété créait une NOUVELLE ligne (`<uuid> PRIMARY KEY DEFAULT
+   * uuid_generate_v4()`). Avec un id stable par geste, le second envoi retombe
+   * sur la même clé primaire et la base le refuse au lieu de dupliquer.
+   *
+   * L'id est libéré à la FERMETURE de la fiche : la fiche suivante est un autre
+   * geste, donc un autre élève — un id conservé ferait qu'un nouvel élève serait
+   * pris pour le doublon du précédent.
+   */
+  const draftStudentIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (showStudentModal && !editingStudent) {
+      if (!draftStudentIdRef.current) draftStudentIdRef.current = createRowId();
+      return;
+    }
+    // Fiche fermée (enregistrée, ou abandonnée) : le geste est terminé.
+    if (!showStudentModal) draftStudentIdRef.current = null;
+  }, [showStudentModal, editingStudent]);
 
   // State for active tab in student detailed viewer
   const [studentDetailTab, setStudentDetailTab] = useState<'general' | 'parent' | 'medical'>('general');
@@ -217,7 +244,9 @@ export function useStudents(deps: UseStudentsDeps) {
 
     const savedStudent = editingStudent
       ? await updateStudent(editingStudent.id, studentData)
-      : await addStudent({ ...studentData, amountPaid: 0 });
+      // `??=` : le premier envoi minte l'id, tous les suivants du MÊME geste le
+      // réutilisent — c'est ce qui rend un double clic inoffensif.
+      : await addStudent({ ...studentData, amountPaid: 0, id: (draftStudentIdRef.current ??= createRowId()) });
     if (!savedStudent) return;
 
     setShowStudentModal(false);

@@ -82,6 +82,25 @@ describe('offline sync (drainOfflineQueue — the full syncOfflineQueue behaviou
     assert.equal(queue[0].id, second.id);
   });
 
+  it('deux drainages qui se CHEVAUCHENT ne rejouent pas deux fois la même file', async () => {
+    // Mesuré le 2026-10-05 sur la base partagée : des élèves créés deux fois à
+    // 1 ms d'écart (« Mamadou SIDIBE ») et six fois en quinze secondes
+    // (« Mahamadou DJIRE »). `syncOfflineQueue` est appelé par trois chemins
+    // (événement « online », démarrage, fin de session hors ligne) : sans
+    // exclusion mutuelle, les deux drainages lisent la MÊME file et rejouent
+    // chaque item une seconde fois.
+    clearOfflineQueue();
+    seedExpense();
+    seedTodo();
+
+    const { db, queries } = makeFakeDb();
+    const [first, second] = await Promise.all([drainOfflineQueue(db), drainOfflineQueue(db)]);
+
+    assert.equal(first + second, 2, 'chaque item n’est rejoué qu’UNE fois au total');
+    assert.deepEqual(queries, ['expenses', 'todos'], 'aucune table n’est écrite deux fois');
+    assert.deepEqual(getOfflineQueue(), [], 'la file est vidée par le seul drainage qui a couru');
+  });
+
   it('keeps a failing item queued and still syncs the rest of the queue', async () => {
     clearOfflineQueue();
     const failed = seedExpense(); // the 'expenses' table will fail below

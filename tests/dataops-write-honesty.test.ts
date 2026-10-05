@@ -49,7 +49,7 @@ let selects = 0;
 // undefined result there would print a stack trace on every case.
 // L'écriture du journal d'audit passe par le même faux client : un résultat
 // défini dès le départ, sinon chaque cas imprimerait une trace de pile.
-const insertResult: Result = { data: null, error: null };
+let insertResult: Result = { data: null, error: null };
 let rowsResult: Result = { data: null, error: null };
 
 interface Chain extends PromiseLike<Result> {
@@ -172,6 +172,53 @@ beforeEach(() => {
   calls = [];
   selects = 0;
   rowsResult = { data: null, error: null };
+  insertResult = { data: null, error: null };
+});
+
+describe('addStudent — un second envoi du MÊME geste ne crée pas un second élève', () => {
+  /** La forme que l'écran envoie : la fiche, plus l'id du geste. */
+  type StudentDraft = Omit<Student, 'id' | 'payments'> & { id?: string };
+  // Un VRAI uuid : `rowIdColumn` omet la colonne pour tout ce qui n'en est pas un
+  // (le repli historique quand WebCrypto manque), et l'idempotence disparaît avec
+  // elle — le cas non-uuid est donc mesuré par ce choix, pas supposé.
+  const GESTURE_ID = '9f8b7a6c-1111-4222-8333-444455556666';
+
+  it('envoie l’id du geste — c’est lui qui rend l’écriture idempotente', async () => {
+    insertResult = { data: { id: GESTURE_ID, name: 'Awa Kanté', status: 'Active' }, error: null };
+    const { ops } = studentOps([]);
+
+    const created = await ops.addStudent({ ...PUPIL, id: GESTURE_ID } as StudentDraft);
+
+    const insert = calls.find((c) => c.op === 'insert' && c.table === 'students');
+    assert.ok(insert, 'un INSERT part');
+    assert.equal(insert.payload?.id, GESTURE_ID, 'la clé primaire est celle du geste, pas une clé générée par la base');
+    assert.equal(created?.id, GESTURE_ID);
+  });
+
+  it('un 23505 (geste DÉJÀ enregistré) rend la ligne en base — sans erreur ni seconde ligne de journal', async () => {
+    // Le second envoi du même geste tombe sur la clé primaire : Postgres refuse.
+    // Ce n'est PAS une erreur de l'utilisateur, c'est l'idempotence qui marche.
+    insertResult = { data: null, error: { message: 'duplicate key value violates unique constraint "students_pkey"', code: '23505' } };
+    rowsResult = {
+      data: {
+        id: GESTURE_ID, name: 'Awa Kanté', parent_name: 'Tuteur', parent_phone: '70 00 00 00',
+        total_due: 36000, amount_paid: 0, due_date: '2026-01-01', status: 'Active', note_entries: [],
+      },
+      error: null,
+    };
+    const { ops, events, state } = studentOps([]);
+
+    const existing = await ops.addStudent({ ...PUPIL, id: GESTURE_ID } as StudentDraft);
+
+    assert.equal(existing?.id, GESTURE_ID, 'la ligne déjà en base est rendue');
+    assert.equal(events.filter((e) => e.startsWith('err:')).length, 0, 'un double envoi n’est pas annoncé comme un échec');
+    assert.equal(
+      calls.filter((c) => c.op === 'insert' && c.table === 'audit_logs').length,
+      0,
+      'un élève, un geste, UNE ligne d’audit — pas une par envoi répété',
+    );
+    assert.equal(state().filter((s) => s.id === GESTURE_ID).length, 1, 'un seul élève dans la liste locale');
+  });
 });
 
 describe('deleteStudent — une suppression filtrée par RLS n’est pas une suppression', () => {
