@@ -22,6 +22,12 @@
 // service, administrateur, et c'est l'un des quatre que la base portait. Le
 // roster ci-dessous est la liste des comptes EN SERVICE, pas la copie d'une
 // autre liste — les deux se recoupent sans se confondre.
+//
+// `aggeediarra@mamathera.org` porte le rôle **`econome`** en production, et
+// c'est voulu (confirmé par le propriétaire le 2026-10-05) : c'est le POSTE de
+// l'économe, pas un compte « personnel ». La documentation le listait encore
+// « staff » depuis le split econome — d'où le rouge de `owner-accounts-watch`
+// vu sur `main` ce jour-là ; la ligne attendue est réalignée ici sur le fait.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Rôles acceptés par la base (contrainte `user_profiles_role_check`). */
@@ -65,8 +71,8 @@ export const OWNER_ROSTER = [
   },
   {
     email: 'aggeediarra@mamathera.org',
-    role: 'staff',
-    label: 'personnel',
+    role: 'econome',
+    label: 'économe',
     required: true,
     passwordEnv: 'OWNER_STAFF_PASSWORD',
   },
