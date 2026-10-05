@@ -1,3 +1,19 @@
+## [2026-10-05] Un aperçu sans l'E2E qui le suit ne part plus à l'aveugle : la garde du contrat de téléchargement
+
+Suite directe de l'entrée ci-dessous. Le pixel-check du reçu parent était rouge parce que la 1.0.23 avait changé la SORTIE TERMINALE de ce générateur — téléchargement direct devenu aperçu — sans que le script qui le pilote l'apprenne. Réparer le script règle ce run ; ça ne règle pas la CLASSE : rien, dans le dépôt, ne RELIAIT le comportement d'un générateur PDF à l'étape correspondante de l'E2E. La question — « ça peut se reproduire » — méritait donc une garde, pas seulement un correctif.
+
+**Le contrat, en une ligne.** Un générateur `src/lib/pdf*.ts` sort par l'un de deux chemins : `direct` (il appelle `downloadBytes`, le clic suffit) ou `aperçu` (il ouvre un `show*Preview`, le fichier ne part qu'au clic de confirmation DANS la modale). Le défaut vit exactement à la frontière entre ces deux mondes. `scripts/lib/download-contract.mjs` porte l'inventaire (`PREVIEW_FLOWS`) et juge les liens : dès qu'un générateur ouvre un aperçu, il doit être DÉCLARÉ, sa modale doit RENDRE le bouton de confirmation (libellé résolu par clé d'i18n, FR **et** EN), et le script E2E doit CLICKER ce libellé.
+
+**Ce que la garde refuse** (`scripts/check-download-contract.mjs`, branché dans `lint:chain`) :
+- un `show*Preview` **non déclaré** — l'aperçu que l'E2E ignore, c'est-à-dire l'incident du jour ;
+- une entrée déclarée dont le générateur n'ouvre plus d'aperçu, ou plus CE générateur — une garantie sur du code disparu ;
+- une modale qui ne rend pas le libellé de confirmation, ou un libellé présent dans une seule langue — l'E2E ne matcherait le bouton que dans une langue ;
+- une étape de confirmation absente du script E2E — le cœur du rouge réparé plus bas.
+
+**Ce qu'elle ne fait pas, et c'est dit.** C'est un contrôle de TEXTE : il attrape l'aperçu non déclaré et l'étape manquante, il ne joue pas le clic ; la preuve d'exécution reste au run (`pdf-e2e.yml`). Il lit la version blanchie des commentaires (`source-text.mjs`) — un commentaire qui CITE « Télécharger le reçu » ne satisfait pas l'étape, seul le motif réellement testé compte. Et il refuse la vacuité : aucun `src/lib/pdf*.ts` lu ⇒ sortie 2, jamais un vert sur rien.
+
+**Mesure.** Sur le corpus réel : 11 générateurs, **1 par aperçu** (`pdfReceipt.ts`, suivi jusqu'à la confirmation E2E), 9 en téléchargement direct, `pdfStamp.ts` sans sortie connue (documenté, pas une erreur). Suite dédiée **15/15** (fixtures + corpus réel) ; `check-guard-immunity` **35/35** inventoriés après déclaration de la nouvelle garde ; `check-e2e-writes`, `check-ci-commands`, `check-line-budget`, `check-test-integrity`, `check-test-harness`, `check-import-effects` verts ; eslint vert.
+
 ## [2026-10-05] Le pixel-check du reçu parent attendait un fichier qu'un seul clic ne déclenche plus
 
 Suite de l'entrée ci-dessous : le run « PDF E2E — pixel check après déploiement » du commit `4c04455` est sorti **rouge** sur la seule étape « reçu parent (mode recu-parent) » — le mode `auto` (fiche de paie) passait ses 9 vérifications. Le log nommait la panne : clic réel sur « Télécharger Reçu PDF » (`✅`), modèle `recu-parent.pdf` servi (`[net] 200`), puis **60 s sans fichier** → « ❌ aucun PDF téléchargé ». Le reste de la chaîne (fraîcheur du build, en-têtes de sécurité, garde CSP, nettoyage des comptes éphémères) était vert : la régression ne portait que sur le parcours du reçu.

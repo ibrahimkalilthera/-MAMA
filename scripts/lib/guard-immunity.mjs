@@ -209,6 +209,17 @@ export const GUARD_INVENTORY = [
     via: 'e2e-writes.mjs',
   },
   {
+    check: 'check-download-contract.mjs',
+    input: 'source',
+    // Ce contrôle lit des SCRIPTS et des COMPOSANTS et juge du texte : il relie
+    // la sortie terminale d'un générateur PDF (aperçu ou téléchargement direct)
+    // à l'étape correspondante de l'E2E. Sa non-vacuité (aucun `src/lib/pdf*.ts`
+    // lu ⇒ sortie 2) et sa cécité à la prose (commentaires blanchis) vivent dans
+    // le module qui juge, et elles y sont NOMMÉES.
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    via: 'download-contract.mjs',
+  },
+  {
     check: 'check-release-coherence.mjs',
     input: 'artifact+network+config',
     needs: [IMMUNITY.NON_VACUOUS],
