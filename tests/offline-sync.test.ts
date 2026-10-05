@@ -22,6 +22,7 @@ import {
   enqueueOfflineAction,
   getOfflineQueue,
   getOfflineQueueCount,
+  getOfflineQueueFailureDetails,
   getOfflineQueueFailures,
   removeOfflineAction,
   clearOfflineQueue,
@@ -190,6 +191,20 @@ describe('file hors ligne : distinguer « en attente » de « refusé »', () =>
     assert.equal(getOfflineQueueCount(), 1, 'l’élément refusé reste en file');
     assert.equal(getOfflineQueueFailures(), 1);
     assert.equal(getOfflineQueue().find(i => i.id === refused.id)?.attempts, 1);
+  });
+
+  it('inscrit la RAISON du refus sur l’entrée (pour que l’école puisse agir)', async () => {
+    // Un « refusée — à vérifier » sans cause est inactionnable : la raison est
+    // ce qui transforme le bandeau en diagnostic.
+    clearOfflineQueue();
+    const refused = seedExpense();
+    await drainOfflineQueue(makeFakeDb({ failTables: ['expenses'] }).db);
+
+    const [detail] = getOfflineQueueFailureDetails();
+    assert.equal(detail.id, refused.id);
+    assert.equal(detail.type, 'addExpense');
+    assert.equal(detail.lastError, 'boom', 'le message du serveur est retenu');
+    assert.match(detail.lastAttemptAt ?? '', /^\d{4}-/, 'l’instant de la tentative est daté');
   });
 
   it('rejoue et vide la file quand la cause du refus disparaît', async () => {

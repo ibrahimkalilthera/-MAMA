@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, AlertCircle, RefreshCw, X, WifiOff } from 'lucide-react';
 import type { Toast, ToastType } from '../lib/useToast';
+import { getLastOfflineFailureReason } from '../lib/offlineQueue';
 
 // ─── Component: ToastContainer ───────────────────────────────────────────────
 
@@ -174,6 +175,10 @@ export function OfflineBanner({
   // Le bandeau ne parle d'une file en échec que lorsque la base a RÉELLEMENT
   // refusé : « en attente » et « refusé » ne sont pas la même nouvelle.
   const refused = !isOffline && pendingFailures > 0;
+  // Et il NOMME la raison du dernier refus : un « à vérifier » sans cause est
+  // inactionnable, et un bouton « Synchroniser » qui rejoue le même refus ne dit
+  // pas pourquoi. La raison vient de la dernière entrée refusée qui en porte une.
+  const failureReason = refused ? getLastOfflineFailureReason() : null;
 
   return (
     <div data-slot="app-offline-banner" className={`fixed top-0 left-0 right-0 z-[9998] ${reauthFailed && !isOffline ? 'bg-rose-700 text-white' : isOffline ? 'bg-amber-600 text-white' : 'accent-surface accent-surface-text'} text-center py-2 px-4 shadow-lg transition-colors`}>
@@ -222,6 +227,7 @@ export function OfflineBanner({
       {refused && (
         <div className="text-2xs font-semibold opacity-90 mt-0.5">
           {t.offlinePendingFailures.replace('{count}', String(pendingFailures))}
+          {failureReason && ` · ${t.offlineFailureReason.replace('{reason}', failureReason)}`}
         </div>
       )}
     </div>

@@ -26,7 +26,7 @@ type ErrResult = { data: null; error: { message: string } };
  */
 interface FakeBuilder extends Promise<OkResult | ErrResult> {
   insert(row?: unknown): FakeBuilder;
-  update(): FakeBuilder;
+  update(row?: unknown): FakeBuilder;
   delete(): FakeBuilder;
   eq(): FakeBuilder;
   neq(): FakeBuilder;
@@ -66,6 +66,12 @@ export interface FakeReplayDb {
    * pointing at an id no database ever had.
    */
   rows: CapturedRow[];
+  /**
+   * Every payload passed to `update()`, in call order. Needed to assert that an
+   * updater forwards ALL its fields — a field silently dropped in the mapping
+   * would otherwise vanish from the queue with nothing to notice it.
+   */
+  updates: CapturedRow[];
 }
 
 /**
@@ -76,6 +82,7 @@ export interface FakeReplayDb {
 export function makeFakeDb(opts: FakeReplayDbOptions = {}): FakeReplayDb {
   const queries: string[] = [];
   const rows: CapturedRow[] = [];
+  const updates: CapturedRow[] = [];
   const ok: OkResult = { data: [{ id: 'fake-row' }], error: null };
   const empty: OkResult = { data: [], error: null };
   const bad: ErrResult = { data: null, error: { message: 'boom' } };
@@ -91,8 +98,12 @@ export function makeFakeDb(opts: FakeReplayDbOptions = {}): FakeReplayDb {
       },
       // update/delete on an `emptyWrites` table answer 200 with NO row — the
       // case the honesty checks exist for (an RLS-filtered write). It is not an
-      // error: nothing failed, nothing happened.
-      update: () => mk(fail, table, writeEmpty(table)),
+      // error: nothing failed, nothing happened. The update payload is captured
+      // so a suite can assert the exact row the replay meant to write.
+      update: (row?: unknown) => {
+        if (row) updates.push({ table, row: row as Record<string, unknown> });
+        return mk(fail, table, writeEmpty(table));
+      },
       delete: () => mk(fail, table, writeEmpty(table)),
       eq: () => mk(fail, table, zeroRows),
       neq: () => mk(fail, table, zeroRows),
@@ -107,5 +118,5 @@ export function makeFakeDb(opts: FakeReplayDbOptions = {}): FakeReplayDb {
     return mk(opts.allFail || Boolean(opts.failTables?.includes(table)), table);
   };
 
-  return { db: { from } as unknown as ReplayDb, queries, rows };
+  return { db: { from } as unknown as ReplayDb, queries, rows, updates };
 }

@@ -3,7 +3,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { offlineAuditInfo, replayOfflineItem, rowIdColumn } from '../src/lib/offlineReplay';
+import { describeReplayError, offlineAuditInfo, replayOfflineItem, replayOfflineItemDetailed, rowIdColumn } from '../src/lib/offlineReplay';
 import type { ReplayDb } from '../src/lib/offlineReplay';
 import { createRowId, isUuid } from '../src/lib/rowMappers';
 import type { OfflineActionType, OfflinePayload, QueueItem } from '../src/lib/offlineQueue';
@@ -105,6 +105,142 @@ describe('offline queue replay (replayOfflineItem)', () => {
   });
 });
 
+// ─── La RAISON d’un refus de rejeu ───────────────────────────────────────────
+// Un élément refusé reste en file, mais « refusée » sans cause ne dit pas quoi
+// faire. La raison est lue du message serveur (court, sûr) et posée sur l'entrée
+// par le drainage (voir offlineSync) — ces cas verrouillent la lecture.
+
+describe('raison d’un refus de rejeu', () => {
+  it('describeReplayError nomme le message et le code, sans jamais lever', () => {
+    assert.equal(describeReplayError({ message: 'permission denied', code: '42501' }), 'permission denied [42501]');
+    assert.equal(describeReplayError({ code: '23503' }), 'refus sans message [23503]');
+    assert.equal(describeReplayError(null), 'écriture refusée par la base (aucune ligne touchée)');
+    assert.doesNotThrow(() => describeReplayError({ toString: undefined }));
+  });
+
+  it('replayOfflineItemDetailed rend la raison d’un vrai refus', async () => {
+    const { db } = makeFakeDb({ failTables: ['expenses'] });
+    const outcome = await replayOfflineItemDetailed(db, itemOf('addExpense', { category: 'c', description: 'd', amount: 1, date: '2026-01-01' }));
+    assert.equal(outcome.ok, false);
+    assert.equal(outcome.reason, 'boom');
+  });
+
+  it('replayOfflineItemDetailed ne rend AUCUNE raison sur un succès', async () => {
+    const { db } = makeFakeDb();
+    const outcome = await replayOfflineItemDetailed(db, itemOf('addExpense', { category: 'c', description: 'd', amount: 1, date: '2026-01-01' }));
+    assert.equal(outcome.ok, true);
+    assert.equal(outcome.reason, null);
+  });
+
+  it('un refus SANS erreur serveur (écriture retirée par la policy) donne une raison nommée', async () => {
+    // updateClass/deleteNote/updateUserRole : 200 avec un corps vide n'est PAS
+    // un `error`, donc le rejeu rend false sans message — la raison ne doit pas
+    // être nulle pour autant, sinon la bannière resterait muette.
+    const { db } = makeFakeDb({ emptyWrites: ['custom_classes'] });
+    const outcome = await replayOfflineItemDetailed(db, itemOf('deleteClass', { id: 'c1' }));
+    assert.equal(outcome.ok, false);
+    assert.match(outcome.reason ?? '', /aucune ligne touchée/);
+  });
+});
+
+// ─── Ce que le cas « par type » ne dit pas encore ────────────────────────────
+// Le bloc ci-dessus garantit UN cas par type, mais un cas qui répond « true et
+// touche la bonne table » ne prouve pas le COMPORTEMENT du rejeu. Quatre
+// propriétés restaient non assertées, et chacune se paie en silence :
+//   • un paiement rejoué écrit AUSSI la date du dernier paiement sur l'élève —
+//     et ne doit PAS y toucher si la base a refusé le paiement ;
+//   • la déclaration d'année sur une année DÉJÀ présente (23505) doit quand même
+//     déplacer le drapeau, sinon le poste reste sur l'ancienne année en silence.
+// (L'id des lignes nées hors ligne est traité plus bas, `CREATING`.)
+
+describe('comportements propres à chaque action rejouée', () => {
+  const payItem = () => itemOf('addPayment', { studentId: 's1', payment: { date: '2026-09-05', amount: 100, receiptNumber: 'R1' } });
+
+  it('un paiement rejoué pose la date du dernier paiement sur l’élève', async () => {
+    const { db, updates } = makeFakeDb();
+    const ok = await replayOfflineItem(db, payItem());
+    assert.equal(ok, true);
+    const studentUpdate = updates.find((u) => u.table === 'students');
+    assert.ok(studentUpdate, 'l’élève doit porter la nouvelle date');
+    assert.equal(studentUpdate.row.last_payment_date, '2026-09-05');
+  });
+
+  it('un paiement REFUSÉ ne touche PAS l’élève', async () => {
+    const { db, queries } = makeFakeDb({ failTables: ['payments'] });
+    const ok = await replayOfflineItem(db, payItem());
+    assert.equal(ok, false);
+    assert.ok(!queries.includes('students'), 'pas de mise à jour de l’élève quand le paiement n’est pas passé');
+  });
+
+  it('la déclaration d’année déjà présente déplace quand même le drapeau (23505)', async () => {
+    const duplicateYear = {
+      from: () => ({
+        insert: async () => ({ data: null, error: { message: 'duplicate key', code: '23505' } }),
+        update: () => ({ neq: async () => ({ error: null }), eq: async () => ({ error: null }) }),
+      }),
+    } as unknown as ReplayDb;
+    assert.equal(await replayOfflineItem(duplicateYear, itemOf('setCurrentYear', { year: '2026-2027' })), true);
+  });
+});
+
+// ─── Les updaters transmettent-ils TOUS leurs champs ? ───────────────────────
+// Le cas « par type » ne vérifie que la table visée. Un champ oublié dans la
+// correspondance (`updates.x → row.y`) disparaîtrait de la file sans un mot :
+// l'écran l'aurait montré, la base ne l'aurait jamais reçu. Chaque updater est
+// donc envoyé avec TOUS ses champs, et la ligne écrite est comparée EN ENTIER.
+
+describe('les mises à jour en file transmettent tous leurs champs', () => {
+  const UPDATERS: { type: OfflineActionType; build: () => QueueItem; table: string; expected: Record<string, unknown> }[] = [
+    {
+      type: 'updateExpense',
+      build: () => itemOf('updateExpense', { id: 'e1', updates: { category: 'c', description: 'd', amount: 12, date: '2026-01-01', academicYear: '2026-2027' } }),
+      table: 'expenses',
+      expected: { category: 'c', description: 'd', amount: 12, date: '2026-01-01', academic_year: '2026-2027' },
+    },
+    {
+      type: 'updateVendorExpense',
+      build: () => itemOf('updateVendorExpense', { id: 'v1', updates: { vendorName: 'V', category: 'c', amount: 60, dueDate: '2026-02-01', paymentStatus: 'paid', amountPaid: 60, description: 'd', aidType: 'aide_urgence', beneficiaryStudentName: 'Ada', beneficiaryStudentGrade: '9A' } }),
+      table: 'vendor_expenses',
+      expected: { vendor_name: 'V', category: 'c', amount: 60, due_date: '2026-02-01', payment_status: 'paid', amount_paid: 60, description: 'd', aid_type: 'aide_urgence', beneficiary_student_name: 'Ada', beneficiary_student_grade: '9A' },
+    },
+    {
+      type: 'updateStaff',
+      build: () => itemOf('updateStaff', { id: 't1', updates: { name: 'T', position: 'teacher', salary: 160000, email: '', phone: '111', bankDetails: 'BOA', emergencyContact: 'Awa' } }),
+      table: 'staff',
+      expected: { name: 'T', position: 'teacher', salary: 160000, email: null, phone: '111', bank_details: 'BOA', emergency_contact: 'Awa' },
+    },
+    {
+      type: 'updateParent',
+      build: () => itemOf('updateParent', { id: 'p1', updates: { fullName: 'Mme X', phones: ['1'], email: '', address: 'A', occupation: 'O', relationship: 'Mother', notes: 'n' } }),
+      table: 'parents',
+      expected: { full_name: 'Mme X', phones: ['1'], email: null, address: 'A', occupation: 'O', relationship: 'Mother', notes: 'n' },
+    },
+    {
+      type: 'updateTodo',
+      build: () => itemOf('updateTodo', { id: 't1', updates: { text: 'Call', completed: true, date: '2026-09-10' } }),
+      table: 'todos',
+      expected: { text: 'Call', completed: true, due_date: '2026-09-10' },
+    },
+    {
+      type: 'updateClass',
+      build: () => itemOf('updateClass', { id: 'c1', updates: { code: '2E', cycle: 'other', year: '2026-2027', section: 'A', nameFr: '2E', nameEn: '2E' } }),
+      table: 'custom_classes',
+      expected: { code: '2E', cycle: 'other', year: '2026-2027', section: 'A', name_fr: '2E', name_en: '2E' },
+    },
+  ];
+
+  for (const { type, build, table, expected } of UPDATERS) {
+    it(`'${type}' envoie tous ses champs (aucun champ perdu)`, async () => {
+      const { db, updates } = makeFakeDb();
+      const ok = await replayOfflineItem(db, build());
+      assert.equal(ok, true);
+      const written = updates.filter((u) => u.table === table);
+      assert.equal(written.length, 1, `${type} doit écrire exactement une mise à jour`);
+      assert.deepEqual(written[0].row, expected, `${type} : un champ oublié disparaîtrait de la base`);
+    });
+  }
+});
+
 // ─── Les id des lignes nées HORS LIGNE ───────────────────────────────────────
 // Ce qui se joue ici n'est pas cosmétique : un élève inscrit sans réseau a déjà
 // un reçu imprimé et un paiement en file. Si la ligne arrivait en base avec un id
@@ -142,6 +278,7 @@ describe('ids des lignes créées hors ligne', () => {
     { type: 'addVendorExpense', build: () => itemOf('addVendorExpense', { vendorName: 'V', category: 'electricity', amount: 5, dueDate: '2026-01-01', paymentStatus: 'paid', amountPaid: 5 }), table: 'vendor_expenses' },
     { type: 'addSalaryPayment', build: () => itemOf('addSalaryPayment', { staffId: 't1', amount: 5, date: '2026-01-01' }), table: 'salary_payments' },
     { type: 'addTodo', build: () => itemOf('addTodo', { text: 'Call', completed: false }), table: 'todos' },
+    { type: 'addClass', build: () => itemOf('addClass', { code: '2D', cycle: 'other', year: '', section: '', nameFr: '2D', nameEn: '2D' }), table: 'custom_classes' },
   ];
 
   for (const { type, build, table } of CREATING) {

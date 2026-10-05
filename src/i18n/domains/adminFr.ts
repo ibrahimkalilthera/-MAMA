@@ -372,6 +372,7 @@ export const fr = {
     offlineCachedData: "Données enregistrées sur ce poste : {date}",
     offlineNoCachedData: "Aucune donnée enregistrée sur ce poste — connectez-vous une fois avec Internet",
     offlinePendingFailures: "{count} saisie(s) refusée(s) par la base — toujours en attente, à vérifier",
+    offlineFailureReason: "raison : {reason}",
     offlineReauthFailed: "Connexion rétablie, mais la session n'a pas pu être rouverte — reconnectez-vous",
     onlyPromoterOwnerCanCloseAcademicYears: "Seul le Promoteur / Propriétaire peut clôturer les années académiques.",
     onlyThePromoterCanCreateAVendorExpense: "Seule la promotrice peut créer une dépense fournisseur.",

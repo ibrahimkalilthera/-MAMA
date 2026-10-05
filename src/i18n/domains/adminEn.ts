@@ -368,6 +368,7 @@ export const en = {
     offlineCachedData: "Data saved on this station: {date}",
     offlineNoCachedData: "No data saved on this station yet — sign in once with internet",
     offlinePendingFailures: "{count} entry(ies) refused by the database — still queued, please check them",
+    offlineFailureReason: "reason: {reason}",
     offlineReauthFailed: "Connection is back, but the session could not be reopened — please sign in again",
     onlyPromoterOwnerCanCloseAcademicYears: "Only Promoter / Owner can close academic years.",
     onlyThePromoterCanCreateAVendorExpense: "Only the promoter can create a vendor expense.",

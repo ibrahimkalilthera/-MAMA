@@ -1,3 +1,33 @@
+## [2026-10-05] Une saisie refusée restait muette : la file enregistre (et nomme) la raison
+
+Signalé par une capture d'écran : le bandeau affiche « 9 saisie(s) refusée(s) par la base — toujours en attente, à vérifier », et rien d'autre. L'école — comme nous — ne peut pas savoir POURQUOI : l'entrée de file ne portait qu'un compteur d'essais (`attempts`), jamais la cause. « Synchroniser maintenant » rejouait donc le même refus sans jamais le nommer.
+
+**Ce qui a été vérifié d'abord, et écarté.** La base hébergée n'est PAS en retard : `check:hosted-schema` (sonde PostgREST, clé anon, aucune ligne lue) rend « les 26 migrations déclarées, 14 tables, 133 colonnes, toutes présentes ». Ce n'est donc pas une colonne manquante. Et le drainage ne marque pas de faux refus : `syncOfflineQueue` s'arrête quand la session est hors ligne (pas de jeton), exactement comme prévu.
+
+**Le trou réel : le refus n'était pas diagnosticable.** `markOfflineAttempt(id)` n'incrémentait qu'un compteur ; `replayOfflineItem` rendait `true`/`false` sans cause ; et un refus par policy (200 avec zéro ligne) n'a même pas d'objet d'erreur. Une saisie bloquée pour toujours s'affichait « à vérifier » sans dire quoi vérifier.
+
+**Le correctif.** `replayOfflineItemDetailed(db, item)` rend `{ ok, reason }` : la raison est lue du message serveur (`describeReplayError` : message + code, borné, jamais un objet — le piège du `String()` non gardé a déjà été payé). Elle est capturée sans toucher aux 28 branches du rejeu : on enveloppe la seule surface `from()` (builders thenables). Le drainage appelle la version détaillée et pose la raison via `markOfflineFailure(item.id, reason)` ; `lastError`/`lastAttemptAt` vivent sur l'entrée. Le bandeau affiche désormais « · raison : … » sous le compte. Une écriture retirée par la policy (aucune erreur serveur) reçoit une raison NOMMÉE (« aucune ligne touchée ») au lieu d'un silence.
+
+**Mesure.** `tests/offline-replay.test.ts` (lecture de la raison, refus sans erreur, succès sans raison), `tests/offline-sync.test.ts` (la raison est inscrite sur l'entrée refusée) : suite hors ligne **212/212**. `tsc --noEmit` propre, `npm run lint` exit 0.
+
+**Limite assumée : nommer n'est pas encore résoudre.** Cette version rend la cause VISIBLE ; le refus lui-même (FK sur une cible supprimée, policy, donnée rejetée) dépend de ce que la raison révélera, et le poste qui affiche la capture ne l'obtiendra qu'après une mise à jour de l'application.
+
+## [2026-10-05] La couverture du rejeu hors ligne était complète en surface, trouée en profondeur
+
+Demande : « audite la file hors ligne pour les types d'action qui ne sont pas encore couverts par un test de rejeu, et complète-les ».
+
+**Ce que l'audit a trouvé d'abord, et qui rassure.** Aucun type n'est sans test de rejeu : `tests/offline-replay.test.ts` relit l'union `OfflineActionType` **dans la source** et exige un cas par type — 28 types, 28 cas. La garde posée en 2026-09-27 fait son travail ; il n'y avait rien à rattraper côté existence.
+
+**Le trou est dans la PROFONDEUR.** Un cas qui répond « true et touche la bonne table » ne prouve pas le COMPORTEMENT. Quatre propriétés, chacune payée en silence si elle casse, n'étaient pas assertées :
+- **l'id hors ligne d'`addClass`** — action qui CRÉE (elle applique `rowIdColumn(item.localId)` comme `addNote`) mais absente de la liste `CREATING` : une classe née hors ligne aurait pu perdre son identité sans que rien ne le voie ;
+- **la mise à jour compagnon d'`addPayment`** — un paiement rejoué écrit AUSSI `students.last_payment_date` ; personne ne le vérifiait, ni qu'un paiement REFUSÉ ne doit PAS toucher l'élève ;
+- **la transmission des champs des updaters** — `updateExpense`, `updateVendorExpense`, `updateStaff`, `updateParent`, `updateTodo`, `updateClass` n'avaient que le cas « par type » ; un champ oublié dans la correspondance (`updates.x → row.y`) aurait disparu de la base sans un mot. Le fake ne capturait pas les `update()`, donc la preuve était impossible ;
+- **la branche « année déjà présente » (23505) de `setCurrentYear`** — la déclaration d'année doit déplacer le drapeau même quand la ligne existe déjà, sinon le poste reste sur l'ancienne année en silence.
+
+**Ce qui a été ajouté.** `tests/fakes.ts` capture désormais le payload de chaque `update()` (`updates: CapturedRow[]`). La suite du rejeu gagne : `addClass` dans `CREATING` (id hors ligne), deux cas pour `addPayment` (compagnon posé / élève intact si refus), un cas pour `setCurrentYear` en 23505, et un bloc `UPDATERS` qui compare la ligne écrite EN ENTIER pour les six updaters.
+
+**Mesure.** Suite hors ligne **207/207** (10 cas de plus), `tsc --noEmit` propre, `npm run lint` exit 0.
+
 ## [2026-10-05] Un aperçu sans l'E2E qui le suit ne part plus à l'aveugle : la garde du contrat de téléchargement
 
 Suite directe de l'entrée ci-dessous. Le pixel-check du reçu parent était rouge parce que la 1.0.23 avait changé la SORTIE TERMINALE de ce générateur — téléchargement direct devenu aperçu — sans que le script qui le pilote l'apprenne. Réparer le script règle ce run ; ça ne règle pas la CLASSE : rien, dans le dépôt, ne RELIAIT le comportement d'un générateur PDF à l'étape correspondante de l'E2E. La question — « ça peut se reproduire » — méritait donc une garde, pas seulement un correctif.
