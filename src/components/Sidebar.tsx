@@ -70,8 +70,23 @@ export function Sidebar(props: SidebarProps) {
     auditArchivePending = false,
   } = props;
 
-  const navBtn = (tab: AppTab) =>
-    `nav-item w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${activeTab === tab ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`;
+  /**
+   * Une ligne du rail.
+   *
+   * Le rembourrage GAUCHE est écrit ici, une fois, et jamais négocié ailleurs
+   * (`pl-4`) : c'est lui qui met toutes les icônes dans une colonne et tous les
+   * libellés dans une autre. Une ligne qui s'en écarterait se lirait de travers.
+   *
+   * Le rembourrage DROIT, lui, n'est que la place réservée APRÈS le libellé — le
+   * seul bord de la ligne où rien d'autre ne vit — donc la seule chose qu'une
+   * ligne peut resserrer pour tenir. Il se règle donc ligne par ligne, et
+   * « Historique des Paiements » en a besoin : c'est le libellé le plus long du
+   * menu (171 px au Geist 600/14 px, mesuré), le rail n'en offre que 163, et
+   * sans ces quelques pixels il passait à la ligne — la ligne grandissait de
+   * 20 px et décollait toutes ses voisines d'un cran.
+   */
+  const navBtn = (tab: AppTab, tailPadding = 'pr-4') =>
+    `nav-item w-full flex items-center gap-3 pl-4 ${tailPadding} py-2.5 rounded-lg transition-all ${activeTab === tab ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`;
 
   return (
     <aside data-slot="app-sidebar" className="app-sidebar w-64 text-white fixed h-full z-40 hidden lg:flex flex-col transition-colors duration-300" style={{ background: 'linear-gradient(180deg, #0C1222 0%, #111827 50%, #0F172A 100%)' }}>
@@ -164,16 +179,24 @@ export function Sidebar(props: SidebarProps) {
 
             {/* L'historique des paiements se lit DANS le journal (c'est le seul
                 endroit qui nomme l'encaisseur) : il vit donc ici, à côté de lui,
-                et ouvre la même lecture (`fetchAuditLogs`). */}
+                et ouvre la même lecture (`fetchAuditLogs`).
+
+                C'est aussi la seule ligne dont le libellé ne tient pas dans le
+                rail tel quel : il prend le rembourrage droit resserré (voir
+                `navBtn`), son icône ne se laisse pas comprimer par le texte, et
+                `truncate` garantit qu'il se coupe au pire au lieu de casser la
+                ligne — même règle que la barre mobile, qui porte le même
+                libellé. Le libellé entier reste lu au survol (`title`). */}
             <button
               onClick={() => {
                 setActiveTab('paymentHistory');
                 fetchAuditLogs();
               }}
-              className={navBtn('paymentHistory')}
+              className={navBtn('paymentHistory', 'pr-1.5')}
+              title={t.paymentHistory}
             >
-              <History size={20} />
-              <span className="font-semibold text-sm">{t.paymentHistory}</span>
+              <History size={20} className="flex-shrink-0" />
+              <span className="font-semibold text-sm truncate">{t.paymentHistory}</span>
             </button>
 
             <button onClick={() => setActiveTab('settings')} className={navBtn('settings')}>
