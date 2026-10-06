@@ -96,13 +96,15 @@ jobs:
       - name: Tests
         run: npm test
 
-      # npm audit only needs the network when the lockfile actually changed:
-      # scripts/check-audit.mjs caches its result (keyed on the lockfile sha,
-      # valid 24 h) under AUDIT_CACHE=1. Persist that cache across runs so a
-      # push that did not touch dependencies never re-queries the npm audit
-      # endpoint — which also keeps the gate green during npm registry
-      # incidents (the endpoint has timed out for hours while the registry
-      # itself stayed up, cancelling every deploy at this step).
+      # scripts/check-audit.mjs MESURE EN DIRECT à chaque run : un cache encore
+      # « frais » a rendu ce job vert le 2026-10-06 alors que la dette était déjà
+      # publiée en amont — sa clé est le lockfile, or un avis se publie sans que
+      # le lockfile change. Sous AUDIT_CACHE=1 le cache n'est donc plus qu'un
+      # REPLI : lu seulement si le registre est injoignable, et le verdict dit
+      # alors qu'il vient d'un cache, avec son âge. On persiste ce cache d'un run
+      # à l'autre pour que l'endpoint npm — qui a déjà stagné des heures pendant
+      # que le registre répondait — fasse DÉGRADER le gate vers un repli nommé,
+      # jamais annuler le déploiement à cette étape.
       - name: Restore audit gate cache
         uses: actions/cache@v6
         with:

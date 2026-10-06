@@ -4,10 +4,10 @@
  * Runs in two places with the same two gates:
  *   • CI (perf-guard.yml, `quality` job): strict — any failure blocks the push.
  *   • The husky pre-commit hook (invoked with AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1):
- *     same gates, but the result is cached against the lockfile hash so commits
- *     that don't touch dependencies are instant, and an unreachable registry
- *     (offline development) only warns — the CI push gate stays the
- *     enforcement point.
+ *     same gates, measured LIVE first like everywhere else; the cache is only a
+ *     FALLBACK for an unreachable registry (offline development), and a fallback
+ *     verdict SAYS so. An unreachable registry with no usable cache only warns —
+ *     the CI push gate stays the enforcement point.
  *
  * Fails when any of these holds:
  *   1. ANY production/runtime dependency has a known vulnerability
@@ -86,12 +86,33 @@
  *
  * Cache (AUDIT_CACHE=1): `node_modules/.cache/audit-gate.json`, keyed on the
  * sha256 of package-lock.json, valid for AUDIT_CACHE_TTL_HOURS (default 24).
- * AUDIT_CACHE_REFRESH=1 forces a live re-audit (the fresh result is re-cached).
+ *
+ * ─── Un vert sans mesure, deux fois (2026-10-06) ─────────────────────────
+ *
+ * 1. LE CACHE. La veille, ce cache avait rendu le job vert (`Total audit count 7
+ *    within baseline 7 (cached, 23.5h old)`) alors que la dette était DÉJÀ
+ *    publiée en amont : la clé du cache est le lockfile, or un avis se publie
+ *    sans que le lockfile change. Le gate MESURE DONC EN DIRECT D'ABORD, à
+ *    chaque run ; le cache n'est ouvert que si la mesure est IMPOSSIBLE (registre
+ *    injoignable), et le verdict dit alors qu'il vient d'un cache, avec son âge.
+ *
+ * 2. LA RÉPONSE D'ERREUR. `npm audit --json` écrit aussi du JSON sur stdout
+ *    quand le registre ne répond pas (`{"error": …}`), parfois en sortant 0.
+ *    Lu comme un rapport, ce payload n'a pas de `vulnerabilities` : le gate
+ *    annonçait « Production … audit clean » et « Total audit count 0 » sur un
+ *    audit qui n'avait RIEN regardé. Seule la forme d'un rapport réel est
+ *    acceptée (`isAuditReport`).
+ *
+ * Les deux règles vivent, pures et asserées, dans `./lib/audit-verdict.mjs`.
+ *
+ * AUDIT_CACHE_REFRESH=1 désactive le repli : le verdict doit être une mesure en
+ * direct, ou un échec.
  */
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { CACHE_VERSION, cacheFallbackLabel, isAuditReport, usableCache } from './lib/audit-verdict.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 
 const DEV_BASELINE = 8;
@@ -101,17 +122,40 @@ const FORCE_REFRESH = process.env.AUDIT_CACHE_REFRESH === '1';
 const TTL_MS = (Number(process.env.AUDIT_CACHE_TTL_HOURS) || 24) * 60 * 60 * 1000;
 const CACHE_FILE = path.resolve('node_modules/.cache/audit-gate.json');
 
-/** Runs `npm audit --json <args>` and returns the parsed report (null if it could not run). */
+/**
+ * Runs `npm audit --json <args>` and returns the parsed report (null if it could
+ * not run).
+ *
+ * Bounded on purpose: `--fetch-timeout`/`--fetch-retries` and an `execSync`
+ * timeout turn « le registre ne répond pas » into a FAST finding instead of an
+ * open-ended wait that would eat the step's budget. That finding is what opens
+ * the fallback (or fails) — never a silent wait.
+ */
 function runAudit(args) {
+  const bounded = '--fetch-timeout=45000 --fetch-retries=1';
+  const command = `npm audit --json ${args} ${bounded}`;
   try {
-    return JSON.parse(execSync(`npm audit --json ${args}`, { encoding: 'utf8' }));
+    return reportOf(execSync(command, { encoding: 'utf8', timeout: 120000 }));
   } catch (e) {
-    // npm audit exits non-zero when it finds vulnerabilities; the JSON is on stdout.
-    try {
-      return JSON.parse(e.stdout || '');
-    } catch {
-      return null;
-    }
+    // Un audit qui TROUVE des vulnérabilités sort non-zéro et laisse quand même
+    // son rapport sur stdout — mais un registre injoignable y laisse un payload
+    // d'ERREUR (`{"error": …}`), parfois avec un code de sortie 0. Seule la FORME
+    // d'un rapport réel compte : un payload d'erreur lu comme un rapport, c'est
+    // « zéro vulnérabilité » annoncé sur un audit qui n'a rien regardé.
+    return reportOf(e.stdout ?? '');
+  }
+}
+
+/**
+ * Le texte est-il un RAPPORT d'audit, ou seulement du JSON ? Le discriminant vit
+ * dans ./lib/audit-verdict.mjs (`isAuditReport`), où son absence est asserée.
+ */
+function reportOf(text) {
+  try {
+    const parsed = JSON.parse(String(text ?? ''));
+    return isAuditReport(parsed) ? parsed : null;
+  } catch {
+    return null;
   }
 }
 
@@ -127,13 +171,15 @@ function lockHash() {
   }
 }
 
-function readCache(hash) {
+/**
+ * Le REPLI — lu seulement quand la mesure en direct est IMPOSSIBLE, jamais
+ * autrement. La décision d'exploitabilité (version, arbre, âge) vit dans
+ * ./lib/audit-verdict.mjs, où chaque refus est asseré.
+ */
+function readFallbackCache(hash) {
+  if (!CACHED || FORCE_REFRESH) return null;
   try {
-    const c = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-    if (c?.version !== 1 || c?.lockHash !== hash) return null;
-    const age = Date.now() - Date.parse(c.checkedAt);
-    if (!Number.isFinite(age) || age < 0 || age > TTL_MS) return null;
-    return c;
+    return usableCache(fs.readFileSync(CACHE_FILE, 'utf8'), { lockHash: hash, ttlMs: TTL_MS });
   } catch {
     return null;
   }
@@ -144,7 +190,7 @@ function writeCache(hash, prodVulns, total, summary) {
     fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
     fs.writeFileSync(
       CACHE_FILE,
-      JSON.stringify({ version: 1, lockHash: hash, checkedAt: new Date().toISOString(), prodVulns, total, summary }, null, 2)
+      JSON.stringify({ version: CACHE_VERSION, lockHash: hash, checkedAt: new Date().toISOString(), prodVulns, total, summary }, null, 2)
     );
   } catch (e) {
     // Best-effort only: a cache failure must never fail the gate.
@@ -197,26 +243,46 @@ let gate;
 let gateSkipped = false;
 
 const hash = lockHash();
-const cache = CACHED && !FORCE_REFRESH ? readCache(hash) : null;
 
-if (cache) {
-  const ageH = ((Date.now() - Date.parse(cache.checkedAt)) / 3600000).toFixed(1);
-  const source = `(cached, ${ageH}h old)`;
-  enforceProductionGate(cache.prodVulns ?? [], source);
-  enforceTotalGate(cache.total ?? 0, summaryOf(cache.summary), source);
-  gate = { prodVulns: (cache.prodVulns ?? []).length, total: cache.total ?? 0, source: `cache, ${ageH}h` };
-} else {
-  const prod = runAudit('--omit=dev');
-  if (!prod) unreachable();
-  const prodVulns = prod ? Object.values(prod.vulnerabilities || {}).filter((v) => v.severity !== 'info') : [];
+/**
+ * La mesure en direct n'a pas pu aller au bout : le cache n'est alors qu'un
+ * REPLI, et il le DIT (avec son âge). Sans repli exploitable, c'est
+ * `unreachable()` — jamais un vert silencieux.
+ */
+function fallbackOrFail() {
+  const cached = readFallbackCache(hash);
+  if (!cached) return unreachable();
+  console.warn(
+    `⚠️  registre npm injoignable : verdict repris d'un cache de ${cached.ageHours.toFixed(1)} h ` +
+      '— AUCUNE mesure en direct pour ce run (voir scripts/lib/audit-verdict.mjs).',
+  );
+  const source = ` ${cacheFallbackLabel(cached.ageHours)}`;
+  enforceProductionGate(cached.prodVulns, source);
+  enforceTotalGate(cached.total, summaryOf(cached.summary), source);
+  gate = { prodVulns: cached.prodVulns.length, total: cached.total, source: `repli cache, ${cached.ageHours.toFixed(1)}h` };
+}
+
+// ─── 1. La MESURE EN DIRECT — toujours, et en premier ───────────────────────
+// Le cache ne remplace plus la mesure : un cache encore « frais » peut masquer un
+// avis publié DEPUIS, puisque sa clé est le lockfile et que les avis, eux, ne
+// touchent pas le lockfile.
+const prod = runAudit('--omit=dev');
+if (prod) {
+  const prodVulns = Object.values(prod.vulnerabilities || {}).filter((v) => v.severity !== 'info');
   enforceProductionGate(prodVulns, '');
 
   const all = runAudit('');
-  if (!all) unreachable();
-  const total = all?.metadata?.vulnerabilities?.total ?? 0;
-  if (CACHED && prod && all) writeCache(hash, prodVulns, total, all.metadata?.vulnerabilities);
-  enforceTotalGate(total, summaryOf(all?.metadata?.vulnerabilities), '');
-  gate = { prodVulns: prodVulns.length, total, source: 'live' };
+  const total = all?.metadata?.vulnerabilities?.total;
+  if (typeof total === 'number') {
+    if (CACHED) writeCache(hash, prodVulns, total, all.metadata?.vulnerabilities);
+    enforceTotalGate(total, summaryOf(all.metadata?.vulnerabilities), '');
+    gate = { prodVulns: prodVulns.length, total, source: 'live' };
+  } else {
+    // ─── 2. Le REPLI — seulement ici, et il se nomme ────────────────────────
+    fallbackOrFail();
+  }
+} else {
+  fallbackOrFail();
 }
 
 // La substance de ce gate, publiée par le gate : les deux chiffres qu'il vient
