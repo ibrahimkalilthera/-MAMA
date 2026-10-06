@@ -94,11 +94,15 @@ export function NotesView() {
                           </button>
                         )}
                       </div>
+                      {/* La corbeille porte son libellé : révélée au survol et
+                          seule sur la ligne, l'icône se lisait comme un ornement. */}
                       <button
                         onClick={() => deleteTodo(todo.id)}
-                        className="p-2 text-rose-400 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                        title={t.deleteTask}
+                        className="px-2.5 py-1.5 rounded-lg text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-all flex items-center gap-1 text-2xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100"
                       >
-                        <Trash2 size={18} />
+                        <Trash2 size={14} />
+                        {t.deleteTask}
                       </button>
                     </motion.div>
                   ))}

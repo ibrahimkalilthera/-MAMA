@@ -219,7 +219,10 @@ export function ParentsView() {
                             )}
                           </div>
 
-                          {/* Quick Actions — equal 40px tap targets, non-squashable 16px icons */}
+                          {/* Quick Actions — cibles tactiles de 40 px, icônes de 16 px
+                              non écrasables. Seule la SUPPRESSION porte son libellé :
+                              une corbeille seule se lit comme un ornement, et c'est
+                              justement l'action qu'on ne veut pas presser par erreur. */}
                           <div className="flex items-center gap-2">
                             {/* Record payment (+ auto PDF receipt) prefilled with this family's first child with a balance */}
                             {(() => {
@@ -274,9 +277,10 @@ export function ParentsView() {
                                   e.stopPropagation();
                                   handleDeleteParent(parent.id);
                                 }}
-                                className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all flex items-center justify-center flex-shrink-0"
+                                className="px-3 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all flex items-center gap-1.5 flex-shrink-0 text-2xs font-bold whitespace-nowrap"
                               >
                                 <Trash2 size={16} className="flex-shrink-0" />
+                                {t.deleteParent}
                               </button>
                             )}
 
