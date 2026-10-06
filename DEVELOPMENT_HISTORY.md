@@ -1,3 +1,13 @@
+## [2026-10-06] 1.0.24 — monter la version est le seul geste humain, la publication suit le gate
+
+Le canal de mise à jour n'a plus de clic : `desktop-release.yml` part à la fin **verte** de « Quality & performance guard » sur `main`, demande à `check:release:needed` s'il y a quelque chose à publier, puis enchaîne dans UN SEUL release — build, signature (si `SIGNING_ENABLED`), téléversement en brouillon, consolidation des brouillons, promotion, relecture du canal. Le seul geste humain qui reste est de **monter la version**, c'est-à-dire ce commit.
+
+**Pas de doublon, et c'est le gate qui le garantit.** `check:release:tag` refuse un numéro dont le tag existe — « un même numéro ne peut pas changer de contenu : aucun poste ne verrait la différence ». Vérifié AVANT de pousser : `npm run check:release:needed` → `✅ v1.0.24 est inédit — il y a un release à faire. needed=true`. La 1.0.23 (publiée le 2026-10-05) n'est donc pas republicationnée, elle est SUIVIE.
+
+**Ce que la 1.0.24 emporte** depuis la 1.0.23 : les pastilles de suppression libellées (`deleteTask` compris), la réconciliation du solde au rejeu de la file, le contrôle des reçus en double rejouable **et** son déclencheur de clôture hebdomadaire, l'économe qui peut supprimer un paiement, l'annulation d'une suppression depuis le journal d'audit, et les trois durcissements du workflow de clôture (v7, 90 jours, `push` borné à `main`). Le volet production du gate d'audit reste à **zéro** vulnérabilité runtime (`15 ≤ 15`, toutes dev-only).
+
+**Mesure attendue après publication.** `npm run check:release:channel` relit le canal **sans jeton** (rehachage de l'installeur réellement servi) et un seul release porte `v1.0.24`.
+
 ## [2026-10-06] Le gate d'audit a été relu SANS son cache — la base passe à 15, pas par abandon
 
 Le commit du durcissement du workflow de clôture a été BLOQUÉ par le `pre-commit` : `❌ Total vulnerabilities (16) exceed the documented baseline (7)`. Le blocage n'avait rien à voir avec le fichier modifié (un YAML de workflow) — `package.json` et `package-lock.json` étaient intacts.
