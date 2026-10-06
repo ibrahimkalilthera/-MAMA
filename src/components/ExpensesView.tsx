@@ -222,10 +222,10 @@ export function ExpensesView() {
                                         <div className="flex justify-end">
                                           <button
                                             onClick={() => setConfirmDeleteExpense(e)}
-                                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                            className="px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded-xl text-2xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap"
                                             title={t.deleteExpense}
                                           >
-                                            <Trash2 size={16} />
+                                            <Trash2 size={16} /> {t.deleteExpense}
                                           </button>
                                         </div>
                                       </td>
@@ -544,10 +544,10 @@ export function ExpensesView() {
                         {canDelete && (
                           <button
                             onClick={() => setConfirmDeleteVendor(v)}
-                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                            className="px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded-xl text-2xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap"
                             title={t.deleteExpense}
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={16} /> {t.deleteExpense}
                           </button>
                         )}
                                       </div>

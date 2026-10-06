@@ -10,6 +10,22 @@ Le commit du durcissement du workflow de clôture a été BLOQUÉ par le `pre-co
 
 **Mesure.** `node scripts/check-audit.mjs` → **exit 0**, `Production (--omit=dev) audit clean`, `Total audit count 15 within baseline 15`. Lockfile : 60 insertions / 70 suppressions (aucune entrée de production).
 
+## [2026-10-06] La suppression porte son libellé — la corbeille n'est plus un ornement
+
+Demande du propriétaire : « rends le bouton supprimer un paiement plus visible : ajoute le libellé de l'action à côté de l'icône de corbeille », puis « aligne aussi le bouton supprimer parent (et les autres corbeilles isolées) sur des pastilles avec libellé ».
+
+**Le défaut, nommé.** Selon la vue, la suppression se présentait soit comme une pastille AVEC son libellé (« Supprimer l'élève », « Supprimer la dépense », « Supprimer l'employé »), soit comme une **corbeille seule** — même taille, même rose qu'une icône décorative — alors que c'est justement le geste qu'on ne veut pas presser par erreur. Une corbeille sans mot se lit comme un ornement.
+
+**Ce qui a été changé.** La pastille du paiement dans la fiche élève (`StudentDetailsModal`) reçoit `{t.deletePayment}` (elle garde la confirmation EN LIGNE, pas de dialogue navigateur). Puis les corbeilles isolées : `StudentsView`, `ExpensesView` (dépense générale **et** fournisseur), `PayrollView`, `ParentsView` (« Supprimer Parent » — rendu par `useParents.ts`, donc mesuré sur la vue, pas dans le code), `NotesView` et `ProductivityPanel` (tâches). Les tâches n'avaient **aucun** libellé : la clé `deleteTask` est ajoutée aux DEUX dictionnaires (`students.ts`, FR + EN).
+
+**Ce qui reste volontairement une icône seule.** Les puces de classe (`SettingsClassesCard`, 3 sites) : elles vivent DANS un badge de classe, à côté du crayon de renommage, et un libellé y ferait éclater la puce ; elles gardent leur `title`. La corbeille PAR notification (`NotificationsPanel`) : elle est répétée à chaque ligne du panneau et porte déjà un `aria-label` qui NOMME la notification (« Supprimer cette notification — … »), plus utile qu'un mot identique sur chaque ligne. « Tout effacer » (même fichier) et la suppression dans le formulaire élève avaient déjà leur libellé.
+
+**Piège rencontré, et pourquoi il compte.** Un commentaire `/* … */` placé directement DANS une expression JSX (`{cond && ( /* … */ <button…` ) casse la transformation esbuild : le commentaire doit vivre au-dessus, en `{/* … */}`. C'est ce qui a fait échouer la première tentative.
+
+**Verrouillé par le rendu, pas par la source.** Nouveau `tests/delete-affordance-labels.test.tsx` (3 cas : NotesView, ProductivityPanel, ParentsView) : il rend la vue et compte — le libellé doit apparaître **en texte**, l'attribut `title=` seul ne suffit pas. `tests/delete-rights.test.ts` gagne le même contrôle pour les quatre surfaces réservées aux rôles admin (`élèves`, `dépenses`, `parents`, `personnel`) : tomber sur une icône seule y fait rougir le cas.
+
+**Mesure.** `npm run lint` exit 0 ; `npm test` **2390/2390**, 0 échec (2387 avant, +3 cas).
+
 ## [2026-10-06] Le workflow de clôture est durci après sa première exécution réelle
 
 Le déclencheur « reçus en double » a tourné pour de vrai (`gh workflow run` → succès, semaine 2026-S40, 1 paiement analysé, artefact `recus-doublons-2026-10-06`). Trois écarts entre le YAML écrit et ce que GitHub exécute vraiment ont été corrigés : `retention-days: 120` était **silencieusement ramené à 90** (le maximum du dépôt) — la valeur annoncée est désormais celle qui s'applique ; `actions/upload-artifact@v4` cible un Node 20 déprécié — l'action passe en **@v7** (le dépôt monte déjà d'autres actions, Dependabot PR #47) ; le déclencheur `push` n'avait pas de `branches` et partait donc aussi sur les branches Dependabot — il est borné à `main` + ses trois `paths`.

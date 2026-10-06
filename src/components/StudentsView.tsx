@@ -213,14 +213,16 @@ export function StudentsView() {
                           )}
                           {/* La suppression est réservée aux administrateurs par la
                               policy « Admin delete students » : le bouton n'existe pas
-                              pour les autres rôles, au lieu d'échouer après le clic. */}
+                              pour les autres rôles, au lieu d'échouer après le clic.
+                              Le libellé accompagne l'icône : une corbeille seule se
+                              lit comme un ornement. */}
                           {canDelete && (
                             <button
                               onClick={() => setConfirmDeleteStudent(student)}
-                              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all"
+                              className="px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded-xl text-2xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap"
                               title={t.deleteStudent}
                             >
-                              <Trash2 size={18} />
+                              <Trash2 size={16} /> {t.deleteStudent}
                             </button>
                           )}
                         </td>

@@ -131,6 +131,23 @@ describe('StudentDetailsModal — supprimer un paiement saisi par erreur', () =>
     }
   });
 
+  it('la corbeille porte le LIBELLÉ de l’action, pas seulement l’icône', () => {
+    // Une icône seule se lit comme un ornement : le libellé rend l’action
+    // visible. L’icône reste là — c’est le couple icône + texte qui est voulu.
+    const h = mount({ canDeletePayment: true, result: true });
+    try {
+      const trigger = h.trigger();
+      assert.ok(trigger, 'la corbeille est offerte quand le rôle peut supprimer');
+      assert.ok(
+        (trigger.textContent ?? '').includes(t.deletePayment),
+        'le libellé de l’action est écrit à côté de l’icône',
+      );
+      assert.ok(trigger.querySelector('svg'), 'l’icône corbeille reste présente');
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it('sans droit de suppression : aucune corbeille, donc aucun appel possible', () => {
     const h = mount({ canDeletePayment: false, result: true });
     try {

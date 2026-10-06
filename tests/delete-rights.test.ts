@@ -28,13 +28,14 @@ import { translations } from '../src/i18n/translations';
 import { StudentsView } from '../src/components/StudentsView';
 import { ParentsView } from '../src/components/ParentsView';
 import { PayrollView } from '../src/components/PayrollView';
+import { ExpensesView } from '../src/components/ExpensesView';
 import {
   ADMIN_ONLY_DELETE_TABLES,
   ADMIN_ROLES,
   canDeleteRecords,
   isAdminRole,
 } from '../src/lib/deleteRights';
-import type { Parent, Staff, Student } from '../src/lib/domainTypes';
+import type { Expense, Parent, Staff, Student } from '../src/lib/domainTypes';
 
 const ROOT = join(import.meta.dirname, '..');
 const RLS_MIGRATION = join(ROOT, 'supabase', 'migrations', '20260809000000_auth_and_rls.sql');
@@ -197,33 +198,70 @@ const MEMBER: Staff = {
   emergencyContact: '',
 };
 
-/** Les trois vues qui portent une suppression réservée aux administrateurs. */
-const SURFACES = [
+/** Une dépense réelle, pour que la ligne — et sa pastille — soient rendues. */
+const SPEND: Expense = {
+  id: 'e1',
+  category: 'Supplies',
+  description: 'Fournitures',
+  amount: 5000,
+  date: '2026-09-15',
+};
+
+/** Ce qu’une surface doit prouver : le bouton là où la base accepte, absent sinon. */
+type DeleteSurface = {
+  what: string;
+  render: (canDelete: boolean) => string;
+  title: string;
+  /** Le libellé écrit à côté de l’icône, quand la vue en porte un. */
+  label?: string;
+  showsRow: string;
+};
+
+/** Les vues qui portent une suppression réservée aux administrateurs. */
+const SURFACES: DeleteSurface[] = [
   {
     what: 'élèves',
-    render: (canDelete: boolean) =>
+    render: (canDelete) =>
       // `StudentsView` lit `filteredStudents` (la vue ne filtre pas elle-même) :
       // peupler `students` ne montrerait aucune ligne, donc ne mesurerait rien.
       renderWithContext(createElement(StudentsView), { filteredStudents: [PUPIL], canDelete }),
     title: translations.en.deleteStudent,
+    label: translations.en.deleteStudent,
     showsRow: 'Awa Kanté',
   },
   {
+    what: 'dépenses',
+    // Le tableau « général » n'apparaît que sur son ONGLET, et la ligne qu'avec le
+    // filtre de catégorie ouvert (`''` n'est pas `'all'`, et masquerait la ligne).
+    render: (canDelete) =>
+      renderWithContext(createElement(ExpensesView), {
+        expenses: [SPEND],
+        canDelete,
+        vendorExpensesTab: 'general',
+        generalExpenseCategoryFilter: 'all',
+      }),
+    title: translations.en.deleteExpense,
+    label: translations.en.deleteExpense,
+    showsRow: 'Fournitures',
+  },
+  {
     what: 'parents',
-    render: (canDelete: boolean) =>
+    render: (canDelete) =>
       renderWithContext(createElement(ParentsView), { parents: [GUARDIAN], canDelete }),
     title: translations.en.deleteParent,
+    label: translations.en.deleteParent,
     showsRow: 'Moussa Kanté',
   },
   {
     what: 'personnel',
-    render: (canDelete: boolean) =>
+    render: (canDelete) =>
       renderWithContext(createElement(PayrollView), {
         staff: [MEMBER],
         filteredStaff: [MEMBER],
         canDelete,
       }),
     title: translations.en.deleteStaffMember,
+    label: translations.en.deleteStaffMember,
     showsRow: 'Mariam Coulibaly',
   },
 ];
@@ -239,6 +277,17 @@ describe('l’action de suppression n’existe pas pour un rôle que la base ref
         allowed.includes(`title="${surface.title}"`),
         `l’administrateur doit voir l’action de suppression (${surface.title})`,
       );
+      if (surface.label) {
+        // Le libellé doit être écrit EN TEXTE à côté de l’icône — pas seulement
+        // dans l’attribut `title`, qui porte le même mot. Compter les occurrences
+        // distingue les deux : l’attribut en donne une, le texte en ajoute une.
+        const enTexte = allowed.split(surface.label).length - 1;
+        const enTitre = allowed.split(`title="${surface.title}"`).length - 1;
+        assert.ok(
+          enTexte > enTitre,
+          `le libellé « ${surface.label} » doit accompagner l’icône, pas une icône seule`,
+        );
+      }
       assert.ok(refused.includes(surface.showsRow), 'la ligne reste rendue pour les autres rôles');
       assert.equal(
         refused.includes(`title="${surface.title}"`),

@@ -287,14 +287,17 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                                   <Receipt size={12} /> {t.receipt2}
                                 </button>
                                 {/* « Payment deleters delete payments » : pas de rôle
-                                    (admin, dev ou econome), pas de bouton. */}
+                                    (admin, dev ou econome), pas de bouton. Le libellé
+                                    accompagne l'icône — une corbeille seule se lit comme
+                                    un ornement — et la pastille reprend la forme du bouton
+                                    « Reçu » voisin. */}
                                 {canDeletePayment && p.id && (
                                   <button
                                     onClick={() => setPendingDeletePaymentId(p.id ?? null)}
-                                    className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-all"
+                                    className="px-2 py-1 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded text-2xs font-bold transition-all flex items-center gap-1"
                                     title={t.deletePayment}
                                   >
-                                    <Trash2 size={12} />
+                                    <Trash2 size={12} /> {t.deletePayment}
                                   </button>
                                 )}
                               </div>

@@ -453,14 +453,16 @@ export function PayrollView() {
                           <Download size={16} />
                         </button>
                         {/* « Admin delete staff » : le bouton n'existe que pour les
-                            rôles que la base accepte pour une suppression. */}
+                            rôles que la base accepte pour une suppression. Le
+                            libellé accompagne l'icône — une corbeille seule se lit
+                            comme un ornement. */}
                         {canDelete && (
                           <button
                             onClick={() => setConfirmDeleteStaff(s)}
-                            className={`p-2 rounded-xl border ${paidThisMonth > 0 || payDatePassed ? 'border-white/30 text-white hover:bg-rose-500/30' : 'border-rose-100 text-rose-500 hover:bg-rose-50'} text-xs font-bold transition-all`}
+                            className={`px-3 py-2 rounded-xl border flex items-center gap-1.5 whitespace-nowrap ${paidThisMonth > 0 || payDatePassed ? 'border-white/30 text-white hover:bg-rose-500/30' : 'border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/60'} text-2xs font-bold transition-all`}
                             title={t.deleteStaffMember}
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={16} /> {t.deleteStaffMember}
                           </button>
                         )}
                       </div>
