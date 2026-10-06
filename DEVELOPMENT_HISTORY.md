@@ -1,3 +1,29 @@
+## [2026-10-06] La chaîne `stylelint → braces` quitte l'arbre dev — la base d'audit passe de 15 à 8, sans downgrade
+
+Demande du propriétaire : « élimine la chaîne stylelint→braces de l'arbre dev pour ramener la base d'audit au plus près de zéro, sans downgrade ».
+
+**La mesure d'abord — elle ferme la porte à toute autre issue.** `npm view braces dist-tags` → `latest: 3.0.3` ; l'avis GHSA-vfj7-8cjw-p6xm couvre `braces <= 3.0.3` et sa liste de versions corrigées est **VIDE** (« patched: none »). Un `overrides` ne peut pas viser une version qui n'existe pas, et le seul « correctif » que npm propose est un **DOWNGRADE** vers stylelint 7.7.0 — qui casserait le gate CSS (plugins `stylelint-order`/`stylelint-scss` incompatibles). Le chemin était pourtant UNIQUE et **entièrement à jour** : `stylelint@17.16.0` (= `latest`) → `micromatch@4.0.8` (= latest) → `braces@3.0.3` (= latest), avec `fast-glob@3.3.3` et `globby@16.2.4` également en dernière version. Aucun bump n'était disponible : restait à DÉPLACER l'outil hors du gate.
+
+**Le remède existait déjà dans le dépôt : l'isolement.** Le CLI Vercel avait réglé le même problème en déménageant ses épingles dev-only dans un manifeste isolé `tools/`, hors du lockfile racine — la base était retombée à zéro. Choix retenu (avec le propriétaire) : un manifeste **dédié** `tools/csslint/`, plutôt qu'un épinglage local dans le lockfile racine.
+
+**Ce qui a été écrit.**
+- `tools/csslint/package.json` (+ son lockfile) — manifeste PRIVÉ portant `stylelint ^17.15.0`, `stylelint-order ^8.1.1`, `stylelint-scss ^7.2.0`. Installé par `npm run tools:csslint:install` (`npm ci --prefix tools/csslint`) ; son `node_modules/` reste ignoré par git.
+- `scripts/lib/stylelint-tools.mjs` — la partie PURE : l'entrée est lue dans le `bin` **DÉCLARÉ** du paquet isolé (jamais un chemin recopié, jamais un repli sur le `node_modules` racine), et `--config-basedir` est ajouté pour que les DEUX plugins du config se résolvent depuis l'arbre isolé. Chaque branche d'échec (arbre absent, manifeste illisible, `bin` manquant ou malformé, entrée déclarée mais absente du disque) rend `null` — jamais une supposition.
+- `scripts/stylelint-tools.mjs` — le maillon « réseau » de `lint:chain` : il **PRÉSERVE** le code de sortie de stylelint, et un arbre absent est un ÉCHEC NOMMÉ (exit 2, dossier manquant **et** remède `npm run tools:csslint:install`) — jamais un saut silencieux du CSS.
+- `package.json` — le maillon `stylelint "src/**/*.css"` devient `node scripts/stylelint-tools.mjs "src/**/*.css"` ; `stylelint`, `stylelint-order` et `stylelint-scss` sortent des devDependencies racine ; `tools:csslint:install` est déclaré (c'est le nom que la CI appelle — `check-ci-commands` interdit d'en recopier la commande).
+- `scripts/check-audit.mjs` — `DEV_BASELINE` 15 → **8**, avec la section « Pourquoi 8, et où est passée la chaîne `braces` ».
+- `scripts/report-tools-audit.mjs` — l'audit warning-only couvre désormais les **deux** arbres isolés (`tools/` et `tools/csslint/`), une ligne chacun, table de synthèse, exit 0 toujours.
+
+**Mesure.** Arbre racine : **15 → 8**, dont **ZÉRO `high`** (les 8 restantes sont `moderate` — la chaîne d'outillage `electron-builder`, dev-only, jamais embarquée). Arbre isolé `tools/csslint/` : **7 `high`** (`braces`, `micromatch`, `fast-glob`, `globby`, `stylelint`, `stylelint-order`, `stylelint-scss`) — **VISIBLES à chaque push**, en avertissement seul, jamais masqués : `braces@3.0.3` n'est pas corrigé, il est déplacé hors du gate qui ne protège que l'application. `node scripts/check-audit.mjs` → exit 0, `Total audit count 8 within baseline 8 (high:0)`.
+
+**Le gate CSS, lui, n'a pas bougé d'un pouce — et c'est prouvé.** Même version de stylelint (17.16.0), même `stylelint.config.js`, mêmes règles. Une sonde passée par **stdin** sous un nom virtuel `src/probe.css` rend les DEUX règles attendues : `declaration-no-important` **et** `order/properties-alphabetical-order` — la seconde venant d'un PLUGIN, elle prouve du même coup la résolution depuis l'arbre isolé. Un CSS propre sort 0.
+
+**CI.** Le job `quality` de `perf-guard.yml` installe l'arbre isolé (`npm run tools:csslint:install`) juste après `npm ci` : sans lui, `npm run lint` s'arrête sur l'échec nommé — jamais sur un CSS sauté.
+
+**Verrouillé par les tests.** Nouveau `tests/stylelint-tools.test.ts` (**14 cas**) : les branches d'échec nommées une à une, l'`argv` avec `--config-basedir`, un arbre fabriqué **et** le dépôt réel (l'entrée résolue vit bien dans `tools/csslint/node_modules/stylelint`, et il n'y a PLUS de `node_modules/stylelint` racine), le remède qui existe pour de vrai comme script npm, plus le maillon CLI exécuté sur un CSS fautif (échec, règle ET plugin nommés) et sur un CSS propre (0). `tests/chain-links.test.ts` et `tests/lint-chain-speed.test.ts` suivent le nouveau maillon (`stylelint-tools.mjs`, source locale, cache intact sous `node_modules/`).
+
+**Mesure des suites.** `npm run lint` exit 0 ; `npm test` **2405/2405**, 0 échec (+14 cas) ; `check-ci-commands` 18 workflows, 204 commandes, 0 recopie.
+
 ## [2026-10-06] 1.0.24 — monter la version est le seul geste humain, la publication suit le gate
 
 Le canal de mise à jour n'a plus de clic : `desktop-release.yml` part à la fin **verte** de « Quality & performance guard » sur `main`, demande à `check:release:needed` s'il y a quelque chose à publier, puis enchaîne dans UN SEUL release — build, signature (si `SIGNING_ENABLED`), téléversement en brouillon, consolidation des brouillons, promotion, relecture du canal. Le seul geste humain qui reste est de **monter la version**, c'est-à-dire ce commit.

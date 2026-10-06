@@ -69,6 +69,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Le linter CSS vit dans un arbre ISOLÉ (`tools/csslint/`, hors lockfile
+      # racine : son `micromatch → braces@3.0.3` n’a aucun correctif amont). Sa
+      # place est en DEHORS du lockfile ; sa PRÉSENCE ici est obligatoire — sans
+      # cet arbre, `npm run lint` s’arrête sur un échec NOMMÉ (exit 2) avec le
+      # remède, il ne saute JAMAIS le CSS en silence. La commande est nommée
+      # dans package.json (`tools:csslint:install`) — une copie en CI
+      # divergerait, c’est exactement ce que refuse check-ci-commands.
+      - name: Install isolated CSS linter (tools/csslint/, outside the root lockfile)
+        run: npm run tools:csslint:install
+
       # UNE commande : exactement celle du hook pre-commit. Elle commence par le
       # gate de version Node (donc la parité .nvmrc/engines/runtime est prouvée
       # ici aussi) et enchaîne ESLint 0 warning, tsc strict, props/casts, gardes

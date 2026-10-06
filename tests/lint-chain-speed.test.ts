@@ -8,7 +8,7 @@
 //   link          cold      warm (caches present)
 //   lint:tsc      33,4 s    7,8 s
 //   lint:eslint     7,4 s   2,0 s
-//   lint:stylelint  1,1 s   1,1 s
+//   lint:css        1,1 s   1,1 s   (stylelint, depuis l’arbre isolé)
 //   lint (total)   46,6 s  15,4 s
 //
 // `tsc --noEmit` re-typechecked the world on every commit; `eslint .` re-linted
@@ -19,7 +19,8 @@
 //
 //   tsc    --incremental --tsBuildInfoFile node_modules/tsconfig.tsbuildinfo
 //   eslint --cache --cache-location node_modules/.eslintcache
-//   stylelint --cache --cache-location node_modules/.stylelintcache
+//   css    --cache --cache-location node_modules/.stylelintcache
+//          (via `scripts/stylelint-tools.mjs`, qui résout le stylelint isolé)
 //
 // The flags are cheap to delete and expensive to lose silently — a future edit
 // that drops them restores a 45 s chain and NOTHING else would say so. Hence
@@ -86,8 +87,8 @@ describe('lint:chain — ce qu’on rejoue sans rien revérifier', () => {
       'eslint doit garder son cache sous node_modules',
     );
     assert.ok(
-      hasFlagValue(argsOf('stylelint'), '--cache-location', 'node_modules/.stylelintcache'),
-      'stylelint doit garder son cache sous node_modules',
+      hasFlagValue(argsOf('stylelint-tools.mjs'), '--cache-location', 'node_modules/.stylelintcache'),
+      'le maillon CSS isolé doit garder son cache sous node_modules',
     );
   });
 
@@ -104,7 +105,7 @@ describe('lint:chain — ce qu’on rejoue sans rien revérifier', () => {
     // a lint run dirties the tree and the hook's skip can no longer fire.
     for (const [label, flag] of [
       ['eslint', '--cache-location'],
-      ['stylelint', '--cache-location'],
+      ['stylelint-tools.mjs', '--cache-location'],
       ['tsc', '--tsBuildInfoFile'],
     ] as const) {
       const args = argsOf(label);
