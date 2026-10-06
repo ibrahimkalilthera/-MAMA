@@ -12,7 +12,7 @@ import { MainViewsContext } from '../src/app/mainViewsContext';
 import { AuditView } from '../src/components/AuditView';
 import { translations } from '../src/i18n/translations';
 import type { AuditLogEntry } from '../src/lib/auditLogger';
-import { archivedPaymentFrom, paymentUndoMetadata } from '../src/lib/paymentUndo';
+import { archivedPaymentFrom, paymentSnapshotMetadata } from '../src/lib/paymentUndo';
 import type { Payment } from '../src/lib/domainTypes';
 import { installDomGlobals } from './harness';
 import { makeProps } from './views-harness';
@@ -105,7 +105,7 @@ describe('AuditView — restaurer un paiement supprimé', () => {
     id: 'l1', action: 'DELETE_PAYMENT', userRole: 'admin', userName: 'Admin', createdAt: '2026-10-05T10:00:00Z',
     details: 'Paiement de 25000 FCFA (reçu REC-1) du 2026-10-01 supprimé — élève Ali Diallo',
     targetId: 'pay1',
-    metadata: paymentUndoMetadata(archivedPaymentFrom('st1', 'Ali Diallo', payment)),
+    metadata: paymentSnapshotMetadata(archivedPaymentFrom('st1', 'Ali Diallo', payment)),
   };
 
   const restoreButton = (container: HTMLElement) =>

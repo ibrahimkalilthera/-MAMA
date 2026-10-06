@@ -9,6 +9,7 @@
  */
 import {
   ShieldCheck,
+  History,
   LayoutDashboard,
   Users,
   MessageSquare,
@@ -29,7 +30,7 @@ import type { TranslationDict } from '../i18n/translations';
 import type { User } from '../app/types';
 import type { CurrentTheme, PayrollWindowStatus } from '../app/mainViewsProps';
 
-export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit';
+export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit' | 'paymentHistory';
 
 export interface SidebarProps {
   t: TranslationDict;
@@ -159,6 +160,20 @@ export function Sidebar(props: SidebarProps) {
             >
               <ShieldCheck size={20} />
               <span className="font-semibold text-sm">{t.auditTrail}</span>
+            </button>
+
+            {/* L'historique des paiements se lit DANS le journal (c'est le seul
+                endroit qui nomme l'encaisseur) : il vit donc ici, à côté de lui,
+                et ouvre la même lecture (`fetchAuditLogs`). */}
+            <button
+              onClick={() => {
+                setActiveTab('paymentHistory');
+                fetchAuditLogs();
+              }}
+              className={navBtn('paymentHistory')}
+            >
+              <History size={20} />
+              <span className="font-semibold text-sm">{t.paymentHistory}</span>
             </button>
 
             <button onClick={() => setActiveTab('settings')} className={navBtn('settings')}>

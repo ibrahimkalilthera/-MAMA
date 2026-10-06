@@ -278,7 +278,7 @@ export interface MainViewsProps {
   Wifi: LucideIcon;
   X: LucideIcon;
   Zap: LucideIcon;
-  activeTab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit';
+  activeTab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit' | 'paymentHistory';
   auditLogs: AuditLogEntry[];
   auth: AuthState;
   availableClasses: ManagedClass[];
@@ -308,6 +308,14 @@ export interface MainViewsProps {
    */
   restorePayment: (archived: ArchivedPayment) => Promise<boolean>;
   filteredStaff: Staff[];
+  /**
+   * L'annuaire COMPLET des élèves. `filteredStudents` est la liste de l'onglet
+   * Élèves, filtrée par la recherche et la classe : elle est parfaite pour CET
+   * onglet, impropre pour NOMMER un élève ailleurs — une recherche active y
+   * ferait disparaître des noms, et une ligne du journal se lirait « élève
+   * inconnu » alors qu'il est bien dans l'école.
+   */
+  students: Student[];
   filteredStudents: Student[];
   formatCurrency: (amount: number) => string;
   formatDate: (dateStr: string) => string;

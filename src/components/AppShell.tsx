@@ -54,7 +54,7 @@ const MainViews = lazy(() => import('./MainViews').then(m => ({ default: m.MainV
 
 export type ActiveTab =
   | 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses'
-  | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit';
+  | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit' | 'paymentHistory';
 
 type ConfirmAction = { title: string; message: string; confirmLabel: string; onConfirm: () => void };
 
@@ -332,7 +332,7 @@ onOpenSettings={() => setActiveTab('settings')}
 
         <LockedYearBanner t={t} show={lockedYears.includes(selectedYear)} />
 
-        {/* --- Views (dashboard, students, parents, payroll, expenses, calendar, notes, audit, settings) --- */}
+        {/* --- Views (dashboard, students, parents, payroll, expenses, calendar, notes, audit, paymentHistory, settings) --- */}
         <ErrorBoundary currentTheme={currentTheme} label="la vue">
           <Suspense fallback={<ViewSkeleton card={currentTheme.card} border={currentTheme.border} />}>
             <MainViews {...viewsProps} />

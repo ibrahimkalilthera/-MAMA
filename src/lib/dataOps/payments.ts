@@ -8,7 +8,7 @@ import type { Payment, SalaryPayment, Student } from '../domainTypes';
 import { mapSalaryPaymentRow, createRowId } from '../rowMappers';
 import { rowIdColumn } from '../offlineReplay';
 import { enqueueOfflineAction } from '../offlineQueue';
-import { archivedPaymentFrom, paymentUndoMetadata } from '../paymentUndo';
+import { archivedPaymentFrom, paymentSnapshotMetadata } from '../paymentUndo';
 import type { ArchivedPayment } from '../paymentUndo';
 import { logAuditEvent } from '../auditLogger';
 
@@ -93,6 +93,15 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         // les entrées écrites avant le 2026-09-13 sont traduites à l'AFFICHAGE
         // (`src/lib/auditDisplay.ts`), jamais réécrites en base.
         details: `Paiement de ${payment.amount} FCFA (reçu ${payment.receiptNumber || 'N/A'})`,
+        // L'instantané STRUCTURÉ du geste — la même forme qu'à la suppression et
+        // à la restauration. C'est lui, et rien d'autre, qui donne à l'Historique
+        // des paiements un montant CHIFFRÉ et un élève lié : découper le montant
+        // dans la phrase ci-dessus ferait lire de la prose comme des données.
+        metadata: paymentSnapshotMetadata(archivedPaymentFrom(
+          studentId,
+          students.find(s => s.id === studentId)?.name,
+          paymentWithId,
+        )),
       });
 
       notifySuccess('addPayment');
@@ -207,7 +216,7 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
       details: `Paiement de ${payment.amount} FCFA (reçu ${payment.receiptNumber || 'N/A'}) du ${payment.date} supprimé — élève ${studentName}`,
       // L'instantané qui rend le geste ANNULABLE : la ligne entière, de quoi la
       // réinsérer à l'identique (voir `restorePayment`).
-      metadata: paymentUndoMetadata(archivedPaymentFrom(studentId, studentName, payment)),
+      metadata: paymentSnapshotMetadata(archivedPaymentFrom(studentId, studentName, payment)),
     });
 
     notifySuccess('deletePayment');
@@ -289,7 +298,7 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
       targetType: 'payment',
       targetId: archived.paymentId,
       details: `Paiement de ${archived.amount} FCFA (reçu ${archived.receiptNumber || 'N/A'}) du ${archived.date} restauré — élève ${studentName}`,
-      metadata: paymentUndoMetadata(archived),
+      metadata: paymentSnapshotMetadata(archived),
     });
 
     notifySuccess('restorePayment');

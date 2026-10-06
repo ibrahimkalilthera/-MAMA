@@ -25,7 +25,8 @@ export type MainTab =
   | 'calendar'
   | 'notes'
   | 'archives'
-  | 'audit';
+  | 'audit'
+  | 'paymentHistory';
 
 interface AuthWelcomeDeps {
   t: TranslationDict;
@@ -95,10 +96,13 @@ export function useAuthWelcome(deps: AuthWelcomeDeps) {
     // exhaustive-deps since it arrives as a prop here, not from a local useState.
   }, [authProfile, hasShownWelcome, authIsAdmin, fetchAllProfiles, t.welcomeBackName, setActiveTab]);
 
-  // Safety net: keep admin-only tabs (System Settings / Audit Trail) out of reach
-  // for non-admin, non-dev accounts
+  // Safety net: keep admin-only tabs (System Settings / Audit Trail / Payment
+  // History) out of reach for non-admin, non-dev accounts. L'historique des
+  // paiements est du même lot : il LIT `audit_logs`, dont la policy RLS ne
+  // laisse lire que `admin`/`dev` — un autre rôle n'y verrait rien, et un écran
+  // vide se lirait « l'école n'a rien encaissé ».
   useEffect(() => {
-    if (!auth.isAdmin && (activeTab === 'settings' || activeTab === 'audit')) {
+    if (!auth.isAdmin && (activeTab === 'settings' || activeTab === 'audit' || activeTab === 'paymentHistory')) {
       setActiveTab('dashboard');
     }
   }, [activeTab, auth.isAdmin, setActiveTab]);

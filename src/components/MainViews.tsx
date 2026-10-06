@@ -21,6 +21,7 @@ const ExpensesView = lazy(() => import('./ExpensesView').then(m => ({ default: m
 const CalendarView = lazy(() => import('./CalendarView').then(m => ({ default: m.CalendarView })));
 const NotesView = lazy(() => import('./NotesView').then(m => ({ default: m.NotesView })));
 const AuditView = lazy(() => import('./AuditView').then(m => ({ default: m.AuditView })));
+const PaymentHistoryView = lazy(() => import('./PaymentHistoryView').then(m => ({ default: m.PaymentHistoryView })));
 const SettingsView = lazy(() => import('./SettingsView').then(m => ({ default: m.SettingsView })));
 
 export function MainViews(props: MainViewsProps) {
@@ -44,6 +45,7 @@ export function MainViews(props: MainViewsProps) {
         {activeTab === 'calendar' && <CalendarView />}
         {activeTab === 'notes' && <NotesView />}
         {activeTab === 'audit' && <AuditView />}
+        {activeTab === 'paymentHistory' && <PaymentHistoryView />}
         {activeTab === 'settings' && <SettingsView />}
       </Suspense>
     </MainViewsContext.Provider>
