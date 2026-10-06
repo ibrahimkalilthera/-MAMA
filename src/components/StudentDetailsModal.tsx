@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { Calendar, Copy, FileText, Printer, Receipt, StickyNote, Trash2, Users, X } from 'lucide-react';
+import { AlertTriangle, Calendar, Copy, FileText, Printer, Receipt, StickyNote, Trash2, Users, X } from 'lucide-react';
 import type { Student, Payment } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
@@ -54,6 +54,19 @@ export interface StudentDetailsModalProps {
    * `canDeletePayment` est vrai.
    */
   onDeletePayment: (studentId: string, payment: Payment) => Promise<boolean>;
+  /**
+   * Combien de fiches partagent le NOM et la CLASSE de cet élève, cette fiche
+   * comprise (voir `src/lib/duplicateStudents.ts` — le critère du contrôle de
+   * clôture). Au-delà de 1, la fiche ouvre sur un avertissement : c'est ici que
+   * l'école voit qu'elle doit trancher. Absent = pas de signal.
+   */
+  duplicateGroupSize?: number;
+  /**
+   * Ouvre la comparaison côte à côte des fiches homonymes (même nom + même
+   * classe). Absent = pas de bouton : une fiche appelée hors de l'app (tests,
+   * impression) n'affiche pas un geste qui ne mène nulle part.
+   */
+  onReviewDuplicates?: (student: Student) => void;
 }
 
 export function StudentDetailsModal(props: StudentDetailsModalProps) {
@@ -62,6 +75,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
     getGradeDisplay, generatePaymentReceiptPdf, currentUser, copyToClipboard,
     handleSaveNote, studentDetailTab, setStudentDetailTab, overlayRef,
     onClose, onEdit, onPrint, onDeleteRequest, canDelete, canDeletePayment, onDeletePayment,
+    duplicateGroupSize, onReviewDuplicates,
   } = props;
   // Notes ⇄ Calendar bridge: optional date picked next to the sticky note.
   const [noteDateInput, setNoteDateInput] = useState('');
@@ -158,6 +172,32 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               </div>
             </div>
           </div>
+
+          {/* Un groupe (nom + classe) de plus d'une fiche : la fiche OUVERTE dit
+              ce que le registre montre, à l'endroit exact où l'école tranche.
+              Le nombre est celui des fiches du groupe, cette fiche comprise. */}
+          {duplicateGroupSize !== undefined && duplicateGroupSize > 1 && (
+            <div className="flex items-start gap-3 p-4 rounded-2xl border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30">
+              <AlertTriangle size={18} className="flex-shrink-0 text-amber-600 dark:text-amber-300 mt-0.5" />
+              <div className="flex-1 min-w-0 space-y-2">
+                <p className="text-xs font-bold text-amber-800 dark:text-amber-200">
+                  {t.duplicateStudentWarning.replace('{n}', String(duplicateGroupSize))}
+                </p>
+                {/* La phrase dit qu'il y a un problème ; ce bouton mène à
+                    l'écran qui permet de le régler, sans repasser par le
+                    registre pour retrouver l'autre fiche. */}
+                {onReviewDuplicates && (
+                  <button
+                    onClick={() => onReviewDuplicates(selectedStudent)}
+                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-2xs font-black transition-all inline-flex items-center gap-1.5"
+                  >
+                    <Copy size={12} className="flex-shrink-0" />
+                    {t.duplicateReviewOpen}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* --- Custom Tab Bar --- */}
           <div className="flex border-b border-slate-100 no-print gap-2">

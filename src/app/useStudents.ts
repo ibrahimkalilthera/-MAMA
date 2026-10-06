@@ -132,6 +132,18 @@ export function useStudents(deps: UseStudentsDeps) {
 
   // State for active tab in student detailed viewer
   const [studentDetailTab, setStudentDetailTab] = useState<'general' | 'parent' | 'medical'>('general');
+
+  /**
+   * La fiche dont on compare les homonymes — l'outil `DuplicateReviewModal`.
+   *
+   * On garde la FICHE, jamais le groupe : le groupe « même nom + même classe »
+   * est recalculé à l'affichage depuis l'annuaire (voir `duplicateStudents.ts`),
+   * donc une fusion ou une suppression ne laisse pas l'écran pointer sur des
+   * fiches qui n'existent plus, et une fiche éditée pendant qu'on compare reste
+   * la fiche réelle.
+   */
+  const [reviewStudent, setReviewStudent] = useState<Student | null>(null);
+  const openDuplicateReview = (student: Student) => setReviewStudent(student);
   // State for triggering A4 student file printout
   const [printStudentFile, setPrintStudentFile] = useState<Student | null>(null);
 
@@ -343,6 +355,8 @@ export function useStudents(deps: UseStudentsDeps) {
     studentForm, setStudentForm,
     studentDetailTab, setStudentDetailTab,
     printStudentFile, setPrintStudentFile,
+    reviewStudent, setReviewStudent,
+    openDuplicateReview,
     filteredStudents,
     handleStudentSubmit,
     openEditModal,

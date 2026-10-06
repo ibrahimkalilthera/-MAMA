@@ -280,6 +280,7 @@ export const fr = {
     auditActionAddStudent: "Élève ajouté",
     auditActionAddVendorExpense: "Dépense fournisseur ajoutée",
     auditActionBatchImport: "Import Excel",
+    auditActionMergeStudent: "Fiches fusionnées",
     auditActionDeleteExpense: "Dépense supprimée",
     auditActionDeleteParent: "Parent supprimé",
     auditActionDeletePayment: "Paiement supprimé",

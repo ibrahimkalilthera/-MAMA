@@ -55,6 +55,17 @@ export interface AppModalsProps {
   currentUser: { name?: string; role?: string; username?: string } | null;
   deleteStudent: (id: string) => Promise<boolean>;
   /**
+   * Fusionne des fiches homonymes dans celle qui est GARDÉE (l'outil de
+   * comparaison). Les reçus des fiches fusionnées changent de fiche, le solde
+   * s'additionne, leurs notes sont recopiées, puis elles sont supprimées — une
+   * seule entrée de journal (`MERGE_STUDENT`) porte les deux fiches. Demande le
+   * RÉSEAU et rend `true` seulement si TOUT est passé.
+   */
+  mergeStudents: (survivorId: string, mergedIds: string[]) => Promise<boolean>;
+  /** La fiche dont on compare les homonymes, ou `null` (aucune comparaison ouverte). */
+  reviewStudent: Student | null;
+  setReviewStudent: Dispatch<SetStateAction<Student | null>>;
+  /**
    * Supprime UN paiement saisi par erreur (le seul recours était jusqu'ici de
    * supprimer l'élève entier). Ouvert à `admin`, `dev` ET `econome` par la policy
    * « Payment deleters delete payments » — l'écran gate le bouton sur

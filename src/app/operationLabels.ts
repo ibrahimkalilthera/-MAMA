@@ -13,6 +13,7 @@ export const OPERATION_LABELS: Record<string, { en: string; fr: string }> = {
   deleteParent: { en: 'Parent deleted', fr: 'Parent supprimé' },
   addStudent: { en: 'Student added', fr: 'Élève ajouté(e)' },
   updateStudent: { en: 'Student updated', fr: 'Élève mis(e) à jour' },
+  mergeStudents: { en: 'Records merged', fr: 'Fiches fusionnées' },
   deleteStudent: { en: 'Student deleted', fr: 'Élève supprimé(e)' },
   addPayment: { en: 'Payment recorded', fr: 'Paiement enregistré' },
   deletePayment: { en: 'Payment deleted', fr: 'Paiement supprimé' },
