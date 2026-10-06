@@ -1,3 +1,15 @@
+## [2026-10-06] 1.0.27 — l'outil qui tranche les homonymes part, et le numéro est inédit avant d'être poussé
+
+Demande du propriétaire : « Commit et pousse le travail sur les fiches homonymes, puis publie une nouvelle version. »
+
+**Ce que la 1.0.27 emporte, dans un seul commit** (`20e92fc`) : l'outil qui tranche deux fiches du même nom — la comparaison côte à côte où seules les lignes qui diffèrent sont surlignées, la fusion qui rattache les reçus et consolide le grand livre en vérifiant chaque écriture, la suppression par fiche, les deux gestes derrière une confirmation à recopier qui porte le MATRICULE, et la trace au journal (`MERGE_STUDENT` avec son instantané, plus la phrase de `DELETE_STUDENT` réparée pour distinguer deux homonymes). Le signal du registre, dont la pastille est devenue le BOUTON d'entrée de l'outil, n'avait jamais été committé : il part dans le même commit, parce que le signal et l'écran qui le règle sont un même changement — et parce que les deux partagent les mêmes fichiers (`duplicateStudents.ts`, la fiche ouverte, le domaine i18n `students`). **Une seule chose a été mise à jour : le numéro.** Aucune dépendance n'a été touchée — rien ne le demandait, les paquets sont épinglés et Dependabot ouvre déjà les montées — et le contrôle d'audit reste dans la chaîne, dont ce commit est vert.
+
+**Pas de doublon de version.** `git ls-remote --tags origin` ne nomme pas `v1.0.27` (le dernier tag publié est `v1.0.26`), et `check:release:needed` répond `needed=true` — mesuré contre GitHub, pas seulement contre les tags locaux. Le gate refuse de toute façon un numéro déjà taggé : un numéro publié ne peut pas changer de contenu, donc republier n'atteindrait aucun poste.
+
+**Mesuré.** Le commit de travail a passé son propre gate AVANT d'exister : `pre-commit` exécute la chaîne complète (`scripts/hook-quality-chain.mjs`, lint → test → audit → atelier) sur le runtime épinglé, et a rendu **4 étapes vertes — 2588/2588 cas, 538 suites, 0 échec**. `npm run check:release:needed` → `needed=true`. Puis la publication suit le gate, sans clic : `desktop-release.yml` part à la fin verte de « Quality & performance guard » sur `main`.
+
+**Ce que cette version ne prouve pas.** La fusion n'a jamais tourné contre la base : tout le travail en base est resté en LECTURE SEULE, et aucun rendu de l'écran n'a été relu dans un navigateur — l'écran est verrouillé par 7 cas sur un vrai DOM, pas par une capture.
+
 ## [2026-10-06] Trancher deux fiches homonymes : les comparer, puis fusionner ou supprimer
 
 Demande du propriétaire : « Ajoute un outil pour trancher deux fiches homonymes : comparer leurs données côte à côte et fusionner ou supprimer proprement, avec trace au journal d'audit. »
