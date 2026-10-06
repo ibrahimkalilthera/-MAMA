@@ -19,7 +19,7 @@ import type { FormEvent } from 'react';
 import type { Student } from './types';
 import type { StudentForm } from '../components/StudentFormModal';
 import type { TranslationDict } from '../i18n/translations';
-import { isNinthGradeClass, visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { studentMatricule } from '../lib/studentIdentifiers';
 import { localIsoDate, systemClock, type Clock } from '../lib/dateWindows';
 import { createRowId } from '../lib/rowMappers';
 
@@ -149,7 +149,7 @@ export function useStudents(deps: UseStudentsDeps) {
   const filteredStudents = useMemo(() => {
     const normalizedSearch = searchTerm.toLowerCase();
     const list = students.filter(s => {
-      const searchableStudentId = visibleStudentIdentifier(s.grade, s.studentId)?.toLowerCase();
+      const searchableStudentId = studentMatricule(s.studentId)?.toLowerCase();
       return (
         (!selectedYear || s.academicYear === selectedYear || !s.academicYear) &&
         (studentGradeFilter === 'all' || (s.grade && s.grade.toLowerCase() === studentGradeFilter.toLowerCase())) &&
@@ -231,11 +231,12 @@ export function useStudents(deps: UseStudentsDeps) {
       academicYear: studentForm.academicYear || selectedYear,
       parentEmail: studentForm.parentEmail.trim(),
       totalDue: amount,
-      // Matricules are reserved for 9th-year classes. The explicit undefined
-      // is intentional: studentUpdatesToRow turns it into SQL NULL on edits.
-      studentId: isNinthGradeClass(studentForm.grade)
-        ? studentForm.studentId.trim() || undefined
-        : undefined,
+      // Le matricule appartient à la BASE : elle l'attribue à l'insertion
+      // (`MT-<année>-<n°>`). Le formulaire ne transmet donc une valeur que si
+      // l'école en a saisi une (le numéro d'examen des 9e) ; `undefined` laisse
+      // `studentUpdatesToRow` ne PAS toucher à la colonne — le matricule déjà en
+      // place survit à une édition, comme à un changement de classe.
+      studentId: studentForm.studentId.trim() || undefined,
       scholarshipDiscount: canEditScholarship
         ? (parseFloat(studentForm.scholarshipDiscount) || 0)
         : (editingStudent?.scholarshipDiscount || 0),
@@ -287,9 +288,11 @@ export function useStudents(deps: UseStudentsDeps) {
       dueDate: student.dueDate,
       academicYear: student.academicYear || selectedYear,
       grade: student.grade || '',
-      studentId: isNinthGradeClass(student.grade)
-        ? (student.studentId || `MT-2026-${student.id.replace('ST', '')}`)
-        : '',
+      // Le champ n'est proposé qu'aux 9e, mais l'état du formulaire porte
+      // TOUJOURS le matricule réel : sans cela, enregistrer une fiche d'une
+      // autre classe écrirait un matricule vide. Plus aucun matricule inventé
+      // côté client : c'est la base qui numérote.
+      studentId: student.studentId || '',
       photo: student.photo || '',
       emergencyContactName: student.emergencyContactName || '',
       emergencyContactRelation: student.emergencyContactRelation || '',

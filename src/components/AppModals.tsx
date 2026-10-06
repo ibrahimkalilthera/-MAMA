@@ -26,7 +26,6 @@ import { LatePaymentTicketModal } from './LatePaymentTicketModal';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useOverlayTraps } from '../lib/focusStack';
 import { modalTokens } from '../lib/modalTokens';
-import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
 import { AuditReportPrint } from './AuditReportPrint';
 import { StudentFilePrint } from './StudentFilePrint';
 

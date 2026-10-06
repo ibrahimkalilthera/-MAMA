@@ -24,7 +24,7 @@
  */
 import { supabase } from './supabaseClient';
 import { logAuditEvent } from './auditLogger';
-import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
+import { studentMatricule } from './studentIdentifiers';
 import { parentToRow, staffToRow, studentToRow } from './offlineReplay';
 import type { DbInsert } from './database.types';
 import type { Expense, Parent, Payment, Staff, Student } from './domainTypes';
@@ -204,7 +204,7 @@ deps: BatchImportDeps
       const newStudents: Array<Omit<Student, 'id' | 'payments'>> = [];
       const studentUpdates: Array<{ id: string; updates: Partial<Student> }> = [];
       for (const r of records as StudentRec[]) {
-        const importedStudentId = visibleStudentIdentifier(r.grade, r.studentId);
+        const importedStudentId = studentMatricule(r.studentId);
         const existing = (importedStudentId ? byStudentId.get(importedStudentId.toLowerCase()) : undefined)
           || byNameGrade.get(`${String(r.name || '').toLowerCase().trim()}|${String(r.grade || '').toLowerCase().trim()}`);
 
@@ -214,9 +214,9 @@ deps: BatchImportDeps
               id: existing.id,
               updates: {
                 grade: r.grade ?? existing.grade,
-                studentId: isNinthGradeClass(r.grade ?? existing.grade ?? undefined)
-                  ? (visibleStudentIdentifier(r.grade ?? existing.grade ?? undefined, r.studentId ?? existing.studentId) ?? '')
-                  : '',
+                // Le matricule fourni par le tableur est conservé ; sinon celui
+                // de la fiche reste en place (la base ne le régénère pas).
+                studentId: studentMatricule(r.studentId ?? existing.studentId),
                 parentName: r.parentName ?? existing.parentName ?? '',
                 parentPhone: r.parentPhone ?? existing.parentPhone ?? '',
                 parentEmail: r.parentEmail ?? existing.parentEmail ?? '',
@@ -236,7 +236,7 @@ deps: BatchImportDeps
           newStudents.push({
             name: r.name || '',
             grade: r.grade || undefined,
-            studentId: visibleStudentIdentifier(r.grade ?? undefined, r.studentId ?? undefined),
+            studentId: studentMatricule(r.studentId),
             parentName: r.parentName || '',
             parentPhone: r.parentPhone || '',
             parentEmail: r.parentEmail || '',

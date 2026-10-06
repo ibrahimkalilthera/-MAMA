@@ -60,9 +60,17 @@ describe('studentToRow (offline insert)', () => {
     assert.deepEqual(row.note_entries, entries);
   });
 
-  it('drops a matricule from an insert for a non-9th class', () => {
+  it('keeps the matricule of an insert for ANY class — plus un privilège des 9e', () => {
+    // Changement de politique (2026-10-06) : ce cas affirmait `null` pour une 6e.
+    // Un matricule appartient désormais à TOUT élève (la base l'attribue) ;
+    // l'application ne le conditionne plus à la classe.
     const row = studentToRow(student({ grade: '6B', studentId: 'MT-2026-006' }));
-    assert.equal(row.student_id, null);
+    assert.equal(row.student_id, 'MT-2026-006');
+  });
+
+  it('un matricule absent part en NULL — c’est la base qui numérote', () => {
+    const row = studentToRow(student({ grade: '6B', studentId: undefined }));
+    assert.equal(row.student_id, null, 'la colonne reste vide : le déclencheur attribue MT-<année>-<n°>');
   });
 });
 
@@ -93,13 +101,24 @@ describe('studentUpdatesToRow (offline update)', () => {
     assert.equal(row.student_id, 'MT-2026-009');
   });
 
-  it('clears the DB matricule when an update moves a student outside 9th grade', () => {
+  it('ne touche plus au matricule quand une mise à jour change de classe', () => {
+    // Avant : sortir de 9e effaçait le matricule. Il appartient maintenant à
+    // l'élève — changer de classe le laisse en place.
     const row = studentUpdatesToRow({ grade: '8C', studentId: 'MT-2026-008' });
-    assert.equal(row.student_id, null);
+    assert.equal(row.grade, '8C');
+    assert.equal(row.student_id, 'MT-2026-008', 'le matricule est conservé');
   });
 
-  it('clears an old value when a non-9th student is moved into 9th without a new matricule', () => {
+  it('une mise à jour sans matricule ne touche PAS à la colonne', () => {
+    // Avant : entrer en 9e sans nouveau numéro remettait la colonne à NULL, ce qui
+    // effaçait le matricule que la base venait d'attribuer.
     const row = studentUpdatesToRow({ grade: '9A' });
-    assert.equal(row.student_id, null);
+    assert.equal(row.grade, '9A');
+    assert.equal('student_id' in row, false, 'aucune écriture : le matricule en place survit');
+  });
+
+  it('un matricule vidé dans le formulaire n’efface pas celui de la base', () => {
+    const row = studentUpdatesToRow({ studentId: '   ' });
+    assert.equal('student_id' in row, false, 'un identifiant lu par les familles ne s’efface pas par accident');
   });
 });

@@ -17,7 +17,7 @@ import { useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import type { TranslationDict } from '../i18n/translations';
 import type { Language, Parent, Student } from './types';
-import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { studentMatricule } from '../lib/studentIdentifiers';
 import { downloadBytes } from '../lib/browserDownload';
 import { useGestureId } from '../lib/gestureId';
 import { drawSchoolStamp } from '../lib/pdfStamp';
@@ -181,7 +181,7 @@ export function useParents({
         ledger.push({
           receiptNumber: p.receiptNumber || `REC-${child.id}-${idx + 1}`,
           studentName: child.name,
-          studentId: visibleStudentIdentifier(child.grade, child.studentId) || '',
+          studentId: studentMatricule(child.studentId) || '',
           date: p.date,
           amount: p.amount,
           academicYear: p.academicYear
@@ -198,11 +198,14 @@ export function useParents({
     const totalOutstanding = getParentOutstandingBalance(parent);
     const paymentHistory = getParentPaymentHistory(parent);
     const totalPaymentsEver = paymentHistory.reduce((sum, item) => sum + item.amount, 0);
-    const hasNinthGradeChild = children.some(child => Boolean(visibleStudentIdentifier(child.grade, child.studentId)));
-    const studentNameX = hasNinthGradeChild ? 50 : 18;
-    const gradeX = hasNinthGradeChild ? 105 : 75;
-    const totalDueX = hasNinthGradeChild ? 135 : 125;
-    const balanceX = hasNinthGradeChild ? 165 : 160;
+    // La colonne « Matricule » n'est plus réservée aux enfants de 9e : tout
+    // élève en porte un (la base l'attribue). Elle s'affiche donc dès qu'un
+    // matricule existe, et l'absence de colonne ne veut plus dire « pas de 9e ».
+    const hasMatriculeColumn = children.some(child => Boolean(studentMatricule(child.studentId)));
+    const studentNameX = hasMatriculeColumn ? 50 : 18;
+    const gradeX = hasMatriculeColumn ? 105 : 75;
+    const totalDueX = hasMatriculeColumn ? 135 : 125;
+    const balanceX = hasMatriculeColumn ? 165 : 160;
 
     const doc = new jsPDF({
       orientation: 'portrait',
@@ -293,7 +296,7 @@ export function useParents({
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(71, 85, 105);
-    if (hasNinthGradeChild) doc.text(t.studentId, 18, y + 5);
+    if (hasMatriculeColumn) doc.text(t.studentId, 18, y + 5);
     doc.text(t.fullName, studentNameX, y + 5);
     doc.text(t.grade, gradeX, y + 5);
     doc.text(t.totalDue2, totalDueX, y + 5);
@@ -309,8 +312,8 @@ export function useParents({
     } else {
       children.forEach((child) => {
         const remaining = Math.max(0, child.totalDue - child.amountPaid);
-        const studentIdentifier = visibleStudentIdentifier(child.grade, child.studentId);
-        if (hasNinthGradeChild && studentIdentifier) doc.text(studentIdentifier, 18, y + 5);
+        const studentIdentifier = studentMatricule(child.studentId);
+        if (hasMatriculeColumn && studentIdentifier) doc.text(studentIdentifier, 18, y + 5);
         doc.text(child.name.substring(0, 26), studentNameX, y + 5);
         doc.text(child.grade || '-', gradeX, y + 5);
         doc.text(formatPdfAmount(child.totalDue), totalDueX, y + 5);

@@ -5,7 +5,7 @@ import type { Student, Payment } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
-import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { studentMatricule } from '../lib/studentIdentifiers';
 import { ModalShell } from './ModalShell';
 
 /**
@@ -128,9 +128,9 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
             {/* Student Essential Text Details */}
             <div className="flex-1 text-center sm:text-left space-y-2">
               <div>
-                {visibleStudentIdentifier(selectedStudent.grade, selectedStudent.studentId) && (
+                {studentMatricule(selectedStudent.studentId) && (
                   <span className={`text-2xs ${currentTheme.muted} font-black uppercase tracking-widest font-mono`}>
-                    {t.studentId}: {visibleStudentIdentifier(selectedStudent.grade, selectedStudent.studentId)}
+                    {t.studentId}: {studentMatricule(selectedStudent.studentId)}
                   </span>
                 )}
                 <h3 id="modal-title-student-details" className={`text-2xl font-black ${currentTheme.inkStrong} tracking-tight`}>

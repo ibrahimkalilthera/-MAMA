@@ -200,10 +200,13 @@ export function StudentFormModal(props: StudentFormModalProps) {
                     onOpenAddClass();
                   } else {
                     const nextGrade = e.target.value;
+                    // Le matricule N'EST PAS effacé par un changement de classe :
+                    // il appartient à l'élève (la base l'attribue et il ne se
+                    // perd plus). Seule la VISIBILITÉ du champ dépend de la
+                    // classe — c'est le numéro d'examen des 9e.
                     setStudentForm({
                       ...studentForm,
                       grade: nextGrade,
-                      studentId: isNinthGradeClass(nextGrade) ? studentForm.studentId : '',
                     });
                   }
                 }}

@@ -312,16 +312,24 @@ describe('useStudents.handleStudentSubmit', () => {
     }
   });
 
-  it('keeps matricules only for ninth-grade submissions', async () => {
+  it('keeps the matricule of ANY class — ce n’est plus un privilège des 9e', async () => {
+    // Changement de politique (2026-10-06) : ce cas affirmait que le matricule
+    // d'une 6e était ÉCARTÉ. Il appartient désormais à tout élève (la base
+    // l'attribue quand il est vide) : une valeur fournie est donc écrite quelle
+    // que soit la classe, et aucune valeur n'est inventée côté client.
     {
       const { args, spies } = baseDeps({ students: [] });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => {
-          ref.current!.setStudentForm(fullForm({ grade: '6B', studentId: 'NOT-FOR-6B' }) as never);
+          ref.current!.setStudentForm(fullForm({ grade: '6B', studentId: ' MT-2026-006 ' }) as never);
         });
         await act(async () => { await ref.current!.handleStudentSubmit(submitEvent); });
-        assert.equal(spies.addStudentCalls[0]?.studentId, undefined, 'non-9th matricules are discarded');
+        assert.equal(
+          spies.addStudentCalls[0]?.studentId,
+          'MT-2026-006',
+          'un matricule de 6e est conservé et trimé',
+        );
       } finally {
         act(() => root.unmount());
         restoreAlert();
