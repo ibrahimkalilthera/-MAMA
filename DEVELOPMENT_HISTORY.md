@@ -1,3 +1,15 @@
+## [2026-10-06] Le contrôle des reçus en double se déclenche à la clôture de la semaine de caisse
+
+Demande du propriétaire : « ajoute un déclencheur qui exécute le contrôle des reçus en double à la clôture de chaque période de caisse et archive le CSV avec la date ». Deux décisions ont été prises avec lui : le déclencheur vit dans un workflow CI PLANIFIÉ, et « période de caisse » = une semaine ISO (lundi → dimanche), le découpage que l'app donne déjà à son journal d'audit (`src/lib/auditWeek.ts`).
+
+**Le workflow.** `.github/workflows/cash-period-receipts.yml` part chaque **lundi 06:15 UTC** — la semaine vient de se clore — et peut aussi être lancé à la main (`workflow_dispatch`). Il installe `pg` (dépendance d'outillage non déclarée, comme les autres scripts qui lisent la base), exécute `npm run report:duplicate-receipts -- --closing-week`, puis **archive le CSV daté en artefact** (`actions/upload-artifact`, 120 jours). Le rapport reste en LECTURE SEULE : il n'écrit rien en base, et corriger une ligne reste le geste humain tracé au journal d'audit.
+
+**La période, dans le code testé, pas dans le YAML.** `--closing-week` borne le contrôle à la semaine ISO qui vient de se clore, calculée en UTC par `closedWeekBounds`/`isoWeekKey` (`scripts/lib/duplicate-receipts.mjs`) — un calcul de dates recopié dans le YAML pourrait diverger en silence. Le fichier prend par défaut la clé de la période (`rapport-recus-doublons-2026-S40.csv`). Les bords d'année sont verrouillés : la semaine du 29 déc. 2025 est `2026-S1`, celle qui clôt le 3 janv. 2027 est `2026-S53`. Exécuter le script un autre jour de la semaine ne décale pas la fenêtre.
+
+**Jamais un faux vert.** Le script lit la base par connexion directe : il lui faut le secret de dépôt `SUPABASE_DB_PASSWORD`. Sans lui, il est INDÉCIS (exit 2), le dit, et — sous mandat d'automatisation — publie une preuve d'INACTION (`acted:false`) ; il ne prétend jamais avoir regardé. Sous mandat et succès, il publie sa propre mesure via `publishEvidence` (paiements analysés, lignes à vérifier). Le workflow porte l'étape nommée du contrat de preuve d'action, comme tout le reste du dépôt.
+
+**Mesure.** `tests/duplicate-receipts.test.ts` **21/21** (4 cas de semaine ajoutés) ; `tests/automation-evidence.test.ts` **41/41** (le nouveau workflow porte l'étape nommée) ; `check-ci-commands` et `check-gate-sentinels` verts. Exécution réelle : `--closing-week` → « semaine 2026-S40 (2026-09-28 → 2026-10-04) », fichier `rapport-recus-doublons-2026-S40.csv` (BOM + CRLF) ; sans mot de passe → exit 2 ; preuve publiée = `{"workflow":"cash-period-receipts.yml","acted":true,…}`.
+
 ## [2026-10-05] Le contrôle des reçus en double devient un script rejouable, à sortie CSV
 
 Demande du propriétaire : « transforme le contrôle de reçus en double en script réutilisable avec sortie CSV, pour que l'école puisse le relancer après chaque période de caisse ». Le contrôle existait sous forme de rapport À LA MAIN (`RAPPORT_RECUS_DOUBLONS.md`, 2026-10-05) : une requête jetable, un Markdown, rien de rejouable. Or une caisse se relit PAR PÉRIODE — ce qui doit durer, c'est le contrôle, pas le rapport d'un jour.

@@ -248,3 +248,56 @@ export const CRITERIA = [
   `${CONTROL_DUPLICATE} : plusieurs paiements du même élève, le même jour, au même montant`,
   `${CONTROL_RECEIPT} : un même numéro de reçu porté par plusieurs paiements`,
 ];
+
+// ─── La période : la semaine ISO qui vient de se clore ───────────────────────
+// Le déclencheur hebdomadaire (voir .github/workflows/cash-period-receipts.yml)
+// lance le contrôle le lundi : la « période de caisse » qui vient de fermer est
+// la semaine ISO PRÉCÉDENTE, du lundi au dimanche. C'est le découpage que l'app
+// utilise déjà pour son journal d'audit (src/lib/auditWeek.ts) : la même règle,
+// pour que le CSV d'une semaine porte la clé que l'écran affiche.
+//
+// Calcul en UTC — une date de paiement est un jour calendaire, sans fuseau, et
+// le script tourne sur un runner en heure UTC. Passer par l'heure locale ferait
+// glisser la frontière d'un jour selon la machine qui l'exécute.
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Le lundi (minuit UTC) de la semaine ISO qui contient `date`. */
+export function mondayOf(date) {
+  const monday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  return monday;
+}
+
+/**
+ * La clé ISO-8601 d'une semaine, « AAAA-Sn ».
+ *
+ * L'année se lit sur le JEUDI de la semaine — le jour qui décide de l'année ISO
+ * (le lundi 29 déc. 2025 appartient à la semaine 1 de 2026) — et le numéro se
+ * compte depuis le lundi de la semaine 1, celle qui contient le 4 janvier.
+ */
+export function isoWeekKey(date) {
+  const monday = mondayOf(date);
+  const thursday = new Date(monday.getTime() + 3 * DAY_MS);
+  const year = thursday.getUTCFullYear();
+  const week1Monday = mondayOf(new Date(Date.UTC(year, 0, 4)));
+  const week = 1 + Math.round((monday.getTime() - week1Monday.getTime()) / (7 * DAY_MS));
+  return `${year}-S${week}`;
+}
+
+/**
+ * La semaine ISO qui vient de se CLORE, en bornes de dates incluses.
+ *
+ * C'est toujours la semaine PRÉCÉDENTE — `mondayOf(now)` moins sept jours — que
+ * le déclencheur tourne le lundi (le cas normal), un autre jour, ou à cheval sur
+ * un changement d'année : la fenêtre ne dépend jamais du jour d'exécution.
+ *
+ * @param {Date} [now] l'instant de référence
+ * @returns {{ startIso: string, endIso: string, key: string }}
+ */
+export function closedWeekBounds(now = new Date()) {
+  const start = new Date(mondayOf(now).getTime() - 7 * DAY_MS);
+  const end = new Date(start.getTime() + 6 * DAY_MS);
+  const isoDay = (d) => d.toISOString().slice(0, 10);
+  return { startIso: isoDay(start), endIso: isoDay(end), key: isoWeekKey(start) };
+}

@@ -1,0 +1,103 @@
+name: Contrôle des reçus en double (clôture de caisse)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « À chaque clôture de période de caisse, relancer le contrôle des reçus en
+#   double et archiver le CSV daté. »
+#
+# Une période de caisse = une SEMAINE ISO (lundi → dimanche), le même découpage
+# que le journal d'audit hebdomadaire de l'app (src/lib/auditWeek.ts). Le cron
+# part donc le LUNDI matin, quand la semaine vient de se terminer : le contrôle
+# porte sur la semaine close. La logique des bornes n'est PAS écrite dans ce
+# YAML — `npm run report:duplicate-receipts --closing-week` la prend dans
+# scripts/lib/duplicate-receipts.mjs, où tests/duplicate-receipts.test.ts la
+# prouve (y compris les bords d'année). Un calcul de dates recopié ici pourrait
+# diverger en silence ; une seule définition, celle du script.
+#
+# Le rapport est en LECTURE SEULE : il n'écrit rien en base. Le CSV daté part en
+# ARTEFACT du run (rétention), d'où l'école le récupère après chaque période.
+#
+# Le script lit la base par une connexion DIRECTE (pg) : il lui faut le secret de
+# dépôt SUPABASE_DB_PASSWORD (Settings → Secrets and variables → Actions).
+# Sans lui, le contrôle est INDÉCIS (exit 2) et le dit — « je n'ai pas pu
+# regarder » n'est jamais un vert, et l'absence se voit dans le run.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    # Lundi 06:15 UTC — la semaine ISO (lundi→dimanche) vient de se clore, et ce
+    # run précède l'audit des automatisations (06:41) qui juge sa preuve.
+    - cron: '15 6 * * 1'
+
+  workflow_dispatch:
+
+  # Un push qui touche le contrôle lui-même le rejoue sur le vrai runner — la
+  # première fois, le merge qui ajoute ce fichier. Sans ce déclencheur, un cron
+  # neuf resterait sans run jusqu'au lundi suivant, et l'audit des automatisations
+  # le déclarerait « dormant » (un cron qui ne part pas est en panne).
+  push:
+    paths:
+      - 'scripts/report-duplicate-receipts.mjs'
+      - 'scripts/lib/duplicate-receipts.mjs'
+      - '.github/workflows/cash-period-receipts.yml'
+
+concurrency:
+  group: cash-period-receipts
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  receipts:
+    name: Reçus en double de la semaine close
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Comme les autres jobs : installer Node ne prouve pas le majeur exécuté.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # `pg` n'est pas une dépendance déclarée du dépôt (outillage ponctuel, comme
+      # les autres scripts qui lisent la base) : on l'installe sans toucher
+      # package.json. Le script, lui, échoue proprement si le module manque.
+      - name: Installer l'outillage Postgres (pg, non déclaré)
+        run: npm i --no-save pg
+
+      # Le script publie lui-même ce qu'il a MESURÉ (paiements analysés, lignes à
+      # vérifier), sous le mandat de cette étape. Sans mot de passe, il déclare son
+      # inaction puis sort en 2 — l'étape rougit, rien n'est maquillé en vert.
+      - name: Contrôler les reçus de la semaine close
+        env:
+          AUTOMATION_EVIDENCE: '1'
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run report:duplicate-receipts -- --closing-week
+
+      # La date de clôture, portée par le nom de l'artefact (le CSV, lui, porte la
+      # clé ISO de la semaine dans son propre nom de fichier).
+      - name: Date de la clôture
+        id: cloture
+        run: echo "jour=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      # L'archive : le CSV de la période part en artefact, retenu assez longtemps
+      # pour couvrir un trimestre. Absent = erreur, jamais un succès vide.
+      - name: Archiver le CSV de la période
+        uses: actions/upload-artifact@v4
+        with:
+          name: recus-doublons-${{ steps.cloture.outputs.jour }}
+          path: rapport-recus-doublons-*.csv
+          if-no-files-found: error
+          retention-days: 120
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — reçus en double
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "contrôle des reçus en double de la semaine close exécuté ; les chiffres (paiements analysés, lignes à vérifier) sont publiés par scripts/report-duplicate-receipts.mjs"
