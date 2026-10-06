@@ -16,8 +16,10 @@ import {
   DUPLICATE_GROUP_SQL,
   REUSED_RECEIPT_SQL,
   TOTAL_PAYMENTS_SQL,
+  closedWeekBounds,
   csvCell,
   flaggedRows,
+  isoWeekKey,
   summarizeReport,
   toCsv,
 } from '../scripts/lib/duplicate-receipts.mjs';
@@ -160,6 +162,38 @@ describe('la sérialisation CSV', () => {
 
   it('laisse choisir BOM et fin de ligne (comparaison déterministe)', () => {
     assert.equal(toCsv([], { bom: false, eol: '\n' }), `${CSV_COLUMNS.map((c) => `"${c.header}"`).join(',')}\n`);
+  });
+});
+
+// ─── La période de caisse : la semaine ISO qui vient de se clore ─────────────
+// Le déclencheur hebdomadaire s'appuie sur ces bornes : une semaine décalée d’un
+// jour viderait le rapport (paiements hors fenêtre) ou le gonflerait (ceux de la
+// semaine en cours). Les bords d’année sont verrouillés parce que c’est là qu’un
+// calcul naïf se trompe d’année ou de numéro.
+
+describe('la période de caisse (semaine ISO close)', () => {
+  it('rend la semaine ISO PRÉCÉDENTE, du lundi au dimanche', () => {
+    // Lundi 5 oct. 2026 : la semaine close est la 40 (28 sept. → 4 oct.).
+    const week = closedWeekBounds(new Date('2026-10-05T06:00:00Z'));
+    assert.deepEqual(week, { startIso: '2026-09-28', endIso: '2026-10-04', key: '2026-S40' });
+  });
+
+  it('ne dépend pas du jour d’exécution (mercredi et samedi → même fenêtre)', () => {
+    const wednesday = closedWeekBounds(new Date('2026-10-07T12:00:00Z'));
+    const saturday = closedWeekBounds(new Date('2026-10-10T23:30:00Z'));
+    assert.deepEqual(wednesday, saturday, 'le jour du passage ne décale pas la fenêtre');
+    assert.equal(wednesday.key, '2026-S40');
+  });
+
+  it('franchit le nouvel an : la semaine du 29 déc. 2025 est 2026-S1', () => {
+    const week = closedWeekBounds(new Date('2026-01-05T06:00:00Z'));
+    assert.deepEqual(week, { startIso: '2025-12-29', endIso: '2026-01-04', key: '2026-S1' });
+  });
+
+  it('isoWeekKey lit l’année ISO sur le JEUDI, pas sur le jour de la date', () => {
+    assert.equal(isoWeekKey(new Date('2025-12-29T00:00:00Z')), '2026-S1', '29 déc. 2025 → semaine 1 de 2026');
+    assert.equal(isoWeekKey(new Date('2027-01-03T00:00:00Z')), '2026-S53', '3 janv. 2027 → semaine 53 de 2026');
+    assert.equal(isoWeekKey(new Date('2026-09-26T00:00:00Z')), '2026-S39');
   });
 });
 
