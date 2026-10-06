@@ -1,0 +1,11 @@
+{
+  "name": "mama-thera-csslint-tools",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Isolated CSS lint (stylelint + its two plugins). Kept out of the root lockfile because stylelint's last version still ships `micromatch → braces@3.0.3`, and `braces` has NO patched release upstream (`<= 3.0.3`, patched: none) — an `overrides` cannot point at a version that does not exist, and the only 'fix' npm offers is a DOWNGRADE to stylelint 7.7.0. The root gate therefore stays at zero runtime risk and as low as the remaining dev chain allows, while this tree is audited WARNING-ONLY by scripts/report-tools-audit.mjs and stays visible on every push. The CSS gate itself is unchanged: same stylelint version, same ./stylelint.config.js, run by scripts/stylelint-tools.mjs.",
+  "devDependencies": {
+    "stylelint": "^17.15.0",
+    "stylelint-order": "^8.1.1",
+    "stylelint-scss": "^7.2.0"
+  }
+}

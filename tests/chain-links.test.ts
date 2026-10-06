@@ -244,12 +244,11 @@ describe('la chaîne réelle — l’arbre INSTALLÉ, pas un arbre inventé', ()
     }
   });
 
-  it('eslint, tsc, stylelint et vite viennent de leur paquet installé', () => {
+  it('eslint, tsc et vite viennent de leur paquet installé', () => {
     const byLabel = new Map(plans['lint:chain'].links.map((l) => [l.label, l]));
     for (const [label, pkgDir] of [
       ['eslint', 'eslint'],
       ['tsc', 'typescript'],
-      ['stylelint', 'stylelint'],
     ] as const) {
       const link = byLabel.get(label);
       assert.ok(link, `maillon ${label} absent`);
@@ -269,6 +268,31 @@ describe('la chaîne réelle — l’arbre INSTALLÉ, pas un arbre inventé', ()
       vite.entry?.includes(join('node_modules', 'vite')),
       `vite doit pointer dans node_modules/vite : ${vite.entry}`,
     );
+  });
+
+  it('le CSS passe par le maillon ISOLÉ — `stylelint` n’est plus un paquet racine', () => {
+    const byLabel = new Map(plans['lint:chain'].links.map((l) => [l.label, l]));
+    // `braces@3.0.3` (par `stylelint → micromatch`) n’a AUCUN correctif amont :
+    // le linter a donc déménagé dans `tools/csslint/`, hors du lockfile racine,
+    // et la chaîne l’atteint par un SCRIPT LOCAL — jamais par un `bin` de paquet
+    // (qui n’existe plus à la racine) ni par un repli PATH.
+    assert.equal(byLabel.has('stylelint'), false, 'stylelint ne doit plus être un maillon de la chaîne');
+    const link = byLabel.get('stylelint-tools.mjs');
+    assert.ok(link, 'le maillon CSS isolé doit être présent sous son nom de script');
+    assert.equal(link.source, null, 'stylelint-tools.mjs est un script local, pas une entrée `bin`');
+    assert.ok(isAbsolute(link.args[0]), `« ${link.args[0]} » doit être absolu`);
+    assert.ok(
+      link.args[0].includes(join('scripts', 'stylelint-tools.mjs')),
+      `le maillon CSS doit pointer sur scripts/stylelint-tools.mjs : ${link.args[0]}`,
+    );
+    // Le motif, le cache et sa destination traversent le script INTACTS : le
+    // script ne résout que l’entrée, il ne réécrit pas la commande.
+    assert.deepEqual(link.args.slice(1), [
+      'src/**/*.css',
+      '--cache',
+      '--cache-location',
+      'node_modules/.stylelintcache',
+    ]);
   });
 
   it('l’entrée résolue exécute vraiment l’outil, et à la version installée', () => {

@@ -13,7 +13,7 @@
  *   1. ANY production/runtime dependency has a known vulnerability
  *      (`npm audit --omit=dev` non-empty) — nothing vulnerable may ship.
  *   2. The total vulnerability count exceeds the documented baseline
- *      (DEV_BASELINE = 7) — i.e. a brand-new vulnerability appears anywhere
+ *      (see DEV_BASELINE, defined in this file) — i.e. a brand-new vulnerability appears anywhere
  *      in the tree, beyond the documented dev-only set (see below).
  *   3. (CI only) the registry is unreachable and the audit cannot run —
  *      an unverifiable dependency tree must not pass silently.
@@ -66,6 +66,24 @@
  * Le gate de PRODUCTION, lui, ne bouge toujours pas : ZÉRO vulnérabilité
  * runtime — c'est lui qui protège ce qui est livré.
  *
+ * ─── Pourquoi 8, et où est passée la chaîne `braces` (2026-10-06) ──────────
+ *
+ * Les 7 avis `high` de la chaîne `stylelint → micromatch → braces` ont QUITTÉ
+ * l'arbre racine : `stylelint` (avec ses deux plugins) vit désormais dans un
+ * manifeste isolé, `tools/csslint/`, exactement comme le CLI Vercel avant lui —
+ * mêmes raisons, même remède. Mesuré : arbre racine 15 → **8**, et ZÉRO `high`.
+ *
+ * Ce qui n'a PAS changé, et qu'il faut dire : `braces@3.0.3` n'est pas corrigé
+ * (aucune version corrigée n'existe en amont — `<= 3.0.3`, patched: none), et le
+ * CSS reste vérifié par la MÊME version de stylelint, avec le MÊME
+ * `stylelint.config.js`, via `scripts/stylelint-tools.mjs`. Rien n'est masqué :
+ * les 7 avis restent VISIBLES à chaque push, en avertissement seul, dans l'audit
+ * de l'arbre isolé (`scripts/report-tools-audit.mjs`). Ils ne font simplement
+ * plus échouer le gate qui ne protège que l'application.
+ *
+ * Ce qu'il reste ici : la chaîne d'outillage `electron-builder` (8, moderate,
+ * dev-only, jamais embarquée) — même nature, même remède possible si elle gêne.
+ *
  * Cache (AUDIT_CACHE=1): `node_modules/.cache/audit-gate.json`, keyed on the
  * sha256 of package-lock.json, valid for AUDIT_CACHE_TTL_HOURS (default 24).
  * AUDIT_CACHE_REFRESH=1 forces a live re-audit (the fresh result is re-cached).
@@ -76,7 +94,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 
-const DEV_BASELINE = 15;
+const DEV_BASELINE = 8;
 const CACHED = process.env.AUDIT_CACHE === '1';
 const SOFT_OFFLINE = process.env.AUDIT_SOFT_OFFLINE === '1';
 const FORCE_REFRESH = process.env.AUDIT_CACHE_REFRESH === '1';
