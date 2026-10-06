@@ -49,3 +49,8 @@ release/
 *.dump
 payload.json
 payload.json.enc
+# CSV du contrôle des doublons (`npm run report:duplicates`). Ils NOMMENT des
+# élèves et leurs parents : générés dans le dossier courant, ils ne doivent pas
+# pouvoir entrer dans l'historique par un `git add` large — même raison que les
+# sauvegardes de base juste au-dessus.
+rapport-*.csv

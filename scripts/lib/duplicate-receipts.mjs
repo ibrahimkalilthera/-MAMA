@@ -6,8 +6,13 @@
 // se relit PAR PÉRIODE (fin de journée, fin de semaine, clôture de trimestre) :
 // ce qui doit durer, c'est le CONTRÔLE, pas le rapport d'un jour. Ce module est
 // la partie pure — les requêtes, la mise en lignes CSV et le sérialiseur — pour
-// que la partie « réseau » (scripts/report-duplicate-receipts.mjs) reste mince et
+// que la partie « réseau » (scripts/report-duplicates.mjs) reste mince et
 // que la logique soit prouvée sans base.
+//
+// Ce module ne couvre que la CAISSE. Le REGISTRE des élèves a le sien
+// (scripts/lib/duplicate-students.mjs) : un doublon d'inscription ne se relit pas
+// comme un reçu — il n'a pas de période, et il se tranche sur d'autres colonnes.
+// Les deux sont rapportés par la même commande, dans deux CSV distincts.
 //
 // ─── Ce qu'on appelle « un doublon » (et ce qu'on ne prétend pas) ────────────
 // Deux signaux, deux colonnes de contrôle indépendantes :

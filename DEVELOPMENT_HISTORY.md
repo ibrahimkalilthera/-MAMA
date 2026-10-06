@@ -8,6 +8,26 @@ Demande du propriétaire : « fais la mise à jour avec tous les changements qu'
 
 **Mesure attendue après publication.** `npm run check:release:channel` relit le canal **sans jeton** (rehachage de l'installeur réellement servi) et un seul release porte `v1.0.25`.
 
+## [2026-10-06] Le contrôle des doublons regarde aussi le REGISTRE des élèves
+
+Demande du propriétaire : « Étends le contrôle des doublons du dépôt aux élèves (même nom + classe, avec les colonnes qui discriminent) et branche-le sur le workflow hebdomadaire de clôture. »
+
+**Ce qui manquait, et comment on le sait.** Le contrôle de la caisse relisait `payments` ; personne ne regardait `students`. Le 2026-10-06, un balayage en lecture seule y a trouvé **deux groupes** de fiches partageant un nom ET une classe — « Safiatou COULIBALY » 5A (`MT-2026-252` / `MT-2026-415`) et « Fatoumata COULIBALY » 8A (`MT-2026-362` / `MT-2026-416`) — dont les fiches diffèrent (un « Tuteur » d'un côté, la mère de l'autre). Ils n'étaient pas absents : ils n'étaient pas regardés. Un défaut que rien n'interroge n'existe pour personne.
+
+**Un troisième contrôle, et son critère est écrit dans la requête.** `scripts/lib/duplicate-students.mjs` groupe `lower(trim(name))` **avec la classe** — casse et espaces de bord ignorés, sinon « Ali Diallo » et « ali diallo  » feraient deux cas pour un seul — et rend **UNE LIGNE PAR FICHE** (l'école agit sur une fiche, pas sur un agrégat) avec de quoi TRANCHER : matricule, parent, téléphone, total dû, déjà payé, statut, année, date d'inscription, date de saisie. Sans ces colonnes, la feuille dirait « ces deux-là se ressemblent » sans donner de quoi décider, et quelqu'un supprimerait la mauvaise. Une fiche sans nom est écartée : deux fiches vides ne partagent rien, les grouper ferait un faux groupe sur tout un registre incomplet.
+
+**Le registre se relit EN ENTIER — la période ne borne que les paiements.** Un doublon d'inscription ne se périme pas avec la semaine : né en septembre, il reste à vérifier en novembre. `--closing-week` (comme `--since`/`--until`) ne borne donc que les REÇUS, et une sentinelle de test verrouille l'absence de `$1`/`$2` dans la requête du registre : c'est une décision, pas un oubli, et le jour où quelqu'un « ajoutera la borne qui manque » le test le lui dira.
+
+**Une commande, deux CSV, une preuve.** `scripts/report-duplicates.mjs` (ex-`report-duplicate-receipts.mjs`, renommé parce que le nom ne disait plus la vérité — l'ancien nom n'existe plus nulle part) tient les deux familles dans le MÊME passage : une connexion, une preuve publiée, `--out` et `--out-eleves` pour écrire l'un ou l'autre. Deux commandes auraient obligé le workflow à publier deux preuves pour un seul run, et l'audit ne lit qu'une déclaration par run : la seconde aurait été muette, ou pire, prise pour la première. `-` (sortie standard) est refusé sur les DEUX fichiers à la fois — deux CSV s'entrelaceraient sur un même flux. Le sérialiseur et la mise en lignes CSV sont ceux des reçus (`toCsv`, `csvCell`) : une seule définition, donc pas deux façons d'échapper un guillemet.
+
+**Branché sur la clôture.** `.github/workflows/cash-period-receipts.yml` — même cron du lundi 06:15 UTC, même secret, même étape de preuve (son nom est un CONTRAT que l'audit lit dans les étapes du run, donc inchangé) — appelle désormais `npm run report:duplicates -- --closing-week` et archive `rapport-*.csv` (les DEUX fichiers) sous l'artefact `doublons-<date>`. Le déclencheur `push` sur les chemins du contrôle reste : un merge qui le touche le rejoue sur le vrai runner.
+
+**Et les CSV ne peuvent plus entrer dans l'historique par accident.** `.gitignore` les écarte (`rapport-*.csv`) : ils NOMMENT des élèves et leurs parents, même raison que les sauvegardes de base — un instantané de données d'école ne se committe pas. Les fichiers sont régénérés à chaque passage, ils n'ont rien à y faire.
+
+**Ce que le contrôle ne fait toujours PAS : trancher.** Une ligne signalée est une ligne À VÉRIFIER. Deux homonymes dans la même classe existent ; deux sœurs inscrites le même soir par leur mère ont exactement cette forme. La décision appartient à l'école, depuis la fiche, et elle laisse une trace au journal d'audit.
+
+**Mesuré.** Sur la base partagée, en LECTURE SEULE : **423 fiches analysées, 2 groupes, 4 fiches signalées** (les deux paires COULIBALY, avec matricules, parents, téléphones et dates de chaque fiche), et pour la semaine close **2026-S40** : 1 paiement analysé, 0 ligne signalée — les deux fichiers écrits, la preuve publiée. `tests/duplicate-students.test.ts` (**15 cas**) verrouille le critère, les colonnes de discrimination, l'absence de borne, la clé insensible à la casse et aux espaces, le résumé par GROUPE (et non par fiche) et la sérialisation partagée. `npm run lint` exit 0 — dont `check-ci-commands` : 18 workflows, 204 commandes CI, aucune ne recopie `package.json` ; `npm test` **2540/2540**, 521 suites, 0 échec.
+
 ## [2026-10-06] 1.0.26 — la correction du rail part, et les doublons sont comptés avant d'être crus
 
 Demande du propriétaire : « Fais la mise à jour, puis publie et diffuse la nouvelle version avec la correction qu'on vient de faire. Assure-toi qu'il n'y ait pas de doublon dans les données. »
