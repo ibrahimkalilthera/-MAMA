@@ -35,6 +35,7 @@ on:
   # neuf resterait sans run jusqu'au lundi suivant, et l'audit des automatisations
   # le déclarerait « dormant » (un cron qui ne part pas est en panne).
   push:
+    branches: [main]
     paths:
       - 'scripts/report-duplicate-receipts.mjs'
       - 'scripts/lib/duplicate-receipts.mjs'
@@ -87,12 +88,14 @@ jobs:
       # L'archive : le CSV de la période part en artefact, retenu assez longtemps
       # pour couvrir un trimestre. Absent = erreur, jamais un succès vide.
       - name: Archiver le CSV de la période
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: recus-doublons-${{ steps.cloture.outputs.jour }}
           path: rapport-recus-doublons-*.csv
           if-no-files-found: error
-          retention-days: 120
+          # 90 : le maximum autorisé par les réglages du dépôt. Au-delà, GitHub
+          # ramène la valeur à ce plafond — et le dit dans les annotations.
+          retention-days: 90
 
       # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
       # étapes du run pour savoir si une preuve était attendue (voir
