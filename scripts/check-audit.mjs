@@ -42,6 +42,30 @@
  * rabaisser dès que l'amont publie un correctif — le gate annonce de lui-même,
  * dans son verdict vert, combien de vulnérabilités ont été corrigées depuis.
  *
+ * ─── Pourquoi 15, et ce que le cache avait masqué (2026-10-06) ────────────
+ *
+ * L'arbre portait DÉJÀ 16 avis le 5 au soir : la CI n'en voyait que 7 parce
+ * qu'elle relisait un cache `audit-gate` de 23,5 h (perf-guard.yml, run du
+ * 2026-10-06 03:15 — le `npm ci` du MÊME job annonçait « 16 vulnerabilities
+ * (8 moderate, 8 high) »). Un cache périmé n'est pas une mesure : dès qu'il
+ * a expiré, le gate a lu le chiffre vrai.
+ *
+ * `npm audit fix` (en plage, sans `--force`) a payé ce qui était payable :
+ * `source-map-js` (GHSA-68fv-2mgg-jv7q, DoS par sections d'index) est monté en
+ * 1.2.2, et la chaîne `electron-builder` a été rafraîchie dans sa plage
+ * (26.15.3 → 26.17.0). Restent 15, toutes dev-only, dont AUCUNE n'a de
+ * correctif en plage :
+ *   • la chaîne `stylelint` (7 — `braces`, `micromatch`, `fast-glob`, `globby`,
+ *     `stylelint`, `stylelint-order`, `stylelint-scss`) : l'avis `braces
+ *     <= 3.0.3` (GHSA-vfj7-8cjw-p6xm) n'a AUCUNE version patchée en amont, et
+ *     le « correctif » de npm est un DOWNGRADE vers stylelint 7.7.0 ;
+ *   • la chaîne d'outillage `electron-builder` (8 — `@electron/get`,
+ *     `app-builder-lib`, `dmg-builder`, `electron-builder`,
+ *     `electron-builder-squirrel-windows`, `global-agent`, `roarr`,
+ *     `sprintf-js`) : correctif = DOWNGRADE majeur vers electron-builder 26.5.0.
+ * Le gate de PRODUCTION, lui, ne bouge toujours pas : ZÉRO vulnérabilité
+ * runtime — c'est lui qui protège ce qui est livré.
+ *
  * Cache (AUDIT_CACHE=1): `node_modules/.cache/audit-gate.json`, keyed on the
  * sha256 of package-lock.json, valid for AUDIT_CACHE_TTL_HOURS (default 24).
  * AUDIT_CACHE_REFRESH=1 forces a live re-audit (the fresh result is re-cached).
@@ -52,7 +76,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 
-const DEV_BASELINE = 7;
+const DEV_BASELINE = 15;
 const CACHED = process.env.AUDIT_CACHE === '1';
 const SOFT_OFFLINE = process.env.AUDIT_SOFT_OFFLINE === '1';
 const FORCE_REFRESH = process.env.AUDIT_CACHE_REFRESH === '1';

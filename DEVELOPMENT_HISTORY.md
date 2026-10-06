@@ -1,3 +1,15 @@
+## [2026-10-06] Le gate d'audit a été relu SANS son cache — la base passe à 15, pas par abandon
+
+Le commit du durcissement du workflow de clôture a été BLOQUÉ par le `pre-commit` : `❌ Total vulnerabilities (16) exceed the documented baseline (7)`. Le blocage n'avait rien à voir avec le fichier modifié (un YAML de workflow) — `package.json` et `package-lock.json` étaient intacts.
+
+**Ce que le cache masquait.** Le job « Quality & performance guard » du 2026-10-06 03:15, sur `62ad7ca`, est vert… en RELISANT un cache de 23,5 h : `✅ Total audit count 7 within baseline 7 (cached, 23.5h old)`, alors que le `npm ci` du MÊME job annonçait déjà `16 vulnerabilities (8 moderate, 8 high)`. La dette était donc là depuis la veille, invisible jusqu'à péremption du cache (24 h) — et elle aurait rougi la CI au premier changement de lockfile (clé de cache neuve → audit en direct). Un cache périmé n'est pas une mesure.
+
+**Ce qui a été payé.** `npm audit fix` (en plage, sans `--force`) : `source-map-js` monte en **1.2.2** (GHSA-68fv-2mgg-jv7q, DoS par sections d'index) et la chaîne `electron-builder` se rafraîchit dans sa plage (26.15.3 → 26.17.0). Le volet **PRODUCTION** ne bouge pas : ZÉRO vulnérabilité runtime — c'est lui qui protège ce qui est livré.
+
+**Ce qui a été relevé, et pourquoi.** `DEV_BASELINE` 7 → **15**. Les 15 restantes sont dev-only et AUCUNE n'a de correctif en plage : la chaîne `stylelint` (7 — `braces`, `micromatch`, `fast-glob`, `globby`, `stylelint`, `stylelint-order`, `stylelint-scss`) où `braces <= 3.0.3` (GHSA-vfj7-8cjw-p6xm) n'a **aucune** version patchée en amont, et la chaîne d'outillage `electron-builder` (8 — `@electron/get`, `app-builder-lib`, `dmg-builder`, `electron-builder`, `electron-builder-squirrel-windows`, `global-agent`, `roarr`, `sprintf-js`). Les deux « correctifs » que npm propose sont des **DOWNGRADES** (stylelint 7.7.0, electron-builder 26.5.0) qui casseraient la chaîne CSS ou la chaîne de release. L'acte est daté et chiffré, comme le gate l'exige : `DEV_BASELINE` **et** ce journal.
+
+**Mesure.** `node scripts/check-audit.mjs` → **exit 0**, `Production (--omit=dev) audit clean`, `Total audit count 15 within baseline 15`. Lockfile : 60 insertions / 70 suppressions (aucune entrée de production).
+
 ## [2026-10-06] Le contrôle des reçus en double se déclenche à la clôture de la semaine de caisse
 
 Demande du propriétaire : « ajoute un déclencheur qui exécute le contrôle des reçus en double à la clôture de chaque période de caisse et archive le CSV avec la date ». Deux décisions ont été prises avec lui : le déclencheur vit dans un workflow CI PLANIFIÉ, et « période de caisse » = une semaine ISO (lundi → dimanche), le découpage que l'app donne déjà à son journal d'audit (`src/lib/auditWeek.ts`).
