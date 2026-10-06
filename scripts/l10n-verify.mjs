@@ -82,6 +82,8 @@ const files = [
   'src/lib/pdfFinancialReport.ts',
   'src/lib/pdfAuditJournal.ts',
   'src/lib/pdfMultiYearReport.ts',
+  'src/lib/pdfPaymentHistory.ts',
+  'src/lib/pdfDailyCashReport.ts',
   'src/app/useParents.ts',
   'src/app/usePayroll.ts',
 ];

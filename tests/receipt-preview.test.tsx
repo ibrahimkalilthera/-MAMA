@@ -33,7 +33,7 @@ for (const lang of ['fr', 'en'] as const) {
     const root = createRoot(container);
     const opts = {
       lang,
-      student: { id: 's1', name: 'Awa Mariam Traoré', grade: '1A', parentName: 'Parent distinct', parentPhone: '', parentEmail: '', totalDue: 100000, amountPaid: 25000, dueDate: '', payments: [], notes: '' },
+      student: { id: 's1', name: 'Awa Mariam Traoré', studentId: 'MT-2026-042', grade: '1A', parentName: 'Parent distinct', parentPhone: '', parentEmail: '', totalDue: 100000, amountPaid: 25000, dueDate: '', payments: [], notes: '' },
       payment: { amount: 25000, date: '2026-10-04', receiptNumber: 'REC-PREVIEW' },
       template: readFileSync(new URL('../public/templates/recu-parent.pdf', import.meta.url)),
     };
@@ -47,6 +47,7 @@ for (const lang of ['fr', 'en'] as const) {
       assert.equal(blobs.length, 0, 'canvas preview creates no download URL');
       assert.match(container.querySelector('dl')?.textContent || '', /Awa Mariam Traoré/);
       assert.match(container.querySelector('dl')?.textContent || '', /1A/);
+      assert.match(container.querySelector('dl')?.textContent || '', /MT-2026-042/, 'le résumé montre le matricule imprimé sur le reçu');
       assert.match(container.querySelector('dl')?.textContent || '', /25[\s,]*000 FCFA/);
       assert.ok(!container.textContent?.includes('Parent distinct'));
       assert.deepEqual(renders[0], preview.bytes);

@@ -8,7 +8,11 @@
  * Mois & Classe / Motif fill-in lines and the Date, le … 20 …  N° footer) —
  * and only the payment data is printed on it:
  *
- *   • « M » gets the selected student's full name, never the parent's name;
+ *   • « M » gets the selected student's full name, never the parent's name,
+ *     followed by the student's MATRICULE (« MATRICULE : MT-2026-001 ») so a
+ *     family can quote it from the receipt — the form has no matricule line of
+ *     its own, and the pupil identity line is where it belongs. The two SHARE
+ *     the line: the name shrinks (never truncates) to leave the matricule room;
  *   • « Tél. : » (header) gets the SCHOOL's own contact number — a fixed
  *     number, the same on every receipt, written on the dotted line right
  *     after the printed label. Until 2026-10-05 this line carried the PARENT's
@@ -28,13 +32,16 @@
  *     box), then the last two year digits written after the « 20 »;
  *   • the « N° » box gets the receipt number.
  *
- * No French/English labels are drawn — they are printed on the paper template
- * itself; only `lang` localizes the month name and the payment motif.
+ * The matricule LABEL is the only label this generator draws (`t.studentId`):
+ * every other label is printed on the paper template itself, and the form has no
+ * matricule line to lean on. `lang` localizes the month name, the payment motif
+ * and that label.
  */
 import type { Student, Payment } from './useSupabaseData';
 import { showReceiptPreview } from './receiptPreview';
 import { downloadBytes } from './browserDownload';
 import { montantEnLettres } from './pdfPayrollBulletin';
+import { studentMatricule } from './studentIdentifiers';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
 
@@ -217,10 +224,26 @@ export async function buildParentReceiptPdf({
 
   // 1. « M » — identify the selected student, even when a parent pays.
   // Keep the full name and shrink it to fit the dotted line rather than truncate.
+  // Le MATRICULE suit le nom sur la MÊME ligne : le formulaire papier n'a pas de
+  // champ matricule, et c'est la ligne d'identité de l'élève — ce que la famille
+  // retrouve sur ses autres papiers (fiche, relevé de compte). Le nom rétrécit
+  // pour lui laisser sa place, sans jamais être tronqué.
   const studentName = student.name.trim() || '—';
+  const matricule = studentMatricule(student.studentId);
+  const matriculeText = matricule ? `${t.studentId} : ${matricule}` : '';
+  const matriculeSize = DATA_SIZE - 2;
+  const matriculeGapMm = 4;
+  const matriculeW = matriculeText
+    ? helv.widthOfTextAtSize(matriculeText, matriculeSize) / PT_PER_MM
+    : 0;
+  const nameMaxW = (191 - LINE_M.x) - (matriculeW ? matriculeW + matriculeGapMm : 0);
   const nameWidth = helv.widthOfTextAtSize(studentName, DATA_SIZE) / PT_PER_MM;
-  const nameSize = Math.min(DATA_SIZE, ((191 - LINE_M.x) / nameWidth) * DATA_SIZE);
+  const nameSize = Math.min(DATA_SIZE, (nameMaxW / nameWidth) * DATA_SIZE);
   text(studentName, LINE_M.x, baseline(LINE_M.y, nameSize), { font: { font: helv, size: nameSize } });
+  if (matriculeText) {
+    const drawnNameW = helv.widthOfTextAtSize(studentName, nameSize) / PT_PER_MM;
+    text(matriculeText, LINE_M.x + drawnNameW + matriculeGapMm, baseline(LINE_M.y, matriculeSize), { font: { font: helv, size: matriculeSize } });
+  }
 
   // 1b. « Tél. : » — the SCHOOL's own number (fixed, never the parent's), on
   //     the header dotted line right after the printed label (fits the line at

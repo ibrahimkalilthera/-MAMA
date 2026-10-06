@@ -43,6 +43,16 @@ const alice: Student = {
 };
 
 const PAY: Payment = { id: 'pay1', date: '2026-10-02', amount: 4000, academicYear: '2026-2027', receiptNumber: 'REC-568556' };
+/** Le geste d'avant l'instantané, tel qu'il vit encore dans `payments`. */
+const PAY_LEGACY: Payment = { id: 'pay0', date: '2026-09-20', amount: 6000, academicYear: '2026-2027', receiptNumber: 'REC-0' };
+/**
+ * L'annuaire tel qu'il est APRÈS l'annulation : `pay1` n'est plus dans `payments`.
+ *
+ * C'est l'état de la production, et il décide de tout : la ligne d'annulation n'a
+ * donc plus de paiement vivant (donc pas de reçu à montrer), tandis que
+ * l'encaissement d'avant l'instantané, lui, se retrouve par son numéro de reçu.
+ */
+const aliceAfterCancellation: Student = { ...alice, payments: [PAY_LEGACY] };
 
 const logs: AuditLogEntry[] = [
   {
@@ -132,27 +142,31 @@ describe('PaymentHistoryView — ce que la caisse relit', () => {
     }
   });
 
-  it('n’invente pas un montant pour un geste d’avant l’instantané, et le DIT', () => {
+  it('AFFICHE le montant d’un geste d’avant l’instantané, relu dans la phrase du journal', () => {
+    // La réparation du 2026-10-06 : les 3 seuls gestes de paiement de la PRODUCTION
+    // n'ont pas d'instantané, et la colonne MONTANT disait « voir le détail »
+    // partout, pour des encaissements bien réels.
     const h = mount();
     try {
       const text = h.text();
-      assert.match(text, new RegExp(t.paymentHistoryAmountInDetails), 'la colonne MONTANT renvoie au détail');
-      assert.match(text, /6000 FCFA/, 'le montant reste lisible dans la phrase du journal');
-      assert.match(text, /1 ligne/, 'le résumé compte la ligne qu’il ne peut pas additionner');
-      assert.ok(
+      assert.doesNotMatch(text, new RegExp(t.paymentHistoryAmountInDetails), 'aucune ligne ne renvoie au détail');
+      assert.match(h.body(), /6000 XOF/, 'le montant de la ligne sans instantané est affiché');
+      assert.match(h.body(), /REC-0/, 'et son reçu se relit de la même phrase');
+      assert.equal(
         text.includes(t.paymentHistoryWithoutAmount.replace('{count}', '1')),
-        'la phrase qui dit ce que le net laisse de côté est écrite telle quelle',
+        false,
+        'plus aucune ligne n’est laissée de côté : l’avertissement n’a plus rien à dire',
       );
-      // Le net ne porte que sur le montant chiffré : 4000 encaissé − 4000 annulé.
+      // Le net porte donc sur les TROIS gestes : 4000 + 6000 encaissés − 4000 annulé.
       // (Comparé par `includes` : la phrase contient des parenthèses littérales,
       // qui seraient interprétées comme un groupe si elle passait par un RegExp.)
       assert.ok(
         text.includes(t.paymentHistoryTotals
           .replace('{count}', '3')
-          .replace('{collected}', '4000 XOF')
+          .replace('{collected}', '10000 XOF')
           .replace('{cancelled}', '4000 XOF')
-          .replace('{net}', '0 XOF')),
-        'le total est écrit, et il est celui des montants chiffrés',
+          .replace('{net}', '6000 XOF')),
+        'le total compte les trois gestes, montant d’instantané ou de phrase',
       );
     } finally {
       h.cleanup();
@@ -192,6 +206,151 @@ describe('PaymentHistoryView — ce que la caisse relit', () => {
     try {
       assert.equal(h.text(), '', 'la policy RLS réserve audit_logs à admin/dev : pas d’écran vide qui se lirait « rien encaissé »');
       assert.equal(h.container.querySelectorAll('table').length, 0, 'aucun tableau n’est rendu');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('l’export CSV emporte la vue FILTRÉE — mêmes lignes que celles affichées', async () => {
+    // Les octets qui SORTENT de l'app sont captés : le clic du lien est neutralisé
+    // (on ne mesure pas la navigation) et l'URL d'objet est espionnée.
+    const blobs: Blob[] = [];
+    const url = globalThis.URL as unknown as Record<string, unknown>;
+    const realCreate = url.createObjectURL;
+    const realRevoke = url.revokeObjectURL;
+    url.createObjectURL = (blob: Blob) => { blobs.push(blob); return 'blob:probe'; };
+    url.revokeObjectURL = () => {};
+    const h = mount();
+    const anchorProto = document.createElement('a').constructor.prototype as { click: () => void };
+    const realClick = anchorProto.click;
+    anchorProto.click = () => {};
+    try {
+      const buttons = [...h.container.querySelectorAll('button')] as HTMLButtonElement[];
+      const csvButton = buttons.find((b) => (b.textContent ?? '').includes(t.exportCsv));
+      assert.ok(csvButton, 'le bouton d’export CSV est rendu');
+      assert.equal(csvButton.disabled, false, 'avec des lignes affichées, l’export est offert');
+
+      await act(async () => { csvButton.click(); });
+      assert.equal(blobs.length, 1, 'un export, un fichier');
+      // Le BOM se mesure sur les OCTETS : `Blob.text()` le retire (décodage UTF-8),
+      // donc un cas qui ne lirait que le texte ne pourrait pas le voir disparaître.
+      const bytes = new Uint8Array(await blobs[0].arrayBuffer());
+      assert.deepEqual([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf], 'le BOM du tableur ouvre le fichier');
+      const complete = new TextDecoder().decode(bytes.slice(3));
+      assert.equal(complete.split('\r\n').length, 4, 'en-tête + les trois gestes de l’historique');
+
+      // Le geste que l'écran filtre : l'annulation seulement. L'export doit suivre
+      // l'écran, jamais repartir de l'historique complet pour se refiltrer seul.
+      h.change(h.select()!, 'DELETE_PAYMENT');
+      await act(async () => { csvButton.click(); });
+      const filtered = new TextDecoder().decode(new Uint8Array(await blobs[1].arrayBuffer()).slice(3));
+      assert.equal(filtered.split('\r\n').length, 2, 'en-tête + la seule annulation affichée');
+      assert.match(filtered, /Moussa Keïta/, 'la ligne montrée est celle exportée');
+      assert.doesNotMatch(filtered, /Aggee Diarra/, 'une ligne filtrée hors de l’écran ne part pas dans le fichier');
+      assert.match(filtered, new RegExp(t.auditActionDeletePayment), 'le geste est libellé comme la colonne ACTIONS');
+    } finally {
+      anchorProto.click = realClick;
+      url.createObjectURL = realCreate;
+      url.revokeObjectURL = realRevoke;
+      h.cleanup();
+    }
+  });
+
+  it('le CLIC sur une ligne MONTRE le reçu du paiement — et ne le télécharge pas', async () => {
+    const calls: Array<{ studentId: string; payment: Payment; cashierName?: string }> = [];
+    const h = mount({
+      students: [aliceAfterCancellation],
+      generatePaymentReceiptPdf: async (opts) => {
+        calls.push({ studentId: opts.student.id, payment: opts.payment, cashierName: opts.cashierName });
+      },
+    });
+    try {
+      const rowOf = (needle: string) => ([...h.container.querySelectorAll('tbody tr')] as HTMLTableRowElement[])
+        .find((row) => (row.textContent ?? '').includes(needle));
+      // La ligne de l'encaissement SANS instantané : son reçu ne se retrouve que par
+      // le numéro écrit dans le journal — exactement le cas de la production.
+      const legacy = rowOf('REC-0');
+      assert.ok(legacy, 'la ligne de l’encaissement sans instantané est rendue');
+      await act(async () => { legacy.click(); });
+      assert.equal(calls.length, 1, 'un clic sur la ligne, un reçu');
+      assert.equal(calls[0]!.payment.receiptNumber, 'REC-0', 'le reçu montré est celui de la ligne');
+      assert.equal(calls[0]!.studentId, alice.id, 'et l’élève est celui de la ligne');
+      assert.equal(calls[0]!.cashierName, 'Aggee Diarra', 'le caissier imprimé est celui du GESTE, pas de la session ouverte');
+
+      // L'encaissement dont l'instantané nomme `pay1`, un paiement qui n'est PLUS
+      // dans `payments` : il n'a plus de reçu, et cliquer ne doit rien promettre.
+      const gone = rowOf(t.auditActionRecordPayment) !== undefined;
+      assert.equal(gone, true, 'l’encaissement reste listé (le journal ne se réécrit pas)');
+      const cancelled = rowOf(t.auditActionDeletePayment);
+      assert.ok(cancelled, 'la ligne d’annulation est rendue');
+      await act(async () => { cancelled.click(); });
+      assert.equal(calls.length, 1, 'un paiement annulé n’a plus de reçu à montrer');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('supprime LE PAIEMENT de la ligne, après confirmation — pas l’entrée du journal', async () => {
+    const deleted: Array<{ studentId: string; paymentId?: string; receiptNumber?: string }> = [];
+    const h = mount({
+      students: [aliceAfterCancellation],
+      canDeletePayment: true,
+      deletePayment: async (studentId, payment) => {
+        deleted.push({ studentId, paymentId: payment.id, receiptNumber: payment.receiptNumber });
+        return true;
+      },
+    });
+    try {
+      const rowOf = (needle: string) => ([...h.container.querySelectorAll('tbody tr')] as HTMLTableRowElement[])
+        .find((row) => (row.textContent ?? '').includes(needle))!;
+      const buttons = (row: HTMLTableRowElement) => [...row.querySelectorAll('button')] as HTMLButtonElement[];
+
+      const remove = buttons(rowOf('REC-0')).find((b) => (b.textContent ?? '').includes(t.deletePayment));
+      assert.ok(remove, 'l’option « supprimer » est offerte DANS la ligne');
+      await act(async () => { remove.click(); });
+
+      // La confirmation dit ce qui part, montant ET reçu, avant de partir.
+      const confirmText = rowOf('REC-0').textContent ?? '';
+      assert.ok(confirmText.includes('6000 XOF') && confirmText.includes('REC-0'), 'la confirmation nomme le montant et le reçu');
+      assert.equal(deleted.length, 0, 'rien ne part avant la confirmation');
+
+      const confirm = buttons(rowOf('REC-0')).filter((b) => (b.textContent ?? '').trim() === t.deletePayment).pop();
+      assert.ok(confirm, 'le bouton de confirmation est rendu');
+      await act(async () => { confirm.click(); });
+
+      assert.equal(deleted.length, 1, 'un geste, une suppression');
+      assert.equal(deleted[0]!.studentId, alice.id, 'la suppression vise l’ÉLÈVE de la ligne');
+      assert.equal(deleted[0]!.paymentId, PAY_LEGACY.id, 'et le PAIEMENT de la ligne — pas l’entrée du journal');
+      assert.equal(deleted[0]!.receiptNumber, 'REC-0');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('masque la suppression quand la base ne l’accorde pas au rôle', () => {
+    const h = mount({ students: [aliceAfterCancellation], canDeletePayment: false });
+    try {
+      const row = [...h.container.querySelectorAll('tbody tr')]
+        .find((r) => (r.textContent ?? '').includes('REC-0'))!;
+      assert.equal(
+        [...row.querySelectorAll('button')].some((b) => (b.textContent ?? '').includes(t.deletePayment)),
+        false,
+        '« Payment deleters delete payments » : sans le droit, pas de bouton',
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('n’offre les deux exports que lorsqu’il y a des lignes à emporter', () => {
+    const h = mount({ auditLogs: [] });
+    try {
+      const buttons = [...h.container.querySelectorAll('button')] as HTMLButtonElement[];
+      const csvButton = buttons.find((b) => (b.textContent ?? '').includes(t.exportCsv));
+      const pdfButton = buttons.find((b) => (b.textContent ?? '').includes(t.exportPdf));
+      assert.ok(csvButton && pdfButton, 'les deux exports sont proposés');
+      assert.equal(csvButton.disabled, true, 'rien à emporter : le bouton le dit au lieu de produire un fichier vide');
+      assert.equal(pdfButton.disabled, true, 'idem pour le PDF');
     } finally {
       h.cleanup();
     }

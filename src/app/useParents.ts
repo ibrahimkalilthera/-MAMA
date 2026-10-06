@@ -202,6 +202,13 @@ export function useParents({
     // élève en porte un (la base l'attribue). Elle s'affiche donc dès qu'un
     // matricule existe, et l'absence de colonne ne veut plus dire « pas de 9e ».
     const hasMatriculeColumn = children.some(child => Boolean(studentMatricule(child.studentId)));
+    // Le tableau des REÇUS porte le matricule de l'élève pour la même raison que
+    // le reçu de paiement : c'est ce que la famille cite pour se référer à un
+    // versement. La donnée voyageait déjà dans la ligne (`studentId`, construit
+    // par `getParentPaymentHistory`) — elle n'était simplement PAS imprimée.
+    // Comme pour les enfants, la colonne n'apparaît que si un reçu en porte un :
+    // une colonne vide volerait la place du nom sans rien dire.
+    const hasReceiptMatricule = paymentHistory.some(item => Boolean(item.studentId));
     const studentNameX = hasMatriculeColumn ? 50 : 18;
     const gradeX = hasMatriculeColumn ? 105 : 75;
     const totalDueX = hasMatriculeColumn ? 135 : 125;
@@ -340,20 +347,33 @@ export function useParents({
     doc.text(t.n2ConsolidatedPaymentReceipts, 14, y);
     y += 5;
 
-    doc.setFillColor(241, 245, 249);
-    doc.rect(14, y, 182, 7, 'F');
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(71, 85, 105);
-    doc.text(t.receipt, 18, y + 5);
-    doc.text(t.pdfDate, 48, y + 5);
-    doc.text(t.student, 75, y + 5);
-    doc.text(t.year, 125, y + 5);
-    doc.text(t.amount2, 165, y + 5);
-    y += 7;
+    // Colonnes du tableau des reçus : le matricule s'insère entre l'élève et
+    // l'année quand il y en a un, sinon les cinq colonnes d'origine sont gardées
+    // à l'identique (aucun document existant ne se décale pour rien).
+    const receiptColumns = hasReceiptMatricule
+      ? { receipt: 18, date: 44, student: 66, matricule: 112, year: 142, amount: 168 }
+      : { receipt: 18, date: 48, student: 75, matricule: 0, year: 125, amount: 165 };
 
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(15, 23, 42);
+    // En-tête du tableau — dessiné aussi en tête de chaque page suivante, donc
+    // écrit UNE fois (les deux copies divergeaient à la première colonne ajoutée).
+    const drawReceiptHeader = () => {
+      doc.setFillColor(241, 245, 249);
+      doc.rect(14, y, 182, 7, 'F');
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(71, 85, 105);
+      doc.text(t.receipt, receiptColumns.receipt, y + 5);
+      doc.text(t.pdfDate, receiptColumns.date, y + 5);
+      doc.text(t.student, receiptColumns.student, y + 5);
+      if (hasReceiptMatricule) doc.text(t.studentId, receiptColumns.matricule, y + 5);
+      doc.text(t.year, receiptColumns.year, y + 5);
+      doc.text(t.amount2, receiptColumns.amount, y + 5);
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(15, 23, 42);
+    };
+
+    drawReceiptHeader();
 
     if (paymentHistory.length === 0) {
       doc.text(t.noPaymentRecordsFound, 18, y + 5);
@@ -363,26 +383,15 @@ export function useParents({
         if (y > 270) {
           doc.addPage();
           y = 20;
-          doc.setFillColor(241, 245, 249);
-          doc.rect(14, y, 182, 7, 'F');
-          doc.setFontSize(8);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(71, 85, 105);
-          doc.text(t.receipt, 18, y + 5);
-          doc.text(t.pdfDate, 48, y + 5);
-          doc.text(t.student, 75, y + 5);
-          doc.text(t.year, 125, y + 5);
-          doc.text(t.amount2, 165, y + 5);
-          y += 7;
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(15, 23, 42);
+          drawReceiptHeader();
         }
 
-        doc.text(item.receiptNumber || 'REC', 18, y + 5);
-        doc.text(item.date || '', 48, y + 5);
-        doc.text((item.studentName || '').substring(0, 24), 75, y + 5);
-        doc.text(item.academicYear || '-', 125, y + 5);
-        doc.text(formatPdfAmount(item.amount), 165, y + 5);
+        doc.text(item.receiptNumber || 'REC', receiptColumns.receipt, y + 5);
+        doc.text(item.date || '', receiptColumns.date, y + 5);
+        doc.text((item.studentName || '').substring(0, 24), receiptColumns.student, y + 5);
+        if (hasReceiptMatricule) doc.text(item.studentId || '-', receiptColumns.matricule, y + 5);
+        doc.text(item.academicYear || '-', receiptColumns.year, y + 5);
+        doc.text(formatPdfAmount(item.amount), receiptColumns.amount, y + 5);
         y += 6;
 
         doc.setDrawColor(241, 245, 249);

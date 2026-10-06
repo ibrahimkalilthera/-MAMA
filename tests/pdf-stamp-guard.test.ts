@@ -56,6 +56,10 @@ const GENERATORS: Array<{ file: string; minDiameter: number; maxDiameter: number
   { file: 'src/lib/pdfPayrollBulletin.ts', minDiameter: 20, maxDiameter: 20 },
   // Consolidated parent ledger receipt (A4).
   { file: 'src/app/useParents.ts', minDiameter: 22, maxDiameter: 22 },
+  // Filtered payment history (A4 landscape) — archivable cashier statement.
+  { file: 'src/lib/pdfPaymentHistory.ts', minDiameter: 24, maxDiameter: 24 },
+  // Daily cash report (A4 portrait) — the sheet a cashier signs at closing.
+  { file: 'src/lib/pdfDailyCashReport.ts', minDiameter: 24, maxDiameter: 24 },
 ];
 
 /** Placeholder strings that must NEVER be drawn as text again. */

@@ -17,6 +17,8 @@
 import type { ComponentType, Dispatch, SetStateAction, FormEvent, ChangeEvent, ReactNode, RefObject } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpense } from '../lib/useSupabaseData';
+import type { Payment } from '../lib/domainTypes';
+import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import type { ArchivedPayment } from '../lib/paymentUndo';
 import type { AuthState, UserProfile } from '../lib/useAuth';
 import type { AuditLogEntry } from '../lib/auditLogger';
@@ -294,6 +296,12 @@ export interface MainViewsProps {
   deleteStaff: (id: string) => Promise<boolean>;
   deleteStudent: (id: string) => Promise<boolean>;
   deleteTodo: (id: string) => Promise<boolean>;
+  /**
+   * Retire le SEUL reçu fautif (montant saisi deux fois, mauvais élève), écrit
+   * une entrée `DELETE_PAYMENT` au journal et redescend `students.amount_paid`.
+   * L'Historique des paiements l'offre là où une caisse relit son geste.
+   */
+  deletePayment: (studentId: string, payment: Payment) => Promise<boolean>;
   expandedParentId: string | null;
   expenseCategoryList: { key: string; label: string }[];
   expenses: Expense[];
@@ -320,6 +328,12 @@ export interface MainViewsProps {
   formatCurrency: (amount: number) => string;
   formatDate: (dateStr: string) => string;
   generateExpensesReportPdf: (opts: ExpensesReportOptions) => Promise<void>;
+  /**
+   * Le reçu d'un paiement : l'aperçu s'ouvre (le fichier part au SECOND geste,
+   * depuis la modale) — c'est ce qui permet à une ligne de l'historique de
+   * MONTRER le reçu sans le télécharger dans le dos de l'utilisateur.
+   */
+  generatePaymentReceiptPdf: (opts: ReceiptDataOptions) => Promise<void>;
   generateStaffPayslipPdf: (opts: PayslipDataOptions) => Promise<void>;
   getChildrenForParent: (parent: Parent) => Student[];
   getDayName: (dayIndex: number) => string;
@@ -348,6 +362,13 @@ export interface MainViewsProps {
   /** Le rôle peut-il SUPPRIMER une ligne ? Décidé par la base (`src/lib/deleteRights.ts`),
    *  pas par l'écran : un bouton de suppression n'existe pas là où le serveur refuse. */
   canDelete: boolean;
+  /**
+   * Le rôle peut-il supprimer un paiement d'élève ? Décidé par la BASE
+   * (`public.is_payment_deleter()` : admin, dev, econome — voir
+   * `src/lib/paymentRights.ts`), pas par l'écran. C'est un droit PLUS LARGE que
+   * `canDelete` : l'économe corrige sa caisse sans pouvoir rien détruire d'autre.
+   */
+  canDeletePayment: boolean;
   /** Gestionnaire Principal — finance admin without user/settings/audit access. */
   isGeneralManager: boolean;
   lang: 'en' | 'fr';
