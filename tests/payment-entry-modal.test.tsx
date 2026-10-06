@@ -128,4 +128,20 @@ describe('PaymentEntryModal — champ de recherche par nom ou matricule', () => 
       } finally { h.cleanup(); }
     });
   }
+
+  // La recherche est inutile si son résultat ne se VÉRIFIE pas : quand le
+  // caissier cherche un matricule lu sur un reçu, la ligne trouvée doit le
+  // montrer. Sans lui, « Awa » et « Awa » se ressemblent, et le mauvais élève
+  // est encaissé.
+  it('affiche le matricule sur la ligne de l’élève, à côté du solde', () => {
+    const h = mount();
+    try {
+      const texts = Array.from(h.select('payment-student').options, (o) => o.textContent ?? '');
+      assert.ok(texts[1].includes(translations.fr.studentId), `libellé de matricule absent de « ${texts[1]} »`);
+      assert.ok(texts[1].includes('MAT-001'), `matricule absent de « ${texts[1]} »`);
+      assert.ok(texts[1].includes('80000 XOF'), 'le solde reste affiché à côté du matricule');
+      assert.ok(texts[2].includes('2026-0002'), 'un matricule sans préfixe s’affiche aussi');
+      assert.equal(texts[3].includes(translations.fr.studentId), false, 'aucun matricule inventé pour un élève qui n’en a pas');
+    } finally { h.cleanup(); }
+  });
 });

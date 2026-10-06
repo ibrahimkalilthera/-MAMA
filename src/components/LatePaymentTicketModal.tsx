@@ -1,10 +1,20 @@
 /**
  * LatePaymentTicketModal — Late-payment ticket: on-screen slip preview with print button plus its hidden printable twin (print:block). Presentational — the student and display helpers arrive as props; the shared balance derivation is computed once here.
+ *
+ * Le ticket porte le MATRICULE de l'élève (2026-10-06, demande du propriétaire) :
+ * c'est un avis officiel remis à la famille, et le matricule est la référence
+ * qu'elle retrouve sur le reçu de paiement et sur le relevé de compte. Il est lu
+ * par `studentMatricule` — la MÊME valeur qu'on affiche, cherche et imprime
+ * partout ailleurs — et la ligne n'apparaît QUE s'il y en a un : un libellé suivi
+ * d'un vide, sur un papier remis aux parents, serait pire que pas de ligne. Les
+ * DEUX copies (l'aperçu à l'écran et le jumeau imprimé) le portent, sinon ce
+ * qu'on relit à l'écran ne serait pas ce qui sort de l'imprimante.
  */
 import { Printer } from 'lucide-react';
 import type { Student } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
+import { studentMatricule } from '../lib/studentIdentifiers';
 import { modalTokens } from '../lib/modalTokens';
 import { ModalShell } from './ModalShell';
 
@@ -25,6 +35,7 @@ export function LatePaymentTicketModal(props: LatePaymentTicketModalProps) {
   const discount = ticketStudent.scholarshipDiscount || 0;
   const discountedTotal = ticketStudent.totalDue * (1 - discount / 100);
   const balance = discountedTotal - ticketStudent.amountPaid;
+  const matricule = studentMatricule(ticketStudent.studentId);
   const tokens = modalTokens(currentTheme);
   return (
     <>
@@ -55,6 +66,12 @@ export function LatePaymentTicketModal(props: LatePaymentTicketModalProps) {
                         <span className="font-bold">{t.student}:</span>
                         <span>{ticketStudent.name}</span>
                       </div>
+                      {matricule && (
+                        <div className="flex justify-between">
+                          <span className="font-bold">{t.studentId}:</span>
+                          <span>{matricule}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="font-bold">{t.grade}:</span>
                         <span>Classe : {getGradeDisplay(ticketStudent.grade, 'fr')} / Grade: {getGradeDisplay(ticketStudent.grade, 'en')}</span>
@@ -111,6 +128,12 @@ export function LatePaymentTicketModal(props: LatePaymentTicketModalProps) {
                 <span className="font-bold">{t.student}:</span>
                 <span>{ticketStudent.name}</span>
               </div>
+              {matricule && (
+                <div className="flex justify-between">
+                  <span className="font-bold">{t.studentId}:</span>
+                  <span>{matricule}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="font-bold">{t.grade}:</span>
                 <span>Classe : {getGradeDisplay(ticketStudent.grade, 'fr')} / Grade: {getGradeDisplay(ticketStudent.grade, 'en')}</span>

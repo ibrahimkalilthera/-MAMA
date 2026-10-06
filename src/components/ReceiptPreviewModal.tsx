@@ -45,8 +45,9 @@ export function ReceiptPreviewModal({ currentTheme }: { currentTheme: CurrentThe
           <button type="button" onClick={closeReceiptPreview} className={`px-4 py-2 rounded-xl ${currentTheme.isDark ? 'bg-slate-800 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>{t.close}</button>
         </div>
         <p className={`text-sm ${currentTheme.muted}`}>{t.receiptPreviewHint}</p>
-        <dl className={`grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl ${currentTheme.isDark ? 'bg-slate-800 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
+        <dl className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl ${currentTheme.isDark ? 'bg-slate-800 text-slate-100' : 'bg-slate-50 text-slate-800'}`}>
           <div><dt className={`text-xs ${currentTheme.muted}`}>{t.studentName}</dt><dd className={`font-bold ${currentTheme.inkStrong}`}>{receipt.studentName}</dd></div>
+          <div><dt className={`text-xs ${currentTheme.muted}`}>{t.studentId}</dt><dd className={`font-bold ${currentTheme.inkStrong}`}>{receipt.matricule}</dd></div>
           <div><dt className={`text-xs ${currentTheme.muted}`}>{t.class}</dt><dd className={`font-bold ${currentTheme.inkStrong}`}>{receipt.grade}</dd></div>
           <div><dt className={`text-xs ${currentTheme.muted}`}>{t.amount}</dt><dd className={`font-bold ${currentTheme.inkStrong}`}>{receipt.amount.toLocaleString(receipt.lang === 'fr' ? 'fr-FR' : 'en-US')} FCFA</dd></div>
         </dl>

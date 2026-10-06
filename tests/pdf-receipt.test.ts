@@ -24,6 +24,7 @@ import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
+import { translations } from '../src/i18n/translations';
 import type { ReceiptDataOptions } from '../src/lib/pdfReceipt';
 import {
   buildParentReceiptPdf,
@@ -119,6 +120,66 @@ describe('buildParentReceiptPdf — the school paper form with the payment overl
       }
     });
   }
+
+  it('imprime le MATRICULE de l’élève à côté de son nom, sur la ligne « M »', async () => {
+    const { bytes } = await buildParentReceiptPdf(options({
+      student: { ...baseStudent, name: 'Awa Traoré', studentId: 'MT-2026-042' },
+    }));
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+    const doc = await loadingTask.promise;
+    try {
+      const page = await doc.getPage(1);
+      const content = await page.getTextContent();
+      const items = content.items.filter((item): item is Extract<typeof item, { str: string }> => 'str' in item);
+      const nameItem = items.find((item) => item.str === 'Awa Traoré');
+      const matriculeItem = items.find((item) => item.str === 'MATRICULE : MT-2026-042');
+      assert.ok(nameItem, 'le nom reste écrit tel quel — jamais concaténé au matricule');
+      assert.ok(matriculeItem, 'le matricule est imprimé avec son libellé, pour que la famille sache ce que c’est');
+      const media = (await PDFDocument.load(bytes)).getPage(0).getMediaBox();
+      const lineEnd = media.x + 191 * 72 / 25.4 + 0.1;
+      const nameRight = nameItem!.transform[4] + nameItem!.width;
+      const matriculeRight = matriculeItem!.transform[4] + matriculeItem!.width;
+      assert.ok(nameRight <= lineEnd, 'le nom reste sur la ligne pointillée');
+      assert.ok(matriculeRight <= lineEnd, 'le matricule aussi — les deux PARTAGENT la ligne');
+      assert.ok(matriculeItem!.transform[4] > nameRight, 'le matricule vient APRÈS le nom');
+    } finally {
+      await loadingTask.destroy();
+    }
+  });
+
+  it('localise le libellé du matricule : « STUDENT ID » en anglais, pas « MATRICULE »', async () => {
+    const { bytes } = await buildParentReceiptPdf(options({
+      lang: 'en',
+      student: { ...baseStudent, name: 'Awa Traoré', studentId: 'MT-2026-042' },
+    }));
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+    const doc = await loadingTask.promise;
+    try {
+      const content = await (await doc.getPage(1)).getTextContent();
+      const items = content.items.filter((item): item is Extract<typeof item, { str: string }> => 'str' in item);
+      assert.ok(
+        items.some((item) => item.str === `${translations.en.studentId} : MT-2026-042`),
+        'libellé anglais absent',
+      );
+      assert.ok(!items.some((item) => item.str.includes('MATRICULE')), 'le libellé français ne fuit pas dans un reçu anglais');
+    } finally {
+      await loadingTask.destroy();
+    }
+  });
+
+  it('n’invente aucun matricule pour un élève qui n’en a pas (fiche pas encore drainée)', async () => {
+    const { bytes } = await buildParentReceiptPdf(options({ student: { ...baseStudent, name: 'Awa Traoré' } }));
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+    const doc = await loadingTask.promise;
+    try {
+      const content = await (await doc.getPage(1)).getTextContent();
+      const items = content.items.filter((item): item is Extract<typeof item, { str: string }> => 'str' in item);
+      assert.ok(items.some((item) => item.str === 'Awa Traoré'), 'le nom est toujours là');
+      assert.ok(!items.some((item) => item.str.includes('MATRICULE')), 'aucun libellé nu : le reçu reste celui d’un élève sans matricule');
+    } finally {
+      await loadingTask.destroy();
+    }
+  });
 
   it('falls back to a generated REC-###### number in the file name when the payment has none', async () => {
     const { filename } = await buildParentReceiptPdf(

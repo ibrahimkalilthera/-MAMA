@@ -10,6 +10,10 @@
  * classe déjà filtrée. Ces deux filtres sont LOCAUX (état du formulaire) : ils
  * ne changent pas la classe d'un élève ni aucun autre écran, ils ne font que
  * restreindre ce que la liste propose.
+ *
+ * Chaque ligne de la liste déroulante PORTE le matricule (« Awa — MATRICULE :
+ * MT-2026-42 ») : une recherche réussie se vérifie des yeux, au lieu d'un nom
+ * seul qui laisse le caissier deviner si c'est bien l'élève du reçu.
  */
 import { useMemo, useState } from 'react';
 import { CreditCard, Search, X } from 'lucide-react';
@@ -18,6 +22,7 @@ import type { Student } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import { ModalShell } from './ModalShell';
+import { studentMatricule } from '../lib/studentIdentifiers';
 import { ALL_CLASSES, filterStudents, matchesClass, matchesSearch } from '../lib/paymentStudentFilter';
 
 export interface PaymentEntryModalProps {
@@ -159,9 +164,13 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
                     className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                   >
                     <option value="" className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{t.selectStudent}...</option>
-                    {visibleStudents.map(s => (
-                      <option key={s.id} value={s.id} className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{s.name} ({formatCurrency(s.totalDue * (1 - (s.scholarshipDiscount || 0) / 100) - s.amountPaid)} {t.balance})</option>
-                    ))}
+                    {visibleStudents.map(s => {
+                      const matricule = studentMatricule(s.studentId);
+                      const balance = s.totalDue * (1 - (s.scholarshipDiscount || 0) / 100) - s.amountPaid;
+                      return (
+                        <option key={s.id} value={s.id} className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{s.name}{matricule ? ` — ${t.studentId}: ${matricule}` : ''} ({formatCurrency(balance)} {t.balance})</option>
+                      );
+                    })}
                   </select>
                   {visibleStudents.length === 0 && (
                     <p className={`text-2xs font-semibold ${currentTheme.muted}`}>

@@ -17,10 +17,11 @@ import { en as studentProfileEn, fr as studentProfileFr } from './domains/studen
 import { en as parentsEn, fr as parentsFr } from './domains/parents';
 import { en as adminEn, fr as adminFr } from './domains/admin';
 import { en as pdfEn, fr as pdfFr } from './domains/pdf';
+import { en as cashReportEn, fr as cashReportFr } from './domains/cashReport';
 
 export const translations = {
-  en: { ...commonEn, ...calendarEn, ...studentsEn, ...financeEn, ...studentProfileEn, ...parentsEn, ...adminEn, ...pdfEn },
-  fr: { ...commonFr, ...calendarFr, ...studentsFr, ...financeFr, ...studentProfileFr, ...parentsFr, ...adminFr, ...pdfFr },
+  en: { ...commonEn, ...calendarEn, ...studentsEn, ...financeEn, ...studentProfileEn, ...parentsEn, ...adminEn, ...pdfEn, ...cashReportEn },
+  fr: { ...commonFr, ...calendarFr, ...studentsFr, ...financeFr, ...studentProfileFr, ...parentsFr, ...adminFr, ...pdfFr, ...cashReportFr },
 };
 
 export type TranslationDict = typeof translations.en;

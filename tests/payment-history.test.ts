@@ -5,16 +5,22 @@
  *   • la vue LIT le journal : elle ne garde que les trois gestes de paiement, et
  *     l'élève vient de `target_id` pour un encaissement (le seul geste qui le met
  *     là) ou de l'instantané pour une annulation / une restauration ;
- *   • le montant CHIFFRÉ ne peut venir que de l'instantané — jamais d'un découpage
- *     de la phrase `details`, sinon un total finirait par additionner autre chose ;
- *   • le résumé dit ce qu'il laisse de côté : tant qu'une ligne n'a pas de montant
- *     chiffré, le net est partiel, et `withoutAmount` le compte.
+ *   • le montant CHIFFRÉ vient de l'instantané quand le geste en porte un, et
+ *     SINON de la phrase `details` dont le gabarit est écrit par ce dépôt : les 3
+ *     seuls gestes de paiement du journal de PRODUCTION n'avaient pas d'instantané,
+ *     et la colonne MONTANT disait « voir le détail » partout (mesuré le
+ *     2026-10-06) ;
+ *   • une phrase HORS gabarit ne donne aucun montant : la ligne est comptée dans
+ *     `withoutAmount`, jamais devinée — un total qui se tairait serait pire que
+ *     pas de total.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   filterPaymentHistory,
   isPaymentHistoryAction,
+  livePaymentOf,
+  paymentFactsFromDetails,
   paymentHistoryRows,
   paymentHistorySummary,
 } from '../src/lib/paymentHistory';
@@ -99,8 +105,9 @@ describe('paymentHistory — qui a encaissé, pour qui, combien', () => {
     assert.equal(rows[0]!.studentId, 'st1');
     assert.equal(rows[0]!.studentName, 'Ali Diallo', 'le nom se lit sur l’annuaire, pas dans la phrase');
     assert.equal(rows[0]!.studentGrade, '6B');
-    assert.equal(rows[0]!.amount, null, 'sans instantané, AUCUN montant n’est découpé dans la phrase');
-    assert.equal(rows[0]!.receiptNumber, null);
+    assert.equal(rows[0]!.amount, 4000, 'sans instantané, le montant se relit dans la phrase du journal');
+    assert.equal(rows[0]!.receiptNumber, 'REC-1', 'et le reçu aussi');
+    assert.equal(rows[0]!.paymentId, null, 'un encaissement ne nomme pas son paiement : son `target_id` est l’ÉLÈVE');
   });
 
   it('un encaissement AVEC instantané donne un montant chiffré et le reçu', () => {
@@ -234,13 +241,109 @@ describe('paymentHistory — filtres et résumé', () => {
 
   it('le résumé additionne seulement ce qui est chiffré, et DIT ce qu’il laisse de côté', () => {
     const summary = paymentHistorySummary(rows);
-    assert.deepEqual(summary, { count: 4, collected: 10000, cancelled: 6000, net: 4000, withoutAmount: 1 });
-    // La ligne sans instantané (REC-0) n'est pas comptée : le net porte sur 3 des
-    // 4 gestes affichés, et `withoutAmount` est ce qui empêche de le taire.
+    assert.deepEqual(summary, { count: 4, collected: 14000, cancelled: 6000, net: 8000, withoutAmount: 0 });
+    // La ligne sans instantané (REC-0, 6000 FCFA) est COMPTÉE : sa phrase porte le
+    // gabarit du dépôt, donc le net porte sur les quatre gestes affichés.
+    // `withoutAmount` ne compte plus que les phrases vraiment illisibles.
     assert.equal(summary.collected - summary.cancelled, summary.net);
   });
 
   it('un résumé vide est un zéro honnête, pas un `undefined`', () => {
     assert.deepEqual(paymentHistorySummary([]), { count: 0, collected: 0, cancelled: 0, net: 0, withoutAmount: 0 });
+  });
+});
+
+describe('paymentFactsFromDetails — la phrase du journal, quand l’instantané manque', () => {
+  it('lit le gabarit d’aujourd’hui, le reçu, et l’élève quand la phrase le nomme', () => {
+    assert.deepEqual(paymentFactsFromDetails('Paiement de 4000 FCFA (reçu REC-549205)'), {
+      amount: 4000,
+      receiptNumber: 'REC-549205',
+      studentName: null,
+    });
+    // Une suppression nomme l'élève — c'est aussi ce qui rend la ligne lisible
+    // quand l'ancien geste n'a pas d'instantané.
+    assert.deepEqual(
+      paymentFactsFromDetails('Paiement de 4000 FCFA (reçu REC-1) du 2026-10-05 supprimé — élève Djenebou DIALLO'),
+      { amount: 4000, receiptNumber: 'REC-1', studentName: 'Djenebou DIALLO' },
+    );
+    // Le rejeu hors ligne ajoute sa marque à la fin : elle ne fait pas partie du fait.
+    assert.equal(paymentFactsFromDetails('Paiement de 7777 FCFA (reçu REC-8) [replay]').amount, 7777);
+  });
+
+  it('lit aussi le gabarit ANGLAIS d’avant le 2026-09-13 (le journal ne se réécrit pas)', () => {
+    assert.deepEqual(paymentFactsFromDetails('Payment of 80000 FCFA recorded (Receipt: REC-690078)'), {
+      amount: 80000,
+      receiptNumber: 'REC-690078',
+      studentName: null,
+    });
+  });
+
+  it('lit les milliers écrits par l’école, et un reçu resté à « N/A »', () => {
+    assert.equal(paymentFactsFromDetails('Paiement de 1 500 000 FCFA (reçu REC-2)').amount, 1500000);
+    assert.equal(paymentFactsFromDetails('Paiement de 1.500.000 FCFA (reçu REC-2)').amount, 1500000);
+    assert.equal(paymentFactsFromDetails('Paiement de 4000 FCFA (reçu N/A)').receiptNumber, null, '« N/A » n’est pas un reçu');
+  });
+
+  it('ne lit RIEN hors gabarit — un total ne doit pas additionner autre chose', () => {
+    assert.deepEqual(paymentFactsFromDetails('Paiement restauré'), { amount: null, receiptNumber: null, studentName: null });
+    // Un nombre qui n'est pas suivi de `FCFA` n'est pas un montant, et la phrase
+    // est ANCRÉE au début : aucun de ces deux-là ne se lit.
+    assert.equal(paymentFactsFromDetails('Élève modifié — total dû 35998 → 36000').amount, null);
+    assert.equal(paymentFactsFromDetails('Paiement de 4000 (reçu REC-1)').amount, null, 'sans le mot FCFA, pas de montant');
+    assert.deepEqual(paymentFactsFromDetails(null), { amount: null, receiptNumber: null, studentName: null });
+  });
+
+  it('la ligne d’un encaissement d’avant l’instantané porte le montant ET le reçu du journal', () => {
+    const rows = paymentHistoryRows({
+      students: STUDENTS,
+      logs: [entry({ id: 'l1', action: 'RECORD_PAYMENT', targetId: 'st1', details: 'Paiement de 6000 FCFA (reçu REC-0)' })],
+    });
+    assert.equal(rows[0]!.amount, 6000);
+    assert.equal(rows[0]!.receiptNumber, 'REC-0');
+  });
+});
+
+describe('livePaymentOf — le paiement ENCORE VIVANT qu’une ligne désigne', () => {
+  const withPayments = (payments: Payment[]) => [student({ id: 'st1', name: 'Ali Diallo', grade: '6B', payments })];
+
+  it('résout par l’ID du paiement (l’instantané, ou le `target_id` d’une suppression)', () => {
+    const students = withPayments([PAY]);
+    const rows = paymentHistoryRows({
+      students,
+      logs: [entry({ id: 'l1', action: 'DELETE_PAYMENT', targetId: 'pay1', metadata: snapshot('st1', 'Ali Diallo', PAY) })],
+    });
+    const live = livePaymentOf(rows[0]!, students);
+    assert.equal(live?.payment.id, 'pay1', 'le paiement vivant est retrouvé par son id');
+    assert.equal(live?.student.id, 'st1');
+  });
+
+  it('résout par le REÇU quand l’encaissement n’a pas d’instantané — le cas des 3 gestes de production', () => {
+    const students = withPayments([{ ...PAY, receiptNumber: 'REC-549205' }]);
+    const rows = paymentHistoryRows({
+      students,
+      logs: [entry({ id: 'l1', action: 'RECORD_PAYMENT', targetId: 'st1', details: 'Paiement de 4000 FCFA (reçu REC-549205)' })],
+    });
+    assert.equal(livePaymentOf(rows[0]!, students)?.payment.id, 'pay1');
+  });
+
+  it('ne devine pas : un reçu porté par DEUX paiements ne désigne rien', () => {
+    const students = withPayments([
+      { ...PAY, id: 'pay1', receiptNumber: 'REC-9' },
+      { ...PAY, id: 'pay2', receiptNumber: 'REC-9' },
+    ]);
+    const rows = paymentHistoryRows({
+      students,
+      logs: [entry({ id: 'l1', action: 'RECORD_PAYMENT', targetId: 'st1', details: 'Paiement de 4000 FCFA (reçu REC-9)' })],
+    });
+    assert.equal(livePaymentOf(rows[0]!, students), null, 'un reçu ambigu n’est pas un identifiant');
+  });
+
+  it('un paiement ANNULÉ n’est plus vivant : il n’y a plus de reçu à montrer', () => {
+    const students = withPayments([]);
+    const rows = paymentHistoryRows({
+      students,
+      logs: [entry({ id: 'l1', action: 'DELETE_PAYMENT', targetId: 'pay1', metadata: snapshot('st1', 'Ali Diallo', PAY) })],
+    });
+    assert.equal(livePaymentOf(rows[0]!, students), null);
   });
 });
