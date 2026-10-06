@@ -134,6 +134,80 @@ export function studentUpdatesToRow(updates: Partial<Student>): DbUpdate<'studen
   return row;
 }
 
+// ─── Réconcilier le solde d'un élève ─────────────────────────────────────────
+// Le rejeu d'un paiement ne pouvait jusqu'ici qu'écrire la DATE du dernier
+// paiement sur l'élève, jamais son SOLDE : après un drainage, `amount_paid`
+// restait en arrière du montant réellement encaissé, et l'écart ne se corrigeait
+// qu'au prochain rechargement complet des élèves. Cette fonction ferme ce trou :
+// elle relit le solde de la base (jamais une copie locale, que le rejeu n'a pas)
+// et l'avance/recule du montant du geste.
+//
+// Pourquoi un DELTA et pas un recalcul depuis la somme des `payments` : le solde
+// d'un élève peut avoir été posé par un IMPORT (`Montant Payé` d'un tableur,
+// voir batchImport.ts) sans qu'une ligne `payments` n'existe. Recalculer
+// écraserait ces soldes importés. Le delta préserve l'origine du chiffre.
+
+/** Ce qu'un geste rejoué change au solde d'un élève. */
+export interface BalanceChange {
+  /** Montant ajouté au solde : positif pour un paiement, négatif pour une annulation. */
+  delta: number;
+  /** Date du paiement ajouté — repointe `last_payment_date` s'il est plus récent. */
+  paymentDate?: string;
+  /**
+   * Recaler `last_payment_date` sur le paiement le plus récent QUI RESTE, au lieu
+   * de la repousser. Vrai après une SUPPRESSION : la date du paiement retiré ne
+   * doit plus compter, et il faut relire ce qui reste plutôt que le deviner.
+   */
+  recomputeLastDate?: boolean;
+}
+
+/**
+ * Écrire sur l'élève le solde et la date que le geste rejoué vient de changer.
+ *
+ * Rend `false` si la lecture ou l'écriture est refusée : l'item reste alors en
+ * file et sera rejoué — c'est ce qui rend la réconciliation IDEMPOTENTE, car un
+ * paiement n'est retiré de la file qu'une fois son solde écrit. Le montant n'est
+ * donc jamais compté deux fois, et jamais perdu.
+ */
+export async function reconcileStudentBalance(
+  db: ReplayDb,
+  studentId: string,
+  change: BalanceChange,
+): Promise<boolean> {
+  const read = await db.from('students').select('amount_paid, last_payment_date').eq('id', studentId);
+  if (read.error) {
+    console.error('reconcileStudentBalance: lecture du solde refusée —', read.error.message);
+    return false;
+  }
+  const row = (read.data ?? [])[0] as { amount_paid?: unknown; last_payment_date?: unknown } | undefined;
+  const current = Number(row?.amount_paid) || 0;
+
+  // Un solde payé ne peut pas être négatif : on borne à 0 plutôt que d'écrire
+  // une dette qui n'existe pas (même règle que le chemin en ligne).
+  const update: DbUpdate<'students'> = { amount_paid: Math.max(0, current + change.delta) };
+
+  if (change.recomputeLastDate) {
+    const rest = await db.from('payments').select('date').eq('student_id', studentId);
+    const dates = ((rest.data ?? []) as unknown as { date?: unknown }[])
+      .map(r => (typeof r.date === 'string' && r.date ? r.date : null))
+      .filter((d): d is string => d !== null)
+      .sort();
+    update.last_payment_date = dates.length ? dates[dates.length - 1] : null;
+  } else if (change.paymentDate) {
+    const currentDate = typeof row?.last_payment_date === 'string' && row.last_payment_date ? row.last_payment_date : null;
+    // La date ne RECULE pas : un paiement plus ancien rejoué après coup (saisie
+    // dans le désordre) ne doit pas reprendre la dernière date à un reçu plus récent.
+    update.last_payment_date = !currentDate || change.paymentDate > currentDate ? change.paymentDate : currentDate;
+  }
+
+  const written = await db.from('students').update(update).eq('id', studentId);
+  if (written.error) {
+    console.error('reconcileStudentBalance: écriture du solde refusée —', written.error.message);
+    return false;
+  }
+  return true;
+}
+
 // ─── Replay ──────────────────────────────────────────────────────────────────
 // Mirrors the `if/else` chain previously inlined in useSupabaseData's
 // `syncOfflineQueue`. Returns true when the action was applied without error.
@@ -152,11 +226,16 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       academic_year: payment.academicYear || null,
       receipt_number: payment.receiptNumber || null,
     });
-    if (!error) {
-      await db.from('students').update({
-        last_payment_date: payment.date,
-      }).eq('id', studentId);
-      success = true;
+    // `23505` : ce geste est DÉJÀ en base. On réconcilie quand même le solde —
+    // le seul chemin qui mène ici est une première tentative qui a inséré la ligne
+    // puis n'a PAS terminé la mise à jour du solde. Comme l'item n'est retiré de
+    // la file qu'une fois cette mise à jour écrite, le montant n'est jamais
+    // compté deux fois, et il finit toujours par l'être une fois.
+    if (!error || error.code === '23505') {
+      success = await reconcileStudentBalance(db, studentId, {
+        delta: payment.amount,
+        paymentDate: payment.date,
+      });
     }
   } else if (item.type === 'addExpense') {
     const { error } = await db.from('expenses').insert({
@@ -215,12 +294,16 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     const { error } = await db.from('students').delete().eq('id', item.payload.id);
     if (!error) success = true;
   } else if (item.type === 'deletePayment') {
-    // La suppression mise en file : on retire la SEULE ligne de `payments`. Le
-    // solde `students.amount_paid` n'est PAS réécrit ici — même partage que le
-    // rejeu d'`addPayment`, qui ne touche pas non plus à cette colonne (voir la
-    // limite documentée dans `deletePayment`, dataOps/payments.ts).
-    const { error } = await db.from('payments').delete().eq('id', item.payload.paymentId);
-    if (!error) success = true;
+    // La suppression mise en file : on retire la SEULE ligne de `payments`, PUIS
+    // on réconcilie le solde de l'élève — le montant retiré redescend de
+    // `amount_paid` (borné à 0) et `last_payment_date` est recalée sur le paiement
+    // le plus récent QUI RESTE. Sans cela, la colonne restait en avance après un
+    // drainage et le solde de l'école ne se corrigeait qu'au rechargement.
+    const { studentId, paymentId, amount } = item.payload;
+    const { error } = await db.from('payments').delete().eq('id', paymentId);
+    if (!error) {
+      success = await reconcileStudentBalance(db, studentId, { delta: -amount, recomputeLastDate: true });
+    }
   } else if (item.type === 'addStaff') {
     const { error } = await db.from('staff').insert({ ...rowIdColumn(item.localId), ...staffToRow(item.payload) });
     if (!error) success = true;
