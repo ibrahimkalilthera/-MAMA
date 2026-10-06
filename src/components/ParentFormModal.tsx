@@ -4,7 +4,7 @@ import { DollarSign, ExternalLink, Plus, Search, Users, X } from 'lucide-react';
 import type { Student } from '../lib/useSupabaseData';
 import type { CurrentTheme, ManagedClass, ParentForm } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
-import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { studentMatricule } from '../lib/studentIdentifiers';
 import { ModalShell } from './ModalShell';
 
 /**
@@ -102,10 +102,10 @@ export function ParentFormModal(props: ParentFormModalProps) {
                             {s.name}
                           </p>
                           <p className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-2xs ${currentTheme.muted}`}>
-                            {visibleStudentIdentifier(s.grade, s.studentId) && (
+                            {studentMatricule(s.studentId) && (
                               <span className="flex items-center gap-1">
                                 <span className="font-black uppercase tracking-wide text-slate-400">{t.studentId}:</span>
-                                <span>{visibleStudentIdentifier(s.grade, s.studentId)}</span>
+                                <span>{studentMatricule(s.studentId)}</span>
                               </span>
                             )}
                             <span className="flex items-center gap-1">
@@ -147,7 +147,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
             const filteredStudents = students.filter(s => {
               const matchesSearch = !search ||
                 s.name.toLowerCase().includes(search) ||
-                (visibleStudentIdentifier(s.grade, s.studentId)?.toLowerCase().includes(search) ?? false) ||
+                (studentMatricule(s.studentId)?.toLowerCase().includes(search) ?? false) ||
                 (s.grade || '').toLowerCase().includes(search);
               const gradeNorm = (s.grade || '').toLowerCase();
               const matchesClass = parentClassFilter === 'all' || (
@@ -292,10 +292,10 @@ export function ParentFormModal(props: ParentFormModalProps) {
                                 {s.name}
                               </span>
                               <span className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 font-mono text-2xs ${currentTheme.muted}`}>
-                                {visibleStudentIdentifier(s.grade, s.studentId) && (
+                                {studentMatricule(s.studentId) && (
                                   <span className="flex items-center gap-1">
                                     <span className="font-black uppercase tracking-wide text-slate-400">{t.studentId}:</span>
-                                    <span>{visibleStudentIdentifier(s.grade, s.studentId)}</span>
+                                    <span>{studentMatricule(s.studentId)}</span>
                                   </span>
                                 )}
                                 {s.grade ? (

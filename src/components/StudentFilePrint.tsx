@@ -7,7 +7,7 @@ import { Users } from 'lucide-react';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { Student } from '../lib/useSupabaseData';
 import type { TranslationDict } from '../i18n/translations';
-import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { studentMatricule } from '../lib/studentIdentifiers';
 
 interface StudentFilePrintProps {
   t: TranslationDict;
@@ -28,11 +28,11 @@ export function StudentFilePrint({ t, student, currentUser, getGradeDisplay, for
           <p className="text-xs uppercase tracking-widest text-slate-500 font-bold mt-1">{t.officialStudentProfileAcademicFile}</p>
           <p className="text-2xs text-slate-400 mt-0.5">{t.phone2}: +223 70 00 00 00 | {t.email2} contact@mamathera.edu.ml</p>
         </div>
-        {visibleStudentIdentifier(student.grade, student.studentId) && (
+        {studentMatricule(student.studentId) && (
           <div className={`border border-slate-300 px-4 py-2 text-center rounded-xl ${tokens.paperFillLight}`}>
             <span className="text-3xs font-black uppercase tracking-widest block text-slate-400">{t.studentId}</span>
             <span className="font-mono font-bold text-sm text-slate-800">
-              {visibleStudentIdentifier(student.grade, student.studentId)}
+              {studentMatricule(student.studentId)}
             </span>
           </div>
         )}

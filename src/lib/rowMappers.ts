@@ -3,7 +3,7 @@
  */
 import type { DbRow } from './database.types';
 import type { Parent, Payment, SalaryPayment, Staff, Student, StudentNoteEntry, Todo, VendorExpense, Expense } from './domainTypes';
-import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
+import { studentMatricule } from './studentIdentifiers';
 import { isStaffCategory } from './adminPositions';
 
 // ─── IDs of records created OFFLINE ───────────────────────────────────────────
@@ -68,7 +68,7 @@ export function mapStudentRow(row: DbRow<'students'>, payments: Payment[]): Stud
     flagged: Boolean(row.flagged),
     academicYear: row.academic_year ?? undefined,
     grade: row.grade ?? undefined,
-    studentId: visibleStudentIdentifier(row.grade ?? undefined, row.student_id ?? undefined),
+    studentId: studentMatricule(row.student_id),
     photo: row.photo ?? undefined,
     emergencyContactName: row.emergency_contact_name ?? undefined,
     emergencyContactRelation: row.emergency_contact_relation ?? undefined,

@@ -6,7 +6,7 @@ import type { Dispatch, SetStateAction, FormEvent } from 'react';
 import type { Student, Parent } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
-import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { studentMatricule } from '../lib/studentIdentifiers';
 import { ModalShell } from './ModalShell';
 
 export interface LinkStudentModalProps {
@@ -66,7 +66,7 @@ export function LinkStudentModal(props: LinkStudentModalProps) {
                   <option value="">-- {t.selectStudentToLink} --</option>
                   {students.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name}{visibleStudentIdentifier(s.grade, s.studentId) ? ` — ${t.studentId}: ${visibleStudentIdentifier(s.grade, s.studentId)}` : ''} · {t.grade}: {s.grade || '—'}
+                      {s.name}{studentMatricule(s.studentId) ? ` — ${t.studentId}: ${studentMatricule(s.studentId)}` : ''} · {t.grade}: {s.grade || '—'}
                     </option>
                   ))}
                 </select>

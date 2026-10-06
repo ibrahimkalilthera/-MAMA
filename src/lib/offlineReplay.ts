@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, DbUpdate, Json } from './database.types';
 import type { QueueItem } from './offlineQueue';
 import type { Parent, Student, Staff } from '../app/types';
-import { isNinthGradeClass, visibleStudentIdentifier } from './studentIdentifiers';
+import { studentMatricule } from './studentIdentifiers';
 import { isUuid } from './rowMappers';
 import { paymentUndoMetadata } from './paymentUndo';
 import type { LogAuditParams } from './auditLogger';
@@ -50,7 +50,7 @@ export function parentToRow(parent: Omit<Parent, 'id'>) {
 export function studentToRow(student: Omit<Student, 'id' | 'payments'>) {
   return {
     parent_id: student.parentId || null,
-    student_id: visibleStudentIdentifier(student.grade, student.studentId) || null,
+    student_id: studentMatricule(student.studentId) ?? null,
     name: student.name,
     parent_name: student.parentName,
     parent_email: student.parentEmail || null,
@@ -117,11 +117,14 @@ export function studentUpdatesToRow(updates: Partial<Student>): DbUpdate<'studen
   if (updates.noteEntries !== undefined) row.note_entries = updates.noteEntries as unknown as Json;
   if (updates.flagged !== undefined) row.flagged = updates.flagged;
   if (updates.academicYear !== undefined) row.academic_year = updates.academicYear;
-  if (updates.grade !== undefined) {
-    row.grade = updates.grade;
-    row.student_id = visibleStudentIdentifier(updates.grade, updates.studentId) ?? null;
-  } else if (updates.studentId !== undefined) {
-    row.student_id = updates.studentId.trim() || null;
+  if (updates.grade !== undefined) row.grade = updates.grade;
+  // Le matricule ne se VIDE plus et ne dépend plus de la classe : il est attribué
+  // une fois par la base (migration 20261006000000) et il vit avec l'élève. Un
+  // champ laissé vide dans le formulaire ne l'efface donc pas — un identifiant
+  // que les familles lisent sur un reçu ne s'efface pas par accident.
+  if (updates.studentId !== undefined) {
+    const matricule = studentMatricule(updates.studentId);
+    if (matricule) row.student_id = matricule;
   }
   if (updates.photo !== undefined) row.photo = updates.photo;
   if (updates.emergencyContactName !== undefined) row.emergency_contact_name = updates.emergencyContactName;

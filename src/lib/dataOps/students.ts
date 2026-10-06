@@ -7,7 +7,7 @@ import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Student } from '../domainTypes';
 import { mapStudentRow, createRowId } from '../rowMappers';
 import { rowIdColumn, studentToRow, studentUpdatesToRow } from '../offlineReplay';
-import { isNinthGradeClass, visibleStudentIdentifier } from '../studentIdentifiers';
+import { studentMatricule } from '../studentIdentifiers';
 import { logAuditEvent } from '../auditLogger';
 
 export function createStudentOps(ctx: SupabaseDataCtx) {
@@ -16,7 +16,7 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
   const addStudent = async (student: Omit<Student, 'id' | 'payments'> & { id?: string }): Promise<Student | null> => {
     const normalizedStudent = {
       ...student,
-      studentId: visibleStudentIdentifier(student.grade, student.studentId),
+      studentId: studentMatricule(student.studentId),
     };
     // L'id du GESTE — minté par l'écran (une fois par fiche ouverte) ou ici à
     // défaut. C'est lui qui rend l'écriture IDEMPOTENTE : le même geste rejoué
@@ -66,14 +66,11 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
 
   const updateStudent = async (id: string, updates: Partial<Student>): Promise<boolean> => {
     const currentStudent = students.find(s => s.id === id);
-    const resultingGrade = updates.grade ?? currentStudent?.grade;
-    const normalizedUpdates = !isNinthGradeClass(resultingGrade)
-      ? { ...updates, studentId: '' }
-      : updates.studentId !== undefined
-        ? { ...updates, studentId: visibleStudentIdentifier(resultingGrade, updates.studentId) ?? '' }
-        : updates.grade !== undefined
-          ? { ...updates, studentId: visibleStudentIdentifier(resultingGrade, currentStudent?.studentId) ?? '' }
-          : updates;
+    // Le matricule n'est plus normalisé ici : il ne dépend plus de la classe, et
+    // il ne se vide plus (c'est la BASE qui l'attribue, à l'insertion). `updates`
+    // traverse donc tel quel, et `studentUpdatesToRow` n'écrit `student_id` que
+    // lorsqu'une valeur non vide est fournie.
+    const normalizedUpdates = updates;
     if (isOffline()) {
       setStudents(prev => prev.map(s => s.id === id ? { ...s, ...normalizedUpdates } : s));
       enqueueOffline('updateStudent', { id, updates: normalizedUpdates });
@@ -178,10 +175,9 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
         const updates: Partial<Student> = {};
         if (item.action === 'promote' || item.action === 'repeat') {
           updates.academicYear = item.targetAcademicYear;
-          if (item.targetGrade) {
-            updates.grade = item.targetGrade;
-            updates.studentId = visibleStudentIdentifier(item.targetGrade, student.studentId) ?? '';
-          }
+          // Le matricule ne bouge PAS avec une promotion : il appartient à
+          // l'élève, pas à sa classe (src/lib/studentIdentifiers.ts).
+          if (item.targetGrade) updates.grade = item.targetGrade;
           if (item.newTotalDue !== undefined) updates.totalDue = item.newTotalDue;
           updates.amountPaid = 0;
           updates.status = 'Active';

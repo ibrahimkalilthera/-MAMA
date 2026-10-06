@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useMainViews } from '../app/mainViewsContext';
-import { visibleStudentIdentifier } from '../lib/studentIdentifiers';
+import { studentMatricule } from '../lib/studentIdentifiers';
 
 export function ParentsView() {
   const { AlertCircle, ArrowUpDown, Bell, Briefcase, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CreditCard, DollarSign, Download, Edit2, FileText, HighlightText, Mail, MapPin, Phone, Plus, Receipt, Search, Trash2, Unlink, UserCheck, UserPlus, Users, X, canDelete, currentTheme, expandedParentId, formatCurrency, getChildrenForParent, getParentOutstandingBalance, getParentPaymentHistory, handleDeleteParent, handleExportParentLedgerPdf, handleUnlinkStudent, openEditParentModal, openNotifyModal, parentChildrenSortBy, parentSearchTerm, parents, selectedYear, setActiveLinkingParent, setEditingParent, setExpandedParentId, setParentChildrenSortBy, setParentForm, setParentSearchTerm, setPaymentAmount, setPaymentStudentId, setShowPaymentForm, setSelectedStudent, setShowLinkStudentModal, setShowParentModal, setStudentToLinkId, t } = useMainViews();
@@ -76,7 +76,7 @@ export function ParentsView() {
                 const search = parentSearchTerm.toLowerCase().trim();
                 if (!search) return true;
                 const children = getChildrenForParent(p);
-                const hasMatchingChild = children.some(c => c.name.toLowerCase().includes(search) || (visibleStudentIdentifier(c.grade, c.studentId)?.toLowerCase().includes(search) ?? false) || c.id.toLowerCase().includes(search));
+                const hasMatchingChild = children.some(c => c.name.toLowerCase().includes(search) || (studentMatricule(c.studentId)?.toLowerCase().includes(search) ?? false) || c.id.toLowerCase().includes(search));
                 return p.fullName.toLowerCase().includes(search) ||
                   p.occupation.toLowerCase().includes(search) ||
                   p.address.toLowerCase().includes(search) ||
@@ -129,7 +129,7 @@ export function ParentsView() {
                   const search = parentSearchTerm.toLowerCase().trim();
                   if (!search) return true;
                   const children = getChildrenForParent(p);
-                  const hasMatchingChild = children.some(c => c.name.toLowerCase().includes(search) || (visibleStudentIdentifier(c.grade, c.studentId)?.toLowerCase().includes(search) ?? false) || c.id.toLowerCase().includes(search));
+                  const hasMatchingChild = children.some(c => c.name.toLowerCase().includes(search) || (studentMatricule(c.studentId)?.toLowerCase().includes(search) ?? false) || c.id.toLowerCase().includes(search));
                   return p.fullName.toLowerCase().includes(search) ||
                     p.occupation.toLowerCase().includes(search) ||
                     p.address.toLowerCase().includes(search) ||
@@ -498,9 +498,9 @@ export function ParentsView() {
                                               <span className="font-bold text-sm text-slate-900 dark:text-white">
                                                 {child.name}
                                               </span>
-                                              {visibleStudentIdentifier(child.grade, child.studentId) && (
+                                              {studentMatricule(child.studentId) && (
                                                 <span className="px-2 py-0.5 rounded text-2xs font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                                                  {visibleStudentIdentifier(child.grade, child.studentId)}
+                                                  {studentMatricule(child.studentId)}
                                                 </span>
                                               )}
                                               {child.grade && (

@@ -49,8 +49,11 @@ const theme: CurrentTheme = {
 };
 
 const PAY: Payment = { id: 'pay1', date: '2026-10-01', amount: 25000, receiptNumber: 'REC-1' };
+// `grade: '1A'` ET un matricule : c'est le cas qui a CHANGÉ le 2026-10-06 (le
+// matricule n'appartient plus qu'aux 9e). Le garder ici fait tourner toutes les
+// suites existantes sur une fiche qui en porte un, comme les vraies fiches.
 const STUDENT: Student = {
-  id: 'st1', name: 'Ali Diallo', grade: '1A', totalDue: 150000, amountPaid: 25000,
+  id: 'st1', name: 'Ali Diallo', grade: '1A', studentId: 'MT-2026-101', totalDue: 150000, amountPaid: 25000,
   parentName: 'Papa Diallo', parentEmail: '', parentPhone: '', dueDate: '2026-12-31',
   notes: '', payments: [PAY],
 };
@@ -165,6 +168,23 @@ describe('StudentDetailsModal — supprimer un paiement saisi par erreur', () =>
       await act(async () => { h.click(h.confirm()!); });
       assert.equal(h.calls.length, 1);
       assert.ok(h.confirm(), 'l’échec laisse la confirmation en place');
+    } finally {
+      h.cleanup();
+    }
+  });
+});
+
+describe('StudentDetailsModal — le matricule est visible pour TOUTE classe', () => {
+  it('affiche le matricule d’un élève qui n’est PAS en 9e', async () => {
+    // Le changement de politique du 2026-10-06, prouvé sur l'INTERFACE : ce
+    // bandeau ne montrait le matricule que pour les 9e (donc jamais pour les
+    // ~400 autres élèves de l'école). « Ali Diallo » est en 1A, et son matricule
+    // est à l'écran — c'est le geste que la demande décrit.
+    const h = mount({ canDeletePayment: true, result: true });
+    try {
+      const text = h.container.textContent ?? '';
+      assert.match(text, /MT-2026-101/, 'le matricule de la fiche est rendu');
+      assert.match(text, new RegExp(t.studentId), 'et il est étiqueté comme un matricule');
     } finally {
       h.cleanup();
     }
