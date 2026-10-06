@@ -123,10 +123,11 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
    *     montant, le reçu et l'élève — c'est la trace que l'école relit.
    *
    * Hors ligne, le geste est mis en file (aucun octet perdu) et le rejeu
-   * l'audite comme les autres suppressions. Limite, dite : le rejeu supprime la
-   * ligne mais ne réécrit PAS `students.amount_paid` (même partage que
-   * `addPayment`, dont le rejeu ne touche pas non plus à ce solde) — la colonne
-   * y reste donc en avance tant que la page n'a pas rechargé ses élèves.
+   * l'audite comme les autres suppressions ET réconcilie le même solde : il
+   * retire le montant de `students.amount_paid` (borné à 0) et recale
+   * `last_payment_date` sur le paiement le plus récent QUI RESTE (voir
+   * `reconcileStudentBalance`, `src/lib/offlineReplay.ts`). Le solde ne dérive
+   * donc plus après un drainage.
    */
   const deletePayment = async (studentId: string, payment: Payment): Promise<boolean> => {
     const paymentId = payment.id;

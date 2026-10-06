@@ -42,6 +42,7 @@
     "git:retry": "node scripts/git-retry.mjs",
     "orphans:report": "node scripts/sweep-report.mjs",
     "orphans:doctor": "node scripts/panic-doctor.mjs",
+    "report:duplicate-receipts": "node scripts/report-duplicate-receipts.mjs",
     "check:contrast": "node scripts/theme-contrast-audit.mjs",
     "deploy:prod": "node scripts/deploy-notice.mjs",
     "seed": "node --env-file=.env supabase/seed.mjs",

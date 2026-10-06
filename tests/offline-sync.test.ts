@@ -11,7 +11,7 @@
 //   4. a failing replay STAYS queued while the rest of the queue still syncs
 //   5. a thrown replay STOPS the drain, later items keep their order
 //   6. empty queue: no-op, returns 0, queries nothing
-//   7. addPayment hits both tables (payments, then students) and drains
+//   7. addPayment hits both tables (payments, then the student read+write) and drains
 //   8. contract: the hook drives this exact function (no inline loop left)
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -149,7 +149,7 @@ describe('offline sync (drainOfflineQueue — the full syncOfflineQueue behaviou
     assert.deepEqual(getOfflineQueue(), []);
   });
 
-  it("replays 'addPayment' against both tables (payments, then students) and drains", async () => {
+  it("replays 'addPayment' against both tables (payments, then the student read+write) and drains", async () => {
     clearOfflineQueue();
     seedPayment();
 
@@ -157,7 +157,9 @@ describe('offline sync (drainOfflineQueue — the full syncOfflineQueue behaviou
     const synced = await drainOfflineQueue(db);
 
     assert.equal(synced, 1);
-    assert.deepEqual(queries, ['payments', 'students'], 'a payment updates the student too');
+    // Le paiement, puis l'élève DEUX fois : le solde est relu avant d'être écrit
+    // (une copie locale ferait dériver le chiffre après un drainage).
+    assert.deepEqual(queries, ['payments', 'students', 'students'], 'a payment reconciles the student too');
     assert.deepEqual(getOfflineQueue(), []);
   });
 

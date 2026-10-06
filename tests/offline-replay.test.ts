@@ -21,6 +21,37 @@ function itemOf<T extends OfflineActionType>(
   return { id: `q_${type}`, createdAt: '2026-01-01T00:00:00.000Z', attempts: 0, type, payload } as QueueItem;
 }
 
+/**
+ * Un ReplayDb minimal qui REND des lignes — ce que `makeFakeDb` ne sait pas faire
+ * (il répond toujours `[{id:'fake-row'}]`, suffisant pour vérifier la TABLE
+ * visée, pas son CONTENU). Ici la réconciliation relit un solde précis, donc il
+ * faut pouvoir choisir ce que `select(...)` renvoie. Les `update()` sont
+ * capturés pour comparer la ligne écrite.
+ */
+function reconcilingDb(
+  rows: Record<string, Array<Record<string, unknown>>>,
+  opts: { insertError?: { message: string; code?: string } } = {},
+): { db: ReplayDb; updates: { table: string; row: Record<string, unknown> }[] } {
+  const updates: { table: string; row: Record<string, unknown> }[] = [];
+  const make = (table: string, result: { data: unknown; error: unknown }) => {
+    const builder = Object.assign(Promise.resolve(result), {
+      select: () => builder,
+      eq: () => builder,
+      neq: () => builder,
+      single: () => builder,
+      delete: () => builder,
+      insert: () => (table === 'payments' && opts.insertError ? make(table, { data: null, error: opts.insertError }) : builder),
+      update: (row?: Record<string, unknown>) => {
+        if (row) updates.push({ table, row });
+        return builder;
+      },
+    });
+    return builder;
+  };
+  const from = (table: string) => make(table, { data: rows[table] ?? [{ id: 'fake-row' }], error: null });
+  return { db: { from } as unknown as ReplayDb, updates };
+}
+
 
 
 /** The player with the full typed payloads, and the table each one should hit. */
@@ -173,6 +204,20 @@ describe('comportements propres à chaque action rejouée', () => {
     assert.ok(!queries.includes('students'), 'pas de mise à jour de l’élève quand le paiement n’est pas passé');
   });
 
+  it('un paiement DÉJÀ en base (23505) est quand même réconcilié — le solde ne reste pas en arrière', async () => {
+    // Le seul chemin qui mène à un 23505 est une première tentative qui a inséré
+    // la ligne puis n’a pas fini la mise à jour du solde : refuser de réconcilier
+    // ici laisserait le solde dériver pour toujours.
+    const db = reconcilingDb(
+      { students: [{ amount_paid: 1000, last_payment_date: '2026-08-31' }] },
+      { insertError: { message: 'duplicate key', code: '23505' } },
+    );
+    const ok = await replayOfflineItem(db.db, payItem());
+    assert.equal(ok, true);
+    const studentUpdate = db.updates.find((u) => u.table === 'students');
+    assert.equal(studentUpdate?.row.amount_paid, 1100, 'le montant déjà en base est compté une fois');
+  });
+
   it('la déclaration d’année déjà présente déplace quand même le drapeau (23505)', async () => {
     const duplicateYear = {
       from: () => ({
@@ -181,6 +226,84 @@ describe('comportements propres à chaque action rejouée', () => {
       }),
     } as unknown as ReplayDb;
     assert.equal(await replayOfflineItem(duplicateYear, itemOf('setCurrentYear', { year: '2026-2027' })), true);
+  });
+});
+
+// ─── Le SOLDE de l’élève après un drainage ───────────────────────────────────
+// Le défaut réparé : un paiement en file était écrit dans `payments` et sa DATE
+// posée sur l’élève, mais son MONTANT n’était jamais ajouté à `amount_paid` (et
+// une suppression en file ne le retirait jamais). Le solde de l’école dérivait
+// donc jusqu’au prochain rechargement. Ces cas verrouillent la réconciliation.
+
+describe('le solde de l’élève se réconcilie au rejeu', () => {
+  const payItem = () => itemOf('addPayment', { studentId: 's1', payment: { date: '2026-09-05', amount: 100, receiptNumber: 'R1' } });
+  const delItem = () => itemOf('deletePayment', { studentId: 's1', paymentId: 'pay1', amount: 400, receiptNumber: 'R1', date: '2026-09-05' });
+
+  it('un paiement rejoué AJOUTE son montant au solde et pose la date', async () => {
+    const db = reconcilingDb({ students: [{ amount_paid: 1000, last_payment_date: '2026-08-31' }] });
+    const ok = await replayOfflineItem(db.db, payItem());
+    assert.equal(ok, true);
+    const written = db.updates.find((u) => u.table === 'students');
+    assert.ok(written, 'le solde doit être écrit sur l’élève');
+    assert.equal(written.row.amount_paid, 1100, 'le solde avance du montant rejoué');
+    assert.equal(written.row.last_payment_date, '2026-09-05');
+  });
+
+  it('un paiement rejoué plus ANCIEN ne fait pas reculer la dernière date', async () => {
+    const db = reconcilingDb({ students: [{ amount_paid: 1000, last_payment_date: '2026-10-01' }] });
+    await replayOfflineItem(db.db, payItem()); // date 2026-09-05
+    const written = db.updates.find((u) => u.table === 'students');
+    assert.equal(written?.row.amount_paid, 1100);
+    assert.equal(written?.row.last_payment_date, '2026-10-01', 'la date la plus récente gagne');
+  });
+
+  it('un paiement SUPPRIMÉ rejoué retire son montant et recale la dernière date', async () => {
+    const db = reconcilingDb({
+      students: [{ amount_paid: 1000, last_payment_date: '2026-09-05' }],
+      payments: [{ date: '2026-08-31' }, { date: '2026-09-01' }],
+    });
+    const ok = await replayOfflineItem(db.db, delItem());
+    assert.equal(ok, true);
+    const written = db.updates.find((u) => u.table === 'students');
+    assert.equal(written?.row.amount_paid, 600, 'le montant retiré redescend du solde');
+    assert.equal(written?.row.last_payment_date, '2026-09-01', 'la date suit le paiement QUI RESTE');
+  });
+
+  it('sans paiement restant, la date repart à vide', async () => {
+    const db = reconcilingDb({ students: [{ amount_paid: 400, last_payment_date: '2026-09-05' }], payments: [] });
+    await replayOfflineItem(db.db, delItem());
+    const written = db.updates.find((u) => u.table === 'students');
+    assert.equal(written?.row.amount_paid, 0);
+    assert.equal(written?.row.last_payment_date, null);
+  });
+
+  it('le solde ne descend jamais sous zéro', async () => {
+    const db = reconcilingDb({ students: [{ amount_paid: 100 }], payments: [] });
+    await replayOfflineItem(db.db, delItem()); // retire 400 d’un solde de 100
+    const written = db.updates.find((u) => u.table === 'students');
+    assert.equal(written?.row.amount_paid, 0, 'jamais de dette inventée');
+  });
+
+  it('une réconciliation refusée laisse l’item en file (le montant ne sera pas perdu)', async () => {
+    // La lecture du solde échoue : le paiement est en base mais le solde n’est pas
+    // écrit, donc l’item DOIT rester en file — un prochain passage le réconciliera.
+    const failing = {
+      from: (table: string) => {
+        const builder = Object.assign(Promise.resolve(table === 'students'
+          ? { data: null, error: { message: 'lecture refusée' } }
+          : { data: [{ id: 'fake-row' }], error: null }), {
+          select: () => builder,
+          eq: () => builder,
+          neq: () => builder,
+          single: () => builder,
+          delete: () => builder,
+          insert: () => builder,
+          update: () => builder,
+        });
+        return builder;
+      },
+    } as unknown as ReplayDb;
+    assert.equal(await replayOfflineItem(failing, payItem()), false);
   });
 });
 
