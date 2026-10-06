@@ -1,3 +1,13 @@
+## [2026-10-06] 1.0.25 — le travail part, et le numéro est inédit AVANT d'être poussé
+
+Demande du propriétaire : « fais la mise à jour avec tous les changements qu'on vient de faire et publish and release la nouvelle version en faisant attention à ne pas créer de doublon ». Le geste humain reste celui de la 1.0.24, et c'est le seul : **monter la version**. La publication suit le gate (`desktop-release.yml`, déclenché par la fin verte de « Quality & performance guard » sur `main`), sans clic et sans appel d'API manuel.
+
+**Pas de doublon, et l'inédit est constaté AVANT de pousser.** `git ls-remote --tags origin v1.0.25` rend **0 ligne** — le numéro n'existe ni en local ni sur le remote —, et `npm run check:release:needed` répond `needed=true`. Le gate lui-même refuse de toute façon un numéro dont le tag existe (`check:release:tag`) : un même numéro ne peut pas changer de contenu, donc republier n'atteindrait aucun poste. C'est exactement ce que le gate a répondu au commit de travail juste en dessous, poussé sur la 1.0.24 encore courante : rien à publier.
+
+**Ce que la 1.0.25 emporte** depuis la 1.0.24 : le matricule cherchable et imprimé partout (reçu, grand livre de la famille, ticket de retard), l'export CSV **et** PDF de l'historique des paiements qui honore les filtres actifs, le rapport de caisse du jour groupé par caissier avec les annulations, et la correction de l'historique lui-même — le montant relu dans la phrase que ce dépôt écrit quand l'instantané `metadata` est à `NULL` (mesuré : les 3 seuls gestes de paiement réels l'étaient), le clic sur une ligne qui ouvre le reçu DU GESTE, et la suppression depuis la ligne qui passe par `deletePayment`, donc par la LIGNE DE PAIEMENT — jamais par l'entrée du journal.
+
+**Mesure attendue après publication.** `npm run check:release:channel` relit le canal **sans jeton** (rehachage de l'installeur réellement servi) et un seul release porte `v1.0.25`.
+
 ## [2026-10-06] L'historique des paiements montre le montant, ouvre le reçu, et corrige la caisse
 
 Demande du propriétaire : « pourquoi dans montant ça dit voir le détail et ne montre pas le montant, normalement quand on clique sur le paiement dans l'historique de paiement ça doit montrer le reçu et l'option de pouvoir supprimer un paiement doit aussi se trouver là-bas », puis, sur le geste lui-même : « quand tu supprimes ça doit supprimer le paiement, make sure of that ».
