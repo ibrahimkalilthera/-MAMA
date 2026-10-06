@@ -95,7 +95,8 @@ export function AppHeader(props: AppHeaderProps) {
            activeTab === 'expenses' ? t.expenses : 
            activeTab === 'calendar' ? t.calendar : 
            activeTab === 'archives' ? t.yearlyArchives : 
-           activeTab === 'audit' ? (t.auditTrail) : t.settings}
+           activeTab === 'audit' ? (t.auditTrail) : 
+           activeTab === 'paymentHistory' ? (t.paymentHistory) : t.settings}
         </h2>
         <div className="flex items-center gap-4 mt-1 min-w-0">
           <p className={`${currentTheme.muted} text-sm flex items-center gap-2 whitespace-nowrap`}>

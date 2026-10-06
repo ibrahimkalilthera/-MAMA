@@ -55,6 +55,7 @@ describe('MobileNav', () => {
     }
     assert.ok(container.textContent?.includes(t.langToggle), `pilule de langue « ${t.langToggle} » présente`);
     assert.ok(!container.textContent?.includes(t.auditTrail), 'Audit masqué pour un compte staff');
+    assert.ok(!container.textContent?.includes(t.paymentHistory), 'Historique des paiements masqué pour un compte staff');
     assert.ok(!container.textContent?.includes(t.navSettings), 'Réglages masqués pour un compte staff');
 
     await act(async () => root.unmount());
@@ -79,6 +80,7 @@ describe('MobileNav', () => {
 
     assert.ok(container.textContent?.includes(t.auditTrail), 'Audit visible pour dev');
     assert.ok(container.textContent?.includes(t.navSettings), 'Réglages visibles pour dev');
+    assert.ok(container.textContent?.includes(t.paymentHistory), 'Historique des paiements visible pour dev');
 
     await act(async () => root.unmount());
     container.remove();
@@ -119,6 +121,14 @@ describe('MobileNav', () => {
     });
     assert.equal(audits, 1, 'ouvrir Audit rafraîchit le journal');
     assert.deepEqual(navigated.slice(-1), ['audit'], 'le clic sur Audit navigue vers audit');
+
+    // L'historique des paiements LIT le même journal : l'ouvrir le recharge aussi,
+    // sinon on lirait une photo périmée de la caisse.
+    await act(async () => {
+      findButton(container as unknown as Element, t.paymentHistory).click();
+    });
+    assert.equal(audits, 2, 'ouvrir l’historique des paiements rafraîchit le journal');
+    assert.deepEqual(navigated.slice(-1), ['paymentHistory'], 'le clic navigue vers paymentHistory');
 
     await act(async () => {
       findButton(container as unknown as Element, t.langToggle).click();

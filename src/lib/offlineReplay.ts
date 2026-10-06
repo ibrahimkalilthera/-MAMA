@@ -12,7 +12,7 @@ import type { QueueItem } from './offlineQueue';
 import type { Parent, Student, Staff } from '../app/types';
 import { studentMatricule } from './studentIdentifiers';
 import { isUuid } from './rowMappers';
-import { paymentUndoMetadata } from './paymentUndo';
+import { paymentSnapshotMetadata } from './paymentUndo';
 import type { LogAuditParams } from './auditLogger';
 
 /** The surface of the Supabase client that replay touches. */
@@ -560,8 +560,24 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
   switch (item.type) {
     case 'addPayment':
       // Même forme que le chemin en ligne (dataOps/payments.ts) : un même fait
-      // ne doit pas se lire de deux façons selon qu'il a été rejoué ou non.
-      return { action: 'RECORD_PAYMENT', targetType: 'payment', targetId: item.payload.studentId, details: `Paiement de ${item.payload.payment.amount} FCFA (reçu ${item.payload.payment.receiptNumber || 'N/A'})${tag}` };
+      // ne doit pas se lire de deux façons selon qu'il a été rejoué ou non —
+      // instantané STRUCTURÉ compris (l'Historique des paiements y lit un montant
+      // chiffré, jamais une phrase à découper). `localId` porte l'id minté pour ce
+      // geste quand le paiement lui-même ne le porte pas (voir QueueItemBase).
+      return {
+        action: 'RECORD_PAYMENT',
+        targetType: 'payment',
+        targetId: item.payload.studentId,
+        details: `Paiement de ${item.payload.payment.amount} FCFA (reçu ${item.payload.payment.receiptNumber || 'N/A'})${tag}`,
+        metadata: paymentSnapshotMetadata({
+          paymentId: item.payload.payment.id ?? item.localId ?? '',
+          studentId: item.payload.studentId,
+          date: item.payload.payment.date,
+          amount: item.payload.payment.amount,
+          academicYear: item.payload.payment.academicYear,
+          receiptNumber: item.payload.payment.receiptNumber,
+        }),
+      };
     case 'deletePayment':
       // Même forme que le chemin en ligne (dataOps/payments.ts) : montant, reçu,
       // date, élève, PLUS l'instantané qui rend le geste annulable — un même fait
@@ -571,7 +587,7 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
         targetType: 'payment',
         targetId: item.payload.paymentId,
         details: `Paiement de ${item.payload.amount} FCFA (reçu ${item.payload.receiptNumber || 'N/A'}) du ${item.payload.date} supprimé — élève ${item.payload.studentName ?? item.payload.studentId}${tag}`,
-        metadata: paymentUndoMetadata({
+        metadata: paymentSnapshotMetadata({
           paymentId: item.payload.paymentId,
           studentId: item.payload.studentId,
           studentName: item.payload.studentName,

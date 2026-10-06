@@ -6,7 +6,8 @@
  * users get one dock instead of two floating buttons).
  *
  * The audit & settings tabs are admin/dev-only, exactly like the sidebar;
- * opening audit also refreshes the audit log first (fetchAuditLogs).
+ * opening audit (or the payment history, which reads the same journal) also
+ * refreshes the audit log first (fetchAuditLogs).
  */
 import {
   LayoutDashboard,
@@ -18,6 +19,7 @@ import {
   StickyNote,
   TrendingUp,
   ShieldCheck,
+  History,
   Settings as SettingsIcon,
   Globe,
 } from 'lucide-react';
@@ -56,13 +58,16 @@ export function MobileNav(props: MobileNavProps) {
     ...(isAdminDev
       ? [
           { tab: 'audit' as const, label: t.auditTrail, icon: <ShieldCheck size={20} /> },
+          { tab: 'paymentHistory' as const, label: t.paymentHistory, icon: <History size={20} /> },
           { tab: 'settings' as const, label: t.navSettings, icon: <SettingsIcon size={20} /> },
         ]
       : []),
   ];
 
   const go = (tab: AppTab) => {
-    if (tab === 'audit') fetchAuditLogs?.();
+    // Les deux écrans qui lisent le journal le RECHARGENT en s'ouvrant : arriver
+    // sur une lecture périmée ferait croire à un geste qui n'y est pas encore.
+    if (tab === 'audit' || tab === 'paymentHistory') fetchAuditLogs?.();
     setActiveTab(tab);
   };
 

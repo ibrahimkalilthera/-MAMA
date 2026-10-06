@@ -24,6 +24,7 @@ import { ExpensesView } from '../src/components/ExpensesView';
 import { CalendarView } from '../src/components/CalendarView';
 import { NotesView } from '../src/components/NotesView';
 import { AuditView } from '../src/components/AuditView';
+import { PaymentHistoryView } from '../src/components/PaymentHistoryView';
 import { blockedAuditEntry } from '../src/lib/desktopUpdateReport';
 import { SettingsView } from '../src/components/SettingsView';
 
@@ -41,6 +42,7 @@ describe('views render inside MainViewsContext', () => {
     { name: 'CalendarView', node: createElement(CalendarView), expectedText: 'today' },
     { name: 'NotesView', node: createElement(NotesView), expectedText: 'notes' },
     { name: 'AuditView', node: createElement(AuditView), expectedText: 'refreshLogs' },
+    { name: 'PaymentHistoryView', node: createElement(PaymentHistoryView), expectedText: 'paymentHistory' },
     { name: 'SettingsView', node: createElement(SettingsView), expectedText: 'systemLanguage' },
   ];
 
