@@ -4,10 +4,12 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Layers, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X } from 'lucide-react';
 import type { Student } from '../lib/useSupabaseData';
 import { ADMIN_POSITIONS } from '../lib/adminPositions';
+import { duplicateStudentGroup, duplicateStudentGroupSize } from '../lib/duplicateStudents';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ParentFormModal } from './ParentFormModal';
 import { ProductivityPanel } from './ProductivityPanel';
 import { StudentDetailsModal } from './StudentDetailsModal';
+import { DuplicateReviewModal } from './DuplicateReviewModal';
 import { StudentFormModal } from './StudentFormModal';
 import { VendorExpenseModal } from './VendorExpenseModal';
 import { YearlyAuditSheetModal } from './YearlyAuditSheetModal';
@@ -53,7 +55,7 @@ interface OverlayEntry {
 
 export function AppModals(props: AppModalsProps) {
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
-  const { Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Layers, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentYear, currentTheme, currentUser, deleteStudent, deletePayment, deleteTodo, canDelete, canDeletePayment, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, isGeneralManager, lang, newClassForm, noteText, savingNoteOnDate, saveNoteOnDate, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, staffModalMode, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoDate, setTodoDate, todoInput, todos, toggleTodo, handleUpdateTodoDate, vendorExpenseForm, welcomeMessage  } = props;
+  const { Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Layers, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentYear, currentTheme, currentUser, mergeStudents, reviewStudent, setReviewStudent, deleteStudent, deletePayment, deleteTodo, canDelete, canDeletePayment, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, isGeneralManager, lang, newClassForm, noteText, savingNoteOnDate, saveNoteOnDate, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentStudentId, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, staffModalMode, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoDate, setTodoDate, todoInput, todos, toggleTodo, handleUpdateTodoDate, vendorExpenseForm, welcomeMessage  } = props;
   const tokens = modalTokens(currentTheme);
 
   // ── One ordered overlay registry ─────────────────────────────────────────
@@ -91,6 +93,40 @@ export function AppModals(props: AppModalsProps) {
           onDeleteRequest={() => setConfirmDeleteStudent(selectedStudent)}
           canDelete={canDelete}
           canDeletePayment={canDeletePayment}
+          duplicateGroupSize={duplicateStudentGroupSize(students, selectedStudent)}
+          onReviewDuplicates={(student) => setReviewStudent(student)}
+        />
+      ) : null,
+    },
+    {
+      // La comparaison s'ouvre AU-DESSUS de la fiche quand on vient d'elle
+      // (l'entrée précédente reste ouverte derrière) : la liste EST l'ordre
+      // d'empilement, donc cette position est le choix d'être au-dessus.
+      key: 'duplicate-review',
+      coordinated: true,
+      // Pas de sortie animée : le rendu est un FRAGMENT (la coquille + ses deux
+      // confirmations), et `AnimatePresence` attend un composant animé en enfant
+      // direct. La coquille porte ses propres transitions à l'entrée.
+      presence: false,
+      open: Boolean(reviewStudent),
+      close: () => setReviewStudent(null),
+      render: (register, onClose) => reviewStudent ? (
+        <DuplicateReviewModal
+          // Le groupe est RECALCULÉ ici, depuis l'annuaire : jamais un
+          // instantané figé à l'ouverture. Si une fiche a changé entre-temps,
+          // c'est la fiche réelle qui est comparée.
+          group={duplicateStudentGroup(students, reviewStudent)}
+          t={t}
+          lang={lang}
+          currentTheme={currentTheme}
+          formatCurrency={formatCurrency}
+          formatDate={formatDate}
+          getGradeDisplay={getGradeDisplay}
+          canDelete={canDelete}
+          mergeStudents={mergeStudents}
+          deleteStudent={deleteStudent}
+          overlayRef={register}
+          onClose={onClose}
         />
       ) : null,
     },

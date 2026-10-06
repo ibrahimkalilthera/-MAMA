@@ -295,6 +295,13 @@ export interface MainViewsProps {
   currentTheme: CurrentTheme;
   deleteStaff: (id: string) => Promise<boolean>;
   deleteStudent: (id: string) => Promise<boolean>;
+  /**
+   * Ouvre la comparaison des fiches qui partagent un nom ET une classe (voir
+   * `src/lib/duplicateStudents.ts`) — l'écran où l'école tranche, avec ses deux
+   * gestes : fusionner (`mergeStudents`) ou supprimer une fiche. On passe la
+   * FICHE, pas le groupe : le groupe est recalculé à l'affichage.
+   */
+  openDuplicateReview: (student: Student) => void;
   deleteTodo: (id: string) => Promise<boolean>;
   /**
    * Retire le SEUL reçu fautif (montant saisi deux fois, mauvais élève), écrit

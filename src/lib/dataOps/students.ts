@@ -9,6 +9,15 @@ import { mapStudentRow, createRowId } from '../rowMappers';
 import { rowIdColumn, studentToRow, studentUpdatesToRow } from '../offlineReplay';
 import { studentMatricule } from '../studentIdentifiers';
 import { logAuditEvent } from '../auditLogger';
+import { localIsoDate, systemClock } from '../dateWindows';
+import {
+  deleteAuditDetails,
+  mergeAuditDetails,
+  mergeSnapshotMetadata,
+  mergedLedger,
+  mergedNotes,
+  studentSnapshotMetadata,
+} from '../studentMerge';
 
 export function createStudentOps(ctx: SupabaseDataCtx) {
   const { students, setStudents, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
@@ -131,7 +140,13 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
       action: 'DELETE_STUDENT',
       targetType: 'student',
       targetId: id,
-      details: deleted?.name,
+      // La phrase NOMME la fiche avec ce qui la DISTINGUE — matricule, classe,
+      // parent, montants, reçus. Jusqu'ici elle n'écrivait que le nom : deux
+      // homonymes produisaient deux entrées identiques, et le journal ne disait
+      // pas laquelle était partie. Le `metadata` porte la fiche entière — c'est
+      // la trace que l'outil de comparaison promet avant de laisser supprimer.
+      details: deleted ? deleteAuditDetails(deleted) : undefined,
+      metadata: deleted ? studentSnapshotMetadata(deleted) : null,
     });
     setStudents(prev => prev.filter(s => s.id !== id));
     notifySuccess('deleteStudent');
@@ -206,5 +221,144 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
     }
   };
 
-  return { addStudent, updateStudent, deleteStudent, batchPromoteStudents };
+  /**
+   * FUSIONNER des fiches homonymes dans celle que l'école a gardée.
+   *
+   * Le geste de l'outil de comparaison (`DuplicateReviewModal`) : deux fiches
+   * portent le même nom dans la même classe, l'école désigne la BONNE, et l'autre
+   * disparaît — sans perdre ce qu'elle portait. Trois écritures, dans cet ordre,
+   * et c'est l'ordre qui fait la sûreté :
+   *
+   *   1. les REÇUS des fiches fusionnées sont RATTACHÉS à la fiche gardée
+   *      (`payments.student_id`). Le compte est VÉRIFIÉ : « Admin update payments »
+   *      filtre en RLS, et un `UPDATE` qui ne touche aucune ligne répond 200 — se
+   *      croire « déplacé » sur une réponse vide laisserait la cascade qui suit
+   *      DÉTRUIRE les reçus avec la fiche. Moins de lignes que prévu = refus ;
+   *   2. le grand livre consolidé est écrit sur la fiche gardée : montant payé =
+   *      SOMME des montants enregistrés (jamais recalculé depuis les lignes de
+   *      reçus — un import historique peut avoir laissé un solde sans ligne, et la
+   *      fiche est ce que l'école a validé), dernière date = la plus récente de
+   *      toutes, et les notes des fiches retirées recopiées derrière un repère daté ;
+   *   3. les fiches fusionnées sont supprimées d'UN SEUL geste (`.in()`) — elles ne
+   *      portent plus aucun reçu, donc la cascade n'a rien à emporter.
+   *
+   * En cas de refus à l'étape 2 ou 3, les reçus sont REMIS sur leur fiche
+   * d'origine et la fiche gardée retrouve ses valeurs d'avant. Un demi-geste qui
+   * survivrait à l'écran (des reçus sur une fiche, un solde consolidé, deux fiches
+   * encore là) serait pire qu'un refus : c'est exactement ce que l'école aurait le
+   * plus de mal à défaire à la main.
+   *
+   * RÉSEAU REQUIS, et l'appelant le dit à l'utilisateur : la file hors ligne
+   * connaît des gestes SUR UNE ligne (`deleteStudent`, `updateStudent`, …) ; une
+   * fusion en déplace plusieurs avant d'en supprimer une, et un rejeu partiel
+   * laisserait des reçus sur une fiche sans propriétaire. Même règle, et même
+   * refus, que `restorePayment`.
+   *
+   * UNE entrée de journal : `MERGE_STUDENT`, avec l'instantané complet des fiches
+   * — la gardée, les retirées, et les reçus déplacés. Le journal ne se réécrit
+   * jamais ; l'entrée s'ajoute, et elle suffit à refaire le geste à la main.
+   */
+  const mergeStudents = async (survivorId: string, mergedIds: string[]): Promise<boolean> => {
+    const survivor = students.find(s => s.id === survivorId);
+    const removed = mergedIds
+      .filter(id => id && id !== survivorId)
+      .map(id => students.find(s => s.id === id))
+      .filter((s): s is Student => Boolean(s));
+    if (!survivor || removed.length === 0) {
+      notifyError('mergeStudents', 'Fusion impossible : la fiche gardée ou les fiches à fusionner sont introuvables.');
+      return false;
+    }
+    if (isOffline()) {
+      notifyError('mergeStudents', 'La fusion demande le réseau : les reçus changent de fiche, et un demi-geste serait pire qu’un refus.');
+      return false;
+    }
+
+    const movedReceipts = removed.flatMap(fiche => fiche.payments);
+
+    /** Les reçus remis sur leur fiche d'origine — l'annulation d'un demi-geste. */
+    const putReceiptsBack = async () => {
+      for (const fiche of removed) {
+        for (const payment of fiche.payments) {
+          if (!payment.id) continue;
+          await supabase.from('payments').update({ student_id: fiche.id }).eq('id', payment.id);
+        }
+      }
+    };
+    /** La fiche gardée rendue à ses valeurs d'avant (mêmes colonnes que l'étape 2). */
+    const restoreSurvivor = async () => {
+      await supabase.from('students').update({
+        amount_paid: survivor.amountPaid,
+        last_payment_date: survivor.lastPaymentDate ?? null,
+        notes: survivor.notes,
+      }).eq('id', survivorId);
+    };
+
+    // 1. Les reçus changent de fiche — et le compte est vérifié.
+    for (const fiche of removed) {
+      const expected = fiche.payments.length;
+      if (expected === 0) continue;
+      const { data, error } = await supabase
+        .from('payments')
+        .update({ student_id: survivorId })
+        .eq('student_id', fiche.id)
+        .select('id');
+      if (error || !data || data.length !== expected) {
+        console.error('mergeStudents: reçus non rattachés —', error?.message ?? `${data?.length ?? 0}/${expected} ligne(s)`);
+        await putReceiptsBack();
+        notifyError('mergeStudents', 'Reçus non rattachés — droits insuffisants, ou les reçus ont changé. Rien n’a été fusionné.');
+        return false;
+      }
+    }
+
+    // 2. Le grand livre consolidé + les notes recopiées, sur la fiche gardée.
+    const ledger = mergedLedger(survivor, removed);
+    const notes = mergedNotes(survivor, removed, localIsoDate(systemClock()));
+    const { data: updated, error: updateError } = await supabase
+      .from('students')
+      .update(studentUpdatesToRow({ amountPaid: ledger.amountPaid, lastPaymentDate: ledger.lastPaymentDate, notes }))
+      .eq('id', survivorId)
+      .select('id');
+    if (updateError || !updated || updated.length === 0) {
+      console.error('mergeStudents: fiche gardée non mise à jour —', updateError?.message ?? 'aucune ligne');
+      await putReceiptsBack();
+      notifyError('mergeStudents', 'Aucune ligne modifiée — droits insuffisants sur la fiche gardée. Rien n’a été fusionné.');
+      return false;
+    }
+
+    // 3. Les fiches fusionnées partent d'un seul geste (plus aucun reçu à elles :
+    //    la cascade n'emporte rien).
+    const removedIds = removed.map(fiche => fiche.id);
+    const { data: deletedRows, error: deleteError } = await supabase
+      .from('students')
+      .delete()
+      .in('id', removedIds)
+      .select('id');
+    if (deleteError || !deletedRows || deletedRows.length !== removedIds.length) {
+      console.error('mergeStudents: fiches non supprimées —', deleteError?.message ?? `${deletedRows?.length ?? 0}/${removedIds.length} ligne(s)`);
+      await putReceiptsBack();
+      await restoreSurvivor();
+      notifyError('mergeStudents', 'Fiches non supprimées — droits insuffisants. Rien n’a été fusionné.');
+      return false;
+    }
+
+    setStudents(prev => prev
+      .filter(s => !removedIds.includes(s.id))
+      .map(s => s.id === survivorId
+        ? { ...s, payments: ledger.payments, amountPaid: ledger.amountPaid, lastPaymentDate: ledger.lastPaymentDate, notes }
+        : s));
+
+    void logAuditEvent({
+      action: 'MERGE_STUDENT',
+      targetType: 'student',
+      targetId: survivorId,
+      details: mergeAuditDetails(survivor, removed, movedReceipts.length),
+      metadata: mergeSnapshotMetadata(survivor, removed, movedReceipts),
+    });
+
+    notifySuccess('mergeStudents');
+    return true;
+  };
+
+  return { addStudent, updateStudent, deleteStudent, mergeStudents, batchPromoteStudents };
+
 }

@@ -1,13 +1,53 @@
-import { useState } from 'react';
-import { Search, Users } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { AlertTriangle, Search, Users } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
 import type { Student } from '../lib/useSupabaseData';
+import { duplicateStudentGroupsById } from '../lib/duplicateStudents';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EmptyState } from './SharedUi';
 
+/**
+ * La pastille « doublon possible » — UN seul dessin, partagé par la ligne et la
+ * légende : deux copies d'une pastille finissent toujours par diverger.
+ *
+ * Avec `onOpen`, elle devient le BOUTON qui ouvre la comparaison des fiches —
+ * c'est le geste attendu devant le signal. Sans lui (la légende), c'est un
+ * repère en lecture seule : une légende n'agit pas.
+ */
+function DuplicateBadge({ label, title, onOpen }: { label: string; title?: string; onOpen?: () => void }) {
+  const className = "inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 rounded-md text-3xs font-extrabold uppercase tracking-wider";
+  if (!onOpen) {
+    return (
+      <span className={className} title={title}>
+        <AlertTriangle size={10} className="flex-shrink-0" />
+        {label}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      // La ligne entière ouvre la fiche : sans cela, ce clic ouvrirait les
+      // deux écrans à la fois (la comparaison ET la fiche).
+      onClick={(event) => { event.stopPropagation(); onOpen(); }}
+      className={`${className} hover:bg-amber-200 dark:hover:bg-amber-950/70 transition-colors cursor-pointer`}
+      title={title}
+    >
+      <AlertTriangle size={10} className="flex-shrink-0" />
+      {label}
+    </button>
+  );
+}
+
 export function StudentsView() {
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
-  const { ArrowDown, ArrowUp, ArrowUpDown, FileText, Flag, HighlightText, Printer, Trash2, canDelete, currentTheme, deleteStudent, filteredStudents, formatCurrency, formatDate, getGradeDisplay, getStatus, handleSort, lang, openEditModal, searchTerm, setSelectedStudent, setTicketStudent, stats, studentSortKey, studentSortOrder, t, today, toggleFlag } = useMainViews();
+  const { ArrowDown, ArrowUp, ArrowUpDown, FileText, Flag, HighlightText, Printer, Trash2, canDelete, currentTheme, deleteStudent, filteredStudents, formatCurrency, formatDate, getGradeDisplay, getStatus, handleSort, lang, openEditModal, openDuplicateReview, searchTerm, setSelectedStudent, setTicketStudent, stats, students, studentSortKey, studentSortOrder, t, today, toggleFlag } = useMainViews();
+  // Les fiches en double se lisent sur l'ANNUAIRE ENTIER (`students`), jamais sur
+  // la liste filtrée : une recherche active ferait disparaître le partenaire d'un
+  // groupe, et la pastille renverrait alors à un élève invisible. Le critère est
+  // celui du contrôle de clôture (même nom replié + même classe), partagé avec le
+  // script — voir `src/lib/duplicateStudents.ts`.
+  const duplicateGroups = useMemo(() => duplicateStudentGroupsById(students), [students]);
   return (
     <>
           <div className="space-y-8">
@@ -107,6 +147,9 @@ export function StudentsView() {
                     const discount = student.scholarshipDiscount || 0;
                     const balance = student.totalDue * (1 - discount / 100) - student.amountPaid;
                     const status = getStatus(student);
+                    // Nombre de fiches qui partagent ce nom DANS cette classe —
+                    // undefined quand la fiche est seule.
+                    const duplicateGroup = duplicateGroups.get(student.id);
 
                     // Highlighting Logic
                     const dueDate = new Date(student.dueDate);
@@ -153,13 +196,20 @@ export function StudentsView() {
                                 {/* The raw UUID used to live here; it is an internal
                                     identifier with no meaning for the user, so the row
                                     now shows the class badge only. */}
-                                {student.grade && (
-                                  <div className="flex items-center gap-2 mt-0.5">
+                                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                                  {student.grade && (
                                     <span className="inline-block px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 rounded-md text-3xs font-extrabold uppercase tracking-wider">
                                       {getGradeDisplay(student.grade, lang)}
                                     </span>
-                                  </div>
-                                )}
+                                  )}
+                                  {duplicateGroup && (
+                                    <DuplicateBadge
+                                      label={t.duplicateStudentBadge}
+                                      title={`${t.duplicateStudentWarning.replace('{n}', String(duplicateGroup))} — ${t.duplicateReviewOpen}`}
+                                      onOpen={() => openDuplicateReview(student)}
+                                    />
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -247,6 +297,13 @@ export function StudentsView() {
               <div className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-sm ${currentTheme.isDark ? 'bg-amber-900/30' : 'bg-amber-100'} border border-amber-200`}></div>
                 <span className={`text-2xs font-bold ${currentTheme.muted}`}>{t.flaggedLabel}</span>
+              </div>
+              {/* La légende montre la PASTILLE elle-même, pas un carré de couleur
+                  de plus : deux nuances d'ambre côte à côte ne se distinguent pas,
+                  et c'est la forme que la ligne porte. */}
+              <div className="flex items-center gap-2">
+                <DuplicateBadge label={t.duplicateStudentBadge} />
+                <span className={`text-2xs font-bold ${currentTheme.muted}`}>{t.duplicateStudentLegend}</span>
               </div>
             </div>
           </div>

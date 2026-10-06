@@ -277,6 +277,7 @@ export const en = {
     auditActionAddStudent: "Student added",
     auditActionAddVendorExpense: "Vendor expense added",
     auditActionBatchImport: "Excel import",
+    auditActionMergeStudent: "Records merged",
     auditActionDeleteExpense: "Expense deleted",
     auditActionDeleteParent: "Parent deleted",
     auditActionDeletePayment: "Payment deleted",
