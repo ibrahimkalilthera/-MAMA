@@ -10,7 +10,7 @@
 -- Régénération :  node supabase/regenerate-full-setup.mjs
 -- Vérification :  node supabase/regenerate-full-setup.mjs --check
 --
--- Ce script est la concaténation des 33 migrations suivantes, dans
+-- Ce script est la concaténation des 34 migrations suivantes, dans
 -- l'ordre chronologique de leur nom de fichier :
 --
 --   20260801000000_init.sql
@@ -46,6 +46,7 @@
 --   20261005000004_audit_logs_metadata.sql
 --   20261006000000_students_matricule_all.sql
 --   20261011000000_payments_months.sql
+--   20261011000001_drop_students_dupe_backup.sql
 --
 -- Exécuté dans le Supabase SQL Editor, il recrée le schéma complet
 -- (tables, index, fonctions, triggers, politiques RLS, données de
@@ -2066,3 +2067,51 @@ ALTER TABLE public.payments
 ALTER TABLE public.payments
     ADD CONSTRAINT payments_months_shape_check
     CHECK (months::text ~ '^\{(\d{4}-(0[1-9]|1[0-2]))?(,\d{4}-(0[1-9]|1[0-2]))*\}$');
+
+-- ============================================================================
+-- MIGRATION : 20261011000001_drop_students_dupe_backup.sql
+-- ============================================================================
+
+-- 20261011000001_drop_students_dupe_backup.sql
+--
+-- POURQUOI CE FICHIER EXISTE
+-- ==========================
+-- La migration `20261005000001_dedupe_students.sql` a créé
+-- `public.students_dupe_backup_20261005` par un `CREATE TABLE … AS` pour rendre le
+-- dédoublonnage réversible, et laissait sa suppression EN COMMENTAIRE : « une fois
+-- le nettoyage confirmé ». Ce nettoyage n'a jamais été confirmé, et la table est
+-- restée six jours en production.
+--
+-- Or un `CREATE TABLE … AS` n'active PAS la sécurité par ligne, et les privilèges
+-- par défaut de Supabase ouvrent `SELECT` au rôle `anon`. Mesuré depuis
+-- l'extérieur, avec la clé publique livrée dans le bundle (`App-*.js`, présent
+-- dans `dist/` comme dans `electron-ui-dist/`, donc sur chaque poste) :
+-- HTTP 200, 14 lignes, dont nom d'élève, téléphone d'un parent et notes médicales.
+-- Le même relevé sur les autres tables (`students`, `payments`, `parents`,
+-- `audit_logs`…) rend 0 ligne : la RLS tient partout ailleurs. Le trou était
+-- exactement cet artefact.
+--
+-- CE QUE CE FICHIER FAIT, ET CE QU'IL NE FAIT PAS
+-- ===============================================
+-- Il RETIRE la table, et rien d'autre : rien n'y est recopié, rien n'est recréé,
+-- aucune donnée n'est déplacée d'une table à l'autre. Les 14 lignes sont
+-- archivées HORS du dépôt, avec l'empreinte SHA-256 de leur contenu
+-- (`archives/2026-10-11-retrait-fuite/`, à côté du dépôt — des données
+-- personnelles n'ont rien à faire dans l'histoire Git).
+--
+-- POURQUOI `IF EXISTS`
+-- ====================
+-- Ce n'est pas une précaution de confort. `npm run db:apply` prouve un retrait par
+-- « présent AVANT, absent APRÈS » : rejouer ce fichier sur une base où la table est
+-- déjà partie est un REFUS explicite, pas un succès silencieux. L'`IF EXISTS` évite
+-- seulement qu'un `DROP` nu fasse échouer la transaction là où l'intention, elle,
+-- est déjà satisfaite.
+--
+-- APRÈS L'APPLICATION
+-- ===================
+--   npm run db:snapshot        # le script complet se régénère (FULL_SETUP_MIGRATION.sql)
+--   npm run db:snapshot:check  # et il est en phase avec les migrations
+--   npm run check:hosted-schema
+-- puis le relevé à la clé publique : la table doit répondre 404 (PGRST205), et
+-- surtout ne plus rendre une seule ligne.
+DROP TABLE IF EXISTS public.students_dupe_backup_20261005;

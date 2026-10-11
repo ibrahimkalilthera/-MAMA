@@ -7,7 +7,9 @@ import type { SupabaseDataCtx } from '../dataOpsContext';
 import type { Payment, SalaryPayment, Student } from '../domainTypes';
 import { mapSalaryPaymentRow, createRowId } from '../rowMappers';
 import { rowIdColumn } from '../offlineReplay';
-import { enqueueOfflineAction } from '../offlineQueue';
+// La file passe par le ctx (`enqueueOffline`), comme toutes les autres tables :
+// c'est LA même frontière pour tous les gestes, et c'est là que le refus
+// d'écriture (quota `localStorage` atteint) est annoncé avant d'être relancé.
 import { archivedPaymentFrom, paymentSnapshotMetadata } from '../paymentUndo';
 import type { ArchivedPayment } from '../paymentUndo';
 import { logAuditEvent } from '../auditLogger';
@@ -44,9 +46,30 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
       return s;
     }));
 
+    /**
+     * Mettre le paiement en file — et DIRE quand la file refuse.
+     *
+     * La file vit dans `localStorage`, qui a un quota : quand il est atteint,
+     * l'écriture échoue. L'ancien code avalait cet échec et annonçait quand même
+     * « enregistré » — un paiement pouvait donc être perdu en étant annoncé écrit,
+     * et le reçu était déjà dans la main du parent. Ici, le refus remonte :
+     * l'opération rend `false` au lieu d'un `true` qui aurait fait croire au
+     * contraire, et la saisie reste ouverte.
+     *
+     * Le message, lui, n'est PAS répété ici : `enqueueOffline` (le ctx) annonce
+     * déjà le refus avant de le relancer — un seul message, et il dit la vérité.
+     */
+    const queuePayment = (): boolean => {
+      try {
+        enqueueOffline('addPayment', { studentId, payment }, rowId);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     if (!isOnline) {
-      enqueueOfflineAction('addPayment', { studentId, payment }, rowId);
-      updateQueueCount();
+      if (!queuePayment()) return false;
       notifySuccess('addPayment');
       return true;
     }
@@ -73,8 +96,7 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
           return true;
         }
         console.error('addPayment error:', error.message);
-        enqueueOfflineAction('addPayment', { studentId, payment }, rowId);
-        updateQueueCount();
+        if (!queuePayment()) return false;
         notifySuccess('addPayment');
         return true;
       }
@@ -110,8 +132,7 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
       notifySuccess('addPayment');
       return true;
     } catch (err) {
-      enqueueOfflineAction('addPayment', { studentId, payment }, rowId);
-      updateQueueCount();
+      if (!queuePayment()) return false;
       notifySuccess('addPayment');
       return true;
     }
@@ -166,18 +187,26 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
 
     if (isOffline()) {
       setStudents(prev => applyLocally(prev));
-      enqueueOffline('deletePayment', {
-        studentId,
-        paymentId,
-        amount: payment.amount,
-        receiptNumber: payment.receiptNumber,
-        date: payment.date,
-        // L'année ET l'élève voyagent aussi : sans eux, le rejeu ne pourrait pas
-        // écrire l'instantané complet, et la suppression ne serait pas annulable.
-        academicYear: payment.academicYear,
-        studentName,
-      });
-      updateQueueCount();
+      // Même règle que `addPayment` : si la FILE refuse (stockage plein), la
+      // suppression n'est pas retenue — et l'écran ne doit pas dire le contraire.
+      // L'écran local, lui, a déjà retiré la ligne : c'est le geste tel qu'il est
+      // vu, et un nouveau clic retombera sur le même id (idempotent).
+      try {
+        enqueueOffline('deletePayment', {
+          studentId,
+          paymentId,
+          amount: payment.amount,
+          receiptNumber: payment.receiptNumber,
+          date: payment.date,
+          // L'année ET l'élève voyagent aussi : sans eux, le rejeu ne pourrait pas
+          // écrire l'instantané complet, et la suppression ne serait pas annulable.
+          academicYear: payment.academicYear,
+          studentName,
+        });
+      } catch {
+        // Le refus est DÉJÀ annoncé par `enqueueOffline` : on ne rend que l'échec.
+        return false;
+      }
       notifySuccess('deletePayment');
       return true;
     }
@@ -319,7 +348,14 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
     if (isOffline()) {
       const local: SalaryPayment = { ...sp, id: rowId };
       setSalaryPayments(prev => prev.some(p => p.id === rowId) ? prev : [...prev, local]);
-      enqueueOffline('addSalaryPayment', sp, rowId);
+      // Un salaire est de l'argent : la même règle que les reçus s'applique —
+      // file refusée = pas de « enregistré », et `null` rendu à l'appelant (le
+      // refus lui-même est déjà annoncé par `enqueueOffline`).
+      try {
+        enqueueOffline('addSalaryPayment', sp, rowId);
+      } catch {
+        return null;
+      }
       notifySuccess('addSalaryPayment');
       return local;
     }

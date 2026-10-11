@@ -29,6 +29,7 @@ import {
   getOfflineQueueFailures,
   OfflineActionType,
   OfflinePayload,
+  OfflineQueueWriteError,
 } from './offlineQueue';
 import { drainOfflineQueue } from './offlineSync';
 import { loadOfflineSnapshot, saveOfflineSnapshot } from './offlineSnapshot';
@@ -276,9 +277,33 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
   // networkUtils) : une seule réponse pour ce crochet ET pour les modules qui
   // écrivent en dehors de lui — notes du calendrier, journal, année scolaire.
   const isOffline = () => offlineSessionRef.current || isStationOffline();
+  /**
+   * Mettre un geste en file — et NE PLUS laisser croire qu'il est rangé.
+   *
+   * La file vit dans `localStorage`, qui a un quota : quand il est atteint,
+   * `setItem` LÈVE. L'ancien chemin avalait cet échec (un simple `console.error`)
+   * et l'appelant annonçait quand même « enregistré » au bureau — un paiement
+   * pouvait être perdu en étant annoncé écrit.
+   *
+   * Ici, le refus est annoncé à l'écran PUIS relancé : l'annonce de succès qui
+   * suit l'appel (`notifySuccess`) ne s'exécute jamais, donc il n'y a pas deux
+   * messages contradictoires — seulement la vérité. Le chemin de l'ARGENT
+   * (dataOps/payments.ts) ne s'en remet pas à cette relance : il attrape le refus
+   * et rend `false`, pour que la saisie du paiement reste ouverte au lieu de se
+   * fermer sur une écriture perdue.
+   */
   const enqueueOffline = (type: OfflineActionType, payload: OfflinePayload['payload'], localId?: string) => {
-    enqueueOfflineAction(type, payload, localId);
-    updateQueueCount();
+    try {
+      enqueueOfflineAction(type, payload, localId);
+      updateQueueCount();
+    } catch (err) {
+      const message =
+        err instanceof OfflineQueueWriteError
+          ? err.message
+          : `La mise en attente a échoué (${String((err as Error)?.message ?? err)}).`;
+      notifyError(type, message);
+      throw err;
+    }
   };
 
   // ── Offline snapshot (the dataset this station last received) ───────────

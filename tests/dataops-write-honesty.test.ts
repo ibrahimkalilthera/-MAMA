@@ -25,6 +25,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { maskComments } from '../scripts/lib/source-text.mjs';
+import { OfflineQueueWriteError } from '../src/lib/offlineQueue';
 import { mockModule } from './module-mock';
 import type { Expense, Parent, Payment, SalaryPayment, Staff, Student, Todo, VendorExpense } from '../src/lib/domainTypes';
 
@@ -746,5 +747,100 @@ describe('restorePayment — remettre le reçu retiré, et l’écrire au journa
     assert.equal(await offlineOps.restorePayment(ARCHIVED), false);
     assert.equal(calls.filter((c) => c.op === 'insert').length, 0, 'aucune requête tentée sans réseau');
     assert.ok(events.find((e) => e.startsWith('err:restorePayment')), 'l’échec est dit');
+  });
+});
+
+/**
+ * « Enregistré » est une PROMESSE — et la file hors ligne peut la refuser.
+ *
+ * La file vit dans `localStorage`, qui a un quota : quand il est atteint,
+ * `setItem` LÈVE. L'ancien chemin avalait cet échec dans un `console.error` et
+ * l'écran annonçait quand même « Paiement enregistré » — le reçu était déjà dans
+ * la main du parent, et la ligne n'existait nulle part. Ces cas éprouvent le
+ * refus sur les TROIS gestes d'argent : le reçu, son annulation, et le salaire.
+ *
+ * Le refus est injecté par le faux `enqueueOffline` du ctx (c'est la même
+ * frontière que la vraie file : `OfflineQueueWriteError`), donc le cas ne dépend
+ * ni d'un quota réel ni d'un navigateur.
+ */
+describe('file hors ligne qui REFUSE — l’argent ne s’annonce pas « enregistré »', () => {
+  const PAYING = {
+    id: 'st1', name: 'Ali Diallo', amountPaid: 50000, totalDue: 150000, dueDate: '2026-12-31',
+    parentName: '', parentEmail: '', parentPhone: '', notes: '', payments: [],
+  };
+  const PAY1 = { id: 'pay1', date: '2026-10-01', amount: 25000, receiptNumber: 'REC-1' } as Payment;
+  const REFUSAL = () => new OfflineQueueWriteError('storage-failed', 'quota atteint');
+
+  /**
+   * Un ctx hors ligne dont la file refuse, et les événements qu'il a vus.
+   *
+   * Le faux `enqueueOffline` imite le VRAI ctx (celui de useSupabaseData) : il
+   * annonce le refus à l'écran, PUIS le relance. C'est ce contrat-là que les ops
+   * d'argent lisent — annoncer une fois, rendre l'échec, ne pas répéter.
+   */
+  function refusingOps() {
+    const base = opsCtx('students', 'setStudents', [PAYING]);
+    const ctx = base.ctx as Record<string, unknown>;
+    const notify = ctx.notifyError as (operation: string, message: string) => void;
+    ctx.isOffline = () => true;
+    ctx.enqueueOffline = () => {
+      notify('enqueue', REFUSAL().message);
+      throw REFUSAL();
+    };
+    return { ...base, ops: createPaymentOps(ctx as unknown as Parameters<typeof createPaymentOps>[0]) };
+  }
+
+  it('un reçu dont la file refuse n’est PAS enregistré — et l’écran le dit', async () => {
+    const { ops, events } = refusingOps();
+
+    assert.equal(
+      await ops.addPayment('st1', { id: 'pay9', date: '2026-10-01', amount: 25000, receiptNumber: 'REC-9' }),
+      false,
+      'pas de faux succès : l’appelant doit savoir que rien n’est retenu',
+    );
+    assert.equal(events.filter((e) => e.startsWith('ok:')).length, 0, 'aucun « Paiement enregistré » mensonger');
+    const failure = events.find((e) => e.startsWith('err:'));
+    assert.ok(failure, 'l’échec est signalé');
+    assert.match(failure, /PAS été enregistré/, 'et il dit que le geste n’est pas enregistré');
+    assert.equal(
+      events.filter((e) => e.startsWith('err:')).length,
+      1,
+      'un seul message : le refus est annoncé par la file, jamais deux fois',
+    );
+  });
+
+  it('l’annulation d’un reçu dont la file refuse se dit aussi', async () => {
+    const { ops, events } = refusingOps();
+
+    assert.equal(await ops.deletePayment('st1', PAY1), false);
+    assert.equal(events.filter((e) => e.startsWith('ok:')).length, 0, 'aucune « Paiement supprimé » mensongère');
+    assert.ok(events.find((e) => e.startsWith('err:')), 'l’échec est dit');
+  });
+
+  it('un salaire dont la file refuse ne rend pas la ligne locale', async () => {
+    const { ops, events } = refusingOps();
+
+    assert.equal(
+      await ops.addSalaryPayment({ date: '2026-10-01', amount: 50000, staffId: 'sf1' } as SalaryPayment),
+      null,
+      'rendre la ligne locale ferait croire au bureau qu’elle est rangée',
+    );
+    assert.equal(events.filter((e) => e.startsWith('ok:')).length, 0);
+    assert.ok(events.find((e) => e.startsWith('err:')), 'l’échec est dit');
+  });
+
+  it('à l’inverse, une file qui ACCEPTE annonce bien « enregistré » (le refus ne déborde pas)', async () => {
+    const base = opsCtx('students', 'setStudents', [PAYING]);
+    const ctx = base.ctx as Record<string, unknown>;
+    ctx.isOffline = () => true;
+    ctx.enqueueOffline = () => base.events.push('queued');
+    const ops = createPaymentOps(ctx as unknown as Parameters<typeof createPaymentOps>[0]);
+
+    assert.equal(
+      await ops.addPayment('st1', { id: 'pay9', date: '2026-10-01', amount: 25000, receiptNumber: 'REC-9' }),
+      true,
+    );
+    assert.ok(base.events.includes('queued'), 'le geste est bien parti dans la file');
+    assert.ok(base.events.includes('ok:addPayment'), 'et il est annoncé');
   });
 });

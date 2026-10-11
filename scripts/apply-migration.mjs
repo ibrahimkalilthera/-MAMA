@@ -52,6 +52,7 @@ import {
   migrationPathProblem,
   objectKeys,
   orderProblem,
+  removalKeys,
   topLevelStatements,
   transactionBlockers,
   transactionControl,
@@ -141,6 +142,7 @@ for (const plan of plans) {
   plan.control = transactionControl(plan.statements);
   plan.blockers = transactionBlockers(plan.statements);
   plan.keys = objectKeys(plan.objects);
+  plan.removals = removalKeys(plan.objects);
 }
 
 const blockers = plans.flatMap((plan) => plan.blockers.map((b) => ({ ...b, file: plan.name })));
@@ -156,10 +158,15 @@ if (blockers.length > 0) {
   process.exit(1);
 }
 
-const empty = plans.filter((plan) => plan.keys.length === 0);
+const empty = plans.filter((plan) => plan.keys.length === 0 && plan.removals.length === 0);
 if (empty.length > 0) {
-  console.error('❌ un fichier qui ne déclare aucun objet observable ne peut pas être prouvé appliqué :');
-  for (const plan of empty) console.error(`   • ${plan.name} — aucune table, colonne, contrainte, fonction, politique ou déclencheur`);
+  console.error('❌ un fichier qui ne déclare aucun objet observable et ne retire rien ne peut pas être prouvé appliqué :');
+  for (const plan of empty) {
+    console.error(
+      `   • ${plan.name} — aucun ajout (table, colonne, contrainte, fonction, politique, déclencheur) ` +
+        'et aucun retrait lu (DROP TABLE, ALTER TABLE … DROP COLUMN)',
+    );
+  }
   process.exit(2);
 }
 
@@ -268,6 +275,30 @@ async function probeObjects(client, objects) {
     const { rows } = await client.query(query, [names]);
     for (const row of rows) present.add(`${kind}:${row.name}`);
   }
+  // Ce qu'un fichier RETIRE se lit là où ses ajouts se lisent : dans les
+  // catalogues, DANS la transaction. La même sonde répond donc aux deux
+  // questions, et le retrait se prouve « présent avant, absent après ».
+  const removed = objects.removed ?? { tables: [], columns: [] };
+  if (removed.tables.length > 0) {
+    const { rows } = await client.query(
+      `select table_name from information_schema.tables
+        where table_schema = 'public' and table_name = any($1::text[])`,
+      [removed.tables],
+    );
+    for (const row of rows) present.add(`table:${row.table_name}`);
+  }
+  if (removed.columns.length > 0) {
+    const tables = [...new Set(removed.columns.map((entry) => entry.table))];
+    const { rows } = await client.query(
+      `select table_name, column_name from information_schema.columns
+        where table_schema = 'public' and table_name = any($1::text[])`,
+      [tables],
+    );
+    const have = new Set(rows.map((row) => `${row.table_name}.${row.column_name}`));
+    for (const { table, column } of removed.columns) {
+      if (have.has(`${table}.${column}`)) present.add(`column:${table}.${column}`);
+    }
+  }
   return present;
 }
 
@@ -311,14 +342,71 @@ async function appChannelConfirmation(objects) {
   return { checked: false, reason: `le canal de l’application ne voit pas encore le schéma appliqué (${last})` };
 }
 
+/**
+ * Le RETRAIT est-il visible dans le canal de l'application ?
+ *
+ * C'est la question du 2026-10-11 posée dans l'autre sens : la table fuyait
+ * parce que PostgREST la SERVAIT à la clé publique, pas parce qu'elle était
+ * absente des catalogues. Après un retrait, ce même canal doit donc répondre 404
+ * (ou PGRST205, « introuvable dans le cache de schéma ») — un 200, même avec zéro
+ * ligne, veut dire que PostgREST la connaît encore.
+ *
+ * Cet appel ne fait pas échouer la commande : la preuve d'application est dans
+ * les catalogues, et un cache de schéma en retard n'est pas un retrait manqué. Il
+ * DIT ce qu'il a vu — et un 200 est dit assez fort pour qu'on ne le confonde pas
+ * avec une fermeture.
+ */
+async function appChannelRemovalConfirmation(objects) {
+  const tables = objects.removed?.tables ?? [];
+  if (tables.length === 0) return [];
+  if (!anonKey) {
+    return ['   ⚠️  retrait non relu : VITE_SUPABASE_ANON_KEY absente — le canal du bureau n’a pas pu être interrogé'];
+  }
+  const lines = [];
+  for (const table of tables) {
+    let last = 'aucune réponse';
+    let gone = false;
+    for (let attempt = 1; attempt <= 6 && !gone; attempt += 1) {
+      try {
+        const response = await fetch(`${appUrl}/rest/v1/${encodeURIComponent(table)}?select=*&limit=0`, {
+          headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+          signal: AbortSignal.timeout(20000),
+        });
+        const body = await response.text();
+        if (response.status === 404 || /PGRST205/.test(body)) {
+          gone = true;
+          last = `HTTP 404${/PGRST205/.test(body) ? ' (PGRST205)' : ''}`;
+          break;
+        }
+        last = `HTTP ${response.status}${body ? ` « ${body.slice(0, 120)} »` : ''}`;
+      } catch (error) {
+        last = String(error?.message ?? error);
+      }
+      if (attempt < 6) await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+    lines.push(
+      gone
+        ? `🔎 retrait relu sur le canal du bureau : ${table} → ${last} — la clé publique ne la sert plus.`
+        : `   ⚠️  ${table} est retirée de la base (catalogues), mais le canal de l’application répond encore : ${last}` +
+          ' — cache de schéma en retard, ou une autre table porte ce nom. Relancez `npm run check:hosted-schema`.',
+    );
+  }
+  return lines;
+}
+
 // ── Le geste ─────────────────────────────────────────────────────────────────
 console.log(`db:apply — base PARTAGÉE ${SHARED_PROJECT_REF} (écriture)${DRY_RUN ? ' — mode --dry-run, aucune écriture' : ''}`);
 for (const plan of plans) {
+  const declared =
+    plan.removals.length > 0
+      ? `${plan.keys.length} ajout(s) et ${plan.removals.length} retrait(s) déclaré(s)`
+      : `${plan.keys.length} objet(s) déclaré(s)`;
   console.log(
-    `   ${plan.name} · ${plan.keys.length} objet(s) déclaré(s) · ` +
+    `   ${plan.name} · ${declared} · ` +
       `${plan.control.length > 0 ? `transaction PROPRE au fichier (${plan.control.join(', ')})` : 'enveloppé dans une transaction par la commande'}`,
   );
-  for (const key of plan.keys) console.log(`      • ${key}`);
+  for (const key of plan.keys) console.log(`      • + ${key}`);
+  for (const key of plan.removals) console.log(`      • − ${key}`);
 }
 
 const client = await connect();
@@ -329,15 +417,28 @@ try {
     // Le MÊME verdict sert deux fois : ici avec `after = before`, pour poser la
     // seule question « était-ce déjà là ? » (ce qui n'est PAS là est justement ce
     // que la migration doit apporter).
-    const pre = applyVerdict({ objects: plan.objects, before, after: before, again: AGAIN });
-    if (!pre.ok && pre.already.length > 0) {
+    // `preflight` : la question d'AVANT l'écriture, et rien d'autre. Un ajout déjà
+    // là ET un retrait déjà fait sont les deux refus — les autres problèmes
+    // (ce que la base portera après coup) ne se posent pas encore.
+    const pre = applyVerdict({ objects: plan.objects, before, after: before, again: AGAIN, preflight: true });
+    if (pre.already.length > 0 || pre.goneAlready.length > 0) {
       console.error(`\n❌ ${plan.name} : rien n’a été écrit.`);
       for (const problem of pre.problems) console.error(`   • ${problem}`);
       exitCode = 1;
       break;
     }
-    const absent = plan.keys.length - before.size;
-    console.log(`\n✅ ${plan.name} — « avant » vérifié : ${absent} objet(s) absent(s) sur ${plan.keys.length}, aucun déjà en base`);
+    if (plan.keys.length > 0) {
+      const presentBefore = plan.keys.filter((key) => before.has(key)).length;
+      console.log(
+        `\n✅ ${plan.name} — « avant » vérifié : ${plan.keys.length - presentBefore} ajout(s) absent(s) sur ${plan.keys.length}, aucun déjà en base`,
+      );
+    }
+    if (plan.removals.length > 0) {
+      const presentBefore = plan.removals.filter((key) => before.has(key)).length;
+      console.log(
+        `\n✅ ${plan.name} — « avant » vérifié : ${presentBefore} retrait(s) à faire sur ${plan.removals.length}, présents en base`,
+      );
+    }
 
     if (DRY_RUN) {
       console.log('   --dry-run : le fichier n’a pas été joué.');
@@ -362,8 +463,14 @@ try {
         break;
       }
       if (managed) await client.query('COMMIT');
+      const done = [
+        plan.keys.length > 0 ? `${post.keys.length} ajout(s), tous présents` : null,
+        plan.removals.length > 0 ? `${post.removals.length} retrait(s), tous partis` : null,
+      ]
+        .filter(Boolean)
+        .join(' et ');
       console.log(
-        `✅ ${plan.name} — « après » vérifié dans la transaction : ${post.keys.length} objet(s) déclaré(s), tous présents` +
+        `✅ ${plan.name} — « après » vérifié dans la transaction : ${done}` +
           (managed ? ' — COMMIT' : ' — le fichier avait déjà validé sa transaction'),
       );
       for (const warning of post.warnings) console.log(`   ⚠️  ${warning}`);
@@ -378,6 +485,12 @@ try {
 
   if (exitCode === 0 && !DRY_RUN) {
     for (const plan of plans) {
+      // Un fichier qui ne fait que RETIRER n’a rien à faire relire côté ajout :
+      // c’est son retrait qui se relit, juste en dessous.
+      if (plan.keys.length === 0) {
+        for (const line of await appChannelRemovalConfirmation(plan.objects)) console.log(line);
+        continue;
+      }
       const confirmation = await appChannelConfirmation(plan.objects);
       if (confirmation.checked) {
         console.log(
@@ -389,6 +502,7 @@ try {
         console.log(`   ⚠️  ${plan.name} — ${confirmation.reason}`);
         console.log('      La migration EST appliquée (catalogues PostgreSQL) — mais c’est ce canal que le bureau utilise : relancez `npm run check:hosted-schema`.');
       }
+      for (const line of await appChannelRemovalConfirmation(plan.objects)) console.log(line);
     }
     console.log('\n✅ terminé — relancez `npm run check:hosted-schema` pour le verdict complet des 33 migrations.');
   }

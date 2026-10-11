@@ -10,8 +10,14 @@
 // The guard must pass in the first world and fail loudly in every breached one.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { verifyAnonRls, verifyAnonRemote, PROBE_NAME } from '../scripts/verify-anon-rls.mjs';
+import { declaredTables, verifyAnonRls, verifyAnonRemote, PROBE_NAME } from '../scripts/verify-anon-rls.mjs';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const TABLES = ['students', 'payments', 'expenses', 'todos', 'user_profiles'];
 
@@ -43,6 +49,14 @@ interface StubOptions {
   lockAdminReads?: boolean;
   /** admins can no longer reset passwords — the app's reset flow would break (breach world). */
   lockAdminRpc?: boolean;
+  /**
+   * Une table EXPOSÉE par PostgREST que les migrations ne déclarent PAS, et sur
+   * laquelle la RLS n'a jamais été activée — l'artefact du 2026-10-11
+   * (`students_dupe_backup_20261005`, créé par un `CREATE TABLE … AS`).
+   */
+  exposedNoRls?: string[];
+  /** …et elle est VIDE : la lecture anon rend 0 ligne, seule la sonde d'écrit la trahit. */
+  exposedNoRlsEmpty?: boolean;
 }
 
 /** Minimal PostgREST + GoTrue twin: students + user_profiles, RLS semantics per world. */
@@ -55,6 +69,8 @@ function stubSupabase({
   allowStaffRpc = false,
   lockAdminReads = false,
   lockAdminRpc = false,
+  exposedNoRls = [],
+  exposedNoRlsEmpty = false,
 }: StubOptions = {}) {
   const rows: StubRow[] = [{ id: 'stu-seed', name: PROBE_NAME }];
   const profiles: StubProfile[] = [];
@@ -121,6 +137,27 @@ function stubSupabase({
         return json({}, 200); // GoTrue répond 200 même pour un email inconnu
       }
       return json({ message: 'not stubbed' }, 404);
+    }
+
+    // ─── Racine PostgREST : le document OpenAPI, donc la surface EXPOSÉE ─────
+    // Le vrai PostgREST répond la même chose (mesuré : 21 chemins, 15 tables),
+    // et c'est lui qui rend l'énumération possible sans liste tenue à la main.
+    if (method === 'GET' && restPath === '') {
+      if (anon) return json({ message: 'permission denied' }, 401);
+      const paths = Object.fromEntries([...TABLES, ...exposedNoRls].map((t) => [`/${t}`, {}]));
+      return json({ openapi: '3.0.0', paths }, 200);
+    }
+
+    // ─── Table exposée SANS RLS (l'artefact du 2026-10-11) ───────────────────
+    // Un `CREATE TABLE … AS` n'active pas la sécurité par ligne : anon LIT et
+    // ÉCRIT. Quand elle est vide, la lecture ne dit rien — l'écrit, si.
+    const exposedTable = exposedNoRls.find((t) => restPath === t || restPath!.startsWith(`${t}?`));
+    if (exposedTable) {
+      if (method === 'GET') {
+        return exposedNoRlsEmpty ? json([], 200) : json([{ id: 'dupe-1', name: 'Eleve' }], 200);
+      }
+      if (method === 'POST') return json([{ id: 'dupe-2' }], 201);
+      return json([], 204);
     }
 
     // ─── user_profiles (REST) ────────────────────────────────────────────────
@@ -333,6 +370,24 @@ describe('verifyAnonRls (garde-fou CI RLS anon)', () => {
     assert.ok(failures.some((f) => f.includes('lecture anon refusée sur students')), failures.join(' | '));
   });
 
+  it('refuse le monde sain quand une table EXPOSÉE hors migrations laisse lire anon (l’artefact du 2026-10-11)', async () => {
+    const { ok, failures } = await run({ exposedNoRls: ['students_dupe_backup_20261005'] });
+    assert.equal(ok, false, 'une table que le dépôt ne déclare pas doit être nommée, même si les 15 autres sont saines');
+    assert.ok(
+      failures.some((f) => f.includes('hors des migrations') && f.includes('students_dupe_backup_20261005')),
+      failures.join(' | '),
+    );
+  });
+
+  it('la prend aussi quand elle est VIDE : la lecture ne dit rien, la sonde d’écriture si', async () => {
+    const { ok, failures } = await run({ exposedNoRls: ['students_dupe_backup_20261005'], exposedNoRlsEmpty: true });
+    assert.equal(ok, false, 'sans RLS, un insert anon passe même sur une table vide');
+    assert.ok(
+      failures.some((f) => f.includes('insert anon refusé sur students_dupe_backup_20261005 (hors dépôt)')),
+      failures.join(' | '),
+    );
+  });
+
   it('refuse le monde sain quand anon peut exécuter la RPC admin_set_user_password', async () => {
     const { ok, failures } = await run({ allowAnonRpc: true });
     assert.equal(ok, false, 'le garde-fou doit échouer si la RPC de mot de passe est appelable par anon');
@@ -383,6 +438,44 @@ describe('verifyAnonRls (garde-fou CI RLS anon)', () => {
       ),
       failures.join(' | '),
     );
+  });
+});
+
+describe('la liste des tables sondées vient du parseur du dépôt, pas d’une regex', () => {
+  it('un DROP TABLE ÉCRIT EN COMMENTAIRE ne retire plus la table des sondes', () => {
+    // Le cas mesuré : `20261005000001_dedupe_students.sql` finit par
+    // « --   DROP TABLE public.students_dupe_backup_20261005; ». La regex d'avant
+    // lisait cette ligne commentée comme un geste, retirait la table de la liste
+    // des sondes, et 14 lignes sont restées lisibles à la clé publique.
+    const dir = mkdtempSync(join(tmpdir(), 'mama-migrations-'));
+    try {
+      writeFileSync(
+        join(dir, '20260101000000_a.sql'),
+        'CREATE TABLE IF NOT EXISTS public.artefact AS SELECT 1;\r\n--   DROP TABLE public.artefact;\r\n',
+      );
+      assert.deepEqual(declaredTables(dir), ['artefact'], 'un commentaire n’est pas un geste');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('et une table VRAIMENT dropée par une migration ultérieure ne revient pas', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mama-migrations-'));
+    try {
+      writeFileSync(join(dir, '20260101000000_a.sql'), 'CREATE TABLE IF NOT EXISTS public.ancienne (a int);\r\n');
+      writeFileSync(join(dir, '20260102000000_b.sql'), 'DROP TABLE IF EXISTS public.ancienne;\r\n');
+      assert.deepEqual(declaredTables(dir), [], 'le retrait est un geste, et il compte');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('la liste réelle du dépôt est celle des 15 tables, artefact retiré', () => {
+    const tables = declaredTables(join(ROOT, 'supabase/migrations'));
+    assert.ok(tables.includes('students'), 'les tables métier sont là');
+    assert.ok(!tables.includes('students_dupe_backup_20261005'), 'la migration de retrait l’a sortie du dépôt');
+    assert.ok(!tables.includes('custom_grades'), 'et la table vraiment dropée ne revient pas');
+    assert.equal(tables.length, 15, `15 tables déclarées, mesuré : ${tables.join(', ')}`);
   });
 });
 

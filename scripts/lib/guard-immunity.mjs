@@ -247,6 +247,19 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-payment-ledger.mjs',
+    input: 'database+ledger',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // Son sujet est un REGISTRE en base (élèves et paiements), pas un corpus de
+    // fichiers. Et l'absence de mot de passe est un REFUS écrit — exit 2, « je
+    // n'ai pas pu regarder » — jamais un ✅ : le défaut qu'il poursuit (un
+    // solde qui ne vaut pas la somme de ses reçus) n'a pas le droit de passer
+    // pour un registre sain.
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit un registre Postgres (lignes d’élèves et de paiements), jamais du code source',
+    },
+  },
+  {
     check: 'check-public-origin.mjs',
     input: 'config+network',
     needs: [],

@@ -15,6 +15,18 @@ name: Prod — garde-fou anon (RLS & auth)
 # FAIL-ON-BREACH : toute réponse montrant une donnée ou un accès anon rend
 # le job ROUGE (les notifications d'échec d'Actions alertent alors).
 #
+# COUVERTURE, ET SA LIMITE (mesurée le 2026-10-11)
+# La clé anon ne peut pas ÉNUMÉRER la surface : `GET /rest/v1/` lui répond 401.
+# Ce run sonde donc les tables que les migrations DÉCLARENT — lues par le
+# parseur du dépôt (scripts/lib/schema-expected.mjs), qui retire les
+# commentaires : la liste d'avant était une regex sur le texte brut, et un
+# `DROP TABLE` écrit EN COMMENTAIRE (fin de 20261005000001_dedupe_students.sql)
+# suffisait à retirer une table des sondes — c'est ainsi que
+# students_dupe_backup_20261005 a gardé 14 lignes lisibles à la clé publique.
+# Une table créée HORS du dépôt (dashboard, requête manuelle) reste donc hors de
+# portée d'ici : c'est le run LOCAL (supabase-migrations.yml) qui énumère la
+# surface réellement exposée, service_role à l'appui, et la compare au dépôt.
+#
 # Aucun service_role ici : le script refuse de tourner (exit 2) si une clé
 # service est présente dans l'environnement de ce job (mode --remote).
 # Les vérifications « preuve par re-lecture » (UPDATE/DELETE sur ligne seedée,

@@ -135,6 +135,60 @@ export type QueueItem = QueueItemBase & OfflinePayload;
 const STORAGE_KEY = 'mama_thera_offline_queue';
 
 /**
+ * Le plafond de la file, NOMMÉ — et pourquoi il existe.
+ *
+ * Une file hors ligne sans borne n'est pas une file, c'est une fuite : chaque
+ * entrée porte le payload entier d'un geste, et `localStorage` a un quota
+ * (quelques mégaoctets par origine, partagés avec le cache de données du poste).
+ * Quand le quota est atteint, `setItem` LÈVE — et l'ancienne version avalait
+ * cette exception dans un `console.error` alors que l'écran venait d'annoncer
+ * « enregistré » : le paiement était perdu en étant annoncé écrit.
+ *
+ * 2 000 gestes est très au-delà de ce qu'une école hors ligne accumule entre
+ * deux reconnexions (une grosse journée au bureau en produit quelques dizaines),
+ * et très en deçà de ce qui remplit un quota. Atteindre ce plafond ne veut donc
+ * pas dire « la file est pleine » mais « quelque chose ne remonte plus » : le
+ * geste est alors REFUSÉ en le disant, au lieu d'être perdu en silence. Une file
+ * qui refuse est un incident visible ; une file qui avale est de l'argent perdu.
+ */
+export const OFFLINE_QUEUE_MAX_ITEMS = 2000;
+
+/**
+ * L'écriture de la file a échoué : le geste n'est PAS enregistré.
+ *
+ * L'erreur est nommée et porteuse de sa cause, parce que c'est ce que l'écran
+ * doit pouvoir dire — « enregistré » est une promesse, et une promesse qu'on ne
+ * peut pas tenir ne s'annonce pas.
+ */
+export class OfflineQueueWriteError extends Error {
+  readonly reason: 'queue-full' | 'storage-failed' | 'storage-unreadable';
+
+  constructor(reason: 'queue-full' | 'storage-failed' | 'storage-unreadable', detail?: string) {
+    const message =
+      reason === 'queue-full'
+        ? `File hors ligne pleine (${OFFLINE_QUEUE_MAX_ITEMS} gestes en attente) : ce geste n’a PAS été enregistré.`
+        : reason === 'storage-unreadable'
+          ? 'La file hors ligne stockée sur ce poste n’est pas lisible : ce geste n’a PAS été enregistré, et rien n’a été écrasé.'
+          : `Le stockage de ce poste a refusé l’écriture (${detail ?? 'quota atteint'}) : ce geste n’a PAS été enregistré.`;
+    super(message);
+    this.name = 'OfflineQueueWriteError';
+    this.reason = reason;
+  }
+}
+
+/**
+ * Le magasin est-il indéchiffrable ?
+ *
+ * `getOfflineQueue` rend `[]` quand le texte stocké est illisible — pratique, et
+ * dangereux : le prochain `enqueue` écrit alors une file qui ne contient QUE le
+ * geste neuf, et les gestes en attente sont perdus par l'écriture suivante. Une
+ * lecture ratée ne doit donc pas se traduire par un écrasement : on retient que
+ * le magasin est indéchiffrable, et toute écriture est REFUSÉE tant qu'il l'est
+ * (l'école peut alors décider, plutôt que de perdre en silence).
+ */
+let storageUnreadable: string | null = null;
+
+/**
  * Storage backend: browser localStorage when available, an in-memory map
  * otherwise (SSR and the node test runner) — so the queue can be exercised
  * end-to-end without a DOM. Browser behaviour is unchanged.
@@ -170,21 +224,46 @@ export function getOfflineQueue(): QueueItem[] {
     const raw = storage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) {
+      storageUnreadable ??= 'le contenu stocké n’est pas une liste de gestes';
+      console.error('File hors ligne illisible :', storageUnreadable);
+      return [];
+    }
+    return parsed;
   } catch (err) {
-    console.error('Failed to read offline queue from localStorage:', err);
+    // Le texte est LÀ mais illisible : on ne le remplace pas (voir
+    // `storageUnreadable`), et on le dit — une file qu'on n'a pas pu lire n'est
+    // pas une file vide.
+    storageUnreadable ??= String((err as Error)?.message ?? err);
+    console.error('File hors ligne illisible :', err);
     return [];
   }
 }
 
 /**
- * Save current offline queue to localStorage.
+ * Écrire la file — et RENDRE COMPTE de l'écriture.
+ *
+ * L'ancienne version avalait son exception : l'appelant ne pouvait pas savoir
+ * que le geste n'était pas rangé, et l'écran annonçait « enregistré ». Le retour
+ * est donc explicite, et le seul appelant qui a le droit d'ignorer le refus est
+ * celui qui n'enregistre pas un geste neuf (retrait d'une entrée déjà envoyée,
+ * marque d'échec) — et il le DIT dans son journal.
+ *
+ * @returns `{ ok: true }`, ou la cause du refus — jamais une exception muette.
  */
-export function saveOfflineQueue(queue: QueueItem[]): void {
+export function saveOfflineQueue(queue: QueueItem[]):
+  | { ok: true }
+  | { ok: false; reason: 'storage-failed' | 'storage-unreadable'; detail: string } {
+  if (storageUnreadable) {
+    return { ok: false, reason: 'storage-unreadable', detail: storageUnreadable };
+  }
   try {
     storage.setItem(STORAGE_KEY, JSON.stringify(queue));
+    return { ok: true };
   } catch (err) {
-    console.error('Failed to save offline queue to localStorage:', err);
+    const detail = String((err as Error)?.message ?? err);
+    console.error('Écriture de la file hors ligne refusée :', detail);
+    return { ok: false, reason: 'storage-failed', detail };
   }
 }
 
@@ -212,8 +291,18 @@ export function enqueueOfflineAction(
   } as QueueItem;
 
   const queue = getOfflineQueue();
+  // Le plafond AVANT l'écriture : une file pleine refuse le geste, elle ne le
+  // remplace pas et ne le perd pas.
+  if (queue.length >= OFFLINE_QUEUE_MAX_ITEMS) {
+    throw new OfflineQueueWriteError('queue-full', `${queue.length} gestes`);
+  }
   queue.push(item);
-  saveOfflineQueue(queue);
+  const saved = saveOfflineQueue(queue);
+  if (!saved.ok) {
+    // Le geste n'est PAS rangé : le dire est tout l'objet de ce retour. L'appelant
+    // qui annoncerait « enregistré » malgré ça mentirait à l'école.
+    throw new OfflineQueueWriteError(saved.reason, saved.detail);
+  }
 
   return item;
 }
@@ -223,7 +312,12 @@ export function enqueueOfflineAction(
  */
 export function removeOfflineAction(id: string): void {
   const queue = getOfflineQueue().filter(item => item.id !== id);
-  saveOfflineQueue(queue);
+  // Ici, un refus d'écriture ne perd AUCUN geste : l'entrée reste en file, donc
+  // elle sera rejouée — et le rejeu est idempotent (même id de ligne, la base
+  // refuse en 23505). C'est le seul endroit où l'échec est bruyant sans être
+  // fatal, et il le reste : le journal le porte.
+  const saved = saveOfflineQueue(queue);
+  if (!saved.ok) console.error('Retrait d’une entrée non écrit : elle sera rejouée.', saved.detail);
 }
 
 /**
@@ -232,6 +326,10 @@ export function removeOfflineAction(id: string): void {
 export function clearOfflineQueue(): void {
   try {
     storage.removeItem(STORAGE_KEY);
+    // Le vidage est aussi la seule sortie de secours d'un magasin indéchiffrable :
+    // sans cette remise à zéro, un contenu illisible bloquerait toute écriture
+    // pour toujours, et l'école n'aurait aucun moyen de repartir.
+    storageUnreadable = null;
   } catch (err) {
     console.error('Failed to clear offline queue:', err);
   }
@@ -263,7 +361,10 @@ export function markOfflineFailure(id: string, reason?: string | null): void {
       ? { ...item, attempts: item.attempts + 1, lastAttemptAt: at, lastError: reason ?? item.lastError ?? null }
       : item,
   );
-  saveOfflineQueue(queue);
+  const saved = saveOfflineQueue(queue);
+  // Même raison que pour le retrait : la marque d'échec perdue laisse l'entrée
+  // en file (elle sera retentée), et la cause est journalisée.
+  if (!saved.ok) console.error('Marque d’échec non écrite.', saved.detail);
 }
 
 /**
