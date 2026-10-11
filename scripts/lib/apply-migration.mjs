@@ -21,6 +21,16 @@
 // transaction doit être refusée AVANT d'écrire, pas au milieu), et les OBJETS
 // déclarés — ce que la commande exigera absent avant, présent après.
 //
+// ─── Un retrait est un geste, et il se prouve ───────────────────────────────
+// Une migration ne fait pas que déclarer : elle retire. `DROP TABLE` et
+// `ALTER TABLE … DROP COLUMN` se lisent donc aussi, et se prouvent par l'INVERSE
+// de l'ajout — présent AVANT, absent APRÈS. Sans cette lecture, le retrait de la
+// table qui fuyait (2026-10-11 : aucune RLS activée par un `CREATE TABLE AS`,
+// lecture ouverte au rôle `anon`) ne déclarait rien d'observable : la commande le
+// refusait — donc la suppression se serait faite à la main, hors de la preuve.
+// Un `DROP` écrit dans une chaîne, un commentaire ou un corps `$$ … $$` n'est pas
+// vu : une chaîne n'est pas un geste.
+//
 // ─── Ce qu'il refuse de laisser passer pour une preuve ──────────────────────
 // Un fichier qui ne déclare AUCUN objet observable (table, colonne, contrainte,
 // fonction, politique, déclencheur) ne peut pas être prouvé appliqué : la
@@ -240,11 +250,65 @@ const OBJECT_STATEMENTS = [
 ];
 
 /**
+ * Les instructions de RETRAIT, et le nom qu'elles emportent.
+ *
+ * Ancrées au début et à la fin de l'instruction (`topLevelStatements` les a déjà
+ * détachées) : un `DROP TABLE` ne se confond donc pas avec le même mot au milieu
+ * d'autre chose. Une liste de tables séparées par des virgules n'est PAS lue —
+ * elle déclarerait alors un retrait partiel, ce qui est pire que pas de retrait.
+ */
+const REMOVAL_STATEMENTS = [
+  {
+    kind: 'table',
+    re: /^DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:public\.)?"?([A-Za-z_]\w*)"?(?:\s+(?:CASCADE|RESTRICT))?$/i,
+  },
+  {
+    kind: 'column',
+    re: /^ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?(?:public\.)?"?([A-Za-z_]\w*)"?\s+DROP\s+(?:COLUMN\s+)?(?:IF\s+EXISTS\s+)?"?([A-Za-z_]\w*)"?(?:\s+(?:CASCADE|RESTRICT))?$/i,
+  },
+];
+
+/**
+ * Ce qu'un fichier RETIRE.
+ *
+ * Les noms reviennent triés, pour que deux fichiers disent la même chose du même
+ * jeu — comme `objectKeys` le fait des ajouts.
+ *
+ * @param {string} sql
+ * @returns {{ tables: string[], columns: { table: string, column: string }[] }}
+ */
+export function removedObjects(sql) {
+  const tables = new Set();
+  const columns = new Map();
+  for (const statement of topLevelStatements(sql)) {
+    const flat = String(statement).replace(/\s+/g, ' ').trim();
+    for (const { kind, re } of REMOVAL_STATEMENTS) {
+      const match = re.exec(flat);
+      if (!match) continue;
+      if (kind === 'table') {
+        tables.add(match[1]);
+        continue;
+      }
+      const table = match[1];
+      const column = match[2].toLowerCase();
+      columns.set(`${table}.${column}`, { table, column });
+    }
+  }
+  return {
+    tables: [...tables].sort(),
+    columns: [...columns.values()].sort(
+      (a, b) => a.table.localeCompare(b.table) || a.column.localeCompare(b.column),
+    ),
+  };
+}
+
+/**
  * Ce qu'un fichier de migration déclare — table par table, objet par objet.
  *
  * @param {string} sql
  * @returns {{ tables: { name: string, columns: string[] }[], constraints: string[],
- *   functions: string[], policies: string[], triggers: string[] }}
+ *   functions: string[], policies: string[], triggers: string[],
+ *   removed: { tables: string[], columns: { table: string, column: string }[] } }}
  */
 export function declaredObjects(sql) {
   const text = blankComments(String(sql ?? ''));
@@ -265,12 +329,26 @@ export function declaredObjects(sql) {
     else seen[kind].delete(name);
   }
 
+  // Le retrait se lit NET : ce qu'un fichier retire ET redéclare dans le même
+  // souffle (`DROP TABLE x; CREATE TABLE x (…)`) n'est pas un retrait mais une
+  // remise à zéro — et c'est le net qui décide, exactement comme
+  // `expectedSchemaFromMigrations` le fait du schéma attendu.
+  const removed = removedObjects(sql);
+  const declaredTables = new Set(tables.map((table) => table.name));
+  const declaredColumns = new Set(
+    tables.flatMap((table) => table.columns.map((column) => `${table.name}.${column}`)),
+  );
+
   return {
     tables,
     constraints: [...seen.constraint.keys()].sort(),
     functions: [...seen.function.keys()].sort(),
     policies: [...seen.policy.keys()].sort(),
     triggers: [...seen.trigger.keys()].sort(),
+    removed: {
+      tables: removed.tables.filter((name) => !declaredTables.has(name)),
+      columns: removed.columns.filter(({ table, column }) => !declaredColumns.has(`${table}.${column}`)),
+    },
   };
 }
 
@@ -298,6 +376,23 @@ export function objectKeys(objects) {
 }
 
 /**
+ * Les clés des objets RETIRÉS — ce que la sonde doit trouver AVANT, et plus après.
+ *
+ * Même vocabulaire que `objectKeys` (`table:…`, `column:…`), et c'est voulu : une
+ * seule sonde répond donc aux deux questions, et un retrait ne se compare pas à
+ * un ajout dans deux langues différentes.
+ *
+ * @param {ReturnType<typeof declaredObjects>} objects
+ * @returns {string[]}
+ */
+export function removalKeys(objects) {
+  const keys = [];
+  for (const name of objects?.removed?.tables ?? []) keys.push(`table:${name}`);
+  for (const { table, column } of objects?.removed?.columns ?? []) keys.push(`column:${table}.${column}`);
+  return keys.sort();
+}
+
+/**
  * Le verdict : ce qui manque, ce qui était DÉJÀ là, et ce qui ne serait pas
  * observable du tout.
  *
@@ -306,22 +401,40 @@ export function objectKeys(objects) {
  * transaction doit pouvoir vérifier ce qu'elle vient d'écrire, et le cache de
  * schéma de PostgREST ne voit qu'un commit.
  *
+ * Un RETRAIT se prouve par l'inverse : l'objet doit être PRÉSENT avant, et ABSENT
+ * après. Les deux moitiés vivent donc dans le même verdict, et `preflight` porte
+ * la question d'AVANT l'écriture — « ce que le fichier exige était-il déjà
+ * satisfait ? » — où un objet à retirer qui n'est pas là est le refus, pas
+ * l'échec d'une suppression.
+ *
  * @param {{ objects: ReturnType<typeof declaredObjects>, before: Set<string>,
- *   after: Set<string>, again?: boolean }} input
- * @returns {{ ok: boolean, keys: string[], already: string[], missing: string[],
+ *   after: Set<string>, again?: boolean, preflight?: boolean }} input
+ * @returns {{ ok: boolean, keys: string[], removals: string[], already: string[],
+ *   goneAlready: string[], missing: string[], stillThere: string[],
  *   problems: string[], warnings: string[] }}
  */
-export function applyVerdict({ objects, before, after, again = false }) {
+export function applyVerdict({ objects, before, after, again = false, preflight = false }) {
   const keys = objectKeys(objects);
+  const removals = removalKeys(objects);
   const problems = [];
   const warnings = [];
 
-  if (keys.length === 0) {
+  if (keys.length === 0 && removals.length === 0) {
     problems.push(
       'ce fichier ne déclare AUCUN objet observable (table, colonne, contrainte, fonction, politique, déclencheur) : ' +
         'la commande ne pourrait pas prouver son application — appliquez-le autrement, ou déclarez ce qu’il fait',
     );
-    return { ok: false, keys, already: [], missing: [], problems, warnings };
+    return {
+      ok: false,
+      keys,
+      removals,
+      already: [],
+      goneAlready: [],
+      missing: [],
+      stillThere: [],
+      problems,
+      warnings,
+    };
   }
 
   const already = again ? [] : keys.filter((key) => before.has(key));
@@ -332,16 +445,44 @@ export function applyVerdict({ objects, before, after, again = false }) {
         '(relancez avec --again si le fichier est écrit pour être rejoué : c’est alors la seule chose qui sera dite)',
     );
   }
+  // L'autre moitié de la même question, et elle est symétrique : un fichier qui
+  // demande de retirer ce qui n'est PAS là ne prouve rien non plus. C'est le seul
+  // refus qui empêche un retrait « réussi » de n'être qu'un no-op.
+  const goneAlready = again ? [] : removals.filter((key) => !before.has(key));
+  if (goneAlready.length > 0) {
+    problems.push(
+      `déjà ABSENT avant : ${goneAlready.join(', ')} — ` +
+        'le fichier ne prouverait rien de ce retrait : ce qu’il demande de retirer n’était pas en base ' +
+        '(relancez avec --again si le fichier est écrit pour être rejoué : c’est alors la seule chose qui sera dite)',
+    );
+  }
+  const stillThere = removals.filter((key) => after.has(key));
+  if (!preflight && stillThere.length > 0) {
+    problems.push(
+      `retrait NON vérifié APRÈS : ${stillThere.join(', ')} — ` +
+        'l’objet est encore en base : la transaction sera ANNULÉE si elle est encore ouverte',
+    );
+  }
   if (again) {
     warnings.push(
       '--again : les objets présents AVANT ne sont plus un refus — la vérification « après » reste exigée, mais ' +
         'l’application ne prouve plus qu’elle a produit ces objets',
     );
-    const wrong = keys.filter((key) => !after.has(key));
+    const wrong = preflight ? [] : keys.filter((key) => !after.has(key));
     if (wrong.length > 0) {
       problems.push(`appliqué mais NON vérifié APRÈS : ${wrong.join(', ')} — la base ne porte pas ce que le fichier déclare`);
     }
-    return { ok: problems.length === 0, keys, already: [], missing: wrong, problems, warnings };
+    return {
+      ok: problems.length === 0,
+      keys,
+      removals,
+      already: [],
+      goneAlready: [],
+      missing: wrong,
+      stillThere,
+      problems,
+      warnings,
+    };
   }
 
   const missing = keys.filter((key) => !after.has(key));
@@ -351,5 +492,15 @@ export function applyVerdict({ objects, before, after, again = false }) {
         'la transaction sera ANNULÉE si elle est encore ouverte : rien n’a été écrit',
     );
   }
-  return { ok: problems.length === 0, keys, already, missing, problems, warnings };
+  return {
+    ok: problems.length === 0,
+    keys,
+    removals,
+    already,
+    goneAlready,
+    missing,
+    stillThere,
+    problems,
+    warnings,
+  };
 }

@@ -28,10 +28,16 @@ import {
   migrationPathProblem,
   objectKeys,
   orderProblem,
+  removalKeys,
+  removedObjects,
   topLevelStatements,
   transactionBlockers,
   transactionControl,
 } from '../scripts/lib/apply-migration.mjs';
+// Ce qui s'exécute, et pas ce qui se raconte : les commentaires de la migration de
+// retrait nomment `CREATE TABLE … AS` (c'est le motif du retrait), donc lire le
+// fichier brut confondrait un motif écrit avec un geste.
+import { blankComments } from '../scripts/lib/schema-expected.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
@@ -40,6 +46,11 @@ const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
 // l'ordre du fichier décide de ce qui reste).
 const MONTHS = `${MIGRATIONS_DIR}/20261011000000_payments_months.sql`;
 const monthsSql = read(MONTHS);
+// La migration qui RETIRE la table fuitée (2026-10-11). Elle a servi de mesure à
+// la lecture des retraits : sans elle, une migration de retrait ne déclarait rien
+// d'observable, donc la fermeture de la fuite n'était pas prouvable.
+const DROP_BACKUP = `${MIGRATIONS_DIR}/20261011000001_drop_students_dupe_backup.sql`;
+const dropBackupSql = read(DROP_BACKUP);
 
 describe('db:apply — ce qu’elle refuse AVANT d’écrire', () => {
   it('une migration vit dans supabase/migrations, et nulle part ailleurs', () => {
@@ -180,6 +191,77 @@ describe('db:apply — ce que la migration déclare, et ce qui le prouve', () =>
   });
 });
 
+describe('db:apply — un RETRAIT se prouve aussi (présent avant, absent après)', () => {
+  it('la migration de retrait déclare ce qu’elle retire, et rien d’autre', () => {
+    const objects = declaredObjects(dropBackupSql);
+    assert.deepEqual(objectKeys(objects), [], 'elle n’ajoute rien');
+    assert.deepEqual(removalKeys(objects), ['table:students_dupe_backup_20261005'], 'et elle nomme ce qu’elle retire');
+    assert.deepEqual(objects.removed.columns, []);
+  });
+
+  it('un fichier qui ne fait que retirer n’est plus « un fichier qui ne déclare rien »', () => {
+    const objects = declaredObjects(dropBackupSql);
+    const key = 'table:students_dupe_backup_20261005';
+
+    const clean = applyVerdict({ objects, before: new Set([key]), after: new Set() });
+    assert.equal(clean.ok, true, 'présente avant, absente après : le seul cas vert');
+    assert.deepEqual(clean.removals, [key]);
+    assert.deepEqual(clean.stillThere, []);
+
+    const alreadyGone = applyVerdict({ objects, before: new Set(), after: new Set() });
+    assert.equal(alreadyGone.ok, false, 'retirer ce qui n’est pas là ne prouve rien');
+    assert.deepEqual(alreadyGone.goneAlready, [key]);
+    assert.match(alreadyGone.problems.join(' '), /déjà ABSENT avant/);
+
+    const stillThere = applyVerdict({ objects, before: new Set([key]), after: new Set([key]) });
+    assert.equal(stillThere.ok, false);
+    assert.deepEqual(stillThere.stillThere, [key]);
+    assert.match(stillThere.problems.join(' '), /retrait NON vérifié APRÈS/);
+    assert.match(stillThere.problems.join(' '), /ANNULÉE/, 'et ce qui va s’ensuivre est dit');
+
+    // Le pré-vol ne se prononce pas sur l’après : rien n’a encore été écrit.
+    const preflight = applyVerdict({ objects, before: new Set([key]), after: new Set([key]), preflight: true });
+    assert.equal(preflight.ok, true, 'la table est bien là avant : le pré-vol ne refuse pas');
+  });
+
+  it('--again lève le refus « déjà absente », et l’aveu est le même que pour un ajout', () => {
+    const objects = declaredObjects(dropBackupSql);
+    const again = applyVerdict({ objects, before: new Set(), after: new Set(), again: true });
+    assert.equal(again.ok, true);
+    assert.deepEqual(again.goneAlready, []);
+    assert.match(again.warnings.join(' '), /ne prouve plus qu’elle a produit ces objets/);
+  });
+
+  it('un `DROP` qui n’est pas un geste n’est pas lu', () => {
+    const inString = declaredObjects("insert into public.notes(body) values ('DROP TABLE public.students;');\n");
+    assert.deepEqual(removalKeys(inString), [], 'une chaîne n’est pas un geste');
+    const inComment = declaredObjects('-- DROP TABLE public.students;\nselect 1;\n');
+    assert.deepEqual(removalKeys(inComment), [], 'un commentaire non plus');
+    const inBody = declaredObjects(
+      'CREATE OR REPLACE FUNCTION public.f() RETURNS void LANGUAGE plpgsql AS $$ BEGIN EXECUTE \'DROP TABLE public.students\'; END; $$;\n',
+    );
+    assert.deepEqual(removalKeys(inBody), [], 'un corps $$ … $$ non plus');
+  });
+
+  it('retirer PUIS recréer n’est pas un retrait, c’est une remise à zéro', () => {
+    const reset = declaredObjects('DROP TABLE IF EXISTS public.x;\nCREATE TABLE public.x (a int);\n');
+    assert.deepEqual(removalKeys(reset), [], 'le net décide : la table est là après coup');
+    assert.deepEqual(reset.tables, [{ name: 'x', columns: ['a'] }]);
+  });
+
+  it('une colonne retirée se nomme, avec sa table', () => {
+    const objects = declaredObjects('ALTER TABLE public.students DROP COLUMN IF EXISTS obsolete;\n');
+    assert.deepEqual(removalKeys(objects), ['column:students.obsolete']);
+  });
+
+  it('la migration de retrait ne recrée RIEN — c’est le fond du geste', () => {
+    const executed = blankComments(dropBackupSql);
+    assert.doesNotMatch(executed, /CREATE\s+TABLE/i, 'recréer la table rouvrirait le trou');
+    assert.doesNotMatch(executed, /CREATE\s+POLICY|ENABLE\s+ROW\s+LEVEL/i, 'on ne « sécurise » pas un artefact : on le retire');
+    assert.match(executed, /DROP TABLE IF EXISTS public\.students_dupe_backup_20261005;/);
+  });
+});
+
 describe('db:apply — le geste lui-même, tel qu’il est écrit', () => {
   const source = read('scripts/apply-migration.mjs');
 
@@ -214,5 +296,17 @@ describe('db:apply — le geste lui-même, tel qu’il est écrit', () => {
     assert.match(source, /appChannelConfirmation/);
     assert.match(source, /rest\/v1\//, 'la relecture passe par PostgREST, comme le poste');
     assert.match(source, /cache de schéma/, 'un cache en retard se DIT au lieu de faire échouer une migration appliquée');
+  });
+
+  it('un retrait se sonde dans les catalogues, et se relit sur le canal du bureau', () => {
+    assert.match(source, /information_schema\.tables/, 'la présence d’une table se lit dans les catalogues');
+    assert.match(source, /present\.add\(`table:\$\{row\.table_name\}`\)/, 'et sous la clé que le verdict attend');
+    assert.match(source, /appChannelRemovalConfirmation/, 'le canal de l’application est relu APRÈS le retrait');
+    assert.match(source, /PGRST205/, 'un 404 ou « introuvable dans le cache de schéma » est la seule fermeture acceptable');
+    assert.match(
+      source,
+      /pre\.already\.length > 0 \|\| pre\.goneAlready\.length > 0/,
+      '« déjà là » et « déjà absente » sont les deux refus du pré-vol',
+    );
   });
 });
