@@ -173,7 +173,15 @@ function splitTopLevel(text) {
  * donc silencieusement annulé par le `CREATE` situé au-dessus de lui.
  */
 const SHAPE_STATEMENT =
-  /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_"][\w."]*)\s*\(|ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?([A-Za-z_"][\w."]*)|DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([A-Za-z_"][\w."]*)/gi;
+  // La parenthèse de `CREATE TABLE t ( … )` est FACULTATIVE depuis le
+  // 2026-10-11 : un `CREATE TABLE … AS SELECT …` fabrique une table sans en
+  // écrire une seule colonne, et le parseur qui l'exigeait ne voyait donc PAS
+  // cette table du tout. C'est la seconde moitié de l'aveuglement qui a laissé
+  // `students_dupe_backup_20261005` en production : la veille anon tenait sa
+  // liste de sondes d'ici, la table n'y était pas, et 14 lignes sont restées
+  // lisibles à la clé publique. Une table sans colonne déclarée est une table,
+  // et `check:hosted-schema` refuse désormais de la juger au lieu de la taire.
+  /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_"][\w."]*)\s*\(?|ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?([A-Za-z_"][\w."]*)|DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([A-Za-z_"][\w."]*)/gi;
 
 /** Le contenu de la parenthèse ouvrante à `start`, sautée à son équilibre. */
 function readParenBlock(text, start) {
@@ -230,8 +238,11 @@ export function expectedSchemaFromMigrations(migrations = []) {
 
       // CREATE TABLE ( … ) — les contraintes de table ne sont pas des colonnes.
       if (created) {
-        const block = readParenBlock(text, match.index + full.length - 1);
         const columns = ensure(unqualify(created));
+        // Sans parenthèse, il n'y a aucune colonne à lire — mais la table est
+        // déclarée, et c'est tout ce qui compte ici.
+        if (!full.trimEnd().endsWith('(')) continue;
+        const block = readParenBlock(text, match.index + full.length - 1);
         for (const item of splitTopLevel(block)) {
           const trimmed = item.trim();
           if (!trimmed || CONSTRAINT_STARTERS.test(trimmed)) continue;

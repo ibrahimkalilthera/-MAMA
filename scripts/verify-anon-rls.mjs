@@ -75,6 +75,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { ephemeralEmail, pickEphemeralUser } from './lib/ephemeral-accounts.mjs';
+import { expectedSchemaFromMigrations } from './lib/schema-expected.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { isTransientStatus, replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
 
@@ -240,6 +241,60 @@ function makeTransport(fetchImpl, retry = {}) {
 }
 
 /**
+ * Les tables que les migrations DÉCLARENT, lues par le parseur du dépôt.
+ *
+ * C'est la correction du 2026-10-11, et elle est petite : cette liste était
+ * bâtie par une regex sur le TEXTE des migrations — `/CREATE TABLE …/` moins
+ * `/DROP TABLE …/`, commentaires compris. Or la migration de dédoublonnage du
+ * 2026-10-05 finit par `--   DROP TABLE public.students_dupe_backup_20261005;`,
+ * une ligne COMMENTÉE parce que la suppression n'était pas encore confirmée.
+ * La regex l'a lue comme un geste, donc la table est sortie de la liste des
+ * sondes — et 14 lignes (nom d'élève, téléphone d'un parent, notes médicales)
+ * sont restées lisibles à la clé publique sans qu'aucune veille ne la regarde.
+ *
+ * `expectedSchemaFromMigrations` est le parseur qui sert déjà à
+ * `check:hosted-schema` et à `db:snapshot` : il retire les commentaires et
+ * applique les DROP dans l'ordre des migrations. Une seule lecture du dépôt,
+ * donc, pour tout le monde — un texte de commentaire n'est un geste nulle part.
+ *
+ * @param {string} [dir] dossier des migrations
+ * @returns {string[]} noms de tables, triés
+ */
+export function declaredTables(dir = 'supabase/migrations') {
+  const migrations = readdirSync(dir)
+    .sort()
+    .map((name) => ({ name, sql: readFileSync(`${dir}/${name}`, 'utf8') }));
+  return [...expectedSchemaFromMigrations(migrations).keys()].sort();
+}
+
+/**
+ * Ce que PostgREST EXPOSE — énuméré, jamais listé à la main.
+ *
+ * La clé anon ne peut PAS énumérer : `GET /rest/v1/` lui répond 401 (mesuré le
+ * 2026-10-11). Une veille anon seule ne peut donc sonder qu'une LISTE, et tout
+ * ce qui existe en base sans être dans cette liste lui échappe — c'est
+ * précisément le trou qu'a emprunté la table de dédoublonnage. Là où le
+ * service_role est disponible (la pile locale, bâtie À PARTIR des migrations),
+ * la surface se lit sans aucune liste : le document OpenAPI de la racine nomme
+ * chaque table exposée.
+ *
+ * @param {{ base: string, serviceKey: string, fetchImpl?: typeof fetch }} input
+ * @returns {Promise<{ status: number, tables: string[] }>}
+ */
+export async function discoverExposedTables({ base, serviceKey, fetchImpl = fetch }) {
+  const res = await fetchImpl(`${base}/rest/v1/`, {
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+  });
+  if (!res.ok) return { status: res.status, tables: [] };
+  const body = await readBody(res);
+  const tables = Object.keys(body?.paths ?? {})
+    .map((path) => path.replace(/^\//, ''))
+    .filter((name) => name && !name.startsWith('rpc/'))
+    .sort();
+  return { status: res.status, tables };
+}
+
+/**
  * @param {object} opts
  * @param {string} opts.base
  * @param {string} opts.anonKey
@@ -382,6 +437,42 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
       body: '{}',
     });
     check(RLS_REFUSAL(res), `insert anon refusé sur ${table} (${res.status})`);
+  }
+
+  // ─── 4bis. L'ÉNUMÉRATION : ce que le canal expose, pas seulement ce que les
+  // migrations déclarent ─────────────────────────────────────────────────────
+  // Les sondes ci-dessus ne valent que pour les tables de la LISTE. Ce qui a
+  // fui le 2026-10-11 n'était pas dans la liste (un `DROP TABLE` commenté l'en
+  // avait sorti) : la surface exposée est donc énumérée ici, sans liste, et
+  // comparée au dépôt. C'est le seul endroit où une table sans RLS mais VIDE se
+  // fait prendre par l'écrit (la lecture, elle, ne rendrait que 0 ligne).
+  const exposed = await discoverExposedTables({ base, serviceKey, fetchImpl });
+  check(
+    exposed.status === 200 && exposed.tables.length > 0,
+    `surface exposée énumérée par PostgREST (HTTP ${exposed.status}, ${exposed.tables.length} table(s))`,
+  );
+  const declared = new Set(tables);
+  const undeclared = exposed.tables.filter((name) => !declared.has(name));
+  check(
+    undeclared.length === 0,
+    undeclared.length === 0
+      ? 'aucune table exposée hors des migrations (la surface = le dépôt)'
+      : `table(s) EXPOSÉE(S) hors des migrations : ${undeclared.join(', ')} — ` +
+        'un artefact en base échappe au dépôt (cas mesuré : students_dupe_backup_20261005, 14 lignes lisibles à la clé publique)',
+  );
+  for (const table of undeclared) {
+    const read = await api(table, anonKey);
+    const readRows = read.ok ? await readBody(read) : [];
+    check(
+      !read.ok || (Array.isArray(readRows) && readRows.length === 0),
+      `lecture anon refusée sur ${table} (hors dépôt) (${read.status}, ${Array.isArray(readRows) ? readRows.length : 'non-tableau'} ligne(s))`,
+    );
+    const write = await api(table, anonKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    check(RLS_REFUSAL(write), `insert anon refusé sur ${table} (hors dépôt) (${write.status})`);
   }
 
   // 5. UPDATE anon refusé : 204 masque « 0 ligne affectée », donc la preuve
@@ -694,6 +785,16 @@ export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, table
   check(anonKey, 'clé anon présente (mode remote)');
   check(tables.length > 0, `${tables.length} tables publiques découvertes dans les migrations`);
 
+  // La LIMITE de ce mode, dite au lieu d'être tue : la clé anon ne peut pas
+  // énumérer la surface (`GET /rest/v1/` → 401, mesuré le 2026-10-11). Ce run
+  // couvre donc les tables que les migrations DÉCLARENT (parseur du dépôt, les
+  // commentaires n'en sortent plus une table) — une table créée hors dépôt ne
+  // peut pas être vue d'ici. Le run local (supabase-migrations.yml) énumère, lui,
+  // la surface réellement exposée : c'est là que cette couverture vit.
+  console.log(
+    '  ℹ couverture : tables DÉCLARÉES par les migrations (une table créée hors dépôt ne peut pas être énumérée avec la clé anon seule ; le run local, lui, énumère la surface exposée).',
+  );
+
   // Lectures : la moindre ligne visible par anon sur la base distante = brèche.
   // Dérive de schéma : une table des migrations ABSENTE de la base distante
   // (404) n'est pas une brèche anon mais une alerte — prod derrière les
@@ -762,29 +863,13 @@ const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv
 if (isMain) {
   const remote = process.argv.includes('--remote');
 
-  // Toutes les tables publiques déclarées par les migrations ordonnées, MOINS
-  // celles qu'une migration ultérieure DROP (ex. custom_grades, supprimée par
-  // 20260828000004) : une table ajoutée demain est couverte automatiquement,
-  // sans mise à jour du script — et une table dropée n'est jamais sondée.
-  const created = readdirSync('supabase/migrations')
-    .sort()
-    .flatMap((f) =>
-      [
-        ...readFileSync(`supabase/migrations/${f}`, 'utf8').matchAll(
-          /CREATE TABLE (?:IF NOT EXISTS )?public\.(\w+)/g,
-        ),
-      ].map((m) => m[1]),
-    );
-  const dropped = readdirSync('supabase/migrations')
-    .sort()
-    .flatMap((f) =>
-      [
-        ...readFileSync(`supabase/migrations/${f}`, 'utf8').matchAll(
-          /DROP TABLE (?:IF EXISTS )?public\.(\w+)/g,
-        ),
-      ].map((m) => m[1]),
-    );
-  const tables = [...new Set(created.filter((t) => !dropped.includes(t)))];
+  // Toutes les tables publiques déclarées par les migrations, lues par le
+  // PARSEUR du dépôt (`declaredTables` → `expectedSchemaFromMigrations`, le même
+  // que `check:hosted-schema`) : une table ajoutée demain est couverte
+  // automatiquement, une table vraiment dropée n'est jamais sondée, et — la
+  // correction du 2026-10-11 — un `DROP TABLE` écrit EN COMMENTAIRE ne retire
+  // plus une table de cette liste (c'est par là que la fuite est passée).
+  const tables = declaredTables('supabase/migrations');
 
   // La CLI supabase ≥ 2.116.0 exporte ANON_KEY/SERVICE_ROLE_KEY ; les versions
   // antérieures et l'API officielle utilisent SUPABASE_ANON_KEY/
