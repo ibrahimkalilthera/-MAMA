@@ -1,3 +1,14 @@
+## [2026-10-11] 1.0.28 — le registre se réconcilie, la fuite se retire, et une file hors ligne qui refuse le dit
+
+Demande du propriétaire : « Publish et release la nouvelle version avec les changements d aujourd hui, attention à ne pas créer de doublon. »
+
+**Ce que la 1.0.28 emporte, en six commits.** Le REGISTRE des paiements se réconcilie élève par élève (`check:payment-ledger`, `7d84a98`) : la mesure d aujourd hui a trouvé un élève à 4 000 FCFA quand ses deux reçus en valaient 8 000 — encaissés à 52 secondes d intervalle, les deux gestes au journal d audit, le solde n en comptant qu un. La veille anon ÉNUMÈRE désormais la surface réellement exposée et la compare au dépôt (`27c7384`), après que deux aveuglements eurent laissé passer une table lisible à la clé publique. Cette table se retire (`b93ea30`) et `db:apply` apprend à prouver un RETRAIT — présent avant, absent après. Une file hors ligne qui refuse le DIT, au lieu d annoncer « enregistré » sur un geste perdu (`74ed586`) : plafond nommé, erreur nommée, et le chemin de l ARGENT rend `false` au lieu d un `true` qui aurait fait fermer la saisie. La sauvegarde publie la date limite de son unique copie et l escrow de la phrase s écrit (`b1a4e75`). Enfin, les douze PR Dependabot qui bloquaient la liste depuis trois semaines ont été traitées (fusionnées ou remplacées, leurs bumps appliqués sur `main`), sans quoi la limite de dix PR empêchait Dependabot d en proposer de nouvelles.
+
+**Pas de doublon de version.** `git ls-remote --tags origin` ne nomme pas `v1.0.28` (le dernier tag publié est `v1.0.27`), `gh release list` donne `MamaTheraFinance 1.0.27` comme tête, et `check:release:needed` répond `needed=true` une fois le numéro monté — mesuré contre GitHub, pas seulement contre les tags locaux. Le gate refuse de toute façon un numéro déjà taggé : un numéro publié ne peut pas changer de contenu, donc republier n atteindrait aucun poste.
+
+**Mesuré.** Le push de la montée de version passe le gate local (`hook-quality-chain.mjs`, lint → test → audit → atelier) sur le runtime épinglé, puis la publication suit la chaîne, sans clic : `desktop-release.yml` part à la fin verte de « Quality & performance guard » sur `main`.
+
+**Ce que cette version ne prouve pas.** La réconciliation du registre et l énumération fraîche de la surface anon n ont PAS tourné contre la base dans ce tour (pas d identifiants ici) : leurs suites les couvrent, la CI les rejoue, mais la mesure en production reste à faire. La table retirée l avait déjà été avant ce tour (19:40:47Z) et son retrait n a laissé aucune trace au journal d audit — c est un acte manuel, hors application.
 ## [2026-10-11] Le canal de mise à jour ne dit plus « aucun release publié » quand le dépôt est privé
 
 Demande du propriétaire : « Répare le contrôle “Release channel watch” qui ne peut pas être vert sur un dépôt privé, en gardant ce qu'il prouve vraiment. »
