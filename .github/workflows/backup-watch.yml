@@ -102,7 +102,7 @@ jobs:
 
       - name: Conserver l’archive chiffrée (30 jours)
         id: archive
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: db-backup-encrypted
           path: .backup/current/
