@@ -181,8 +181,9 @@ if (missing.length > 0 || missingTables.length > 0) {
   }
   for (const item of missingTables) console.error(`   • table ${item.table} : « ${item.reason} »`);
   console.error(
-    '\n   Appliquez la migration concernée sur le projet partagé (CLI/Dashboard Supabase) puis\n' +
-      '   relancez ce contrôle : un déploiement dont le schéma manque casse un AJOUT, pas une lecture.',
+    '\n   Appliquez la migration concernée avec `npm run db:apply -- supabase/migrations/<fichier>.sql`\n' +
+      '   (elle vérifie le schéma AVANT et APRÈS, dans une transaction), puis relancez ce contrôle :\n' +
+      '   un déploiement dont le schéma manque casse un AJOUT, pas une lecture.',
   );
   process.exit(1);
 }
