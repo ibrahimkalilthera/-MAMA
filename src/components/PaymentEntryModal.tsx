@@ -14,6 +14,17 @@
  * Chaque ligne de la liste déroulante PORTE le matricule (« Awa — MATRICULE :
  * MT-2026-42 ») : une recherche réussie se vérifie des yeux, au lieu d'un nom
  * seul qui laisse le caissier deviner si c'est bien l'élève du reçu.
+ *
+ * Les MOIS PAYÉS (voir src/lib/paymentMonths.ts) sont des PASTILLES, une par
+ * mois de l'année scolaire, et pas une liste déroulante multiple : douze mois
+ * tiennent à l'écran, et un clic dit exactement ce qu'il coche. Le mois de la
+ * date est coché d'avance, donc un encaissement ordinaire reste UN geste ; la
+ * ligne sous les pastilles montre le texte EXACT que le reçu imprimera, pour
+ * qu'une plage ou une liste se vérifie avant l'impression, pas après.
+ *
+ * L'état du choix vit dans le DOMAINE (`usePayments`), pas ici : c'est lui qui
+ * enregistre le paiement et remet le mois par défaut sur la date. Cette modale
+ * n'en est que l'affichage.
  */
 import { useMemo, useState } from 'react';
 import { CreditCard, Search, X } from 'lucide-react';
@@ -23,6 +34,7 @@ import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import { ModalShell } from './ModalShell';
 import { studentMatricule } from '../lib/studentIdentifiers';
+import { formatPaidMonths, paymentMonthLabel } from '../lib/paymentMonths';
 import { ALL_CLASSES, filterStudents, matchesClass, matchesSearch } from '../lib/paymentStudentFilter';
 
 export interface PaymentEntryModalProps {
@@ -35,6 +47,12 @@ export interface PaymentEntryModalProps {
   setPaymentAmount: Dispatch<SetStateAction<string>>;
   paymentDate: string;
   setPaymentDate: Dispatch<SetStateAction<string>>;
+  /** Les mois proposés — ceux de l'année scolaire de la date — en `YYYY-MM`. */
+  paymentMonthOptions: string[];
+  /** Les mois cochés : le mois de la date tant que le caissier n'a rien touché. */
+  paymentMonths: string[];
+  /** Coche/décoche un mois. L'état vit dans le domaine, jamais dans la modale. */
+  togglePaymentMonth: (month: string) => void;
   formatCurrency: (amount: number) => string;
   /** Les classes proposées au filtre (paires id/libellé, comme les classes actives). */
   availableClasses: { id: string; nameEn: string; nameFr: string }[];
@@ -48,7 +66,19 @@ export interface PaymentEntryModalProps {
 }
 
 export function PaymentEntryModal(props: PaymentEntryModalProps) {
-  const { t, currentTheme, students, paymentStudentId, setPaymentStudentId, paymentAmount, setPaymentAmount, paymentDate, setPaymentDate, formatCurrency, availableClasses, getGradeDisplay, lang, handlePaymentSubmit, overlayRef, onClose } = props;
+  const { t, currentTheme, students, paymentStudentId, setPaymentStudentId, paymentAmount, setPaymentAmount, paymentDate, setPaymentDate, paymentMonthOptions, paymentMonths, togglePaymentMonth, formatCurrency, availableClasses, getGradeDisplay, lang, handlePaymentSubmit, overlayRef, onClose } = props;
+
+  // Le texte EXACT de la ligne « Mois » du reçu — le même module, les mêmes
+  // mots : ce qui se lit ici est ce qui s'imprime.
+  const monthsReceiptLine = formatPaidMonths(paymentMonths, {
+    label: (ym) => paymentMonthLabel(ym, t),
+    count: (n) => t.paidMonthsCount.replace('{count}', String(n)),
+    rangeTo: t.paidMonthsRangeTo,
+  });
+
+  // Au moins un mois est exigé dès lors que la liste est proposée (elle ne l'est
+  // que si l'année scolaire de la date se lit) : le bouton reste alors fermé.
+  const missingMonth = paymentMonthOptions.length > 0 && paymentMonths.length === 0;
 
   // Le filtre repart de « toutes les classes » à chaque montage du formulaire.
   const [classFilter, setClassFilter] = useState<string>(ALL_CLASSES);
@@ -211,9 +241,41 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
                   </div>
                 </div>
 
+                {paymentMonthOptions.length > 0 && (
+                  <div className="space-y-3" data-slot="payment-months">
+                    <span className={`block text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.paidMonths}</span>
+                    <div role="group" aria-label={t.paidMonths} className="flex flex-wrap gap-2">
+                      {paymentMonthOptions.map((month) => {
+                        const checked = paymentMonths.includes(month);
+                        return (
+                          <button
+                            key={month}
+                            type="button"
+                            data-month={month}
+                            aria-pressed={checked}
+                            onClick={() => togglePaymentMonth(month)}
+                            className={`px-4 py-2 rounded-xl border text-xs font-black transition-all ${
+                              checked
+                                ? `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentBorder} ${currentTheme.accentShadow}`
+                                : `${currentTheme.surfaceInset} ${currentTheme.border} ${currentTheme.inkStrong} ${currentTheme.rowHover}`
+                            }`}
+                          >
+                            {paymentMonthLabel(month, t)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className={`text-2xs font-semibold ${currentTheme.muted}`}>{t.paidMonthsHint}</p>
+                    <p className={`text-xs font-black ${missingMonth ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {missingMonth ? t.paidMonthsRequired : monthsReceiptLine}
+                    </p>
+                  </div>
+                )}
+
                 <button 
                   type="submit"
-                  className={`w-full ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} py-5 rounded-2xl font-black text-sm transition-all shadow-xl ${currentTheme.accentShadow} active:scale-[0.98]`}
+                  disabled={missingMonth}
+                  className={`w-full ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} py-5 rounded-2xl font-black text-sm transition-all shadow-xl ${currentTheme.accentShadow} active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {t.submit}
                 </button>

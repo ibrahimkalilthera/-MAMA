@@ -13,12 +13,14 @@
  * currentUser and the `addPayment` mutator as arguments, so App.tsx must
  * call it after those are declared.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { generatePaymentReceiptPdf } from '../lib/pdfReceipt';
 import { PAYROLL_WINDOW_LAST_DAY } from '../lib/payrollWindow';
 import { fetchCalendarDayNotes, saveCalendarDayNote, deleteCalendarDayNote } from '../lib/calendarNotes';
 import { useGestureId } from '../lib/gestureId';
+import { academicYearMonths, effectivePaymentMonths, toggledPaymentMonths } from '../lib/paymentMonths';
+import { academicYearOf } from '../lib/dateWindows';
 import type { Student, Staff, Expense, Payment, User, Todo } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import type { CalendarEvent } from './mainViewsProps';
@@ -47,6 +49,22 @@ export function usePayments(deps: UsePaymentsDeps) {
   const [paymentStudentId, setPaymentStudentId] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // ── Les MOIS que le paiement couvre ──────────────────────────────────────
+  // La date dit quand l'argent est entré ; elle ne dit pas ce qu'il règle.
+  // Voir src/lib/paymentMonths.ts : forme stockée `YYYY-MM`, tri, et le texte
+  // que la ligne « Mois » du reçu en tire.
+  const [paymentMonths, setPaymentMonths] = useState<string[]>([]);
+  // « Touché » : tant que le caissier n'a rien coché lui-même, le mois proposé
+  // SUIT la date saisie. Sans ce drapeau, changer la date d'octobre à novembre
+  // laisserait « Octobre » coché sur un reçu daté de novembre — exactement la
+  // confusion que ces mois existent pour lever.
+  const [paymentMonthsTouched, setPaymentMonthsTouched] = useState(false);
+
+  // Les mois PROPOSÉS sont ceux de l'année scolaire où TOMBE LA DATE : le mois
+  // de la date y est donc toujours, le choix par défaut existe toujours, et
+  // aucun encaissement normal n'est bloqué. Les mois à venir sont dans la liste
+  // (une famille peut payer d'avance) — ils ne le sont que là.
 
   // ── Notes ⇄ Calendar bridge ─────────────────────────────────────────────
   // Dated note entry from the calendar day modal (side 2 of the bridge:
@@ -139,6 +157,31 @@ export function usePayments(deps: UsePaymentsDeps) {
     return true;
   };
 
+  const paymentMonthOptions = useMemo(
+    () => academicYearMonths(academicYearOf(paymentDate)),
+    [paymentDate],
+  );
+
+  // Le mois de la date, lu DANS LA CHAÎNE : `2026-10-04` → `2026-10`. Aucune
+  // conversion de fuseau ne peut donc décaler le mois d'un reçu.
+  const paymentDateMonth = paymentDate.slice(0, 7);
+
+  // Le choix RÉEL — la règle vit dans le module pur : tant que rien n'a été
+  // coché, le mois proposé suit la DATE ; dès qu'un clic a eu lieu, c'est le
+  // choix du caissier qui compte.
+  const shownPaymentMonths = effectivePaymentMonths(
+    paymentMonths, paymentMonthsTouched, paymentDateMonth, paymentMonthOptions,
+  );
+
+  // Cocher/décocher un mois. La liste repart TOUJOURS triée dans l'ordre du
+  // calendrier scolaire : un reçu n'a pas à dépendre de l'ordre des clics.
+  const togglePaymentMonth = (month: string) => {
+    setPaymentMonths(prev => toggledPaymentMonths(
+      prev, paymentMonthsTouched, paymentDateMonth, paymentMonthOptions, month,
+    ));
+    setPaymentMonthsTouched(true);
+  };
+
   // L'id du GESTE de la saisie de paiement : un double envoi retombe sur la
   // même clé primaire (un seul reçu en base). Libéré après un succès.
   const { gestureId: paymentGestureId, resetGestureId: resetPaymentGesture } = useGestureId();
@@ -154,6 +197,13 @@ export function usePayments(deps: UsePaymentsDeps) {
       return;
     }
     if (!paymentStudentId || !paymentAmount) return;
+    // Au moins un mois — mais SEULEMENT quand la liste est proposée (elle ne
+    // l'est que si l'année scolaire de la date se lit). Sur une année illisible,
+    // exiger un mois rendrait le guichet infranchissable.
+    if (paymentMonthOptions.length > 0 && shownPaymentMonths.length === 0) {
+      toastError(t.paidMonthsRequired);
+      return;
+    }
 
     const amount = parseFloat(paymentAmount);
     const targetStudent = students.find(s => s.id === paymentStudentId);
@@ -166,6 +216,9 @@ export function usePayments(deps: UsePaymentsDeps) {
       receiptNumber: receiptNo,
       // L'id du GESTE : le même si l'envoi est répété → un seul reçu.
       id: paymentGestureId(),
+      // Les mois couverts — ils partent EN BASE avec le paiement (reçus réimprimés)
+      // et sur le reçu du moment.
+      months: shownPaymentMonths.length > 0 ? shownPaymentMonths : undefined,
     };
 
     paymentSubmittingRef.current = true;
@@ -192,6 +245,10 @@ export function usePayments(deps: UsePaymentsDeps) {
       resetPaymentGesture();
       setPaymentStudentId('');
       setPaymentAmount('');
+      // Le paiement est enregistré : les mois repartent du mois de la date, comme
+      // le formulaire rouvert les proposera.
+      setPaymentMonths([]);
+      setPaymentMonthsTouched(false);
       setShowPaymentForm(false);
     } finally {
       paymentSubmittingRef.current = false;
@@ -273,6 +330,9 @@ export function usePayments(deps: UsePaymentsDeps) {
     paymentStudentId, setPaymentStudentId,
     paymentAmount, setPaymentAmount,
     paymentDate, setPaymentDate,
+    paymentMonths: shownPaymentMonths,
+    paymentMonthOptions,
+    togglePaymentMonth,
     handlePaymentSubmit,
     getEventsForDay,
     noteText, setNoteText,

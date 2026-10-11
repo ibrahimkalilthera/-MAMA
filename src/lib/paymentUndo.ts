@@ -40,6 +40,8 @@ export interface ArchivedPayment {
   amount: number;
   academicYear?: string;
   receiptNumber?: string;
+  /** Les mois couverts, en `YYYY-MM` (voir `src/lib/paymentMonths.ts`). */
+  months?: string[];
 }
 
 /** Le marqueur de forme : un `metadata` d'un autre genre n'est pas un instantané de paiement. */
@@ -59,6 +61,7 @@ export function archivedPaymentFrom(
     amount: payment.amount,
     academicYear: payment.academicYear,
     receiptNumber: payment.receiptNumber,
+    months: payment.months,
   };
 }
 
@@ -81,10 +84,23 @@ export function paymentSnapshotMetadata(archived: ArchivedPayment): Record<strin
     amount: archived.amount,
     academic_year: archived.academicYear ?? null,
     receipt_number: archived.receiptNumber ?? null,
+    // Les mois voyagent avec l'instantané : une suppression puis une
+    // restauration doivent rendre le reçu ENTIER, pas un reçu amputé.
+    months: archived.months ?? [],
   };
 }
 
 const asText = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+
+/**
+ * Relit une liste de mois d'un `metadata` : seules les chaînes passent, et une
+ * liste vide vaut « non renseigné » — jamais un tableau inventé.
+ */
+const asMonthList = (v: unknown): string[] | undefined => {
+  if (!Array.isArray(v)) return undefined;
+  const months = v.filter((m): m is string => typeof m === 'string' && m.length > 0);
+  return months.length > 0 ? months : undefined;
+};
 
 /**
  * Relit l'instantané d'un paiement, quelle que soit l'action qui l'a posé.
@@ -111,6 +127,7 @@ export function paymentSnapshotOf(
     studentName: asText(m.student_name),
     academicYear: asText(m.academic_year),
     receiptNumber: asText(m.receipt_number),
+    months: asMonthList(m.months),
   };
 }
 

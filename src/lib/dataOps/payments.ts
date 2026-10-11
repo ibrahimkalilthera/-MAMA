@@ -59,6 +59,9 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         amount: payment.amount,
         academic_year: payment.academicYear || null,
         receipt_number: payment.receiptNumber || null,
+        // Les mois couverts — `[]` quand rien n'est précisé, jamais `null` :
+        // la colonne est NOT NULL, et un reçu relu y lit « rien de renseigné ».
+        months: payment.months ?? [],
       });
 
       if (error) {
@@ -262,6 +265,9 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
       amount: archived.amount,
       academic_year: archived.academicYear ?? null,
       receipt_number: archived.receiptNumber ?? null,
+      // Les mois reviennent avec le reste : une restauration qui les perdrait
+      // rendrait un reçu amputé — le contraire du geste annulé.
+      months: archived.months ?? [],
     });
     if (error && error.code !== '23505') {
       console.error('restorePayment error:', error.message);
@@ -280,6 +286,7 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         amount: archived.amount,
         academicYear: archived.academicYear,
         receiptNumber: archived.receiptNumber,
+        months: archived.months,
       };
       const payments = already ? student.payments : [...student.payments, restored];
       const dates = payments.map(p => p.date).filter(Boolean).sort();

@@ -131,6 +131,10 @@ export interface AppModalsProps {
   parentForm: ParentForm;
   paymentAmount: string;
   paymentDate: string;
+  /** Mois proposés au guichet — ceux de l'année scolaire de la date (`YYYY-MM`). */
+  paymentMonthOptions: string[];
+  /** Mois cochés pour ce paiement. */
+  paymentMonths: string[];
   paymentStudentId: string;
   printStudentFile: Student | null;
   productivitySidebarTab: 'tasks' | 'ai';
@@ -204,6 +208,8 @@ export interface AppModalsProps {
   setTodoDate: Dispatch<SetStateAction<string>>;
   todos: Todo[];
   toggleTodo: (id: string) => Promise<void>;
+  /** Coche/décoche un mois payé (voir src/lib/paymentMonths.ts). */
+  togglePaymentMonth: (month: string) => void;
   handleUpdateTodoDate: (id: string, date: string) => Promise<boolean>;
   vendorExpenseForm: VendorExpenseForm;
   welcomeMessage: string | null;

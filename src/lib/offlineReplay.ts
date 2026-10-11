@@ -228,6 +228,9 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       amount: payment.amount,
       academic_year: payment.academicYear || null,
       receipt_number: payment.receiptNumber || null,
+      // Les mois choisis voyagent avec le geste : un paiement rejoué sans eux
+      // rendrait un reçu qui ne dit plus ce que la famille a payé.
+      months: payment.months ?? [],
     });
     // `23505` : ce geste est DÉJÀ en base. On réconcilie quand même le solde —
     // le seul chemin qui mène ici est une première tentative qui a inséré la ligne
