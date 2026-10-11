@@ -219,6 +219,7 @@ export interface Database {
           amount: number;
           academic_year: string | null;
           receipt_number: string | null;
+          months: string[];
           created_at: string;
         };
         Insert: {
@@ -228,6 +229,7 @@ export interface Database {
           amount: number;
           academic_year?: string | null;
           receipt_number?: string | null;
+          months?: string[];
           created_at?: string;
         };
         Update: {
@@ -237,6 +239,7 @@ export interface Database {
           amount?: number;
           academic_year?: string | null;
           receipt_number?: string | null;
+          months?: string[];
           created_at?: string;
         };
         Relationships: [];

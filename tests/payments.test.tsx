@@ -407,3 +407,87 @@ describe('usePayments.getEventsForDay', () => {
     }
   });
 });
+
+/**
+ * « Quels mois ce paiement couvre-t-il ? » — la question que la date ne pose
+ * jamais toute seule. Les mois partent AVEC le paiement (une réimpression doit
+ * les retrouver) et sur le reçu du moment.
+ */
+describe('usePayments — les mois payés', () => {
+  const submit = async (ref: { current: ReturnType<typeof usePayments> | null }) => {
+    await act(async () => { await ref.current!.handlePaymentSubmit({ preventDefault: () => {} } as never); });
+  };
+
+  it('emporte le mois de la date, et le reçu reçoit les MÊMES mois', async () => {
+    pdfCalls.length = 0;
+    const { args, spies } = baseDeps({ students: [ali()] });
+    const { ref, root, restoreAlert } = await setup(args, { studentId: 's1', amount: '25000', date: '2026-10-05' }, spies.alerts);
+    try {
+      assert.deepEqual(ref.current!.paymentMonths, ['2026-10'], 'le mois de la date est proposé d’avance');
+      assert.equal(ref.current!.paymentMonthOptions.length, 12, 'les douze mois de l’année scolaire de la date');
+      assert.equal(ref.current!.paymentMonthOptions[0], '2026-09', 'l’année scolaire commence en septembre');
+      assert.equal(ref.current!.paymentMonthOptions[11], '2027-08', 'et finit en août');
+
+      await submit(ref);
+
+      assert.deepEqual(spies.addPaymentCalls[0]?.payment.months, ['2026-10'], 'le paiement porte ses mois');
+      assert.deepEqual(pdfCalls[0]?.payment.months, ['2026-10'], 'le reçu reçoit les mêmes mois');
+      assert.deepEqual(ref.current!.paymentMonths, ['2026-10'], 'le formulaire rouvert repart du mois de la date');
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+
+  it('ajoute les mois cochés, triés dans l’ordre du calendrier scolaire', async () => {
+    const { args, spies } = baseDeps({ students: [ali()] });
+    const { ref, root, restoreAlert } = await setup(args, { studentId: 's1', amount: '25000', date: '2026-10-05' }, spies.alerts);
+    try {
+      // Cochés dans le désordre — décembre AVANT novembre : l'ordre des clics ne
+      // doit pas se retrouver sur le reçu.
+      act(() => { ref.current!.togglePaymentMonth('2026-12'); });
+      act(() => { ref.current!.togglePaymentMonth('2026-11'); });
+      assert.deepEqual(ref.current!.paymentMonths, ['2026-10', '2026-11', '2026-12']);
+
+      await submit(ref);
+      assert.deepEqual(spies.addPaymentCalls[0]?.payment.months, ['2026-10', '2026-11', '2026-12']);
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+
+  it('suit la date tant que le caissier n’a rien coché', async () => {
+    const { args, spies } = baseDeps({ students: [ali()] });
+    const { ref, root, restoreAlert } = await setup(args, { studentId: 's1', amount: '25000', date: '2026-10-05' }, spies.alerts);
+    try {
+      // Un reçu daté de novembre ne peut pas porter « Octobre » sur sa ligne Mois.
+      await act(async () => { ref.current!.setPaymentDate('2026-11-05'); });
+      assert.deepEqual(ref.current!.paymentMonths, ['2026-11'], 'le mois proposé a suivi la date');
+
+      await submit(ref);
+      assert.deepEqual(spies.addPaymentCalls[0]?.payment.months, ['2026-11']);
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+
+  it('refuse l’envoi quand plus AUCUN mois n’est coché — et le dit', async () => {
+    pdfCalls.length = 0;
+    const { args, spies } = baseDeps({ students: [ali()] });
+    const { ref, root, restoreAlert } = await setup(args, { studentId: 's1', amount: '25000', date: '2026-10-05' }, spies.alerts);
+    try {
+      act(() => { ref.current!.togglePaymentMonth('2026-10'); });
+      assert.deepEqual(ref.current!.paymentMonths, []);
+
+      await submit(ref);
+      assert.ok(spies.alerts.includes(t.paidMonthsRequired), 'le guichet dit pourquoi il refuse');
+      assert.equal(spies.addPaymentCalls.length, 0, 'aucun paiement sans mois');
+      assert.equal(pdfCalls.length, 0, 'aucun reçu sans mois');
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+});

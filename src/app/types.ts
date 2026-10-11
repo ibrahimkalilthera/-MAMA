@@ -23,6 +23,13 @@ export interface Payment {
   amount: number;
   academicYear?: string;
   receiptNumber?: string;
+  /**
+   * Les MOIS que ce paiement couvre, en `YYYY-MM` — la même forme que
+   * `lib/domainTypes.ts` et que la colonne `payments.months`. Voir
+   * `lib/paymentMonths.ts`. Absent ou vide = « non renseigné » (le reçu retombe
+   * alors sur le mois de la date).
+   */
+  months?: string[];
 }
 
 export interface Parent {

@@ -25,8 +25,12 @@ import {
 import type { AuditLogEntry } from '../src/lib/auditLogger';
 import type { Payment } from '../src/lib/domainTypes';
 
+// Les MOIS couverts font partie de l'instantané : une suppression puis une
+// restauration qui les perdraient rendraient un reçu amputé — le contraire du
+// geste annulé.
 const PAY: Payment = {
   id: 'pay1', date: '2026-10-01', amount: 25000, academicYear: '2026-2027', receiptNumber: 'REC-1',
+  months: ['2026-09', '2026-10'],
 };
 
 const log = (over: Partial<AuditLogEntry>): AuditLogEntry => ({
@@ -40,6 +44,7 @@ describe('paymentUndo — l’instantané fait l’aller-retour', () => {
     assert.deepEqual(back, {
       paymentId: 'pay1', studentId: 'st1', studentName: 'Ali Diallo',
       date: '2026-10-01', amount: 25000, academicYear: '2026-2027', receiptNumber: 'REC-1',
+      months: ['2026-09', '2026-10'],
     });
   });
 
@@ -50,6 +55,7 @@ describe('paymentUndo — l’instantané fait l’aller-retour', () => {
     assert.equal(back?.amount, 4000);
     assert.equal(back?.academicYear, undefined);
     assert.equal(back?.receiptNumber, undefined);
+    assert.equal(back?.months, undefined, 'sans mois, l’instantané n’en invente aucun');
   });
 
   it('n’invente rien : mauvaise action, pas de metadata, ou forme étrangère → null', () => {
@@ -91,6 +97,7 @@ describe('paymentUndo — ce qui est encore annulable', () => {
     assert.deepEqual(restorablePayment(logs[0]!, logs), {
       paymentId: 'pay1', studentId: 'st1', studentName: 'Ali Diallo',
       date: '2026-10-01', amount: 25000, academicYear: '2026-2027', receiptNumber: 'REC-1',
+      months: ['2026-09', '2026-10'],
     });
   });
 

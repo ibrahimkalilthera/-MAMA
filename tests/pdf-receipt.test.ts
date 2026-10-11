@@ -385,3 +385,99 @@ describe('numéro de l’école — sur la ligne « Tél. : » (pixel scan)', ()
     assert.ok(d && d.count > 500, 'the school number is on the line — it does not depend on the parent');
   });
 });
+
+/**
+ * La ligne « Mois » — le mois de la DATE, ou les mois CHOISIS au guichet.
+ *
+ * Ce que ces cas verrouillent, et que le papier ne pardonne pas : un nom de mois
+ * à moitié coupé, ou un texte qui déborde de la ligne pointillée, feraient d'un
+ * reçu officiel un document à relire à la main.
+ */
+describe('ligne « Mois » — les mois couverts, pas seulement celui de la date', () => {
+  const PT_PER_MM = 72 / 25.4;
+
+  async function textsOf(bytes: Uint8Array): Promise<string[]> {
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+    const doc = await loadingTask.promise;
+    try {
+      const content = await (await doc.getPage(1)).getTextContent();
+      return content.items
+        .filter((item): item is Extract<typeof item, { str: string }> => 'str' in item)
+        .map((item) => item.str);
+    } finally {
+      await loadingTask.destroy();
+    }
+  }
+
+  /** Un paiement du 04/10/2026 couvrant les mois donnés. */
+  const withMonths = (months: string[], lang: 'fr' | 'en' = 'fr') => options({
+    lang,
+    payment: { date: '2026-10-04', amount: 25000, academicYear: '2026-2027', receiptNumber: 'REC-777001', months },
+  });
+
+  it('sans mois choisi, garde le mois de la date — un reçu d’avant ne change pas', async () => {
+    const strs = await textsOf((await buildParentReceiptPdf(withMonths([]))).bytes);
+    assert.ok(strs.includes('Octobre'), 'le mois de la date reste écrit');
+  });
+
+  it('écrit un seul mois choisi, nu — sans « 1 mois »', async () => {
+    const strs = await textsOf((await buildParentReceiptPdf(withMonths(['2026-12']))).bytes);
+    assert.ok(strs.includes('Décembre'), 'le mois choisi est écrit');
+    assert.ok(!strs.includes('Octobre'), 'le mois de la date ne s’ajoute pas au mois choisi');
+    assert.ok(!strs.some((s) => s.includes('1 mois')), 'un seul mois ne se compte pas');
+  });
+
+  it('écrit le NOMBRE puis une PLAGE quand les mois se suivent', async () => {
+    const strs = await textsOf(
+      (await buildParentReceiptPdf(withMonths(['2026-09', '2026-10', '2026-11']))).bytes,
+    );
+    assert.ok(strs.includes('3 mois : Septembre à Novembre'), `plage absente de [${strs.join(' | ')}]`);
+  });
+
+  it('écrit le nombre puis les noms quand les mois sont troués', async () => {
+    const strs = await textsOf(
+      (await buildParentReceiptPdf(withMonths(['2026-10', '2026-12']))).bytes,
+    );
+    assert.ok(strs.includes('2 mois : Octobre, Décembre'));
+  });
+
+  it('suit la langue du reçu', async () => {
+    const strs = await textsOf(
+      (await buildParentReceiptPdf(withMonths(['2026-09', '2026-10', '2026-11'], 'en'))).bytes,
+    );
+    assert.ok(strs.includes('3 months : September to November'));
+  });
+
+  it('reste sur la ligne pointillée, du début à la fin (x 31,5 → 99,2 mm)', async () => {
+    const { bytes } = await buildParentReceiptPdf(withMonths(['2026-09', '2026-10', '2026-11']));
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+    const doc = await loadingTask.promise;
+    try {
+      const content = await (await doc.getPage(1)).getTextContent();
+      const items = content.items.filter((item): item is Extract<typeof item, { str: string }> => 'str' in item);
+      const moisItem = items.find((item) => item.str.startsWith('3 mois'))!;
+      assert.ok(moisItem, 'la ligne des mois est écrite');
+      const media = (await PDFDocument.load(bytes)).getPage(0).getMediaBox();
+      const lineStart = media.x + MOIS.x * PT_PER_MM;
+      const lineEnd = media.x + 99.2 * PT_PER_MM;
+      assert.ok(moisItem.transform[4] >= lineStart - 0.1, 'le texte commence sur la ligne, après le libellé imprimé');
+      assert.ok(
+        moisItem.transform[4] + moisItem.width <= lineEnd + 0.1,
+        `le texte tient sur la ligne (fin ${(moisItem.transform[4] + moisItem.width).toFixed(1)} pt ≤ ${lineEnd.toFixed(1)})`,
+      );
+    } finally {
+      await loadingTask.destroy();
+    }
+  });
+
+  it('au-delà de ce qui tient, écrit le NOMBRE seul — jamais un nom de mois coupé', async () => {
+    // Sept mois troués : la liste complète ne tient pas, même au plus petit
+    // corps lisible. Un reçu qui nomme « Septembre, Novembre, Janvie… » vaut
+    // moins qu'un reçu qui dit combien de mois sont réglés.
+    const months = ['2026-09', '2026-11', '2027-01', '2027-03', '2027-05', '2027-07', '2027-08'];
+    const strs = await textsOf((await buildParentReceiptPdf(withMonths(months))).bytes);
+    assert.ok(strs.includes('7 mois'), `le nombre seul doit rester (${strs.join(' | ')})`);
+    assert.ok(!strs.some((s) => s.includes('…')), 'aucun nom de mois tronqué');
+    assert.ok(!strs.some((s) => s.includes('Septembre')), 'la liste trop longue n’est pas écrite à moitié');
+  });
+});
