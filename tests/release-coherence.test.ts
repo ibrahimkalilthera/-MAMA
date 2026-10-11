@@ -37,7 +37,7 @@ import {
 } from '../scripts/lib/release-compare.mjs';
 import { compareVersions, releaseTag } from '../scripts/lib/release-version.mjs';
 import { nameCarriesVersion, parseHoldsFile, parseLatestYml } from '../scripts/lib/latest-yml.mjs';
-import { deliveryReach, pickLatestPublished } from '../scripts/lib/release-reach.mjs';
+import { channelSilenceVerdict, deliveryReach, pickLatestPublished } from '../scripts/lib/release-reach.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
@@ -1145,5 +1145,102 @@ describe('les actifs publiés hors du flux', () => {
     assert.match(v.problems.join(' '), /un fichier publié que personne ne verra/);
     assert.equal(v.outside?.find((l) => l.name.endsWith('extra-setup.exe'))?.kind, 'hole');
     assert.equal(v.outside?.find((l) => l.name === 'latest.yml')?.kind, 'off-feed');
+  });
+});
+
+// ─── Quand le canal ne répond RIEN : trois causes au lieu d'une ───────────────
+//
+// MESURÉ du 2026-10-07 au 2026-10-11 : le dépôt est passé en privé, un lecteur
+// anonyme reçoit 404 — la réponse exacte d'un release ABSENT — et le contrôle a
+// imprimé « aucun release PUBLIÉ — le canal est muet » à chacun de ses sept runs,
+// alors que vingt-cinq releases publiés existaient. Il accusait le publieur d'un
+// défaut de visibilité, et la nouvelle qui comptait n'était dite nulle part : un
+// poste ne peut plus rien recevoir. Ce bloc verrouille les trois états — et le
+// fait qu'un jeton ne peut JAMAIS rendre le canal vert.
+describe('quand le canal ne répond rien, la cause se NOMME', () => {
+  const silentHead = { tag: null, detail: 'l’endpoint du poste a répondu HTTP 404 sur …/releases/latest' };
+  const closed = (extra: Record<string, unknown> = {}) =>
+    channelSilenceVerdict({
+      head: silentHead,
+      releases: [],
+      diagnosis: { asked: true, private: true, published: ['v1.0.27', 'v1.0.26', 'v1.0.25'], ...extra },
+    });
+
+  it('des releases publiés + un 404 anonyme = le canal est FERMÉ AU PARC, pas muet', () => {
+    const verdict = closed();
+    assert.equal(verdict.state, 'closed-to-fleet');
+    // Le mensonge exact à interdire : trois releases existent, et le titre parlait
+    // d'absence de publication.
+    assert.doesNotMatch(verdict.title, /aucun release PUBLIÉ/);
+    const problems = verdict.problems.join(' ');
+    assert.match(problems, /3 release\(s\) PUBLIÉ\(s\) existent pourtant \(v1\.0\.27, v1\.0\.26, v1\.0\.25\)/);
+    assert.match(problems, /private: true/, 'la cause mesurée est nommée, pas devinée');
+    assert.match(problems, /provider: github/, 'et le fait que le poste lit sans jeton : c’est ce qui rend la conséquence vraie');
+    assert.match(problems, /app-update\.yml/, 'la conséquence sur les postes DÉJÀ installés est dite');
+    assert.equal(verdict.problems.length, 5, 'le 404, les releases, la cause, le poste, la conséquence');
+  });
+
+  it('une visibilité non mesurée ne donne pas une cause inventée', () => {
+    const verdict = closed({ private: null });
+    assert.equal(verdict.state, 'closed-to-fleet', 'un release existe : le canal est fermé, quelle qu’en soit la raison');
+    assert.match(verdict.problems.join(' '), /la cause est dans la VISIBILITÉ du dépôt/);
+    assert.doesNotMatch(verdict.problems.join(' '), /private: true/);
+  });
+
+  it('aucun release publié, et c’est bien le publieur qu’il faut regarder', () => {
+    const verdict = channelSilenceVerdict({ head: silentHead, diagnosis: { asked: true, private: false, published: [] } });
+    assert.equal(verdict.state, 'silent');
+    assert.match(verdict.title, /aucun release PUBLIÉ/);
+    assert.match(verdict.problems.join(' '), /l’API authentifiée ne trouve aucun release promu/);
+  });
+
+  it('sans diagnostic, il dit qu’il ne sait pas — un zéro anonyme ne tranche rien', () => {
+    for (const diagnosis of [null, { asked: false, reason: 'aucun jeton dans l’environnement (GH_TOKEN)' }]) {
+      const verdict = channelSilenceVerdict({ head: silentHead, releases: [], diagnosis });
+      assert.equal(verdict.state, 'undecided');
+      assert.doesNotMatch(verdict.title, /aucun release PUBLIÉ/, 'il ne choisit pas la cause qu’il n’a pas mesurée');
+      assert.match(verdict.problems.join(' '), /un zéro anonyme ne dit pas si c’est « rien n’est publié » ou « rien n’est lisible »/);
+    }
+    assert.match(
+      channelSilenceVerdict({ head: silentHead, diagnosis: { asked: false, reason: 'l’API a refusé la liste des releases (HTTP 403)' } }).problems.join(' '),
+      /HTTP 403/,
+      'la raison du refus est recopiée, pas résumée',
+    );
+  });
+
+  it('une tête lisible n’est jamais « fermée » : le jeton ne rend pas le canal vert', () => {
+    const verdict = channelSilenceVerdict({
+      head: { tag: 'v1.0.27', detail: 'GET /releases/latest → v1.0.27' },
+      diagnosis: { asked: true, private: true, published: [] },
+    });
+    assert.deepEqual(verdict, { state: 'readable', title: '', problems: [], warnings: [] });
+  });
+
+  it('et le jeton n’entre QUE là : la question d’existence, dans le seul chemin où rien n’a répondu', () => {
+    const source = read('scripts/check-release-coherence.mjs');
+    assert.match(source, /const silence = channelSilenceVerdict\(\{/, 'le mode channel rend son verdict par la fonction pure');
+    assert.match(source, /diagnosis: await channelDiagnosis\(\)/, 'le diagnostic est passé au verdict');
+    // Un seul APPEL, et après la ligne qui constate l'absence de tête : ailleurs,
+    // le mode resterait sans jeton (la ligne de rapport le promet).
+    assert.equal(source.split('await channelDiagnosis()').length - 1, 1, 'le diagnostic n’est POSÉ qu’une fois, dans le seul chemin muet');
+    assert.ok(
+      source.indexOf('await channelDiagnosis()') > source.indexOf('if (!target) {'),
+      'et c’est bien le chemin où le canal n’a rien répondu',
+    );
+    assert.match(source, /const byteAuth = MODE === 'live' \|\| MODE === 'channel' \? \{\} : auth;/, 'la preuve reste sans jeton');
+    assert.match(source, /Il ne peut pas[\s\S]{0,80}rendre ce contrôle vert/, 'et le dire dans le texte : un jeton ne peut pas rendre ce contrôle vert');
+    // Et la LIGNE DE RAPPORT doit suivre : elle promettait « le jeton de
+    // l'environnement est délibérément ignoré », ce qui devient faux le jour où le
+    // diagnostic entre dans le chemin muet — une promesse qui se tait sur sa
+    // propre exception est exactement ce que ce dépôt refuse de laisser passer.
+    assert.doesNotMatch(source, /délibérément ignoré/, 'la ligne de rapport ne peut plus dire que le jeton est ignoré : il sert une fois');
+    assert.match(source, /le jeton de l’environnement ne sert qu’à UNE question/, 'elle doit dire la SEULE question qu’il pose, et sa condition');
+  });
+
+  it('le workflow passe le jeton POUR LE DIAGNOSTIC, et jamais un secret', () => {
+    const workflow = read('.github/workflows/release-channel-watch.yml');
+    assert.match(workflow, /GH_TOKEN: \$\{\{ github\.token \}\}/, 'le diagnostic a de quoi poser sa question');
+    assert.doesNotMatch(workflow, /secrets\./, 'aucun secret : la preuve du poste reste anonyme');
+    assert.doesNotMatch(workflow, /permissions:[\s\S]*contents: write/, 'lecture seule : ce jeton ne sert qu’à lire');
   });
 });

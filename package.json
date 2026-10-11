@@ -49,6 +49,7 @@
     "seed": "node --env-file=.env supabase/seed.mjs",
     "seed:staging": "node --env-file=.env.staging supabase/seed.mjs",
     "seed:production": "node --env-file=.env.production supabase/seed-production.mjs",
+    "db:apply": "node scripts/apply-migration.mjs",
     "db:snapshot": "node supabase/regenerate-full-setup.mjs",
     "db:snapshot:check": "node supabase/regenerate-full-setup.mjs --check",
     "clean": "rm -rf dist",

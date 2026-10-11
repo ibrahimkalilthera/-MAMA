@@ -53,6 +53,102 @@ export function pickLatestPublished(releases = []) {
 }
 
 /**
+ * ─── Quand le canal ne répond RIEN : trois causes, et une seule était dite ──
+ *
+ * MESURÉ le 2026-10-11, et c'est la raison d'être de cette fonction. Le mode
+ * `channel` lisait le canal sans jeton (c'est ce qu'un poste fait) ; le dépôt est
+ * passé en PRIVÉ le 2026-10-06 au soir, et à partir du cron du 07/10, chaque run
+ * a imprimé « aucun release PUBLIÉ — le canal est muet » — alors que VINGT-CINQ
+ * releases publiés existaient (lus avec un jeton, le plus récent `v1.0.27`). Le
+ * contrôle accusait donc le PUBLIEUR d'un défaut de VISIBILITÉ, et il l'a fait à
+ * ses sept runs de suite sans que rien ne nomme la vraie cause ni la vraie
+ * conséquence :
+ * **aucun poste installé ne peut plus rien recevoir**, puisque l'installeur lit
+ * le canal sans jeton lui aussi (`electron-builder.yml` : `provider: github`,
+ * ni `private` ni jeton, donc `app-update.yml` gravé sur chaque poste).
+ *
+ * D'où trois états distincts, là où il n'y en avait qu'un :
+ *   • `silent` — rien n'est publié : le canal est muet, et c'est bien le publieur
+ *     qu'il faut regarder ;
+ *   • `closed-to-fleet` — des releases PUBLIÉS existent, mais seulement pour un
+ *     lecteur authentifié : le canal est fermé au parc, et c'est la visibilité
+ *     du dépôt qu'il faut changer ;
+ *   • `undecided` — on n'a pas de quoi trancher (aucun jeton pour poser la seule
+ *     question d'existence). Ce cas n'est PAS un vert et PAS un silence : il dit
+ *     ce qu'il ne sait pas, et ce qui le lui apprendrait.
+ *
+ * Un jeton ne rend JAMAIS `readable` : la lisibilité sans jeton reste la preuve,
+ * et cette fonction ne juge que ce qui arrive quand elle manque. C'est ce qui
+ * garde au contrôle son sens — un canal qu'on ne sait relire qu'authentifié
+ * n'est toujours pas prouvé pour un poste qui, lui, ne s'authentifie jamais.
+ *
+ * @param {{ head?: { tag?: unknown, detail?: unknown },
+ *   releases?: { tag_name?: string, draft?: boolean }[],
+ *   diagnosis?: { asked?: boolean, reason?: string, private?: boolean|null, published?: string[] }|null }} [input]
+ * @returns {{ state: 'readable'|'silent'|'closed-to-fleet'|'undecided',
+ *   title: string, problems: string[], warnings: string[] }}
+ */
+export function channelSilenceVerdict({ head = {}, releases = [], diagnosis = null } = {}) {
+  const headTag = typeof head.tag === 'string' && head.tag ? head.tag : null;
+  if (headTag) return { state: 'readable', title: '', problems: [], warnings: [] };
+
+  const detail = String(head.detail ?? 'l’endpoint du poste n’a rien répondu');
+  const listed = (Array.isArray(releases) ? releases : []).filter((r) => r && r.draft !== true);
+  const asked = diagnosis?.asked === true;
+  const published = asked && Array.isArray(diagnosis.published)
+    ? diagnosis.published.map((tag) => String(tag ?? '').trim()).filter(Boolean)
+    : [];
+
+  if (asked && published.length > 0) {
+    const named = published.slice(0, 5);
+    return {
+      state: 'closed-to-fleet',
+      title: 'canal FERMÉ AU PARC — des releases publiés existent, mais un poste ne peut plus les lire',
+      problems: [
+        detail,
+        `${published.length} release(s) PUBLIÉ(s) existent pourtant (${named.join(', ')}${published.length > named.length ? ', …' : ''}) — ` +
+          'ils ne sont lisibles qu’AVEC un jeton',
+        diagnosis?.private === true
+          ? 'cause MESURÉE : le dépôt est privé (`private: true`) — un lecteur anonyme reçoit un 404, la réponse exacte d’une absence'
+          : 'la lecture sans autorisation a été refusée alors que le release existe : la cause est dans la VISIBILITÉ du dépôt, pas dans le publieur',
+        'un poste lit le canal SANS jeton, par construction (`electron-builder.yml` : `provider: github`, ni `private` ni jeton) — ' +
+          'il reçoit le même refus, donc il ne peut plus RIEN recevoir',
+        'conséquence : les postes DÉJÀ installés sont hors du chemin — leur `app-update.yml` est gravé sur leur disque et pointe ce dépôt ; ' +
+          'rendre le canal lisible sans jeton est la seule voie qui les atteint',
+      ],
+      warnings: [],
+    };
+  }
+
+  if (asked) {
+    return {
+      state: 'silent',
+      title: 'aucun release PUBLIÉ — le canal est muet',
+      problems: [
+        'l’API authentifiée ne trouve aucun release promu (brouillons seulement, ou liste vide) : aucun poste ne lit quoi que ce soit',
+        detail,
+      ],
+      warnings: [],
+    };
+  }
+
+  return {
+    state: 'undecided',
+    title: 'canal injoignable sans autorisation — impossible de distinguer « aucun release » d’un dépôt privé',
+    problems: [
+      detail,
+      `la liste anonyme a rendu ${listed.length} release(s) publié(s) — un zéro anonyme ne dit pas si c’est « rien n’est publié » ou « rien n’est lisible »`,
+      diagnosis?.reason
+        ? `la question d’existence n’a pas pu être posée : ${diagnosis.reason}`
+        : 'aucun jeton n’était disponible pour poser la question d’existence (lecture seule)',
+      'ce qui déciderait : un jeton de LECTURE posé pour cette seule question — la preuve, elle, reste la lecture sans jeton, ' +
+        'et un jeton ne peut pas la rendre verte',
+    ],
+    warnings: [],
+  };
+}
+
+/**
  * ─── Un poste resté sur une ANCIENNE version recevrait-il la plus récente ? ──
  *
  * La question du canal n'est pas « la version en tête est-elle cohérente ? » mais
