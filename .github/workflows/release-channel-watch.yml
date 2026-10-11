@@ -19,10 +19,20 @@ name: Release channel watch
 #   • le frein d'urgence (`updates/holds.json`) à l'URL exacte qu'un poste
 #     interroge : un frein illisible ne retient rien, et c'est silencieux.
 #
-# Aucun secret n'est utilisé, et c'est délibéré : le contrôle ignore même le
-# jeton qui traînerait dans l'environnement. Un canal qu'on ne sait relire
-# qu'authentifié n'est pas prouvé pour un poste qui, lui, ne s'authentifie
-# jamais.
+# La PREUVE est sans jeton, et c'est délibéré : la tête, le flux et les octets
+# sont relus exactement comme un poste les lit, et `byteAuth` refuse le jeton par
+# construction. Un canal qu'on ne sait relire qu'authentifié n'est pas prouvé
+# pour un poste qui, lui, ne s'authentifie jamais.
+#
+# MESURÉ du 2026-10-07 au 2026-10-11 : le dépôt est passé en PRIVÉ, un lecteur
+# anonyme reçoit désormais un 404 — la réponse exacte d'un release absent — et le
+# contrôle a imprimé sept fois de suite « aucun release PUBLIÉ » alors que
+# VINGT-CINQ releases publiés existaient. Il accusait le publieur d'un défaut de visibilité, et la
+# nouvelle qui comptait n'était dite nulle part : le parc ne pouvait plus rien
+# recevoir. Le jeton est donc passé à l'étape, pour UNE question, posée
+# uniquement quand le canal ne répond rien : « existe-t-il un release publié ? ».
+# Il ne lit ni la tête ni les octets, il ne peut pas rendre le job vert, et sans
+# lui le verdict dit qu'il ne peut pas trancher au lieu d'inventer une cause.
 #
 # ─── Et quand l'API anonyme refuse (quota), la veille juge quand même ────────
 # MESURÉ le 2026-09-26, en reproduisant ce cron : la LISTE des releases
@@ -123,8 +133,16 @@ jobs:
       - name: Le release publié le plus récent est-il livrable, et le frein lisible ?
         # Mandat de preuve : le script publie lui-même ce qu'il a MESURÉ (le
         # nombre d'artefacts vérifiés sur le release publié, et l'état du frein).
+        #
+        # `GH_TOKEN` n'est pas là pour lire le canal — la tête et les octets sont
+        # relus SANS lui, par construction (`byteAuth`). Il sert à UNE question,
+        # posée seulement quand le canal ne répond rien : « un release publié
+        # existe-t-il ? ». Sans elle, un dépôt privé et un dépôt sans release sont
+        # indistinguables, et le contrôle nommait « canal muet » là où le parc
+        # n'avait plus rien à lire. Lecture seule (`permissions: contents: read`).
         env:
           AUTOMATION_EVIDENCE: '1'
+          GH_TOKEN: ${{ github.token }}
         run: npm run check:release:channel
 
       # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les

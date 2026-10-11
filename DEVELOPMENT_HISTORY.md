@@ -1,3 +1,21 @@
+## [2026-10-11] Le canal de mise à jour ne dit plus « aucun release publié » quand le dépôt est privé
+
+Demande du propriétaire : « Répare le contrôle “Release channel watch” qui ne peut pas être vert sur un dépôt privé, en gardant ce qu'il prouve vraiment. »
+
+**La mesure a retourné la demande : le contrôle n'était pas cassé, son VERDICT l'était.** Dernier run vert : **2026-10-06 23 h 14** (juste après la publication de la 1.0.27). Puis **sept rouges consécutifs** — les crons du 07 au 11 et deux runs du 11 — tous disant « aucun release PUBLIÉ — le canal est muet », alors que **vingt-cinq releases publiés** existaient (lus avec un jeton, le plus récent `v1.0.27`). Le dépôt est **privé** (`private: true`, interrogé avec un jeton) : un lecteur anonyme reçoit d'un dépôt privé **404**, la réponse exacte d'un release absent. Le contrôle accusait donc le publieur d'un défaut de visibilité.
+
+**Et la nouvelle qui comptait n'était dite nulle part : le parc ne peut plus rien recevoir.** L'application lit le canal **sans jeton**, elle aussi (`electron-builder.yml` : `provider: github`, ni `private` ni jeton) ; un poste installé reçoit donc le même 404 qu'un runner. Ce n'est pas une conclusion tirée du code : c'est la même réponse HTTP, mesurée du côté du poste (`/releases/latest` sans autorisation) et du côté de la CI.
+
+**Trois états au lieu d'un, et la preuve inchangée.** `channelSilenceVerdict` (module pur, 7 cas) distingue `silent` (rien n'est publié — on regarde le publieur), `closed-to-fleet` (des releases publiés existent, lisibles seulement authentifié — la visibilité est en cause) et `undecided` (aucun jeton pour poser la seule question d'existence : il dit qu'il ne tranche pas, et nomme ce qui le lui apprendrait). La lecture anonyme reste **le** verdict : un jeton ne peut pas rendre ce contrôle vert, et il n'entre que dans le chemin où rien n'a répondu — **un seul appel**, verrouillé par un cas, et `byteAuth` continue de refuser le jeton pour la tête et les octets. Le workflow passe `GH_TOKEN` (lecture seule) pour ce diagnostic, et sa prose dit désormais pourquoi.
+
+**Mesuré, les deux canaux.** Sans jeton : rouge, « canal injoignable sans autorisation — impossible de distinguer « aucun release » d'un dépôt privé ». Avec jeton : rouge, « canal FERMÉ AU PARC », nommant les 25 releases, la cause mesurée (`private: true`), le fait qu'un poste lit sans jeton, et la conséquence sur les postes déjà installés. Suite du contrôle : **84/84** (+7 cas), et la suite complète reste verte.
+
+**La cause était la même pour DEUX rouges, et c'est le diagnostic qui l'a établie** : le canal (404 anonyme) et le déploiement, dont l'audit de liens embarqués refusait le lien `releases-page` — `https://github.com/…/releases/latest`, la seule porte de sortie d'un poste portable — pour la même raison, un lecteur anonyme devant un dépôt privé.
+
+**La suite, le même jour, et elle est MESURÉE.** Le propriétaire a rendu le dépôt **public**, et les deux runs rouges ont été relancés à l'identique : **`Release channel watch` vert**, **`Deploy (Vercel)` vert** (l'audit relit `releases-page` en **HTTP 200** → `v1.0.27`), la production aliasée sur `mama-thera-finance.vercel.app` et son `sw.js` portant le commit publié.
+
+**Ce que ce commit répare, et ce qu'il ne peut pas réparer.** Il répare le VERDICT : un dépôt privé ne se lira plus « aucun release publié », et la conséquence — le parc ne peut plus rien recevoir — est dite. Il ne répare pas le parc, et aucun jeton ne le fera : la preuve reste la lecture **SANS** jeton, donc un canal fermé au parc reste rouge tant que la visibilité n'est pas rétablie. C'est la seule chose à regarder si ce contrôle rougit demain : la visibilité du dépôt, pas le publieur.
+
 ## [2026-10-11] Les mois payés : ce qu'un paiement couvre, et ce que le reçu en écrit
 
 Demande du propriétaire : « Lorsque l'utilisateur ajoute ou enregistre un paiement, assurez-vous que l'on puisse choisir le nombre de mois à payer parmi les mois disponibles (par exemple : octobre, septembre, décembre...), et que ce nombre de mois choisi soit également réfléchi sur le reçu. »

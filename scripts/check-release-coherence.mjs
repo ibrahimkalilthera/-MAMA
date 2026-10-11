@@ -51,6 +51,22 @@
  * un cron sur un dépôt public, et sur un dépôt privé c'est `raw` qui refuse —
  * un canal qu'on ne peut pas relire de l'extérieur n'est pas prouvé.
  *
+ * ─── Et quand le canal ne répond RIEN, le jeton ne sert qu'à NOMMER la cause ──
+ * MESURÉ : du 2026-10-07 au 2026-10-11, ce mode a imprimé « aucun release
+ * PUBLIÉ — le canal est muet » à CHACUN de ses sept runs, alors que vingt-cinq
+ * releases publiés existaient. Le dépôt est passé en PRIVÉ le 2026-10-06 au soir, et un lecteur
+ * anonyme reçoit d'un dépôt privé la réponse exacte d'un release absent : un
+ * **404**. Le contrôle accusait donc le PUBLIEUR d'un défaut de visibilité, et
+ * la nouvelle qui n'était dite nulle part est que **le parc ne peut plus rien
+ * recevoir** — l'application lit le canal sans jeton, elle aussi
+ * (`electron-builder.yml` : `provider: github`, ni `private` ni jeton).
+ *
+ * Le jeton n'entre donc QUE dans le chemin où le canal n'a rien répondu, pour
+ * une seule question : « existe-t-il un release publié ? ». Il ne peut pas
+ * rendre ce contrôle vert (la lisibilité sans jeton reste la preuve), il ne lit
+ * ni la tête ni les octets — `byteAuth` les refuse par construction — et sans
+ * lui le verdict n'invente pas de cause : il dit qu'il ne peut pas trancher.
+ *
  *   node scripts/check-release-coherence.mjs --channel [--branch=<ref>]
  *
  * `--branch` change la branche où le frein est lu (défaut `main`, celle que le
@@ -69,7 +85,7 @@ import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { parseHoldsFile, parseLatestYml } from './lib/latest-yml.mjs';
 import { assetsToPublish, compareLatest, compareRelease, publishDecision } from './lib/release-compare.mjs';
 import { DEFAULT_RELEASE_DIR } from './lib/release-prune.mjs';
-import { deliveryReach, pickLatestPublished } from './lib/release-reach.mjs';
+import { channelSilenceVerdict, deliveryReach, pickLatestPublished } from './lib/release-reach.mjs';
 import { releaseTag } from './lib/release-version.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -226,6 +242,49 @@ async function clientLatestTag() {
       : { tag: null, detail: `l’endpoint du poste n’a nommé aucune version (${url})` };
   } catch (error) {
     return { tag: null, detail: `l’endpoint du poste est injoignable (${String(error?.message ?? error)})` };
+  }
+}
+
+/**
+ * ─── La SEULE question que le jeton a le droit de poser dans ce mode ────────
+ *
+ * « Existe-t-il un release PUBLIÉ ? » — et rien d'autre. Elle se pose uniquement
+ * quand le canal n'a rien répondu, parce que c'est le seul moment où l'absence
+ * et l'invisibilité se ressemblent : un dépôt privé répond 404, exactement comme
+ * un dépôt sans release. Sans elle, le contrôle annonçait « le canal est muet »
+ * à un propriétaire dont les trois releases allaient parfaitement bien.
+ *
+ * Ce que ce diagnostic ne fait PAS, et c'est ce qui garde au mode son sens : il
+ * ne lit ni la tête, ni le flux, ni les octets, et il ne décide de rien. La
+ * visibilité du dépôt (`private`) n'est lue que pour NOMMER la cause mesurée.
+ *
+ * @returns {Promise<{ asked: boolean, reason?: string, private?: boolean|null, published?: string[] }>}
+ */
+async function channelDiagnosis() {
+  if (!token) return { asked: false, reason: 'aucun jeton dans l’environnement (GH_TOKEN)' };
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'release-coherence',
+    Authorization: `Bearer ${token}`,
+  };
+  try {
+    const meta = await fetch(`https://api.github.com/repos/${repo}`, { headers });
+    if (!meta.ok) {
+      return { asked: false, reason: `l’API a refusé de dire la visibilité du dépôt (HTTP ${meta.status})` };
+    }
+    const visibility = await meta.json().catch(() => null);
+    const list = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=100`, { headers });
+    if (!list.ok) {
+      return { asked: false, reason: `l’API a refusé la liste des releases (HTTP ${list.status})` };
+    }
+    const all = await list.json().catch(() => []);
+    const published = (Array.isArray(all) ? all : [])
+      .filter((r) => r && r.draft !== true)
+      .map((r) => String(r.tag_name ?? '').trim())
+      .filter(Boolean);
+    return { asked: true, private: visibility?.private === true, published };
+  } catch (error) {
+    return { asked: false, reason: `le diagnostic est injoignable (${String(error?.message ?? error)})` };
   }
 }
 
@@ -563,10 +622,14 @@ if (MODE === 'channel') {
     // release dont on puisse parler — et c'est celui qui compte.
     (head.tag ? { tag_name: head.tag, draft: false, assets: null } : null);
   if (!target) {
-    fail('aucun release PUBLIÉ — le canal est muet', [
-      `${releases.length} release(s) existent, aucun n’est promu (brouillons ou liste vide) : aucun poste ne lit quoi que ce soit`,
-      head.detail,
-    ]);
+    // La cause se cherche ICI, et seulement ici : tant que le canal répond, ce
+    // mode reste sans jeton (et la ligne de rapport le dit).
+    const silence = channelSilenceVerdict({
+      head,
+      releases,
+      diagnosis: await channelDiagnosis(),
+    });
+    fail(silence.title, silence.problems, silence.warnings);
   }
   // Divergence entre ce que l'endpoint du poste nomme et ce que notre tri
   // désigne : elle est nommée, jamais tue — les deux ordres ne se confondent pas
@@ -645,7 +708,11 @@ if (MODE === 'channel') {
 
   console.log(
     `🔎 canal — ${listRes.ok ? `${releases.length} release(s) dont ${releases.filter((r) => r.draft !== true).length} publié(s)` : 'liste d’API indisponible — la TÊTE seule est jugée'} ` +
-      `(mode channel, sans jeton${token ? ' — le jeton de l’environnement est délibérément ignoré' : ''})`,
+      `(mode channel : la lecture du canal est SANS jeton${
+        token
+          ? ' ; le jeton de l’environnement ne sert qu’à UNE question — « un release publié existe-t-il ? » — et seulement si rien n’a répondu'
+          : ''
+      })`,
   );
   console.log(`   la tête que le poste lit : ${head.detail}`);
   // Le repli se DIT, à l'endroit où le rapport se lit : sans cette ligne, un
