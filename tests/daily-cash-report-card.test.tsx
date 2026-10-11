@@ -33,7 +33,14 @@ import { installDomGlobals } from './harness';
 import { makeProps } from './views-harness';
 
 const t = translations.fr as TranslationDict;
-const DAY = '2026-10-06';
+// La carte choisit sa journée sur le calendrier LOCAL du poste (`localDayIso`)
+// et rien d'autre. Une journée FIGÉE dans ce harnais (un `'2026-10-06'` écrit à
+// la main) ne vaudrait donc qu'un seul jour de l'année : le lendemain, la carte
+// ouvrirait une journée vide et les quatre cas tomberaient — le contrôle
+// accuserait le code pour la date de son exécution. Les gestes sont donc datés
+// du jour du poste, et la « veille » du jour d'avant.
+const DAY = localDayIso();
+const PREVIOUS_DAY = localDayIso(new Date(Date.now() - 24 * 60 * 60 * 1000));
 
 const alice: Student = {
   id: 'st1', name: 'Alice Traoré', grade: '6B', parentName: '', parentEmail: '', parentPhone: '',
@@ -100,7 +107,9 @@ const logs: AuditLogEntry[] = [
     targetId: alice.id,
     userName: 'Aggee Diarra',
     userEmail: 'aggee@mama.test',
-    createdAt: '2026-10-05T23:50:00Z',
+    // Midi, et non 23 h 50 : dans un fuseau à l'est de Greenwich, un instant de
+    // fin de soirée tomberait le LENDEMAIN — et la veille ne serait plus la veille.
+    createdAt: `${PREVIOUS_DAY}T12:00:00Z`,
     details: 'Paiement de 99999 FCFA (reçu REC-9)',
     metadata: paymentSnapshotMetadata(archivedPaymentFrom(alice.id, alice.name, pay('c9', 99999, 'REC-9'))),
   },
