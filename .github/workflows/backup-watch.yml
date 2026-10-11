@@ -25,6 +25,21 @@ name: Database backup
 # l'on en a besoin. Poser le secret (Settings → Secrets and variables → Actions,
 # une phrase de 12 caractères minimum) rend le job vert — et le même secret
 # déchiffre l'archive (`npm run restore:db -- --from <dossier>`, en local).
+#
+# ─── CE QUE CE WORKFLOW NE FERME PAS (dit ici, pas ailleurs) ────────────────
+#   1. La copie hors GitHub : l'artefact EST la seule copie hors de la base, et
+#      GitHub le supprime 30 jours après. Le run en publie la date limite (étape
+#      « Dire la date limite de la SEULE copie ») ; le classement lui-même est un
+#      geste de l'école, décrit dans docs/BACKUP.md.
+#   2. L'escrow de la phrase : `BACKUP_PASSPHRASE` ne vit que dans les secrets de
+#      ce dépôt. Si elle est perdue, chaque archive est illisible — même
+#      téléchargée, même sur un autre support. La procédure (deux copies, deux
+#      lieux, un détenteur nommé, une vérification qui ne l'expose pas) est dans
+#      docs/BACKUP.md, section « l'escrow de la phrase ».
+#   3. La restauration dans un projet HÉBERGÉ : elle n'a jamais été exercée (la
+#      seule base joignable est la production). La procédure pas à pas est dans
+#      docs/BACKUP.md, et l'aller-retour local, lui, tourne en CI
+#      (backup-roundtrip.yml).
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -86,12 +101,37 @@ jobs:
         run: npm run backup:verify -- --from .backup/current
 
       - name: Conserver l’archive chiffrée (30 jours)
+        id: archive
         uses: actions/upload-artifact@v5
         with:
           name: db-backup-encrypted
           path: .backup/current/
           retention-days: 30
           if-no-files-found: error
+
+      # L'archive ci-dessus est la SEULE copie qui existe hors de la base, et
+      # elle PÉRIME : 30 jours après ce run, GitHub la supprime, et il ne reste
+      # rien. Cette étape ne copie rien — elle ne peut pas : aucun stockage hors
+      # GitHub n'est configuré ici, et en inventer un serait une décision qui
+      # n'appartient pas à ce workflow. Elle rend donc l'échéance DATÉE dans le
+      # résumé du run (et donne l'URL de téléchargement), pour que la copie hors
+      # GitHub soit une date dans l'agenda de l'école, pas une bonne intention.
+      # Deux faits que la phrase de chiffrement rend vitaux : sans elle, l'archive
+      # est illisible MÊME téléchargée — l'escrow est décrit dans docs/BACKUP.md.
+      - name: Dire la date limite de la SEULE copie
+        run: |
+          limite=$(date -u -d '+30 days' +%F 2>/dev/null || date -u -v+30d +%F)
+          {
+            echo "## L’unique copie de la base périmpte le $limite"
+            echo
+            echo "L’artefact chiffré \`db-backup-encrypted\` de ce run est supprimé par GitHub 30 jours"
+            echo "après son dépôt : **téléchargez-le et rangez-le ailleurs avant cette date**, sinon il ne"
+            echo "reste aucune sauvegarde. Il n’est relisible qu’avec la phrase `BACKUP_PASSPHRASE`, qui doit"
+            echo "donc être disponible hors de ce dépôt et connue de plus d’une personne (escrow :"
+            echo "docs/BACKUP.md, section « l’escrow de la phrase »)."
+            echo
+            echo "Téléchargement : ${{ steps.archive.outputs.artifact-url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
       # étapes du run pour savoir si une preuve était attendue (voir
