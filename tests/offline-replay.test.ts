@@ -442,6 +442,25 @@ describe('ids des lignes créées hors ligne', () => {
     assert.equal(studentInsert?.row.id, studentId);
     assert.equal(paymentInsert?.row.student_id, studentId, 'le paiement vise l’id que l’élève porte réellement');
   });
+
+  it('un paiement en file garde ses MOIS au rejeu — et en écrit toujours la colonne', async () => {
+    // Les mois choisis pendant la coupure doivent arriver en base avec le
+    // paiement : un rejeu qui les perdrait rendrait un reçu qui ne dit plus ce
+    // que la famille a payé. La colonne est NOT NULL : sans mois, c'est `[]`.
+    const { db, rows } = makeFakeDb();
+    await replayOfflineItem(db, itemOf('addPayment', {
+      studentId: 's1',
+      payment: { date: '2026-10-04', amount: 100, receiptNumber: 'R1', months: ['2026-09', '2026-10'] },
+    }));
+    await replayOfflineItem(db, itemOf('addPayment', {
+      studentId: 's1',
+      payment: { date: '2026-10-05', amount: 100, receiptNumber: 'R2' },
+    }));
+
+    const inserts = rows.filter((r) => r.table === 'payments');
+    assert.deepEqual(inserts[0].row.months, ['2026-09', '2026-10'], 'les mois choisis voyagent avec le geste');
+    assert.deepEqual(inserts[1].row.months, [], 'sans mois, la colonne reçoit un tableau vide');
+  });
 });
 
 describe('offline replay audit mapping (offlineAuditInfo)', () => {

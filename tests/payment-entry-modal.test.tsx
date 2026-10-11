@@ -5,6 +5,14 @@ import { createRoot } from 'react-dom/client';
 import { PaymentEntryModal } from '../src/components/PaymentEntryModal';
 import { translations } from '../src/i18n/translations';
 import type { Student } from '../src/lib/useSupabaseData';
+import {
+  academicYearMonths,
+  effectivePaymentMonths,
+  formatPaidMonths,
+  paymentMonthLabel,
+  toggledPaymentMonths,
+} from '../src/lib/paymentMonths';
+import { academicYearOf } from '../src/lib/dateWindows';
 import { installDomGlobals } from './harness';
 import { makeProps } from './views-harness';
 
@@ -26,6 +34,13 @@ function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '') {
     const [paymentStudentId, setPaymentStudentId] = useState(initialStudent);
     const [paymentAmount, setPaymentAmount] = useState('5000');
     const [paymentDate, setPaymentDate] = useState('2026-10-04');
+    // Les mois vivent dans le domaine (`usePayments`) : la même règle PURE est
+    // rejouée ici, pour que la modale soit essayée avec ce qu'elle reçoit pour
+    // de vrai — jamais avec un tableau fabriqué pour la circonstance.
+    const [selected, setSelected] = useState<string[]>([]);
+    const [touched, setTouched] = useState(false);
+    const monthOptions = academicYearMonths(academicYearOf(paymentDate));
+    const dateMonth = paymentDate.slice(0, 7);
     return createElement(PaymentEntryModal, {
       t: translations[lang], lang, currentTheme: defaults.currentTheme,
       students, availableClasses: [
@@ -35,7 +50,14 @@ function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '') {
       ],
       getGradeDisplay: (grade) => `Classe ${grade}`,
       paymentStudentId, setPaymentStudentId, paymentAmount, setPaymentAmount,
-      paymentDate, setPaymentDate, formatCurrency: (amount) => `${amount} XOF`,
+      paymentDate, setPaymentDate,
+      paymentMonthOptions: monthOptions,
+      paymentMonths: effectivePaymentMonths(selected, touched, dateMonth, monthOptions),
+      togglePaymentMonth: (month: string) => {
+        setSelected((prev) => toggledPaymentMonths(prev, touched, dateMonth, monthOptions, month));
+        setTouched(true);
+      },
+      formatCurrency: (amount) => `${amount} XOF`,
       handlePaymentSubmit: async (e) => { e.preventDefault(); submissions.push(paymentStudentId); },
       overlayRef: () => {}, onClose: () => {},
     });
@@ -52,8 +74,15 @@ function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '') {
     el.value = value;
     el.dispatchEvent(new Event('change', { bubbles: true }));
   });
+  const chip = (month: string) => {
+    const el = container.querySelector<HTMLButtonElement>(`[data-month="${month}"]`);
+    assert.ok(el, `pastille du mois ${month} absente`);
+    return el;
+  };
+  const click = (month: string) => act(() => chip(month).click());
+  const monthsLine = () => container.querySelector<HTMLParagraphElement>('[data-slot="payment-months"] p:last-of-type');
   return {
-    container, select, change, submissions,
+    container, select, change, submissions, chip, click, monthsLine,
     reopen: () => { act(() => root.render(null)); render(); },
     cleanup: () => { act(() => root.unmount()); container.remove(); },
   };
@@ -144,4 +173,76 @@ describe('PaymentEntryModal — champ de recherche par nom ou matricule', () => 
       assert.equal(texts[3].includes(translations.fr.studentId), false, 'aucun matricule inventé pour un élève qui n’en a pas');
     } finally { h.cleanup(); }
   });
+});
+
+describe('PaymentEntryModal — les mois payés', () => {
+  const expectedLine = (months: string[], lang: 'fr' | 'en') => formatPaidMonths(months, {
+    label: (ym) => paymentMonthLabel(ym, translations[lang]),
+    count: (n) => translations[lang].paidMonthsCount.replace('{count}', String(n)),
+    rangeTo: translations[lang].paidMonthsRangeTo,
+  });
+
+  it('propose les douze mois de l’année scolaire, le mois de la date coché d’avance', () => {
+    const h = mount('fr');
+    try {
+      assert.ok(h.container.querySelector('[data-slot="payment-months"]'), 'le champ des mois doit être présent');
+      const chips = Array.from(h.container.querySelectorAll<HTMLButtonElement>('[data-month]'));
+      assert.equal(chips.length, 12, 'les douze mois de l’année scolaire');
+      assert.equal(chips[0].textContent, 'Septembre', 'l’année scolaire commence en septembre');
+      assert.equal(chips[11].textContent, 'Août', 'et finit en août');
+      assert.equal(h.chip('2026-10').getAttribute('aria-pressed'), 'true', 'le mois de la date est coché');
+      assert.equal(h.chip('2026-11').getAttribute('aria-pressed'), 'false');
+      assert.equal(h.monthsLine()?.textContent, 'Octobre', 'la ligne annonce exactement ce que le reçu écrira');
+      assert.ok(h.container.textContent?.includes(translations.fr.paidMonths), 'le champ est intitulé');
+      assert.ok(h.container.textContent?.includes(translations.fr.paidMonthsHint), 'et expliqué');
+      assert.equal(h.container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled, false);
+    } finally { h.cleanup(); }
+  });
+
+  it('localise les pastilles et la ligne du reçu', () => {
+    const h = mount('en');
+    try {
+      assert.equal(h.chip('2026-10').textContent, 'October');
+      assert.equal(h.monthsLine()?.textContent, 'October');
+      assert.equal(h.chip('2026-10').getAttribute('aria-pressed'), 'true');
+    } finally { h.cleanup(); }
+  });
+
+  it('cocher un mois voisin écrit une PLAGE — et AJOUTE au mois de la date', () => {
+    const h = mount('fr');
+    try {
+      h.click('2026-11');
+      assert.equal(h.chip('2026-11').getAttribute('aria-pressed'), 'true');
+      assert.equal(h.chip('2026-10').getAttribute('aria-pressed'), 'true', 'octobre ne disparaît pas au premier clic');
+      assert.equal(h.monthsLine()?.textContent, expectedLine(['2026-10', '2026-11'], 'fr'));
+      assert.equal(h.monthsLine()?.textContent, '2 mois : Octobre à Novembre');
+      h.click('2026-09');
+      assert.equal(h.monthsLine()?.textContent, '3 mois : Septembre à Novembre');
+    } finally { h.cleanup(); }
+  });
+
+  it('un mois troué se dit en LISTE, dans l’ordre du calendrier', () => {
+    const h = mount('fr');
+    try {
+      h.click('2026-12');
+      assert.equal(h.monthsLine()?.textContent, expectedLine(['2026-10', '2026-12'], 'fr'));
+      assert.equal(h.monthsLine()?.textContent, '2 mois : Octobre, Décembre');
+    } finally { h.cleanup(); }
+  });
+
+  it('sans aucun mois coché, l’envoi est fermé — et la ligne le dit', () => {
+    const h = mount('fr');
+    try {
+      h.click('2026-10');
+      assert.equal(h.monthsLine()?.textContent, translations.fr.paidMonthsRequired);
+      assert.equal(h.container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled, true);
+      h.click('2026-10');
+      assert.equal(h.container.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled, false);
+    } finally { h.cleanup(); }
+  });
+
+  // La date est un `<input>` : sous happy-dom son `onChange` ne reçoit aucun
+  // événement expédié (même limite que la recherche par nom, mesurée plus haut),
+  // donc « le mois proposé suit la date » est verrouillé sur la règle PURE
+  // (tests/payment-months.test.ts, `effectivePaymentMonths`) et pas ici.
 });

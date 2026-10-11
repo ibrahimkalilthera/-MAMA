@@ -41,6 +41,16 @@ export interface Payment {
   amount: number;
   academicYear?: string;
   receiptNumber?: string;
+  /**
+   * Les MOIS de scolarité que ce paiement couvre, en `YYYY-MM` (`2026-09`) —
+   * jamais un libellé, jamais un index : l'année est dedans. Voir
+   * `src/lib/paymentMonths.ts` pour la liste, le tri et le texte du reçu.
+   *
+   * Absent ou vide signifie « non renseigné » : un paiement d'avant la colonne,
+   * un import Excel, ou un geste où l'école n'a rien précisé. Le reçu retombe
+   * alors sur le mois de sa date, exactement comme avant.
+   */
+  months?: string[];
 }
 
 export interface Student {

@@ -22,7 +22,14 @@
  *   • « La somme de : » gets the paid amount IN WORDS (French, capitalized);
  *   • the BPF gradient pill (sous BPF) gets the paid amount IN FIGURES,
  *     « … FCFA »;
- *   • « Mois » gets the payment month;
+ *   • « Mois » gets the months the payment COVERS when the cashier chose them
+ *     (see src/lib/paymentMonths.ts): « Octobre » for one, « 3 mois : Septembre
+ *     à Novembre » when they run, « 3 mois : Septembre, Novembre, Décembre »
+ *     when they do not. The line is SHRUNK to fit the printed dotted line, and
+ *     when even the smallest size overflows (a payment covering seven months
+ *     with gaps) it falls back to the COUNT alone — a month name is never cut
+ *     in half. A payment with no months chosen keeps the month of its date, so
+ *     a receipt reprinted from an older row is unchanged;
  *   • « Classe » gets the student grade — written centered on the right end
  *     of the dotted line, where the Direction marks the class entry (no
  *     drawn box: the Direction asked for the spot and size only);
@@ -42,6 +49,7 @@ import { showReceiptPreview } from './receiptPreview';
 import { downloadBytes } from './browserDownload';
 import { montantEnLettres } from './pdfPayrollBulletin';
 import { studentMatricule } from './studentIdentifiers';
+import { formatPaidMonths, paidMonthsShape, paymentMonthLabel, MONTH_KEYS } from './paymentMonths';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
 
@@ -291,11 +299,45 @@ export async function buildParentReceiptPdf({
   const pillCy = (PILL.y0 + PILL.y1) / 2;
   text(figures, pillCx - figuresW / 2, baseline(pillCy, figuresSize), { font: { font: helvBold, size: figuresSize }, color: DARK_BLUE });
 
-  // 4. « Mois ».
+  // 4. « Mois » — le mois de la DATE, ou les MOIS CHOISIS au guichet.
+  //
+  // Les mois choisis sont réduits pour tenir sur la ligne pointillée, comme le
+  // nom de l'élève ; au-delà du plus petit corps lisible, on ne coupe JAMAIS un
+  // nom de mois en deux (un reçu qui nomme à moitié est pire que muet) : le
+  // NOMBRE seul est écrit. Un paiement sans mois choisi garde le mois de sa
+  // date — un reçu réimprimé d'avant cette colonne ne change donc pas.
+  const paidMonths = payment.months ?? [];
+  const monthWords = {
+    label: (ym: string) => paymentMonthLabel(ym, t),
+    count: (n: number) => t.paidMonthsCount.replace('{count}', String(n)),
+    rangeTo: t.paidMonthsRangeTo,
+  };
   const payDate = payment.date ? new Date(payment.date) : new Date();
   const monthIdx = Number.isNaN(payDate.getTime()) ? new Date().getMonth() : payDate.getMonth();
-  const monthKey = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'][monthIdx] as keyof TranslationDict;
-  text(String(t[monthKey]), MOIS.x, baseline(MOIS.y, DATA_SIZE), { font: { font: helv, size: DATA_SIZE } });
+  const monthKey = MONTH_KEYS[monthIdx] as keyof TranslationDict;
+  const monthsText = formatPaidMonths(paidMonths, monthWords) || String(t[monthKey]);
+  const monthsShape = paidMonthsShape(paidMonths);
+  const monthsCountText =
+    monthsShape.kind === 'range' || monthsShape.kind === 'list' ? monthWords.count(monthsShape.count) : '';
+  // La ligne pointillée s'arrête à x 99.2 mm ; on vise 98.4 mm. Cette marge de
+  // 0,8 mm n'est pas de la prudence gratuite : la largeur d'un texte est mesurée
+  // avec les tables d'`Helvetica` de pdf-lib, et les lecteurs la recalculent —
+  // 0,5 % d'écart suffisent à faire dépasser d'un demi-millimètre un texte cuit
+  // au ras du pointillé (mesuré : 68,1 mm tracés pour 67,7 visés).
+  const MOIS_MAX_W = 98.4 - MOIS.x;
+  const MOIS_MIN_SIZE = 7;
+  const moisWidthAtFull = helv.widthOfTextAtSize(monthsText, DATA_SIZE) / PT_PER_MM;
+  let moisText = monthsText;
+  let moisSize = DATA_SIZE;
+  if (moisWidthAtFull > MOIS_MAX_W) {
+    const shrunk = Math.max(MOIS_MIN_SIZE, (MOIS_MAX_W / moisWidthAtFull) * DATA_SIZE);
+    if (helv.widthOfTextAtSize(monthsText, shrunk) / PT_PER_MM <= MOIS_MAX_W) {
+      moisSize = shrunk;
+    } else if (monthsCountText) {
+      moisText = monthsCountText;
+    }
+  }
+  text(moisText, MOIS.x, baseline(MOIS.y, moisSize), { font: { font: helv, size: moisSize } });
 
   // 5. « Classe » — the grade, centered on the marked spot (no drawn box).
   if (student.grade) {

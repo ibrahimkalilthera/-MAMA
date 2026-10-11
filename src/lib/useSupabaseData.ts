@@ -377,6 +377,9 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
             amount: Number(p.amount),
             academicYear: p.academic_year ?? undefined,
             receiptNumber: p.receipt_number ?? undefined,
+            // Une liste vide vaut « non renseigné » : le reçu retombe alors sur
+            // le mois de la date, et la réimpression d'un ancien reçu ne change pas.
+            months: Array.isArray(p.months) && p.months.length > 0 ? p.months : undefined,
           });
         });
 

@@ -75,6 +75,11 @@ export const en = {
     date: "Date",
     submit: "Submit",
     paymentEntry: "Payment Entry",
+    paidMonths: "Paid months",
+    paidMonthsHint: "Check every month this payment covers.",
+    paidMonthsRequired: "Check at least one month.",
+    paidMonthsCount: "{count} months",
+    paidMonthsRangeTo: "to",
     currency: "FCFA",
     langToggle: "Français",
 };
@@ -150,6 +155,11 @@ export const fr = {
     date: "Date",
     submit: "Soumettre",
     paymentEntry: "Saisie de Paiement",
+    paidMonths: "Mois payés",
+    paidMonthsHint: "Cochez chaque mois que ce paiement couvre.",
+    paidMonthsRequired: "Cochez au moins un mois.",
+    paidMonthsCount: "{count} mois",
+    paidMonthsRangeTo: "à",
     currency: "FCFA",
     langToggle: "English",
 };
