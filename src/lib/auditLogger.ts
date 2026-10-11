@@ -151,17 +151,27 @@ export async function logAuditEvent({
     ? { created_at: offlineCaptureAt, recorded_offline: true }
     : {};
   if (isStationOffline()) {
-    enqueueOfflineAction('addAuditLog', {
-      userId: actor?.id ?? null,
-      userEmail: actor?.email,
-      userName: actor?.full_name,
-      userRole: actor?.role,
-      action,
-      targetType: targetType ?? null,
-      targetId: targetId ?? null,
-      details: details ?? null,
-      metadata: metadata ?? null,
-    });
+    try {
+      enqueueOfflineAction('addAuditLog', {
+        userId: actor?.id ?? null,
+        userEmail: actor?.email,
+        userName: actor?.full_name,
+        userRole: actor?.role,
+        action,
+        targetType: targetType ?? null,
+        targetId: targetId ?? null,
+        details: details ?? null,
+        metadata: metadata ?? null,
+      });
+    } catch (err) {
+      // Une entrée de journal qui ne peut PAS être mise en file ne doit pas faire
+      // échouer le geste métier qu'elle raconte : ce geste est déjà écrit (ou déjà
+      // rangé), et le journal est là pour le raconter, pas pour le casser. Elle
+      // rend donc « non prise en charge » — le seul mensonge possible serait de
+      // rendre `true` sur une entrée que personne n'a rangée.
+      console.error('Entrée de journal non mise en file :', (err as Error)?.message ?? err);
+      return false;
+    }
     return true;
   }
   try {

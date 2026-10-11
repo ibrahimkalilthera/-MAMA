@@ -419,7 +419,15 @@ export function useAuth(): AuthState {
     // Sans réseau (ou sans jeton), un rôle se MET EN FILE : c'est une ligne de
     // table, pas un appel d'authentification — rien ne justifie de le refuser.
     if (isStationOffline()) {
-      enqueueOfflineAction('updateUserRole', { id: userId, role: newRole });
+      // File refusée (quota `localStorage` atteint) : le rôle n'est PAS retenu,
+      // et `false` est ce que l'écran lit comme « pas enregistré » — comme le
+      // chemin en ligne, où une policy qui refuse rend déjà `false`.
+      try {
+        enqueueOfflineAction('updateUserRole', { id: userId, role: newRole });
+      } catch (err) {
+        console.error('Changement de rôle non mis en file :', (err as Error)?.message ?? err);
+        return false;
+      }
       return true;
     }
     // `.select('id')` et le contrôle de longueur : la policy réserve la

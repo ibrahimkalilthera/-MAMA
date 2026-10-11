@@ -63,7 +63,16 @@ export async function saveCalendarDayNote(date: string, text: string, gestureId?
   // écrire deux (même règle que `addStudent`).
   const localId = gestureId ?? createRowId();
   if (isStationOffline()) {
-    enqueueOfflineAction('addNote', { date, text }, localId);
+    // La file vit dans `localStorage`, qui a un quota : quand il est atteint,
+    // l'écriture LÈVE. La note n'est alors pas enregistrée, et on le rend —
+    // `null` est déjà, pour l'appelant, « pas sauvée » (même règle que le chemin
+    // en ligne, où un `error` rend `null`).
+    try {
+      enqueueOfflineAction('addNote', { date, text }, localId);
+    } catch (err) {
+      console.error('Note non mise en file :', (err as Error)?.message ?? err);
+      return null;
+    }
     return { id: localId, date, text };
   }
   const { data, error } = await supabase
@@ -86,7 +95,12 @@ export async function saveCalendarDayNote(date: string, text: string, gestureId?
  */
 export async function deleteCalendarDayNote(id: string): Promise<boolean> {
   if (isStationOffline()) {
-    enqueueOfflineAction('deleteNote', { id });
+    try {
+      enqueueOfflineAction('deleteNote', { id });
+    } catch (err) {
+      console.error('Suppression de note non mise en file :', (err as Error)?.message ?? err);
+      return false;
+    }
     return true;
   }
   const { data, error } = await supabase.from('calendar_notes').delete().eq('id', id).select('id');

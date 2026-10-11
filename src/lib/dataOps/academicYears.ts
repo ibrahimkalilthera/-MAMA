@@ -89,7 +89,15 @@ export async function keepAcademicYearCurrent(year: string): Promise<boolean> {
   // ligne ne doit pas empiler dix fois la même déclaration).
   if (isStationOffline()) {
     if (isActionQueued('setCurrentYear')) return true;
-    enqueueOfflineAction('setCurrentYear', { year });
+    // Un refus de la file (quota atteint) rend `false` : la déclaration d'année
+    // n'est pas retenue, et le redémarrage suivant ne la trouvera pas dans la
+    // file — le dire vaut mieux que de laisser croire qu'elle y est.
+    try {
+      enqueueOfflineAction('setCurrentYear', { year });
+    } catch (err) {
+      console.error('Année scolaire non mise en file :', (err as Error)?.message ?? err);
+      return false;
+    }
     return true;
   }
   const existing = await fetchAcademicYears();
