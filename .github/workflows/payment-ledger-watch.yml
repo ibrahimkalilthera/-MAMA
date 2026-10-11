@@ -1,0 +1,93 @@
+name: Registre des paiements — réconciliation quotidienne
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « Chaque solde vaut-il la somme de ses reçus ? »
+#
+# `students.amount_paid` DUPLIQUE la somme de `payments.amount` : la même grandeur
+# vit à deux endroits, et c'est le CLIENT qui réécrit la copie — en valeur
+# absolue, depuis un instantané en mémoire, sans lire l'erreur de l'écriture
+# (src/lib/dataOps/payments.ts). Le 2026-10-11, la mesure a trouvé un élève à
+# 4 000 FCFA quand ses deux reçus en valaient 8 000 : encaissés à 52 secondes
+# d'intervalle (REC-223352 à 14:59:47, REC-276036 à 15:00:40), les deux gestes au
+# journal d'audit, le solde n'en comptant qu'un. Rien ne le voyait — ni l'écran,
+# ni la CI, ni le rapport hebdomadaire des doublons, qui ne regarde pas ce
+# registre-là.
+#
+# FAIL-ON-DRIFT : un seul élève dont les deux montants ne se referment pas rend
+# le job ROUGE (`npm run check:payment-ledger` sort en 1). Les notifications
+# d'échec d'Actions alertent alors — c'est le seul signal qui existe, et il vaut
+# mieux qu'un écart de caisse découvert en fin d'année.
+#
+# Lecture seule : ce job ne corrige RIEN. La correction existe
+# (`npm run check:payment-ledger -- --repair`, qui écrit le solde ET sa trace au
+# journal d'audit) mais elle se demande à la main, après avoir regardé les reçus.
+# Un contrôle qui corrige tout seul efface une preuve.
+#
+# Deux déclencheurs, comme les autres veilles : le push (le moment où le contrôle
+# lui-même change — la première fois, le merge qui ajoute ce fichier, sans quoi le
+# cron neuf resterait sans run et l'audit des automatisations le dirait « dormant »)
+# et un cron quotidien, parce qu'un écart naît d'une écriture du bureau, jamais
+# d'un commit.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/check-payment-ledger.mjs'
+      - 'scripts/lib/payment-ledger.mjs'
+      - '.github/workflows/payment-ledger-watch.yml'
+
+  schedule:
+    # 06:30 UTC — avant l'audit des automatisations (06:41), qui juge la preuve
+    # publiée par ce run.
+    - cron: '30 6 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: payment-ledger-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ledger:
+    name: Réconcilier amount_paid et la somme des reçus
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Comme les autres jobs : installer Node ne prouve pas le majeur exécuté.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # `pg` n'est pas une dépendance déclarée du dépôt (outillage ponctuel, comme
+      # les scripts qui lisent la base) : on l'installe sans toucher package.json.
+      # Le script, lui, échoue proprement si le module manque.
+      - name: Installer l'outillage Postgres (pg, non déclaré)
+        run: npm i --no-save pg
+
+      # Le script publie lui-même ce qu'il a LU (élèves, paiements) et ce qu'il a
+      # TROUVÉ (élèves dont le solde ne vaut pas la somme des reçus), sous le
+      # mandat de cette étape. Sans mot de passe, il déclare son inaction puis
+      # sort en 2 — l'étape rougit, rien n'est maquillé en vert.
+      - name: Réconcilier le registre des paiements
+        env:
+          AUTOMATION_EVIDENCE: '1'
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run check:payment-ledger
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — registre des paiements
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "réconciliation du registre allée au bout ; le nombre d'élèves et de paiements lus, et les élèves dont le solde ne vaut pas la somme des reçus, sont publiés par scripts/check-payment-ledger.mjs"
