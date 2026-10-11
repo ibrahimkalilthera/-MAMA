@@ -260,6 +260,19 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-public-rls.mjs',
+    input: 'database+catalog',
+    // Son sujet est le CATALOGUE de `public` (relations, état RLS, politiques),
+    // pas un corpus de fichiers. Et deux absences sont des REFUS écrits, jamais
+    // un vert : pas de mot de passe → exit 2, et une énumération VIDE → exit 2
+    // (`report.vacuous`). Le défaut qu'il poursuit — une table lisible par la clé
+    // publique du site — n'a pas le droit de passer pour un catalogue sain.
+    needs: [IMMUNITY.NON_VACUOUS],
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit un catalogue Postgres (pg_class, pg_policies), jamais du code source',
+    },
+  },
+  {
     check: 'check-public-origin.mjs',
     input: 'config+network',
     needs: [],

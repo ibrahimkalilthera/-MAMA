@@ -1,0 +1,97 @@
+name: Public — aucune table sans RLS
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « Une table existe-t-elle dans public sans que RLS la ferme ? »
+#
+# Le 2026-10-11, la clé PUBLIQUE du site — celle qui est inlinée dans le bundle,
+# donc lue par n'importe quel visiteur — a rendu les 14 lignes de
+# `public.students_dupe_backup_20261005` : noms d'élèves, téléphones de parents,
+# notes médicales. L'artefact était né d'un `create table … as select` (qui
+# n'active pas RLS) laissé par la migration de dédoublonnage, sa suppression
+# restant écrite en commentaire.
+#
+# Les gardes existantes n'ont rien pu en dire, et ce n'est pas un défaut de leur
+# part : `verify-anon-rls.mjs` et la veille `prod-anon-rls` sondent les tables
+# qu'une LISTE DÉCLARE, extraite des migrations par `scripts/lib/schema-expected.mjs`.
+# Une table que personne n'avait déclarée leur était invisible — la leçon du canal
+# de mise à jour, payée une deuxième fois : *un mécanisme qui vérifie ce qu'on lui
+# nomme est muet sur ce qu'on ne lui nomme pas*.
+#
+# FAIL-ON-GAP : une seule table de `public` dont `relrowsecurity` est faux rend le
+# job ROUGE (`npm run check:public-rls` sort en 1), et les notifications d'échec
+# d'Actions alertent. C'est le seul signal qui existe pour cette classe-là, et il
+# vaut mieux qu'une fuite de données de mineurs découverte par hasard.
+#
+# LECTURE SEULE : ce job ne corrige RIEN. Activer RLS, écrire les politiques ou
+# supprimer un artefact sont des décisions qui se prennent après avoir regardé les
+# lignes exposées — un contrôle qui corrige tout seul efface la preuve.
+#
+# Deux déclencheurs, comme les autres veilles : le push (le moment où le contrôle
+# lui-même change — la première fois, le merge qui ajoute ce fichier, sans quoi le
+# cron neuf resterait sans run et l'audit des automatisations le dirait « dormant »)
+# et un cron quotidien, parce qu'une table s'ouvre par une requête à la main ou par
+# un déploiement, jamais par un commit.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/check-public-rls.mjs'
+      - 'scripts/lib/rls-coverage.mjs'
+      - 'tests/public-rls.test.ts'
+      - '.github/workflows/public-rls-watch.yml'
+
+  schedule:
+    # 06:15 UTC — après la veille anon (06:00), et avant l'audit des
+    # automatisations (06:41), qui juge la preuve publiée par ce run.
+    - cron: '15 6 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: public-rls-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: Énumérer public et refuser les tables sans RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Comme les autres jobs : installer Node ne prouve pas le majeur exécuté.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # `pg` n'est pas une dépendance déclarée du dépôt (outillage ponctuel, comme
+      # les scripts qui lisent la base) : on l'installe sans toucher package.json.
+      # Le script, lui, échoue proprement si le module manque.
+      - name: Installer l'outillage Postgres (pg, non déclaré)
+        run: npm i --no-save pg
+
+      # Le script publie lui-même ce qu'il a LU (relations, politiques) et ce qu'il
+      # a TROUVÉ (les tables sans RLS), sous le mandat de cette étape. Sans mot de
+      # passe — ou si l'énumération ne rend rien — il déclare son inaction puis sort
+      # en 2 : l'étape rougit, rien n'est maquillé en vert.
+      - name: Énumérer la couverture RLS de public
+        env:
+          AUTOMATION_EVIDENCE: '1'
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run check:public-rls
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — couverture RLS de public
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "énumération de public allée au bout ; le nombre de relations et de politiques lues, et les tables sans RLS, sont publiés par scripts/check-public-rls.mjs"
