@@ -78,6 +78,14 @@ win:
   icon: build/icon.png
 
 nsis:
+  # `build/installer.nsh` est chargé dans le script NSIS de l'installeur. Il porte
+  # UNE seule décision : tolérer (`customUnInstallCheck`) le plantage de sortie
+  # `0xC0000374` du désinstalleur des versions DÉJÀ installées, qui arrêtait
+  # sinon toute mise à jour sur une boîte que personne ne clique — mesuré le
+  # 2026-10-12 sur le canal réel (v1.0.28 → v1.0.29, dossier d'installation vidé,
+  # poste laissé SANS application). Le chemin est écrit ici plutôt que laissé à la
+  # convention : un fichier que rien ne nomme est un fichier que rien ne relit.
+  include: build/installer.nsh
   oneClick: false
   allowToChangeInstallationDirectory: true
   # Les données du poste ne sont JAMAIS effacées par le programme d'installation.
