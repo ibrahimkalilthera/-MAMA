@@ -18,6 +18,12 @@
 //                the BPF pill, the N° box, month/class/motif and the date; a
 //                demo student+payment is created via the API when the base
 //                holds no payment)
+//   • recu-mois   (le GESTE du guichet : la saisie ouverte par son bouton, un
+//                élève choisi, date et montant frappés, des mois cochés — puis
+//                le reçu du moment ET sa RÉIMPRESSION depuis la ligne relue en
+//                base. Les mois sont lus SUR LE PAPIER : nommés un par un,
+//                comptés, et le mois de la date ABSENT — un reçu qui aurait
+//                perdu les mois cochés écrirait précisément ce mois-là)
 //
 // Steps, in one run:
 //   1. Create an ephemeral auth account via the service role (always deleted
@@ -45,16 +51,18 @@
 //   node scripts/verify-pdf-download.mjs --mode bulletin
 //   node scripts/verify-pdf-download.mjs --mode technique
 //   node scripts/verify-pdf-download.mjs --mode recu-parent
+//   node scripts/verify-pdf-download.mjs --mode recu-mois
 //   node scripts/verify-pdf-download.mjs --target "Madi"
 //   node scripts/verify-pdf-download.mjs --url http://127.0.0.1:4000/ --keep
 //
 // Flags:
 //   --target <name>  staff member to download (default: first of the mode)
-//   --mode <auto|fiche|bulletin|technique|recu-parent>  which PDF to expect
-//                    (default auto, decided from the member's position — admin
-//                    positions → bulletin, TECH_POSITIONS → technique, else
-//                    fiche; recu-parent is explicit: the parent payment
-//                    receipt is a different flow, the Élèves page)
+//   --mode <auto|fiche|bulletin|technique|recu-parent|recu-mois>  which PDF to
+//                    expect (default auto, decided from the member's position —
+//                    admin positions → bulletin, TECH_POSITIONS → technique,
+//                    else fiche; recu-parent and recu-mois are explicit: the
+//                    parent payment receipt is a different flow, the Élèves page
+//                    for the first, the payment form's gesture for the second)
 //   --url <url>      app URL (default https://mama-thera-finance.vercel.app/)
 //   --keep           keep the downloaded PDF + pixel report in ./.verify-pdf/
 //   --cleanup-only   only delete any leftovers (ephemeral account, demo admin,
@@ -130,6 +138,25 @@ if (!supabaseBase || !SERVICE_KEY) {
 }
 const HDR = { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, 'Content-Type': 'application/json' };
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+
+// ── Le flux « mois cochés » (mode recu-mois) ─────────────────────────────────
+// Ce que ce mode prouve, dans l'ordre de la chaîne : le caissier coche des mois
+// dans le formulaire RÉEL, l'application les écrit en base, et le reçu — celui du
+// geste PUIS celui réimprimé à partir de la ligne relue — les porte tels quels.
+//
+// Trois mois TROUÉS, choisis exprès : c'est la forme que le reçu doit écrire en
+// NOMMANT les mois (une plage continue se dirait « Septembre à Novembre » sans
+// prouver que chaque borne vient du geste). Octobre — le mois de la date — reste
+// dehors : il ne doit donc PAS apparaître sur la ligne, ce qui est exactement ce
+// qu'un reçu qui aurait perdu les mois cochés écrirait à la place.
+const MONTHS_DATE = '2026-10-04';
+const MONTHS_AMOUNT = 30000;
+const MONTHS_TICKED = ['2026-09', '2026-11', '2026-12'];
+// Les mots du reçu, en français : ils viennent de la règle du module pur
+// (src/lib/paymentMonths.ts), que tests/payment-months.test.ts verrouille de son
+// côté. Ici, l'attendu est écrit en toutes lettres — un contrôle qui calculerait
+// son attendu avec le code jugé ne prouverait rien.
+const MONTHS_EXPECTED = '3 mois : Septembre, Novembre, Décembre';
 
 const TPL_FICHE = 'public/templates/fiche-paiement-salaire.pdf';
 const TPL_BULLETIN = 'public/templates/bulletin-paie-mensuelle.pdf';
@@ -396,6 +423,26 @@ async function resolveTarget() {
     demoMemberId = ins.body[0].id;
     return { member: ins.body[0], mode: 'bulletin' };
   }
+  if (MODE === 'recu-mois') {
+    // Aucun paiement à trouver : c'est le GESTE qui l'écrit, par le formulaire.
+    // L'élève de démo ne porte pas d'année scolaire (`academic_year` NULL), donc
+    // le filtre d'année de l'application l'affiche dans TOUTES les années — sans
+    // quoi le sélecteur du guichet pourrait être vide selon l'année active.
+    const demo = {
+      name: `E2E Mois ${TS}`,
+      parent_name: 'Parent E2E',
+      parent_phone: '+223 70 00 00 00',
+      grade: '9eme A',
+      total_due: 150000,
+      amount_paid: 0,
+      status: 'Active',
+    };
+    const ins = await insertOnce('students', demo, `name=eq.${encodeURIComponent(demo.name)}`);
+    if (!ins.body?.[0]?.id) throw new Error(`insertion élève de démo échouée (${ins.status})`);
+    demoStudentId = ins.body[0].id;
+    console.log(`  ℹ️ élève de démo créé pour le geste des mois (${demo.name}) — supprimé au nettoyage`);
+    return { member: null, student: { id: demoStudentId, name: demo.name }, mode: 'recu-mois' };
+  }
   if (MODE === 'recu-parent') {
     // Find a student that already has ≥1 payment; else create a demo pair via
     // the API (payments cascade on student delete — cleanup deletes the student).
@@ -590,6 +637,289 @@ async function gotoWithRetry(page, target, { attempts = 3 } = {}) {
   );
 }
 
+/**
+ * La navigation d'une fiche élève, en TROIS gestes nommés : ouvrir la page
+ * Élèves, ouvrir la ligne de l'élève, puis télécharger son reçu par son aperçu.
+ *
+ * UNE brique, parce que DEUX flux du script en ont besoin : le reçu des parents
+ * (mode recu-parent) et la RÉIMPRESSION après le geste des mois (mode recu-mois,
+ * où le reçu est reconstruit à partir de la ligne RELUE en base). Recopier ces
+ * clics aurait produit deux chemins qui divergent : le jour où l'aperçu change de
+ * libellé, l'un des deux continuerait à cliquer dans le vide — et un pixel-check
+ * qui ne trouve plus son bouton accuse l'application d'une régression qu'elle
+ * n'a pas.
+ */
+async function goToStudents(page) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const ok = await page.evaluate(() => {
+      const items = [...document.querySelectorAll('a, button, [role="menuitem"]')];
+      const el = items.find((e) => /élèves|eleves|students/i.test(e.textContent || '') && (e.textContent || '').trim().length < 25);
+      if (!el) return false;
+      el.click();
+      return true;
+    });
+    if (ok) break;
+    await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
+    await wait(5000);
+  }
+  await wait(3500);
+}
+
+/**
+ * Ouvre la fiche de l'élève en cliquant sa LIGNE (le nom peut être répété), et
+ * VÉRIFIE que la fiche est ouverte.
+ *
+ * « J'ai cliqué » n'est pas « c'est ouvert », et c'est la leçon du 2026-10-12 :
+ * le mode recu-mois cherchait le bouton « Reçu » de la fiche d'un élève sans
+ * jamais avoir ouvert cette fiche. L'aide rendait la main dès qu'un clic était
+ * PARTI, donc un clic qui n'ouvre rien passait pour un clic qui a ouvert — et le
+ * run accusait plus loin un bouton absent d'un écran qui n'existait pas.
+ *
+ * Le clic reste SYNTHÉTIQUE (`anc.click()`), comme partout dans cette chaîne :
+ * React répond aux deux, souris comprise. Ce qui change ici, c'est que
+ * l'ouverture est VÉRIFIÉE (`role="dialog"`, l'enveloppe de toutes les modales)
+ * puis TENUE — la fiche doit être encore là après un temps de rendu — et qu'un
+ * essai qui n'ouvre rien se DIT et se reprend, rechargement compris, parce qu'une
+ * liste peut être cliquée avant d'avoir reçu ses données.
+ */
+async function openStudentFile(page, studentName) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const clicked = await page.evaluate((name) => {
+      const nameEls = [...document.querySelectorAll('*')].filter((el) =>
+        el.children.length === 0 && (el.textContent || '').trim() === name);
+      for (const n of nameEls) {
+        let anc = n;
+        for (let i = 0; i < 8 && anc; i++) {
+          anc = anc.parentElement;
+          if (!anc) break;
+          const cls = anc.getAttribute('class') || '';
+          if (anc.onclick || anc.getAttribute('role') === 'button' || anc.tagName === 'TR' || /cursor/.test(cls)) {
+            anc.click();
+            return true;
+          }
+        }
+      }
+      return false;
+    }, studentName);
+    if (clicked) {
+      const opened = await page.waitForSelector('[role="dialog"]', { timeout: 6000 })
+        .then(() => true).catch(() => false);
+      if (opened) {
+        await wait(1500);
+        if (await page.$('[role="dialog"]')) return;
+        console.log(`  ⚠️ ligne « ${studentName} » : fiche ouverte PUIS refermée (essai ${attempt + 1})`);
+      } else {
+        console.log(`  ⚠️ ligne « ${studentName} » cliquée (essai ${attempt + 1}) — la fiche ne s'est pas ouverte`);
+      }
+    } else {
+      console.log(`  ⚠️ ligne « ${studentName} » absente de la liste (essai ${attempt + 1})`);
+    }
+    if (attempt < 2) {
+      await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
+      await wait(5000);
+      await goToStudents(page);
+    }
+  }
+  throw new Error(`la fiche de « ${studentName} » ne s'est jamais ouverte (3 essais)`);
+}
+
+/**
+ * L'APERÇU du reçu, puis le SECOND clic — celui qui télécharge vraiment.
+ *
+ * Depuis la 1.0.23, aucun chemin ne télécharge au premier geste : la fiche d'un
+ * élève comme le formulaire de saisie (dont l'envoi enchaîne sur
+ * `generatePaymentReceiptPdf` → `showReceiptPreview`) ouvrent un APERÇU, et le
+ * fichier ne part qu'ici, au clic sur « Télécharger le reçu »
+ * (ReceiptPreviewModal). Sauter ce clic, c'est attendre un fichier qu'aucun geste
+ * ne déclenche — et accuser l'application d'un téléchargement qu'elle n'a jamais
+ * promis. Une seule brique, parce que DEUX flux du script en dépendent : le reçu
+ * des parents et celui du GESTE des mois (mode recu-mois).
+ */
+async function confirmReceiptPreview(page, label) {
+  const previewReady = await page.waitForFunction(() =>
+    [...document.querySelectorAll('button')].some((b) =>
+      /télécharger le reçu|download receipt/i.test(b.textContent || '')),
+    { timeout: 30000 }).then(() => true).catch(() => false);
+  if (!previewReady) {
+    throw new Error(`aperçu du reçu (${label}) non affiché — bouton « Télécharger le reçu » introuvable`);
+  }
+  const confirmed = await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('button')].find((b) =>
+      /télécharger le reçu|download receipt/i.test(b.textContent || ''));
+    if (!btn) return false;
+    btn.click();
+    return true;
+  });
+  if (!confirmed) throw new Error(`bouton « Télécharger le reçu » de l’aperçu (${label}) introuvable`);
+  console.log(`✅ aperçu du reçu (${label}) confirmé — téléchargement déclenché`);
+}
+
+/**
+ * « Télécharger Reçu PDF » depuis la fiche d'un élève, puis l'aperçu — le
+ * parcours RÉEL de l'utilisateur pour un paiement DÉJÀ en base.
+ */
+async function downloadReceiptFromPreview(page, studentName) {
+  let clicked = false;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    clicked = await page.evaluate(() => {
+      const btns = [...document.querySelectorAll('button')].filter((b) =>
+        /reçu|recu|receipt/i.test(b.title || '') || /reçu|recu/i.test(b.textContent || ''));
+      if (!btns.length) return false;
+      btns[0].click();
+      return true;
+    });
+    if (clicked) break;
+    await wait(2000);
+  }
+  if (!clicked) throw new Error(`bouton « Reçu » de « ${studentName} » introuvable dans la fiche`);
+  console.log(`✅ clic sur « Télécharger Reçu PDF » de ${studentName}`);
+  await confirmReceiptPreview(page, studentName);
+}
+
+/** Le PDF que le navigateur vient d'écrire dans le dossier de téléchargement. */
+async function captureDownloadedPdf(label) {
+  for (let i = 0; i < 120; i++) {
+    await wait(500);
+    const files = readdirSync(DL_DIR).filter((f) => f.endsWith('.pdf'));
+    if (files.length) {
+      const path = join(DL_DIR, files[0]);
+      const size = statSync(path).size;
+      console.log(`✅ PDF capturé (${label}) : ${files[0]} (${size} octets)`);
+      // Les octets sont lus TOUT DE SUITE : l'antivirus de ce poste peut mettre
+      // en quarantaine un téléchargement frais, et une relecture plus tard
+      // mesurerait autre chose que ce que le navigateur a reçu.
+      return { path, bytes: new Uint8Array(readFileSync(path)) };
+    }
+  }
+  throw new Error(`aucun PDF téléchargé (${label})`);
+}
+
+/**
+ * Le GESTE des mois, joué par l'interface RÉELLE — mode recu-mois.
+ *
+ * Le bouton de l'en-tête ouvre la saisie, l'élève est choisi dans sa liste, la
+ * date et le montant sont frappés, les pastilles sont cochées par leur attribut
+ * `data-month` (jamais par leur libellé : « Septembre » se traduit, `2026-09`
+ * non), puis l'envoi écrit en base ET produit le reçu.
+ *
+ * Deux soins qui font la différence entre un contrôle et une mise en scène :
+ *   • le mois proposé d'avance (celui de la date) est DÉCOCHÉ — le reçu doit
+ *     porter le choix du caissier, pas ce que l'écran cochant par défaut ;
+ *   • les clics sont espacés, UN par rendu : plusieurs clics dans le même tick
+ *     partageraient l'état d'avant (React regroupe les mises à jour), et la
+ *     pastille du mois de la date se recocherait toute seule.
+ *
+ * Rend la ligne que l'écran ANNONCE sous les pastilles — la promesse de
+ * l'application (« le reçu écrira exactement ceci »), que le run confronte au
+ * papier.
+ */
+async function drivePaymentMonths(page, target) {
+  const readPressed = () => page.evaluate(() =>
+    [...document.querySelectorAll('[data-slot="payment-months"] button[data-month]')]
+      .filter((b) => b.getAttribute('aria-pressed') === 'true')
+      .map((b) => b.getAttribute('data-month')));
+  const clickMonth = async (month) => {
+    const found = await page.evaluate((m) => {
+      const btn = document.querySelector(`[data-slot="payment-months"] button[data-month="${m}"]`);
+      if (!btn) return false;
+      btn.click();
+      return true;
+    }, month);
+    if (!found) throw new Error(`pastille du mois ${month} introuvable — les mois offerts ont changé ?`);
+    await wait(300);
+  };
+
+  // Le bouton du guichet vit dans la barre latérale, qui n'existe qu'à partir de
+  // `lg` (1024 px) : au gabarit par défaut du navigateur (800×600), il n'y a pas
+  // d'élément à cliquer, et le run accuserait l'application d'un bouton absent
+  // alors qu'il est simplement hors de la fenêtre. Même gabarit que
+  // scripts/e2e-business.mjs.
+  await page.setViewport({ width: 1280, height: 900 });
+  const opened = await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('button, a')]
+      .find((b) => /enregistrer le paiement|record payment/i.test(`${b.textContent || ''} ${b.title || ''}`));
+    if (!btn) return false;
+    btn.click();
+    return true;
+  });
+  if (!opened) throw new Error('bouton « Enregistrer le Paiement » introuvable dans l’en-tête');
+  await page.waitForSelector('#payment-student', { timeout: 30000 });
+  await page.select('#payment-student', target.student.id);
+  await page.type('form input[type="number"]', String(MONTHS_AMOUNT));
+  // La date passe par le DESCRIPTEUR natif : React garde trace de la dernière
+  // valeur qu'il a écrite, et une affectation directe peut être absorbée comme
+  // « pas de changement » — la date resterait celle du jour et les pastilles
+  // porteraient le mauvais mois.
+  await page.$eval('form input[type="date"]', (el, value) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, MONTHS_DATE);
+  await wait(500);
+  if (!(await readPressed()).length) {
+    throw new Error(`aucune pastille de mois affichée pour la date ${MONTHS_DATE} — année scolaire illisible ?`);
+  }
+
+  for (const month of await readPressed()) if (!MONTHS_TICKED.includes(month)) await clickMonth(month);
+  for (const month of MONTHS_TICKED) if (!(await readPressed()).includes(month)) await clickMonth(month);
+  const pressed = await readPressed();
+  if (pressed.join(',') !== MONTHS_TICKED.join(',')) {
+    console.error(`  ⚠️ pastilles cochées : ${pressed.join(', ') || '(aucune)'}`);
+    throw new Error('les pastilles ne portent pas les mois demandés');
+  }
+
+  const screenLine = await page.$eval('[data-slot="payment-months"] p:last-of-type', (el) => (el.textContent || '').trim());
+  const submitted = await page.evaluate(() => {
+    const btn = document.querySelector('form button[type="submit"]');
+    if (!btn || btn.disabled) return false;
+    btn.click();
+    return true;
+  });
+  if (!submitted) throw new Error('le bouton de validation de la saisie est introuvable ou fermé (aucun mois coché ?)');
+  console.log(`✅ geste saisi — l’écran annonce : « ${screenLine} »`);
+  return screenLine;
+}
+
+/**
+ * La MOITIÉ RETOUR, prouvée par le chemin réel : la ligne est relue en base (par
+ * l'API de service — la seule qui voie les lignes de n'importe quel compte), puis
+ * le reçu est RÉIMPRIMÉ depuis la fiche de l'élève, où l'application le construit
+ * à partir de la ligne qu'elle vient de relire.
+ *
+ * C'est ce qui manquait : un reçu du moment peut très bien porter les mois sans
+ * qu'ils aient jamais été écrits (l'écran les connaît en mémoire). Un reçu
+ * réimprimé, lui, ne peut pas mentir sur ce que la base contient.
+ */
+async function proveMonthsChain(page, screenLine, studentName) {
+  // `api` rend l'enveloppe `{ status, body }` : c'est `firstRow` qui ouvre le
+  // corps, comme partout ailleurs dans cette chaîne. Lire l'enveloppe comme si
+  // c'était la ligne ferait échouer TOUTES les lectures — et un contrôle qui
+  // attend dix fois ce qu'il tient déjà est un contrôle faux, pas une base lente.
+  const settled = await readUntil({
+    read: () => api(`/rest/v1/payments?select=id,receipt_number,date,amount,months&student_id=eq.${demoStudentId}`),
+    isReady: (r) => firstRow(r?.body),
+    attempts: 20,
+    intervalMs: 500,
+    sleep: wait,
+  });
+  if (!settled.value) {
+    throw new Error(`aucun paiement écrit en base pour l’élève de démo après ${settled.reads} lecture(s) — le geste n’est pas arrivé`);
+  }
+  console.log(`  ℹ️ ligne lue en base après ${settled.reads} lecture(s) — months=${JSON.stringify(settled.value.months)}`);
+
+  // Le dossier de téléchargement est VIDÉ avant la réimpression : la capture
+  // suivante doit être celle de la réimpression, jamais le fichier d'avant.
+  for (const f of readdirSync(DL_DIR).filter((f) => f.endsWith('.pdf'))) rmSync(join(DL_DIR, f), { force: true });
+  await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
+  await wait(4000);
+  await goToStudents(page);
+  await openStudentFile(page, studentName);
+  await downloadReceiptFromPreview(page, studentName);
+  const reprint = await captureDownloadedPdf('réimpression');
+
+  return { ticked: MONTHS_TICKED, screenLine, stored: settled.value.months, reads: settled.reads, reprint };
+}
+
 // target: { member (Staff row) | null, mode, createViaUI? }
 async function runE2E(target) {
   const browser = await puppeteer.launch({
@@ -604,6 +934,16 @@ async function runE2E(target) {
     const cdp = await page.createCDPSession();
     await cdp.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: DL_DIR, eventsEnabled: true });
     await cdp.send('Network.enable');
+    // Le service worker est NEUTRALISÉ pour tout le run, et c'est une condition du
+    // contournement des modèles : `Fetch.enable` n'intercepte que les requêtes du
+    // TARGET de cette session. Une page contrôlée par le service worker laisse
+    // celui-ci émettre le `fetch()` du modèle, donc hors de notre interception : le
+    // modèle repart par le réseau, où le filtre antivirus de ce poste le vide — le
+    // reçu n'est plus alors qu'une page sans en-tête PDF. Mesuré le 2026-10-12 (mode
+    // recu-mois, le SEUL qui recharge la page en cours de route) : premier
+    // téléchargement 200 avec les bons octets, second 204 vide et « No PDF header
+    // found ». Les octets servis viennent donc TOUJOURS d'ici.
+    await cdp.send('Network.setBypassServiceWorker', { bypass: true });
     // AV-filter workaround: fulfill template fetches with the committed bytes
     await cdp.send('Fetch.enable', {
       patterns: [
@@ -630,6 +970,15 @@ async function runE2E(target) {
       if (e.response.url.includes('templates/')) console.log(`  [net] ${e.response.status} ${e.response.url.slice(-46)}`);
     });
     page.on('pageerror', (e) => console.log('  [pageerror]', String(e).slice(0, 180)));
+    // Les erreurs de console sont IMPRIMÉES, et pas seulement les exceptions non
+    // rattrapées : une génération de reçu qui échoue est avalée par
+    // l'application — le paiement est écrit AVANT, exprès — donc le seul signe
+    // est un `console.error`. Sans lui, un run qui n'obtient aucun PDF se
+    // contente de dire « aucun PDF téléchargé », et envoie chercher la panne
+    // dans le clic au lieu du document.
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') console.log('  [console:error]', msg.text().slice(0, 300));
+    });
 
     await gotoWithRetry(page, URL);
     await wait(2500);
@@ -676,7 +1025,11 @@ async function runE2E(target) {
     await wait(4000);
 
     // open Paie (retry on transient JWT clock skew)
-    for (let attempt = 0; attempt < 4; attempt++) {
+    // Le mode recu-mois n'y passe pas : le bouton du guichet vit dans l'en-tête,
+    // disponible depuis n'importe quelle page — et sauter cette navigation, c'est
+    // une étape de moins qui peut échouer pour une raison qui ne regarde pas le
+    // geste jugé.
+    for (let attempt = 0; target.mode !== 'recu-mois' && attempt < 4; attempt++) {
       const ok = await page.evaluate(() => {
         const items = [...document.querySelectorAll('a, button, [role="menuitem"]')];
         const target = items.find((el) => /paie|salaires|payroll/i.test(el.textContent || '') && (el.textContent || '').trim().length < 25);
@@ -690,81 +1043,19 @@ async function runE2E(target) {
     }
     await wait(3500);
 
-    // ── recu-parent: Élèves → fiche de l'élève → bouton « Reçu » d'un paiement
     let clicked = false;
+    let monthsScreenLine = '';
     if (target.mode === 'recu-parent') {
-      for (let attempt = 0; attempt < 4; attempt++) {
-        const ok = await page.evaluate(() => {
-          const items = [...document.querySelectorAll('a, button, [role="menuitem"]')];
-          const el = items.find((e) => /élèves|eleves|students/i.test(e.textContent || '') && (e.textContent || '').trim().length < 25);
-          if (!el) return false;
-          el.click();
-          return true;
-        });
-        if (ok) break;
-        await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
-        await wait(5000);
-      }
-      await wait(3500);
-      const studentName = target.student.name;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const opened = await page.evaluate((name) => {
-          const nameEls = [...document.querySelectorAll('*')].filter((el) =>
-            el.children.length === 0 && (el.textContent || '').trim() === name);
-          for (const n of nameEls) {
-            let anc = n;
-            for (let i = 0; i < 8 && anc; i++) {
-              anc = anc.parentElement;
-              if (!anc) continue;
-              const cls = anc.getAttribute('class') || '';
-              if (anc.onclick || anc.getAttribute('role') === 'button' || anc.tagName === 'TR' || /cursor/.test(cls)) {
-                anc.click();
-                return true;
-              }
-            }
-          }
-          return false;
-        }, studentName);
-        if (opened) break;
-        console.log(`  ⚠️ ligne « ${studentName} » non ouverte (essai ${attempt + 1}) — rechargement`);
-        await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
-        await wait(5000);
-      }
-      await wait(2500);
-      for (let attempt = 0; attempt < 4; attempt++) {
-        clicked = await page.evaluate(() => {
-          const btns = [...document.querySelectorAll('button')].filter((b) =>
-            /reçu|recu|receipt/i.test(b.title || '') || /reçu|recu/i.test(b.textContent || ''));
-          if (!btns.length) return false;
-          btns[0].click();
-          return true;
-        });
-        if (clicked) break;
-        await wait(2000);
-      }
-      if (!clicked) throw new Error(`bouton « Reçu » de « ${studentName} » introuvable dans la fiche`);
-      console.log(`✅ clic sur « Télécharger Reçu PDF » (paiement) de ${studentName}`);
-      // Depuis la 1.0.23, « Télécharger Reçu PDF » n'enregistre plus : il ouvre un
-      // APERÇU (le reçu est montré avant tout téléchargement). Le fichier ne part
-      // qu'au second clic, « Télécharger le reçu » (ReceiptPreviewModal). Le
-      // pixel-check suit donc le parcours RÉEL de l'utilisateur — sauter l'aperçu,
-      // c'est attendre un fichier qu'aucun clic ne déclenche.
-      const previewReady = await page.waitForFunction(() =>
-        [...document.querySelectorAll('button')].some((b) =>
-          /télécharger le reçu|download receipt/i.test(b.textContent || '')),
-        { timeout: 30000 }).then(() => true).catch(() => false);
-      if (!previewReady) {
-        throw new Error(`aperçu du reçu de « ${studentName} » non affiché — bouton « Télécharger le reçu » introuvable`);
-      }
-      const confirmed = await page.evaluate(() => {
-        const btn = [...document.querySelectorAll('button')].find((b) =>
-          /télécharger le reçu|download receipt/i.test(b.textContent || ''));
-        if (!btn) return false;
-        btn.click();
-        return true;
-      });
-      if (!confirmed) throw new Error('bouton « Télécharger le reçu » de l’aperçu introuvable');
-      console.log('✅ aperçu du reçu confirmé — téléchargement déclenché');
+      // ── recu-parent : la fiche d'un élève qui a DÉJÀ un paiement → son reçu
+      await goToStudents(page);
+      await openStudentFile(page, target.student.name);
+      await downloadReceiptFromPreview(page, target.student.name);
+    } else if (target.mode === 'recu-mois') {
+      // ── recu-mois : le GESTE du guichet, par le vrai formulaire. L'envoi ouvre
+      // l'APERÇU du reçu (aucun chemin ne télécharge au premier geste) : c'est le
+      // second clic qui écrit le fichier, et il fait partie du geste jugé.
+      monthsScreenLine = await drivePaymentMonths(page, target);
+      await confirmReceiptPreview(page, 'reçu du geste');
     } else {
       // technique mode with no existing member → create one through the REAL
       // « Ajouter un Membre du Centre Technique » button + form + submit.
@@ -809,18 +1100,13 @@ async function runE2E(target) {
       console.log(`✅ clic sur « Télécharger Reçu PDF » de ${targetName}`);
     }
 
-    let file = null;
-    for (let i = 0; i < 120; i++) {
-      await wait(500);
-      const files = readdirSync(DL_DIR).filter((f) => f.endsWith('.pdf'));
-      if (files.length) { file = files[0]; break; }
+    const receipt = await captureDownloadedPdf('reçu du geste');
+    // ── recu-mois : la base relue, puis la RÉIMPRESSION par le chemin réel ────
+    if (target.mode === 'recu-mois') {
+      const months = await proveMonthsChain(page, monthsScreenLine, target.student.name);
+      return { ...receipt, months };
     }
-    if (!file) throw new Error('aucun PDF téléchargé');
-    const size = statSync(join(DL_DIR, file)).size;
-    console.log(`✅ PDF capturé: ${file} (${size} octets)`);
-    // read the bytes IMMEDIATELY (this machine's AV may quarantine the fresh
-    // download shortly after it lands) — the pixel check works on the bytes
-    return { path: join(DL_DIR, file), bytes: new Uint8Array(readFileSync(join(DL_DIR, file))) };
+    return receipt;
   } finally {
     await browser.close();
   }
@@ -831,7 +1117,10 @@ const PX = 12 * 72 / 25.4; // 34.02 px/mm at viewport scale 12
 const mm = (px) => px / PX;
 
 async function raster(file) {
-  const bytes = file instanceof Uint8Array ? file : new Uint8Array(readFileSync(file));
+  // Copie : `pdfjs` s'approprie le tampon qu'on lui passe (il le transfère au
+  // worker), et deux mesures successives sur le MÊME tampon liraient un tampon
+  // vidé au lieu du document.
+  const bytes = file instanceof Uint8Array ? file.slice() : new Uint8Array(readFileSync(file));
   const doc = await pdfjs.getDocument({ data: bytes }).promise;
   const page = await doc.getPage(1);
   const vp = page.getViewport({ scale: 12 });
@@ -863,9 +1152,11 @@ function diffBBox(live, tpl, x0mm, x1mm, y0mm, y1mm) {
 
 async function pixelCheck(pdfPath, mode) {
   console.log(`\n— Pixel check (${mode}, 34 px/mm) —`);
+  // recu-mois tombe sur le MÊME papier que recu-parent : c'est le reçu des
+  // parents, rempli par le geste du guichet au lieu d'un paiement déjà en base.
   const tplFile = mode === 'bulletin' ? TPL_BULLETIN
     : mode === 'technique' ? TPL_TECHNIQUE
-    : mode === 'recu-parent' ? TPL_RECU : TPL_FICHE;
+    : (mode === 'recu-parent' || mode === 'recu-mois') ? TPL_RECU : TPL_FICHE;
   const tpl = await raster(join(root, tplFile));
   const live = await raster(pdfPath.bytes || pdfPath);
   check('taille de page identique au modèle',
@@ -929,7 +1220,7 @@ async function pixelCheck(pdfPath, mode) {
       const d = diffBBox(live, tpl, x0, x1, y0, y1);
       check(`données « ${name} » posées`, !!d && d.count > 100, d ? `${d.count} px` : 'absentes');
     }
-  } else if (mode === 'recu-parent') {
+  } else if (mode === 'recu-parent' || mode === 'recu-mois') {
     // Parent payment receipt — the school's paper form (201.1 × 155.8 mm):
     // every field must land on its printed zone. Zones calibrated at
     // 34 px/mm against the raster (see the geometry comment in
@@ -1035,6 +1326,75 @@ async function pixelCheck(pdfPath, mode) {
   }
 }
 
+// ── 6. Les mois cochés, lus SUR LE PAPIER ────────────────────────────────────
+/**
+ * Le texte d'un PDF, sans espaces : les mots d'une même ligne peuvent sortir en
+ * plusieurs morceaux selon la façon dont pdf-lib les écrit, et une comparaison
+ * qui exigerait un seul tenant jugerait la découpe plutôt que le texte.
+ *
+ * Les octets arrivent en COPIE (`slice`) : `pdfjs` prend possession du tampon
+ * qu'on lui donne, donc la mesure suivante (le pixel-check) doit pouvoir relire
+ * les mêmes octets sans trouver un tampon vidé.
+ */
+async function pdfText(bytes) {
+  const doc = await pdfjs.getDocument({ data: bytes }).promise;
+  const page = await doc.getPage(1);
+  const content = await page.getTextContent();
+  return content.items.map((it) => it.str).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Ce que le reçu ÉCRIT des mois — la moitié « papier » de la chaîne.
+ *
+ * Trois faits, et chacun accuse une panne différente :
+ *   • les trois mois cochés sont NOMMÉS — la ligne porte le choix du caissier ;
+ *   • le compte « 3 mois » est là — la forme est une LISTE trouée, pas une plage
+ *     ni un mois nu ;
+ *   • Octobre est ABSENT — c'est le mois de la date, celui que le reçu écrirait
+ *     si les mois avaient été perdus en route. Son absence est donc la preuve
+ *     que la ligne vient du geste, pas de la date.
+ */
+const monthsOnPaper = (text) => {
+  const flat = text.replace(/\s+/g, '');
+  const names = ['Septembre', 'Novembre', 'Décembre'];
+  return {
+    names: names.filter((n) => flat.includes(n)),
+    count: flat.includes('3mois'),
+    october: flat.includes('Octobre'),
+  };
+};
+
+/**
+ * Le geste du guichet jugé sur le PAPIER, dans l'ordre de la chaîne : ce que la
+ * base a gardé, ce que l'écran promettait, ce que le reçu du moment a écrit, et
+ * ce que la RÉIMPRESSION écrit — celle-ci ne pouvant rien porter que la base ne
+ * lui ait rendu.
+ */
+async function checkMonthsPaper(pdf) {
+  console.log('\n— Mois cochés : la base, l’écran, le papier —');
+  const months = pdf.months;
+
+  check('la base garde les mois cochés, dans l’ordre du calendrier',
+    Array.isArray(months.stored) && months.stored.join(',') === MONTHS_TICKED.join(','),
+    `months=${JSON.stringify(months.stored)}`);
+
+  check('l’écran annonce la ligne du reçu', months.screenLine === MONTHS_EXPECTED,
+    `« ${months.screenLine} »`);
+
+  const gesture = monthsOnPaper(await pdfText(pdf.bytes.slice()));
+  check('le reçu du geste NOMME les trois mois cochés', gesture.names.length === 3,
+    gesture.names.join(', ') || 'aucun mois nommé');
+  check('le reçu du geste écrit le compte (liste, pas plage)', gesture.count, gesture.count ? '« 3 mois »' : 'absent');
+  check('le reçu du geste ne retombe PAS sur le mois de la date', !gesture.october,
+    gesture.october ? 'Octobre imprimé — les mois ont été perdus' : 'aucun « Octobre »');
+
+  const reprint = monthsOnPaper(await pdfText(months.reprint.bytes.slice()));
+  check('la RÉIMPRESSION porte les mêmes mois', reprint.names.length === 3 && reprint.count,
+    reprint.names.join(', ') || 'aucun mois nommé');
+  check('la RÉIMPRESSION ne retombe pas sur le mois de la date', !reprint.october,
+    reprint.october ? 'Octobre imprimé — la colonne n’est pas relue' : 'aucun « Octobre »');
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 // Startup sweep: kill Chrome orphans left by interrupted runs (Windows only).
 const swept = await sweepOrphanPuppeteer();
@@ -1055,6 +1415,10 @@ try {
     : '(à créer via le bouton)';
   console.log(`🎯 cible: ${label} → ${mode}`);
   const pdf = await runE2E(target);
+  // Les mois se jugent AVANT le pixel-check : `pdfjs` prend possession du tampon
+  // d'octets qu'on lui donne, donc celui qui lit le texte en premier est celui
+  // qui aura les octets vivants — les suivants reçoivent des copies.
+  if (pdf.months) await checkMonthsPaper(pdf);
   await pixelCheck(pdf, mode);
   if (KEEP) {
     const report = checks.map((c) => `${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? ' — ' + c.detail : ''}`).join('\n');

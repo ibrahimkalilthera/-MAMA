@@ -1,15 +1,16 @@
 name: PDF E2E — pixel check sur la pile de recette
 
 # Vérifie les reçus PDF AU PIXEL PRÈS contre les modèles papier de l'école : les
-# trois documents de paie (mode auto) et le reçu des parents (mode recu-parent),
-# sur le build de CE commit, servi localement sur SA PROPRE pile Supabase.
+# trois documents de paie (mode auto), le reçu des parents (mode recu-parent) et
+# le reçu des mois cochés au guichet (mode recu-mois), sur le build de CE commit,
+# servi localement sur SA PROPRE pile Supabase.
 #
 # Trigger : le workflow « Deploy (Vercel) » (deploy.yml) se TERMINE sur main —
 # le pixel-check tourne donc toujours contre le déploiement FRAÎCHEMENT publié,
 # jamais contre un build intermédiaire. Le job `gate` vérifie que le run deploy
 # s'est conclu en `success` (un deploy annulé ou en échec → skip neutre, pas de
 # rouge parasite) puis le job `e2e` exécute scripts/verify-pdf-download.mjs en
-# mode auto PUIS en mode recu-parent :
+# mode auto, PUIS en mode recu-parent, PUIS en mode recu-mois :
 #
 #   auto (Paie/Salaires) :
 #   1. compte auth éphémère créé via le service role et promu admin ;
@@ -35,6 +36,26 @@ name: PDF E2E — pixel check sur la pile de recette
 #      la boîte N° ;
 #   4. nettoyage complet (compte + éventuel élève de démo + fichiers).
 #
+#   recu-mois (le GESTE du guichet, sur la même page Élèves) :
+#   1. nouveau compte éphémère + connexion réelle, puis le VRAI formulaire de
+#      saisie ouvert par son bouton de barre latérale ;
+#   2. un élève de démo est créé pour ce geste (sans année scolaire, donc visible
+#      quelle que soit l'année active), supprimé au nettoyage avec son paiement ;
+#   3. l'élève est choisi dans sa liste, la date et le montant frappés, puis des
+#      mois TROUÉS sont cochés : septembre, novembre, décembre — le mois proposé
+#      d'avance (celui de la date, octobre) est DÉCOCHÉ, et les pastilles sont
+#      cliquées une par rendu, sinon React regrouperait les mises à jour ;
+#   4. l'envoi écrit le paiement, et le reçu du moment est capturé (CDP), puis le
+#      dossier de téléchargement est VIDÉ et le reçu RÉIMPRIMÉ depuis la fiche de
+#      l'élève, sur la ligne relue en base — un reçu réimprimé ne peut pas porter
+#      des mois qui n'auraient jamais été écrits ;
+#   5. les trois faits sont lus SUR LE PAPIER (texte extrait du PDF, jamais
+#      deviné) : les trois mois sont NOMMÉS, le compte « 3 mois » est écrit (liste
+#      trouée, pas plage), et OCTOBRE — le mois de la date — est ABSENT, faute de
+#      quoi la ligne viendrait de la date et non du geste. Puis le pixel-check à
+#      34 px/mm contre recu-parent.pdf, comme pour le reçu des parents ;
+#   6. nettoyage complet (compte + élève de démo + son paiement + fichiers).
+#
 # ─── CE QUI A CHANGÉ LE 2026-10-12, ET POURQUOI ──────────────────────────
 # Le pixel-check pilotait l'application DÉPLOYÉE, et il créait pour cela un
 # compte éphémère dans la base de l'ÉCOLE — plus une ligne de démo quand la base
@@ -42,7 +63,7 @@ name: PDF E2E — pixel check sur la pile de recette
 # job monte donc SA PROPRE pile Supabase (`supabase start`, base vierge, les 34
 # migrations du dépôt), construit l'application pointée dessus, la sert en local
 # et y exécute TOUT ce qui a besoin d'un compte — pixel-check de paie, reçu des
-# parents, et navigation CSP.
+# parents, mois cochés au guichet, et navigation CSP.
 #
 # Ce que ce job continue de prouver, en LECTURE SEULE contre la production : la
 # fraîcheur du déploiement (la prod sert le build de CE commit — c'est un fait de
@@ -342,8 +363,25 @@ jobs:
           AUTOMATION_EVIDENCE: '1'
         run: node scripts/verify-pdf-download.mjs --mode recu-parent --url=http://127.0.0.1:4173/
 
+      # Troisième flux, toujours page Élèves : le GESTE du guichet quand il coche
+      # des MOIS (mode recu-mois). Le caissier ouvre la saisie, choisit l'élève,
+      # frappe date et montant, coche les mois, envoie — puis le reçu est relu EN
+      # BASE et RÉIMPRIMÉ par la fiche de l'élève : c'est la réimpression qui prouve
+      # que les mois ont été écrits, un reçu du moment pouvant très bien les porter
+      # sans qu'ils aient jamais quitté l'écran. Le dossier de téléchargement est
+      # vidé avant la réimpression, donc le second PDF mesuré est bien le second.
+      # Trois mois TROUÉS (septembre, novembre, décembre) : le reçu doit les NOMMER
+      # un par un — une plage continue se dirait « Septembre à Novembre » — et le
+      # mois de la date (octobre) doit rester ABSENT du papier, faute de quoi la
+      # ligne viendrait de la date et non du geste.
+      - name: PDF pixel-check E2E — mois cochés (mode recu-mois, sur la pile de recette)
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+          AUTOMATION_EVIDENCE: '1'
+        run: node scripts/verify-pdf-download.mjs --mode recu-mois --url=http://127.0.0.1:4173/
+
       # Garde finale anti-résidus : chaque script E2E (garde CSP, pixel-checks
-      # paie/reçu parent) crée et supprime son compte éphémère dans un finally —
+      # paie/reçu parent/mois cochés) crée et supprime son compte éphémère dans un finally —
       # mais un nettoyage cassé (crash, erreur avalée) laisserait un résidu
       # (verify-*/e2e-*/audit-*/@audit.local). Cette étape tourne en DERNIER et
       # fait échouer le run si un compte éphémère subsiste dans auth.users ou
@@ -382,4 +420,4 @@ jobs:
       - name: Publier la preuve d’action — chaîne PDF E2E
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "chaîne PDF E2E allée au bout : fraîcheur du déploiement et politique CSP servie par l'hôte relues en lecture seule, puis garde CSP et pixel-checks paie/reçu parent sur la pile de recette de CE job (les 34 migrations, base vierge), comptes éphémères tous supprimés — la mesure en base est publiée par scripts/verify-ephemeral-cleanup.mjs"
+          --reason "chaîne PDF E2E allée au bout : fraîcheur du déploiement et politique CSP servie par l'hôte relues en lecture seule, puis garde CSP et pixel-checks paie/reçu parent/mois cochés sur la pile de recette de CE job (les 34 migrations, base vierge), comptes éphémères tous supprimés — la mesure en base est publiée par scripts/verify-ephemeral-cleanup.mjs"

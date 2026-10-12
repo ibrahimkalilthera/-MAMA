@@ -48,6 +48,31 @@ export function mapParentRow(row: DbRow<'parents'>): Parent {
   };
 }
 
+/**
+ * Une ligne `payments` relue de la base → le paiement que l'application manipule.
+ *
+ * C'est la MOITIÉ RETOUR de la chaîne des mois — le guichet écrit `months`, et
+ * c'est ici que le reçu le retrouve. La règle tient en une ligne, et c'est
+ * justement pourquoi elle mérite un nom : écrite en clair au milieu du
+ * regroupement par élève, aucun test ne pouvait la tenir, et une liste perdue
+ * ici ne se voyait nulle part — le reçu retombait simplement sur le mois de sa
+ * date, c'est-à-dire sur un papier faux que personne n'accusait.
+ *
+ * Une liste VIDE vaut « non renseigné » (et non « zéro mois ») : le reçu
+ * retombe alors sur le mois de la date, donc une réimpression d'avant cette
+ * colonne ne change pas d'un caractère.
+ */
+export function mapPaymentRow(row: DbRow<'payments'>): Payment {
+  return {
+    id: row.id,
+    date: row.date,
+    amount: Number(row.amount),
+    academicYear: row.academic_year ?? undefined,
+    receiptNumber: row.receipt_number ?? undefined,
+    months: Array.isArray(row.months) && row.months.length > 0 ? row.months : undefined,
+  };
+}
+
 export function mapStudentRow(row: DbRow<'students'>, payments: Payment[]): Student {
   return {
     id: row.id,

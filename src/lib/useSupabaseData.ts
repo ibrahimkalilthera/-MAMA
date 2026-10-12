@@ -35,7 +35,7 @@ import { drainOfflineQueue } from './offlineSync';
 import { loadOfflineSnapshot, saveOfflineSnapshot } from './offlineSnapshot';
 import type { AuditLogEntry, LogAuditParams } from './auditLogger';
 import { logAuditEvent } from './auditLogger';
-import { mapExpenseRow, mapParentRow, mapSalaryPaymentRow, mapStaffRow, mapStudentRow, mapTodoRow, mapVendorExpenseRow } from './rowMappers';
+import { mapExpenseRow, mapParentRow, mapPaymentRow, mapSalaryPaymentRow, mapStaffRow, mapStudentRow, mapTodoRow, mapVendorExpenseRow } from './rowMappers';
 import { importBatchData } from './batchImport';
 import type { SupabaseDataCtx } from './dataOpsContext';
 import { createClassOps } from './dataOps/classes';
@@ -396,16 +396,10 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
           const sid = p.student_id;
           if (!sid) return;
           if (!paymentsByStudent[sid]) paymentsByStudent[sid] = [];
-          paymentsByStudent[sid].push({
-            id: p.id,
-            date: p.date,
-            amount: Number(p.amount),
-            academicYear: p.academic_year ?? undefined,
-            receiptNumber: p.receipt_number ?? undefined,
-            // Une liste vide vaut « non renseigné » : le reçu retombe alors sur
-            // le mois de la date, et la réimpression d'un ancien reçu ne change pas.
-            months: Array.isArray(p.months) && p.months.length > 0 ? p.months : undefined,
-          });
+          // La relecture d'un paiement vit dans `rowMappers` avec ses sœurs :
+          // c'est la MOITIÉ RETOUR de la chaîne des mois, et un test la tient
+          // maintenant directement (tests/payment-months-chain.test.ts).
+          paymentsByStudent[sid].push(mapPaymentRow(p));
         });
 
         // Map rows to app types
