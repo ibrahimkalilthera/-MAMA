@@ -1,3 +1,13 @@
+## [2026-10-12] La sauvegarde automatique échouait en silence : 60 s de plafond pour 168 s de chaîne
+
+Demande du propriétaire : « Cherche pourquoi la sauvegarde automatique n'a pas pu pousser le commit et répare la cause, sans pousser quoi que ce soit toi-même. »
+
+**Les deux causes tenaient dans un seul fichier.** `.husky/post-commit` enveloppait son `git push` dans `timeout 60` **et** jetait toute la sortie dans `/dev/null` : l'échec de `bf112ee` ne pouvait donc ni aboutir, ni dire pourquoi. Le push déclenche le `pre-push`, qui relance la chaîne **entière** dès que la copie de travail diffère de l'index — `scripts/lib/chain-cache.mjs` refuse alors le vert enregistré (« modifications non indexées : la chaîne lirait autre chose »), c'est-à-dire dès qu'un agent ou l'IDE a du travail en cours, le cas ordinaire ici. Mesuré le 2026-10-12 sur cet arbre : **168 s** pour un plafond de 60 s (lint 35 s, tests 2 min 3 s). L'échec était certain, pas accidentel.
+
+**Réparé, et mesuré dans les deux sens.** Le plafond couvre désormais ce qu'il enveloppe — **900 s**, surchargeable par `BACKUP_PUSH_TIMEOUT` —, et la sortie n'est plus jetée : elle est écrite dans `.git/backup-push.log` (hors dépôt), dont les deux dernières lignes sont imprimées avec la raison. La commande exacte du crochet, reproduite en `--dry-run` (donc sans rien envoyer), sort en **0** après **168 s**, chaîne verte (4 étapes, `npm test` 2762/2762) et annonce `9dbef29..bf112ee HEAD -> main` ; le scénario d'échec — un `pre-push` qui échoue, troisième cause d'échec muet — imprime maintenant `⚠️ sauvegarde : push automatique vers origin échoué` **avec** sa raison, et sort en 0 : un `post-commit` n'annule jamais le commit.
+
+**Ce que la mesure ne montre pas.** Le plafond reste un plafond : un réseau qui traîne au-delà de 900 s laisse le commit local, mais le dit désormais. Et la sauvegarde n'a pas été vue POUSSER : les deux commits de ce lot (`f6821ca`, celui-ci) ont été créés avec `HUSKY=0`, sur la consigne explicite de ne rien pousser — c'est le prochain commit sans cet échappement, ou un `git push` à la main, qui exercera la sauvegarde réparée.
+
 ## [2026-10-12] Le collecteur CSP déclenche un refus connu à chaque run, et un canal muet fait échouer la garde
 
 Demande du propriétaire : « Fais que le garde-fou CSP déclenche lui-même une violation connue à chaque run et échoue si son propre collecteur ne la voit pas, pour qu'un collecteur muet ne puisse plus passer pour un zéro. »
