@@ -11,16 +11,26 @@
 //
 // SAFETY: every row uses unique, obviously-test identifiers that match a known
 // prefix, so nothing real can ever be matched. A cleanup phase runs at the end
-// and is also attempted at the start. Use against STAGING by default; pass
-// `--prod` only to exercise the production URL/database.
+// and is also attempted at the start.
+//
+// OÙ CE SCRIPT ÉCRIT — la règle a changé le 2026-10-12. La recette a SA PROPRE
+// base : une pile Supabase montée par le job de CI (Postgres, GoTrue, PostgREST,
+// RLS), vierge à chaque run, désignée par `--url=` et par l'environnement. Les
+// fichiers `.env` / `.env.staging` ne servent plus qu'à un lancement à la main, et
+// ce que l'ENVIRONNEMENT fournit l'emporte : une clé restée sur un poste ne doit
+// jamais décider de la base où un run écrit. Le garde de recette
+// (`scripts/lib/recette-base.mjs`) reste en travers du chemin, ici comme dans le
+// job : pointé sur une base habitée par l'école, il refuse d'écrire.
 //
 // Usage:
-//   node scripts/e2e-business.mjs [--prod]      (cleanup is always run)
-//   node scripts/e2e-business.mjs --cleanup-only   (delete leftover test rows only)
+//   node scripts/e2e-business.mjs --url=http://127.0.0.1:4173/   (pile de recette)
+//   node scripts/e2e-business.mjs                               (app de staging déployée, .env.staging)
+//   node scripts/e2e-business.mjs --prod                        (app de production — refusé dès que l'école a saisi)
+//   node scripts/e2e-business.mjs --cleanup-only                (purge des lignes de démo)
 //
-// Secrets are NOT stored here; Supabase service-role keys are read from
-// .env (prod) / .env.staging, and the account credentials are generated
-// per-run and always deleted.
+// Secrets are NOT stored here: the service-role key comes from the environment
+// first (SUPABASE_SERVICE_ROLE_KEY), then from .env (prod) / .env.staging, and the
+// account credentials are generated per-run and always deleted.
 //
 // Exit code 0 = every check passed on a virgin database afterwards.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,6 +52,14 @@ const CHROME =
 
 const FLAG_PROD = process.argv.includes('--prod');
 const FLAG_CLEANUP_ONLY = process.argv.includes('--cleanup-only');
+// `--url=` (ou `--url <valeur>`, ou `E2E_URL`) : l'APPLICATION à piloter. Le job
+// de recette sert son propre build en local, donc l'adresse ne peut plus être
+// déduite du mode — et les deux écritures du drapeau sont acceptées, parce que
+// celle qu'on n'accepte pas est celle qui est ignorée en silence.
+const argvList = process.argv.slice(2);
+const ARG_URL =
+  (argvList.find((a) => a.startsWith('--url=')) ?? '').slice('--url='.length) ||
+  (argvList.includes('--url') ? (argvList[argvList.indexOf('--url') + 1] ?? '') : '');
 
 const parseEnv = (p) => {
   const o = {};
@@ -52,16 +70,23 @@ const parseEnv = (p) => {
   return o;
 };
 const envFile = join(root, FLAG_PROD ? '.env' : '.env.staging');
-if (!existsSync(envFile)) {
-  console.error(`Introuvable: ${envFile} (chiffres service-role requis).`);
+// L'environnement AVANT le fichier, et le fichier peut même être absent : c'est
+// le job qui dit où la recette écrit (sa pile, ses clés éphémères). Un fichier
+// local périmé ne doit pas pouvoir détourner un run vers une autre base — c'est
+// exactement ce que ce script a payé le jour où il a écrit dans celle de l'école.
+const env = existsSync(envFile) ? parseEnv(envFile) : {};
+const base = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const sr = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+if (!base || !sr) {
+  console.error(
+    '❌ base ou clé service introuvable — ni SUPABASE_URL/VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY ' +
+      `dans l’environnement, ni de valeurs dans ${envFile} (${existsSync(envFile) ? 'présent mais incomplet' : 'absent'}).`,
+  );
   process.exit(1);
 }
-const env = parseEnv(envFile);
-const URL = FLAG_PROD
+const URL = ARG_URL || process.env.E2E_URL || (FLAG_PROD
   ? 'https://mama-thera-finance.vercel.app/'
-  : 'https://mama-thera-staging.vercel.app/';
-const base = env.VITE_SUPABASE_URL.replace(/\/$/, '');
-const sr = env.SUPABASE_SERVICE_ROLE_KEY;
+  : 'https://mama-thera-staging.vercel.app/');
 const HDR = { apikey: sr, Authorization: 'Bearer ' + sr, 'Content-Type': 'application/json' };
 
 // ── Ce run a-t-il le droit d'écrire des lignes de démonstration ici ? ────────
@@ -307,7 +332,16 @@ try {
   await page.setViewport({ width: 1280, height: 900 });
   const reqs = [];
   const logs = [];
-  page.on('request', (r) => { if (r.method() !== 'GET' && r.url().includes('supabase.co')) reqs.push(`${r.method()} ${r.url().replace(base, '').split('?')[0]}`); });
+  // Le canal d'observation, c'est la BASE RÉSOLUE, jamais un domaine écrit en dur.
+  // Mesuré le 2026-10-12 sur la pile de recette : `includes('supabase.co')` ne
+  // retenait rien (l'adresse est http://127.0.0.1:54321), si bien que deux
+  // vérifications accusaient l'application de n'avoir rien envoyé — alors que les
+  // écritures lues en base juste après étaient vertes. Le filtre doit suivre la
+  // cible du run, sinon il ne mesure que les runs sur l'hébergeur.
+  page.on('request', (r) => {
+    if (r.method() === 'GET' || !base || !r.url().startsWith(base)) return;
+    reqs.push(`${r.method()} ${r.url().slice(base.length).split('?')[0]}`);
+  });
   page.on('console', (m) => { const t = m.text(); if (/error/i.test(t)) logs.push(`CONSOLE: ${t.slice(0, 200)}`); });
   page.on('pageerror', (e) => logs.push('PAGEERROR: ' + String(e).slice(0, 200)));
 

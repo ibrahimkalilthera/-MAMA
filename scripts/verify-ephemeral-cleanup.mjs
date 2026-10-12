@@ -26,9 +26,11 @@
 // Usage:
 //   node scripts/verify-ephemeral-cleanup.mjs              → détecte (exit 1 si résidus)
 //   node scripts/verify-ephemeral-cleanup.mjs --cleanup-only → purge les résidus (maintenance)
-// Reads .env (VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY), same as the
-// other E2E scripts. Exit 0 = base propre, exit 1 = résidus trouvés (ou
-// purge incomplète). Le mode purge est EXPLICITE (--cleanup-only) : la CI
+// Lit la base à contrôler dans l'ENVIRONNEMENT d'abord (SUPABASE_URL ou
+// VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY), puis, à défaut, dans .env —
+// le job de recette lui donne sa propre pile, dont les clés sont éphémères, donc
+// aucun fichier n'existe sur le runner. Exit 0 = base propre, exit 1 = résidus
+// trouvés (ou purge incomplète). Le mode purge est EXPLICITE (--cleanup-only) : la CI
 // reste en détection pure pour qu'un nettoyage cassé fasse toujours rouge.
 // ─────────────────────────────────────────────────────────────────────────────
 import { existsSync, readFileSync } from 'node:fs';
@@ -50,15 +52,17 @@ const parseEnv = (p) => {
   return o;
 };
 const envFile = join(root, '.env');
-if (!existsSync(envFile)) {
-  console.error('Introuvable: .env (SUPABASE_SERVICE_ROLE_KEY requis).');
-  process.exit(1);
-}
-const env = parseEnv(envFile);
-const supabaseBase = (env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
+const env = existsSync(envFile) ? parseEnv(envFile) : {};
+// Même précédence que les scripts E2E : ce que le job exporte gagne sur le
+// fichier, sinon un `.env` resté d'un poste ferait contrôler une autre base que
+// celle où le run vient d'écrire — et le contrôle certifierait la mauvaise.
+const supabaseBase = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
 if (!supabaseBase || !SERVICE_KEY) {
-  console.error('❌ VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants dans .env');
+  console.error(
+    '❌ base ou clé service introuvable : ni SUPABASE_URL/VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY ' +
+      `dans l’environnement, ni de valeurs dans ${envFile} (${existsSync(envFile) ? 'présent mais incomplet' : 'absent'}).`,
+  );
   process.exit(1);
 }
 const HDR = { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, 'Content-Type': 'application/json' };

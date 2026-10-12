@@ -1,175 +1,181 @@
-name: Business E2E — cycles métier après déploiement
+name: Business E2E — cycles métier sur la pile de recette
 
 # ─────────────────────────────────────────────────────────────────────────────
 # POURQUOI CE WORKFLOW EXISTE
 #
-# `scripts/e2e-business.mjs` pilote l'application DÉPLOYÉE à travers ses deux
-# cycles métier complets et vérifie la persistance dans la base :
+# `scripts/e2e-business.mjs` pilote l'application à travers ses deux cycles
+# métier complets et vérifie la persistance dans la base :
 #   A. élève → création → paiement → `amount_paid` mis à jour (totaux) ;
 #   B. parent → employé → salaire → dépense fournisseur → chaque ligne + son
 #      montant vérifiés en base.
 #
-# Il existait, il fonctionnait, il publiait même une preuve mesurée — et aucun
-# workflow ne l'exécutait. Un contrôle que personne ne lance est un contrôle qui
-# n'existe pas : sa preuve restait vide de substance parce qu'elle n'était jamais
-# publiée. Ce workflow est ce qui le fait tourner.
+# CE QUI A CHANGÉ LE 2026-10-12, ET LES TROIS FAITS QUI L'ONT IMPOSÉ
+#   • le run écrivait dans la BASE PARTAGÉE de l'école ; depuis que l'école y
+#     saisit (500 élèves, 12 parents, 98 paiements comptés ce jour-là), le garde
+#     de recette refuse — correctement — donc le job était rouge à chaque push.
+#     Un rouge permanent ne se lit plus : il ne prouve rien ;
+#   • le projet de recette déclaré (`vulbmmzhcmnzswcvswfk`) est MORT : son nom ne
+#     résout plus (DNS absent, mesuré le 2026-10-12). La recette dépendait d'une
+#     ressource externe que personne ne relevait, et elle a pourri en silence ;
+#   • la recette ne dépend donc plus d'aucune ressource externe. Le job monte SA
+#     PROPRE pile Supabase (Docker : Postgres, GoTrue, PostgREST, RLS), y applique
+#     les 34 migrations, construit l'application en mode `staging` pointée dessus,
+#     sert ce build en local, et jette le tout avec le runner. Aucun secret,
+#     aucune donnée de l'école lue ou écrite, base vierge à chaque run — donc un
+#     verdict qui ne dépend plus de ce que la production contient ce jour-là.
 #
-# Trigger : à la FIN d'un déploiement Vercel réussi (comme le pixel-check PDF).
-# La preuve porte donc toujours sur le code fraîchement publié, jamais sur un
-# build intermédiaire ; un deploy rouge ou annulé → skip neutre, pas de rouge
-# parasite.
+# CE QUE CETTE PILE PROUVE, ET CE QU'ELLE NE PROUVE PAS
+#   • elle prouve les cycles métier réels (formulaires, écritures, totaux, RLS
+#     authentifiée, trigger `user_profiles`, nettoyage des comptes jetables) sur
+#     le MÊME schéma que la production : les 34 migrations, appliquées depuis un
+#     schéma vierge ;
+#   • elle ne prouve pas le RÉSEAU ni la plateforme hébergée (latence, quotas,
+#     mise en pause d'un projet). C'est le métier d'autres veilles qui, elles,
+#     visent le vrai domaine : `shared-db-watch`, `public-origin-watch`.
 #
-# CE QUE LE RUN ÉCRIT, ET POURQUOI CE N'EST PAS UN RISQUE NOUVEAU
-#   • les écritures portent des identifiants uniques et visiblement de test, et
-#     sont nettoyées au DÉMARRAGE comme à la FIN — le pixel-check PDF écrit et
-#     supprime déjà dans la même base, après chaque déploiement ;
-#   • le script ÉCHOUE si la base n'est pas revenue vierge (il compte les lignes
-#     des sept tables touchées et exige zéro) : un résidu est un rouge ici, pas
-#     une découverte au run suivant ;
-#   • la garde finale ci-dessous vérifie qu'aucun compte éphémère ne subsiste,
-#     `if: always()` — c'est justement quand la chaîne casse au milieu qu'un
-#     compte reste en base.
+# Le garde de recette reste en travers du chemin, et il est relu à CHAQUE run :
+# si la base visée n'est pas vierge, le job refuse d'écrire au lieu de supposer.
 #
-# Secrets requis (Settings → Secrets and variables → Actions) :
-#   SUPABASE_SERVICE_ROLE_KEY — clé service du projet Supabase (création,
-#     vérification et suppression des lignes de test). Jamais exposée : passée
-#     au script via un `.env` généré dans le job, effacé avec le runner.
-#   VITE_SUPABASE_URL est PUBLIQUE (embarquée dans le bundle client) et est
-#     donc écrite en clair, comme dans les autres workflows.
+# La preuve est publiée par l'étape NOMMÉE (`Publier la preuve d’action`, lue par
+# `npm run check:automations`) et sa SUBSTANCE vient des scripts : le nombre de
+# vérifications passées sur les deux cycles, et l'état vierge de la base après
+# nettoyage.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
-  workflow_run:
-    workflows: ["Deploy (Vercel)"]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 
 concurrency:
-  # MÊME groupe que `pdf-e2e.yml`, délibérément : les deux chaînes écrivent dans
-  # la même base de production et chacune juge les résidus de l'autre. Mesuré le
-  # 2026-09-13 — le premier run de ce workflow, déclenché par le même déploiement
-  # que le pixel-check PDF, a compté 18/19 : tout était vert, et le seul rouge
-  # venait du **compte éphémère en cours** de l'autre workflow, vu comme un
-  # résidu. Un groupe partagé met les deux en file au lieu de les faire se juger.
-  group: prod-e2e-${{ github.event.workflow_run.head_sha || github.ref }}
-  cancel-in-progress: false
+  # Groupe PROPRE à ce workflow depuis que la recette a sa propre base. Il était
+  # partagé avec `pdf-e2e.yml` parce que les deux écrivaient dans la base de
+  # l'école et que chacun jugeait les résidus de l'autre (mesuré le 2026-09-13 :
+  # 18/19, le seul rouge venait du compte éphémère EN VOL du voisin). Ce motif a
+  # disparu avec le partage : la recette n'écrit plus là où le pixel-check écrit.
+  group: business-e2e-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
-  actions: read # lire la conclusion du run deploy
 
 jobs:
-  gate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      proceed: ${{ steps.deploy-gate.outputs.proceed }}
-    steps:
-      - name: Gate — cycles métier seulement si le deploy a réussi
-        id: deploy-gate
-        uses: actions/github-script@v9
-        with:
-          script: |
-            core.setOutput('proceed', 'false');
-            if (context.eventName !== 'workflow_run') {
-              console.log('Manual dispatch — vérification manuelle contre la prod.');
-              core.setOutput('proceed', 'true');
-              return;
-            }
-            const run = context.payload.workflow_run;
-            console.log(`Deploy workflow concluded '${run.conclusion}' on ${run.head_sha}.`);
-            if (run.conclusion !== 'success') {
-              console.log(`Deploy non réussi (${run.conclusion}) — rien à prouver sur l'app déployée, skip neutre.`);
-              return;
-            }
-            core.setOutput('proceed', 'true');
-
   e2e:
-    needs: gate
-    if: needs.gate.outputs.proceed == 'true'
+    name: Cycles métier E2E (pile Supabase locale)
     runs-on: ubuntu-latest
-    # Headroom : `npm ci` + Chrome piloté sur deux cycles métier complets
-    # (formulaires, attentes de persistance, vérifications en base). Le
-    # pixel-check PDF en consomme 20 min pour trois documents ; 25 min est le
-    # même ordre de grandeur.
-    timeout-minutes: 25
+    # `supabase start` tire une quinzaine de conteneurs (2–5 min) ; le build et
+    # les deux cycles prennent le reste. 30 min laissent un runner partagé lent
+    # aller au bout.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
 
+      # Pinné sur la version éprouvée par `supabase-migrations.yml` : mêmes
+      # migrations, même pile, mêmes verdicts en local et en CI.
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.116.0
+
       - name: Install dependencies
         run: npm ci
 
-      # Le script lit `.env` (VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY) ;
-      # l'URL est publique, seule la clé service est un secret. Le fichier est
-      # généré dans le job, n'est jamais commité (gitignored) et disparaît avec
-      # le runner.
-      - name: Generate .env for the E2E script (public URL + service-role secret)
-        run: |
-          cat > .env <<'EOF'
-          VITE_SUPABASE_URL=https://rpcjdohfxwukbqngbprw.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          EOF
+      - name: Élever la pile de recette (les 34 migrations, base vierge)
+        run: supabase start
 
-      # Un déploiement Vercel qui vient de finir n'est pas encore forcément
-      # joignable : la vérification porte sur l'app DÉPLOYÉE, donc on attend un
-      # HTTP 200 avant de piloter quoi que ce soit — sinon on prouverait un 404.
-      - name: Wait for the fresh deployment to be live
+      # Les clés de la pile locale sont ÉPHÉMÈRES et le CLI les rend : elles
+      # vivent dans le runner, le temps du job, et ne sont demandées à personne.
+      # Elles sont exportées sans être imprimées — un secret qui passe par un
+      # journal de run n'est plus un secret, même local.
+      #
+      # Le fichier est SOURCÉ (même idiome que `supabase-migrations.yml`) : la CLI
+      # écrit `API_URL="http://…"` AVEC des guillemets (mesuré le 2026-10-12), et
+      # c'est le shell qui les retire. Recopier la ligne telle quelle donnerait une
+      # adresse entre guillemets, c'est-à-dire une URL fausse que rien ne signalerait.
+      #
+      # Deux noms pour une chose, et c'est VOULU : la CLI nomme API_URL/ANON_KEY/
+      # SERVICE_ROLE_KEY (2.116.0), les scripts du dépôt lisent les noms canoniques
+      # VITE_SUPABASE_* / SUPABASE_*. Le pont est fait ici, une fois, plutôt que
+      # supposé présent dans sept scripts qui échoueraient chacun à leur façon.
+      - name: Exporter les clés de la pile (éphémères, jamais imprimées)
         run: |
-          for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://mama-thera-finance.vercel.app/ || true)
-            if [ "$code" = "200" ]; then echo "prod en ligne (HTTP 200, essai $i)"; exit 0; fi
-            echo "attente du déploiement… HTTP $code (essai $i/30)"
-            sleep 5
+          set -euo pipefail
+          supabase status -o env > /tmp/recette.env
+          set -a
+          . /tmp/recette.env
+          set +a
+          for pair in "API_URL=$API_URL" "ANON_KEY=$ANON_KEY" "SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"; do
+            name=${pair%%=*}
+            if [ -z "${pair#*=}" ]; then
+              echo "❌ $name vide dans la pile locale — sans clé, ce job ne mesure rien." >&2
+              exit 1
+            fi
           done
-          echo "prod pas en ligne après 150s — abandon" >&2
-          exit 1
+          {
+            echo "SUPABASE_URL=$API_URL"
+            echo "VITE_SUPABASE_URL=$API_URL"
+            echo "VITE_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+          echo "clés de la pile exportées (${#API_URL} / ${#ANON_KEY} / ${#SERVICE_ROLE_KEY} caractères)"
 
-      # Les cycles qui suivent créent des lignes de DÉMONSTRATION dans la base
-      # partagée — celle de l'école. C'est ce qui prouve le chemin réel, et c'est
-      # aussi ce qui a rempli le journal d'audit de 432 lignes de bruit de recette
-      # avant la mise en service. Ce contrôle refuse l'écriture dès que la base
-      # porte une saisie de l'école, en nommant les tables qu'il a comptées :
-      # les lignes de démonstration se mêleraient aux vraies, et un nettoyage raté
-      # les y laisserait. Il lit `.env` (généré juste au-dessus), ne modifie rien.
-      - name: Recette — écrire seulement dans une base libre de données d'école
+      # Le garde reste en travers du chemin, ici comme sur un poste : il compte
+      # les sept tables métier (lecture bornée à zéro ligne) et n'autorise
+      # l'écriture que si elles sont vides. Une base de recette qui ne serait pas
+      # vierge fait rougir ce pas AVANT qu'une seule ligne de démo soit écrite.
+      - name: Recette — écrire seulement dans une base libre de données d’école
         run: npm run check:recette-base
+
+      # Rien n'est écrit dans un fichier `.env` : les variables passent par
+      # l'environnement, que Vite lit en priorité — donc aucune clé ne traîne dans
+      # l'arbre de travail. `VITE_APP_ENV=staging` n'est pas décoratif :
+      # `scripts/lib/shared-project.mjs` ne tolère la dérive de base QUE sous cette
+      # condition, et le badge d'environnement comme le journal d'audit la lisent.
+      - name: Build de l’application pointé sur la pile de recette (mode staging)
+        env:
+          VITE_APP_ENV: staging
+        run: npm run build:staging
+
+      - name: Servir ce build en local (127.0.0.1:4173)
+        run: |
+          nohup npm run preview -- --port=4173 --strictPort --host=127.0.0.1 > /tmp/preview.log 2>&1 &
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:4173/ || true)
+            if [ "$code" = "200" ]; then echo "build servi (HTTP 200, essai $i)"; exit 0; fi
+            echo "attente du build… HTTP $code (essai $i/30)"
+            sleep 2
+          done
+          echo "❌ le build n’a pas répondu en 60 s :" >&2
+          cat /tmp/preview.log >&2
+          exit 1
 
       - name: Cycles métier E2E — élève/paiement, parent/salaire/dépense
         # Mandat de preuve : l'étape qui exécute le script lui donne le droit de
-        # parler au nom de ce job, et ce qu'il publie est SA mesure — le nombre
-        # de vérifications passées et l'état vierge de la base après nettoyage.
-        # Hors mandat, le script se tait (une suite de tests qui l'importe ne
-        # doit pas déposer une preuve dans le journal d'un autre job).
+        # parler au nom de ce job, et ce qu'il publie est SA mesure — le nombre de
+        # vérifications passées et l'état vierge de la base après nettoyage.
+        # Hors mandat, le script se tait (une suite de tests qui l'importe ne doit
+        # pas déposer une preuve dans le journal d'un autre job).
         env:
           CHROME_PATH: /usr/bin/google-chrome
           AUTOMATION_EVIDENCE: '1'
-        run: node scripts/e2e-business.mjs --prod
+        run: node scripts/e2e-business.mjs --url=http://127.0.0.1:4173/
 
       # Garde finale anti-résidus, en DERNIER et toujours exécutée : un cycle
       # métier interrompu au milieu est exactement le cas qui laisse un compte
-      # éphémère derrière lui. Elle publie sa propre mesure (enregistrements
-      # parcourus en base) sous le mandat de son étape.
+      # jetable derrière lui. Elle lit la MÊME base que le run (environnement
+      # d'abord) et publie sa propre mesure sous le mandat de son étape.
       - name: Vérification finale — aucun compte éphémère résiduel en base
         if: always()
         env:
           AUTOMATION_EVIDENCE: '1'
         run: node scripts/verify-ephemeral-cleanup.mjs
 
-      # Preuve publiée par l'étape NOMMÉE (lue dans les étapes du run par
-      # `npm run check:automations`), et publiée en DERNIER : elle affirme que la
-      # chaîne est allée au bout. La SUBSTANCE vient des scripts ci-dessus — cette
-      # étape ne fait que dire que l'enchaînement (attente du déploiement, deux
-      # cycles, garde finale) a bien eu lieu dans cet ordre.
       - name: Publier la preuve d’action — cycles métier E2E
         if: success()
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "cycles métier E2E allés au bout contre la prod déployée : élève → paiement → totaux, parent → salaire → dépense, aucune ligne de démo résiduelle, aucun compte éphémère restant — la mesure est publiée par scripts/e2e-business.mjs"
+          --reason "cycles métier E2E allés au bout sur la pile de recette de CE job (les 34 migrations, base vierge, jetée avec le runner) : élève → paiement → totaux, parent → salaire → dépense, aucune ligne de démo résiduelle, aucun compte éphémère restant — la mesure est publiée par scripts/e2e-business.mjs"

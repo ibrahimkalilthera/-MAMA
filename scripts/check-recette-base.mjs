@@ -4,7 +4,11 @@
 //
 //   npm run check:recette-base                  (lecture seule, exit 0 ou 1)
 //   npm run check:recette-base -- --allow       (dérogation explicite, à la main)
-//   npm run check:recette-base -- --url https://….supabase.co
+//   npm run check:recette-base -- --url https://….supabase.co   (ou --url=…)
+//
+// Ce que la base visée est : la pile de recette du job en CI, qui exporte
+// VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY ; à défaut, `.env`. Le drapeau
+// l'emporte, dans ses deux écritures (voir `flag` ci-dessous).
 //
 // Pourquoi ce contrôle existe : les cycles E2E créent des élèves, parents,
 // employés, paiements et dépenses de démonstration DANS LA BASE PARTAGÉE — celle
@@ -35,7 +39,14 @@ const readEnvFile = (pathname) => {
 };
 
 const args = process.argv.slice(2);
+// Les DEUX formes, `--url <valeur>` et `--url=<valeur>` : mesuré le 2026-10-12,
+// la seconde était ignorée en silence — le script retombait alors sur `.env`,
+// c'est-à-dire sur la base de l'école, et rendait un verdict sur une base que
+// personne n'avait désignée. Un contrôle qui juge l'adresse d'à côté est pire
+// qu'un contrôle absent : il rassure sur le mauvais objet.
 const flag = (name) => {
+  const inline = args.find((a) => a.startsWith(`${name}=`));
+  if (inline) return inline.slice(name.length + 1);
   const i = args.indexOf(name);
   return i === -1 ? '' : (args[i + 1] ?? '');
 };

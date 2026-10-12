@@ -460,15 +460,29 @@ describe('le dépôt — chaque automatisation promet une preuve, et la MESURE',
       assert.match(src, /count: \S/, `${script} doit publier un compte mesuré, pas seulement une phrase`);
     }
 
-    // Le déclencheur, et pourquoi celui-là : les cycles métier prouvent l'app
-    // DÉPLOYÉE (donc après un deploy réussi, comme le pixel-check PDF), tandis
-    // que la preuve bureau porte sur un BINAIRE — elle reconstruit l'arbre et ne
-    // dépend d'aucun déploiement. Un workflow sans déclencheur qui l'atteint
-    // serait un script de plus que personne ne lance, avec une étape de preuve
-    // décorative.
+    // La CIBLE a changé le 2026-10-12, et ce que ces deux lignes gardaient n'a
+    // pas changé : un workflow que rien n'atteint est un script de plus que
+    // personne ne lance, et un workflow qui ne vise pas ce qu'il prétend prouver
+    // fabrique un vert sur le mauvais objet. La recette ne visait plus l'app
+    // DÉPLOYÉE mais SA PROPRE PILE (`supabase start`, base vierge, les migrations
+    // du dépôt) : c'est ce qui a cessé de faire écrire les cycles métier dans la
+    // base de l'école — la garde qui refusait, correctement, laissait le job
+    // rouge à chaque push, donc plus rien n'était prouvé du tout.
     const business = readFileSync(join(root, '.github', 'workflows', 'business-e2e.yml'), 'utf8');
-    assert.match(business, /workflow_run:\s*\r?\n\s*workflows: \["Deploy \(Vercel\)"\]/, 'les cycles métier suivent le déploiement');
-    assert.match(business, /run: node scripts\/e2e-business\.mjs --prod/, 'et visent l’app déployée');
+    assert.match(
+      business,
+      /\r?\n\s{2}push:\s*\r?\n\s*branches: \[main\]/,
+      'les cycles métier se rejouent à chaque push sur main',
+    );
+    assert.match(
+      business,
+      /run: node scripts\/e2e-business\.mjs --url=http:\/\/127\.0\.0\.1:4173\//,
+      'et visent la pile de recette servie par le job',
+    );
+    assert.doesNotMatch(business, /--prod\b/, 'aucun run ne vise la production : c’est ce qui écrivait dans la base de l’école');
+    assert.match(business, /supabase start/, 'la pile de recette est montée par le job — base vierge, sans ressource externe');
+    assert.match(business, /npm run check:recette-base/, 'le garde de recette passe avant la première écriture');
+    assert.doesNotMatch(business, /secrets\./, 'plus aucun secret : la pile locale rend ses propres clés éphémères');
     const desktop = readFileSync(join(root, '.github', 'workflows', 'desktop-e2e.yml'), 'utf8');
     assert.match(desktop, /\r?\n\s{2}schedule:/, 'la preuve bureau se rejoue sans qu’on y pense : une dérive de dépendance ne prévient pas');
     assert.match(desktop, /run: npm run electron:dist/, 'elle reconstruit le binaire qu’elle prouve, sans publier');

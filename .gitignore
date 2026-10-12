@@ -25,6 +25,9 @@ lh-vercel.json
 
 # État local de la CLI Supabase
 supabase/.temp/
+# `supabase start` écrit aussi l'état de branche ici — et depuis que le job
+# `business-e2e` monte sa propre pile, le rejouer à la main crée ce dossier.
+supabase/.branches/
 
 # Build/paquetage desktop (Electron)
 electron-ui-dist/

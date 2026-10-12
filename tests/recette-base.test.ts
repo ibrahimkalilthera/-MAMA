@@ -1,5 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Le partage production/recette, tel qu'il est tranché le 2026-09-14.
+// Le partage production/recette, tel qu'il est tranché — puis RÉVISÉ le
+// 2026-10-12 : la recette a maintenant sa propre pile Supabase (montée par le
+// job), et ce verdict est la SECONDE maille — celle qui attrape le jour où un
+// script est pointé ailleurs (un poste, une clé restée dans un fichier).
 //
 // Les cycles E2E écrivent des élèves, parents, employés, paiements et dépenses de
 // DÉMONSTRATION dans la base partagée — celle de l'école. C'est ce qui prouve le
@@ -60,7 +63,11 @@ describe('recetteWriteVerdict — où la recette a le droit d’écrire', () => 
 
   it('le détail dit les DEUX issues — c’est ce qui rend le refus actionnable', () => {
     const v = verdict({ ...emptyBase(), students: 5 });
-    assert.match(v.detail, /vulbmmzhcmnzswcvswfk/, 'le projet de recette qui répond encore est nommé');
+    assert.match(
+      v.detail,
+      /SA PROPRE pile Supabase/,
+      'la pile de recette est nommée — c’est la première issue, celle que le job applique',
+    );
     assert.match(v.detail, /--allow/, 'et la dérogation assumée est nommée aussi');
   });
 

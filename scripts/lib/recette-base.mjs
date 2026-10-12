@@ -6,18 +6,24 @@
 //   • la base partagée (`rpcjdohfxwukbqngbprw`) est la SEULE que l'application
 //     sait lire — c'est la décision « une seule base pour tout le monde », et
 //     elle a coûté une refonte pour être vraie ;
-//   • le projet de recette déclaré (`vulbmmzhcmnzswcvswfk`) répond encore
-//     (HTTP 401, mesuré le 2026-09-14) mais l'application ne pointe pas dessus :
-//     y faire tourner les cycles demanderait un SECOND déploiement de l'app,
-//     donc pas aujourd'hui ;
-//   • les cycles E2E écrivent donc dans la base partagée — ce qui prouve le
-//     chemin réel, et ce qui a rempli le journal d'audit de 432 lignes de bruit
-//     de recette avant la mise en service.
+//   • le projet de recette déclaré (`vulbmmzhcmnzswcvswfk`) est MORT : son nom ne
+//     résout plus (mesuré le 2026-10-12, DNS absent) — une ressource externe
+//     qu'aucun contrôle ne relève pourrit en silence, et celle-ci a pourri ;
+//   • la recette a donc sa PROPRE pile Supabase, montée par le job
+//     (`business-e2e.yml` : Postgres, GoTrue, PostgREST, RLS, les 34 migrations,
+//     vierge à chaque run) — rien à mettre en pause, aucun secret, et l'école
+//     n'est ni lue ni écrite ;
+//   • les cycles E2E ont écrit dans la base partagée tant qu'elle était libre —
+//     ce qui a rempli le journal d'audit de 432 lignes de bruit de recette avant
+//     la mise en service, et ce que le premier élève saisi par l'école a rendu
+//     impossible.
 //
 // D'où la règle, la seule qui protège l'école sans casser la preuve : la recette
-// écrit tant que la base est LIBRE de données d'école ; dès la première ligne
-// réelle, elle REFUSE d'écrire et dit pourquoi, avec les deux issues possibles.
-// Un garde-fou qui rougit au bon moment vaut mieux qu'un partage qu'on oublie.
+// écrit tant que la base qu'on lui donne est LIBRE de données d'école ; dès la
+// première ligne réelle, elle REFUSE d'écrire et dit pourquoi, avec les deux
+// issues possibles. C'est la SECONDE maille : la première est le job, qui monte
+// une pile vierge — celle-ci attrape le jour où quelqu'un pointe le script
+// ailleurs (un poste, une clé oubliée dans un fichier).
 //
 // La fonction de jugement est PURE : elle est ce qui décide, donc elle se teste
 // (tests/recette-base.test.ts) au lieu de se relire.
@@ -131,10 +137,10 @@ export function recetteWriteVerdict({ counts = {}, allow = false } = {}) {
     detail:
       `lignes réelles mesurées : ${named}. Les cycles de recette n’écrivent plus ici : ` +
       'leurs élèves, parents, employés, paiements et dépenses de démonstration se mêleraient ' +
-      'aux saisies de l’école, et un nettoyage râté les y laisserait. Deux issues — pointer la ' +
-      'recette sur son propre projet Supabase (aujourd’hui « vulbmmzhcmnzswcvswfk » répond, mais ' +
-      'il faudrait un second déploiement de l’app qui le lise), ou assumer le partage avec ' +
-      '`--allow` en sachant ce que cela veut dire.',
+      'aux saisies de l’école, et un nettoyage râté les y laisserait. Deux issues — lancer la ' +
+      'recette sur SA PROPRE pile Supabase (ce que fait le job de CI : `supabase start`, base ' +
+      'vierge, aucun contact avec celle de l’école), ou assumer le partage avec `--allow` en ' +
+      'sachant ce que cela veut dire.',
     tables: filled,
   };
 }
