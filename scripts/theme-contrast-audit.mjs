@@ -82,6 +82,47 @@ const THEME_LABELS = {
   midnight: 'Cyber Minuit (Sombre)',
 };
 
+// ── Lancement du navigateur ────────────────────────────────────────────────
+// Deux mesures, tirées d'un rouge de CI du 2026-10-12 : le job « Contraste
+// thèmes » est mort sur « Timed out after 30000 ms while waiting for the WS
+// endpoint URL to appear in stdout » — un lancement de Chrome qui n'a pas
+// démarré, vingt minutes après que le MÊME lancement a réussi sur la même image
+// de runner. Aucun texte n'avait été mesuré : ce rouge ne jugeait pas les
+// contrastes, il jugeait la disponibilité d'un Chrome sur une machine partagée,
+// et il bloquait le déploiement derrière lui.
+//
+//   • `pipe: true` : le canal DevTools passe par un tube au lieu d'être lu dans
+//     la sortie standard de Chrome. C'est précisément l'attente qui a échoué —
+//     elle disparaît, au lieu d'être attendue plus longtemps.
+//   • Un lancement raté est RETENTÉ (borné, espacé). Sur un runner partagé, un
+//     navigateur qui meurt au démarrage ne dit rien du code audité.
+//
+// Ce qui n'est jamais retenté, en revanche : une mesure. Un contraste < 3:1
+// reste un rouge au premier essai — la reprise ne porte que sur le lancement.
+const LAUNCH_ATTEMPTS = Math.max(1, Number(process.env.AUDIT_LAUNCH_ATTEMPTS ?? 3));
+
+async function launchChrome(chromePath) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= LAUNCH_ATTEMPTS; attempt += 1) {
+    try {
+      return await puppeteer.launch({
+        executablePath: chromePath,
+        headless: true,
+        pipe: true,
+        args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+      });
+    } catch (error) {
+      lastError = error;
+      const detail = error?.message ?? String(error);
+      console.error(`⚠️  Chrome n’a pas démarré (tentative ${attempt}/${LAUNCH_ATTEMPTS}) : ${detail}`);
+      // Un incident de lancement sur un runner partagé se dissipe en quelques
+      // secondes ; on laisse la machine respirer avant de la relancer.
+      if (attempt < LAUNCH_ATTEMPTS) await wait(2000 * attempt);
+    }
+  }
+  throw lastError;
+}
+
 function resolveChrome() {
   const cands = [
     process.env.CHROME_PATH,
@@ -287,11 +328,7 @@ async function main() {
     }
 
     console.log(`🌐 Audit sur ${AUDIT_URL} — seuil ${MIN_RATIO}:1, thèmes : ${THEMES.join(', ')}`);
-    const browser = await puppeteer.launch({
-      executablePath: chromePath,
-      headless: true,
-      args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
-    });
+    const browser = await launchChrome(chromePath);
     const page = await browser.newPage();
     await page.setViewport({ width: 1440, height: 1000 });
 
