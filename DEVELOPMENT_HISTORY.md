@@ -1,3 +1,17 @@
+## [2026-10-12] La fenêtre d'encaissement était la seule sans défilement, et le bouton tombait hors de l'écran
+
+Demande du propriétaire, capture d'écran à l'appui : « il n'y a pas de roll down pour pouvoir descendre et valider le paiement, résous ça. »
+
+**Le défaut, et pourquoi il fermait l'encaissement tout entier.** Le panneau partagé (`ModalShell`) est `overflow-hidden` **sans hauteur maximale** : ce qui dépasse la hauteur de l'écran n'est pas coupé « un peu », il devient **inatteignable**. La convention du dépôt est que chaque CORPS de fenêtre porte son propre défilement — élève, personnel, parent, calendrier, paie mensuelle le font —, et la fenêtre de paiement était **la seule à ne pas l'avoir**, alors que c'est la plus longue de l'application : recherche, filtre de classe, élève, montant et date, **les douze pastilles de mois**, l'indice, la ligne du reçu, puis le bouton. La capture le montre exactement : le formulaire se termine sous le bord bas, la barre de défilement n'existe pas, et le bouton de validation n'est atteignable par aucun geste. Ce n'est donc pas un désagrément d'affichage : **aucun paiement ne pouvait être enregistré** depuis un écran de hauteur modeste.
+
+**Réparé par la règle qui existait déjà, pas par une nouvelle.** Le formulaire porte la même paire de classes que ses voisins (`max-h-[70vh] overflow-y-auto custom-scrollbar`) : la zone défile, le bouton redevient atteignable, et les fenêtres courtes ne changent pas d'un pixel puisque `max-h` ne force aucune hauteur.
+
+**Verrouillé, et la sentinelle mord.** Un cas de plus dans `tests/payment-entry-modal.test.tsx` exige la hauteur maximale, le défilement vertical, la barre du dépôt — et que le bouton de validation vive DANS la zone qui défile (un défilement dont le bouton est dehors ne rendrait rien atteignable). Prouvé par mutation : les classes retirées font rougir ce cas, le fichier restauré **octet pour octet** (`cmp`) le repasse.
+
+**Ce que la vérification ne dit pas — et un faux pas, dit plutôt que caché.** Le correctif est prouvé par le test et par la convention des cinq formulaires voisins, **pas par une capture d'écran** : ma tentative de le prévisualiser a échoué sur une erreur de méthode de ma part — j'ai lancé un serveur de développement sans vérifier que le port 3000 était libre, il est parti sur 3001, et j'ai regardé dans le navigateur le 3000 d'un **autre** projet. Rien n'en a été conclu, le serveur a été arrêté, l'autre projet n'a pas été touché, et les fichiers de prévisualisation ont été supprimés. Ce qui reste à faire pour voir la chose de ses yeux : ouvrir la fenêtre sur un port libre.
+
+**Mesures.** `tests/payment-entry-modal.test.tsx` : **13 / 13**, 0 échec (12 cas + la sentinelle) ; chaîne complète verte avant le commit.
+
 ## [2026-10-12] 1.0.30 — la preuve du parc : de 1.0.29 à 1.0.30 sans un clic, et le nettoyage ne casse plus la preuve
 
 Suite de la demande du propriétaire : « … publie et release avec tout le travail d'aujourd'hui, et que la mise à jour automatique se déclenche aussi, sans doublon. »

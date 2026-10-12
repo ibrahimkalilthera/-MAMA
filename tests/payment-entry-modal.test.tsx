@@ -246,3 +246,44 @@ describe('PaymentEntryModal — les mois payés', () => {
   // donc « le mois proposé suit la date » est verrouillé sur la règle PURE
   // (tests/payment-months.test.ts, `effectivePaymentMonths`) et pas ici.
 });
+
+describe('PaymentEntryModal — la fenêtre reste atteignable', () => {
+  // Le panneau partagé (`ModalShell`) est `overflow-hidden` et ne porte AUCUNE
+  // hauteur maximale : ce qui dépasse l'écran n'est pas coupé « un peu », il
+  // devient INATTEIGNABLE. Ce formulaire est le plus long de l'application —
+  // recherche, filtre de classe, élève, deux champs, DOUZE pastilles de mois,
+  // indice, ligne du reçu, bouton — et il était le SEUL corps de modale sans
+  // défilement. Mesuré sur un écran de portable : le bouton de validation tombait
+  // sous le bord bas, sans barre pour l'atteindre, donc aucun paiement ne pouvait
+  // être enregistré. Les formulaires voisins (élève, personnel) portent la même
+  // paire de classes ; ce cas refuse sa disparition.
+  it('porte une hauteur maximale et un défilement vertical, bouton compris', () => {
+    const h = mount('fr');
+    try {
+      const form = h.container.querySelector('form');
+      assert.ok(form, 'le formulaire de paiement doit exister');
+      const classes = form.className;
+      assert.match(
+        classes,
+        /(^|\s)max-h-\[/,
+        'sans hauteur maximale, le panneau coupe le bas du formulaire au lieu de le laisser défiler',
+      );
+      assert.match(
+        classes,
+        /(^|\s)overflow-y-auto(\s|$)/,
+        'sans défilement vertical, le bouton de validation redevient inatteignable sur un écran court',
+      );
+      assert.match(
+        classes,
+        /(^|\s)custom-scrollbar(\s|$)/,
+        'la barre de défilement doit être celle du dépôt (mêmes classes que les formulaires voisins)',
+      );
+      // Et le bouton vit bien DANS la zone qui défile : un défilement dont le
+      // bouton est dehors ne rendrait rien atteignable.
+      assert.ok(
+        form.querySelector('button[type="submit"]'),
+        'le bouton de validation doit vivre dans le formulaire qui défile',
+      );
+    } finally { h.cleanup(); }
+  });
+});

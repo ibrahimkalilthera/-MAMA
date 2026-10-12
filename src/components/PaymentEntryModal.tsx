@@ -132,7 +132,18 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
       title={t.paymentEntry}
     >
 
-              <form onSubmit={handlePaymentSubmit} className="p-10 space-y-8">
+              {/* La fenêtre est le SEUL corps de modale sans défilement, et elle
+                  est la plus longue (recherche, filtre de classe, élève, deux
+                  champs, les douze pastilles de mois, l'indice, la ligne du reçu,
+                  le bouton). Le panneau de `ModalShell` est `overflow-hidden` :
+                  ce qui dépasse la hauteur de l'écran n'est pas coupé « un peu »,
+                  il devient INATTEIGNABLE — mesuré sur un écran de portable, le
+                  bouton de validation tombait sous le bord bas, sans barre de
+                  défilement pour l'atteindre, donc AUCUN paiement ne pouvait être
+                  enregistré. Les formulaires voisins (élève, personnel) portent
+                  déjà leur propre hauteur maximale et leur défilement ; ce
+                  formulaire-ci les reprend, mêmes classes. */}
+              <form onSubmit={handlePaymentSubmit} className="p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
                 <div className="space-y-2">
                   <label htmlFor="payment-student-search" className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.searchNameOrId}</label>
                   <div className="relative">
