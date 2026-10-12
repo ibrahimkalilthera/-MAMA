@@ -24,12 +24,28 @@
 // Usage: node scripts/verify-csp-guard.mjs [--url https://…]
 // Reads .env (VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY), same as
 // scripts/verify-pdf-download.mjs. Exit 0 = header présent + zéro violation.
+//
+// ─── Le canari du collecteur, et pourquoi un zéro ne suffit pas ──────────────
+// Un zéro ne vaut que si la mesure peut dire autre chose que zéro. Ce script
+// concluait « Zéro violation CSP » sur la foi de deux canaux qu'il n'avait jamais
+// vus fonctionner : un `evaluateOnNewDocument` refusé, ou un filtre `console` qui
+// ne reconnaît plus la formulation de Chromium, rendait exactement le même
+// verdict vert qu'une application réellement propre — le faux vert le plus
+// coûteux qui soit, puisqu'il rassure.
+//
+// À chaque run, la garde injecte donc dans la page RÉELLE un refus CONNU — un
+// script externe que la politique refuse (voir `scripts/lib/csp-canary.mjs`) — et
+// exige que CHACUN des deux canaux l'ait vu, ressource ET directive nommées. Un
+// seul canal muet, et la commande sort en **2** : « je n'ai pas pu regarder »
+// n'est pas un vert. Le signal du canari est ensuite RETIRÉ du verdict — nommé et
+// compté dans la sortie — sans quoi la garde échouerait sur son propre bruit.
 // ─────────────────────────────────────────────────────────────────────────────
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
+import { CANARY_URL, canaryUrlVerdict, canaryVerdict, isCanarySignal } from './lib/csp-canary.mjs';
 import { assertEphemeralTarget, ephemeralEmail, pickEphemeralUser } from './lib/ephemeral-accounts.mjs';
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
@@ -181,7 +197,21 @@ function armCspCollectors(page) {
     });
   });
   return async (label) => {
-    const inPage = await page.evaluate(() => (window.__cspGuard || []).map((v) => `${v.directive} → ${v.blocked}`)).catch(() => []);
+    // Le relevé est un DRAIN : l'écouteur in-page accumule dans `window.__cspGuard`
+    // et rien ne le vidait. Mesuré le 2026-10-12 en exécutant la garde : un canari
+    // injecté une seule fois ressortait une fois PAR PAGE — sept violations du même
+    // refus —, parce que l'application est une SPA et que le document ne change pas
+    // d'un onglet à l'autre. Vider en lisant rend chaque événement une fois, sous
+    // l'étiquette de la page où il a été relevé.
+    const inPage = await page
+      .evaluate(() => {
+        const read = (window.__cspGuard || []).map((v) => `${v.directive} → ${v.blocked}`);
+        // En place : l'écouteur fait `window.__cspGuard.push(...)`, il ne garde pas
+        // de référence à l'ancien tableau.
+        if (window.__cspGuard) window.__cspGuard.length = 0;
+        return read;
+      })
+      .catch(() => []);
     for (const v of inPage) pushViolation(label, `[SecurityPolicyViolationEvent] ${v}`);
   };
 }
@@ -190,6 +220,8 @@ function armCspCollectors(page) {
 let browser = null;
 let fail = false;
 const failMsg = (m) => { console.error('  ❌ ' + m); fail = true; };
+/** Le canari n'a pas vu son propre refus : le run n'a RIEN mesuré (sortie 2). */
+let canaryMute = null;
 
 (async () => {
   try {
@@ -235,10 +267,53 @@ const failMsg = (m) => { console.error('  ❌ ' + m); fail = true; };
     }
     await wait(4000);
 
+    // 2 bis. Le canari du collecteur : un refus CONNU, sur la page réelle, sous la
+    //    vraie politique. Sans lui, « Zéro violation » est une phrase qu'un
+    //    collecteur débranché prononce aussi bien qu'un collecteur sain.
+    const canaryShape = canaryUrlVerdict();
+    if (canaryShape) {
+      // Le canari lui-même ne serait pas refusé : la garde accuserait son
+      // instrument au lieu de ses canaux, alors on refuse AVANT le navigateur.
+      canaryMute = `le canari n'est pas refusable : ${canaryShape}`;
+    } else {
+      const before = violations.length;
+      const injected = await page
+        .evaluate((url) => {
+          // Un script EXTERNE : la politique du site l'interdit (`script-src 'self'`),
+          // et Chromium le refuse AVANT toute requête — le canari ne dépend donc
+          // d'aucun réseau. Il est retiré juste après : c'est une sonde, pas un résidu.
+          const script = document.createElement('script');
+          script.src = url;
+          script.dataset.cspCanary = '1';
+          document.head.appendChild(script);
+          return true;
+        }, CANARY_URL)
+        .catch(() => false);
+      if (!injected) {
+        canaryMute = 'impossible d’injecter le canari dans la page — aucune mesure possible';
+      } else {
+        await wait(2500);
+        await collect('canari');
+        const verdict = canaryVerdict({ signals: violations.slice(before) });
+        canaryMute = verdict.ok ? null : verdict.reason;
+        // Le canari est NOTRE bruit : il est retiré du verdict — nommé et compté,
+        // jamais effacé en silence. Sans ce retrait la garde échouerait sur
+        // elle-même ; sans ce compte, on ignorerait qu'elle a parlé.
+        for (let i = violations.length - 1; i >= 0; i -= 1) {
+          if (isCanarySignal(violations[i])) violations.splice(i, 1);
+        }
+        await page.evaluate(() => document.querySelector('script[data-csp-canary]')?.remove()).catch(() => {});
+        if (verdict.ok) console.log(`✅ ${verdict.reason}, retiré(s) du verdict`);
+        else console.error(`\n❌ ${verdict.reason}`);
+      }
+    }
+
     // 3. Navigate every main page (admin account → full sidebar). Each visit
     //    exercises script-src, style-src, connect-src, font-src and img-src
     //    (charts, stamps, notifications…).
     for (const [label, re] of PAGES) {
+      // Collecteur muet : la tournée n'apprendrait rien et ses zéros seraient faux.
+      if (canaryMute) break;
       let clicked = false;
       for (let attempt = 0; attempt < 4 && !clicked; attempt++) {
         clicked = await page.evaluate((reSrc) => {
@@ -263,10 +338,24 @@ const failMsg = (m) => { console.error('  ❌ ' + m); fail = true; };
       visited++;
       console.log(`  ✓ ${label} visitée (${page.url().replace(URL, '').slice(0, 60) || '/'})`);
     }
-    console.log(`✅ ${visited}/${PAGES.length} pages visitées`);
+    if (!canaryMute) console.log(`✅ ${visited}/${PAGES.length} pages visitées`);
 
-    // 4. Verdict.
-    if (violations.length) {
+    // Filet : si un canal plus lent que l'autre livrait le signal du canari APRÈS le
+    // relevé, il arriverait sous l'étiquette d'une page et ferait rougir la garde sur
+    // son propre bruit. Notre bruit ne décide jamais du verdict sur l'application.
+    const lateCanary = violations.filter((v) => isCanarySignal(v)).length;
+    if (lateCanary) {
+      for (let i = violations.length - 1; i >= 0; i -= 1) {
+        if (isCanarySignal(violations[i])) violations.splice(i, 1);
+      }
+      console.log(`  ℹ️ ${lateCanary} signal(aux) du canari arrivé(s) après le relevé — retiré(s) du verdict`);
+    }
+
+    // 4. Verdict — rendu seulement si le canari a prouvé que le collecteur voit
+    //    quelque chose : le zéro d'un collecteur muet ne serait pas un verdict.
+    if (canaryMute) {
+      console.error('   (aucun verdict rendu : le collecteur n’a pas vu son propre refus)');
+    } else if (violations.length) {
       console.error(`\n❌ ${violations.length} violation(s) CSP détectée(s) en navigation :`);
       for (const v of violations) console.error(`   [${v.where}] ${v.text}`);
     } else {
@@ -278,6 +367,15 @@ const failMsg = (m) => { console.error('  ❌ ' + m); fail = true; };
     if (browser) await browser.close().catch(() => {});
     await cleanup();
   }
+  // Le collecteur muet passe AVANT tout verdict : un zéro qu'il rend ne prouve rien.
+  // Sortie 2 — « je n'ai pas pu regarder » — et non 1 : ce n'est pas une violation
+  // trouvée, c'est une mesure impossible (même langage que `check-jsx-i18n.mjs` et
+  // `assertScanned`).
+  if (canaryMute) {
+    console.error(`\n❌ ${canaryMute}`);
+    console.error('   Aucun verdict sur l’application n’est possible : le collecteur n’a pas prouvé qu’il voit.');
+    process.exit(2);
+  }
   if (fail || violations.length > 0) process.exit(1);
   // La preuve vient d'ici, pas d'une phrase du workflow : ce que cette garde a
   // RÉELLEMENT mesuré, c'est le nombre de pages parcourues et l'absence de
@@ -287,7 +385,8 @@ const failMsg = (m) => { console.error('  ❌ ' + m); fail = true; };
     acted: true,
     count: visited > 0 ? visited : null,
     reason:
-      `garde CSP : ${visited}/${PAGES.length} page(s) principale(s) parcourue(s) en session réelle, ` +
+      'garde CSP : canari du collecteur vu par les deux canaux, ' +
+      `${visited}/${PAGES.length} page(s) principale(s) parcourue(s) en session réelle, ` +
       `${violations.length} violation(s) détectée(s), en-têtes de sécurité présents`,
   });
   process.exit(0);

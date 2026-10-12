@@ -1,3 +1,17 @@
+## [2026-10-12] Le collecteur CSP déclenche un refus connu à chaque run, et un canal muet fait échouer la garde
+
+Demande du propriétaire : « Fais que le garde-fou CSP déclenche lui-même une violation connue à chaque run et échoue si son propre collecteur ne la voit pas, pour qu'un collecteur muet ne puisse plus passer pour un zéro. »
+
+**Le faux vert fermé.** `verify-csp-guard.mjs` concluait « Zéro violation CSP » sur la foi de deux canaux qu'il n'avait jamais vus fonctionner : les événements CDP (`console` / `pageerror`) et un écouteur `securitypolicyviolation` posé par `evaluateOnNewDocument`. Un `evaluateOnNewDocument` refusé, un filtre qui ne reconnaît plus la formulation de Chromium, et le même verdict vert tombait — pour une application cassée comme pour une application propre, et c'est le faux vert le plus coûteux qui soit puisqu'il rassure. À chaque run, la garde injecte donc dans la page RÉELLE un refus CONNU — un script externe (`https://csp-canary.invalid/known-violation.js`) que `script-src 'self'` interdit, sur le TLD réservé `.invalid`, donc refusé AVANT toute requête et sans dépendance réseau — et exige que CHACUN des deux canaux l'ait vu, en nommant la ressource ET la directive. Un seul canal muet : sortie **2** — « je n'ai pas pu regarder » n'est pas un vert —, aucun verdict rendu, la tournée des sept pages abandonnée (ses zéros ne prouveraient rien) et aucune preuve publiée. Le jugement vit PUR dans `scripts/lib/csp-canary.mjs` (une garde qui ne se juge pas elle-même ne juge rien), avec sa suite `tests/csp-canary.test.ts`.
+
+**Mesuré, dans les deux sens.** Exécution réelle contre la production : canari vu par les **deux** canaux, `7/7` pages, zéro violation applicative, sortie **0**, compte éphémère supprimé. Puis preuve par MUTATION, un canal à la fois : console débranchée (`page.on('console', …)` renommé) sort en **2** par « collecteur MUET : console … » ; écouteur in-page débranché (l'événement `securitypolicyviolation` renommé) sort en **2** par « collecteur MUET : in-page … » — les deux **sans rendre de verdict**, et le fichier restauré **octet pour octet** (`cmp`).
+
+**La mesure a trouvé un défaut réel dans le collecteur, et la cause a été réparée.** Le premier run a rendu **sept** violations du même canari pour un seul refus : l'écouteur in-page accumulait dans `window.__cspGuard` et rien ne le vidait ; l'application étant une SPA, le document ne change pas d'un onglet à l'autre, donc le même événement ressortait sous l'étiquette de chaque page. Le relevé **vide** désormais ce qu'il lit — ce qui supprime aussi la re-déclaration d'une violation réelle sous chaque onglet.
+
+**Ce que le canari ne montre pas.** Il prouve que les deux canaux VOIENT, sur une forme de refus (`script-src` pour un script externe) : un filtre cassé uniquement pour `img-src` ou `font-src` passerait encore. Et si la politique cessait de refuser les scripts externes, la garde sortirait en 2 en parlant de son collecteur alors que la cause serait la politique — l'en-tête CSP complet est imprimé dans le même run.
+
+Chaîne complète : `npm run lint` sortie **0**, `npm test` **2762 / 2762**, 0 échec.
+
 ## [2026-10-12] La garde des origines s'élargit à toutes les directives, juge les deux politiques, et la prose n'a plus qu'une règle
 
 Demande du propriétaire : « Committe l'élargissement de la garde des origines avec son entrée datée dans DEVELOPMENT_HISTORY.md, en documentant ce que la mesure a montré et ce qu'elle ne montre pas. »
