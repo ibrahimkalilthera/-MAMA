@@ -260,6 +260,16 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-font-origins.mjs',
+    input: 'source+css+policy',
+    // Un scan de source, avec les deux pièges connus : il refuse de conclure sur
+    // un corpus vide ou une politique illisible (exit 2), et il blanchit la
+    // prose par la couche partagée (`maskComments`) — sans quoi le présent
+    // en-tête, qui CITE `@import` d'un domaine externe pour expliquer la règle,
+    // serait accusé par sa propre explication.
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+  },
+  {
     check: 'check-public-rls.mjs',
     input: 'database+catalog',
     // Son sujet est le CATALOGUE de `public` (relations, état RLS, politiques),
