@@ -47,6 +47,53 @@ const override = flag('url');
 const TIMEOUT_MS = 20000;
 
 /**
+ * Fenêtre de convergence, et pourquoi elle existe.
+ *
+ * Un `vercel deploy --prod` qui vient de rendre la main n'est pas encore
+ * l'unique chose que son alias sert : quelques secondes durant, le bord rend la
+ * coquille du déploiement PRÉCÉDENT pendant que les modules sont déjà ceux du
+ * nouveau. La coquille d'avant nomme un module que le nouveau déploiement ne
+ * connaît pas, la réécriture SPA (`/(.*)` → `/index.html`) répond une page HTML
+ * en 200, et ce contrôle condamnait la bascule elle-même — mesuré le
+ * 2026-10-12 : rouge à **1 s** du déploiement, vert sur la MÊME adresse avec le
+ * MÊME code un quart d'heure plus tard, sans qu'un octet ait changé.
+ *
+ * L'origine a donc le droit de converger, borné et nommé : chaque essai est
+ * imprimé. Ce que la fenêtre ne fait PAS, c'est pardonner — épuisée, le verdict
+ * est celui d'avant, mot pour mot, et une origine réellement morte (DNS, 404,
+ * coquille sans module, bundle en 404) reste rouge après le délai.
+ *
+ * Seule la catégorie `app` y a droit : la page de version et le domaine d'un
+ * tiers ne sont pas servis par le déploiement qu'on vient de publier.
+ */
+const CONVERGE_ATTEMPTS = Math.max(1, Number(process.env.PUBLIC_ORIGIN_ATTEMPTS ?? 6));
+const CONVERGE_DELAY_MS = Math.max(0, Number(process.env.PUBLIC_ORIGIN_DELAY_MS ?? 5000));
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * La lecture d'un lien `app` : la coquille servie, les modules qu'ELLE charge, et
+ * le verdict qui juge les deux ensemble. Les modules à sonder sont ceux que le
+ * DOCUMENT charge : le verdict les nomme, et on ne télécharge qu'eux (une page de
+ * 975 octets en référence un).
+ */
+async function readAppLink(url) {
+  const page = await read(url);
+  if (page.error) return { ok: false, page, probes: [], verdict: null };
+  const dryRun = originVerdict({ url, status: page.status, body: page.body });
+  const probes = [];
+  for (const module of dryRun.modules.slice(0, 5)) {
+    const got = await read(module);
+    probes.push({
+      url: module,
+      status: got.status ?? 0,
+      contentType: got.contentType ?? (got.error ? `injoignable (${got.error})` : null),
+    });
+  }
+  const verdict = originVerdict({ url, status: page.status, body: page.body, probes });
+  return { ok: verdict.ok, page, probes, verdict };
+}
+
+/**
  * Une lecture qui n'aboutit pas devient un MOT, jamais un silence.
  *
  * Les en-têtes imitent un NAVIGATEUR, et c'est de la fidélité, pas du camouflage :
@@ -114,30 +161,27 @@ for (const link of EMBEDDED_LINKS) {
   // Catégorie `app` : les trois refus qui se réparent séparément — l'origine
   // répond, elle sert l'APPLICATION (la coquille, pas une page d'erreur en 200),
   // et ses MODULES se téléchargent (une coquille dont le bundle est en 404 est un
-  // écran blanc, le même défaut un cran plus loin).
-  const page = await read(url);
+  // écran blanc, le même défaut un cran plus loin). Les trois sont relus dans la
+  // fenêtre de convergence (voir CONVERGE_ATTEMPTS) : c'est une bascule, pas un
+  // défaut, tant que le délai n'est pas épuisé.
+  let reading = await readAppLink(url);
+  for (let attempt = 1; attempt < CONVERGE_ATTEMPTS && !reading.ok; attempt += 1) {
+    console.log(
+      `   ⏳ essai ${attempt}/${CONVERGE_ATTEMPTS} — la coquille et ses modules ne viennent pas encore du même déploiement ` +
+        `(l'origine vient d'être publiée), nouvelle lecture dans ${CONVERGE_DELAY_MS} ms`,
+    );
+    await wait(CONVERGE_DELAY_MS);
+    reading = await readAppLink(url);
+  }
+  const { page, probes, verdict } = reading;
   if (page.error) {
-    const verdict = originVerdict({ url, error: page.error });
-    problems.push(`« ${link.id} » — ${verdict.problems[0]}`);
+    const unreachable = originVerdict({ url, error: page.error });
+    problems.push(`« ${link.id} » — ${unreachable.problems[0]}`);
     read1.push({ id: link.id, url, detail: `injoignable (${page.error})` });
     console.log(`   ❌ ${link.id} · app — injoignable (${page.error})`);
     console.log(`      utilisé par : ${link.where}`);
     continue;
   }
-
-  // Les modules à sonder sont ceux que le DOCUMENT charge : le verdict les nomme,
-  // et on ne télécharge qu'eux (une page de 975 octets en référence un).
-  const dryRun = originVerdict({ url, status: page.status, body: page.body });
-  const probes = [];
-  for (const module of dryRun.modules.slice(0, 5)) {
-    const got = await read(module);
-    probes.push({
-      url: module,
-      status: got.status ?? 0,
-      contentType: got.contentType ?? (got.error ? `injoignable (${got.error})` : null),
-    });
-  }
-  const verdict = originVerdict({ url, status: page.status, body: page.body, probes });
   for (const p of verdict.problems) problems.push(`« ${link.id} » — ${p}`);
   for (const w of verdict.warnings) warnings.push(`« ${link.id} » — ${w}`);
   read1.push({ id: link.id, url, detail: `HTTP ${page.status} · ${String(page.body).length} octet(s) · ${probes.length} module(s)` });
