@@ -1,14 +1,46 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import {readFileSync} from 'node:fs';
 import {defineConfig, loadEnv} from 'vite';
 import {buildStamp} from './scripts/lib/build-stamp.mjs';
+import {declaredPolicies, policyWithLocalStack} from './scripts/lib/csp-origins.mjs';
 import {electronCspMetaPlugin} from './scripts/lib/electron-csp-meta.mjs';
 import {serviceWorkerPlugin} from './scripts/lib/service-worker.mjs';
 import {devRuntimeBanner} from './scripts/lib/runtime-banner.mjs';
 
+/**
+ * La politique CSP du dépôt, LUE à sa source (`vercel.json`) : jamais recopiée.
+ *
+ * Un second exemplaire finirait par s'écarter du servi, et c'est précisément ce
+ * que la garde CSP juge. Deux valeurs déclarées seraient un choix silencieux :
+ * on refuse plutôt que d'en servir une au hasard.
+ */
+function repoCsp(): string {
+  const json = JSON.parse(readFileSync(new URL('./vercel.json', import.meta.url), 'utf8'));
+  const values = declaredPolicies(json);
+  if (values.length !== 1) {
+    throw new Error(
+      `vercel.json doit déclarer UNE seule politique Content-Security-Policy (${values.length} lue(s)) — ` +
+        'le serveur d\u2019aperçu local ne peut pas choisir à votre place.',
+    );
+  }
+  return values[0];
+}
+
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  // La pile de recette (`pdf-e2e.yml`) fait tourner l'application sur SA PROPRE
+  // base locale. Or la politique servie nomme la base de l'ÉCOLE : le navigateur
+  // refuserait chaque requête, et une garde CSP qui lit des violations ne
+  // mesurerait plus rien (une page sans politique ne peut pas violer). On sert
+  // donc ici la politique du dépôt étendue à l'origine locale — la seule
+  // dérivation admise, faite par `policyWithLocalStack` — et SEULEMENT quand
+  // cette origine est demandée : aucun autre usage de `vite preview` ne change.
+  const localStackOrigin = (process.env.MAMA_LOCAL_SUPABASE_ORIGIN || '').trim();
+  const previewHeaders = localStackOrigin
+    ? {'Content-Security-Policy': policyWithLocalStack(repoCsp(), localStackOrigin)}
+    : undefined;
   return {
     // `devRuntimeBanner` prints, at server start, which runtime is serving and
     // warns when another Node major is present in the environment (a mismatch
@@ -50,6 +82,9 @@ export default defineConfig(({mode}) => {
           },
         },
       },
+    },
+    preview: {
+      headers: previewHeaders,
     },
     server: {
       // Dev server binds 0.0.0.0 for remote demos over tunnels. Instead of

@@ -287,6 +287,125 @@ export function originOf(url) {
   return host.toLowerCase();
 }
 
+/**
+ * La (ou les) politique(s) `Content-Security-Policy` déclarée(s) par un JSON
+ * d'en-têtes d'hôte (`vercel.json`).
+ *
+ * Lue, jamais recopiée : la politique servie n'a qu'un exemplaire, et un second
+ * exemplaire finirait par s'en écarter — c'est exactement ce que ce dépôt
+ * pourchasse ailleurs (`POLICY_SOURCES`, ci-dessus).
+ *
+ * @param {unknown} hostJson le JSON d'hôte déjà analysé
+ * @returns {string[]} une valeur par en-tête déclaré (vide si aucun)
+ */
+export function declaredPolicies(hostJson) {
+  const values = [];
+  const rules = /** @type {{ headers?: { key?: string, value?: string }[] }[]} */ (hostJson)?.headers ?? [];
+  for (const rule of rules) {
+    for (const header of rule.headers ?? []) {
+      if (/^content-security-policy$/i.test(String(header.key))) values.push(String(header.value));
+    }
+  }
+  return values;
+}
+
+/**
+ * La politique du dépôt, ÉTENDUE à une origine locale — le seul écart toléré.
+ *
+ * Pourquoi une dérivation existe : la politique servie nomme la base de
+ * l'école (`connect-src https://<ref>.supabase.co`). Un run qui fait tourner
+ * l'application sur SA PROPRE pile locale ne pourrait donc rien mesurer : le
+ * navigateur refuserait chaque requête, et la garde CSP lit des violations, pas
+ * des intentions. On ajoute l'origine de la pile à `connect-src` — la SEULE
+ * directive concernée par un changement de base — au lieu d'élargir la
+ * politique entière.
+ *
+ * Deux pièges fermés ici, chacun mesuré :
+ *   • `http://` et `ws://` sont deux origines aux yeux d'une CSP, donc les deux
+ *     sont ajoutées (Realtime ouvre une socket) ;
+ *   • quand `connect-src` est ABSENTE, elle hérite des jetons de `default-src`
+ *     (règle CSP). Poser `connect-src <origine>` seule retirerait donc `'self'`
+ *     — la dérivation RESTREINDRAIT au lieu d'ajouter. On reprend l'héritage.
+ *
+ * L'appelant qui juge l'écart (la garde CSP) la compare à ce que l'hôte sert
+ * réellement : une dérive non dérivée rougit, au lieu de passer pour un acquis.
+ *
+ * @param {string} csp la politique du dépôt
+ * @param {string} origin l'origine de la pile locale (`http://127.0.0.1:54321`)
+ * @returns {string} la politique à servir localement (inchangée sans origine)
+ */
+export function policyWithLocalStack(csp, origin) {
+  const base = String(csp ?? '').trim();
+  const target = String(origin ?? '').trim().replace(/\/+$/, '');
+  if (!base || !target) return base;
+  const socket = target.replace(/^http/i, 'ws');
+  const parts = base
+    .split(';')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const at = parts.findIndex((p) => /^connect-src\b/i.test(p));
+  if (at >= 0) {
+    const [key, ...tokens] = parts[at].split(/\s+/);
+    const added = [target, socket].filter((o) => !tokens.includes(o));
+    parts[at] = [key, ...tokens, ...added].join(' ');
+    return parts.join('; ');
+  }
+  const fallback = parts.find((p) => /^default-src\b/i.test(p));
+  const inherited = fallback ? fallback.split(/\s+/).slice(1) : [];
+  parts.push(`connect-src ${[...new Set([...inherited, target, socket])].join(' ')}`);
+  return parts.join('; ');
+}
+
+/**
+ * L'écart entre la politique servie et la politique du dépôt : le SEUL admis
+ * étant l'origine de la pile locale.
+ *
+ * Il existe parce qu'une dérivation qui ne se laisse pas juger est un blanc-seing :
+ * à partir du moment où l'on sert autre chose que le dépôt, il faut pouvoir dire
+ * CE QUI a changé. Le verdict nomme donc les deux listes (attendu, servi) et
+ * refuse tout jeton ajouté qui n'est pas une des deux formes de l'origine.
+ *
+ * @param {{ declared?: string, served?: string, origin?: string }} input
+ * @returns {{ ok: boolean, expected: string, added: string[], removed: string[], because: string }}
+ */
+export function localStackGap({ declared = '', served = '', origin = '' } = {}) {
+  const expected = policyWithLocalStack(declared, origin);
+  const tokens = (csp) => {
+    const map = {};
+    for (const part of String(csp ?? '').split(';')) {
+      const text = part.trim();
+      if (!text) continue;
+      const [key, ...rest] = text.split(/\s+/);
+      map[key.toLowerCase()] = rest;
+    }
+    return map;
+  };
+  const want = tokens(expected);
+  const got = tokens(served);
+  const added = [];
+  const removed = [];
+  for (const key of new Set([...Object.keys(want), ...Object.keys(got)])) {
+    const a = want[key] ?? [];
+    const b = got[key] ?? [];
+    for (const token of b) if (!a.includes(token)) added.push(`${key} ${token}`);
+    for (const token of a) if (!b.includes(token)) removed.push(`${key} ${token}`);
+  }
+  const socket = String(origin ?? '').replace(/^http/i, 'ws');
+  const allowed = new Set([String(origin ?? ''), socket]);
+  const unexpected = added.filter((entry) => !allowed.has(entry.split(' ').slice(1).join(' ')));
+  const ok = unexpected.length === 0 && removed.length === 0;
+  return {
+    ok,
+    expected,
+    added,
+    removed,
+    because: ok
+      ? `la politique servie est celle du dépôt, plus l'origine de la pile locale (${[...allowed].join(', ')})`
+      : `la politique servie s'écarte du dépôt au-delà de l'origine locale : ` +
+        [...unexpected.map((e) => `+${e}`), ...removed.map((e) => `-${e}`)].join(', '),
+  };
+}
+
 /** Vrai quand l'origine est une régie de polices connue (pour le message). */
 export function isFontCdn(url) {
   const host = originOf(url);

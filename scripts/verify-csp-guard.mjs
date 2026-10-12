@@ -21,9 +21,21 @@
 //   2. in-page `SecurityPolicyViolationEvent` listeners installed before any
 //      page script runs (evaluateOnNewDocument), read back per page.
 //
-// Usage: node scripts/verify-csp-guard.mjs [--url https://…]
-// Reads .env (VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY), same as
-// scripts/verify-pdf-download.mjs. Exit 0 = header présent + zéro violation.
+// Usage:
+//   node scripts/verify-csp-guard.mjs [--url http://127.0.0.1:4173/] [--expect-local-origin http://127.0.0.1:54321]
+//   node scripts/verify-csp-guard.mjs --url https://… --policy-only
+//
+// `--expect-local-origin` : l'adresse servie est celle d'une pile locale, donc
+// la politique DOIT être celle du dépôt plus cette origine — l'écart est jugé,
+// pas supposé. `--policy-only` : compare l'en-tête servi à vercel.json sans
+// compte ni navigateur (voir `compareServedPolicy`) ; c'est le seul mode qui
+// peut viser la production sans y écrire.
+//
+// Credentials : l'ENVIRONNEMENT d'abord (SUPABASE_URL/VITE_SUPABASE_URL +
+// SUPABASE_SERVICE_ROLE_KEY — le job monte sa pile et exporte ses clés
+// éphémères, il n'a aucun `.env`), puis `.env` pour un lancement à la main.
+// Exit 0 = header présent + zéro violation (ou politique conforme, en mode
+// politique seule).
 //
 // ─── Le canari du collecteur, et pourquoi un zéro ne suffit pas ──────────────
 // Un zéro ne vaut que si la mesure peut dire autre chose que zéro. Ce script
@@ -46,6 +58,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { CANARY_URL, canaryUrlVerdict, canaryVerdict, isCanarySignal } from './lib/csp-canary.mjs';
+import { declaredPolicies, localStackGap } from './lib/csp-origins.mjs';
 import { assertEphemeralTarget, ephemeralEmail, pickEphemeralUser } from './lib/ephemeral-accounts.mjs';
 import { sweepOrphanPuppeteer } from './lib/orphan-chrome.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
@@ -61,21 +74,47 @@ const parseEnv = (p) => {
   return o;
 };
 const envFile = join(root, '.env');
-if (!existsSync(envFile)) {
-  console.error('Introuvable: .env (SUPABASE_SERVICE_ROLE_KEY requis).');
-  process.exit(1);
-}
-const env = parseEnv(envFile);
-const supabaseBase = (env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
-if (!supabaseBase || !SERVICE_KEY) {
-  console.error('❌ VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants dans .env');
+const env = existsSync(envFile) ? parseEnv(envFile) : {};
+// L'ENVIRONNEMENT d'abord : le job qui juge l'application monte sa propre pile
+// et exporte ses clés éphémères — sur un runner, `.env` n'existe pas. Le
+// fichier ne sert qu'à un lancement à la main, et il vient APRÈS : un `.env`
+// périmé ne doit pas décider de la base jugée.
+const supabaseBase = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+// Mode « politique seule » : lecture d'en-tête, sans compte ni navigateur (voir
+// `compareServedPolicy` plus bas). Il ne touche aucune base, donc il ne peut pas
+// exiger de clé de service.
+const POLICY_ONLY = process.argv.includes('--policy-only');
+if (!POLICY_ONLY && (!supabaseBase || !SERVICE_KEY)) {
+  console.error(
+    '❌ base ou clé service introuvable : ni SUPABASE_URL/VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY ' +
+      `dans l’environnement, ni de valeurs dans ${envFile} (${existsSync(envFile) ? 'présent mais incomplet' : 'absent'}).`,
+  );
   process.exit(1);
 }
 const HDR = { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, 'Content-Type': 'application/json' };
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const URL = (process.argv.includes('--url') ? process.argv[process.argv.indexOf('--url') + 1] : 'https://mama-thera-finance.vercel.app/').replace(/\/$/, '') + '/';
+// Les drapeaux dans leurs DEUX écritures, `--url <valeur>` et `--url=<valeur>`.
+//
+// Mesuré le 2026-10-12 : la seconde était ignorée en silence, et la garde
+// retombait sur l'adresse de PRODUCTION — elle a créé son compte éphémère dans
+// la pile de recette, jugé le site déployé sous une politique à laquelle ce
+// compte n'avait pas accès, visité **0 page** et rendu un ✓ « zéro violation ».
+// Un drapeau ignoré ne rend pas une erreur : il rend un verdict sur autre chose.
+const flag = (name, def = '') => {
+  const argv = process.argv.slice(2);
+  const inline = argv.find((a) => a.startsWith(`${name}=`));
+  if (inline) return inline.slice(name.length + 1);
+  const i = argv.indexOf(name);
+  return i === -1 ? def : (argv[i + 1] ?? '');
+};
+const URL = (flag('--url', 'https://mama-thera-finance.vercel.app/') || 'https://mama-thera-finance.vercel.app/')
+  .replace(/\/$/, '') + '/';
 const KEEP = process.argv.includes('--keep');
+// L'origine de la pile de recette, quand l'application est servie localement :
+// elle sert à vérifier que la politique servie n'est QUE la politique du dépôt
+// plus cette origine (voir `localStackGap`) — une dérive non dérivée rougit.
+const EXPECT_LOCAL_ORIGIN = flag('--expect-local-origin').trim();
 
 const TS = Date.now().toString().slice(-6);
 const EMAIL = ephemeralEmail('verify-csp');
@@ -216,15 +255,59 @@ function armCspCollectors(page) {
   };
 }
 
+// ── Mode « politique seule » — aucun compte, aucun navigateur ────────────────
+//
+// Le run qui juge l'application SOUS sa politique le fait désormais sur sa
+// propre pile (voir `policyWithLocalStack`), justement pour ne plus créer de
+// compte éphémère dans la base de l'école. Restait ce que ce déménagement ne
+// couvrirait plus : ce que l'HÔTE sert réellement. Ce mode lit l'en-tête de
+// l'adresse visée et le compare mot pour mot à la politique du dépôt — et comme
+// il ne se connecte ni ne crée rien, il peut viser la production sans y écrire
+// une seule ligne.
+function compareServedPolicy(served) {
+  const declared = declaredPolicies(JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8')));
+  if (declared.length !== 1) {
+    return { ok: false, directives: 0, because: `vercel.json déclare ${declared.length} politique(s) — ce contrôle ne peut pas choisir` };
+  }
+  const expected = declared[0].trim();
+  const directives = expected.split(';').map((d) => d.trim()).filter(Boolean).length;
+  return served === expected
+    ? { ok: true, directives, because: 'l’en-tête servi est la politique du dépôt, mot pour mot' }
+    : {
+        ok: false,
+        directives,
+        because: `l’en-tête servi s’écarte du dépôt (${served.length} caractères servis contre ${expected.length} déclarés)`,
+      };
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 let browser = null;
 let fail = false;
 const failMsg = (m) => { console.error('  ❌ ' + m); fail = true; };
 /** Le canari n'a pas vu son propre refus : le run n'a RIEN mesuré (sortie 2). */
 let canaryMute = null;
+/** La tournée n'a ouvert AUCUNE page : zéro violation n'y prouverait rien (sortie 2). */
+let blindTour = null;
 
 (async () => {
   try {
+    if (POLICY_ONLY) {
+      const res = await fetch(URL, { redirect: 'follow' });
+      const served = (res.headers.get('content-security-policy') || '').trim();
+      const verdict = compareServedPolicy(served);
+      if (verdict.ok) {
+        console.log(`✅ politique servie conforme — ${verdict.because} (${URL})`);
+      } else {
+        console.error(`❌ politique servie non conforme — ${verdict.because} (${URL})`);
+        console.error(`   servie  : ${served || '(absente)'}`);
+      }
+      publishEvidence({
+        acted: true,
+        count: verdict.directives,
+        reason: `politique servie relue à ${URL} et comparée mot pour mot à vercel.json (${verdict.directives} directive(s)) : ${verdict.because}`,
+      });
+      process.exit(verdict.ok ? 0 : 1);
+    }
     // Startup sweep: kill Chrome orphans left by interrupted runs (Windows only).
     const swept = await sweepOrphanPuppeteer();
     if (swept) console.log(`🧹 ${swept} orphelin(s) Chrome puppeteer purgé(s)`);
@@ -250,6 +333,16 @@ let canaryMute = null;
       for (const d of directives.slice(0, 12)) console.log('    · ' + d);
       if (!/script-src[^;]*'self'/.test(csp)) console.log('    ⚠️ script-src sans \'self\' — revoir la policy');
     }
+    // 1 bis. Quand la garde juge l'application servie LOCALEMENT, la politique
+    //    servie DOIT être celle du dépôt, plus l'origine de la pile — rien
+    //    d'autre. Une dérive non dérivée (un `connect-src` ouvert à la main, une
+    //    directive relâchée) rougit ici, au lieu de passer pour un acquis.
+    if (EXPECT_LOCAL_ORIGIN) {
+      const declared = declaredPolicies(JSON.parse(readFileSync(join(root, 'vercel.json'), 'utf8')));
+      const gap = localStackGap({ declared: declared[0] ?? '', served: csp, origin: EXPECT_LOCAL_ORIGIN });
+      if (gap.ok) console.log(`✅ écart admis — ${gap.because}`);
+      else failMsg(`la politique servie n’est pas la dérivée attendue — ${gap.because}`);
+    }
     await wait(2500);
 
     // 2. Login through the real UI.
@@ -263,7 +356,14 @@ let canaryMute = null;
         if (btn) btn.click();
       });
       await page.waitForFunction(() => !document.querySelector('input[type="email"]'), { timeout: 30000 }).catch(() => {});
-      console.log('✅ connecté à ' + URL);
+      // Le formulaire encore là = la connexion n'a PAS abouti (le compte n'existe
+      // pas dans la base que sert cette adresse, ou le mot de passe a changé).
+      // On le dit ici, au lieu de laisser la tournée des pages échouer une à une.
+      const stillOnLogin = await page.$('input[type="email"]');
+      if (stillOnLogin) console.error('  ⚠️ le formulaire de connexion est TOUJOURS affiché — la session n’a pas été ouverte');
+      else console.log('✅ connecté à ' + URL);
+    } else {
+      console.error('  ⚠️ aucun champ de connexion trouvé sur ' + URL);
     }
     await wait(4000);
 
@@ -339,6 +439,18 @@ let canaryMute = null;
       console.log(`  ✓ ${label} visitée (${page.url().replace(URL, '').slice(0, 60) || '/'})`);
     }
     if (!canaryMute) console.log(`✅ ${visited}/${PAGES.length} pages visitées`);
+    // Une tournée VIDE n'est pas un zéro : c'est une mesure impossible. Sans cette
+    // garde, une connexion qui échoue rend exactement le même ✓ qu'une application
+    // propre — et c'est arrivé : mesuré le 2026-10-12, 0/7 pages et un « zéro
+    // violation » vert, sur un compte qui n'existait pas dans la base servie.
+    //
+    // Cause SÉPARÉE de celle du canari, et donc dite séparément : ici le collecteur
+    // a bien vu son refus connu, c'est la tournée qui n'a rien ouvert.
+    if (!canaryMute && visited === 0) {
+      blindTour =
+        `aucune des ${PAGES.length} pages principales n’a pu être ouverte sur ${URL} — ` +
+        'aucun verdict sur l’application n’est possible (session non ouverte ?)'; 
+    }
 
     // Filet : si un canal plus lent que l'autre livrait le signal du canari APRÈS le
     // relevé, il arriverait sous l'étiquette d'une page et ferait rougir la garde sur
@@ -353,8 +465,12 @@ let canaryMute = null;
 
     // 4. Verdict — rendu seulement si le canari a prouvé que le collecteur voit
     //    quelque chose : le zéro d'un collecteur muet ne serait pas un verdict.
-    if (canaryMute) {
-      console.error('   (aucun verdict rendu : le collecteur n’a pas vu son propre refus)');
+    if (canaryMute || blindTour) {
+      console.error(
+        '   (aucun verdict rendu : ' +
+          (canaryMute ? 'le collecteur n’a pas vu son propre refus' : 'aucune page n’a pu être ouverte') +
+          ')',
+      );
     } else if (violations.length) {
       console.error(`\n❌ ${violations.length} violation(s) CSP détectée(s) en navigation :`);
       for (const v of violations) console.error(`   [${v.where}] ${v.text}`);
@@ -371,9 +487,13 @@ let canaryMute = null;
   // Sortie 2 — « je n'ai pas pu regarder » — et non 1 : ce n'est pas une violation
   // trouvée, c'est une mesure impossible (même langage que `check-jsx-i18n.mjs` et
   // `assertScanned`).
-  if (canaryMute) {
-    console.error(`\n❌ ${canaryMute}`);
-    console.error('   Aucun verdict sur l’application n’est possible : le collecteur n’a pas prouvé qu’il voit.');
+  if (canaryMute || blindTour) {
+    const why = canaryMute ?? blindTour;
+    console.error(`\n❌ ${why}`);
+    console.error(
+      '   Aucun verdict sur l’application n’est possible : ' +
+        (canaryMute ? 'le collecteur n’a pas prouvé qu’il voit.' : 'la tournée n’a rien mesuré.'),
+    );
     process.exit(2);
   }
   if (fail || violations.length > 0) process.exit(1);

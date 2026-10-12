@@ -126,10 +126,26 @@ describe('csp-canary — un zéro ne vaut que si le collecteur voit', () => {
       /isCanarySignal\(violations\[i\]\)/,
       'le bruit du canari doit être retiré du verdict, sinon la garde échoue sur elle-même',
     );
+    // Deux causes de « mesure impossible » depuis le 2026-10-12, et elles sont
+    // SÉPARÉES : un collecteur muet (le canari n'a pas vu son propre refus) et une
+    // tournée vide (aucune page principale ouverte — mesuré avec une session qui
+    // n'avait pas été ouverte : 0/7 pages rendues en ✓ « zéro violation »). Un
+    // collecteur muet reste le premier cas : si la sortie 2 quittait ce chemin,
+    // cette suite serait verte pendant que la garde conclurait sur des canaux muets.
     assert.match(
       guard,
-      /if \(canaryMute\)[\s\S]{0,220}process\.exit\(2\)/,
+      /if \(canaryMute \|\| blindTour\)[\s\S]{0,400}process\.exit\(2\)/,
       'un collecteur muet est une mesure impossible : sortie 2, pas un vert',
+    );
+    assert.match(
+      guard,
+      /canaryMute \?\? blindTour/,
+      'les deux causes doivent être NOMMÉES, jamais confondues en un même message',
+    );
+    assert.match(
+      guard,
+      /visited === 0/,
+      'et une tournée VIDE doit être détectée : sans page ouverte, zéro violation ne prouve rien',
     );
   });
 });

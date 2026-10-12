@@ -37,9 +37,12 @@ import {
   SCANNED_EXTS,
   SHIPPED_SOURCES,
   auditPolicy,
+  declaredPolicies,
   findExternalRequests,
   isFontCdn,
   judgeCspOrigins,
+  localStackGap,
+  policyWithLocalStack,
 } from '../scripts/lib/csp-origins.mjs';
 import { GUARD_INVENTORY, IMMUNITY } from '../scripts/lib/guard-immunity.mjs';
 import { SHARED_PROJECT_REF, SHARED_PROJECT_URL } from '../scripts/lib/shared-project.mjs';
@@ -436,6 +439,193 @@ describe('check:csp-origins — la commande elle-même, telle qu’elle est écr
   it('son aide dit les DEUX remèdes : servir soi-même, ou déclarer avec sa raison', () => {
     assert.match(source, /auto-héberger/i);
     assert.match(source, /Élargir la CSP n.est jamais le remède/);
+  });
+});
+
+describe('csp-origins — le pixel-check sert la politique DÉRIVÉE de sa propre pile', () => {
+  // Ce que ce bloc protège : le pixel-check PDF jugeait l'application DÉPLOYÉE, sous
+  // la politique de PRODUCTION, et créait pour cela un compte éphémère dans la base
+  // de l'école. Depuis le 2026-10-12, il juge le build de son commit servi
+  // localement, sur SA PROPRE pile Supabase — donc sous une politique DÉRIVÉE. La
+  // dérivation est un écart admis à une condition : qu'il soit CALCULÉ (jamais
+  // recopié) et JUGÉ (une dérive non dérivée rougit).
+  const repo = declaredPolicies(JSON.parse(read('vercel.json')));
+  const STACK = 'http://127.0.0.1:54321';
+  const connectOf = (csp: string) =>
+    csp
+      .split(';')
+      .map((d) => d.trim())
+      .find((d) => /^connect-src\b/i.test(d)) ?? '';
+
+  it('la politique du dépôt est LUE à sa source, jamais recopiée', () => {
+    assert.equal(repo.length, 1, 'vercel.json doit déclarer UNE politique — deux, et nul ne peut choisir');
+    assert.match(repo[0], /^default-src 'self'/, 'lue dans vercel.json');
+    assert.deepEqual(declaredPolicies({ headers: [] }), [], 'sans en-tête, aucune politique');
+    assert.deepEqual(
+      declaredPolicies({ headers: [{ headers: [{ key: 'X-Other', value: 'x' }] }] }),
+      [],
+      'un autre en-tête n’est pas une politique',
+    );
+    assert.deepEqual(declaredPolicies(null), [], 'un JSON sans en-tête ne fabrique pas une politique');
+  });
+
+  it('la dérivation AJOUTE l’origine de la pile — http ET ws — sans retirer un jeton', () => {
+    const served = policyWithLocalStack(repo[0], STACK);
+    const connect = connectOf(served);
+    assert.match(connect, /http:\/\/127\.0\.0\.1:54321/, 'la base locale doit être joignable');
+    assert.match(
+      connect,
+      /ws:\/\/127\.0\.0\.1:54321/,
+      'Realtime ouvre une socket : http et ws sont DEUX origines aux yeux d’une CSP',
+    );
+    assert.match(connect, /'self'/, 'la dérivation ajoute, elle ne remplace pas');
+    // Et les autres directives sont intactes, mot pour mot : une dérivation qui
+    // toucherait le reste de la politique serait un relâchement déguisé.
+    for (const directive of repo[0].split(';').map((d) => d.trim()).filter(Boolean)) {
+      if (/^connect-src\b/i.test(directive)) continue;
+      assert.ok(served.includes(directive), `la directive « ${directive} » ne doit pas bouger`);
+    }
+    assert.equal(policyWithLocalStack(served, STACK), served, 'idempotente : deux passages ne doublent rien');
+    assert.equal(policyWithLocalStack(repo[0], ''), repo[0], 'sans origine, la politique est rendue telle quelle');
+    assert.equal(policyWithLocalStack('', STACK), '', 'sans politique, il n’y a rien à étendre');
+  });
+
+  it('quand `connect-src` est ABSENTE, la dérivation respecte l’héritage de `default-src`', () => {
+    // Règle CSP : une `connect-src` absente hérite des jetons de `default-src`.
+    // Poser `connect-src <origine>` seule RETIRERAIT donc `'self'` — la
+    // « dérivation » restreindrait au lieu d’ajouter, et le run rougirait sur une
+    // application que la politique du dépôt laissait fonctionner.
+    const sans = "default-src 'self' blob:; script-src 'self'; object-src 'none'";
+    const connect = connectOf(policyWithLocalStack(sans, STACK));
+    assert.match(connect, /'self'/, 'l’héritage de `default-src` est repris');
+    assert.match(connect, /blob:/, 'jeton par jeton, pas seulement `self`');
+    assert.match(connect, /http:\/\/127\.0\.0\.1:54321/);
+  });
+
+  it('l’écart admis est JUGÉ : la dérivée passe, une dérive non dérivée rougit', () => {
+    const served = policyWithLocalStack(repo[0], STACK);
+    const ok = localStackGap({ declared: repo[0], served, origin: STACK });
+    assert.equal(ok.ok, true, ok.because);
+    assert.match(ok.because, /origine de la pile locale/);
+
+    // Un jeton de plus qui n’est PAS l’origine de la pile : c’est le scénario du
+    // « je répare la CSP en nommant une origine externe » — refusé, et nommé.
+    const derivee = localStackGap({
+      declared: repo[0],
+      served: served.replace('connect-src', 'connect-src https://cdn.example.test'),
+      origin: STACK,
+    });
+    assert.equal(derivee.ok, false, 'une origine ajoutée à la main ne doit pas passer pour la dérivée');
+    assert.match(derivee.because, /\+connect-src https:\/\/cdn\.example\.test/);
+    assert.match(derivee.because, /écarte du dépôt au-delà de l.origine locale/);
+
+    // Un jeton RETIRÉ : une politique servie plus faible que le dépôt n’est pas un acquis.
+    const retrait = localStackGap({
+      declared: repo[0],
+      served: served.replace("object-src 'none'; ", ''),
+      origin: STACK,
+    });
+    assert.equal(retrait.ok, false);
+    assert.match(retrait.because, /-object-src 'none'/);
+
+    // La politique du dépôt servie TELLE QUELLE sur la pile : l’origine manque, donc
+    // l’application ne peut pas joindre sa base — c’est un écart aussi, et il est dit.
+    const sansOrigine = localStackGap({ declared: repo[0], served: repo[0], origin: STACK });
+    assert.equal(sansOrigine.ok, false);
+    assert.match(sansOrigine.because, /-connect-src http/);
+  });
+});
+
+describe('le pixel-check PDF a SA pile — et la production reste en lecture seule', () => {
+  const workflow = read('.github/workflows/pdf-e2e.yml');
+  const vite = read('vite.config.ts');
+  const prod = 'mama-thera-finance.vercel.app';
+
+  it('le job monte sa pile, y pointe le build, et sert l’aperçu sous la dérivée', () => {
+    assert.match(workflow, /supabase start/, 'la pile est montée par le job, pas empruntée à l’école');
+    assert.match(workflow, /supabase status -o env/, 'les clés éphémères viennent de la CLI');
+    assert.match(workflow, /SUPABASE_SERVICE_ROLE_KEY=/, 'et sont exportées aux scripts du dépôt');
+    assert.match(workflow, /VITE_SUPABASE_ANON_KEY=/, 'sans clé anon, aucune session ne s’ouvre dans l’app');
+    assert.match(
+      workflow,
+      /MAMA_LOCAL_SUPABASE_ORIGIN="\$SUPABASE_URL"/,
+      'l’aperçu local reçoit l’origine de la pile : sans elle, la garde CSP n’aurait aucune politique à juger',
+    );
+    assert.match(
+      workflow,
+      /--expect-local-origin="\$SUPABASE_URL"/,
+      'et la garde CSP la reçoit aussi, pour JUGER l’écart au lieu de le supposer',
+    );
+    assert.match(
+      workflow,
+      /--mode auto --url=http:\/\/127\.0\.0\.1:4173\//,
+      'la paie est pixel-checkée sur l’aperçu du job',
+    );
+    assert.match(
+      workflow,
+      /--mode recu-parent --url=http:\/\/127\.0\.0\.1:4173\//,
+      'et le reçu des parents aussi',
+    );
+  });
+
+  it('la garde de recette passe AVANT la première écriture', () => {
+    // Le job crée des comptes — et parfois un élève + un paiement. La garde qui
+    // refuse une base déjà remplie doit donc tomber avant le moindre POST, sinon
+    // elle constaterait le dégât au lieu de l’empêcher.
+    const guard = workflow.indexOf('npm run check:recette-base');
+    assert.ok(guard >= 0, 'le job doit porter la garde de recette');
+    // Les marqueurs portent `node scripts/…` : les en-têtes de commentaire CITENT
+    // ces scripts, et un `indexOf` sur le seul nom jugerait la prose au lieu de la
+    // chaîne d’exécution.
+    for (const after of [
+      'npm run build:staging',
+      'node scripts/verify-csp-guard.mjs',
+      'node scripts/verify-pdf-download.mjs',
+    ]) {
+      assert.ok(workflow.indexOf(after) > guard, `« ${after} » doit venir APRÈS la garde de recette`);
+    }
+  });
+
+  it('le seul 200 attendu par une boucle est celui de l’aperçu du job', () => {
+    const from = workflow.indexOf('Servir ce build en local');
+    const to = workflow.indexOf('Wait until prod serves');
+    assert.ok(from >= 0 && to > from, 'les deux étapes doivent exister');
+    const localWait = workflow.slice(from, to);
+    assert.match(localWait, /127\.0\.0\.1:4173/);
+    assert.doesNotMatch(
+      workflow.replace(localWait, ''),
+      /code.*=.*200.*exit 0/,
+      'la production n’est jamais jugée par un 200 : le déploiement précédent en rend un',
+    );
+  });
+
+  it('ni le pixel-check ni la garde CSP ne naviguent la production', () => {
+    assert.doesNotMatch(
+      workflow,
+      /verify-pdf-download\.mjs[^\n]*mama-thera-finance\.vercel\.app/,
+      'le pixel-check vise la pile : il ne crée plus de compte chez l’école',
+    );
+    // La politique que l’HÔTE sert reste prouvée — mais par le mode qui ne se
+    // connecte ni ne crée rien, et c’est la seule invocation qui peut viser la prod.
+    const visantLaProd = workflow
+      .split('\n')
+      .filter((line) => line.includes('verify-csp-guard.mjs') && line.includes(prod));
+    assert.ok(visantLaProd.length > 0, 'la politique servie par la production doit rester relue');
+    for (const line of visantLaProd) {
+      assert.match(line, /--policy-only/, 'seule la lecture d’en-tête a le droit de viser la production');
+    }
+  });
+
+  it('le vite de l’aperçu ne sert la dérivée QUE quand l’origine est demandée', () => {
+    assert.match(vite, /MAMA_LOCAL_SUPABASE_ORIGIN/);
+    assert.match(vite, /policyWithLocalStack\(repoCsp\(\), localStackOrigin\)/);
+    assert.match(vite, /declaredPolicies\(json\)/, 'la politique est lue à sa source, pas recopiée');
+    assert.match(vite, /values\.length !== 1/, 'deux politiques déclarées sont un refus, pas un choix au hasard');
+    assert.match(
+      vite,
+      /localStackOrigin\s*\n?\s*\? \{'Content-Security-Policy': policyWithLocalStack\(repoCsp\(\), localStackOrigin\)\}\s*\n?\s*: undefined/,
+      'sans origine demandée, aucun en-tête n’est posé : les autres `vite preview` ne changent pas',
+    );
   });
 });
 

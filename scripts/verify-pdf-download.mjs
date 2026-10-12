@@ -61,7 +61,10 @@
 //                    technique member, temp files) and exit
 //
 // Requires (devDependencies): puppeteer-core, pdfjs-dist, @napi-rs/canvas.
-// Service-role credentials are read from .env (never stored here).
+// Service-role credentials come from the ENVIRONMENT first (SUPABASE_URL /
+// VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY — the job that mounts its own
+// stack exports ephemeral keys and has no `.env`), then from `.env` for a manual
+// run. Never stored here.
 // ─────────────────────────────────────────────────────────────────────────────
 import puppeteer from 'puppeteer-core';
 import {
@@ -83,7 +86,14 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // ── CLI flags ────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
+// Les DEUX écritures, `--url <valeur>` et `--url=<valeur>`. Mesuré le 2026-10-12
+// sur la garde CSP voisine : la seconde était ignorée en silence et le contrôle
+// jugeait l'adresse par défaut — c'est-à-dire la production — en croyant juger
+// celle qu'on venait de lui donner. Ici le défaut vise la prod : l'ignorer ferait
+// écrire un compte éphémère dans la base de l'école.
 const flag = (name, def = undefined) => {
+  const inline = args.find((a) => a.startsWith(`${name}=`));
+  if (inline) return inline.slice(name.length + 1);
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : def;
 };
@@ -104,15 +114,18 @@ const parseEnv = (p) => {
   return o;
 };
 const envFile = join(root, '.env');
-if (!existsSync(envFile)) {
-  console.error('Introuvable: .env (chiffres service-role requis).');
-  process.exit(1);
-}
-const env = parseEnv(envFile);
-const supabaseBase = (env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
+const env = existsSync(envFile) ? parseEnv(envFile) : {};
+// L'ENVIRONNEMENT d'abord : le run qui juge les reçus monte sa propre pile de
+// recette et exporte ses clés éphémères — sur un runner, `.env` n'existe pas.
+// Le fichier ne sert qu'à un lancement à la main, et il vient APRÈS : un `.env`
+// périmé ne doit pas décider de la base jugée.
+const supabaseBase = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
 if (!supabaseBase || !SERVICE_KEY) {
-  console.error('❌ VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants dans .env');
+  console.error(
+    '❌ base ou clé service introuvable : ni SUPABASE_URL/VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY ' +
+      `dans l’environnement, ni de valeurs dans ${envFile} (${existsSync(envFile) ? 'présent mais incomplet' : 'absent'}).`,
+  );
   process.exit(1);
 }
 const HDR = { apikey: SERVICE_KEY, Authorization: 'Bearer ' + SERVICE_KEY, 'Content-Type': 'application/json' };

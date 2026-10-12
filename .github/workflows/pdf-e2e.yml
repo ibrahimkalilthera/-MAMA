@@ -1,7 +1,8 @@
-name: PDF E2E — pixel check après déploiement
+name: PDF E2E — pixel check sur la pile de recette
 
-# Vérifie les reçus PDF de paie AU PIXEL PRÈS contre les modèles papier de
-# l'école, à chaque déploiement Vercel en production.
+# Vérifie les reçus PDF AU PIXEL PRÈS contre les modèles papier de l'école : les
+# trois documents de paie (mode auto) et le reçu des parents (mode recu-parent),
+# sur le build de CE commit, servi localement sur SA PROPRE pile Supabase.
 #
 # Trigger : le workflow « Deploy (Vercel) » (deploy.yml) se TERMINE sur main —
 # le pixel-check tourne donc toujours contre le déploiement FRAÎCHEMENT publié,
@@ -34,29 +35,49 @@ name: PDF E2E — pixel check après déploiement
 #      la boîte N° ;
 #   4. nettoyage complet (compte + éventuel élève de démo + fichiers).
 #
-# Le script teste le code DÉPLOYÉ (l'URL prod), pas le checkout ; le checkout
-# sert uniquement à fournir le script + les modèles commités (les fetchs
-# /templates/*.pdf sont servis par le script lui-même via CDP Fetch, ce qui
-# rend la vérification hermétique au réseau).
+# ─── CE QUI A CHANGÉ LE 2026-10-12, ET POURQUOI ──────────────────────────
+# Le pixel-check pilotait l'application DÉPLOYÉE, et il créait pour cela un
+# compte éphémère dans la base de l'ÉCOLE — plus une ligne de démo quand la base
+# ne portait aucun paiement. Un contrôle n'a rien à écrire chez le client : le
+# job monte donc SA PROPRE pile Supabase (`supabase start`, base vierge, les 34
+# migrations du dépôt), construit l'application pointée dessus, la sert en local
+# et y exécute TOUT ce qui a besoin d'un compte — pixel-check de paie, reçu des
+# parents, et navigation CSP.
 #
-# Secrets requis (Settings > Secrets and variables > Actions) :
-#   SUPABASE_SERVICE_ROLE_KEY — clé service (admin) du projet Supabase
-#     (création + suppression du compte éphémère). Jamais exposée : elle est
-#     passée au script via .env généré dans le job, fichier effacé ensuite.
-#   VITE_SUPABASE_URL est PUBLIQUE (embarquée dans le bundle client) et est
-#     hardcodée ci-dessous comme les autres workflows — pas un secret.
+# Ce que ce job continue de prouver, en LECTURE SEULE contre la production : la
+# fraîcheur du déploiement (la prod sert le build de CE commit — c'est un fait de
+# PUBLICATION, il ne demande aucun compte) et les en-têtes servis par l'hôte,
+# dont la politique CSP comparée MOT POUR MOT à vercel.json.
 #
-# Le job exécute aussi trois gardes de sécurité/hygiène : après la mise en
-# ligne, il curl la racine et exige X-Frame-Options (SAMEORIGIN/DENY) et
-# X-Content-Type-Options (nosniff), il NAVIGUE la vraie app (compte éphémère
-# admin, toutes les pages principales) et échoue si une violation
-# Content-Security-Policy est émise en console / via SecurityPolicyViolationEvent
-# (scripts/verify-csp-guard.mjs, qui vérifie aussi que le header CSP est présent
-# — une page sans politique ne peut pas violer et ne doit pas passer en silence),
-# puis une garde finale vérifie qu'aucun compte éphémère (verify-*/e2e-*/
-# audit-*/@audit.local) ne subsiste en base après tous les checks
-# (scripts/verify-ephemeral-cleanup.mjs). Une régression des headers, de la
-# policy vercel.json ou du nettoyage devient rouge ici.
+# Ce qu'il ne prouve plus, et qui est dit plutôt que tu : le rendu n'est plus jugé
+# sur le bundle servi par le CDN, mais sur le build de ce commit servi localement
+# (mêmes sources, même commande de build, même Chrome). Les preuves d'hébergement
+# — origine publique joignable, coquille et modules réellement servis — vivent
+# dans `deploy.yml` et les veilles (`public-origin-watch`), qui visent le vrai
+# domaine.
+#
+# Le checkout fournit le script ET les modèles papier commités ; les fetchs
+# /templates/*.pdf sont servis par le script lui-même via CDP Fetch, ce qui rend la
+# vérification hermétique au réseau (le build local n'a pas à servir ces fichiers).
+#
+# Secrets requis : AUCUN. Les clés de la pile de recette sont éphémères et rendues
+# par la CLI (`supabase status -o env`) ; elles vivent dans le runner, le temps du
+# job, et ne sont jamais imprimées.
+#
+# Trois gardes, dont deux qui n'écrivent plus chez l'école :
+#   1. l'hôte, en LECTURE SEULE — X-Frame-Options (SAMEORIGIN/DENY) et
+#      X-Content-Type-Options (nosniff) servis sur la racine, et la politique CSP
+#      servie comparée mot pour mot à celle du dépôt
+#      (`verify-csp-guard.mjs --policy-only`, sans compte ni navigateur) ;
+#   2. la garde CSP NAVIGUE l'application servie localement, sous la politique du
+#      dépôt étendue à l'origine de la pile — le SEUL écart admis, jugé par
+#      `localStackGap` : une dérive non dérivée rougit. Sept pages principales,
+#      violations refusées, canari du collecteur à chaque run (un zéro ne vaut que
+#      si la mesure peut dire autre chose que zéro) ;
+#   3. la garde finale anti-résidus, qui exige qu'aucun compte éphémère
+#      (verify-*/e2e-*/audit-*/@audit.local) ne subsiste dans la PILE DE RECETTE
+#      après tous les checks. Une régression du rendu, des en-têtes, de la
+#      politique ou du nettoyage devient rouge ici.
 #
 # Le run échoue (rouge) si une seule vérification (pixel ou header) échoue : une
 # régression de rendu des PDF (placement, cachet, taille) ou des headers de
@@ -98,14 +119,13 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # MÊME groupe que `business-e2e.yml`, délibérément : les deux écrivent dans la
-  # MÊME base de production (comptes éphémères, lignes de démo) et chacun juge les
-  # résidus de l'autre. Mesuré le 2026-09-13 : lancés côte à côte par le même
-  # déploiement, le garde anti-résidus a vu le compte éphémère EN COURS de l'autre
-  # workflow, l'a appelé un résidu — un faux rouge qui accusait le mauvais script —
-  # et le contrôle de résidu a compté une ligne de démo de son voisin. Un groupe
-  # partagé les met en file au lieu de les faire se juger mutuellement.
-  group: prod-e2e-${{ github.event.workflow_run.head_sha || github.ref }}
+  # Groupe PROPRE depuis que le pixel-check a sa propre pile. Il était partagé
+  # avec `business-e2e.yml` parce que les deux écrivaient dans la MÊME base
+  # (comptes éphémères, lignes de démo) et se jugeaient mutuellement leurs
+  # résidus — mesuré le 2026-09-13 : 18/19, tout vert sauf le compte éphémère EN
+  # COURS du voisin, appelé un résidu. Ce motif a disparu avec l'écriture
+  # partagée : aucun des deux n'écrit plus dans la base de l'école.
+  group: pdf-e2e-${{ github.event.workflow_run.head_sha || github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -142,9 +162,11 @@ jobs:
     needs: gate
     if: needs.gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
-    # Headroom : npm ci + build preview non requis ici ; le pixel-check rasterise
-    # 3 PDF à 34 px/mm et pilote Chrome — 20 min suffisent largement.
-    timeout-minutes: 20
+    # Headroom : `supabase start` tire une quinzaine de conteneurs (2–5 min), le
+    # build de l'application, puis trois documents rasterisés à 34 px/mm dans un
+    # Chrome piloté et deux passes de navigation CSP. 35 min laissent un runner
+    # partagé lent aller au bout.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
         with:
@@ -155,27 +177,85 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # Pinné sur la version éprouvée par `supabase-migrations.yml` et
+      # `business-e2e.yml` : mêmes migrations, même pile, mêmes verdicts.
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.116.0
+
       - name: Install dependencies
         run: npm ci
 
-      # Le script lit .env (VITE_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY) ;
-      # l'URL Supabase est publique (clé anon embarquée dans le bundle), seule
-      # la clé service est un secret. Le fichier est généré dans le job et
-      # n'est jamais commité (gitignored).
-      - name: Generate .env for the E2E script (public URL + service-role secret)
+      - name: Élever la pile de recette (les 34 migrations, base vierge)
+        run: supabase start
+
+      # Les clés de la pile locale sont ÉPHÉMÈRES et la CLI les rend : elles vivent
+      # dans le runner, le temps du job, et ne sont demandées à personne. Le
+      # fichier est SOURCÉ (même idiome que `supabase-migrations.yml`) : la CLI
+      # écrit `API_URL="http://…"` AVEC des guillemets, et c'est le shell qui les
+      # retire — recopier la ligne donnerait une adresse entre guillemets, c'est-à-dire
+      # une URL fausse que rien ne signalerait. Le pont de noms est fait ici, une
+      # fois : la CLI nomme API_URL/ANON_KEY/SERVICE_ROLE_KEY, les scripts du dépôt
+      # lisent les noms canoniques VITE_SUPABASE_* / SUPABASE_*.
+      - name: Exporter les clés de la pile (éphémères, jamais imprimées)
         run: |
-          cat > .env <<'EOF'
-          VITE_SUPABASE_URL=https://rpcjdohfxwukbqngbprw.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          EOF
+          set -euo pipefail
+          supabase status -o env > /tmp/recette.env
+          set -a
+          . /tmp/recette.env
+          set +a
+          for pair in "API_URL=$API_URL" "ANON_KEY=$ANON_KEY" "SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"; do
+            name=${pair%%=*}
+            if [ -z "${pair#*=}" ]; then
+              echo "❌ $name vide dans la pile locale — sans clé, ce job ne mesure rien." >&2
+              exit 1
+            fi
+          done
+          {
+            echo "SUPABASE_URL=$API_URL"
+            echo "VITE_SUPABASE_URL=$API_URL"
+            echo "VITE_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+          echo "clés de la pile exportées (${#API_URL} / ${#ANON_KEY} / ${#SERVICE_ROLE_KEY} caractères)"
+
+      # Le garde reste en travers du chemin, ici comme sur un poste : il compte
+      # les sept tables métier et n'autorise l'écriture que si elles sont vides.
+      # Ce job-ci crée des comptes et parfois un élève + un paiement de démo :
+      # la garde passe donc AVANT la première écriture.
+      - name: Recette — écrire seulement dans une base libre de données d’école
+        run: npm run check:recette-base
+
+      - name: Build de l’application pointé sur la pile de recette (mode staging)
+        env:
+          VITE_APP_ENV: staging
+        run: npm run build:staging
+
+      # `MAMA_LOCAL_SUPABASE_ORIGIN` fait servir, par l'aperçu local, la politique
+      # du dépôt étendue à l'origine de la pile (vite.config.ts +
+      # scripts/lib/csp-origins.mjs) : sans elle la garde CSP n'aurait aucune
+      # politique à juger — et une page sans politique ne peut pas violer.
+      - name: Servir ce build en local (127.0.0.1:4173), sous la politique du dépôt
+        run: |
+          MAMA_LOCAL_SUPABASE_ORIGIN="$SUPABASE_URL" \
+            nohup npm run preview -- --port=4173 --strictPort --host=127.0.0.1 > /tmp/preview.log 2>&1 &
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:4173/ || true)
+            if [ "$code" = "200" ]; then echo "build servi (HTTP 200, essai $i)"; exit 0; fi
+            echo "attente du build… HTTP $code (essai $i/30)"
+            sleep 2
+          done
+          echo "❌ le build n’a pas répondu en 60 s :" >&2
+          cat /tmp/preview.log >&2
+          exit 1
 
       # Attendre un HTTP 200 ne suffit PAS : le déploiement PRÉCÉDENT en rend un,
       # et pendant la propagation de l'alias un cache de bord sert encore l'ancien
-      # HTML. Le pixel-check jugeait alors le build d'un AUTRE commit et rendait un
-      # rouge qui accusait l'application pour une page jamais publiée. On attend
-      # donc que la page SERVIE déclare le build de CE commit (l'identité écrite
-      # dans son HTML par `scripts/lib/build-stamp.mjs`) : l'attente ne passe plus
-      # tant que la prod ne sert pas le bon build, et son refus nomme la
+      # HTML. On jugeait alors le build d'un AUTRE commit et on rendait un rouge qui
+      # accusait l'application pour une page jamais publiée. Cette étape reste donc
+      # — elle est la preuve de PUBLICATION, et elle n'a besoin d'aucun compte : on
+      # attend que la page SERVIE déclare le build de CE commit (l'identité écrite
+      # dans son HTML par `scripts/lib/build-stamp.mjs`) ; son refus nomme la
       # PUBLICATION, jamais le rendu.
       - name: Wait until prod serves THIS commit's build
         # Mandat de preuve : cette étape publie SA mesure (quelle identité la prod
@@ -188,6 +268,15 @@ jobs:
           --url=https://mama-thera-finance.vercel.app/
           --sha=${{ github.event.workflow_run.head_sha || github.sha }}
           --timeout=240
+
+      # Depuis que le pixel-check juge une pile locale — donc une politique
+      # DÉRIVÉE —, c'est CE pas qui garde la preuve côté hébergeur : la politique
+      # que la production sert, comparée mot pour mot à vercel.json. Lecture seule,
+      # sans compte ni navigateur : il peut viser la prod sans y écrire une ligne.
+      - name: Politique CSP servie par la production — comparée au dépôt
+        env:
+          AUTOMATION_EVIDENCE: '1'
+        run: node scripts/verify-csp-guard.mjs --url=https://mama-thera-finance.vercel.app/ --policy-only
 
       # Garde de sécurité : X-Frame-Options (SAMEORIGIN/DENY) et
       # X-Content-Type-Options (nosniff) doivent être servis sur la racine —
@@ -216,47 +305,52 @@ jobs:
           fi
 
       # Garde CSP : le header doit être présent ET respecté. Le script crée un
-      # compte éphémère admin, se connecte par l'UI réelle, visite les 7 pages
-      # principales (tableau de bord, paie, dépenses, élèves, parents,
-      # calendrier, archives) et échoue si une violation Content-Security-Policy
-      # est émise (console + SecurityPolicyViolationEvent). Réutilise le même
-      # .env (service-role) et Chrome que les pixel-checks ; le compte est
-      # supprimé en fin de run, même en échec.
-      - name: CSP guard — aucune violation en navigation
+      # compte éphémère admin DANS LA PILE DE RECETTE, se connecte par l'UI réelle
+      # sur le build de ce commit, visite les 7 pages principales (tableau de bord,
+      # paie, dépenses, élèves, parents, calendrier, archives) et échoue si une
+      # violation Content-Security-Policy est émise (console +
+      # SecurityPolicyViolationEvent). `--expect-local-origin` fait juger l'écart :
+      # la politique servie DOIT être celle du dépôt plus cette origine, rien
+      # d'autre. Le compte est supprimé en fin de run, même en échec.
+      - name: CSP guard — aucune violation en navigation (pile de recette)
         # Mandat de preuve : cette garde publie SES mesures (pages principales
         # parcourues en session réelle, violations détectées) au lieu d'une
         # phrase de workflow. Sans mandat posé par l'étape, elle se tait.
         env:
           CHROME_PATH: /usr/bin/google-chrome
           AUTOMATION_EVIDENCE: '1'
-        run: node scripts/verify-csp-guard.mjs
+        run: >-
+          node scripts/verify-csp-guard.mjs
+          --url=http://127.0.0.1:4173/
+          --expect-local-origin="$SUPABASE_URL"
 
-      - name: PDF pixel-check E2E — paie (mode auto, contre la prod)
+      - name: PDF pixel-check E2E — paie (mode auto, sur la pile de recette)
         # Mandat de preuve : chaque invocation publie SA mesure (le nombre de
         # vérifications passées sur le document produit) — deux runs du même
         # script publient donc deux preuves, et l'audit les additionne.
         env:
           CHROME_PATH: /usr/bin/google-chrome
           AUTOMATION_EVIDENCE: '1'
-        run: node scripts/verify-pdf-download.mjs --mode auto
+        run: node scripts/verify-pdf-download.mjs --mode auto --url=http://127.0.0.1:4173/
 
       # Deuxième flux, page Élèves : le reçu des parents (formulaire papier
       # recu-parent.pdf rempli en overlay). Chaque invocation crée son propre
-      # compte éphémère — indépendants, nettoyés chacun à la fin.
-      - name: PDF pixel-check E2E — reçu parent (mode recu-parent, contre la prod)
+      # compte éphémère — indépendants, nettoyés chacun à la fin, dans la pile.
+      - name: PDF pixel-check E2E — reçu parent (mode recu-parent, sur la pile de recette)
         env:
           CHROME_PATH: /usr/bin/google-chrome
           AUTOMATION_EVIDENCE: '1'
-        run: node scripts/verify-pdf-download.mjs --mode recu-parent
+        run: node scripts/verify-pdf-download.mjs --mode recu-parent --url=http://127.0.0.1:4173/
 
       # Garde finale anti-résidus : chaque script E2E (garde CSP, pixel-checks
       # paie/reçu parent) crée et supprime son compte éphémère dans un finally —
       # mais un nettoyage cassé (crash, erreur avalée) laisserait un résidu
       # (verify-*/e2e-*/audit-*/@audit.local). Cette étape tourne en DERNIER et
       # fait échouer le run si un compte éphémère subsiste dans auth.users ou
-      # dans public.user_profiles (la FK en ON DELETE CASCADE doit avoir
-      # supprimé le profil avec le compte). Réutilise le même .env que les
-      # pixel-checks ; lecture seule, ne supprime rien.
+      # dans public.user_profiles de la PILE DE RECETTE (la FK en ON DELETE
+      # CASCADE doit avoir supprimé le profil avec le compte). Elle lit la même
+      # base que les pixel-checks, par l'environnement (le job n'écrit aucun
+      # `.env`) ; lecture seule, ne supprime rien.
       - name: Vérification finale — aucun compte éphémère résiduel en base
         # `if: always()` : un pixel-check en échec ne doit pas EMPÊCHER la
         # vérification des résidus — c'est justement quand la chaîne casse au
@@ -273,17 +367,19 @@ jobs:
 
       # Preuve publiée par l'étape NOMMÉE (lue dans les étapes du run par
       # `npm run check:automations`), et publiée en DERNIER : elle affirme que la
-      # chaîne est allée au bout — en-têtes, CSP, deux pixel-checks et le
-      # nettoyage des comptes éphémères.
+      # chaîne est allée au bout — fraîcheur du déploiement, en-têtes et politique
+      # de l'hôte (lecture seule), puis garde CSP et deux pixel-checks sur la pile
+      # de recette, et le nettoyage de ses comptes éphémères.
       #
       # La SUBSTANCE, elle, ne vient plus d'ici : chaque script de la chaîne
-      # publie désormais SA mesure sous mandat — la garde CSP ses pages
-      # parcourues et ses violations, chaque pixel-check ses vérifications sur le
-      # document produit, le nettoyage final ses enregistrements parcourus. Cette
-      # étape reste pour ce qu'AUCUN script ne peut mesurer : le fait que la
-      # chaîne entière soit allée au bout (l'étape d'en-têtes, écrite en YAML sans
-      # script à elle, et l'ORDRE des gardes).
+      # publie désormais SA mesure sous mandat — la fraîcheur son identité servie,
+      # la politique comparée ses directives, la garde CSP ses pages parcourues et
+      # ses violations, chaque pixel-check ses vérifications sur le document
+      # produit, le nettoyage final ses enregistrements parcourus. Cette étape
+      # reste pour ce qu'AUCUN script ne peut mesurer : le fait que la chaîne
+      # entière soit allée au bout (l'étape d'en-têtes, écrite en YAML sans script
+      # à elle, et l'ORDRE des gardes).
       - name: Publier la preuve d’action — chaîne PDF E2E
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "chaîne PDF E2E allée au bout : en-têtes de sécurité, garde CSP, pixel-checks paie et reçu parent, nettoyage des comptes éphémères — la mesure en base est publiée par scripts/verify-ephemeral-cleanup.mjs"
+          --reason "chaîne PDF E2E allée au bout : fraîcheur du déploiement et politique CSP servie par l'hôte relues en lecture seule, puis garde CSP et pixel-checks paie/reçu parent sur la pile de recette de CE job (les 34 migrations, base vierge), comptes éphémères tous supprimés — la mesure en base est publiée par scripts/verify-ephemeral-cleanup.mjs"

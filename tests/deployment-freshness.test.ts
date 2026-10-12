@@ -138,7 +138,22 @@ describe('le câblage : le build s’identifie, et l’attente exige la bonne id
     const workflow = read('.github/workflows/pdf-e2e.yml');
     assert.match(workflow, /node scripts\/wait-for-deployment\.mjs/, 'il attend la fraîcheur par le script');
     assert.match(workflow, /--sha=\$\{\{ github\.event\.workflow_run\.head_sha \|\| github\.sha \}\}/, 'avec le commit attendu');
-    assert.doesNotMatch(workflow, /code.*=.*200.*exit 0/, 'et plus par une boucle qui se contente d’un 200');
+    // Depuis qu'il juge une pile LOCALE (2026-10-12), le seul 200 attendu par une
+    // boucle est celui de l'APERÇU que le job vient de lancer : attendre un 200 de
+    // la PRODUCTION reste interdit, parce qu'un 200 est exactement ce que sert le
+    // déploiement précédent. On isole l'étape de l'aperçu — sinon ce cas ne
+    // protégerait rien — et on exige que le reste du workflow n'ait plus de boucle
+    // qui se contente d'un 200.
+    const from = workflow.indexOf('Servir ce build en local');
+    const to = workflow.indexOf('Wait until prod serves');
+    assert.ok(from >= 0 && to > from, 'les deux étapes doivent exister, sinon ce cas ne juge rien');
+    const localWait = workflow.slice(from, to);
+    assert.match(localWait, /127\.0\.0\.1:4173/, 'le 200 attendu est celui du serveur lancé par le job');
+    assert.doesNotMatch(
+      workflow.replace(localWait, ''),
+      /code.*=.*200.*exit 0/,
+      'et plus par une boucle qui se contente d’un 200',
+    );
   });
 
   it('sans commit attendu, le script REFUSE avant de lire quoi que ce soit', () => {
