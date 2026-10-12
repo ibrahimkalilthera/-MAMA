@@ -24,7 +24,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -165,5 +165,69 @@ describe('source-text — lire du code, pas de la prose', () => {
         `${file} doit lire par la couche partagée`,
       );
     }
+  });
+
+  it('la règle de prose CSS n’a qu’une définition — une copie locale est un échec', () => {
+    // Les deux lecteurs de feuilles de style ont porté leur propre copie du
+    // blanchiment de commentaires CSS, et elles avaient DIVERGÉ : celle de
+    // check-css-selectors repliait un bloc sur un espace, donc SUPPRIMAIT des
+    // sauts de ligne — le numéro de ligne rapporté désignait la mauvaise règle
+    // (mesuré : L2 annoncé pour une violation en L3, L2 annoncé pour une en L5).
+    // La règle unique, `maskMarkupComments`, préserve longueur et lignes.
+    const BLOCK_COMMENT_IDIOM = '[\\s\\S]*?';
+    const cssReaders = ['check-css-selectors.mjs', 'check-data-slots.mjs', 'check-csp-origins.mjs'];
+    for (const file of cssReaders) {
+      const source = readFileSync(join(root, 'scripts', file), 'utf8');
+      assert.match(
+        source,
+        /maskMarkupComments/,
+        `${file} doit blanchir la prose CSS par la règle partagée`,
+      );
+      assert.ok(
+        !source.includes(BLOCK_COMMENT_IDIOM),
+        `${file} ne doit pas redéfinir le blanchiment des commentaires CSS — ` +
+          'la règle unique vit dans scripts/lib/source-text.mjs (maskMarkupComments)',
+      );
+    }
+  });
+
+  it('le blanchiment des commentaires JS n’a qu’une définition — une copie locale est un échec', () => {
+    // check-jsx-i18n et check-test-harness portaient chacun sa propre règle, et
+    // elles avaient DIVERGÉ — mesuré sur fixtures, 2026-10-12 :
+    //   • celle de check-jsx-i18n SUPPRIMAIT le texte des commentaires, donc
+    //     décalait les décalages : deux violations rapportées en ligne 3 pour
+    //     des violations situées en lignes 8 et 9 ;
+    //   • celle de check-test-harness repliait un bloc multi-lignes sur un espace
+    //     (ligne 6 annoncée pour une violation en ligne 9) et blanchissait tout
+    //     `//` SANS garde — le `//` de `'a//b'` cachait un `new Window()` réel,
+    //     que ce contrôle ne voyait donc plus.
+    // Les deux appellent maintenant `maskComments` de cette couche.
+    const BLOCK_COMMENT_IDIOM = '/\\/\\*[\\s\\S]*?\\*\\//';
+    for (const file of ['check-jsx-i18n.mjs', 'check-test-harness.mjs']) {
+      const source = readFileSync(join(root, 'scripts', file), 'utf8');
+      assert.match(
+        source,
+        /\bmaskComments\b/,
+        `${file} doit blanchir la prose par maskComments (couche partagée)`,
+      );
+      assert.ok(
+        !source.includes(BLOCK_COMMENT_IDIOM),
+        `${file} ne doit pas redéfinir le blanchiment des commentaires JS`,
+      );
+    }
+    // Et le motif lui-même ne doit plus exister ailleurs dans scripts/ : sa
+    // présence est la marque d'une règle réécrite à la main, donc libre de
+    // diverger de nouveau.
+    const offenders = readdirSync(join(root, 'scripts'), { recursive: true })
+      .map((name) => String(name).replace(/\\/g, '/'))
+      .filter((rel) => rel.endsWith('.mjs') && rel !== 'lib/source-text.mjs')
+      .filter((rel) =>
+        readFileSync(join(root, 'scripts', rel), 'utf8').includes(BLOCK_COMMENT_IDIOM),
+      );
+    assert.deepEqual(
+      offenders,
+      [],
+      'le blanchiment de bloc vit dans le seul maskComments (scripts/lib/source-text.mjs)',
+    );
   });
 });

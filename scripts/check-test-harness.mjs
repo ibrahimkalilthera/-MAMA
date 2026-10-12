@@ -27,8 +27,15 @@
  *   ✗  import { … } from 'happy-dom'
  *      → direct happy-dom import instead of through the harness
  *
- * Deliberately narrow: comments are stripped before matching (suites may
- * explain the boundary in prose), per-suite extras via
+ * Deliberately narrow: the prose is blanched by the SHARED layer —
+ * `maskComments` (scripts/lib/source-text.mjs), a scanner that knows the
+ * language — so suites may explain the boundary in prose. This file carried its
+ * own copy of the rule, and it had two measured blind spots: a `//` INSIDE a
+ * string erased the rest of the line (a real `new Window()` on the same line as
+ * `'a//b'` escaped the gate), and a block comment spanning lines was collapsed
+ * onto a space, so the line numbers it printed were the wrong ones (measured:
+ * line 6 reported for a violation on line 9). The shared rule preserves length
+ * and newlines, so a reported offset is the true one. Per-suite extras via
  * `Object.defineProperty(globalThis, …)` stay allowed (floating-chat's
  * KeyboardEvent, focus-stack's document stubs, supabase-client's storage
  * spies), and tests/harness.ts itself is exempt.
@@ -38,17 +45,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { assertScanned } from './lib/source-text.mjs';
+import { assertScanned, maskComments } from './lib/source-text.mjs';
 
 const TESTS_DIR = 'tests';
 const EXEMPT = new Set(['harness.ts']);
-
-/** Strip line and block comments so prose never trips the gate. */
-function stripComments(src) {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/[^\r\n]*/g, ' ');
-}
 
 const PATTERNS = [
   {
@@ -84,7 +84,7 @@ const files = fs
 assertScanned(files, { what: 'suite .test.ts/.test.tsx', root: TESTS_DIR });
 
 for (const file of files) {
-  const stripped = stripComments(fs.readFileSync(path.join(TESTS_DIR, file), 'utf8'));
+  const stripped = maskComments(fs.readFileSync(path.join(TESTS_DIR, file), 'utf8'));
   const lines = stripped.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     for (const { name, re, hint } of PATTERNS) {

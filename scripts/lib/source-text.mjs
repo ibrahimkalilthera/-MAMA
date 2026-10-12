@@ -214,6 +214,38 @@ export function maskProse(text, { comments = true, literals = true } = {}) {
 export const maskComments = (text) => maskProse(text, { comments: true, literals: false });
 
 /**
+ * Blanchit les commentaires de BALISAGE — bloc slash-étoile du CSS, et
+ * délimiteurs HTML/SVG — en gardant longueur et sauts de ligne.
+ *
+ * Pourquoi PAS `maskComments` sur une feuille de style : elle lit son texte avec
+ * le scanner de **TypeScript**. Dans une feuille, une origine absolue NUE n'est
+ * pas une chaîne TSX — le scanner y voit un commentaire de ligne, et il blanchit
+ * tout le reste de la ligne. Mesuré le 2026-10-12 :
+ *
+ *   a { background: url(https://cdn.example.com/bg.png) }   →   a { background: url(https:
+ *
+ * Autrement dit l'origine disparaissait de la lecture, et le contrôle qui existe
+ * pour la refuser ne la voyait pas. En CSS, en HTML et en SVG, une double barre
+ * oblique n'est JAMAIS un commentaire : seuls le bloc slash-étoile et les
+ * délimiteurs de commentaire HTML le sont.
+ *
+ * C'est la SEULE règle de prose CSS du dépôt : les deux lecteurs de feuilles de
+ * style (`scripts/check-css-selectors.mjs`, `scripts/check-data-slots.mjs`) et
+ * le contrôle des origines l'appellent tous. Deux copies de cette règle
+ * divergeraient — et le blanchiment qui lit MOINS que l'autre fait exactement ce
+ * que ce module existe pour empêcher : taire la donnée qu'un contrôle cherche.
+ * `tests/source-text.test.ts` refuse la réapparition d'une copie.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function maskMarkupComments(text) {
+  return String(text ?? '')
+    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n\r]/g, ' '))
+    .replace(/<!--[\s\S]*?-->/g, (block) => block.replace(/[^\n\r]/g, ' '));
+}
+
+/**
  * Liste récursive, triée, en chemins à barres obliques (stable entre postes).
  * @param {string} root
  * @param {{ ext?: RegExp, skip?: string[] }} [options]

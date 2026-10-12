@@ -22,7 +22,7 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 
-import { assertScanned } from './lib/source-text.mjs';
+import { assertScanned, maskComments } from './lib/source-text.mjs';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -77,12 +77,6 @@ const EMAIL = /^[\w.+-]+@[\w-]+\.[\w.]+$/;
 const DOTS = /^[•·\s]+$/;
 const PHONE = /^[+\d][\d\s()-]{5,}$/;
 
-/** Strip line + block comments (doc text, not markup). */
-const stripComments = (code) =>
-  code
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-
 /** Strip JS string literals (content, not markup) — keeps `{t.x}` visible. */
 const stripStrings = (code) =>
   code
@@ -136,7 +130,14 @@ for (const file of tsxFiles) {
     return lo + 1;
   };
 
-  const bare = stripComments(code);
+  // Le blanchiment de la prose vient de la couche partagée (`maskComments`) : ce
+  // fichier portait sa propre copie, qui SUPPRIMAIT le texte des commentaires.
+  // Or les décalages ci-dessous sont rapportés en lignes du fichier d'origine :
+  // une suppression décale tout ce qui suit (mesuré : deux violations situées en
+  // lignes 8 et 9 rapportées toutes deux en ligne 3), et un `//` DANS une chaîne
+  // emportait la fin de la ligne — donc du vrai code, jamais lu. La règle
+  // partagée préserve longueur et sauts de ligne : un décalage trouvé est juste.
+  const bare = maskComments(code);
 
   // 1. Visible string-literal attributes
   for (const m of bare.matchAll(VISIBLE_ATTR_RE)) {

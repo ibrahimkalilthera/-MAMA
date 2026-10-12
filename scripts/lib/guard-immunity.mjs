@@ -141,7 +141,7 @@ export const GUARD_INVENTORY = [
     needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
     // Il lit des marqueurs dans des composants, des tests et des feuilles de
     // style. La prose est blanchie par la couche partagée (`maskComments` pour
-    // le TypeScript, un blanchiment CSS local pour les styles) : un commentaire
+    // le TypeScript, `maskMarkupComments` pour les styles) : un commentaire
     // qui CITE `data-slot="settings-panel"` — les tests en sont pleins — n'est
     // pas une référence. Sa vacuité est double et nommée : `assertScanned` sur
     // chaque corpus, puis une sortie 2 quand aucun marqueur n'est déclaré ou
@@ -260,13 +260,16 @@ export const GUARD_INVENTORY = [
     },
   },
   {
-    check: 'check-font-origins.mjs',
-    input: 'source+css+policy',
+    check: 'check-csp-origins.mjs',
+    input: 'source+css+svg+policy',
     // Un scan de source, avec les deux pièges connus : il refuse de conclure sur
     // un corpus vide ou une politique illisible (exit 2), et il blanchit la
     // prose par la couche partagée (`maskComments`) — sans quoi le présent
-    // en-tête, qui CITE `@import` d'un domaine externe pour expliquer la règle,
-    // serait accusé par sa propre explication.
+    // en-tête, qui CITE des origines absolues pour expliquer la règle, serait
+    // accusé par sa propre explication. Depuis le 2026-10-12 il lit TOUTES les
+    // directives (pas `style-src`/`font-src` seulement) et exige que chaque
+    // valeur absolue expédiée soit déclarée dans `JUSTIFIED_ORIGINS` — mais son
+    // corpus, sa prose et sa vacuité sont les mêmes, donc ses immunités aussi.
     needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
   },
   {
@@ -397,7 +400,13 @@ export const GUARD_INVENTORY = [
 const PROOF = {
   [IMMUNITY.NON_VACUOUS]:
     /assertScanned\(|process\.exit\(2\)|!files\.length|files\.length === 0|COMPONENTS\.length === 0|scanned\.\w+\s*(?:===|>)\s*0/,
-  [IMMUNITY.PROSE_BLIND]: /source-text\.mjs|maskProse|maskComments|readMasked|stripComments|maskTemplateLiterals|blankComments/,
+  // `stripComments` a été RETIRÉ de cette liste. Un blanchiment local écrit dans
+  // le contrôle comptait comme preuve de cécité à la prose — et c'est cette
+  // tolérance qui a laissé survivre une copie de la règle CSS dans les deux
+  // gardes de feuilles de style. La preuve est désormais le NOM de la couche
+  // partagée ou d'une de ses fonctions. Mesuré avant le retrait : aucun des 17
+  // contrôles exigeant cette immunité ne perd sa preuve.
+  [IMMUNITY.PROSE_BLIND]: /source-text\.mjs|maskProse|maskComments|readMasked|maskTemplateLiterals|blankComments/,
   // La preuve est un APPEL, pas une phrase : une mention dans un commentaire ne
   // doit pas suffire à certifier l'immunité (c'est le défaut que ce dépôt
   // pourchasse — de la prose lue comme du code).

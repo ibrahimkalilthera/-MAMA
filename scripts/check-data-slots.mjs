@@ -41,16 +41,18 @@
  * ne nomment pas un marqueur au repos, et les compter fabriquerait une
  * divergence fantôme. Les sélecteurs de VALEUR (`[data-slot="X"]`) sont la
  * référence ; les sélecteurs de PRÉFIXE (`[data-slot^="P"]`) sont vérifiés à
- * part. La prose est blanchie par la couche partagée : un commentaire qui CITE
- * `data-slot="settings-panel"` (les tests en sont pleins) n'est pas une
- * référence.
+ * part. La prose est blanchie par la couche partagée : `maskComments` pour le
+ * TypeScript, `maskMarkupComments` pour les feuilles de style — la SEULE règle
+ * de prose CSS du dépôt, longueur et sauts de ligne préservés. Un commentaire
+ * qui CITE `data-slot="settings-panel"` (les tests en sont pleins) n'est pas
+ * une référence, et un décalage trouvé désigne toujours la bonne ligne.
  *
  * Usage: node scripts/check-data-slots.mjs   (branché sur `npm run lint`)
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { assertScanned, listFiles, maskComments } from './lib/source-text.mjs';
+import { assertScanned, listFiles, maskComments, maskMarkupComments } from './lib/source-text.mjs';
 
 const SRC = process.env.CHECK_DATA_SLOTS_SRC || 'src';
 const TESTS = process.env.CHECK_DATA_SLOTS_TESTS || 'tests';
@@ -81,16 +83,6 @@ const SLOT_DECL = /data-slot\s*=\s*"([^"\n]+)"/g;
 const SLOT_PREFIX = /data-slot\^\s*=\s*"([^"\n]+)"/g;
 /** Un marqueur de table partagée : un littéral kebab (`'app-shell'`). */
 const TABLE_SLOT = /['"]([a-z][a-z0-9]*(?:-[a-z0-9]+)*)['"]/g;
-
-/**
- * Blanchit les commentaires CSS (slash-star … star-slash) en gardant longueur et
- * sauts de ligne, pour qu'un commentaire qui cite un marqueur ne soit pas lu
- * comme un sélecteur. (Le scanner de TypeScript de la couche partagée ne
- * connaît pas la syntaxe CSS.)
- */
-function maskCssComments(text) {
-  return String(text ?? '').replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n\r]/g, ' '));
-}
 
 /** Une valeur de marqueur est-elle un nom au repos (kebab), pas une expression ? */
 const isStaticSlot = (value) => /^[A-Za-z0-9][\w-]*$/.test(value);
@@ -134,7 +126,7 @@ function referencedSlots() {
     }
   };
   for (const file of testFiles) collect(file, maskComments(fs.readFileSync(file, 'utf8')));
-  for (const file of styleFiles) collect(file, maskCssComments(fs.readFileSync(file, 'utf8')));
+  for (const file of styleFiles) collect(file, maskMarkupComments(fs.readFileSync(file, 'utf8')));
   // Les tables partagées sont un corpus de références : ce sont ELLES que les
   // tests lisent désormais, donc c'est leur contenu qui doit correspondre aux
   // marqueurs déclarés. (Jugé sur l'arbre réel seulement.)

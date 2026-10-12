@@ -8,15 +8,20 @@
 // building first), the hosted production URL is loaded so the app still
 // works.
 //
-// Security: contextIsolation ON, nodeIntegration OFF, sandbox ON. The
-// renderer only talks to Supabase over HTTPS; navigation is locked to the
-// app surface and external links open in the system browser.
+// Security: contextIsolation ON, nodeIntegration OFF, sandbox ON, and the
+// renderer runs under an ENFORCED Content-Security-Policy (below: the local
+// document gets the desktop policy as a response header, and the built HTML
+// carries the same policy in a meta — see electron/csp-policy.cjs, whose
+// measured reasons are written there). The renderer only talks to Supabase over
+// HTTPS; navigation is locked to the app surface and external links open in the
+// system browser.
 // ─────────────────────────────────────────────────────────────────────────────
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { downloadPlan } = require('./download-policy.cjs');
+const { installCsp } = require('./csp-policy.cjs');
 const { appendEntry, readEntries, journalPath, pendingReports, markReported } = require('./update-journal.cjs');
 
 // L'origine publique vit dans UN SEUL fichier (`public-origin.cjs`), lu ici par le
@@ -776,6 +781,13 @@ function createWindow() {
 app.whenReady().then(() => {
   // Correct taskbar grouping / notifications on Windows.
   app.setAppUserModelId('com.mamathera.finance');
+  // LA CSP, appliquée AVANT que la première fenêtre n'existe : une fenêtre créée
+  // d'abord chargerait son document — et un `@import` externe partirait — avant
+  // que le filtre ne soit branché. Le filtre ne touche QUE nos documents locaux
+  // (`file://`) : le repli HTTPS reçoit déjà sa vraie CSP de Vercel, et lui
+  // appliquer la nôtre fermerait `worker-src` — donc son service worker, la
+  // réserve hors ligne du site. Raisons mesurées : electron/csp-policy.cjs.
+  installCsp(session.defaultSession);
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

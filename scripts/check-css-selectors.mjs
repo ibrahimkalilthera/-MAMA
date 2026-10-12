@@ -19,6 +19,13 @@
  * Deliberately narrow: comments, strings and `-aside`/`header-x` never
  * match. Runs inside `npm run lint` (pre-commit + CI quality job).
  *
+ * La prose CSS est blanchie par la SEULE règle du dépôt,
+ * `maskMarkupComments` (scripts/lib/source-text.mjs). Ce fichier portait sa
+ * propre copie, qui repliait un bloc sur un espace — donc SUPPRIMAIT des sauts
+ * de ligne, et décalait d'autant les numéros de ligne rapportés. Une seule
+ * règle, et elle préserve la longueur : un décalage trouvé désigne la bonne
+ * ligne.
+ *
  * The theme checks further down read the theme CSS CORPUS (src/index.css +
  * src/themes/*.css, resolved by ./lib/theme-css.mjs) instead of one hard-coded
  * path. That is not decoration: when the remap layer was extracted to
@@ -30,18 +37,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { assertScanned } from './lib/source-text.mjs';
+import { assertScanned, maskMarkupComments } from './lib/source-text.mjs';
 import { readThemeCss, themeCssFiles } from './lib/theme-css.mjs';
 
 const ROOTS = process.env.CHECK_CSS_ROOTS ? process.env.CHECK_CSS_ROOTS.split(',') : ['src'];
 
 /** Structural tags shared by app chrome and overlays. */
 const BARE_TAGS = new Set(['aside', 'header', 'footer', 'nav', 'main']);
-
-/** Strip CSS comments so commented-out examples don't trip the gate. */
-function stripComments(css) {
-  return css.replace(/\/\*[\s\S]*?\*\//g, ' ');
-}
 
 /** Split a selector-ish line into comma-separated trimmed segments. */
 function segments(selectorPart) {
@@ -65,7 +67,7 @@ for (const root of ROOTS) {
   if (!fs.existsSync(root)) continue;
   for (const file of cssFiles(root)) {
     scanned += 1;
-    const stripped = stripComments(fs.readFileSync(file, 'utf8'));
+    const stripped = maskMarkupComments(fs.readFileSync(file, 'utf8'));
     const lines = stripped.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -127,7 +129,7 @@ const guardViolations = [];
 // The OS media query must never come back in ANY stylesheet (comments are
 // stripped so an explanatory comment may still name it).
 for (const file of cssFiles('src')) {
-  if (stripComments(fs.readFileSync(file, 'utf8')).includes('prefers-color-scheme')) {
+  if (maskMarkupComments(fs.readFileSync(file, 'utf8')).includes('prefers-color-scheme')) {
     guardViolations.push(
       `${file}  —  must NOT contain "prefers-color-scheme"  (the OS media query must never reappear)`
     );
@@ -136,7 +138,7 @@ for (const file of cssFiles('src')) {
 
 // Content checks read the CORPUS, never a path.
 const THEME_FILES = themeCssFiles();
-const THEME_CSS = stripComments(readThemeCss());
+const THEME_CSS = maskMarkupComments(readThemeCss());
 const CORPUS = THEME_FILES.join(', ');
 
 for (const g of CSS_GUARDS) {
