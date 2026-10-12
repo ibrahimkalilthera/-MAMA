@@ -148,7 +148,7 @@ Ce document n'est pas une liste de bonnes pratiques : chaque constat porte sa **
 
 **Correctif.** Un contrôle quotidien qui **lit et publie** : taille de la base (si l'API le donne ; sinon le nombre de lignes par table, qui est déjà lu par `check:recette-base`), tendance à 7 jours, et un seuil d'alerte à 70 % du plafond. Le publier dans la preuve d'action du run, comme le reste.
 
-### 4.6 « Business E2E » rouge par construction
+### 4.6 « Business E2E » rouge par construction — **résolu le 2026-10-12**
 
 **Constat.** `check:recette-base` refuse d'écrire sur la base partagée parce qu'elle porte des données d'école (`students 497 · parents 12 · payments 97`) et propose deux issues : un projet Supabase de recette dédié, ou `--allow` en connaissance de cause. Le job est donc rouge à chaque déploiement — y compris sur le commit précédent, à l'identique.
 
