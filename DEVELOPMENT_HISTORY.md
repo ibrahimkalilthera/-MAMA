@@ -1,3 +1,19 @@
+## [2026-10-12] 1.0.31 — le correctif d'encaissement part au parc, et il voyage avec la CI réparée
+
+Demande du propriétaire : « le deploy vercel est rouge et automation audit aussi résous ça d'abord », puis, la chaîne repassée au vert : publier la version qui porte le correctif d'encaissement. La montée en **1.0.31** était déjà écrite dans `package.json` ; elle avait été **tenue HORS du commit de réparation** de la CI exprès — publier un installeur ne doit pas être l'effet de bord d'une réparation de chaîne — et c'est le propriétaire qui a demandé de la faire partir.
+
+**Le numéro est inédit, et c'est mesuré avant d'agir.** `npm run check:release:needed` répond « ✅ v1.0.31 est inédit — il y a un release à faire » (`needed=true`), et `git ls-remote --tags` ne nomme aucun `v1.0.31` : le plus récent est `515ae71 … refs/tags/v1.0.30`. Republier la 1.0.30 n'aurait atteint **aucun** poste — le dépôt tient cette règle depuis l'incident de republication, et elle s'applique ici comme ailleurs.
+
+**Ce que la 1.0.31 emporte, et rien de plus.** Le correctif de la fenêtre d'encaissement (`5380b23`) — la zone redevient défilante, le bouton de validation redevient atteignable — et les deux réparations de chaîne (`2f653a5`, `3c22525`), qui n'ont pas besoin d'atteindre un poste mais voyagent sous le même numéro parce qu'un numéro porte une tête, jamais un fichier.
+
+**Le geste qui reste humain, et celui qui ne l'est pas.** La publication n'est pas décidée ici : `desktop-release.yml` est déclenché par la chaîne qualité de `main`, et la seule décision qui restait était de MONTER LE NUMÉRO — c'est la même mécanique que la 1.0.30, dont l'entrée ci-dessous a mesuré le chemin complet.
+
+**Un fait de dépôt, dit plutôt que caché.** Un commit intermédiaire de ce lot est parti sur `main` avec un message provisoire (`wip-test`) : le crochet `post-commit` pousse tout seul, et le message de travail a été poussé avec le contenu. Il a été **réécrit avant toute publication** (`git commit --amend` puis `push --force-with-lease` — personne d'autre ne détient ce clone), le contenu est identique octet pour octet, et le SHA de tête est passé de `cbab3fc` à `3c22525` : un clone plus ancien verra cette réécriture, c'est le prix de ne pas laisser un message de travail dans l'histoire.
+
+**Mesures.** `npm test` **2769 / 2769**, 0 échec ; `npm run lint` sortie **0** ; chaîne qualité complète verte (4 étapes) avant chaque commit du lot ; canal lu **sans jeton** avant publication : la tête est `v1.0.30`, aucun `v1.0.31` n'existe.
+
+**Ce que cette entrée ne peut pas encore dire.** Que la 1.0.31 est publiée : au moment où elle est écrite, l'installeur n'est pas encore construit. La preuve qui compte — un poste de la version précédente qui rejoint la tête tout seul — se fait **après** publication, par `npm run verify:updater:channel` sur le canal réel, comme pour la 1.0.30.
+
 ## [2026-10-12] La bascule du bord n'avait pas fini : le déploiement était rouge à une seconde de sa publication
 
 Suite immédiate de l'entrée précédente. Une fois le lancement de Chrome réparé, la chaîne qualité est passée verte (ses **6 jobs**) et le déploiement a enfin pu être tenté — pour tomber un cran plus loin, sur `npm run check:public-origin`.
