@@ -116,12 +116,55 @@ let installedByUs = false;
 // boîte d'erreur que personne ne cliquera, et un résidu de ce genre est exactement
 // ce qu'un run suivant découvre.
 let updateInstallerPid = null;
+// Vrai quand le dossier de travail résiste au nettoyage : le verdict reste rendu
+// (la mise à jour est ce qui est mesuré), mais « nettoyé » ne se dit pas d'un
+// dossier qui est encore là.
+let WORK_PENDING = false;
 
 /**
  * Rien ne survit à ce run : une application installée laissée derrière, un cache
  * de 129 Mo, un processus orphelin ou un dossier de travail sont exactement ce
  * qu'un run suivant découvre — et un résidu non nommé passe pour un succès.
  */
+/**
+ * Retirer le dossier de travail SANS transformer un vert en échec.
+ *
+ * Un désinstalleur NSIS se relance depuis une copie temporaire (`Un_A.exe`) et son
+ * processus PARENT rend la main avant la fin du vrai travail : le dossier
+ * d'installation est donc encore verrouillé quand le nettoyage commence. Mesuré le
+ * 2026-10-12 : `rmSync` rend `EBUSY` sur `<atelier>\app` **après un run entièrement
+ * vert** — chaîne complète, mise à jour installée, version relue — et c'est le
+ * nettoyage qui sortait en erreur, donc plus de `PROOF_OK` et un code de sortie
+ * faux. Une preuve qu'on ne peut pas rendre verte ne peut pas servir de gate, et
+ * c'est exactement ce qu'un run « qui a prouvé puis planté » devient.
+ *
+ * D'où des essais espacés, puis un aveu : un dossier qu'on n'a pas pu retirer est
+ * DIT (l'opérateur saura l'effacer) et ne devient jamais un échec de la mise à
+ * jour, qui est ce que cette preuve mesure.
+ *
+ * @param {string} dir
+ * @param {{ attempts?: number, delayMs?: number }} [options]
+ * @returns {Promise<boolean>} vrai si le dossier a disparu
+ */
+async function removeWorkDir(dir, { attempts = 8, delayMs = 3000 } = {}) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+      return true;
+    } catch (error) {
+      if (attempt === attempts) {
+        console.log(
+          `   ⚠️  dossier de travail non retiré (${error?.code ?? 'erreur'} sur ${dir}) — un processus tenait encore ses fichiers ; ` +
+            'ce résidu ne dit rien de la mise à jour, qui a été mesurée, et il peut être effacé à la main',
+        );
+        return false;
+      }
+      await wait(delayMs);
+    }
+  }
+  return false;
+}
+
 async function cleanup() {
   try {
     app?.kill();
@@ -148,7 +191,7 @@ async function cleanup() {
   const cache = await invalidateUpdaterCache({}).catch(() => null);
   if (cache?.ok) console.log(`🧹 ${cache.detail}`);
   if (keep) console.log(`   octets conservés : ${WORK}`);
-  else rmSync(WORK, { recursive: true, force: true });
+  else if (!(await removeWorkDir(WORK))) WORK_PENDING = true;
 }
 
 async function fail(title, problems = [], warnings = []) {
@@ -706,7 +749,12 @@ try {
   );
   console.log('   étapes : flux publié lu sans jeton · octets vérifiés contre le sha512 du flux · contrat du poste de départ sans promesse de signataire');
   console.log('            · installation silencieuse isolée · téléchargement réel (cache partagé invalidé) · installation à la fermeture · version relue par Windows');
-  console.log('   nettoyé : application désinstallée, cache partagé purgé, dossiers de travail supprimés, aucun processus laissé');
+  console.log(
+    '   nettoyé : application désinstallée, cache partagé purgé, aucun processus laissé' +
+      (WORK_PENDING
+        ? ` — SAUF le dossier de travail ${WORK}, verrouillé au moment du nettoyage (voir l’avertissement ci-dessus)`
+        : ', dossiers de travail supprimés'),
+  );
   console.log('PROOF_OK');
   process.exit(0);
 } catch (error) {

@@ -11,10 +11,12 @@
 // produit un fichier vert, relu, et sans effet : la même mise à jour bloquée, avec
 // en plus la certitude qu'elle était réparée.
 //
-// Les cas ci-dessous lisent le fichier qui décide, et refusent les trois façons de
-// rater le remède : l'include non câblé (le fichier existe et n'est jamais lu), la
-// macro manquante (le gabarit retombe sur le verdict d'origine), le code écrit
-// sous une forme qui ne se compare pas.
+// Les cas ci-dessous lisent le fichier qui décide, et refusent les quatre façons de
+// rater le remède : l'include non câblé (le fichier existe et n'est jamais lu), le
+// fichier ignoré par git (le poste de build local l'a, la CI clone sans lui et le
+// build l'ignore EN SILENCE — mesuré le 2026-10-12, `build/*` l'attrapait), la
+// macro manquante (le gabarit retombe sur le verdict d'origine), le code écrit sous
+// une forme qui ne se compare pas.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -44,6 +46,19 @@ describe('la mise à jour d’un poste déjà installé ne s’arrête plus sur 
       read('electron-builder.yml'),
       /^\s*include:\s*build\/installer\.nsh\s*$/m,
       'sans `nsis.include`, build/installer.nsh n’entre dans aucun installeur et le défaut reste entier',
+    );
+  });
+
+  it('est SUIVI par git, donc présent sur le poste de build de la CI', () => {
+    // Le défaut le plus silencieux des quatre : `build/*` est ignoré, et un
+    // `installer.nsh` non suivi n'existe pas dans un clone. `electron-builder`
+    // ignore alors simplement l'include (`getResource` → null), le build reste
+    // vert, et l'installeur publié ne porte pas le remède : le parc se rebloque,
+    // exactement comme avant, avec un dépôt qui a l'air réparé.
+    assert.match(
+      read('.gitignore'),
+      /^!build\/installer\.nsh$/m,
+      'sans `!build/installer.nsh`, la CI construit un installeur SANS le remède (l’include absent est ignoré sans un mot)',
     );
   });
 
