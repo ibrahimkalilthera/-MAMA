@@ -72,6 +72,13 @@ export interface AppModalsProps {
    * `canDeletePayment`, pas sur `canDelete` (qui reste réservé aux tables admin).
    */
   deletePayment: (studentId: string, payment: Payment) => Promise<boolean>;
+  /**
+   * Renseigne les mois qu'un reçu ANTÉRIEUR à la colonne `payments.months`
+   * couvrait : sa couverture était inconnue, et ses réimpressions ne nommaient
+   * que le mois de sa date. N'écrit QUE `months` — ni montant, ni date, ni reçu
+   * (`updatePaymentMonths`, src/lib/dataOps/payments.ts).
+   */
+  updatePaymentMonths: (studentId: string, payment: Payment, months: string[]) => Promise<boolean>;
   deleteTodo: (id: string) => Promise<boolean>;
   editClassForm: ClassForm;
   editingParent: Parent | null;
@@ -119,6 +126,14 @@ export interface AppModalsProps {
   /** Le droit de supprimer UN PAIEMENT a sa propre liste — `admin`, `dev` et
    *  `econome` (`src/lib/paymentRights.ts`), pas la même que `canDelete`. */
   canDeletePayment: boolean;
+  /**
+   * Le droit de RENSEIGNER les mois d'un reçu déjà enregistré — la policy
+   * « Admin update payments » (`public.is_admin()`), donc `admin` et `dev`
+   * (`src/lib/paymentRights.ts`). Plus ÉTROIT que `canDeletePayment` :
+   * l'économe supprime un paiement sans pouvoir réécrire ses mois. C'est la
+   * base, pas l'écran, qui tranche.
+   */
+  canEditPaymentMonths: boolean;
   /** Gestionnaire Principal — finance admin without user/settings/audit access. */
   isGeneralManager: boolean;
   lang: 'en' | 'fr';

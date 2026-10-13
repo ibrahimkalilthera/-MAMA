@@ -6,6 +6,7 @@ import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import { academicYearMonths, monthsCoverage, paymentMonthLabel } from '../lib/paymentMonths';
+import { PaymentMonthsEditor } from './PaymentMonthsEditor';
 import { studentMatricule } from '../lib/studentIdentifiers';
 import { ModalShell } from './ModalShell';
 
@@ -65,6 +66,25 @@ export interface StudentDetailsModalProps {
    */
   onDeletePayment: (studentId: string, payment: Payment) => Promise<boolean>;
   /**
+   * Le rôle peut-il RENSEIGNER les mois d'un reçu déjà enregistré ? Décidé par
+   * la base (`src/lib/paymentRights.ts`) : la policy « Admin update payments »
+   * ouvre l'UPDATE de `payments` à `admin` et `dev` (`public.is_admin()`).
+   *
+   * ⚠️ L'économe n'y figure PAS, alors qu'il tient la caisse et supprime un
+   * paiement : la base ne lui ouvre que la suppression. Le bouton lui est donc
+   * caché, comme la corbeille l'était avant la migration du 2026-10-05 — un
+   * bouton que la base refuse est un échec annoncé, pas empêché.
+   */
+  canEditPaymentMonths: boolean;
+  /**
+   * Renseigne les mois qu'un reçu ANTÉRIEUR à la colonne `payments.months`
+   * couvrait réellement. Sa couverture était INCONNUE : ses réimpressions ne
+   * nommaient que le mois de sa date, et la fiche le comptait parmi les
+   * paiements « sans mois déclaré ». N'écrit QUE `months` — ni le montant, ni
+   * la date, ni le reçu. Voir `updatePaymentMonths` (dataOps/payments.ts).
+   */
+  onUpdatePaymentMonths: (studentId: string, payment: Payment, months: string[]) => Promise<boolean>;
+  /**
    * Combien de fiches partagent le NOM et la CLASSE de cet élève, cette fiche
    * comprise (voir `src/lib/duplicateStudents.ts` — le critère du contrôle de
    * clôture). Au-delà de 1, la fiche ouvre sur un avertissement : c'est ici que
@@ -85,6 +105,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
     getGradeDisplay, generatePaymentReceiptPdf, currentUser, copyToClipboard,
     handleSaveNote, studentDetailTab, setStudentDetailTab, selectedYear, overlayRef,
     onClose, onEdit, onPrint, onDeleteRequest, canDelete, canDeletePayment, onDeletePayment,
+    canEditPaymentMonths, onUpdatePaymentMonths,
     duplicateGroupSize, onReviewDuplicates,
   } = props;
   // ── Les MOIS DE SCOLARITÉ de cet élève ──────────────────────────────────────
@@ -120,6 +141,28 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
     // Succès : la ligne a quitté la liste, on referme la confirmation. Échec :
     // on la laisse ouverte (le toast a déjà dit pourquoi).
     if (ok) setPendingDeletePaymentId(null);
+  };
+  // ── Renseigner les mois d'un reçu MUET ───────────────────────────────────
+  // Un reçu antérieur à la colonne `months` (ou envoyé sans cocher) ne dit pas
+  // ce qu'il couvre. On ne le devine pas : on le demande à l'école, ici, sur la
+  // ligne du reçu que la fiche compte déjà comme muet. Mêmes gardes que la
+  // suppression : un seul geste à la fois (`savingMonthsIdRef`), et la ligne
+  // reste ouverte si la base refuse (le toast dit pourquoi).
+  //
+  // Le choix lui-même vit dans `PaymentMonthsEditor` : la fiche ne garde que
+  // l'identité du reçu en cours d'édition, et le composant rend les mois TRIÉS.
+  const [editingMonthsPaymentId, setEditingMonthsPaymentId] = useState<string | null>(null);
+  const [savingMonthsId, setSavingMonthsId] = useState<string | null>(null);
+  const savingMonthsIdRef = useRef<string | null>(null);
+  const openMonthsEditor = (payment: Payment) => setEditingMonthsPaymentId(payment.id ?? null);
+  const handleSaveMonths = async (payment: Payment, months: string[]) => {
+    if (!payment.id || savingMonthsIdRef.current || months.length === 0) return;
+    savingMonthsIdRef.current = payment.id;
+    setSavingMonthsId(payment.id);
+    const ok = await onUpdatePaymentMonths(selectedStudent.id, payment, months);
+    savingMonthsIdRef.current = null;
+    setSavingMonthsId(null);
+    if (ok) setEditingMonthsPaymentId(null);
   };
   return (
     <ModalShell
@@ -349,7 +392,11 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                 {/* Mini Payment Ledger */}
                 <div className="space-y-2">
                   <span className={`text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.paymentHistoryLedger}</span>
-                  <div className="space-y-2 max-h-24 overflow-y-auto pr-2 custom-scrollbar">
+                  {/* L'éditeur des mois est plus haut que trois lignes de reçu :
+                      dans la fenêtre d'origine (6 rem) ses pastilles et son
+                      bouton de validation tombaient hors du cadre. La fenêtre
+                      s'ouvre pendant l'édition, et reprend sa taille ensuite. */}
+                  <div className={`space-y-2 ${editingMonthsPaymentId ? 'max-h-80' : 'max-h-24'} overflow-y-auto pr-2 custom-scrollbar`}>
                     {selectedStudent.payments.length > 0 ? (
                       [...selectedStudent.payments].reverse().map((p, idx) => (
                         <div key={`${p.date}-${p.amount}-${idx}`} className={`flex items-center justify-between p-3 ${currentTheme.surfaceInset} rounded-xl text-xs`}>
@@ -379,6 +426,19 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                                 </button>
                               </div>
                             </div>
+                          ) : editingMonthsPaymentId === p.id ? (
+                            /* Renseigner les mois — l'éditeur REMPLACE la ligne,
+                               comme la confirmation de suppression : un seul
+                               geste à l'écran à la fois. */
+                            <PaymentMonthsEditor
+                              yearMonths={yearMonths}
+                              initialMonths={p.months ?? []}
+                              t={t}
+                              currentTheme={currentTheme}
+                              saving={savingMonthsId === p.id}
+                              onSave={(months) => { void handleSaveMonths(p, months); }}
+                              onCancel={() => setEditingMonthsPaymentId(null)}
+                            />
                           ) : (
                             <>
                               <div className="flex flex-col">
@@ -387,6 +447,24 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                               </div>
                               <div className="flex items-center gap-3">
                                 <span className="font-bold text-emerald-600">+{formatCurrency(p.amount)}</span>
+                                {/* Le reçu NE DÉCLARE aucun mois : ses
+                                    réimpressions ne nomment que le mois de sa
+                                    date, et la famille repart avec un papier
+                                    incomplet. C'est le seul cas où l'école doit
+                                    compléter, donc le seul où le bouton
+                                    apparaît — dans la couleur de la phrase qui
+                                    compte ces reçus juste au-dessus. Il faut
+                                    aussi une année lisible : sans elle, il n'y
+                                    a pas de mois à proposer. */}
+                                {canEditPaymentMonths && p.id && yearMonths.length > 0 && (!p.months || p.months.length === 0) && (
+                                  <button
+                                    onClick={() => openMonthsEditor(p)}
+                                    className="px-2 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60 hover:bg-amber-100 dark:hover:bg-amber-950/60 rounded text-2xs font-bold transition-all flex items-center gap-1"
+                                    title={t.paymentMonthsEdit}
+                                  >
+                                    <Calendar size={12} /> {t.paymentMonthsEdit}
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => generatePaymentReceiptPdf({
                                     student: selectedStudent,

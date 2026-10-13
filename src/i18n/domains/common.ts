@@ -87,6 +87,9 @@ export const en = {
     monthsUndeclaredNote: "{count} payment(s) declare no months — a month shown as unpaid may already have been paid.",
     monthCovered: "Paid",
     monthToPay: "To pay",
+    paymentMonthsEdit: "Fill in the months",
+    paymentMonthsEditHint: "This receipt declares no months, so its reprints only name the month of its date. Check the months it actually paid.",
+    paymentMonthsSave: "Save the months",
     currency: "FCFA",
     langToggle: "Français",
 };
@@ -174,6 +177,9 @@ export const fr = {
     monthsUndeclaredNote: "{count} paiement(s) sans mois déclaré — un mois affiché comme à régler peut déjà être payé.",
     monthCovered: "Réglé",
     monthToPay: "À régler",
+    paymentMonthsEdit: "Renseigner les mois",
+    paymentMonthsEditHint: "Ce reçu ne déclare aucun mois : ses réimpressions ne nomment que le mois de sa date. Cochez les mois qu'il a réellement payés.",
+    paymentMonthsSave: "Enregistrer les mois",
     currency: "FCFA",
     langToggle: "English",
 };

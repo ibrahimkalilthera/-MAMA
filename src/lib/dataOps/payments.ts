@@ -13,6 +13,7 @@ import { rowIdColumn } from '../offlineReplay';
 import { archivedPaymentFrom, paymentSnapshotMetadata } from '../paymentUndo';
 import type { ArchivedPayment } from '../paymentUndo';
 import { logAuditEvent } from '../auditLogger';
+import { sortPaymentMonths } from '../paymentMonths';
 
 export function createPaymentOps(ctx: SupabaseDataCtx) {
   const { students, setStudents, setSalaryPayments, notifySuccess, notifyError, isOffline, enqueueOffline, updateQueueCount } = ctx;
@@ -256,6 +257,128 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
   };
 
   /**
+   * RENSEIGNER les mois d'un reçu déjà enregistré — le correctif des reçus
+   * ANTÉRIEURS à la colonne `payments.months`.
+   *
+   * Ce que répare ce geste : une famille qui a payé septembre, novembre et
+   * décembre le même matin ne détient qu'un reçu daté d'octobre. La colonne
+   * `months` existe depuis le 2026-10-11, mais les reçus saisis avant ont pris
+   * `{}` — « mois non renseigné ». Leur réimpression ne nomme donc qu'un mois,
+   * et la fiche de l'élève les compte comme des paiements muets. On ne peut pas
+   * deviner ce qu'ils couvraient : c'est l'école qui le sait, et c'est ici
+   * qu'elle l'écrit.
+   *
+   * Trois choix, et ils sont tous des refus :
+   *
+   *   • **Aucun mois n'est accepté** : « renseigner » veut dire nommer au moins
+   *     un mois. Enregistrer `{}` ne déclarerait rien de plus que le silence
+   *     d'avant, tout en donnant l'impression d'une fiche complétée.
+   *   • **Zéro ligne rendue n'est pas un succès** : la policy « Admin update
+   *     payments » (`public.is_admin()`) est vérifiée par le NOMBRE de lignes
+   *     rendues, pas par l'absence d'erreur — PostgREST répond 200 avec zéro
+   *     ligne quand la policy filtre la cible. L'écran le DIT, comme pour la
+   *     suppression (voir `deletePayment`).
+   *   • **Rien d'autre que `months` n'est écrit** : ni le montant, ni la date,
+   *     ni le reçu. Le solde de l'élève n'est donc pas réconcilié — ce geste ne
+   *     touche pas à l'argent. C'est aussi ce qui rend l'opération idempotente
+   *     par nature : la rejouer écrit le même tableau.
+   *
+   * Hors ligne, le geste est mis en file : le rejeu écrit la même colonne et le
+   * journal rend la même phrase, avec le marqueur de rejeu. Si la file refuse
+   * (quota atteint), l'opération rend `false` — et l'écran ne dit pas
+   * « enregistré ».
+   */
+  const updatePaymentMonths = async (
+    studentId: string,
+    payment: Payment,
+    months: readonly string[],
+  ): Promise<boolean> => {
+    const paymentId = payment.id;
+    if (!paymentId) {
+      notifyError('updatePaymentMonths', 'Ce paiement n’a pas d’identifiant — mois impossibles à renseigner.');
+      return false;
+    }
+    // Le tri et le dédoublonnage viennent de la brique pure : l'ordre des clics
+    // n'a pas à se voir en base, et une valeur qui n'est pas un mois est écartée
+    // avant d'atteindre la base (dont le CHECK la refuserait de toute façon).
+    const clean = sortPaymentMonths(months);
+    if (clean.length === 0) {
+      notifyError('updatePaymentMonths', 'Cocher au moins un mois : un paiement qui ne déclare rien n’est pas renseigné.');
+      return false;
+    }
+    const studentName = students.find(s => s.id === studentId)?.name ?? studentId;
+
+    /** Pose les mois sur la fiche locale — l'écran montre le geste tel qu'il est. */
+    const applyLocally = (list: Student[]): Student[] => list.map(s => {
+      if (s.id !== studentId) return s;
+      return {
+        ...s,
+        payments: s.payments.map(p => (p.id === paymentId ? { ...p, months: clean } : p)),
+      };
+    });
+
+    if (isOffline()) {
+      setStudents(prev => applyLocally(prev));
+      try {
+        enqueueOffline('updatePaymentMonths', {
+          studentId,
+          paymentId,
+          months: clean,
+          amount: payment.amount,
+          receiptNumber: payment.receiptNumber,
+          date: payment.date,
+          studentName,
+        });
+      } catch {
+        // Le refus est DÉJÀ annoncé par `enqueueOffline` : on ne rend que l'échec.
+        return false;
+      }
+      notifySuccess('updatePaymentMonths');
+      return true;
+    }
+
+    const { data, error } = await supabase
+      .from('payments')
+      .update({ months: clean })
+      .eq('id', paymentId)
+      .select('id');
+    if (error) {
+      console.error('updatePaymentMonths error:', error.message);
+      notifyError('updatePaymentMonths', error.message);
+      return false;
+    }
+    if (!data || data.length === 0) {
+      console.error('updatePaymentMonths: aucune ligne modifiée — cible filtrée par la policy RLS');
+      notifyError('updatePaymentMonths', 'Aucune ligne modifiée — droits insuffisants sur ce paiement.');
+      return false;
+    }
+
+    // La base a accepté : l'écran suit (les mois renseignés se lisent aussitôt
+    // dans la bande de la fiche, et le paiement sort des « sans mois déclaré »).
+    setStudents(prev => applyLocally(prev));
+
+    void logAuditEvent({
+      action: 'UPDATE_PAYMENT_MONTHS',
+      targetType: 'payment',
+      // `target_id` est l'ID DU PAIEMENT, comme à la suppression et à la
+      // restauration : c'est lui qui identifie le reçu dont on parle.
+      targetId: paymentId,
+      // Les mois sont écrits tels qu'ils sont STOCKÉS (`2026-09`) : le journal
+      // n'a pas de langue (une école peut le lire en anglais), et le libellé
+      // traduit (« Septembre ») appartient au reçu. La phrase dit AUSSI le
+      // montant, le reçu et l'élève, pour qu'une correction de mois puisse se
+      // relire sans ouvrir le registre.
+      //
+      // Même forme au rejeu (offlineReplay.ts, `offlineAuditInfo`) — un même
+      // fait ne se lit pas de deux façons selon qu'il a attendu la ligne.
+      details: `Paiement de ${payment.amount} FCFA (reçu ${payment.receiptNumber || 'N/A'}) du ${payment.date} : mois renseignés — ${clean.join(', ')} — élève ${studentName}`,
+    });
+
+    notifySuccess('updatePaymentMonths');
+    return true;
+  };
+
+  /**
    * RESTAURER un paiement supprimé — l'annulation, depuis le journal d'audit.
    *
    * L'instantané (`ArchivedPayment`) vient du `metadata` de l'entrée
@@ -395,5 +518,5 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
     return mapped;
   };
 
-  return { addPayment, deletePayment, restorePayment, addSalaryPayment };
+  return { addPayment, deletePayment, updatePaymentMonths, restorePayment, addSalaryPayment };
 }

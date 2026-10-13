@@ -290,6 +290,7 @@ export const en = {
     auditActionRecordSalaryPayment: "Salary paid",
     auditActionUpdateExpense: "Expense updated",
     auditActionUpdateParent: "Parent updated",
+    auditActionUpdatePaymentMonths: "Payment months filled in",
     auditActionUpdateSetting: "Setting updated",
     auditActionUpdateStaff: "Staff updated",
     auditActionUpdateStudent: "Student updated",

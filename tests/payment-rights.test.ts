@@ -24,7 +24,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentDetailsModal } from '../src/components/StudentDetailsModal';
 import { translations } from '../src/i18n/translations';
-import { PAYMENT_DELETER_ROLES, canDeletePayments } from '../src/lib/paymentRights';
+import { PAYMENT_DELETER_ROLES, PAYMENT_MONTH_EDITOR_ROLES, canDeletePayments, canUpdatePaymentMonths } from '../src/lib/paymentRights';
 import { canDeleteRecords } from '../src/lib/deleteRights';
 import type { Payment, Student } from '../src/lib/useSupabaseData';
 import type { CurrentTheme } from '../src/app/mainViewsProps';
@@ -34,6 +34,7 @@ const t = translations.fr;
 
 const ROOT = join(import.meta.dirname, '..');
 const PAYMENTS_MIGRATION = join(ROOT, 'supabase', 'migrations', '20261005000003_econome_delete_payments.sql');
+const RLS_MIGRATION = join(ROOT, 'supabase', 'migrations', '20260809000000_auth_and_rls.sql');
 
 /** Les rôles cités par `role IN (…)` dans la fonction `name` d'un fichier SQL. */
 function rolesOf(sql: string, name: string): string[] {
@@ -89,6 +90,49 @@ describe('la règle de l’app et la fonction de la base ne peuvent pas diverger
   });
 });
 
+// ─── Renseigner les MOIS : un autre droit, une autre policy ──────────────────
+
+describe('paymentRights — qui la base laisse renseigner les mois d’un reçu', () => {
+  it('admin et dev le peuvent : c’est `public.is_admin()` qui décide, pas l’écran', () => {
+    for (const role of ['admin', 'dev']) {
+      assert.equal(canUpdatePaymentMonths(role), true, `${role} renseigne les mois d’un reçu`);
+    }
+  });
+
+  it('l’économe, lui, NON — il supprime un paiement sans réécrire ses mois', () => {
+    // La limite dite du module : `is_payment_deleter()` couvre la SUPPRESSION,
+    // pas l'UPDATE. Si cette assertion tombe, c'est qu'une migration a ouvert
+    // l'UPDATE à l'économe : il faudra le dire dans `paymentRights.ts` ET
+    // montrer le bouton — pas seulement changer la liste ici.
+    assert.equal(canDeletePayments('econome'), true, 'il supprime un reçu fautif');
+    assert.equal(canUpdatePaymentMonths('econome'), false, 'sans pouvoir en réécrire les mois');
+    for (const role of ['staff', 'general_manager', null, undefined, '', '  ', 'root']) {
+      assert.equal(canUpdatePaymentMonths(role), false, `« ${String(role)} » non plus`);
+    }
+    assert.equal(canUpdatePaymentMonths(' ADMIN '), true, 'la casse et les espaces sont absorbés');
+  });
+});
+
+describe('le droit de renseigner les mois ne diverge pas de la policy UPDATE', () => {
+  const sql = readFileSync(RLS_MIGRATION, 'utf8');
+
+  it('les rôles sont ceux de `public.is_admin()`, dans les deux sens', () => {
+    assert.deepEqual(
+      [...PAYMENT_MONTH_EDITOR_ROLES].sort(),
+      rolesOf(sql, 'is_admin'),
+      'un rôle ajouté d’un seul côté afficherait un bouton que la base refuse (200, zéro ligne)',
+    );
+  });
+
+  it('la policy UPDATE de payments s’appuie bien sur ce helper', () => {
+    assert.match(
+      sql,
+      /CREATE POLICY "Admin update payments" ON public\.payments\s+FOR UPDATE USING \(public\.is_admin\(\)\)/,
+      'la policy qui autorise l’écriture de `months` est celle que le module reflète',
+    );
+  });
+});
+
 // ─── Le rendu réel ───────────────────────────────────────────────────────────
 
 const theme: CurrentTheme = {
@@ -112,7 +156,7 @@ const STUDENT: Student = {
   notes: '', payments: [PAY],
 };
 
-function mount(opts: { canDelete: boolean; canDeletePayment: boolean }) {
+function mount(opts: { canDelete: boolean; canDeletePayment: boolean; canEditPaymentMonths: boolean }) {
   installDomGlobals();
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -126,11 +170,15 @@ function mount(opts: { canDelete: boolean; canDeletePayment: boolean }) {
     onClose: () => {}, onEdit: () => {}, onPrint: () => {}, onDeleteRequest: () => {},
     canDelete: opts.canDelete, canDeletePayment: opts.canDeletePayment,
     onDeletePayment: async () => true,
+    canEditPaymentMonths: opts.canEditPaymentMonths,
+    onUpdatePaymentMonths: async () => true,
   })));
   return {
     container,
     /** La corbeille d'un PAIEMENT : repérée par son `title`. */
     paymentTrash: () => container.querySelector(`button[title="${t.deletePayment}"]`),
+    /** Le bouton « renseigner les mois » : repéré par son `title`. */
+    monthsEdit: () => container.querySelector(`button[title="${t.paymentMonthsEdit}"]`),
     /** Le bouton « supprimer l'élève » : repéré par son texte (pas de `title`). */
     studentDelete: () => Array.from(container.querySelectorAll('button'))
       .find((b) => b.textContent?.trim() === t.deleteStudent) ?? null,
@@ -138,32 +186,38 @@ function mount(opts: { canDelete: boolean; canDeletePayment: boolean }) {
   };
 }
 
-describe('la fiche élève ne propose chaque suppression qu’au rôle que la base accepte', () => {
-  it('économe : la corbeille du paiement est là, le bouton « supprimer l’élève » non', () => {
-    const h = mount({ canDelete: false, canDeletePayment: true });
+describe('la fiche élève ne propose chaque geste qu’au rôle que la base accepte', () => {
+  it('économe : la corbeille du paiement est là, les deux autres gestes non', () => {
+    // Le reçu de cette fiche ne déclare aucun mois : le bouton « renseigner les
+    // mois » serait donc OFFERT si le droit suivait la suppression. Il ne la
+    // suit pas — et c'est ce que la base dit aussi (`is_admin()`).
+    const h = mount({ canDelete: false, canDeletePayment: true, canEditPaymentMonths: false });
     try {
       assert.ok(h.paymentTrash(), 'l’économe doit pouvoir corriger un paiement');
       assert.equal(h.studentDelete(), null, 'mais pas supprimer l’élève entier');
+      assert.equal(h.monthsEdit(), null, 'ni réécrire les mois d’un reçu');
     } finally {
       h.cleanup();
     }
   });
 
-  it('staff : aucune des deux actions', () => {
-    const h = mount({ canDelete: false, canDeletePayment: false });
+  it('staff : aucune des actions', () => {
+    const h = mount({ canDelete: false, canDeletePayment: false, canEditPaymentMonths: false });
     try {
       assert.equal(h.paymentTrash(), null);
       assert.equal(h.studentDelete(), null);
+      assert.equal(h.monthsEdit(), null);
     } finally {
       h.cleanup();
     }
   });
 
-  it('admin/dev : les deux actions', () => {
-    const h = mount({ canDelete: true, canDeletePayment: true });
+  it('admin/dev : les trois actions', () => {
+    const h = mount({ canDelete: true, canDeletePayment: true, canEditPaymentMonths: true });
     try {
       assert.ok(h.paymentTrash());
       assert.ok(h.studentDelete());
+      assert.ok(h.monthsEdit(), 'le bouton des mois est offert là où la policy UPDATE l’autorise');
     } finally {
       h.cleanup();
     }

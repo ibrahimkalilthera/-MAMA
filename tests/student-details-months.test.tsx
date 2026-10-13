@@ -95,6 +95,11 @@ function mount(target: Student, selectedYear = YEAR) {
     canDelete: true,
     canDeletePayment: true,
     onDeletePayment: async () => true,
+    // Le droit de RENSEIGNER les mois : ouvert ici, parce que cette fiche
+    // monte justement un reçu muet (`MUTE`) — l'éditeur doit exister à côté de
+    // la bande que ces tests mesurent.
+    canEditPaymentMonths: true,
+    onUpdatePaymentMonths: async () => true,
   })));
   const chips = () => Array.from(container.querySelectorAll('[data-slot="student-months"] [data-month]'));
   return {

@@ -246,6 +246,8 @@ function renderDetails(duplicateGroupSize?: number): string {
     canDelete: true,
     canDeletePayment: true,
     onDeletePayment: async () => true,
+    canEditPaymentMonths: true,
+    onUpdatePaymentMonths: async () => true,
     duplicateGroupSize,
   };
   try {

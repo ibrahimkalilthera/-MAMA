@@ -17,6 +17,7 @@ export const OPERATION_LABELS: Record<string, { en: string; fr: string }> = {
   deleteStudent: { en: 'Student deleted', fr: 'Élève supprimé(e)' },
   addPayment: { en: 'Payment recorded', fr: 'Paiement enregistré' },
   deletePayment: { en: 'Payment deleted', fr: 'Paiement supprimé' },
+  updatePaymentMonths: { en: 'Payment months filled in', fr: 'Mois du paiement renseignés' },
   restorePayment: { en: 'Payment restored', fr: 'Paiement restauré' },
   addStaff: { en: 'Staff added', fr: 'Employé ajouté' },
   updateStaff: { en: 'Staff updated', fr: 'Employé mis à jour' },

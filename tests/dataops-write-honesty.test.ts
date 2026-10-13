@@ -844,3 +844,139 @@ describe('file hors ligne qui REFUSE — l’argent ne s’annonce pas « enregi
     assert.ok(base.events.includes('ok:addPayment'), 'et il est annoncé');
   });
 });
+
+/**
+ * `updatePaymentMonths` — renseigner les mois d'un reçu ANTÉRIEUR à la colonne.
+ *
+ * Le défaut réparé : les reçus saisis avant le 2026-10-11
+ * (`20261011000000_payments_months.sql`) ont pris `{}`. Leur couverture est
+ * INCONNUE, leur réimpression ne nomme que le mois de leur DATE, et la fiche de
+ * l'élève les compte comme muets. On ne devine pas ce qu'ils couvraient : c'est
+ * l'école qui le sait, et c'est ici qu'elle l'écrit.
+ *
+ * Quatre contrats, et chacun répare un mensonge possible :
+ *   • l'écriture ne touche QUE `months` (ni montant, ni date, ni reçu), et laisse
+ *     une entrée `UPDATE_PAYMENT_MONTHS` au journal ;
+ *   • une mise à jour que la policy « Admin update payments » a filtrée (0 ligne,
+ *     HTTP 200) ÉCHOUE et le DIT — les mois restent inconnus ;
+ *   • hors ligne, rien n'est tenté : le geste part dans la file AVEC de quoi
+ *     écrire la même phrase au rejeu ;
+ *   • et rien ne s'écrit sans au moins un mois : « renseigner » veut dire nommer.
+ */
+describe('updatePaymentMonths — les mois d’un reçu muet, sans toucher au reste', () => {
+  const MUTE = { id: 'pay0', date: '2026-01-10', amount: 10000, receiptNumber: 'REC-0' } as Payment;
+  const TICKED = { id: 'pay1', date: '2026-10-04', amount: 30000, receiptNumber: 'REC-1', months: ['2026-09'] } as Payment;
+  const FICHE = {
+    id: 'st1', name: 'Ali Diallo', amountPaid: 40000, totalDue: 150000, dueDate: '2026-12-31',
+    parentName: '', parentEmail: '', parentPhone: '', notes: '', payments: [MUTE, TICKED],
+  };
+
+  function opsFor(list: unknown[] = [FICHE]) {
+    const { ctx, events, state } = opsCtx('students', 'setStudents', list);
+    return {
+      ctx,
+      events,
+      state,
+      ops: createPaymentOps(ctx as unknown as Parameters<typeof createPaymentOps>[0]),
+    };
+  }
+
+  it('écrit les mois TRIÉS, ne touche à rien d’autre, et journalise le geste', async () => {
+    rowsResult = { data: [{ id: 'pay0' }], error: null };
+    const { ops, events, state } = opsFor();
+
+    // Ordre de clics bricolé et doublon : la brique pure range et dédoublonne
+    // avant l'écriture, donc la base ne reçoit jamais l'ordre des clics.
+    assert.equal(await ops.updatePaymentMonths('st1', MUTE, ['2026-11', '2026-09', '2026-11']), true);
+    assert.deepEqual(events, ['ok:updatePaymentMonths'], 'un seul succès, aucune erreur');
+
+    const update = calls.find((c) => c.op === 'update' && c.table === 'payments');
+    assert.ok(update, 'un UPDATE part vers payments');
+    assert.equal(update.eqColumn, 'id');
+    assert.equal(update.eqValue, 'pay0', 'le reçu visé est celui de la ligne muette');
+    assert.deepEqual(
+      update.payload,
+      { months: ['2026-09', '2026-11'] },
+      'SEULS les mois partent — triés, sans doublon : l’argent n’est pas dans cette requête',
+    );
+    assert.ok(selects > 0, 'la requête demande CE QUI a été modifié (.select)');
+
+    const s = state()[0] as { payments: { id: string; months?: string[] }[]; amountPaid: number };
+    assert.deepEqual(s.payments.find(p => p.id === 'pay0')?.months, ['2026-09', '2026-11'], 'l’écran suit la base');
+    assert.equal(s.amountPaid, 40000, 'le solde ne bouge pas : des mois ne sont pas de l’argent');
+
+    const audit = calls.find((c) => c.op === 'insert' && c.table === 'audit_logs');
+    assert.ok(audit, 'le geste est consigné au journal');
+    assert.equal(audit.payload?.action, 'UPDATE_PAYMENT_MONTHS');
+    assert.equal(audit.payload?.target_type, 'payment');
+    assert.equal(audit.payload?.target_id, 'pay0', 'le journal vise l’id du REÇU, comme la suppression');
+    assert.match(String(audit.payload?.details), /2026-09/, 'les mois écrits sont dans la phrase');
+    assert.match(String(audit.payload?.details), /REC-0/, 'avec le reçu concerné');
+    assert.match(String(audit.payload?.details), /Ali Diallo/, 'et l’élève');
+  });
+
+  it('ÉCHOUE et le dit quand la policy a filtré la cible (0 ligne, HTTP 200)', async () => {
+    rowsResult = { data: [], error: null };
+    const { ops, events, state } = opsFor();
+
+    assert.equal(await ops.updatePaymentMonths('st1', MUTE, ['2026-09']), false, 'pas de faux succès');
+    const s = state()[0] as { payments: { id: string; months?: string[] }[] };
+    assert.equal(s.payments.find(p => p.id === 'pay0')?.months, undefined, 'les mois restent inconnus — rien n’a été annoncé');
+    assert.equal(events.filter((e) => e.startsWith('ok:')).length, 0, 'aucun « Mois … renseignés » mensonger');
+    assert.ok(events.find((e) => e.startsWith('err:updatePaymentMonths')), 'l’échec est signalé');
+    assert.equal(
+      calls.filter((c) => c.op === 'insert' && c.table === 'audit_logs').length,
+      0,
+      'rien n’est journalisé : la base n’a rien écrit',
+    );
+  });
+
+  it('refuse un reçu sans identifiant, et refuse d’écrire ZÉRO mois', async () => {
+    const { ops, events } = opsFor();
+
+    assert.equal(
+      await ops.updatePaymentMonths('st1', { date: '2026-01-10', amount: 10000 } as Payment, ['2026-09']),
+      false,
+      'sans id, il n’y a rien à cibler',
+    );
+    // « Renseigner » veut dire NOMMER au moins un mois : écrire `{}` ne
+    // déclarerait rien de plus que le silence d'avant, en donnant l'impression
+    // d'une fiche complétée.
+    assert.equal(await ops.updatePaymentMonths('st1', MUTE, []), false, 'zéro mois n’est pas un renseignement');
+    assert.equal(calls.filter((c) => c.op === 'update').length, 0, 'aucune requête tentée');
+    assert.equal(
+      events.filter((e) => e.startsWith('err:updatePaymentMonths')).length,
+      2,
+      'les deux refus sont dits, chacun avec sa raison',
+    );
+  });
+
+  it('hors ligne, le geste part dans la file AVEC de quoi écrire la même phrase', async () => {
+    const { ctx, events, state } = opsFor();
+    const enqueued: { type: string; payload: unknown }[] = [];
+    (ctx as Record<string, unknown>).isOffline = () => true;
+    (ctx as Record<string, unknown>).enqueueOffline = (type: string, payload: unknown) => {
+      enqueued.push({ type, payload });
+      events.push('queued');
+    };
+    const ops = createPaymentOps(ctx as unknown as Parameters<typeof createPaymentOps>[0]);
+
+    assert.equal(await ops.updatePaymentMonths('st1', MUTE, ['2026-11', '2026-09']), true);
+    assert.equal(calls.filter((c) => c.op === 'update').length, 0, 'aucune requête tentée sans réseau');
+    // Montant, reçu, date et élève voyagent AVEC le geste : au rejeu, le journal
+    // doit nommer le même reçu sans relire une ligne `payments`.
+    assert.deepEqual(enqueued, [{
+      type: 'updatePaymentMonths',
+      payload: {
+        studentId: 'st1', paymentId: 'pay0', months: ['2026-09', '2026-11'],
+        amount: 10000, receiptNumber: 'REC-0', date: '2026-01-10', studentName: 'Ali Diallo',
+      },
+    }]);
+    const s = state()[0] as { payments: { id: string; months?: string[] }[] };
+    assert.deepEqual(
+      s.payments.find(p => p.id === 'pay0')?.months,
+      ['2026-09', '2026-11'],
+      'l’écran montre le geste tout de suite',
+    );
+  });
+});

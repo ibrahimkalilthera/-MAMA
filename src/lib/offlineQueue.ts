@@ -10,6 +10,7 @@ import type { Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Tod
 export type OfflineActionType =
   | 'addPayment'
   | 'deletePayment'
+  | 'updatePaymentMonths'
   | 'addExpense'
   | 'updateExpense'
   | 'deleteExpense'
@@ -77,6 +78,17 @@ export type OfflinePayload =
    * avoir à relire une ligne qui n'existe plus.
    */
   | { type: 'deletePayment'; payload: { studentId: string; paymentId: string; amount: number; receiptNumber?: string; date: string; academicYear?: string; studentName?: string } }
+  /**
+   * Renseigner les mois couverts d'un reçu ANTÉRIEUR à la colonne `months`, ou
+   * saisi sans cocher. Le montant, le reçu, la date et l'élève voyagent avec le
+   * geste : le rejeu écrit la même entrée de journal que le chemin en ligne sans
+   * avoir à relire la ligne `payments` (et l'école sait de quel reçu on parle).
+   *
+   * Le montant est porté POUR LE JOURNAL, pas pour l'écriture : la mise à jour
+   * ne touche que `months` — c'est la limite dite de `paymentRights.ts`
+   * (une policy est au niveau de la ligne, pas de la colonne).
+   */
+  | { type: 'updatePaymentMonths'; payload: { studentId: string; paymentId: string; months: string[]; amount: number; receiptNumber?: string; date: string; studentName?: string } }
   | { type: 'addExpense'; payload: Omit<Expense, 'id'> }
   | { type: 'updateExpense'; payload: { id: string; updates: Partial<Expense> } }
   | { type: 'deleteExpense'; payload: { id: string } }

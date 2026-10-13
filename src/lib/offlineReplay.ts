@@ -310,6 +310,27 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     if (!error) {
       success = await reconcileStudentBalance(db, studentId, { delta: -amount, recomputeLastDate: true });
     }
+  } else if (item.type === 'updatePaymentMonths') {
+    // Renseigner les mois d'un reçu ANTÉRIEUR à la colonne `months` : la seule
+    // colonne écrite est `months` — le montant, la date et le reçu ne bougent pas
+    // (une correction de mois ne peut pas changer ce qui a été encaissé).
+    //
+    // Zéro ligne rendue n'est donc PAS un succès : la même lecture que le chemin
+    // en ligne (`.select('id')`, voir dataOps/payments.ts). C'est la policy
+    // « Admin update payments » (`public.is_admin()`) qui refuse — la ligne
+    // reste en file, l'écran le dit, et rien n'est annoncé comme écrit.
+    const { data, error } = await db
+      .from('payments')
+      .update({ months: item.payload.months })
+      .eq('id', item.payload.paymentId)
+      .select('id');
+    if (error) {
+      console.error('updatePaymentMonths: écriture refusée au rejeu —', error.message);
+    } else if (!data || data.length === 0) {
+      console.error('updatePaymentMonths: aucune ligne modifiée au rejeu — cible filtrée par la policy RLS');
+    } else {
+      success = true;
+    }
   } else if (item.type === 'addStaff') {
     const { error } = await db.from('staff').insert({ ...rowIdColumn(item.localId), ...staffToRow(item.payload) });
     if (!error) success = true;
@@ -599,6 +620,17 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
           academicYear: item.payload.academicYear,
           receiptNumber: item.payload.receiptNumber,
         }),
+      };
+    case 'updatePaymentMonths':
+      // Même forme que le chemin en ligne (dataOps/payments.ts) : les mois sont
+      // écrits tels qu'ils sont STOCKÉS (`2026-09`), donc la ligne reste juste
+      // dans une école qui lit le journal en anglais — le libellé traduit
+      // (« Septembre ») appartient au reçu, pas au journal.
+      return {
+        action: 'UPDATE_PAYMENT_MONTHS',
+        targetType: 'payment',
+        targetId: item.payload.paymentId,
+        details: `Paiement de ${item.payload.amount} FCFA (reçu ${item.payload.receiptNumber || 'N/A'}) du ${item.payload.date} : mois renseignés — ${item.payload.months.join(', ')} — élève ${item.payload.studentName ?? item.payload.studentId}${tag}`,
       };
     case 'addExpense':
       return { action: 'ADD_EXPENSE', targetType: 'expense', targetId: null, details: `${item.payload.description} (${item.payload.category}) — ${item.payload.amount} FCFA${tag}` };

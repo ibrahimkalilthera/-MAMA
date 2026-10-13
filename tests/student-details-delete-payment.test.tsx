@@ -90,6 +90,12 @@ function mount(opts: { canDeletePayment: boolean; result: boolean }) {
       calls.push({ studentId, payment });
       return opts.result;
     },
+    // Le reçu de cette fiche ne déclare aucun mois — donc le bouton
+    // « renseigner les mois » serait offert si le rôle y avait droit. Ce n'est
+    // pas le sujet de cette suite : on ferme ce droit pour que seules la
+    // corbeille et sa confirmation soient mesurées ici.
+    canEditPaymentMonths: false,
+    onUpdatePaymentMonths: async () => true,
   };
   const render = () => act(() => root.render(createElement(StudentDetailsModal, props)));
   render();

@@ -1,5 +1,11 @@
 /**
- * ─── Qui a le droit de SUPPRIMER un paiement d'élève, décidé par la BASE ─────
+ * ─── Qui a le droit de SUPPRIMER un paiement, ou d'en RENSEIGNER les mois, ───
+ * ─── décidé par la BASE ────────────────────────────────────────────────────
+ *
+ * Deux droits, deux policies, deux listes — et elles ne se confondent pas :
+ * `canDeletePayments` (policy « Payment deleters delete payments »,
+ * `public.is_payment_deleter()`) et `canUpdatePaymentMonths` (policy « Admin
+ * update payments », `public.is_admin()`).
  *
  * `supabase/migrations/20261005000003_econome_delete_payments.sql` définit
  * `public.is_payment_deleter()` = `admin`, `dev`, **`econome`** : c'est lui qui
@@ -20,7 +26,7 @@
  * MIGRATION, dans les deux sens — un rôle ajouté d'un seul côté fait rougir le
  * test au lieu de rouvrir un bouton qui ne peut pas aboutir.
  *
- * ⚠️ Ce droit ne concerne QUE `payments`. Supprimer un ÉLÈVE, un parent, un
+ * ⚠️ Ces droits ne concernent QUE `payments`. Supprimer un ÉLÈVE, un parent, un
  * employé, une dépense ou un paiement de salaire reste réservé à `is_admin()` ou
  * `is_finance_admin()` (voir `deleteRights.ts`) : « enregistrer et détruire ne
  * sont pas le même droit ».
@@ -38,4 +44,44 @@ const norm = (role: string | null | undefined): string => String(role ?? '').tri
  */
 export function canDeletePayments(role: string | null | undefined): boolean {
   return (PAYMENT_DELETER_ROLES as readonly string[]).includes(norm(role));
+}
+
+/**
+ * ─── Qui peut RENSEIGNER les mois d'un paiement déjà enregistré ─────────────
+ *
+ * Les reçus saisis avant la colonne `payments.months`
+ * (`supabase/migrations/20261011000000_payments_months.sql`) ont pris `{}` :
+ * leur couverture est INCONNUE, et toute réimpression retombe donc sur le mois
+ * de la seule DATE. La famille repart avec un papier qui ne nomme qu'un mois
+ * sur les trois qu'elle a payés — et c'est la fiche de l'élève qui le lui dit.
+ *
+ * Corriger cela est une ÉCRITURE de `payments`, donc c'est la policy
+ * « Admin update payments » (`public.is_admin()`) qui décide, pas l'écran :
+ * `20260809000000_auth_and_rls.sql` ouvre l'UPDATE de cette table aux rôles
+ * ci-dessous, et RIEN d'autre ne la rouvre.
+ *
+ * ⚠️ Deux choses à dire, parce qu'elles sont des limites et non des détails :
+ *
+ *   1. **L'économe n'y est pas.** Il tient la caisse et repartage les reçus,
+ *      mais `is_payment_deleter()` ne couvre que la SUPPRESSION ; laisser
+ *      l'écran lui montrer ce bouton rouvrirait exactement le défaut que
+ *      `paymentRights.ts` documente pour la corbeille — un bouton que la base
+ *      refuse (200, zéro ligne). Ouvrir l'UPDATE à l'économe est une décision
+ *      de propriétaire, pas une conséquence de ce module.
+ *   2. **La policy couvre la LIGNE, pas la colonne.** Postgres ne sait pas
+ *      restreindre un UPDATE à `months` : qui a ce droit peut, au niveau de la
+ *      base, réécrire aussi le MONTANT. L'écran, lui, n'écrit que `months`
+ *      (`updatePaymentMonths`, src/lib/dataOps/payments.ts) — la garantie est
+ *      donc côté code, et c'est le journal d'audit qui la rend vérifiable.
+ *      Un droit finement borné à la colonne demanderait une fonction
+ *      `SECURITY DEFINER`, pas une policy.
+ */
+export const PAYMENT_MONTH_EDITOR_ROLES = ['admin', 'dev'] as const;
+
+/**
+ * Ce rôle peut-il renseigner les mois d'un paiement déjà enregistré ?
+ * Le miroir exact de la condition de la policy « Admin update payments ».
+ */
+export function canUpdatePaymentMonths(role: string | null | undefined): boolean {
+  return (PAYMENT_MONTH_EDITOR_ROLES as readonly string[]).includes(norm(role));
 }

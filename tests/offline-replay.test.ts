@@ -58,6 +58,7 @@ function reconcilingDb(
 const CASES: { type: OfflineActionType; build: () => QueueItem; table: string }[] = [
   { type: 'addPayment', build: () => itemOf('addPayment', { studentId: 's1', payment: { date: '2026-01-01', amount: 500, receiptNumber: 'R1' } }), table: 'payments' },
   { type: 'deletePayment', build: () => itemOf('deletePayment', { studentId: 's1', paymentId: 'pay1', amount: 500, receiptNumber: 'R1', date: '2026-01-01' }), table: 'payments' },
+  { type: 'updatePaymentMonths', build: () => itemOf('updatePaymentMonths', { studentId: 's1', paymentId: 'pay1', months: ['2026-09', '2026-11'], amount: 500, receiptNumber: 'R1', date: '2026-01-01' }), table: 'payments' },
   { type: 'addExpense', build: () => itemOf('addExpense', { category: 'stationery', description: 'desk', amount: 10, date: '2026-01-01' }), table: 'expenses' },
   { type: 'updateExpense', build: () => itemOf('updateExpense', { id: 'e1', updates: { amount: 12 } }), table: 'expenses' },
   { type: 'deleteExpense', build: () => itemOf('deleteExpense', { id: 'e1' }), table: 'expenses' },
@@ -94,7 +95,7 @@ describe('offline queue replay (replayOfflineItem)', () => {
     // Keep this list in sync with OfflineActionType so an added action forces a
     // deliberate test-case here instead of silently replaying into `false`.
     const all: OfflineActionType[] = [
-      'addPayment', 'deletePayment', 'addExpense', 'updateExpense', 'deleteExpense',
+      'addPayment', 'deletePayment', 'updatePaymentMonths', 'addExpense', 'updateExpense', 'deleteExpense',
       'addVendorExpense', 'updateVendorExpense', 'deleteVendorExpense',
       'addStudent', 'updateStudent', 'deleteStudent',
       'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment',
@@ -461,12 +462,56 @@ describe('ids des lignes créées hors ligne', () => {
     assert.deepEqual(inserts[0].row.months, ['2026-09', '2026-10'], 'les mois choisis voyagent avec le geste');
     assert.deepEqual(inserts[1].row.months, [], 'sans mois, la colonne reçoit un tableau vide');
   });
+
+  it('renseigner les mois au rejeu n’écrit QUE `months`, et sur le reçu visé', async () => {
+    // Le geste en file est un CORRECTIF de reçu : il ne doit ni toucher au
+    // montant, ni à la date, ni au solde de l'élève — et il doit viser LE reçu
+    // dont l'école a parlé, pas un autre de la même fiche.
+    const db = reconcilingDb({ payments: [{ id: 'pay0' }] });
+    const ok = await replayOfflineItem(db.db, itemOf('updatePaymentMonths', {
+      studentId: 's1', paymentId: 'pay0', months: ['2026-09', '2026-11'],
+      amount: 10000, receiptNumber: 'REC-0', date: '2026-01-10', studentName: 'Ali Diallo',
+    }));
+
+    assert.equal(ok, true);
+    const written = db.updates.filter((u) => u.table === 'payments');
+    assert.equal(written.length, 1, 'un seul UPDATE, et sur payments');
+    assert.deepEqual(written[0].row, { months: ['2026-09', '2026-11'] }, 'seuls les mois sont écrits');
+    assert.equal(
+      db.updates.filter((u) => u.table === 'students').length,
+      0,
+      'le solde n’est pas réconcilié : rien d’autre n’a changé',
+    );
+  });
+
+  it('un rejeu de mois que la policy a filtré (0 ligne) ne se déclare pas écrit', async () => {
+    // Même lecture qu'en ligne : PostgREST répond 200 avec zéro ligne quand la
+    // policy retire la cible. L'item reste alors en file et le dira — un rejeu
+    // qui « avale » le geste le perdrait sans que personne ne le sache.
+    const refused = {
+      from: () => {
+        const builder = Object.assign(Promise.resolve({ data: [], error: null }), {
+          update: () => builder,
+          eq: () => builder,
+          select: () => builder,
+        });
+        return builder;
+      },
+    } as unknown as ReplayDb;
+
+    const ok = await replayOfflineItem(refused, itemOf('updatePaymentMonths', {
+      studentId: 's1', paymentId: 'pay0', months: ['2026-09'],
+      amount: 10000, receiptNumber: 'REC-0', date: '2026-01-10', studentName: 'Ali Diallo',
+    }));
+
+    assert.equal(ok, false, 'zéro ligne modifiée n’est pas un succès');
+  });
 });
 
 describe('offline replay audit mapping (offlineAuditInfo)', () => {
   // Actions whose online equivalent is audited → must produce an entry.
   const AUDITED: OfflineActionType[] = [
-    'addPayment', 'deletePayment', 'addExpense', 'updateExpense', 'deleteExpense',
+    'addPayment', 'deletePayment', 'updatePaymentMonths', 'addExpense', 'updateExpense', 'deleteExpense',
     'addVendorExpense', 'updateVendorExpense', 'deleteVendorExpense',
     'addStudent', 'updateStudent', 'deleteStudent',
     'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment',

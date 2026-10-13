@@ -11,7 +11,7 @@ import { useAcademicYears } from './app/useAcademicYears';
 import { useFloatingChat } from './app/useFloatingChat';
 import { useAuthWelcome } from './app/useAuthWelcome';
 import { canDeleteRecords } from './lib/deleteRights';
-import { canDeletePayments } from './lib/paymentRights';
+import { canDeletePayments, canUpdatePaymentMonths } from './lib/paymentRights';
 import { useTodoSidebar } from './app/useTodoSidebar';
 import { useParents } from './app/useParents';
 import { usePayments } from './app/usePayments';
@@ -589,6 +589,12 @@ const {
   // Le droit de supprimer un PAIEMENT a sa propre liste : l'économe y figure
   // (base : `public.is_payment_deleter()`), pas dans celle des tables admin.
   const canDeletePayment = canDeletePayments(auth.profile?.role);
+  // Renseigner les MOIS d'un reçu déjà enregistré : encore une autre liste —
+  // la policy « Admin update payments » (`public.is_admin()`), plus ÉTROITE que
+  // la suppression. L'économe corrige un reçu fautif (il a `canDeletePayment`)
+  // sans pouvoir réécrire ses mois : la base ne l'y autorise pas, donc le
+  // bouton ne lui est pas montré.
+  const canEditPaymentMonths = canUpdatePaymentMonths(auth.profile?.role);
   const shellProps = buildShellProps({
     ...supabaseData,
     ...authWelcomeData,
@@ -612,6 +618,7 @@ const {
     supabaseError: supabaseData.error,
     canDelete,
     canDeletePayment,
+    canEditPaymentMonths,
     lang,
     t,
     toast,

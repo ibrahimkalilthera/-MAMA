@@ -607,7 +607,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
   const { addCustomClass, updateCustomClass, deleteCustomClass } = createClassOps(ctx);
   const { addParent, updateParent, deleteParent } = createParentOps(ctx);
   const { addStudent, updateStudent, deleteStudent, mergeStudents, batchPromoteStudents } = createStudentOps(ctx);
-  const { addPayment, deletePayment, restorePayment, addSalaryPayment } = createPaymentOps(ctx);
+  const { addPayment, deletePayment, updatePaymentMonths, restorePayment, addSalaryPayment } = createPaymentOps(ctx);
   const { addStaff, updateStaff, deleteStaff } = createStaffOps(ctx);
   const { addExpense, updateExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense } = createExpenseOps(ctx);
   const { addTodo, updateTodo, deleteTodo } = createTodoOps(ctx);
@@ -669,7 +669,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
     deleteCustomClass,
     addParent, updateParent, deleteParent,
     addStudent, updateStudent, deleteStudent, mergeStudents,
-    addPayment, deletePayment, restorePayment,
+    addPayment, deletePayment, updatePaymentMonths, restorePayment,
     addStaff, updateStaff, deleteStaff,
     addSalaryPayment,
     addExpense, updateExpense, deleteExpense,

@@ -51,6 +51,7 @@ export const AUDIT_ACTION_KEYS: Record<string, string> = {
   RESTORE_PAYMENT: 'auditActionRestorePayment',
   UPDATE_EXPENSE: 'auditActionUpdateExpense',
   UPDATE_PARENT: 'auditActionUpdateParent',
+  UPDATE_PAYMENT_MONTHS: 'auditActionUpdatePaymentMonths',
   UPDATE_SETTING: 'auditActionUpdateSetting',
   update_setting: 'auditActionUpdateSetting',
   UPDATE_STAFF: 'auditActionUpdateStaff',
