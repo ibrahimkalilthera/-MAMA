@@ -5,6 +5,7 @@ import type { Student, Payment } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
+import { academicYearMonths, monthsCoverage, paymentMonthLabel } from '../lib/paymentMonths';
 import { studentMatricule } from '../lib/studentIdentifiers';
 import { ModalShell } from './ModalShell';
 
@@ -33,6 +34,15 @@ export interface StudentDetailsModalProps {
   handleSaveNote: (studentId: string, note: string, noteDate?: string) => Promise<void>;
   studentDetailTab: 'general' | 'parent' | 'medical';
   setStudentDetailTab: Dispatch<SetStateAction<'general' | 'parent' | 'medical'>>;
+  /**
+   * L'année scolaire ACTIVE de l'application (celle que l'en-tête montre).
+   * Elle sert de recours quand la fiche ne porte pas d'année : sans elle, la
+   * bande des mois resterait invisible pour les élèves enregistrés sans année,
+   * c'est-à-dire aujourd'hui la majorité. Jamais inventée pour autant : les deux
+   * valeurs sont lues par `academicYearMonths`, qui rend une liste VIDE sur une
+   * année illisible (cf. src/lib/paymentMonths.ts).
+   */
+  selectedYear: string;
   /** The dialog root — registered in AppModals' overlay refs for the focus trap. */
   overlayRef: (el: HTMLElement | null) => void;
   onClose: () => void;
@@ -73,10 +83,23 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
   const {
     student: selectedStudent, t, lang, currentTheme, formatDate, formatCurrency,
     getGradeDisplay, generatePaymentReceiptPdf, currentUser, copyToClipboard,
-    handleSaveNote, studentDetailTab, setStudentDetailTab, overlayRef,
+    handleSaveNote, studentDetailTab, setStudentDetailTab, selectedYear, overlayRef,
     onClose, onEdit, onPrint, onDeleteRequest, canDelete, canDeletePayment, onDeletePayment,
     duplicateGroupSize, onReviewDuplicates,
   } = props;
+  // ── Les MOIS DE SCOLARITÉ de cet élève ──────────────────────────────────────
+  // Ce que ses paiements DÉCLARENT couvrir, et ce qui reste — calculé par la
+  // brique pure (`monthsCoverage`), pas ici : c'est elle qui porte la règle, et
+  // c'est elle que les tests tiennent (tests/payment-months.test.ts).
+  //
+  // L'année de la FICHE d'abord, celle de l'application ensuite : `||` et non
+  // `??`, parce qu'une chaîne VIDE est le cas courant des fiches anciennes, pas
+  // une année. Aucune des deux : la bande disparaît, au lieu d'inventer.
+  const yearMonths = academicYearMonths(selectedStudent.academicYear || selectedYear);
+  const coverage = monthsCoverage(selectedStudent.payments.map((p) => p.months), yearMonths);
+  const coverageCount = t.monthsCoveredCount
+    .replace('{covered}', String(coverage.covered.length))
+    .replace('{total}', String(yearMonths.length));
   // Notes ⇄ Calendar bridge: optional date picked next to the sticky note.
   const [noteDateInput, setNoteDateInput] = useState('');
   // Suppression d'un paiement : une confirmation EN LIGNE (pas de dialogue
@@ -272,6 +295,56 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                     </p>
                   </div>
                 </div>
+
+                {/* ── Les MOIS DE SCOLARITÉ ─────────────────────────────────
+                    Ce que les paiements de cet élève DÉCLARENT couvrir, et ce
+                    qui reste. Deux états se lisent sans légende — réglé
+                    (accent), à régler (neutre) — et le troisième est une
+                    PHRASE, parce qu'il n'est pas un état du mois : quand un
+                    paiement ne déclare rien (antérieur à la colonne `months`,
+                    ou envoyé sans cocher), la couverture est INCONNUE. Sans
+                    cette phrase, un mois réglé avant la colonne s'afficherait
+                    « à régler » : la fiche accuserait une famille qui a payé. */}
+                {yearMonths.length > 0 && (
+                  <div className="space-y-2" data-slot="student-months">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className={`text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.monthsCoverageTitle}</span>
+                      <span className={`text-2xs font-black ${currentTheme.inkStrong}`}>{coverageCount}</span>
+                    </div>
+                    <div role="group" aria-label={t.monthsCoverageTitle} className="flex flex-wrap gap-1.5">
+                      {yearMonths.map((month) => {
+                        const paid = coverage.covered.includes(month);
+                        return (
+                          <span
+                            key={month}
+                            data-month={month}
+                            data-state={paid ? 'paid' : 'due'}
+                            title={paid ? t.monthCovered : t.monthToPay}
+                            className={`px-2.5 py-1 rounded-xl border text-2xs font-black transition-all ${
+                              paid
+                                ? `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentBorder}`
+                                : `${currentTheme.surfaceInset} ${currentTheme.border} ${currentTheme.muted}`
+                            }`}
+                          >
+                            {paymentMonthLabel(month, t)}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    {coverage.missing.length > 0 ? (
+                      <p className={`text-2xs font-semibold ${currentTheme.muted}`}>
+                        {t.monthsRemainingLabel} : {coverage.missing.map((m) => paymentMonthLabel(m, t)).join(', ')}
+                      </p>
+                    ) : (
+                      <p className="text-2xs font-semibold text-emerald-600 dark:text-emerald-400">{t.monthsCoverageComplete}</p>
+                    )}
+                    {coverage.undeclared > 0 && (
+                      <p className="text-2xs font-semibold text-amber-600 dark:text-amber-400">
+                        {t.monthsUndeclaredNote.replace('{count}', String(coverage.undeclared))}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Mini Payment Ledger */}
                 <div className="space-y-2">

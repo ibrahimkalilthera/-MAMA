@@ -122,7 +122,7 @@ function mount(opts: { canDelete: boolean; canDeletePayment: boolean }) {
     formatDate: (d: string) => d, formatCurrency: (n: number) => `${n} FCFA`,
     getGradeDisplay: (g: string | undefined) => g ?? '', generatePaymentReceiptPdf: async () => {},
     currentUser: { name: 'Admin', role: 'admin' }, copyToClipboard: () => {}, handleSaveNote: async () => {},
-    studentDetailTab: 'general', setStudentDetailTab: () => {}, overlayRef: () => {},
+    studentDetailTab: 'general', setStudentDetailTab: () => {}, selectedYear: '2026-2027', overlayRef: () => {},
     onClose: () => {}, onEdit: () => {}, onPrint: () => {}, onDeleteRequest: () => {},
     canDelete: opts.canDelete, canDeletePayment: opts.canDeletePayment,
     onDeletePayment: async () => true,

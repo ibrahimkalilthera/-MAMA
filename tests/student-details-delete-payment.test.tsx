@@ -78,6 +78,7 @@ function mount(opts: { canDeletePayment: boolean; result: boolean }) {
     handleSaveNote: async () => {},
     studentDetailTab: 'general' as const,
     setStudentDetailTab: () => {},
+    selectedYear: '2026-2027',
     overlayRef: () => {},
     onClose: () => {},
     onEdit: () => {},

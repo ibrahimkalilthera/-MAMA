@@ -23,7 +23,9 @@
 //                le reçu du moment ET sa RÉIMPRESSION depuis la ligne relue en
 //                base. Les mois sont lus SUR LE PAPIER : nommés un par un,
 //                comptés, et le mois de la date ABSENT — un reçu qui aurait
-//                perdu les mois cochés écrirait précisément ce mois-là)
+//                perdu les mois cochés écrirait précisément ce mois-là. La
+//                FICHE de l'élève est jugée au passage : les mois que la base
+//                garde y sont RÉGLÉS, tous les autres À RÉGLER)
 //
 // Steps, in one run:
 //   1. Create an ephemeral auth account via the service role (always deleted
@@ -724,6 +726,38 @@ async function openStudentFile(page, studentName) {
 }
 
 /**
+ * La BANDE DES MOIS de la fiche élève, lue par ses CLÉS.
+ *
+ * Le pendant écran de ce que `checkMonthsPaper` juge sur le papier : la fiche
+ * affirme, mois par mois, ce que les paiements de l'élève déclarent couvrir. La
+ * lecture passe par `data-month` / `data-state`, jamais par les libellés — un
+ * mois réglé se dit « Réglé » en français et « Paid » en anglais, `2026-09` non.
+ *
+ * Elle ATTEND la bande : les douze mois viennent de l'année scolaire active, que
+ * l'application lit en base, donc parfois après le premier rendu de la fiche. Un
+ * `null` est un CONSTAT, pas une exception — c'est au contrôle de le dire.
+ */
+async function readMonthsStrip(page) {
+  const ready = await page.waitForFunction(
+    () => document.querySelector('[data-slot="student-months"] [data-month]'),
+    { timeout: 20000 },
+  ).then(() => true).catch(() => false);
+  if (!ready) return null;
+  return page.evaluate(() => {
+    const strip = document.querySelector('[data-slot="student-months"]');
+    const chips = [...strip.querySelectorAll('[data-month]')];
+    return {
+      total: chips.length,
+      months: chips.map((c) => ({ month: c.getAttribute('data-month'), state: c.getAttribute('data-state') })),
+      // Le titre et le compte vivent dans des `<span>` ; les lignes des restants
+      // et de la note, dans des `<p>`. Les deux sont relus, dans cet ordre.
+      header: (strip.firstElementChild?.textContent || '').trim(),
+      lines: [...strip.querySelectorAll('p')].map((p) => (p.textContent || '').trim()),
+    };
+  });
+}
+
+/**
  * L'APERÇU du reçu, puis le SECOND clic — celui qui télécharge vraiment.
  *
  * Depuis la 1.0.23, aucun chemin ne télécharge au premier geste : la fiche d'un
@@ -914,10 +948,14 @@ async function proveMonthsChain(page, screenLine, studentName) {
   await wait(4000);
   await goToStudents(page);
   await openStudentFile(page, studentName);
+  // La FICHE d'abord, le papier ensuite : elle est ouverte ici, et c'est la même
+  // vérité que le reçu doit porter. Le dossier de téléchargement se vide APRÈS,
+  // pour que la capture reste celle de la réimpression.
+  const strip = await readMonthsStrip(page);
   await downloadReceiptFromPreview(page, studentName);
   const reprint = await captureDownloadedPdf('réimpression');
 
-  return { ticked: MONTHS_TICKED, screenLine, stored: settled.value.months, reads: settled.reads, reprint };
+  return { ticked: MONTHS_TICKED, screenLine, stored: settled.value.months, reads: settled.reads, reprint, strip };
 }
 
 // target: { member (Staff row) | null, mode, createViaUI? }
@@ -1393,6 +1431,47 @@ async function checkMonthsPaper(pdf) {
     reprint.names.join(', ') || 'aucun mois nommé');
   check('la RÉIMPRESSION ne retombe pas sur le mois de la date', !reprint.october,
     reprint.october ? 'Octobre imprimé — la colonne n’est pas relue' : 'aucun « Octobre »');
+
+  // ── La FICHE de l'élève, la même vérité dite à l'écran ────────────────────
+  // Le reçu part dans les mains de la famille ; la fiche, c'est ce que l'école
+  // regarde pour répondre « qu'est-ce qui reste à payer ? ». L'attendu ne se
+  // CALCULE pas avec le code jugé : il vient de ce que la BASE garde
+  // (`months.stored`, relu par l'API), croisé avec l'année que la fiche AFFICHE.
+  // Un mois du geste qu'aucune pastille n'offrirait rendrait ce contrôle VIDE —
+  // d'où le troisième contrôle, qui refuse un vert sans rien dedans.
+  const strip = months.strip;
+  const offered = strip ? strip.months.map((m) => m.month) : [];
+  const paidOnStrip = strip ? strip.months.filter((m) => m.state === 'paid').map((m) => m.month) : [];
+  const dueOnStrip = strip ? strip.months.filter((m) => m.state === 'due') : [];
+  const heldInYear = (months.stored ?? []).filter((m) => offered.includes(m));
+
+  check('la fiche offre les douze mois de l’année scolaire',
+    !!strip && strip.total === 12,
+    strip ? `${strip.total} pastille(s)` : 'aucune bande de mois sur la fiche');
+
+  check('les mois du geste tombent dans l’année affichée par la fiche',
+    heldInYear.length === MONTHS_TICKED.length,
+    `${heldInYear.length}/${MONTHS_TICKED.length} — bande : ${offered[0] ?? 'aucun mois'} … ${offered[offered.length - 1] ?? ''}`);
+
+  check('la fiche marque RÉGLÉS les mois que la base garde',
+    !!strip && paidOnStrip.join(',') === heldInYear.join(','),
+    `réglés : ${paidOnStrip.join(', ') || 'aucun'} | base : ${heldInYear.join(', ') || 'aucun'}`);
+
+  check('la fiche laisse À RÉGLER tout le reste de l’année',
+    !!strip && dueOnStrip.length === 12 - heldInYear.length
+      && strip.months.every((m) => m.state === 'paid' || m.state === 'due'),
+    `${dueOnStrip.length} mois à régler sur ${strip?.total ?? 0}`);
+
+  check('la fiche écrit le compte de ses mois réglés',
+    !!strip && strip.header.includes(`${heldInYear.length} mois réglés sur ${strip.total}`),
+    strip ? strip.header : 'aucune bande de mois sur la fiche');
+
+  // Octobre est le mois de la date du geste et n'a jamais été coché : la ligne
+  // des restants doit donc COMMENCER par lui. C'est le pendant écran du
+  // contrôle « Octobre absent du papier » ci-dessus.
+  check('la fiche NOMME les mois restants, à partir du premier trou',
+    !!strip && strip.lines.some((l) => l.startsWith('Reste à régler : Octobre')),
+    strip ? (strip.lines[0] ?? 'aucune ligne de restants') : 'aucune bande de mois sur la fiche');
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────

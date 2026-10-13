@@ -207,3 +207,42 @@ export function formatPaidMonths(months: readonly string[], words: PaidMonthsWor
   }
   return `${words.count(shape.count)} : ${shape.months.map(words.label).join(', ')}`;
 }
+
+/**
+ * Ce qu'une fiche élève peut AFFIRMER de ses mois, et ce qu'elle ne peut pas.
+ *
+ *   • `covered` — les mois de l'année que des paiements déclarent couvrir,
+ *     dans l'ordre du calendrier scolaire (l'union de tous les paiements : un
+ *     mois réglé deux fois reste réglé, et c'est `sortPaymentMonths` qui range
+ *     et dédoublonne) ;
+ *   • `missing` — le reste de l'année, dans le même ordre ;
+ *   • `undeclared` — combien de paiements ne déclarent AUCUN mois.
+ *
+ * Ce dernier compte est la raison d'être de cette brique. Un paiement saisi
+ * avant la colonne `payments.months`, ou envoyé sans cocher, ne dit pas ce qu'il
+ * couvre : sa couverture est INCONNUE. L'aligner sur « rien » ferait afficher
+ * « à régler » en face d'un mois déjà payé — un papier d'école qui accuse une
+ * famille qui a payé. La fiche lit donc ce compte et le DIT (voir
+ * `StudentDetailsModal`) : un mois non déclaré n'est pas un mois non payé.
+ *
+ * Le mois de l'année est un `YYYY-MM` : il porte son année civile, donc un
+ * recoupement avec les douze mois de l'année scolaire ne peut pas confondre
+ * septembre 2026 et septembre 2027. Une année illisible rend `[]` (cf.
+ * `academicYearMonths`) : pas d'année, pas de bande — jamais de mois inventé.
+ */
+export interface MonthsCoverage {
+  covered: string[];
+  missing: string[];
+  undeclared: number;
+}
+
+export function monthsCoverage(
+  payments: readonly (readonly string[] | undefined)[],
+  yearMonths: readonly string[],
+): MonthsCoverage {
+  const declared = payments.flatMap((months) => months ?? []);
+  const covered = sortPaymentMonths(declared).filter((ym) => yearMonths.includes(ym));
+  const missing = yearMonths.filter((ym) => !covered.includes(ym));
+  const undeclared = payments.filter((months) => !months || months.length === 0).length;
+  return { covered, missing, undeclared };
+}

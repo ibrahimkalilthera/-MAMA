@@ -237,6 +237,7 @@ function renderDetails(duplicateGroupSize?: number): string {
     handleSaveNote: async () => {},
     studentDetailTab: 'general' as const,
     setStudentDetailTab: () => {},
+    selectedYear: '2026-2027',
     overlayRef: () => {},
     onClose: () => {},
     onEdit: () => {},

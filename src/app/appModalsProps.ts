@@ -142,6 +142,13 @@ export interface AppModalsProps {
   salaryPayments: SalaryPayment[];
   schoolLogo: string | null;
   selectedCalendarDay: Date | null;
+  /**
+   * L'année scolaire ACTIVE (celle que l'en-tête montre) — la fiche élève s'en
+   * sert comme recours quand l'élève n'en porte pas, pour afficher sa bande de
+   * mois. Lue et non recalculée : deux « année courante » dans la même app
+   * finiraient par diverger.
+   */
+  selectedYear: string;
   selectedStudent: Student | null;
   setAiInput: Dispatch<SetStateAction<string>>;
   setEditClassForm: Dispatch<SetStateAction<ClassForm>>;

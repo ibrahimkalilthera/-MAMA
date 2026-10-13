@@ -23,6 +23,7 @@ import {
   effectivePaymentMonths,
   isPaymentMonth,
   monthKeyOf,
+  monthsCoverage,
   paymentMonthLabel,
   paidMonthsShape,
   formatPaidMonths,
@@ -213,5 +214,52 @@ describe('monthKeyOf / paymentMonthLabel — le libellé vient du dictionnaire',
     assert.equal(paymentMonthLabel('2026-10', translations.fr), 'Octobre');
     assert.equal(paymentMonthLabel('2027-01', translations.en), 'January');
     assert.equal(paymentMonthLabel('', translations.fr), '');
+  });
+});
+
+describe('monthsCoverage — ce qu’une fiche peut AFFIRMER des mois d’un élève', () => {
+  const year = academicYearMonths('2026-2027'); // 2026-09 … 2027-08
+
+  it('sépare les mois déclarés des mois qui restent, dans l’ordre du calendrier', () => {
+    const c = monthsCoverage([['2026-12', '2026-09', '2026-11']], year);
+    assert.deepEqual(c.covered, ['2026-09', '2026-11', '2026-12'], 'l’ordre des clics ne se voit pas sur la fiche');
+    assert.equal(c.missing.length, 9, 'douze mois moins les trois réglés');
+    assert.ok(c.missing.includes('2026-10'), 'le mois absent du geste est bien celui qui reste');
+    assert.equal(c.missing[0], '2026-10', 'et les restants gardent aussi l’ordre de l’année');
+    assert.equal(c.missing[c.missing.length - 1], '2027-08', 'la liste va jusqu’à août');
+    assert.equal(c.undeclared, 0);
+  });
+
+  it('additionne les paiements, et dédoublonne un mois réglé deux fois', () => {
+    const c = monthsCoverage([['2026-09'], ['2026-09', '2026-10']], year);
+    assert.deepEqual(c.covered, ['2026-09', '2026-10']);
+  });
+
+  it('ne laisse pas un mois d’une AUTRE année scolaire déteindre sur celle-ci', () => {
+    // Le mois porte son année civile : « 2025-09 » n’est pas « 2026-09 ».
+    const c = monthsCoverage([['2025-09', '2026-09'], ['2027-09']], year);
+    assert.deepEqual(c.covered, ['2026-09']);
+  });
+
+  it('compte les paiements MUETS, et ne leur attribue aucun mois', () => {
+    // Avant la colonne `payments.months`, ou envoyé sans cocher : la couverture
+    // est INCONNUE. La fiche doit pouvoir le dire — c’est ce compte qui le lui
+    // permet — et surtout ne pas ranger ces mois dans « réglés ».
+    const c = monthsCoverage([['2026-10'], undefined, []], year);
+    assert.deepEqual(c.covered, ['2026-10']);
+    assert.equal(c.undeclared, 2, 'un `undefined` et une liste vide comptent tous deux');
+  });
+
+  it('dit « rien de couvert » sans année lisible, sans rien inventer', () => {
+    const c = monthsCoverage([['2026-10']], academicYearMonths(undefined));
+    assert.deepEqual(c.covered, []);
+    assert.deepEqual(c.missing, []);
+    assert.equal(c.undeclared, 0, 'un paiement qui déclare ses mois n’est pas muet, même sans année');
+  });
+
+  it('rend une année ENTIÈREMENT couverte quand les douze mois sont déclarés', () => {
+    const c = monthsCoverage([year, ['2026-10']], year);
+    assert.deepEqual(c.covered, year);
+    assert.deepEqual(c.missing, []);
   });
 });
