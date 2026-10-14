@@ -39,6 +39,7 @@
 import type { TranslationDict } from '../i18n/translations';
 import { auditActionLabel, localizeAuditDetails } from './auditDisplay';
 import { offlineOriginNote, offlineOriginOf } from './auditOffline';
+import { paymentMotifLabel } from './paymentMotifs';
 import type { PaymentHistoryFilter, PaymentHistoryRow } from './paymentHistory';
 
 /** Le type MIME du CSV — le même que l'export du journal d'audit. */
@@ -86,9 +87,17 @@ export function paymentHistoryBound(value: string | undefined, lang: 'en' | 'fr'
   return Number.isFinite(ms) ? new Date(ms).toLocaleDateString(paymentHistoryLocale(lang)) : text;
 }
 
-/** Les sept colonnes de l'écran, dans SON ordre — le CSV et le PDF les nomment de même. */
+/**
+ * Les HUIT colonnes de l'écran, dans SON ordre — le CSV et le PDF les nomment de même.
+ *
+ * Le MOTIF est la huitième, juste après le reçu : il décrit CE reçu (ce que la
+ * famille est venue régler), et le lecteur d'un tableur ou d'un PDF le lit donc à
+ * côté du numéro qu'il qualifie. Son libellé est celui de la ligne « Motif » du
+ * papier remis au comptoir (`paymentMotifLabel`) — un motif ne se nomme pas de
+ * deux façons selon qu'on le regarde à l'écran ou dans un fichier.
+ */
 export function paymentHistoryColumnLabels(t: TranslationDict): string[] {
-  return [t.timestamp, t.studentName, t.actions, t.amount2, t.receipt, t.paymentHistoryCollectedBy, t.details];
+  return [t.timestamp, t.studentName, t.actions, t.amount2, t.receipt, t.paymentMotif, t.paymentHistoryCollectedBy, t.details];
 }
 
 /**
@@ -135,6 +144,7 @@ export function paymentHistoryCells(row: PaymentHistoryRow, context: PaymentHist
     auditActionLabel(row.action, context.t),
     amountCell(row, context),
     row.receiptNumber || '—',
+    paymentMotifLabel(row.motif, context.t),
     cashierCell(row, context),
     detailsCell(row, context),
   ];

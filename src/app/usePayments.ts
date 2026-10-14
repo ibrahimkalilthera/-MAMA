@@ -19,7 +19,14 @@ import { generatePaymentReceiptPdf } from '../lib/pdfReceipt';
 import { PAYROLL_WINDOW_LAST_DAY } from '../lib/payrollWindow';
 import { fetchCalendarDayNotes, saveCalendarDayNote, deleteCalendarDayNote } from '../lib/calendarNotes';
 import { useGestureId } from '../lib/gestureId';
-import { academicYearMonths, effectivePaymentMonths, toggledPaymentMonths } from '../lib/paymentMonths';
+import { academicYearMonths } from '../lib/paymentMonths';
+import {
+  DEFAULT_PAYMENT_MOTIF,
+  paymentMotifMonths,
+  paymentMotifNeedsMonths,
+  toggledPaymentMonthsForMotif,
+} from '../lib/paymentMotifs';
+import type { PaymentMotif } from '../lib/paymentMotifs';
 import { academicYearOf } from '../lib/dateWindows';
 import type { Student, Staff, Expense, Payment, User, Todo } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
@@ -60,6 +67,14 @@ export function usePayments(deps: UsePaymentsDeps) {
   // laisserait « Octobre » coché sur un reçu daté de novembre — exactement la
   // confusion que ces mois existent pour lever.
   const [paymentMonthsTouched, setPaymentMonthsTouched] = useState(false);
+
+  // ── Le MOTIF du paiement ────────────────────────────────────────────────
+  // À QUOI l'argent correspond : « Frais de scolarité » (le geste ordinaire,
+  // proposé d'avance) ou « Inscription ». C'est le mot que la ligne « Motif »
+  // du reçu officiel imprime, et il repart avec le paiement en base — sans
+  // quoi une réimpression dans six mois ne saurait plus le dire. Voir
+  // src/lib/paymentMotifs.ts : la liste fermée, la relecture et les mots.
+  const [paymentMotif, setPaymentMotif] = useState<PaymentMotif>(DEFAULT_PAYMENT_MOTIF);
 
   // Les mois PROPOSÉS sont ceux de l'année scolaire où TOMBE LA DATE : le mois
   // de la date y est donc toujours, le choix par défaut existe toujours, et
@@ -166,18 +181,19 @@ export function usePayments(deps: UsePaymentsDeps) {
   // conversion de fuseau ne peut donc décaler le mois d'un reçu.
   const paymentDateMonth = paymentDate.slice(0, 7);
 
-  // Le choix RÉEL — la règle vit dans le module pur : tant que rien n'a été
-  // coché, le mois proposé suit la DATE ; dès qu'un clic a eu lieu, c'est le
-  // choix du caissier qui compte.
-  const shownPaymentMonths = effectivePaymentMonths(
-    paymentMonths, paymentMonthsTouched, paymentDateMonth, paymentMonthOptions,
+  // Le choix RÉEL — la règle vit dans le module pur, motif compris : tant que
+  // rien n'a été coché, le mois proposé suit la DATE pour la scolarité ; pour
+  // une INSCRIPTION il n'y a rien de proposé d'avance, parce qu'un droit
+  // d'entrée ne règle aucun mois (voir `paymentMotifMonths`).
+  const shownPaymentMonths = paymentMotifMonths(
+    paymentMotif, paymentMonths, paymentMonthsTouched, paymentDateMonth, paymentMonthOptions,
   );
 
   // Cocher/décocher un mois. La liste repart TOUJOURS triée dans l'ordre du
   // calendrier scolaire : un reçu n'a pas à dépendre de l'ordre des clics.
   const togglePaymentMonth = (month: string) => {
-    setPaymentMonths(prev => toggledPaymentMonths(
-      prev, paymentMonthsTouched, paymentDateMonth, paymentMonthOptions, month,
+    setPaymentMonths(prev => toggledPaymentMonthsForMotif(
+      paymentMotif, prev, paymentMonthsTouched, paymentDateMonth, paymentMonthOptions, month,
     ));
     setPaymentMonthsTouched(true);
   };
@@ -200,7 +216,7 @@ export function usePayments(deps: UsePaymentsDeps) {
     // Au moins un mois — mais SEULEMENT quand la liste est proposée (elle ne
     // l'est que si l'année scolaire de la date se lit). Sur une année illisible,
     // exiger un mois rendrait le guichet infranchissable.
-    if (paymentMonthOptions.length > 0 && shownPaymentMonths.length === 0) {
+    if (paymentMotifNeedsMonths(paymentMotif) && paymentMonthOptions.length > 0 && shownPaymentMonths.length === 0) {
       toastError(t.paidMonthsRequired);
       return;
     }
@@ -219,6 +235,9 @@ export function usePayments(deps: UsePaymentsDeps) {
       // Les mois couverts — ils partent EN BASE avec le paiement (reçus réimprimés)
       // et sur le reçu du moment.
       months: shownPaymentMonths.length > 0 ? shownPaymentMonths : undefined,
+      // Le MOTIF part aussi : c'est lui que la ligne « Motif » du reçu imprime,
+      // ici et dans six mois (`payments.motif`, migration 20261016000000).
+      motif: paymentMotif,
     };
 
     paymentSubmittingRef.current = true;
@@ -246,9 +265,11 @@ export function usePayments(deps: UsePaymentsDeps) {
       setPaymentStudentId('');
       setPaymentAmount('');
       // Le paiement est enregistré : les mois repartent du mois de la date, comme
-      // le formulaire rouvert les proposera.
+      // le formulaire rouvert les proposera — et le motif repart sur l'ordinaire,
+      // pour qu'un encaissement suivant ne garde pas « Inscription » en silence.
       setPaymentMonths([]);
       setPaymentMonthsTouched(false);
+      setPaymentMotif(DEFAULT_PAYMENT_MOTIF);
       setShowPaymentForm(false);
     } finally {
       paymentSubmittingRef.current = false;
@@ -333,6 +354,7 @@ export function usePayments(deps: UsePaymentsDeps) {
     paymentMonths: shownPaymentMonths,
     paymentMonthOptions,
     togglePaymentMonth,
+    paymentMotif, setPaymentMotif,
     handlePaymentSubmit,
     getEventsForDay,
     noteText, setNoteText,

@@ -8,9 +8,15 @@
  *   • les reçus changent de fiche AVANT que l'ancienne soit supprimée — l'ordre
  *     inverse laisserait la cascade `ON DELETE CASCADE` détruire des reçus que
  *     l'école a remis à une famille ;
- *   • un déplacement qui ne touche pas TOUTES les lignes attendues (RLS « Admin
- *     update payments », ou reçus modifiés entre-temps) ARRÊTE le geste au lieu
- *     d'enchaîner sur la suppression ;
+ *   • le rattachement passe par la FONCTION bornée de la base
+ *     (`public.reassign_payment_student`, migration 20261013000001) et JAMAIS par
+ *     un `UPDATE` de table — une policy borne des LIGNES, donc l'ouvrir aurait
+ *     rouvert le MONTANT avec (défaut mesuré le 2026-10-13 : `general_manager`
+ *     réécrivait `amount` sur un reçu réel) ;
+ *   • un déplacement qui ne touche pas la ligne attendue rend 0 — reçu déjà
+ *     rattaché ailleurs, ou reçu resté sous une fiche qu'on s'apprête à supprimer
+ *     (la cascade l'emporterait) — et ce zéro ARRÊTE le geste au lieu d'enchaîner
+ *     sur la suppression ;
  *   • une suppression refusée REMET tout en place : reçus sur leur fiche, fiche
  *     gardée à ses valeurs d'avant. Un demi-geste qui survivrait à l'écran serait
  *     pire qu'un refus ;
@@ -30,7 +36,7 @@ import { mockModule } from './module-mock';
 import type { Payment, Student } from '../src/lib/domainTypes';
 
 interface Call {
-  op: 'insert' | 'update' | 'delete';
+  op: 'insert' | 'update' | 'delete' | 'select' | 'rpc';
   table: string;
   payload?: Record<string, unknown>;
   eqColumn?: string;
@@ -83,6 +89,10 @@ function chain(key: string): Chain {
 const fakeSupabase = {
   auth: { getUser: async () => ({ data: { user: null } }) },
   from: (table: string) => ({
+    select: () => {
+      calls.push({ op: 'select', table });
+      return chain(`${table}.select`);
+    },
     update: (payload: Record<string, unknown>) => {
       calls.push({ op: 'update', table, payload });
       return chain(`${table}.update`);
@@ -96,6 +106,15 @@ const fakeSupabase = {
       return chain(`${table}.insert`);
     },
   }),
+  // La fonction BORNÉE de la base : elle rend le NOMBRE de lignes écrites (`1`
+  // quand le reçu était bien sur la fiche d'origine annoncée, `0` sinon). Elle est
+  // enregistrée à part d'un appel de table — un appel de fonction n'est pas une
+  // table, et un chemin qui repasserait par un UPDATE de `payments` doit se voir
+  // ici même.
+  rpc: (fn: string, args?: Record<string, unknown>) => {
+    calls.push({ op: 'rpc', table: fn, payload: args });
+    return chain(`${fn}.rpc`);
+  },
 };
 
 mockModule('../src/lib/supabaseClient', { supabase: fakeSupabase });
@@ -176,7 +195,9 @@ beforeEach(() => {
 
 describe('mergeStudents — les reçus changent de fiche AVANT la suppression', () => {
   it('rattache les reçus, additionne le solde, supprime la fiche retirée et écrit UNE entrée de journal', async () => {
-    scripted('payments.update', { data: [{ id: 'p1' }, { id: 'p2' }], error: null });
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+    scripted('payments.select', { data: [], error: null });
     scripted('students.update', { data: [{ id: 'saf-1' }], error: null });
     scripted('students.delete', { data: [{ id: 'saf-2' }], error: null });
     scripted('audit_logs.insert', { data: null, error: null });
@@ -185,11 +206,26 @@ describe('mergeStudents — les reçus changent de fiche AVANT la suppression', 
     assert.equal(await ops.mergeStudents('saf-1', ['saf-2']), true);
     assert.deepEqual(events, ['ok:mergeStudents'], 'succès annoncé, aucune erreur');
 
-    // 1. Les reçus partent sur la fiche gardée, et le déplacement est VÉRIFIÉ.
-    const move = calls.find((c) => c.op === 'update' && c.table === 'payments');
-    assert.deepEqual(move?.payload, { student_id: 'saf-1' }, 'les reçus pointent la fiche gardée');
-    assert.equal(move?.eqColumn, 'student_id', 'le filtre est la fiche RETIRÉE');
-    assert.equal(move?.eqValue, 'saf-2');
+    // 1. Les reçus partent sur la fiche gardée, un par un, par la FONCTION.
+    const moves = calls.filter((c) => c.op === 'rpc');
+    assert.equal(moves[0]?.table, 'reassign_payment_student', 'la fonction bornée de la migration 20261013000001');
+    assert.deepEqual(
+      moves.map((c) => c.payload),
+      [
+        { p_payment_id: 'p1', p_from_student_id: 'saf-2', p_to_student_id: 'saf-1' },
+        { p_payment_id: 'p2', p_from_student_id: 'saf-2', p_to_student_id: 'saf-1' },
+      ],
+      'chaque reçu nommé, avec sa fiche d’ORIGINE : c’est elle qui rend 0 si le reçu a bougé',
+    );
+    assert.equal(
+      calls.filter((c) => c.op === 'update' && c.table === 'payments').length,
+      0,
+      'aucun UPDATE de table : c’est ce qui empêche un rôle de réécrire le montant',
+    );
+    // Le contrôle d'après : plus un seul reçu sous la fiche qu'on va supprimer.
+    const left = calls.find((c) => c.op === 'select' && c.table === 'payments');
+    assert.equal(left?.eqColumn, 'student_id');
+    assert.equal(left?.eqValue, 'saf-2', 'le compte se fait sur la fiche RETIRÉE');
 
     // 2. La fiche gardée reçoit le grand livre consolidé.
     const consolidated = calls.find((c) => c.op === 'update' && c.table === 'students');
@@ -206,8 +242,14 @@ describe('mergeStudents — les reçus changent de fiche AVANT la suppression', 
     assert.deepEqual(removal?.inValues, ['saf-2']);
     assert.deepEqual(
       writes(),
-      ['update:payments', 'update:students', 'delete:students'],
-      'l’ordre est le fond du geste : reçus, solde, puis suppression',
+      [
+        'rpc:reassign_payment_student',
+        'rpc:reassign_payment_student',
+        'select:payments',
+        'update:students',
+        'delete:students',
+      ],
+      'l’ordre est le fond du geste : reçus, contrôle, solde, puis suppression',
     );
     // Le journal part en « fire and forget » (comme tous les autres gestes du
     // dépôt) : sa ligne arrive après le retour de la fonction, pas avant.
@@ -247,13 +289,16 @@ describe('mergeStudents — les reçus changent de fiche AVANT la suppression', 
 });
 
 describe('mergeStudents — un demi-geste ne survit pas', () => {
-  it('un déplacement INCOMPLET arrête tout : rien n’est supprimé et les reçus reviennent', async () => {
-    // « Admin update payments » filtre en RLS : la réponse dit 200 avec MOINS de
-    // lignes que prévu. Croire « déplacé » ferait supprimer la fiche, et la
-    // cascade emporterait les reçus restés derrière.
-    scripted('payments.update', { data: [{ id: 'p1' }], error: null });
-    scripted('payments.update', { data: [{ id: 'p1' }], error: null });
-    scripted('payments.update', { data: [{ id: 'p2' }], error: null });
+  it('un reçu déjà rattaché ailleurs (la fonction rend 0) arrête tout : rien n’est supprimé et les reçus reviennent', async () => {
+    // La fonction exige la fiche d'ORIGINE : un reçu qui n'est plus sur la fiche
+    // attendue rend 0. Croire « déplacé » ferait supprimer la fiche, et la cascade
+    // emporterait les reçus restés derrière.
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+    scripted('reassign_payment_student.rpc', { data: 0, error: null });
+    // La remise en place des deux reçus (celui qui avait bougé revient ; l'autre
+    // n'a rien à défaire, la fonction rend 0).
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+    scripted('reassign_payment_student.rpc', { data: 0, error: null });
 
     const { ops, events, state } = studentOps();
     assert.equal(await ops.mergeStudents('saf-1', ['saf-2']), false);
@@ -264,17 +309,41 @@ describe('mergeStudents — un demi-geste ne survit pas', () => {
       0,
       'aucune suppression : c’est la seule façon de ne pas perdre les reçus',
     );
-    const back = calls.filter((c) => c.op === 'update' && c.table === 'payments' && c.eqColumn === 'id');
-    assert.deepEqual(back.map((c) => c.payload?.student_id), ['saf-2', 'saf-2'], 'chaque reçu remis sur sa fiche');
+    const back = calls.filter((c) => c.op === 'rpc' && c.payload?.p_from_student_id === 'saf-1');
+    assert.deepEqual(back.map((c) => c.payload?.p_payment_id), ['p1', 'p2'], 'chaque reçu remis sur sa fiche');
+    assert.deepEqual(
+      back.map((c) => c.payload?.p_to_student_id),
+      ['saf-2', 'saf-2'],
+      'et c’est la fiche RETIRÉE qui les reprend',
+    );
+    assert.deepEqual(state().map((s) => s.id), ['saf-1', 'saf-2'], 'les deux fiches sont encore là');
+  });
+
+  it('un reçu INCONNU resté sous la fiche arrête le geste — la cascade l’emporterait', async () => {
+    // Le contrôle d'après-déplacement : l'écran croyait la fiche sans reçu, la base
+    // en porte un (arrivé entre-temps). Supprimer la fiche le détruirait en
+    // silence : on refuse, et on remet en place.
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+    scripted('payments.select', { data: [{ id: 'p3' }], error: null });
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+
+    const { ops, events, state } = studentOps();
+    assert.equal(await ops.mergeStudents('saf-1', ['saf-2']), false);
+    assert.match(events.join(' '), /err:mergeStudents:Reçus non rattachés/);
+    assert.equal(calls.filter((c) => c.op === 'delete').length, 0, 'aucune suppression');
     assert.deepEqual(state().map((s) => s.id), ['saf-1', 'saf-2'], 'les deux fiches sont encore là');
   });
 
   it('une suppression refusée remet les reçus ET la fiche gardée dans leur état d’avant', async () => {
-    scripted('payments.update', { data: [{ id: 'p1' }, { id: 'p2' }], error: null });
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+    scripted('payments.select', { data: [], error: null });
     scripted('students.update', { data: [{ id: 'saf-1' }], error: null });
     scripted('students.delete', { data: [], error: null });
-    scripted('payments.update', { data: [{ id: 'p1' }], error: null });
-    scripted('payments.update', { data: [{ id: 'p2' }], error: null });
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
+    scripted('reassign_payment_student.rpc', { data: 1, error: null });
     scripted('students.update', { data: [{ id: 'saf-1' }], error: null });
 
     const { ops, events, state } = studentOps();

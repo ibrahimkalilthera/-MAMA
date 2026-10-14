@@ -30,6 +30,8 @@
  */
 import type { AuditLogEntry } from './auditLogger';
 import type { Payment } from './domainTypes';
+import { isPaymentMotif } from './paymentMotifs';
+import type { PaymentMotif } from './paymentMotifs';
 
 /** L'instantané d'un paiement retiré — exactement de quoi le réinsérer à l'identique. */
 export interface ArchivedPayment {
@@ -42,6 +44,14 @@ export interface ArchivedPayment {
   receiptNumber?: string;
   /** Les mois couverts, en `YYYY-MM` (voir `src/lib/paymentMonths.ts`). */
   months?: string[];
+  /**
+   * Ce que le paiement réglait (`scolarite` / `inscription`, voir
+   * `src/lib/paymentMotifs.ts`). Il voyage avec l'instantané pour la même raison
+   * que les mois : une suppression puis une restauration doivent rendre le reçu
+   * ENTIER — un reçu d'inscription revenu en « frais de scolarité » serait faux,
+   * et l'erreur survivrait à la réparation du geste.
+   */
+  motif?: PaymentMotif;
 }
 
 /** Le marqueur de forme : un `metadata` d'un autre genre n'est pas un instantané de paiement. */
@@ -62,6 +72,7 @@ export function archivedPaymentFrom(
     academicYear: payment.academicYear,
     receiptNumber: payment.receiptNumber,
     months: payment.months,
+    motif: payment.motif,
   };
 }
 
@@ -87,10 +98,20 @@ export function paymentSnapshotMetadata(archived: ArchivedPayment): Record<strin
     // Les mois voyagent avec l'instantané : une suppression puis une
     // restauration doivent rendre le reçu ENTIER, pas un reçu amputé.
     months: archived.months ?? [],
+    // Le motif aussi, et pour la même raison : `null` (et non une clé devinée)
+    // quand la ligne n'en déclarait pas — c'est l'absence qu'il faut rendre.
+    motif: archived.motif ?? null,
   };
 }
 
 const asText = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+
+/**
+ * Relit un motif d'un `metadata` : une clé CONNUE se rend telle quelle, tout le
+ * reste vaut « non renseigné » (`undefined`). On ne devine jamais un motif —
+ * l'imprimer retombe alors sur celui d'avant la colonne.
+ */
+const asMotif = (v: unknown): PaymentMotif | undefined => (isPaymentMotif(v) ? v : undefined);
 
 /**
  * Relit une liste de mois d'un `metadata` : seules les chaînes passent, et une
@@ -128,6 +149,7 @@ export function paymentSnapshotOf(
     academicYear: asText(m.academic_year),
     receiptNumber: asText(m.receipt_number),
     months: asMonthList(m.months),
+    motif: asMotif(m.motif),
   };
 }
 

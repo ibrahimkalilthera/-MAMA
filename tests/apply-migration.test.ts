@@ -262,6 +262,84 @@ describe('db:apply — un RETRAIT se prouve aussi (présent avant, absent après
   });
 });
 
+describe('db:apply — un retrait de POLITIQUE se prouve aussi (2026-10-13)', () => {
+  // La base de l'école portait trois politiques héritées que le dépôt ne
+  // déclarait pas, et dont `… can update payments` (`USING (true)`) rendait la
+  // garde `is_admin()` inopérante. Les fermer est un RETRAIT : sans lecture des
+  // retraits, le fichier n'aurait déclaré qu'une fonction, et la fermeture du trou
+  // n'aurait été NI exigée AVANT, NI vérifiée APRÈS.
+  const WRITE_LOCK = `${MIGRATIONS_DIR}/20261013000001_payments_write_lock.sql`;
+
+  it('un fichier qui ne fait que retirer des politiques n’est plus « un fichier qui ne déclare rien »', () => {
+    const sql = [
+      'DROP POLICY IF EXISTS "Authenticated users can update payments" ON public.payments;',
+      'DROP POLICY IF EXISTS "Authenticated users can read payments" ON public.payments;',
+    ].join('\n');
+    const objects = declaredObjects(sql);
+    assert.deepEqual(objectKeys(objects), [], 'il n’ajoute rien');
+    assert.deepEqual(removalKeys(objects), [
+      'policy:Authenticated users can read payments',
+      'policy:Authenticated users can update payments',
+    ]);
+
+    const clean = applyVerdict({ objects, before: new Set(removalKeys(objects)), after: new Set() });
+    assert.equal(clean.ok, true, 'présentes avant, absentes après : le seul cas vert');
+    assert.deepEqual(clean.removals, removalKeys(objects));
+
+    const alreadyGone = applyVerdict({ objects, before: new Set(), after: new Set() });
+    assert.equal(alreadyGone.ok, false, 'retirer une politique absente ne prouve rien');
+    assert.deepEqual(alreadyGone.goneAlready, removalKeys(objects));
+
+    const stillThere = applyVerdict({ objects, before: new Set(removalKeys(objects)), after: new Set(removalKeys(objects)) });
+    assert.equal(stillThere.ok, false, 'une politique encore là est un retrait NON vérifié');
+    assert.match(stillThere.problems.join(' '), /retrait NON vérifié APRÈS/);
+  });
+
+  it('le NET décide, comme pour les tables : retirer PUIS recréer n’est pas un retrait', () => {
+    const reset = declaredObjects(
+      'DROP POLICY IF EXISTS "p" ON public.payments;\nCREATE POLICY "p" ON public.payments FOR SELECT USING (true);\n',
+    );
+    assert.deepEqual(removalKeys(reset), [], 'la politique est là après coup');
+    assert.deepEqual(reset.policies, ['p']);
+
+    const gone = declaredObjects(
+      'CREATE POLICY "p" ON public.payments FOR SELECT USING (true);\nDROP POLICY IF EXISTS "p" ON public.payments;\n',
+    );
+    assert.deepEqual(removalKeys(gone), ['policy:p'], 'créée puis retirée : elle part');
+    assert.deepEqual(gone.policies, []);
+  });
+
+  it('le `DROP` d’une politique raconté dans un commentaire n’est pas un geste', () => {
+    const objects = declaredObjects('-- DROP POLICY IF EXISTS "p" ON public.payments;\nselect 1;\n');
+    assert.deepEqual(removalKeys(objects), []);
+  });
+
+  it('la fermeture du 2026-10-13 déclare sa fonction ET ses trois retraits', () => {
+    const objects = declaredObjects(read(WRITE_LOCK));
+    assert.deepEqual(objectKeys(objects), ['function:reassign_payment_student']);
+    assert.deepEqual(removalKeys(objects), [
+      'policy:Authenticated users can insert payments',
+      'policy:Authenticated users can read payments',
+      'policy:Authenticated users can update payments',
+    ]);
+    // Le fichier n'ajoute AUCUNE table : la sonde des colonnes n'a rien à relire,
+    // et c'est la relecture des politiques qui porte la preuve du geste.
+    assert.deepEqual(objects.tables, []);
+    assert.deepEqual(removedObjects(read(WRITE_LOCK)).tables, []);
+  });
+
+  it('la sonde lit les retraits dans les mêmes catalogues que les ajouts', () => {
+    const source = read('scripts/apply-migration.mjs');
+    assert.match(source, /pg_policies/, 'une politique retirée se lit dans pg_policies');
+    assert.match(source, /pg_proc/, 'une fonction dans pg_proc');
+    assert.match(source, /pg_trigger/, 'un déclencheur dans pg_trigger');
+    // Et les noms RETIRÉS rejoignent les ajouts dans la MÊME sonde : c'est ce qui
+    // fait qu'une politique peut être exigée « présente avant, absente après ».
+    assert.match(source, /withRemovals\(objects\.policies, droppedOf\('policies'\)\)/);
+    assert.match(source, /const droppedOf = \(kind\) => objects\.removed\?\.\[kind\] \?\? \[\]/);
+  });
+});
+
 describe('db:apply — le geste lui-même, tel qu’il est écrit', () => {
   const source = read('scripts/apply-migration.mjs');
 

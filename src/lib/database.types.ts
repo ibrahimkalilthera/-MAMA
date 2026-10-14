@@ -220,6 +220,7 @@ export interface Database {
           academic_year: string | null;
           receipt_number: string | null;
           months: string[];
+          motif: string | null;
           created_at: string;
         };
         Insert: {
@@ -230,6 +231,7 @@ export interface Database {
           academic_year?: string | null;
           receipt_number?: string | null;
           months?: string[];
+          motif?: string | null;
           created_at?: string;
         };
         Update: {
@@ -240,6 +242,7 @@ export interface Database {
           academic_year?: string | null;
           receipt_number?: string | null;
           months?: string[];
+          motif?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -580,6 +583,29 @@ export interface Database {
           new_password: string;
         };
         Returns: boolean;
+      };
+      /** L’écriture BORNÉE des mois d’un reçu (20261013000000_econome_payment_months.sql) :
+       *  `SECURITY DEFINER`, elle rend le NOMBRE de lignes écrites — 0 n’est pas un
+       *  succès — et sa seule colonne écrite est `months`. */
+      set_payment_months: {
+        Args: {
+          p_payment_id: string;
+          p_months: string[];
+        };
+        Returns: number;
+      };
+      /** Le rattachement BORNÉ d'un reçu à une autre fiche
+       *  (20261013000001_payments_write_lock.sql) : `SECURITY DEFINER`, gardée par
+       *  `public.is_admin()`, une seule colonne (`student_id`), la fiche d'ORIGINE
+       *  exigée, et le NOMBRE de lignes écrites — 0 n'est pas un succès. Seul
+       *  chemin d'écriture de `payments.student_id` depuis le 2026-10-13. */
+      reassign_payment_student: {
+        Args: {
+          p_payment_id: string;
+          p_from_student_id: string;
+          p_to_student_id: string;
+        };
+        Returns: number;
       };
     };
     Enums: Record<string, never>;

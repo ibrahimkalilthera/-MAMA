@@ -1,11 +1,11 @@
 /**
  * App sidebar/navigation — extracted verbatim from App.tsx.
  *
- * Logo + school name, the tab navigation (with the payroll window badges and
- * the admin/dev-only tabs), the productivity toggle, sign-out, the quick
- * add-student / record-payment actions and the language toggle. The add/edit
- * modal reset lives in App (passed as `onAddStudent`), keeping this
- * component presentational.
+ * Logo + school name, the tab navigation (with the payroll window badge, the
+ * silent-receipts count and the admin/dev-only tabs), the productivity toggle,
+ * sign-out, the quick add-student / record-payment actions and the language
+ * toggle. The add/edit modal reset lives in App (passed as `onAddStudent`),
+ * keeping this component presentational.
  */
 import {
   ShieldCheck,
@@ -16,6 +16,7 @@ import {
   Briefcase,
   Receipt,
   Calendar,
+  CalendarClock,
   StickyNote,
   TrendingUp,
   Globe,
@@ -30,7 +31,7 @@ import type { TranslationDict } from '../i18n/translations';
 import type { User } from '../app/types';
 import type { CurrentTheme, PayrollWindowStatus } from '../app/mainViewsProps';
 
-export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit' | 'paymentHistory';
+export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory';
 
 export interface SidebarProps {
   t: TranslationDict;
@@ -60,6 +61,18 @@ export interface SidebarProps {
    * endroit de l'écran visible depuis N'IMPORTE quelle page.
    */
   auditArchivePending?: boolean;
+  /**
+   * Combien de reçus muets restent à documenter sur l'année affichée — la
+   * pastille de l'onglet École.
+   *
+   * Le chiffre VIENT DU SHELL (`AppShell`), qui le lit sur la même brique pure
+   * que l'écran École et le tableau de bord (`silentReceiptsRows` /
+   * `silentReceiptsCatchUp`) : la pastille, la liste et la carte publient donc le
+   * MÊME nombre, au lieu de trois comptages qui s'accordent aujourd'hui et
+   * divergent demain. Zéro (ou absent) rend une ligne SANS pastille : un onglet
+   * qui n'annonce rien ne se décore pas d'un « 0 ».
+   */
+  silentReceiptsCount?: number;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -67,8 +80,18 @@ export function Sidebar(props: SidebarProps) {
     t, schoolLogo, currentTheme, activeTab, setActiveTab, payrollWindowStatus, currentUser,
     fetchAuditLogs, showTodoSidebar, setShowTodoSidebar,
     onSignOut, onToggleLanguage, onAddStudent, onAddCr, onRecordPayment,
-    auditArchivePending = false,
+    auditArchivePending = false, silentReceiptsCount = 0,
   } = props;
+
+  /**
+   * Le nom ACCESSIBLE de la pastille des reçus muets.
+   *
+   * Un chiffre nu ne dit rien : « 4 » à côté d'un onglet se lirait aussi bien
+   * comme quatre élèves, quatre reçus ou quatre messages. C'est cette phrase
+   * traduite qui nomme ce qui est compté — et c'est elle, pas le chiffre, que
+   * lisent les tests (`aria-label`) et les lecteurs d'écran.
+   */
+  const silentReceiptsBadge = t.silentReceiptsBadge.replace('{count}', String(silentReceiptsCount));
 
   /**
    * Une ligne du rail.
@@ -162,6 +185,35 @@ export function Sidebar(props: SidebarProps) {
         <button onClick={() => setActiveTab('archives')} className={navBtn('archives')}>
           <TrendingUp size={20} />
           <span className="font-semibold text-sm" data-i18n="navArchives">{t.navArchives}</span>
+        </button>
+
+        {/* Reçus muets — le travail de l'école sur les reçus qui ne déclarent
+            aucun mois. La ligne vit HORS du bloc admin/dev ci-dessous, et c'est
+            voulu : cet écran ne lit que les élèves déjà chargés (`students`),
+            donc il n'ouvre aucun accès en base — n'importe quel compte connecté
+            peut voir ce qui reste à documenter. Ce qui n'est pas ouvert pour
+            autant, c'est l'ÉCRITURE : renseigner les mois reste décidé par la
+            base (`canEditPaymentMonths`, src/lib/paymentRights.ts), et l'écran
+            le dit au lieu de le promettre. */}
+        <button onClick={() => setActiveTab('silentReceipts')} className={navBtn('silentReceipts')}>
+          <CalendarClock size={20} className="flex-shrink-0" />
+          <span className="font-semibold text-sm" data-i18n="navSilentReceipts">{t.navSilentReceipts}</span>
+          {/* Le NOMBRE qui reste, dans la même forme que la pastille de retard de
+              la Paie (pilule du rail, poussée à droite, cadence de pulsation) —
+              mais dans la famille ambre du sujet : le dépôt peint le rattrapage
+              des reçus muets en ambre partout ailleurs (la carte du tableau de
+              bord, le pied de liste de l'écran École), et le rose y dit une
+              échéance qui bloque. Un chiffre ne se met pas en majuscules pour
+              autant : la pastille de la Paie porte un MOT. */}
+          {silentReceiptsCount > 0 && (
+            <span
+              className="ml-auto bg-amber-500 text-amber-950 text-3xs font-black px-1.5 py-0.5 rounded whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0"
+              aria-label={silentReceiptsBadge}
+              title={silentReceiptsBadge}
+            >
+              {silentReceiptsCount}
+            </span>
+          )}
         </button>
 
         {(currentUser?.role === 'admin' || currentUser?.role === 'dev') && (

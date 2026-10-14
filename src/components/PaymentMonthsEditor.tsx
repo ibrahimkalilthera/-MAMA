@@ -26,6 +26,13 @@
  * l'identité du reçu en cours d'édition. Le composant est purement présentatif —
  * il ne connaît ni Supabase, ni les droits (`canEditPaymentMonths` les décide
  * en amont, voir src/lib/paymentRights.ts).
+ *
+ * Les marqueurs (`data-slot="payment-months-editor"`, `data-month` sur chaque
+ * pastille, `data-slot="payment-months-save"`) sont la contrepartie du pixel-check
+ * E2E : le geste se rejoue sur une pile de recette (mode `recu-muet`,
+ * scripts/verify-pdf-download.mjs) et un sélecteur qui viserait un LIBELLÉ
+ * (« Septembre », « Enregistrer ») casserait à la première traduction. Les
+ * marqueurs disent la même chose que `aria-pressed`, en plus stable.
  */
 import { useState } from 'react';
 import type { TranslationDict } from '../i18n/translations';
@@ -67,7 +74,7 @@ export function PaymentMonthsEditor(props: PaymentMonthsEditorProps) {
   });
 
   return (
-    <div className="flex flex-col gap-2 w-full">
+    <div className="flex flex-col gap-2 w-full" data-slot="payment-months-editor">
       <span className={`text-2xs font-bold ${currentTheme.muted}`}>{t.paymentMonthsEditHint}</span>
       <div role="group" aria-label={t.paymentMonthsEdit} className="flex flex-wrap gap-1.5">
         {yearMonths.map((month) => {
@@ -76,6 +83,7 @@ export function PaymentMonthsEditor(props: PaymentMonthsEditorProps) {
             <button
               key={month}
               type="button"
+              data-month={month}
               aria-pressed={chosen}
               onClick={() => toggle(month)}
               className={`px-2.5 py-1 rounded-xl border text-2xs font-black transition-all ${
@@ -89,9 +97,10 @@ export function PaymentMonthsEditor(props: PaymentMonthsEditorProps) {
           );
         })}
       </div>
-      <span className={`text-2xs font-black ${currentTheme.inkStrong}`}>{receiptLine}</span>
+      <span className={`text-2xs font-black ${currentTheme.inkStrong}`} data-slot="payment-months-line">{receiptLine}</span>
       <div className="flex gap-2">
         <button
+          data-slot="payment-months-save"
           onClick={() => onSave(sortPaymentMonths(draft))}
           disabled={draft.length === 0 || saving}
           className={`px-2 py-1 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} disabled:opacity-50 rounded text-2xs font-bold transition-all`}

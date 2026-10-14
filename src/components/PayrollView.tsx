@@ -9,7 +9,7 @@ import { payrollGridCellStatus } from '../lib/payrollGrid';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EmptyState } from './SharedUi';
 import { staffCategory } from '../lib/adminPositions';
-import { canWritePayroll as canWritePayrollRights, canManageStaff as canManageStaffRights } from '../lib/payrollRights';
+import { canWritePayroll as canWritePayrollRights, canWriteFinance as canWriteFinanceRights } from '../lib/payrollRights';
 
 /** School-year month sequence: September → August (12 cells). */
 const SCHOOL_YEAR_MONTH_KEYS = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'];
@@ -21,12 +21,14 @@ export function PayrollView() {
   const { AlertCircle, ChevronDown, Download, FileText, Globe, GraduationCap, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, auth, canDelete, currentMonth, currentYear, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails  } = useMainViews();
   // Le droit d'ÉCRIRE la paie et le personnel vient de la BASE, pas de l'écran :
   // les mêmes listes de rôles que `public.is_payroll_writer()` et
-  // `public.is_finance_admin()` (`src/lib/payrollRights.ts`). Un compte `econome`
-  // enregistre la paie mais ne gère pas le personnel ; un compte `staff` ne fait
-  // ni l'un ni l'autre — dans les deux cas l'action n'est plus AFFICHÉE, donc
+  // `public.is_finance_writer()` (`src/lib/payrollRights.ts`). Un compte `econome`
+  // enregistre la paie, ajoute un employé, un membre de l'administration et un
+  // membre T et P — « il a accès à tout sauf les paramètres du système »
+  // (décision du propriétaire, 2026-10-13) ; un compte `staff` ne fait ni l'un
+  // ni l'autre. Dans les deux cas l'action masquée n'est plus offerte, donc
   // l'écriture que la base refuserait (42501) n'est plus mise en file.
   const canWritePayroll = canWritePayrollRights(auth.profile?.role);
-  const canManageStaff = canManageStaffRights(auth.profile?.role);
+  const canManageStaff = canWriteFinanceRights(auth.profile?.role);
   return (
     <>
           <div className="space-y-8">
