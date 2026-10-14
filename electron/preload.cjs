@@ -84,5 +84,19 @@ contextBridge.exposeInMainWorld('desktop', {
      * sans ligne de commande, et un fichier introuvable serait un cul-de-sac.
      */
     openJournal: () => ipcRenderer.invoke('updates:open-journal'),
+    /**
+     * LE BATTEMENT DU POSTE (§7 de la spécification du canal) : son identité
+     * aléatoire, sa version installée, le majeur de son système et le fait de
+     * son dernier contrôle — ou `null` quand le battement est désactivé sur
+     * cette machine (`STATION_HEARTBEAT=off`) ou qu'aucun contrôle n'a encore eu
+     * lieu.
+     *
+     * Lecture seule, comme le reste de ce pont : c'est le processus principal
+     * qui inscrit, et rien dans la page ne peut composer un battement — un relevé
+     * de parc qui accepterait ce que le navigateur lui donne ne serait plus un
+     * relevé. Le rendu se contente de l'emporter en base.
+     * @returns {Promise<object|null>}
+     */
+    stationBeat: () => ipcRenderer.invoke('updates:station-beat'),
   },
 });

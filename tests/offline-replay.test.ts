@@ -105,6 +105,9 @@ const CASES: { type: OfflineActionType; build: () => QueueItem; table?: string; 
   { type: 'setCurrentYear', build: () => itemOf('setCurrentYear', { year: '2026-2027' }), table: 'academic_years' },
   { type: 'updateUserRole', build: () => itemOf('updateUserRole', { id: 'u2', role: 'admin' }), table: 'user_profiles' },
   { type: 'addAuditLog', build: () => itemOf('addAuditLog', { userId: 'u1', userEmail: 'a@b.c', userName: 'Ada', userRole: 'admin', action: 'UPDATE_SETTINGS', targetType: 'settings', targetId: null, details: 'thème' }), table: 'audit_logs' },
+  // Un réglage d'affichage (thème, densité, verre, langue) changé sans réseau :
+  // la ligne d'`app_settings` que la sauvegarde emporte.
+  { type: 'setDisplayPreference', build: () => itemOf('setDisplayPreference', { name: 'theme', value: 'midnight' }), table: 'app_settings' },
 ];
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -122,7 +125,7 @@ describe('offline queue replay (replayOfflineItem)', () => {
       'addTodo', 'updateTodo', 'deleteTodo',
       'addClass', 'updateClass', 'deleteClass',
       'addNote', 'deleteNote', 'setCurrentYear', 'addAuditLog',
-      'updateUserRole',
+      'updateUserRole', 'setDisplayPreference',
     ];
     assert.equal(CASES.length, all.length, 'expected one test case per action type');
     assert.deepEqual(
@@ -165,6 +168,56 @@ describe('offline queue replay (replayOfflineItem)', () => {
     const { db } = makeFakeDb({ allFail: true });
     const ok = await replayOfflineItem(db, itemOf('addExpense', { category: 'stationery', description: 'd', amount: 5, date: '2026-01-01' }));
     assert.equal(ok, false, 'an errored insert must not count as synced');
+  });
+});
+
+// ─── Les préférences d’affichage : la copie qui voyage ───────────────────────
+// Un poste hors ligne doit pouvoir régler son thème, sa densité, son verre et sa
+// langue sans perdre le réglage : le geste part dans la file et le rejeu écrit la
+// MÊME ligne d'`app_settings` que le chemin en ligne — c'est cette ligne que la
+// sauvegarde emporte, donc celle qu'un poste réinstallé adoptera.
+
+describe('un réglage d’affichage changé hors ligne', () => {
+  it('écrit la ligne du contrat : clé `display.*`, valeur, et pas d’`updated_by`', async () => {
+    const fake = makeFakeDb();
+    const ok = await replayOfflineItem(fake.db, itemOf('setDisplayPreference', { name: 'iconGlass', value: 'crisp' }));
+    assert.equal(ok, true);
+    assert.deepEqual(fake.queries, ['app_settings']);
+    const written = fake.rows.find((row) => row.table === 'app_settings');
+    assert.ok(written, 'la préférence doit être écrite, pas seulement visée');
+    assert.equal(written.row.key, 'display.icon_glass');
+    assert.equal(written.row.value, 'crisp');
+    // Les comptes `auth.users` ne voyagent pas : un `updated_by` renseigné
+    // rendrait la ligne NON restaurable dans une cible fraîche.
+    assert.equal('updated_by' in written.row, false);
+    assert.match(String(written.row.updated_at), /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('une écriture retirée par une politique (200 sans ligne) n’est PAS un succès', async () => {
+    const { db } = makeFakeDb({ emptyWrites: ['app_settings'] });
+    assert.equal(
+      await replayOfflineItem(db, itemOf('setDisplayPreference', { name: 'language', value: 'en' })),
+      false,
+      'compter cette écriture comme envoyée retirerait de la file un réglage jamais arrivé',
+    );
+  });
+
+  it('une valeur hors contrat est refusée SANS écrire', async () => {
+    const fake = makeFakeDb();
+    const ok = await replayOfflineItem(fake.db, itemOf('setDisplayPreference', { name: 'theme', value: 'gothic' }));
+    assert.equal(ok, false);
+    // La file vit dans le `localStorage` du poste, donc elle est modifiable à la
+    // main : un rejeu plus permissif que le chemin en ligne publierait un thème
+    // qui n'existe pas, et TOUS les postes neufs l'adopteraient.
+    assert.deepEqual(fake.queries, [], 'aucune écriture ne doit partir');
+  });
+
+  it('l’audit du rejeu est celui du chemin en ligne (UPDATE_SETTING sur la clé publiée)', () => {
+    const info = offlineAuditInfo(itemOf('setDisplayPreference', { name: 'density', value: 'compact' }));
+    assert.equal(info?.action, 'UPDATE_SETTING');
+    assert.equal(info?.targetType, 'app_settings');
+    assert.equal(info?.targetId, 'display.density');
+    assert.match(String(info?.details), /display\.density = compact/);
   });
 });
 
@@ -586,6 +639,9 @@ describe('offline replay audit mapping (offlineAuditInfo)', () => {
     'addStudent', 'updateStudent', 'deleteStudent',
     'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment',
     'addParent', 'updateParent', 'deleteParent',
+    // Un réglage d'affichage est audité EN LIGNE aussi (`UPDATE_SETTING`, voir
+    // dataOps/settings.ts) : le rejeu doit s'y lire de la même façon.
+    'setDisplayPreference',
   ];
   // Not audited online → replay stays silent: tâches, classes, notes, année.
   // `addAuditLog` en fait partie pour une autre raison : c'est l'entrée de

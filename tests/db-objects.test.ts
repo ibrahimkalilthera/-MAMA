@@ -252,6 +252,30 @@ describe('implicitConstraintName — les noms que Postgres dérive lui-même', (
       normalizeDefinition("CHECK (months IN ('a', 'b'))"),
     );
   });
+
+  it('la forme `BETWEEN a AND b` et la forme `>= a AND <= b` sont la MÊME règle', () => {
+    // Mesuré le 2026-10-18 sur `station_versions_station_id_bounds` : le dépôt
+    // écrit une BORNE, le catalogue la rend éclatée avec son opérande répété.
+    // Sans cette réduction, chaque borne en `BETWEEN` passerait pour une dérive.
+    assert.equal(
+      normalizeDefinition('CHECK (char_length(station_id) BETWEEN 8 AND 64)'),
+      normalizeDefinition('CHECK (((char_length(station_id) >= 8) AND (char_length(station_id) <= 64)))'),
+    );
+    assert.equal(
+      normalizeDefinition('CHECK (os_version BETWEEN 1 AND 32)'),
+      normalizeDefinition('CHECK ((os_version >= 1) AND (os_version <= 32))'),
+    );
+  });
+
+  it('une borne COMPOSÉE n’est pas blanchie : la différence reste SIGNALÉE', () => {
+    // La réduction ne couvre que les bornes simples. Une borne qui contient un
+    // `AND` ou un appel de fonction n'est PAS réduite — le contrôle doit préférer
+    // un faux rouge à un faux vert, et c'est ce que ce cas verrouille.
+    assert.notEqual(
+      normalizeDefinition('CHECK (x BETWEEN coalesce(a, 1) AND 32)'),
+      normalizeDefinition('CHECK (x >= 1 AND x <= 32)'),
+    );
+  });
 });
 
 // ─── La lecture d'une déclaration ────────────────────────────────────────────

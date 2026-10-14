@@ -47,6 +47,7 @@ const currentTheme = {
   accentText: 'accent-surface-text',
   accentHover: 'accent-surface-hover',
   accentShadow: 'accent-shadow',
+  hoverSurfaceDark: 'state-hover-dark',
 };
 
 const LABELS: UpdateLabels = {
@@ -227,7 +228,12 @@ describe('la porte du retard — obligatoire veut dire obligatoire', () => {
     assert.equal(buttonSaying(container, 'Continuer'), undefined, 'aucune issue quand tout va bien');
     const apply = buttonSaying(container, 'Redémarrer');
     assert.ok(apply, 'un bouton applique la mise à jour');
-    for (const token of Object.values(currentTheme)) assert.ok(apply.classList.contains(token), `CTA utilise ${token}`);
+    // Le contrat du CTA est celui de l'ACCENT (surface, encre, survol) — plus le
+    // voile de la croix, qui n'existe pas sur un écran obligatoire : `Object.values
+    // (currentTheme)` exigerait du CTA un jeton qui appartient à un autre contrôle.
+    for (const token of [currentTheme.accentBg, currentTheme.accentText, currentTheme.accentHover]) {
+      assert.ok(apply.classList.contains(token), `CTA utilise ${token}`);
+    }
     act(() => (apply as HTMLButtonElement).click());
     assert.equal(bridge.installed(), 1, 'le bouton demande vraiment l’installation');
 
@@ -300,7 +306,14 @@ describe('la porte du retard — obligatoire veut dire obligatoire', () => {
 
     assert.equal(gateOf(container), null, 'rien d’obligatoire ⇒ pas d’écran plein');
     assert.match(textOf(container), /téléchargement 10%/, 'le bandeau habituel est là');
-    assert.ok(container.querySelector('[aria-label="Masquer"]'), 'et il se masque — c’est du bruit, pas une obligation');
+    const close = container.querySelector('[aria-label="Masquer"]');
+    assert.ok(close, 'et il se masque — c’est du bruit, pas une obligation');
+    // La croix du bandeau coloré porte le cran des surfaces colorées de
+    // l'échelle (un voile), pas une recette `hover:bg-white/…` recopiée.
+    assert.ok(
+      close.classList.contains(currentTheme.hoverSurfaceDark),
+      `la croix utilise ${currentTheme.hoverSurfaceDark} (surface colorée) : ${close.className}`,
+    );
 
     unmount(root, container);
   });

@@ -15,6 +15,7 @@ import { isUuid } from './rowMappers';
 import { paymentSnapshotMetadata } from './paymentUndo';
 import { paymentMotifAuditTag } from './paymentMotifs';
 import type { LogAuditParams } from './auditLogger';
+import { replayDisplayPreference, displayPreferenceAuditInfo } from './offlineReplaySettings';
 
 /** The surface of the Supabase client that replay touches. */
 export type ReplayDb = Pick<SupabaseClient<Database>, 'from' | 'rpc'>;
@@ -514,6 +515,9 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       recorded_offline: true,
     });
     if (!error) success = true;
+  } else if (item.type === 'setDisplayPreference') {
+    // Réglage d'affichage changé hors ligne — écriture dans son module.
+    success = await replayDisplayPreference(db, item.payload);
   }
   return success;
 }
@@ -683,6 +687,8 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
       return { action: 'UPDATE_PARENT', targetType: 'parent', targetId: item.payload.id, details: `mise à jour parent${tag}` };
     case 'deleteParent':
       return { action: 'DELETE_PARENT', targetType: 'parent', targetId: item.payload.id, details: `suppression parent${tag}` };
+    case 'setDisplayPreference':
+      return displayPreferenceAuditInfo(item.payload, tag);
     default:
       // Geste dont l'équivalent EN LIGNE n'est pas audité — tâches, classes
       // personnalisées, notes du calendrier, déclaration d'année — donc le rejeu
