@@ -3,9 +3,10 @@
  * extracted verbatim from SettingsView so the view stays under the line budget.
  * Reads its data and actions through the MainViewsContext.
  */
-import { AlignJustify, Check, DollarSign, Globe, UploadCloud } from 'lucide-react';
+import { AlignJustify, Check, DollarSign, Droplet, Globe, UploadCloud } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
 import { useDensity } from '../app/densityContext';
+import { useIconGlass } from '../app/iconGlassContext';
 import type { ThemeOption } from '../app/mainViewsProps';
 
 export function SettingsPreferencesCard() {
@@ -14,6 +15,7 @@ export function SettingsPreferencesCard() {
     logoColor, setLogoColor, logoInputRef, handleLogoUpload,
   } = useMainViews();
   const { density, setDensity } = useDensity();
+  const { iconGlass, setIconGlass } = useIconGlass();
 
   return (
     <>
@@ -29,7 +31,7 @@ export function SettingsPreferencesCard() {
                   </div>
                   <button
                     onClick={() => toggleLanguage(lang === 'en' ? 'fr' : 'en')}
-                    className={`px-6 py-2 ${currentTheme.card} border ${currentTheme.border} rounded-xl text-sm font-bold ${currentTheme.inkStrong} hover:bg-slate-50 transition-all`}
+                    className={`px-6 py-2 ${currentTheme.card} border ${currentTheme.border} rounded-xl text-sm font-bold ${currentTheme.inkStrong} ${currentTheme.hoverSurface} transition-all`}
                   >
                     {t.english}
                   </button>
@@ -67,6 +69,35 @@ export function SettingsPreferencesCard() {
                         onClick={() => setDensity(value)}
                         className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${
                           density === value
+                            ? `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentShadow}`
+                            : `${currentTheme.muted} ${currentTheme.accentSoftHover}`
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div data-slot="settings-icon-glass" className={`flex items-center justify-between p-6 ${currentTheme.surfaceInset} rounded-3xl`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 ${currentTheme.card} rounded-2xl text-blue-600 shadow-sm`}>
+                      <Droplet size={20} />
+                    </div>
+                    <div>
+                      <p className={`font-bold ${currentTheme.inkStrong}`}>{t.iconGlassMode}</p>
+                      <p className={`text-xs ${currentTheme.muted}`}>{t.iconGlassHint}</p>
+                    </div>
+                  </div>
+                  <div role="group" aria-label={t.iconGlassMode} className={`inline-flex p-1 rounded-xl ${currentTheme.card} border ${currentTheme.border}`}>
+                    {([['discreet', t.iconGlassDiscreet], ['crisp', t.iconGlassCrisp], ['animated', t.iconGlassAnimated]] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={iconGlass === value}
+                        onClick={() => setIconGlass(value)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                          iconGlass === value
                             ? `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentShadow}`
                             : `${currentTheme.muted} ${currentTheme.accentSoftHover}`
                         }`}

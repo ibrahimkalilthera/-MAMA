@@ -25,6 +25,7 @@ const theme = {
   accentHover: 'accent-surface-hover',
   accentText: 'accent-surface-text',
   accentShadow: 'accent-shadow',
+  hoverSurface: 'state-hover',
 };
 
 // Le message exact renvoyé par Vite quand le chunk de la vue Dépenses n'est

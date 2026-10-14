@@ -57,6 +57,17 @@ interface StubOptions {
   exposedNoRls?: string[];
   /** …et elle est VIDE : la lecture anon rend 0 ligne, seule la sonde d'écrit la trahit. */
   exposedNoRlsEmpty?: boolean;
+  /**
+   * Le GRANT EXECUTE de `record_station_beat` a disparu : plus AUCUN poste ne
+   * peut déclarer sa version (brèche du relevé de parc — la panne la plus
+   * coûteuse de ce canal, parce qu'elle est silencieuse).
+   */
+  lockAnonBeat?: boolean;
+  /**
+   * La fonction accepte un battement HORS BORNES : sa validation a disparu, et
+   * le relevé compterait des lignes qui ne disent rien d'exploitable (brèche).
+   */
+  lenientBeat?: boolean;
 }
 
 /** Minimal PostgREST + GoTrue twin: students + user_profiles, RLS semantics per world. */
@@ -71,10 +82,14 @@ function stubSupabase({
   lockAdminRpc = false,
   exposedNoRls = [],
   exposedNoRlsEmpty = false,
+  lockAnonBeat = false,
+  lenientBeat = false,
 }: StubOptions = {}) {
   const rows: StubRow[] = [{ id: 'stu-seed', name: PROBE_NAME }];
   const profiles: StubProfile[] = [];
   const users: Array<{ id: string; email: string; password: string }> = [];
+  // Le relevé de parc du stub : une ligne par poste, comme la table réelle.
+  const beats = new Map<string, Record<string, unknown>>();
   const tokenByUserId: Record<string, string> = {}; // token-1 → premier utilisateur (A)
   let seq = 1;
   let authSeq = 0;
@@ -241,6 +256,31 @@ function stubSupabase({
       return json(true, 200);
     }
 
+    // ─── RPC du BATTEMENT DE VERSION (§7 du canal) ───────────────────────────
+    // La fonction est SECURITY DEFINER et son EXECUTE n'est accordé qu'à `anon` :
+    // un payload HORS BORNES doit rendre 400 — la fonction s'exécute (le
+    // privilège passe) PUIS refuse. C'est exactement ce que la sonde du dépôt
+    // envoie, et c'est ce qui lui permet de prouver le GRANT sans écrire la
+    // moindre ligne dans une table que `npm run fleet:versions` compte.
+    if (method === 'POST' && restPath === 'rpc/record_station_beat') {
+      // GRANT perdu (brèche) : les postes cesseraient de battre en silence.
+      if (anon && lockAnonBeat) {
+        return json({ message: 'permission denied for function record_station_beat' }, 401);
+      }
+      // Validation perdue (brèche) : un battement hors bornes serait accepté.
+      if (anon && lenientBeat) return json(null, 204);
+      const stationId = String(body.p_station_id ?? '');
+      if (anon && (stationId.length < 8 || stationId.length > 64)) {
+        return json(
+          { code: '23514', message: `station_id invalide : longueur ${stationId.length} hors bornes (8..64)` },
+          400,
+        );
+      }
+      // Chemin de SUCCÈS : une ligne par poste (ON CONFLICT (station_id) DO UPDATE).
+      beats.set(stationId, { ...body, seen_at: 'probe' });
+      return json(null, 204);
+    }
+
     // ─── students (REST) ─────────────────────────────────────────────────────
     const idMatch = restPath!.match(/^students\?id=eq\.([\w-]+)$/);
     // La sonde de `replayableWrite` : retrouver la ligne de CE run par son nom
@@ -372,7 +412,7 @@ describe('verifyAnonRls (garde-fou CI RLS anon)', () => {
 
   it('refuse le monde sain quand une table EXPOSÉE hors migrations laisse lire anon (l’artefact du 2026-10-11)', async () => {
     const { ok, failures } = await run({ exposedNoRls: ['students_dupe_backup_20261005'] });
-    assert.equal(ok, false, 'une table que le dépôt ne déclare pas doit être nommée, même si les 15 autres sont saines');
+    assert.equal(ok, false, 'une table que le dépôt ne déclare pas doit être nommée, même si les 16 autres sont saines');
     assert.ok(
       failures.some((f) => f.includes('hors des migrations') && f.includes('students_dupe_backup_20261005')),
       failures.join(' | '),
@@ -392,6 +432,43 @@ describe('verifyAnonRls (garde-fou CI RLS anon)', () => {
     const { ok, failures } = await run({ allowAnonRpc: true });
     assert.equal(ok, false, 'le garde-fou doit échouer si la RPC de mot de passe est appelable par anon');
     assert.ok(failures.some((f) => f.includes('rpc admin_set_user_password refusé pour anon')), failures.join(' | '));
+  });
+
+  // ─── Le BATTEMENT DE VERSION (§7) : la seule écriture anon qui DOIT passer ─
+  // Ces deux cas prouvent que la sonde est VIVANTE : un garde-fou qui ne
+  // saurait pas rougir sur son propre objet ne prouverait rien. Le cas sain est
+  // couvert par le premier test du fichier (la sonde y tourne et passe).
+  it('refuse le monde sain quand le GRANT du battement a disparu (plus aucun poste ne peut déclarer sa version)', async () => {
+    const { ok, failures } = await run({ lockAnonBeat: true });
+    assert.equal(ok, false, 'un GRANT perdu ferait cesser les battements en silence — le relevé du parc se viderait');
+    assert.ok(failures.some((f) => f.includes('record_station_beat')), failures.join(' | '));
+  });
+
+  it('refuse le monde sain quand la fonction accepte un battement HORS BORNES', async () => {
+    const { ok, failures } = await run({ lenientBeat: true });
+    assert.equal(ok, false, 'le relevé accepterait une ligne qui ne dit rien au lieu de la refuser');
+    assert.ok(failures.some((f) => f.includes('record_station_beat')), failures.join(' | '));
+  });
+
+  it('un transport inconclusif sur le battement est SKIPPÉ, jamais compté comme une brèche', async () => {
+    // Un 504 du gateway n'est pas un verdict sur le GRANT : la sonde est sautée,
+    // la passe se déclare inconclusive, et AUCUNE brèche n'est nommée — un faux
+    // rouge ferait révoquer un GRANT sain. C'est la convention du fichier pour
+    // une coupure qui survit à la reprise (`ok: false`, `skipped: true`), et ce
+    // cas-ci prouve qu'elle vaut aussi sur la sonde du battement : sans le
+    // garde de la sonde, un 504 deviendrait `check(false, …)` et le rapport
+    // porterait une brèche qui n'a jamais eu lieu.
+    const flaky = flakyGateway(
+      stubSupabase({}),
+      (url, init) => url.includes('rpc/record_station_beat') && (init.method ?? 'GET') === 'POST',
+      3,
+    );
+    const { ok, failures, skipped } = await run({}, flaky);
+    assert.equal(skipped, true, 'une coupure qui survit à la reprise rend la passe inconclusive');
+    assert.equal(ok, false, 'on ne juge pas ce qu’on n’a pas pu mesurer');
+    // `failures` vide EST la preuve : rien n'est nommé — donc `record_station_beat`
+    // n'est pas déclaré perdu sur une coupure de transport.
+    assert.deepEqual(failures, [], `aucune brèche inventée : ${failures.join(' | ')}`);
   });
 
   it('refuse le monde sain quand le reset par email est verrouillé (recover refusé pour anon)', async () => {
@@ -470,12 +547,17 @@ describe('la liste des tables sondées vient du parseur du dépôt, pas d’une 
     }
   });
 
-  it('la liste réelle du dépôt est celle des 15 tables, artefact retiré', () => {
+  it('la liste réelle du dépôt est celle des 16 tables, artefact retiré', () => {
     const tables = declaredTables(join(ROOT, 'supabase/migrations'));
     assert.ok(tables.includes('students'), 'les tables métier sont là');
+    // La seizième, et elle est SONDÉE : le relevé du parc (§7 du canal) est lu
+    // par la même passe que les autres tables — un dépôt qui la déclarerait
+    // sans la sonder laisserait la seule écriture anon de l'application hors
+    // de la veille.
+    assert.ok(tables.includes('station_versions'), 'le relevé du parc est déclaré, donc sondé');
     assert.ok(!tables.includes('students_dupe_backup_20261005'), 'la migration de retrait l’a sortie du dépôt');
     assert.ok(!tables.includes('custom_grades'), 'et la table vraiment dropée ne revient pas');
-    assert.equal(tables.length, 15, `15 tables déclarées, mesuré : ${tables.join(', ')}`);
+    assert.equal(tables.length, 16, `16 tables déclarées, mesuré : ${tables.join(', ')}`);
   });
 });
 

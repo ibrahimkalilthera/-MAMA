@@ -18,6 +18,7 @@ import type { LucideIcon } from 'lucide-react';
 import { translations } from '../src/i18n/translations';
 import { AppShell } from '../src/components/AppShell';
 import { DensityContext } from '../src/app/densityContext';
+import { IconGlassContext } from '../src/app/iconGlassContext';
 import type { CurrentTheme } from '../src/app/mainViewsProps';
 import { installDomGlobals } from './harness';
 import {
@@ -62,6 +63,18 @@ const theme: CurrentTheme = {
   accentSoftDarkText: 'text-blue-300',
   tableHeader: 'bg-slate-100',
   rowHover: 'hover:bg-slate-50',
+  hoverSurface: 'state-hover',
+  hoverSurfaceSolid: 'state-hover-solid',
+  hoverSurfaceStrong: 'state-hover-strong',
+  hoverSurfaceDark: 'state-hover-dark',
+  hoverSurfaceClear: 'state-hover-clear',
+  hoverAccent: 'state-accent-hover',
+  hoverAccentGroupInk: 'state-accent-group-ink',
+  hoverAlert: 'state-alert-hover',
+  hoverAlertTint: 'state-alert-tint',
+  hoverAlertSolid: 'state-alert-solid',
+  hoverAlertDark: 'state-alert-dark',
+  hoverAlertPlate: 'state-alert-plate',
   input: 'bg-white',
   isDark: false,
 };
@@ -433,6 +446,43 @@ describe('AppShell — overlays rendus une seule fois', () => {
     assert.ok(
       shell.classList.contains('density-compact'),
       'la classe que le CSS `.density-compact` cible est posée sur la racine',
+    );
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('la dose de verre des icônes choisie est portée par la racine (icon-glass-*)', async () => {
+    // La couche `src/themes/icons.css` ne connaît pas les doses : elle dose ses
+    // VARIABLES depuis une seule classe, celle-ci. Si la racine cessait de la
+    // porter, les trois doses redeviendraient « animé » — et le réglage des
+    // Préférences mentirait sans qu'aucun test ne rougisse.
+    const container = win.document.createElement('div');
+    win.document.body.appendChild(container);
+    const root: Root = createRoot(container as unknown as Element);
+
+    await act(async () => {
+      root.render(
+        createElement(
+          IconGlassContext.Provider,
+          { value: { iconGlass: 'crisp', setIconGlass: noop } },
+          createElement(AppShell, shellProps() as never),
+        ),
+      );
+    });
+
+    const shell = container.querySelector('[data-slot="app-shell"]');
+    assert.ok(shell, 'la racine du shell est rendue');
+    assert.ok(
+      shell.classList.contains('icon-glass-crisp'),
+      'la classe que la couche `.icon-glass-*` cible est posée sur la racine',
+    );
+    assert.equal(
+      [...shell.classList].filter((name) => name.startsWith('icon-glass-')).length,
+      1,
+      'et UNE seule : deux doses à la fois n’en doseraient aucune',
     );
 
     await act(async () => {

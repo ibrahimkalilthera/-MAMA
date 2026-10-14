@@ -31,7 +31,7 @@ export function SettingsPasswordModal() {
               >
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center" style={{ backgroundColor: currentTheme.header }}>
                   <h2 className="text-lg font-bold text-white">{t.setPasswordTitle.replace('{name}', passwordTarget.fullName)}</h2>
-                  <button onClick={() => setPasswordTarget(null)} className="p-2 hover:bg-white/10 rounded-xl transition-all text-white">
+                  <button onClick={() => setPasswordTarget(null)} className={`p-2 ${currentTheme.hoverSurfaceDark} rounded-xl transition-all text-white`}>
                     <X size={20} />
                   </button>
                 </div>
@@ -50,7 +50,7 @@ export function SettingsPasswordModal() {
                   <div className="flex justify-end gap-3 pt-2">
                     <button
                       onClick={() => setPasswordTarget(null)}
-                      className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 hover:bg-slate-50 transition-all"
+                      className={`px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 ${currentTheme.hoverSurface} transition-all`}
                     >
                       {t.cancel}
                     </button>

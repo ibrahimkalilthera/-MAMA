@@ -33,6 +33,7 @@ interface ErrorBoundaryProps {
     accentHover: string;
     accentText: string;
     accentShadow: string;
+    hoverSurface: string;
   };
   children: ReactNode;
   /** Short label of the guarded zone, e.g. « la vue » / « cette fenêtre ». */
@@ -106,7 +107,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             </button>
             <button
               onClick={this.handleReload}
-              className={`h-11 px-4 rounded-2xl border ${currentTheme.border} text-xs font-bold ${currentTheme.isDark ? 'text-white' : 'text-slate-700'} hover:bg-slate-100 dark:hover:bg-white/10 transition-all flex items-center gap-2`}
+              className={`h-11 px-4 rounded-2xl border ${currentTheme.border} text-xs font-bold ${currentTheme.isDark ? 'text-white' : 'text-slate-700'} ${currentTheme.hoverSurface} transition-all flex items-center gap-2`}
             >
               <RefreshCw size={14} />
               Recharger

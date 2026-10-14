@@ -14,6 +14,9 @@
  *      white chip" defect class. Returned as candidates; a fixed exemption
  *      list (print containers, login, fixed-light chat, <mark> highlight)
  *      documents the legitimate fixed-light surfaces.
+ * undefined
+ * été retiré : la migration vers l'échelle de survol (`state-hover…`) a supprimé
+ * son sujet, et un balayage vide n'est pas un vert. Le détail est plus bas.)
  *
  * Also exports the WCAG helpers + the light-theme remap parser shared with
  * theme-contrast-remap.test.ts (single source of truth for the contrast
@@ -53,6 +56,14 @@ export interface LiteralOccurrence {
   chunks: string[];
   /** Per-chunk surface mode (see SurfaceMode). */
   darkFlags: SurfaceMode[];
+  /**
+   * Per-chunk PAIRING group: the start offset of the string literal the chunk
+   * belongs to. Two chunks of one template literal share it, so a pair split by
+   * an interpolation — `… hover:text-slate-600 ${token} dark:hover:text-slate-200 …` —
+   * can still see its own counterpart. Ternary branches are separate string
+   * nodes, hence separate groups (they never render together).
+   */
+  groups: number[];
 }
 
 /**
@@ -71,28 +82,44 @@ export type SurfaceMode = 'plain' | 'dark' | 'light-branch' | 'slate-only' | 'mi
 
 const collectStrings = (
   node: import('typescript').Node,
-  out: { text: string; pos: number; dark: SurfaceMode }[],
+  out: { text: string; pos: number; dark: SurfaceMode; group: number }[],
   mode: SurfaceMode = 'plain',
+  group = -1,
 ) => {
   const ts = typescript;
   // A JSX attribute initializer written as {expr} wraps the expression in a
   // JsxExpression — unwrap it (this is what makes interpolated className
   // literals visible to the scan).
   if (ts.isJsxExpression(node)) {
-    if (node.expression) collectStrings(node.expression, out, mode);
+    if (node.expression) collectStrings(node.expression, out, mode, group);
     return;
   }
-  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
-    out.push({ text: node.text, pos: node.getStart(), dark: mode });
+  // Template MIDDLES and TAILS are ordinary static text, and they are where a
+  // className keeps everything written after its first `${...}`. They used to
+  // fall through every branch here (a TemplateTail is not a StringLiteral), so a
+  // whole class string like
+  //   `${card} border ${border} ${text} … hover:bg-slate-50 …`
+  // reached the scans as chunks `['']` — empty. Every rule below ran, and none of
+  // them could see the surface it was written to catch: the header's
+  // « Exporter les Retards » button flooded white on hover in Cyber Minuit while
+  // the resting-fill gate, the hover gate and the pair manifest all stayed green.
+  if (ts.isTemplateMiddleOrTemplateTail(node)) {
+    // A middle/tail quasi keeps the group of the template it belongs to: that is
+    // what lets a counterpart written after the first ${…} be seen at all.
+    out.push({ text: node.text, pos: node.getStart(), dark: mode, group: group >= 0 ? group : node.getStart() });
+  } else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    out.push({ text: node.text, pos: node.getStart(), dark: mode, group: node.getStart() });
   } else if (ts.isTemplateExpression(node)) {
+    const g = node.getStart();
     // Head quasi (before the first ${...}) is its own static chunk.
-    out.push({ text: node.head.text, pos: node.head.getStart(), dark: mode });
+    out.push({ text: node.head.text, pos: node.head.getStart(), dark: mode, group: g });
     for (const span of node.templateSpans) {
       // Interpolated expressions may hold ternary-branch strings; each
       // collected string is an independent co-occurrence surface, so branch
-      // pairs count internally but never pair across branches.
-      collectStrings(span.expression, out, mode);
-      collectStrings(span.literal, out, mode);
+      // pairs count internally but never pair across branches (hence group -1:
+      // a nested literal starts its OWN group).
+      collectStrings(span.expression, out, mode, -1);
+      collectStrings(span.literal, out, mode, g);
     }
   } else if (ts.isConditionalExpression(node)) {
     // A `isDark ? darkBranch : lightBranch` ternary tags each branch with
@@ -146,20 +173,22 @@ export const extractLiterals = (code: string): LiteralOccurrence[] => {
     if (isJsxProp) {
       const init = (node as import('typescript').JsxAttribute).initializer;
       if (init) {
-        const strings: { text: string; pos: number; dark: SurfaceMode }[] = [];
+        const strings: { text: string; pos: number; dark: SurfaceMode; group: number }[] = [];
         collectStrings(init, strings);
         const chunks: string[] = [];
         const darkFlags: SurfaceMode[] = [];
+        const groups: number[] = [];
         for (const s of strings) {
           // Template quasis: split each literal's text on ${...} boundaries.
           const parts = s.text.split(/\$\{[^]*?\}/g);
           for (const part of parts) {
             chunks.push(part);
             darkFlags.push(s.dark);
+            groups.push(s.group);
           }
         }
         if (chunks.length) {
-          out.push({ file: '', line: code.slice(0, init.getStart()).split('\n').length, chunks, darkFlags });
+          out.push({ file: '', line: code.slice(0, init.getStart()).split('\n').length, chunks, darkFlags, groups });
         }
       }
     } else if (
@@ -167,18 +196,20 @@ export const extractLiterals = (code: string): LiteralOccurrence[] => {
       ts.isIdentifier(node.expression) &&
       /(^|\.)(cx|cn|clsx|classNames)$/.test(node.expression.getText())
     ) {
-      const strings: { text: string; pos: number; dark: SurfaceMode }[] = [];
+      const strings: { text: string; pos: number; dark: SurfaceMode; group: number }[] = [];
       for (const a of node.arguments) collectStrings(a, strings);
       const chunks: string[] = [];
       const darkFlags: SurfaceMode[] = [];
+      const groups: number[] = [];
       for (const s of strings) {
         for (const part of s.text.split(/\$\{[^]*?\}/g)) {
           chunks.push(part);
           darkFlags.push(s.dark);
+          groups.push(s.group);
         }
       }
       if (chunks.length) {
-        out.push({ file: '', line: code.slice(0, node.getStart()).split('\n').length, chunks, darkFlags });
+        out.push({ file: '', line: code.slice(0, node.getStart()).split('\n').length, chunks, darkFlags, groups });
       }
     }
     ts.forEachChild(node, visit);
@@ -323,6 +354,26 @@ export const extractMissingDarkBg = (): DarkGap[] => {
   }
   return gaps;
 };
+
+/* ─── Le scanner des remplissages de SURVOL a été RETIRÉ (2026-10-14) ───────
+   Il cherchait un `hover:bg-*-50/100/200` sans contrepartie `dark:hover:bg-*`
+   dans le même segment statique — un défaut réel, payé une fois : le bouton
+   « Exporter les Retards » portait `${card} border ${border} ${text}
+   hover:bg-slate-50`, et Cyber Minuit répaint `bg-slate-50` en `#111827` sans
+   répandre ce remap sur la variante compilée `.hover\:bg-slate-50:hover`, donc
+   au survol la pilule passait à #F8FAFC sous une encre #F9FAFB — blanc sur
+   blanc, lettres disparues.
+
+   Ce que la migration a changé : la recette n'existe plus. Un survol de surface
+   est un CRAN (`currentTheme.hoverSurface`, …), dont la VALEUR vit par thème
+   dans src/themes/state-hover.css, et `scripts/check-state-hover.mjs` refuse
+   toute recette écrite à la main. Un scanner qui cherche des paires
+   `hover:/dark:hover:` ne trouve donc plus rien — et un balayage vide n'est pas
+   un vert (il est déjà arrivé que ce scanner devienne aveugle et félicite un
+   fichier qu'il ne lisait plus). Le devoir que ce verrou portait — « le survol
+   d'une rangée reste lisible dans les thèmes sombres » — est repris, sur ce qui
+   existe maintenant, par le verrou des VALEURS dans
+   tests/theme-contrast-remap.test.ts. */
 /* ─── Theme remap layer (the theme CSS corpus) ──────────────────────────── */
 /* The remap layer spans src/index.css and src/themes/*.css, so it is read
    through the same corpus loader the lint gate uses (scripts/lib/theme-css.mjs).
@@ -736,4 +787,227 @@ export const judgeUnpaintedSurfaces = ({
     }
   }
   return { checks, violations };
+};
+/* ─── The rest inks a theme FORCES (`!important`) ──────────────────────── */
+
+/**
+ * `.theme-<t> .text-<family>-<shade> { color: … !important }` — the rest inks the
+ * theme layer forces, in EVERY state.
+ *
+ * This is what decides whether a hover ink renders at all, and it was measured
+ * in the engine before being modelled (a Chrome probe, 2026-10-14): an element
+ * carrying a FORCED rest class keeps the forced colour under the cursor —
+ * `text-slate-400 hover:text-slate-600` reads rgb(169,180,196) at rest AND at
+ * hover on the midnight card (`!important` beats the compiled variant, which is
+ * a layered utility). The same element WITHOUT the forced base
+ * (`hover:text-slate-600` alone, or a `text-slate-300` base) does let the hover
+ * variant apply — oklch(0.446 …) = slate-600 — and THAT is the defect class this
+ * rule exists for. A model that ignored the mask would report twenty sites where
+ * nothing renders, which is worse than no model.
+ *
+ * Slate forces fewer inks than midnight (400/500 only), so the same element can
+ * be inert under one dark theme and live under the other: that asymmetry is real
+ * and the rule judges each theme on its own list.
+ */
+export const forcedRestInk = new Map<DarkTheme, Set<string>>([
+  ['slate', new Set<string>()],
+  ['midnight', new Set<string>()],
+]);
+for (const block of CSS_TEXT.replace(/\/\*[\s\S]*?\*\//g, ' ').matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+  if (!/color\s*:[^;]*!important/.test(block[2])) continue;
+  for (const seg of block[1].split(',')) {
+    const m = seg.trim().match(/^\.theme-(slate|midnight)\s+\.(text-[a-z]+-\d{1,3})$/);
+    if (m) forcedRestInk.get(m[1] as DarkTheme)?.add(m[2]);
+  }
+}
+
+/* ─── Hover ink: the ink worn ONLY under the cursor ─────────────────────── */
+
+/**
+ * THE RULE: an ink worn only under the cursor must clear AA on the surface the
+ * theme paints under it — the same demand the fill lock makes, one property to
+ * the right.
+ *
+ * Why a lock of its own: a hover ink is resolved by the BROWSER, from a compiled
+ * variant class (`.hover\:text-slate-600:hover`), and no theme layer reaches it.
+ * `.theme-midnight .text-slate-600` exists; the hover variant is not it, and the
+ * `:is()` whiten rules only fire inside a repainted light fill. So a
+ * `text-slate-400 hover:text-slate-600` icon button reads 6.4:1 at rest on the
+ * midnight card and 2.34:1 the moment it is hovered — the letters fade OUT as
+ * the user points at them, which is the opposite of an affordance.
+ *
+ * Three things this model is careful about, each one a false verdict avoided:
+ *  - the counterpart is looked up per STRING LITERAL (the `groups` id), not per
+ *    chunk, so `… hover:text-slate-600 ${token} dark:hover:text-slate-200 …` is
+ *    recognized as already fixed instead of being "fixed" twice;
+ *  - when the counterpart exists it WINS in both dark themes (Tailwind emits the
+ *    combined variant after the plain one), so it is the ink judged — and it is
+ *    judged in its own right: a counterpart that is itself unreadable fails;
+ *  - a hover VARIANT is resolved RAW, with no theme remap, because escaping the
+ *    remap is exactly what a hover variant does. A resting fill the dark layers
+ *    DO repaint (white, `*-50/100/200`) is therefore read as the theme's card,
+ *    not as its light palette value.
+ *
+ * The surface is the surface UNDER THE CURSOR: `dark:hover:bg-*` when present,
+ * else `hover:bg-*`, else the resting surface, else the theme's card — which is
+ * what an icon button on a panel actually sits on, and where this defect lives.
+ *
+ * Ternary branches and theme-specific branches keep the semantics the other
+ * scans use: the light branch of an `isDark` ternary never renders in a dark
+ * theme (skipped), a `theme === 'slate'` branch renders only under slate.
+ */
+
+/** A hover ink token, with whether it is the dark counterpart. */
+const hoverInkTokens = (chunk: string): { token: string; dark: boolean }[] => {
+  const out: { token: string; dark: boolean }[] = [];
+  // `white`/`black` carry no shade and are counterparts like any other: a
+  // `dark:hover:text-white` is exactly how a dark theme lifts a hover ink, and a
+  // pattern that demanded a shade would call those elements UNFIXED.
+  for (const m of chunk.matchAll(/(dark:)?((?:group-)?hover:text-(?:[a-z]+-\d{1,3}|white|black)(?:\/\d+)?)/g)) {
+    const [, dark, full] = m;
+    out.push({ token: full.replace(/(?:group-)?hover:text-/, ''), dark: dark === 'dark:' });
+  }
+  return out;
+};
+
+/** A hover background token, with whether it is the dark counterpart. */
+const hoverBgTokens = (chunk: string): { token: string; dark: boolean }[] => {
+  const out: { token: string; dark: boolean }[] = [];
+  for (const m of chunk.matchAll(/(dark:)?((?:group-)?hover:bg-([a-z]+)(?:-(\d{1,3}))?(?:\/(\d+))?)(?![\w-])/g)) {
+    const [, dark, , family, shade, alpha] = m;
+    out.push({ token: `${family}${shade ? `-${shade}` : ''}${alpha ? `/${alpha}` : ''}`, dark: dark === 'dark:' });
+  }
+  return out;
+};
+
+/** Raw palette colour of a token over an opaque surface — NO theme remap. */
+export const rawColor = (token: string, over: string): string | undefined => {
+  const [base, alphaStr] = token.split('/');
+  const pal = PALETTE[base];
+  if (!pal) return undefined;
+  const alpha = alphaStr ? Number(alphaStr) / 100 : 1;
+  return alpha === 1 ? pal : composite(pal, alpha, over);
+};
+
+/** A light fill the dark layers repaint (white, `*-50/100/200`) — at rest only. */
+const repaintedRestFill = (token: string): boolean => {
+  const base = token.split('/')[0];
+  return base === 'white' || /-(50|100|200)$/.test(base);
+};
+
+export interface HoverInkViolation {
+  theme: DarkTheme;
+  file: string;
+  line: number;
+  /** The ink actually rendered under the cursor (the counterpart when present). */
+  ink: string;
+  /** The `dark:*hover:text-*` counterpart found for this element, if any. */
+  counterpart: string | null;
+  surface: string;
+  inkHex: string;
+  surfaceHex: string;
+  ratio: number;
+}
+
+/**
+ * Judges every hover ink of the corpus under each dark theme. Returns both
+ * halves of one walk — the judgements made (so a caller can prove the scan is
+ * not blind) and the violations — because a rule that examined nothing must
+ * never read as a green.
+ *
+ * `sources` injects the corpus (the repo by default) so a suite can prove the
+ * rule BITES without editing src/.
+ */
+export const judgeHoverInk = ({
+  sources,
+}: { sources?: { rel: string; code: string }[] } = {}): {
+  checks: number;
+  violations: HoverInkViolation[];
+  /** The hover inks the walk actually resolved, for a floor that cannot go stale. */
+  subjects: string[];
+  /** The hover inks the theme MASKS, in the engine's terms (see forcedRestInk). */
+  masked: string[];
+} => {
+  const violations: HoverInkViolation[] = [];
+  const subjects: string[] = [];
+  const masked: string[] = [];
+  let checks = 0;
+  const inputs =
+    sources ?? walkTsx().map((f) => ({ rel: relSrc(f), code: readFileSync(f, 'utf8') }));
+  for (const { rel, code } of inputs) {
+    for (const lit of extractLiterals(code)) {
+      // One aggregate per string literal: the counterpart of an ink may live in
+      // a sibling chunk (an interpolation sits between them).
+      const byGroup = new Map<number, { darkInk: string[]; darkHoverBg: string[]; baseHoverBg: string[] }>();
+      lit.chunks.forEach((chunk, i) => {
+        const key = lit.groups[i];
+        const acc = byGroup.get(key) ?? { darkInk: [], darkHoverBg: [], baseHoverBg: [] };
+        for (const ink of hoverInkTokens(chunk)) if (ink.dark) acc.darkInk.push(ink.token);
+        for (const bg of hoverBgTokens(chunk)) (bg.dark ? acc.darkHoverBg : acc.baseHoverBg).push(bg.token);
+        byGroup.set(key, acc);
+      });
+      lit.chunks.forEach((chunk, i) => {
+        const mode = lit.darkFlags[i];
+        // The light branch of an isDark ternary never renders in a dark theme.
+        if (mode === 'light-branch') return;
+        const acc = byGroup.get(lit.groups[i]);
+        if (!acc) return;
+        const subjectsHere = hoverInkTokens(chunk).filter((h) => !h.dark);
+        if (subjectsHere.length === 0) return;
+        const hits = chunkTokens(chunk);
+        const bgHits = hits.filter((h) => h.kind === 'bg');
+        // The rest ink the element declares, as classes — the mask is keyed on
+        // the CLASS, so a `dark:text-*` variant (a different class name) does
+        // not mask anything by itself.
+        const restInk = hits.filter((h) => h.kind === 'text' && !h.dark).map((h) => `text-${h.token}`);
+        for (const theme of DARK_THEMES) {
+          if (mode === 'slate-only' && theme !== 'slate') continue;
+          if (mode === 'midnight-only' && theme !== 'midnight') continue;
+          // MEASURED, not assumed: a rest ink the theme forces with !important
+          // keeps its colour under the cursor, so the hover ink never renders —
+          // there is nothing here to judge (the forced ink has its own locks).
+          const forced = forcedRestInk.get(theme);
+          if (restInk.some((t) => forced?.has(t))) {
+            masked.push(`${rel}:${lit.line} ${theme} ${subjectsHere[0].token}`);
+            continue;
+          }
+          const card = DARK_CARD[theme];
+          // The surface under the cursor, in the order the browser applies them.
+          const hoverBg = acc.darkHoverBg[0] ?? acc.baseHoverBg[0];
+          const resting = pickDarkTokens(bgHits, theme)[0];
+          const surfaceHex = hoverBg
+            ? rawColor(hoverBg, card)
+            : resting
+              ? repaintedRestFill(resting)
+                ? card
+                : rawColor(resting, card)
+              : card;
+          if (surfaceHex === undefined) continue;
+          // The counterpart wins in both dark themes; without one, the base ink
+          // is what the theme renders — resolved RAW, since a hover variant is
+          // not the class a theme layer repaints.
+          const inkToken = acc.darkInk[0] ?? subjectsHere[0].token;
+          const inkHex = rawColor(inkToken, surfaceHex);
+          if (inkHex === undefined) continue;
+          checks += 1;
+          subjects.push(`${rel}:${lit.line} ${theme} ${inkToken}`);
+          const ratio = contrast(inkHex, surfaceHex);
+          if (ratio < 4.5) {
+            violations.push({
+              theme,
+              file: rel,
+              line: lit.line,
+              ink: inkToken,
+              counterpart: acc.darkInk[0] ?? null,
+              surface: hoverBg ?? resting ?? `card(${card})`,
+              inkHex,
+              surfaceHex,
+              ratio,
+            });
+          }
+        }
+      });
+    }
+  }
+  return { checks, violations, subjects, masked };
 };
