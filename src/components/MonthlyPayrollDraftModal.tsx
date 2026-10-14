@@ -193,7 +193,7 @@ export function MonthlyPayrollDraftModal({
 
               <button
                 onClick={onClose}
-                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-all ml-1"
+                className={`p-2 text-white/60 hover:text-white ${currentTheme.hoverSurfaceDark} rounded-xl transition-all ml-1`}
               >
                 <X size={20} />
               </button>
@@ -261,7 +261,7 @@ export function MonthlyPayrollDraftModal({
                   <tbody className={`divide-y ${currentTheme.border} text-xs`}>
                     {staffPayrollList.length > 0 ? (
                       staffPayrollList.map(st => (
-                        <tr key={st.id} className={`${currentTheme.isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'} transition-all`}>
+                        <tr key={st.id} className={`${currentTheme.rowHover} transition-all`}>
                           <td className="px-6 py-4">
                             <p className="font-bold">{st.name}</p>
                             <p className={`text-2xs ${currentTheme.muted} uppercase font-semibold`}>{st.position}</p>
@@ -331,7 +331,7 @@ export function MonthlyPayrollDraftModal({
             <div className="flex items-center gap-3 w-full sm:w-auto justify-end flex-wrap">
               <button
                 onClick={handleExportPdf}
-                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-rose-600/20 flex items-center gap-2 active:scale-95"
+                className={`px-5 py-2.5 bg-rose-600 ${currentTheme.hoverAlertSolid} text-white rounded-xl text-xs font-black transition-all shadow-md shadow-rose-600/20 flex items-center gap-2 active:scale-95`}
               >
                 <FileText size={16} />
                 <span>{t.exportDraftPdf}</span>

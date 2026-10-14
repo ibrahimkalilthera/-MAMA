@@ -126,7 +126,7 @@ export const AddUserModal = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center"
+            className={`p-2 rounded-xl text-white/60 hover:text-white ${currentTheme.hoverSurfaceDark} transition-all flex items-center justify-center`}
           >
             <X size={16} />
           </button>
@@ -204,7 +204,7 @@ export const AddUserModal = ({
                 className={`p-3.5 rounded-2xl border text-left transition-all ${
                   newUserForm.role === 'staff'
                     ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}`
-                    : `${currentTheme.border} hover:bg-white/5`
+                    : `${currentTheme.border} ${currentTheme.hoverSurface}`
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -223,7 +223,7 @@ export const AddUserModal = ({
                 className={`p-3.5 rounded-2xl border text-left transition-all ${
                   newUserForm.role === 'econome'
                     ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}`
-                    : `${currentTheme.border} hover:bg-white/5`
+                    : `${currentTheme.border} ${currentTheme.hoverSurface}`
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -242,7 +242,7 @@ export const AddUserModal = ({
                 className={`p-3.5 rounded-2xl border text-left transition-all ${
                   newUserForm.role === 'general_manager'
                     ? 'border-cyan-500 bg-cyan-500/10 ring-2 ring-cyan-500/30'
-                    : `${currentTheme.border} hover:bg-white/5`
+                    : `${currentTheme.border} ${currentTheme.hoverSurface}`
                 }`}>
                 <div className="flex items-center gap-2 mb-1">
                   <Compass size={16} className="text-violet-500 flex-shrink-0" />
@@ -261,7 +261,7 @@ export const AddUserModal = ({
                 className={`p-3.5 rounded-2xl border text-left transition-all ${
                   newUserForm.role === 'admin'
                     ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}`
-                    : `${currentTheme.border} hover:bg-white/5`
+                    : `${currentTheme.border} ${currentTheme.hoverSurface}`
                 }`}>
                 <div className="flex items-center gap-2 mb-1">
                   <Crown size={16} className="text-amber-500 flex-shrink-0" />

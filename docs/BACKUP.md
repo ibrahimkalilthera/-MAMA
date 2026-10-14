@@ -13,6 +13,8 @@ Jusqu'au **2026-09-13**, ce dépôt n'avait **aucun** moyen de sauvegarder la ba
 
 Le manifeste est ce qui distingue une sauvegarde d'un fichier : il **dit ce qu'il contient**. « Sauvegarde OK » sans chiffres ne se distingue pas d'un export vide — et une base d'école sans élève est un cas légitime, qui doit donc se **lire**, pas se supposer.
 
+**Les réglages d'affichage voyagent avec elle** (depuis le 2026-10-19). Le thème, la densité des tableaux, le verre des icônes et la langue vivent maintenant en lignes d'`app_settings` (clés préfixées `display.`, voir `supabase/migrations/20261019000000_display_preferences.sql`) en plus du `localStorage` du poste : une école réinstallée retrouve donc son thème, sa densité, son verre et sa langue au lieu de repartir aux défauts compilés. Deux propriétés font que ça marche **dans une cible fraîche**, et elles sont volontaires : ces lignes laissent `updated_by` **NUL** (un auteur nommé les rendrait non restaurées — les comptes ne voyagent pas), et le poste qui les reçoit **adopte** la copie au lieu de la subir (un poste qui a déjà choisi son thème garde le sien). Aucune ligne n'est ensemencée : une clé absente veut dire « personne n'a jamais réglé », donc les constantes de défaut restent dans le code, à un seul endroit.
+
 ```bash
 npm run backup:db                                  # local, lit .env, écrit .backup/current
 npm run backup:db -- --out /tmp/backup --encrypt    # chiffré (BACKUP_PASSPHRASE requis)

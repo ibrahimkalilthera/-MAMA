@@ -34,7 +34,7 @@ export function CalendarView() {
               </div>
               <button
                 onClick={() => setCalendarDate(new Date())}
-                className={`px-6 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.muted} font-bold text-sm hover:bg-slate-50 transition-all`}
+                className={`px-6 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.muted} font-bold text-sm ${currentTheme.hoverSurface} transition-all`}
               >
                 {t.today}
               </button>
@@ -60,7 +60,7 @@ export function CalendarView() {
                         setSelectedCalendarDay(day.date);
                         setShowCalendarModal(true);
                       }}
-                      className={`min-h-[120px] p-4 border-b border-r ${currentTheme.border} cursor-pointer hover:bg-blue-50/30 transition-all relative ${!day.isCurrentMonth ? 'opacity-30' : ''}`}
+                      className={`min-h-[120px] p-4 border-b border-r ${currentTheme.border} cursor-pointer ${currentTheme.hoverAccent} transition-all relative ${!day.isCurrentMonth ? 'opacity-30' : ''}`}
                     >
                       <span className={`text-sm font-bold ${isToday ? `${currentTheme.accentBg} ${currentTheme.accentText} w-7 h-7 flex items-center justify-center rounded-full` : (currentTheme.inkStrong)}`}>
                         {day.date.getDate()}

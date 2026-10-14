@@ -70,11 +70,14 @@ Trois invariants en découlent :
 1. **une seconde destination** : les octets vérifiés (installeur, blockmap, portable, manifeste) sont téléversés dans le dépôt d'octets ;
 2. **l'écriture du flux** : `latest.yml` est **réécrit** avec les URL absolues du dépôt d'octets, puis posé dans `public/latest.yml` — le flux est donc produit **à partir de ce qui a été téléversé et vérifié**, jamais d'une intention ;
 3. **le miroir du frein** : `updates/holds.json` → `public/updates/holds.json`, copie **générée et vérifiée** (un contrôle refuse une copie en retard, comme `db:snapshot:check` le fait pour le fichier complet) ;
-4. le commit de ces deux fichiers, que le déploiement du site sert ensuite.
+4. le commit de ces deux fichiers, que le déploiement du site sert ensuite ;
+5. **la précondition de la base** : il juge la base qu'il va nourrir **avant toute requête** (`scripts/lib/db-ready.mjs`, sur le verdict de `check:hosted-schema`) et **refuse de publier** quand une migration déclarée n'est pas en base — y compris quand le contrôle n'a pas pu rendre de verdict, parce qu'une publication ne se reprend pas. L'ordre « base d'abord » ne dépend donc plus du déploiement du site : un installeur publié avant sa migration aurait équipé tout le parc d'une application qui écrit dans une table absente.
 
 **Jeton.** `github.token` est limité au dépôt source et ne peut pas écrire ailleurs : un secret dédié est requis, de périmètre minimal (`contents: write` **sur le dépôt d'octets uniquement**). Le même geste reste exécutable à la main depuis le poste du propriétaire en secours.
 
 **Conséquence assumée :** un release implique désormais un **déploiement du site**. Le contrôle lit le flux **tel que le site le sert**, pas tel qu'il est dans Git.
+
+**Et une seconde, du même ordre :** publier demande une base **À JOUR**. La porte existait côté site (la quatrième de `deploy.yml`) ; elle existe maintenant là où l'octet part réellement, donc un `npm run release:publish` lancé à la main depuis un poste ne peut plus la contourner.
 
 ---
 
@@ -112,13 +115,13 @@ Trois invariants en découlent :
 
 **Aucune donnée d'école, aucune identité, aucun nom** : un relevé de parc, pas une télémétrie d'usage.
 
-**Protection.** La clé publique `anon` est livrée dans le bundle, donc la table doit être **inscriptible par `anon`** et **illisible par `anon`** : aucune politique de `SELECT`, aucune de `DELETE`/`UPDATE`. La table ne garde **qu'une ligne par poste** (`station_id` en clé primaire, `upsert` — l'historique n'est pas conservé), `station_id` est borné en longueur et `seen_at` a une valeur par défaut posée par la base, jamais par le client.
+**Protection — et l'`upsert` a dû céder la place à une fonction (arbitré le 2026-10-14).** La clé publique `anon` est livrée dans le bundle, donc la table doit être **inscriptible par `anon`** et **illisible par `anon`**. Or un `upsert` PostgREST est un `INSERT … ON CONFLICT DO UPDATE` : il exige le privilège `UPDATE` **et** une politique `UPDATE` — précisément les deux que cette section refuse. L'écriture passe donc par une **fonction nommée**, `public.record_station_beat(p_station_id, p_app_version, p_os_version, p_last_check, p_last_check_version)`, `SECURITY DEFINER`, dont l'`EXECUTE` est accordé au **seul `anon`** ; elle applique elle-même l'unicité (`ON CONFLICT (station_id) DO UPDATE`, une ligne par poste, l'historique n'est pas conservé). La table, elle, n'ouvre **rien** : RLS activée et **aucune politique** — `anon` lit 0 ligne et toute écriture REST directe est refusée (`401 42501`), comme `student_matricule_counters`. `station_id` est **borné** (8..64), les versions aussi (1..32), `last_check` est contraint à ses quatre états, et `seen_at` a une valeur par défaut posée par la base, jamais par le client : bornes appliquées **dans la fonction** (refus bruyant, nommé) **et** par des contraintes `CHECK` nommées.
 
-**Le point sensible, chiffré.** Une clé publique qui peut écrire est un point d'entrée : rien n'empêche quelqu'un d'insérer des `station_id` inventés, et la table grossirait alors sans fin. Deux garde-fous, tous deux **nommés** : un contrôle qui rougit au-delà d'un seuil de lignes (le parc réel est de l'ordre de la dizaine ; le seuil est très au-dessus), et la possibilité de **désactiver le battement** sans toucher au canal (une seconde insertion refusée n'a aucun effet sur les mises à jour). Le contrôle anon existant doit prouver **les deux directions** : l'insertion passe, la lecture renvoie 0 ligne.
+**Le point sensible, chiffré.** Une clé publique qui peut écrire est un point d'entrée : rien n'empêche quelqu'un d'appeler la fonction avec des `station_id` inventés, et la table grossirait alors sans fin. Trois garde-fous, tous trois **nommés** : un contrôle qui rougit au-delà d'un seuil de lignes (`--max-rows`, 200 par défaut — le parc réel est de l'ordre de la dizaine), la possibilité de **désactiver le battement** sans toucher au canal (`STATION_HEARTBEAT=off` sur le poste : une écriture refusée n'a aucun effet sur les mises à jour), et les **bornes** ci-dessus, qui refusent une ligne qui ne dit rien d'exploitable. Le contrôle anon existant prouve **les deux directions**, et sans laisser de résidu : la sonde d'insertion passe un `station_id` volontairement **hors bornes**, donc un `400` prouve que la fonction a été atteinte (le GRANT tient) *puis* a refusé — aucune ligne de sonde ne peut ensuite être comptée comme un poste par le relevé. La lecture anon, elle, rend **0 ligne** (mesuré le 2026-10-14 sur la base partagée : `200 []`).
 
 **Ordre d'implémentation, imposé par cette spécification.** Le **canal d'abord** (sections 2 à 6) — il retire la dépendance, c'est la demande. Le **battement ensuite** (section 7), et **jamais activé avant** que le contrôle anon ne prouve l'insertion sans lecture : la seule surface d'écriture anonyme de l'application ne peut pas précéder sa preuve.
 
-**Lecture.** `npm run fleet:versions` imprime la répartition par version, et **nomme les postes silencieux** (aucun battement depuis N jours) au lieu de les supposer à jour.
+**Lecture.** `npm run fleet:versions [--silent-days=N] [--max-rows=N]` imprime la répartition par version, la répartition du dernier contrôle, et **nomme les postes silencieux** (aucun battement depuis N jours, `--silent-days`, 7 par défaut) au lieu de les supposer à jour — un poste silencieux est une **information** (sortie 0), pas un échec ; la sortie 1 est réservée au désaccord entre le relevé et le dépôt, et la 2 à « je n'ai pas pu regarder ». Elle lit avec la clé `service_role` : la clé publique ne voit rien de cette table, par construction. **Ce qu'elle ne peut pas voir, et le dit** : un poste qui n'a **jamais** battu est invisible — on ne nomme pas ce qu'on n'a jamais vu —, donc la bascule du parc (section 6) se prouve aussi poste par poste ; ce relevé ne la remplace pas.
 
 ---
 
@@ -132,7 +135,7 @@ Trois invariants en découlent :
 | absence ≠ contenu | cas qui refuse un **200-HTML** comme « absent », sur le flux comme sur le frein |
 | canal jamais authentifié | `npm run check:release:channel` vert **sans aucun jeton**, et la veille sans `GH_TOKEN` |
 | désaccord entre origines | cas qui refuse un flux annonçant un fichier absent du dépôt d'octets |
-| battement | cas unitaire (une ligne, champs exacts) + l'inégalité anon prouvée en CI par `verify-anon-rls` |
+| battement | cas unitaire (une ligne, champs exacts) + l'inégalité anon prouvée en CI par `verify-anon-rls` (les deux directions, la sonde skippée sur coupure de transport) ; et la table en base : `check:public-rls` la nomme « scellée », `check:db-objects` aligne ses 6 contraintes, `check:hosted-schema` juge ses 6 colonnes |
 
 ---
 

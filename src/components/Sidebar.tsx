@@ -109,7 +109,7 @@ export function Sidebar(props: SidebarProps) {
    * 20 px et décollait toutes ses voisines d'un cran.
    */
   const navBtn = (tab: AppTab, tailPadding = 'pr-4') =>
-    `nav-item w-full flex items-center gap-3 pl-4 ${tailPadding} py-2.5 rounded-lg transition-all ${activeTab === tab ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80 hover:bg-white/[0.04]'}`;
+    `nav-item w-full flex items-center gap-3 pl-4 ${tailPadding} py-2.5 rounded-lg transition-all ${activeTab === tab ? 'nav-item-active bg-white/[0.08] text-white shadow-sm' : `text-white/50 hover:text-white/80 ${currentTheme.hoverSurfaceDark}`}`;
 
   return (
     <aside data-slot="app-sidebar" className="app-sidebar w-64 text-white fixed h-full z-40 hidden lg:flex flex-col transition-colors duration-300" style={{ background: 'linear-gradient(180deg, #0C1222 0%, #111827 50%, #0F172A 100%)' }}>
@@ -268,7 +268,7 @@ export function Sidebar(props: SidebarProps) {
 
         <button
           onClick={() => setShowTodoSidebar(!showTodoSidebar)}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${showTodoSidebar ? 'bg-amber-500 text-amber-950 shadow-lg shadow-amber-500/20' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${showTodoSidebar ? 'bg-amber-500 text-amber-950 shadow-lg shadow-amber-500/20' : `text-white/40 hover:text-white ${currentTheme.hoverSurfaceDark}`}`}
         >
           <CheckSquare size={20} />
           <span className="font-semibold text-sm" data-i18n="productivity">{t.productivity}</span>
@@ -280,7 +280,7 @@ export function Sidebar(props: SidebarProps) {
           <p className="text-2xs font-black text-white/65 uppercase tracking-widest" data-i18n="actions">{t.actions}</p>
         </div>
 
-        <button onClick={onSignOut} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 mt-auto">
+        <button onClick={onSignOut} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-rose-400 ${currentTheme.hoverAlertDark} mt-auto`}>
           <LogOut size={20} />
           <span className="font-semibold text-sm" data-i18n="signOut">{t.signOut}</span>
         </button>
@@ -315,7 +315,7 @@ export function Sidebar(props: SidebarProps) {
       <div className="p-6 border-t border-white/5">
         <button
           onClick={onToggleLanguage}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-all text-sm font-bold"
+          className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/10 ${currentTheme.hoverSurfaceDark} transition-all text-sm font-bold`}
         >
           <Globe size={18} />
           {t.langToggle}

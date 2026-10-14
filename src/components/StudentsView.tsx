@@ -247,7 +247,7 @@ export function StudentsView() {
                         <td className="px-8 py-6 text-right flex justify-end gap-2">
                           <button 
                             onClick={() => openEditModal(student)}
-                            className={`p-2 ${currentTheme.muted} hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all`}
+                            className={`p-2 ${currentTheme.muted} ${currentTheme.hoverAccent} rounded-xl transition-all`}
                             title={t.editStudent2}
                           >
                             <FileText size={18} />
@@ -255,7 +255,7 @@ export function StudentsView() {
                           {balance > 0 && diffDays <= -60 && (
                             <button 
                               onClick={() => setTicketStudent(student)}
-                              className="p-2 text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                              className={`p-2 text-rose-500 ${currentTheme.hoverAlert} rounded-xl transition-all`}
                               title={t.printLatePaymentTicket}
                             >
                               <Printer size={18} />
@@ -269,7 +269,7 @@ export function StudentsView() {
                           {canDelete && (
                             <button
                               onClick={() => setConfirmDeleteStudent(student)}
-                              className="px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded-xl text-2xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap"
+                              className={`px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} rounded-xl text-2xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap`}
                               title={t.deleteStudent}
                             >
                               <Trash2 size={16} /> {t.deleteStudent}

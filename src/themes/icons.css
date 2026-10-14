@@ -1,0 +1,226 @@
+/* ─── src/themes/icons.css — LE VERRE ET LA MORPHOSE, sur TOUTES les icônes ───
+ *
+ * Pourquoi une couche, et pas 66 composants : l'application n'écrit aucun
+ * `<svg>` à la main (vérifié : `grep -rn "<svg" src --include=*.tsx` → 0). Toute
+ * icône de l'écran est donc un `<svg class="lucide …">` rendu par lucide-react,
+ * et une seule famille de sélecteurs les atteint toutes sans toucher un seul
+ * composant. Le jour où une icône écrite à la main apparaîtrait, elle échapperait
+ * à cette couche — c'est le prix, et il est nommé ici plutôt que découvert.
+ *
+ * Pourquoi un fichier NEUF : le budget du dépôt est de 700 lignes par fichier
+ * (`scripts/check-line-budget.mjs`) et `src/index.css` en porte 659,
+ * `src/themes/overrides.css` 699. Cette couche n'avait pas de place ailleurs ; le
+ * chargeur de corpus (`scripts/lib/theme-css.mjs`) lit tout `src/themes/*.css`,
+ * importé ou non, donc les gardes de sélecteurs la voient aussi.
+ *
+ * ─── Ce que « verre » veut dire ici, et pourquoi en `currentColor` ───────────
+ * Un `backdrop-filter` ne suffit pas : sur une surface déjà opaque, blanchir à
+ * blanc translucide ne se voit QUE sur les thèmes sombres, et disparaît sur les
+ * quatre thèmes clairs (crème, navy, émeraude, bordeaux) — l'inverse du bug
+ * « blanc sur blanc », mais le même aveuglement selon le thème. Le verre est donc
+ * teinté par `currentColor`, l'encre que l'icône porte DÉJÀ : un accent ambre en
+ * Cyber Minuit, un rose d'alerte dans un badge, un ardoise dans un en-tête. La
+ * teinte suit l'icône par construction, dans les six thèmes, sans une seule
+ * couleur en dur à maintenir — et sans toucher au contraste de l'encre, puisque
+ * la plaque est faite de cette encre à 7-18 %.
+ *
+ * ─── La morphose : au survol et au focus, jamais en boucle ───────────────────
+ * Une animation permanente sur des centaines d'icônes repeint la page en continu
+ * (le garde de performance du dépôt et une tablette de classe ne le supportent
+ * pas). La forme liquide ne se déclenche donc que sous le curseur ou au clavier :
+ * le rayon devient un blob dissymétrique et DÉRIVE (`@keyframes`), le reflet
+ * glisse par `background-position`, l'icône se pose légèrement. Au repos : rien.
+ *
+ * ─── La portée : le verre partout, la PASTILLE aux icônes cliquables ─────────
+ * Un chevron de liste déroulante ou une icône de méta 12 px dans une ligne de
+ * tableau n'ont pas de place pour un fond flouté : leur appliquer la pastille
+ * ferait des boîtes dans du texte serré. Le flou (`backdrop-filter`) et le liseré
+ * sont donc réservés aux icônes ISOLÉES — celles d'un bouton, d'un lien, d'un
+ * élément `role="button"` ou du rail — qui ont la place de porter un matériau.
+ * Les glyphes inline gardent la teinte de verre, sans boîte.
+ *
+ * ─── Le DOSAGE (§4) : trois doses, et la couche les RESPECTE ─────────────────
+ * Le verre n'est pas un fait, c'est un dosage — et le bon dosage n'est pas le
+ * même sur un écran de bureau, sur un vidéoprojecteur de salle et sur la tablette
+ * d'une classe. Réglages → Préférences propose donc `discret`, `net` et `animé`,
+ * mémorisés dans `localStorage` comme la densité des tableaux
+ * (`src/lib/iconGlass.ts`), portés par la RACINE du shell
+ * (`.icon-glass-*`, posée par `AppShell`) pour qu'une seule classe atteigne
+ * toutes les icônes de l'application. Les règles ci-dessous ne CONNAISSENT pas
+ * les doses : elles consomment des variables dont les valeurs de repli sont la
+ * dose livrée (« animé »), donc un fragment monté sans la classe — ou la page
+ * avant hydratation — rend exactement ce qui a été livré.
+ *
+ * ─── L'accessibilité, qui n'était nulle part ─────────────────────────────────
+ * `prefers-reduced-motion` n'apparaissait dans AUCUNE feuille du dépôt avant ce
+ * fichier. Le bloc en fin de fichier garde le verre et supprime tout mouvement :
+ * qui a demandé moins d'animation reçoit la matière, pas la danse. (`prefers-
+ * color-scheme` reste, lui, interdit partout par `scripts/check-css-selectors.mjs`
+ * — c'est le thème de l'application qui décide, jamais celui du système.)
+ */
+
+/* ─── 1. Le matériau, sur toutes les icônes ──────────────────────────────── */
+
+svg.lucide {
+  background-image: linear-gradient(
+    148deg,
+    color-mix(in srgb, currentColor var(--icon-glass-tint-strong, 18%), transparent) 0%,
+    color-mix(in srgb, currentColor var(--icon-glass-tint-soft, 7%), transparent) 46%,
+    transparent 100%
+  );
+  background-position: 50% 0;
+  background-size: 100% 100%;
+  /* Le repos est déjà un blob TRÈS légèrement dissymétrique : la morphose part
+     d'une forme, au lieu de sauter d'un carré vers une flaque. Sous « net », la
+     même variable donne un rayon RÉGULIER — c'est là que la dose se voit le plus. */
+  border-radius: var(--icon-glass-radius, 34% 30% 32% 30% / 30% 34% 30% 32%);
+  /* Liseré haut + ombre basse, tous deux tirés de l'encre : aucun ajout à la
+     mise en page (une bordure, elle, élargirait la boîte de chaque icône). */
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, currentColor var(--icon-glass-edge, 26%), transparent),
+    0 1px 2px color-mix(in srgb, currentColor var(--icon-glass-shadow, 14%), transparent);
+  transition:
+    background-position 600ms ease,
+    border-radius 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 320ms ease;
+}
+
+/* ─── 2. La pastille : les icônes qui ont la place de porter un matériau ─── */
+
+:is(button, a, [role="button"]) > svg.lucide,
+.app-sidebar svg.lucide,
+.nav-item svg.lucide {
+  /* Le flou suit la dose : `--icon-glass-blur` à une longueur pour « animé », et
+     les doses sobres éteignent carrément le filtre (voir §4 — `blur(0)`, lui,
+     laisserait le moteur composer l'arrière-plan pour rien). */
+  backdrop-filter: blur(var(--icon-glass-blur, 9px)) saturate(var(--icon-glass-saturate, 140%));
+  border-radius: var(--icon-glass-pastille-radius, 40% 32% 38% 30% / 32% 40% 30% 38%);
+  /* La pastille RENFORCE la dose au lieu d'en inventer une seconde : son liseré
+     et son ombre sont ceux de la dose, multipliés. Une dose reste donc UNE
+     décision, et les trois niveaux n'ont pas chacun leur table de valeurs. */
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, currentColor calc(var(--icon-glass-edge, 26%) * 1.3), transparent),
+    inset 0 -1px 0 color-mix(in srgb, currentColor calc(var(--icon-glass-shadow, 14%) * 0.7), transparent),
+    0 2px 4px color-mix(in srgb, currentColor calc(var(--icon-glass-shadow, 14%) * 1.15), transparent);
+}
+
+/* L'onglet actif du rail : la même pastille, mais RETENUE — un anneau d'encre
+   au lieu du mouvement, parce qu'un état permanent ne doit pas danser. */
+.nav-item-active svg.lucide {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, currentColor calc(var(--icon-glass-edge, 26%) * 1.45), transparent),
+    0 0 0 1px color-mix(in srgb, currentColor var(--icon-glass-edge, 26%), transparent),
+    0 2px 5px color-mix(in srgb, currentColor calc(var(--icon-glass-shadow, 14%) * 1.4), transparent);
+}
+
+/* ─── 3. La morphose liquide, sous le curseur ou au clavier ─────────────── */
+
+@keyframes icon-liquid-morph {
+  0%,
+  100% {
+    background-position: 50% 0;
+    border-radius: 42% 58% 55% 45% / 48% 44% 56% 52%;
+  }
+
+  35% {
+    background-position: 28% 62%;
+    border-radius: 58% 42% 40% 60% / 40% 58% 42% 60%;
+  }
+
+  70% {
+    background-position: 72% 34%;
+    border-radius: 46% 54% 62% 38% / 60% 38% 62% 40%;
+  }
+}
+
+:is(button, a, [role="button"]):is(:hover, :focus-visible) > svg.lucide,
+.nav-item:is(:hover, :focus-visible) svg.lucide {
+  animation: icon-liquid-morph 3.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  transform: rotate(-1.5deg) scale(1.06);
+  transform-origin: center;
+}
+
+/* ─── 4. LE DOSAGE — trois doses, une classe sur la racine ────────────────
+ *
+ * Chaque dose ne dit QUE des nombres : ce qui la distingue est entièrement
+ * écrit ici, et rien ailleurs. Les valeurs de la dose « animé » sont aussi les
+ * valeurs de repli des règles de base (§1 et §2) — les répéter ci-dessous est
+ * volontaire : c'est la dose qui est la référence, et les replis ne servent
+ * qu'aux rendus sans classe (page avant hydratation, fragment de test).
+ */
+
+/* Animé — la dose livrée : le verre est franc et la forme DÉRIVE au survol.
+   C'est elle qui a été choisie et mesurée (contraste, thèmes clairs et sombres),
+   donc elle reste le défaut de `src/lib/iconGlass.ts`. */
+.icon-glass-animated {
+  --icon-glass-tint-strong: 18%;
+  --icon-glass-tint-soft: 7%;
+  --icon-glass-edge: 26%;
+  --icon-glass-shadow: 14%;
+  --icon-glass-radius: 34% 30% 32% 30% / 30% 34% 30% 32%;
+  --icon-glass-pastille-radius: 40% 32% 38% 30% / 32% 40% 30% 38%;
+  --icon-glass-blur: 9px;
+  --icon-glass-saturate: 140%;
+}
+
+/* Net — la matière reste, le mouvement s'en va, et le galet devient un carré
+   arrondi RÉGULIER : c'est la dose des écrans où l'on veut lire des icônes
+   alignées sans qu'une forme floue les fasse vibrer. */
+.icon-glass-crisp {
+  --icon-glass-tint-strong: 15%;
+  --icon-glass-tint-soft: 5%;
+  --icon-glass-edge: 34%;
+  --icon-glass-shadow: 10%;
+  --icon-glass-radius: 22%;
+  --icon-glass-pastille-radius: 22%;
+}
+
+/* Discret — le verre s'efface : une plaque à peine là, aucun liseré qui brille.
+   L'icône redevient un glyphe, sans perdre le soupçon de matière qui la détache
+   d'une surface de tableau. */
+.icon-glass-discreet {
+  --icon-glass-tint-strong: 9%;
+  --icon-glass-tint-soft: 3%;
+  --icon-glass-edge: 15%;
+  --icon-glass-shadow: 4%;
+  --icon-glass-radius: 30% 27% 29% 28% / 28% 30% 28% 30%;
+  --icon-glass-pastille-radius: 34% 29% 32% 28% / 29% 34% 28% 32%;
+}
+
+/* Les deux doses sobres éteignent le FLOU — et pas en le réglant à zéro : un
+   `backdrop-filter: blur(0)` laisse le moteur composer l'arrière-plan de chaque
+   icône, ce qui se paie sur une tablette de classe sans rien rendre à l'écran. */
+:is(.icon-glass-discreet, .icon-glass-crisp) :is(button, a, [role="button"]) > svg.lucide,
+:is(.icon-glass-discreet, .icon-glass-crisp) .app-sidebar svg.lucide,
+:is(.icon-glass-discreet, .icon-glass-crisp) .nav-item svg.lucide {
+  backdrop-filter: none;
+}
+
+/* Et elles ne dérivent pas. « Discret » ne bouge pas DU TOUT (aucun retour sous
+   le curseur : c'est ce qu'on a demandé) ; « net » répond, mais par son liseré —
+   la variable change sous le curseur, et la transition de §1 fait le reste
+   (320 ms sur l'ombre, pas une dérive de 3,2 s). */
+:is(.icon-glass-discreet, .icon-glass-crisp) :is(button, a, [role="button"]):is(:hover, :focus-visible) > svg.lucide,
+:is(.icon-glass-discreet, .icon-glass-crisp) .nav-item:is(:hover, :focus-visible) svg.lucide {
+  animation: none;
+  transform: none;
+}
+
+:is(.icon-glass-discreet, .icon-glass-crisp) :is(button, a, [role="button"]):is(:hover, :focus-visible),
+:is(.icon-glass-discreet, .icon-glass-crisp) .nav-item:is(:hover, :focus-visible) {
+  --icon-glass-edge: 44%;
+}
+
+/* ─── 5. Qui a demandé moins d'animation reçoit le verre, pas la danse ──── */
+
+@media (prefers-reduced-motion: reduce) {
+  svg.lucide {
+    transition: none;
+  }
+
+  :is(button, a, [role="button"]):is(:hover, :focus-visible) > svg.lucide,
+  .nav-item:is(:hover, :focus-visible) svg.lucide {
+    animation: none;
+    transform: none;
+  }
+}
