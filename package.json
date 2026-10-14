@@ -121,7 +121,7 @@
     "husky": "^9.1.7",
     "lighthouse": "^13.5.0",
     "pdfjs-dist": "^6.3.289",
-    "puppeteer-core": "^25.11.0",
+    "puppeteer-core": "^25.13.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.13",
     "typescript": "~5.8.2",
