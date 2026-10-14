@@ -79,7 +79,7 @@
     "prepare": "node scripts/setup-node-runtime.mjs --soft && husky"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.115.0",
+    "@supabase/supabase-js": "^2.117.3",
     "electron-updater": "^6.8.9",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.46.0",
