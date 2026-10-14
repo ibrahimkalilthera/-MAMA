@@ -38,8 +38,39 @@ const THEME_ACCENT: Record<ThemeId, { base: string; deep: string }> = {
  */
 export const DEFAULT_THEME: ThemeId = 'midnight';
 
-/** Where the active theme id is remembered. */
-const THEME_KEY = 'school-finance-theme';
+/**
+ * Where the active theme id is remembered.
+ *
+ * Exportée parce qu'une autre question se pose sur elle que « quel thème est
+ * enregistré ? » : « ce poste a-t-il DÉJÀ choisi un thème ? » — la clé est-elle
+ * seulement présente. Les préférences d'affichage
+ * (src/lib/displayPreferences.ts) posent cette question-là : c'est la seule qui
+ * distingue un poste neuf (qui adopte la copie de la base) d'un poste qui a
+ * choisi (dont le choix local gagne toujours).
+ */
+/**
+ * L'ordre où le sélecteur des Réglages propose les thèmes — une carte TOTALE sur
+ * `ThemeId`, et c'est tout l'intérêt : un thème ajouté au type sans entrée ici ne
+ * compile pas, et une entrée qui n'est pas un thème non plus. Le type et la liste
+ * ne peuvent donc pas diverger (même règle que `THEME_ACCENT` ci-dessus).
+ */
+const THEME_ORDER: Record<ThemeId, true> =
+  // `Object.keys` suit l'ordre d'insertion : c'est lui, l'ordre du sélecteur.
+  { navy: true, emerald: true, cream: true, bordeaux: true, slate: true, midnight: true };
+
+/**
+ * Les thèmes, en LISTE — exhaustive par construction (voir ci-dessus).
+ *
+ * C'est cette liste que lit la validation d'une préférence venue de la base
+ * (src/lib/displayPreferences.ts) : un thème adopté doit être un thème que l'app
+ * sait peindre. Elle vit ici, et non dans `mainViewsProps.ts`, parce qu'un
+ * module de types n'exporte AUCUNE valeur à l'exécution (règle du dépôt).
+ */
+export const THEME_IDS: readonly ThemeId[] = Object.keys(THEME_ORDER) as ThemeId[];
+
+export const THEME_STORAGE_KEY = 'school-finance-theme';
+
+const THEME_KEY = THEME_STORAGE_KEY;
 
 /**
  * Which default theme this browser has already adopted. Held separately from
@@ -289,7 +320,46 @@ export function useTheme() {
 
       tableHeader: isMidnight ? 'bg-[#141C2C] text-[#F3F6FB]' : isSlate ? 'bg-[#2A3650] text-[#E6ECF5]' : isEmerald ? 'bg-[#DCFCE7] text-[#065F46]' : isBordeaux ? 'bg-[#FFE4E6] text-[#9F1239]' : isCream ? 'bg-[#F4EFE0] text-[#5C5647]' : 'bg-slate-50/50 text-slate-400',
 
-      rowHover: isMidnight ? 'hover:bg-white/[0.04]' : isSlate ? 'hover:bg-white/[0.06]' : isEmerald ? 'hover:bg-[#F0FDF4]' : isBordeaux ? 'hover:bg-[#FFF1F2]' : isCream ? 'hover:bg-[#FAF7F0]' : 'hover:bg-slate-50/80',
+      /**
+       * L'échelle de survol d'état — voir `CurrentTheme`
+       * (src/app/mainViewsProps.ts) pour ce que chaque cran veut dire, et
+       * `src/themes/state-hover.css` pour les classes ET leurs valeurs. Les
+       * VALEURS sont par thème : c'est ce qui rend un survol chaud dans un thème
+       * chaud, sombre sur une surface sombre, et d'accent là où un contrôle
+       * d'accent se survole. `hoverAccent` suit l'accent d'une école, comme les
+       * autres jetons d'accent.
+       */
+      hoverSurface: 'state-hover',
+
+      hoverSurfaceSolid: 'state-hover-solid',
+
+      hoverSurfaceStrong: 'state-hover-strong',
+
+      hoverSurfaceDark: 'state-hover-dark',
+
+      hoverSurfaceClear: 'state-hover-clear',
+
+      hoverAccent: 'state-accent-hover',
+
+      hoverAccentGroupInk: 'state-accent-group-ink',
+
+      hoverAlert: 'state-alert-hover',
+
+      hoverAlertTint: 'state-alert-tint',
+
+      hoverAlertSolid: 'state-alert-solid',
+
+      hoverAlertDark: 'state-alert-dark',
+
+      hoverAlertPlate: 'state-alert-plate',
+
+      /**
+       * Le survol d'une RANGÉE de tableau : le même cran neutre, sous le nom que
+       * la vue emploie (une rangée n'est pas un bouton). Il portait sa propre
+       * table de valeurs par thème — c'est cette table qui est devenue
+       * `--state-hover` dans le CSS, donc une seule vérité pour un survol.
+       */
+      rowHover: 'state-hover',
 
       input: isMidnight ? 'bg-[#111827] border-[#2C3950] text-white' : isSlate ? 'bg-[#253248] border-[#475569] text-[#F8FAFC]' : isEmerald ? 'bg-[#F0FDF4] border-[#A7F3D0] text-[#064E3B]' : isBordeaux ? 'bg-[#FFF1F2] border-[#FECDD3] text-[#881337]' : isCream ? 'bg-[#FCFAF2] border-[#DCD3B6] text-[#1A1A1A]' : 'bg-slate-50 border-slate-200 text-slate-900',
 

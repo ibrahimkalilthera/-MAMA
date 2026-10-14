@@ -29,6 +29,15 @@ import type { PayslipDataOptions } from '../lib/pdfPayroll';
 import type { ExpensesReportOptions } from '../lib/pdfExpensesReport';
 import type { AppRole } from '../lib/useAuth';
 
+/**
+ * Les thèmes que l'application sait peindre.
+ *
+ * L'union est écrite à la main, et la LISTE qui va avec vit dans le module qui
+ * peint les thèmes (`THEME_IDS`, src/app/useTheme.ts) : ce fichier-ci est
+ * TYPES-ONLY — un `import` n'y a aucun effet d'exécution, et c'est une règle du
+ * dépôt (tests/mainviews-props.test.ts la verrouille). Les deux ne peuvent pas
+ * diverger : la liste est une carte totale sur ce type.
+ */
 export type ThemeId = 'navy' | 'cream' | 'slate' | 'emerald' | 'bordeaux' | 'midnight';
 export type ManagedClass = SchoolClass & { rowId?: string };
 export type RoleFilter = 'all' | 'admin' | 'staff' | 'dev' | 'general_manager' | 'econome';
@@ -167,6 +176,67 @@ export interface CurrentTheme {
   surfaceInset: string;
   /** Solid accent border on hover — the logo dropzone's "drop here" state. */
   accentBorderHover: string;
+
+  /**
+   * L'ÉCHELLE DE SURVOL D'ÉTAT — les crans et leurs valeurs vivent dans
+   * `src/themes/state-hover.css`, la garde qui interdit d'écrire la recette
+   * soi-même est `scripts/check-state-hover.mjs`.
+   *
+   * Un survol de surface était une recette recopiée dans chaque composant :
+   * `hover:bg-slate-50 dark:hover:bg-white/10`, `hover:bg-slate-100
+   * dark:hover:bg-slate-800`, `hover:bg-rose-100 dark:hover:bg-rose-950/60`.
+   * Aucun remap de thème ne les corrige (un remap ne connaît que ses propres
+   * classes), donc un thème chaud avait des survols froids, et l'accent d'une
+   * école — la couleur de son logo, décidée à l'exécution — n'atteignait aucun
+   * d'eux. Ces jetons sont ces recettes, une fois.
+   *
+   *   · `hoverSurface`      — cran NEUTRE sur une surface de page (carte
+   *                           cliquable, bouton fantôme, icône au repos
+   *                           transparent) ; une RANGÉE de tableau prend
+   *                           `rowHover`, le même cran sous son nom ;
+   *   · `hoverSurfaceSolid` — le même pas sur un contrôle dont le REPOS est déjà
+   *                           un remplissage neutre doux (`bg-slate-100
+   *                           dark:bg-slate-800`) ;
+   *   · `hoverSurfaceStrong`— le même pas sur un remplissage neutre FORT (le
+   *                           bouton `bg-slate-800 dark:bg-slate-700`) ;
+   *   · `hoverSurfaceDark`  — sur une surface TOUJOURS sombre ou COLORÉE (le
+   *                           rail, un bandeau, un en-tête teinté) : un voile
+   *                           blanc qui s'ajoute au repos ;
+   *   · `hoverSurfaceClear` — sur un contrôle au repos BLANC OPAQUE posé sur un
+   *                           APLAT COLORÉ (le bandeau de paie, la fiche
+   *                           parent) : le seul pas lisible est que l'aplat
+   *                           reparaisse sous lui (90 % d'opacité — un voile
+   *                           blanc y serait invisible) ;
+   *   · `hoverAccent`       — ACCENT : surface atténuée + encre d'accent ;
+   *   · `hoverAccentGroupInk` — l'encre d'accent SEULE, quand l'ancêtre `.group`
+   *                           est survolé (le chevron d'une carte) ;
+   *   · `hoverAlert`        — ALERTE (geste destructif) : surface rose + encre
+   *                           rose ;
+   *   · `hoverAlertTint`    — la surface d'alerte seule (une rangée en retard se
+   *                           teint sans repeindre l'encre de ses cellules) ;
+   *   · `hoverAlertSolid`   — l'ombre d'un CTA destructif déjà plein (rose-500,
+   *                           -600 ou -700) : elle assombrit SA teinte ;
+   *   · `hoverAlertDark`    — ALERTE sur un chrome TOUJOURS sombre (la
+   *                           déconnexion du rail) : un voile rose + l'encre
+   *                           LEVÉE, les deux ensemble — le cran de page
+   *                           poserait là une pastille pâle OPAQUE sous une
+   *                           encre PROFONDE ;
+   *   · `hoverAlertPlate`   — l'alerte SUR un aplat coloré (la corbeille du
+   *                           bandeau payé), qui porte déjà son encre : la
+   *                           surface seule, en voile.
+   */
+  hoverSurface: string;
+  hoverSurfaceSolid: string;
+  hoverSurfaceStrong: string;
+  hoverSurfaceDark: string;
+  hoverSurfaceClear: string;
+  hoverAccent: string;
+  hoverAccentGroupInk: string;
+  hoverAlert: string;
+  hoverAlertTint: string;
+  hoverAlertSolid: string;
+  hoverAlertDark: string;
+  hoverAlertPlate: string;
 
   /**
    * Neutral strong ink for body/label text — replaces the old
@@ -475,7 +545,17 @@ export interface MainViewsProps {
   setStaffPositionFilter: Dispatch<SetStateAction<StaffPositionFilter>>;
   setStaffSearchTerm: Dispatch<SetStateAction<string>>;
   setStudentToLinkId: Dispatch<SetStateAction<string>>;
-  setTheme: Dispatch<SetStateAction<ThemeId>>;
+  /**
+   * Poser un thème DONNÉ.
+   *
+   * Le type est volontairement étroit, et non `Dispatch<SetStateAction<ThemeId>>` :
+   * depuis le 2026-10-19 ce poseur est aussi le point où un changement de thème
+   * est PUBLIÉ en base (la copie qui voyage avec la sauvegarde, voir
+   * src/app/useDisplayPreferences.ts), et une forme fonctionnelle
+   * (`setTheme(prev => …)`) n'aurait aucune valeur concrète à publier. Aucun
+   * appelant ne s'en servait ainsi — le sélecteur des Réglages passe un id.
+   */
+  setTheme: (theme: ThemeId) => void;
   setTicketStudent: Dispatch<SetStateAction<Student | null>>;
   setTodoInput: Dispatch<SetStateAction<string>>;
   setUserProfiles: Dispatch<SetStateAction<UserProfile[]>>;

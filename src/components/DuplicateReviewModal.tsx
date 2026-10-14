@@ -198,7 +198,7 @@ export function DuplicateReviewModal(props: DuplicateReviewModalProps) {
                   {canDelete && (
                     <button
                       onClick={() => setDeleteTarget(student)}
-                      className="w-full px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded-xl text-2xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
+                      className={`w-full px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} rounded-xl text-2xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap`}
                       title={t.duplicateReviewDelete}
                     >
                       <Trash2 size={14} /> {t.duplicateReviewDelete}
@@ -262,7 +262,7 @@ export function DuplicateReviewModal(props: DuplicateReviewModalProps) {
             <div className="flex flex-wrap justify-end gap-3 pt-2 border-t border-slate-100 dark:border-white/[0.06]">
               <button
                 onClick={onClose}
-                className={`h-11 px-4 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-white/10 rounded-2xl font-bold text-xs transition-all whitespace-nowrap`}
+                className={`h-11 px-4 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 dark:hover:text-slate-200 ${currentTheme.hoverSurface} rounded-2xl font-bold text-xs transition-all whitespace-nowrap`}
               >
                 {t.close}
               </button>

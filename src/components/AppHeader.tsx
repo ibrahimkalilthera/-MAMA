@@ -249,7 +249,7 @@ export function AppHeader(props: AppHeaderProps) {
             </button>
             <button 
               onClick={onExportLate}
-              className={`${currentTheme.card} border ${currentTheme.border} ${currentTheme.text} px-5 py-3 rounded-2xl text-sm font-bold hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm`}
+              className={`${currentTheme.card} border ${currentTheme.border} ${currentTheme.text} px-5 py-3 rounded-2xl text-sm font-bold ${currentTheme.hoverSurface} transition-all flex items-center gap-2 shadow-sm`}
             >
               <Download size={18} />
               <span className="hidden sm:inline">{t.exportLate}</span>
@@ -271,7 +271,7 @@ export function AppHeader(props: AppHeaderProps) {
         {activeTab === 'students' && (
           <button 
             onClick={onAddCr}
-            className={`${currentTheme.card} border ${currentTheme.border} ${currentTheme.text} px-5 py-3 rounded-2xl text-sm font-bold hover:bg-slate-50 dark:hover:bg-white/5 transition-all flex items-center gap-2 shadow-sm active:scale-[0.98]`}
+            className={`${currentTheme.card} border ${currentTheme.border} ${currentTheme.text} px-5 py-3 rounded-2xl text-sm font-bold ${currentTheme.hoverSurface} transition-all flex items-center gap-2 shadow-sm active:scale-[0.98]`}
             title={t.crClasses}
           >
             <Baby size={18} />

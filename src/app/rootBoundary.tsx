@@ -23,13 +23,15 @@ const ROOT_FALLBACK_THEME = {
   muted: 'text-slate-400',
   border: 'border-slate-100',
   isDark: false,
-  // Les jetons d'accent sont des NOMS DE CLASSE (utilitaires accent-surface…),
-  // pas des couleurs : le repli peut les citer sans peindre un accent codé en
-  // dur, et l'écran d'erreur suit le thème dès que les variables sont posées.
+  // Les jetons d'accent et de survol sont des NOMS DE CLASSE (utilitaires
+  // accent-surface…, state-hover…), pas des couleurs : le repli peut les citer
+  // sans peindre un accent codé en dur, et l'écran d'erreur suit le thème dès
+  // que les variables sont posées.
   accentBg: 'accent-surface',
   accentHover: 'accent-surface-hover',
   accentText: 'accent-surface-text',
   accentShadow: 'accent-shadow',
+  hoverSurface: 'state-hover',
 } as const;
 
 /** Wraps the app in the ErrorBoundary (label « l'application ») + YearProvider. */

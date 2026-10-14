@@ -86,6 +86,18 @@ const theme: CurrentTheme = {
   tableHeader: 'bg-slate-50',
   isDark: false,
   rowHover: 'hover:bg-slate-50',
+  hoverSurface: 'state-hover',
+  hoverSurfaceSolid: 'state-hover-solid',
+  hoverSurfaceStrong: 'state-hover-strong',
+  hoverSurfaceDark: 'state-hover-dark',
+  hoverSurfaceClear: 'state-hover-clear',
+  hoverAccent: 'state-accent-hover',
+  hoverAccentGroupInk: 'state-accent-group-ink',
+  hoverAlert: 'state-alert-hover',
+  hoverAlertTint: 'state-alert-tint',
+  hoverAlertSolid: 'state-alert-solid',
+  hoverAlertDark: 'state-alert-dark',
+  hoverAlertPlate: 'state-alert-plate',
 };
 
 const nurseryForm = (overrides: Partial<StudentForm> = {}): StudentForm => ({

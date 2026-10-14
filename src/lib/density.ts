@@ -14,7 +14,18 @@ export type TableDensity = 'comfort' | 'compact';
 
 export const DEFAULT_DENSITY: TableDensity = 'comfort';
 
-const KEY = 'school-finance-density-v1';
+/**
+ * La clé de stockage, nommée UNE fois.
+ *
+ * Elle est exportée parce qu'une autre question se pose sur elle que « quelle
+ * est la valeur ? » : « ce poste a-t-il DÉJÀ choisi ? » — c'est-à-dire la clé
+ * est-elle présente, même à sa valeur par défaut. Les préférences d'affichage
+ * (src/lib/displayPreferences.ts) posent cette question-là pour savoir si la
+ * copie de la base doit être adoptée au démarrage d'un poste neuf.
+ */
+export const DENSITY_STORAGE_KEY = 'school-finance-density-v1';
+
+const KEY = DENSITY_STORAGE_KEY;
 
 /** Read the stored density. Never throws; missing/unavailable → default. */
 export function getStoredDensity(): TableDensity {
