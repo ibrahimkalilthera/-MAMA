@@ -122,7 +122,7 @@ jobs:
       # FAIL-ON-GAP : chaque écart est NOMMÉ (absente, en trop, ou changée) et
       # l'étape rougit ; sans mot de passe ou avec un catalogue vide, le script sort
       # en 2 — l'étape rougit aussi, rien n'est maquillé en vert.
-      - name: Gate — politiques RLS : la base porte-t-elle ce que les migrations déclarent ?
+      - name: 'Gate — politiques RLS : la base porte-t-elle ce que les migrations déclarent ?'
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: npm run check:rls-policies
@@ -139,7 +139,7 @@ jobs:
       # l'étape rougit ; sans mot de passe, avec un corpus vide ou une énumération
       # qui n'atteint rien, le script sort en 2 — l'étape rougit aussi, rien n'est
       # maquillé en vert.
-      - name: Gate — index, contraintes et déclencheurs : la base porte-t-elle ce que les migrations déclarent ?
+      - name: 'Gate — index, contraintes et déclencheurs : la base porte-t-elle ce que les migrations déclarent ?'
         env:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: npm run check:db-objects
