@@ -22,6 +22,22 @@ name: Public — aucune table sans RLS
 # d'Actions alertent. C'est le seul signal qui existe pour cette classe-là, et il
 # vaut mieux qu'une fuite de données de mineurs découverte par hasard.
 #
+# Le 2026-10-13, la MÊME base a montré l'autre moitié du sujet : des POLITIQUES
+# absentes, en trop, ou restées à une génération antérieure — `vendor_expenses`
+# refusait le Gestionnaire Principal depuis cinq semaines alors que la migration
+# qui l'autorise existe depuis le 2026-09-06. `check:rls-policies` compare donc
+# désormais les politiques DÉCLARÉES par les migrations à celles que `pg_policies`
+# porte, dans la même veille (même secret, même base) : ce qu'un contrôle ne
+# regarde pas reste invisible, même dans un dépôt qui regarde beaucoup.
+#
+# Le même jour, la TROISIÈME famille du sujet est entrée dans la veille : les
+# INDEX, les CONTRAINTES et les DÉCLENCHEURS (`check:db-objects`). Une contrainte
+# absente laisse entrer ce que le dépôt refuse d'écrire, et un déclencheur absent
+# est plus silencieux encore — `students_assign_matricule` remplit un matricule que
+# l'application n'écrit plus, donc un élève créé sans lui reste sans matricule sans
+# qu'aucun écran ne le dise. Trois familles, une seule question posée à la même
+# base : ce que les migrations déclarent y est-il VRAIMENT ?
+#
 # LECTURE SEULE : ce job ne corrige RIEN. Activer RLS, écrire les politiques ou
 # supprimer un artefact sont des décisions qui se prennent après avoir regardé les
 # lignes exposées — un contrôle qui corrige tout seul efface la preuve.
@@ -39,7 +55,14 @@ on:
     paths:
       - 'scripts/check-public-rls.mjs'
       - 'scripts/lib/rls-coverage.mjs'
+      - 'scripts/check-rls-policies.mjs'
+      - 'scripts/lib/rls-policies.mjs'
       - 'tests/public-rls.test.ts'
+      - 'tests/rls-policies.test.ts'
+      - 'scripts/check-db-objects.mjs'
+      - 'scripts/lib/db-objects.mjs'
+      - 'scripts/lib/hosted-db.mjs'
+      - 'tests/db-objects.test.ts'
       - '.github/workflows/public-rls-watch.yml'
 
   schedule:
@@ -87,6 +110,39 @@ jobs:
           AUTOMATION_EVIDENCE: '1'
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: npm run check:public-rls
+
+      # La MÊME base, la MÊME question de verrous, mais l'autre moitié : non plus
+      # « la table porte-t-elle RLS ? » (ce que fait l'étape ci-dessus) mais « la
+      # politique dit-elle ce que la migration déclare ? ». Mesuré le 2026-10-13 :
+      # `vendor_expenses` portait encore la politique du 2026-08-28 (`is_admin()`)
+      # alors qu'une migration du 2026-09-06 déclarait celle du Gestionnaire
+      # Principal — cinq semaines de boutons « Ajouter » que la base refusait
+      # (42501), et aucune garde ne pouvait le dire. Ce contrôle lit les politiques
+      # DÉCLARÉES dans `supabase/migrations/` et les compare à `pg_policies`.
+      # FAIL-ON-GAP : chaque écart est NOMMÉ (absente, en trop, ou changée) et
+      # l'étape rougit ; sans mot de passe ou avec un catalogue vide, le script sort
+      # en 2 — l'étape rougit aussi, rien n'est maquillé en vert.
+      - name: Gate — politiques RLS : la base porte-t-elle ce que les migrations déclarent ?
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run check:rls-policies
+
+      # La MÊME base, toujours, mais les trois familles d'objets qu'une base peut
+      # porter en retard sans que rien ne le dise : INDEX, CONTRAINTES et
+      # DÉCLENCHEURS. Mesuré le 2026-10-13 : les contraintes NOMMÉES du dépôt (toutes
+      # posées par `ALTER TABLE … ADD CONSTRAINT`) étaient lues deux fois avec leur
+      # mot-clé — un `CHECK CHECK (…)` que seule la lecture portait —, donc la
+      # comparaison criait sur chaque contrainte au lieu de montrer une vraie
+      # dérive. Le contrôle lit les objets DÉCLARÉS dans `supabase/migrations/` et
+      # les compare à `pg_index`, `pg_constraint` et `pg_trigger`. FAIL-ON-GAP :
+      # chaque écart est NOMMÉ (absent, en trop, ou changé champ par champ) et
+      # l'étape rougit ; sans mot de passe, avec un corpus vide ou une énumération
+      # qui n'atteint rien, le script sort en 2 — l'étape rougit aussi, rien n'est
+      # maquillé en vert.
+      - name: Gate — index, contraintes et déclencheurs : la base porte-t-elle ce que les migrations déclarent ?
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run check:db-objects
 
       # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
       # étapes du run pour savoir si une preuve était attendue (voir

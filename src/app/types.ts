@@ -7,6 +7,7 @@
  * kept separate until the two are unified.
  */
 import type { StaffCategory } from '../lib/domainTypes';
+import type { PaymentMotif } from '../lib/paymentMotifs';
 
 export type Language = 'en' | 'fr';
 export interface User {
@@ -30,6 +31,14 @@ export interface Payment {
    * alors sur le mois de la date).
    */
   months?: string[];
+  /**
+   * Ce que ce paiement RÈGLE : `scolarite` (le geste ordinaire) ou
+   * `inscription` (le droit d'entrée de la rentrée). Voir
+   * `lib/paymentMotifs.ts` — la liste fermée, la relecture d'une ligne, et les
+   * mots que la ligne « Motif » du reçu en tire. Absent = non renseigné : le
+   * reçu retombe alors sur le motif ordinaire.
+   */
+  motif?: PaymentMotif;
 }
 
 export interface Parent {

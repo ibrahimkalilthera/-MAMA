@@ -33,7 +33,13 @@
  *   • « Classe » gets the student grade — written centered on the right end
  *     of the dotted line, where the Direction marks the class entry (no
  *     drawn box: the Direction asked for the spot and size only);
- *   • « Motif » gets the payment reason;
+ *   • « Motif » gets the payment reason — « Frais de scolarité » for the
+ *     ordinary payment, « Inscription » when the cashier chose the entry fee
+ *     (see src/lib/paymentMotifs.ts: the stored key is `scolarite` /
+ *     `inscription`, never a label). The line is shrunk to fit the dotted line
+ *     like the « Mois » one, and a payment whose row declares no motif — every
+ *     row written before the column, and every import — keeps the ordinary
+ *     word, so a receipt reprinted from an older row is unchanged;
  *   • « Date, le … 20 … » gets the payment date: dd/mm/ centered on the
  *     dotted line just before the pre-printed « 20 » (same spot, no drawn
  *     box), then the last two year digits written after the « 20 »;
@@ -50,6 +56,7 @@ import { downloadBytes } from './browserDownload';
 import { montantEnLettres } from './pdfPayrollBulletin';
 import { studentMatricule } from './studentIdentifiers';
 import { formatPaidMonths, paidMonthsShape, paymentMonthLabel, MONTH_KEYS } from './paymentMonths';
+import { paymentMotifLabel, paymentMotifOf } from './paymentMotifs';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
 
@@ -326,6 +333,8 @@ export async function buildParentReceiptPdf({
   // au ras du pointillé (mesuré : 68,1 mm tracés pour 67,7 visés).
   const MOIS_MAX_W = 98.4 - MOIS.x;
   const MOIS_MIN_SIZE = 7;
+  /** Le plus petit corps lisible sur la ligne « Motif » (voir point 6). */
+  const MOTIF_MIN_SIZE = 7;
   const moisWidthAtFull = helv.widthOfTextAtSize(monthsText, DATA_SIZE) / PT_PER_MM;
   let moisText = monthsText;
   let moisSize = DATA_SIZE;
@@ -347,8 +356,20 @@ export async function buildParentReceiptPdf({
     textCentered(student.grade, CLASSE.x, CLASSE.y, { font: helv, size: fit });
   }
 
-  // 6. « Motif » — the payment reason.
-  text(t.pdfMotifTuition, MOTIF.x, baseline(MOTIF.y, DATA_SIZE), { font: { font: helv, size: DATA_SIZE } });
+  // 6. « Motif » — ce que ce paiement RÈGLE.
+  //
+  // Le mot vient de la ligne (`paymentMotifOf` : tout ce qui n'est pas un motif
+  // connu retombe sur « Frais de scolarité », donc un reçu d'avant la colonne ne
+  // change pas). La ligne pointillée s'arrête à x 190 mm — les deux libellés y
+  // tiennent largement, mais la MESURE est là : le jour où un motif plus long
+  // entre dans la liste fermée, il se réduit au lieu de dépasser sur le papier.
+  const motifText = paymentMotifLabel(paymentMotifOf(payment.motif), t);
+  const MOTIF_MAX_W = 190 - MOTIF.x;
+  const motifWAtFull = helv.widthOfTextAtSize(motifText, DATA_SIZE) / PT_PER_MM;
+  const motifSize = motifWAtFull > MOTIF_MAX_W
+    ? Math.max(MOTIF_MIN_SIZE, (MOTIF_MAX_W / motifWAtFull) * DATA_SIZE)
+    : DATA_SIZE;
+  text(motifText, MOTIF.x, baseline(MOTIF.y, motifSize), { font: { font: helv, size: motifSize } });
 
   // 7. « Date, le … 20 … » — dd/mm/ centered on the dotted line before the
   //    pre-printed « 20 » (no drawn box), then the last two year digits

@@ -19,10 +19,15 @@
  * **3. Il passe par le SEUL émetteur de téléchargement** (`downloadBytes`) et
  * pose le cachet de l'école en bas du contenu — jamais au-dessus d'une ligne.
  *
- * L'écart assumé, et il se voit : le tableau est en PAYSAGE. Sept colonnes
- * (horodatage, élève, action, montant, reçu, encaissé par, détails) ne tiennent
- * pas en portrait sans tronquer les détails, et un détail tronqué est exactement
- * ce qu'une caisse relit. Le paysage garde les sept colonnes, comme l'écran.
+ * L'écart assumé, et il se voit : le tableau est en PAYSAGE. Huit colonnes
+ * (horodatage, élève, action, montant, reçu, motif, encaissé par, détails) ne
+ * tiennent pas en portrait sans tronquer les détails, et un détail tronqué est
+ * exactement ce qu'une caisse relit. Le paysage garde les huit colonnes, comme
+ * l'écran.
+ *
+ * Le MOTIF est la colonne qui manquait : elle dit ce que la famille est venue
+ * régler, dans les mots du reçu (`paymentMotifLabel`), donc un document classé se
+ * relit sans avoir à rouvrir le papier remis au comptoir.
  */
 import type { PaymentHistoryFilter, PaymentHistoryRow, PaymentHistorySummary } from './paymentHistory';
 import { downloadBytes } from './browserDownload';
@@ -64,10 +69,17 @@ const STAMP_DIAMETER = 24;
 const PAGE_WIDTH = 297;
 const PAGE_HEIGHT = 210;
 const MARGIN = 12;
-/** Les abscisses de gauche des sept colonnes (voir `paymentHistoryColumnLabels`). */
-const COLUMN_X = [12, 50, 94, 130, 170, 200, 242];
-/** L'endroit où la colonne DÉTAILS s'arrête — la largeur du repli de texte. */
-const DETAILS_WIDTH = 43;
+/** Les abscisses de gauche des huit colonnes (voir `paymentHistoryColumnLabels`). */
+const COLUMN_X = [12, 46, 84, 116, 156, 180, 210, 248];
+/**
+ * L'endroit où la colonne DÉTAILS s'arrête — la largeur du repli de texte.
+ *
+ * 37 mm, et non 43 : la colonne MOTIF a pris ses six millimètres. Les détails se
+ * replient sur une ligne de plus quand il le faut (la hauteur de ligne suit leur
+ * repli), là où une colonne de motif trop étroite aurait ÉCRÊTÉ le mot du reçu —
+ * un papier qui ne dit qu'à moitié ce qui a été réglé ne sert à rien.
+ */
+const DETAILS_WIDTH = 37;
 /** Abscisse de la ligne « bullet » du titre en bandeau. */
 const BANNER_TEXT_X = 148.5;
 
@@ -165,8 +177,9 @@ export async function generatePaymentHistoryPdf({
     const cells = paymentHistoryCells(row, context);
     // Le détail est le seul texte qui puisse déborder : c'est lui qui décide de
     // la hauteur de la ligne (un repli sur trois lignes ne chevauchera pas la
-    // ligne suivante).
-    const details = doc.splitTextToSize(cells[6], DETAILS_WIDTH) as string[];
+    // ligne suivante). Il est la DERNIÈRE cellule — son rang suit l'en-tête, il
+    // n'est donc pas écrit en dur ailleurs qu'ici.
+    const details = doc.splitTextToSize(cells[7], DETAILS_WIDTH) as string[];
     const rowHeight = Math.max(6.5, details.length * 3.4 + 3);
 
     if (index % 2 === 1) {
@@ -177,7 +190,7 @@ export async function generatePaymentHistoryPdf({
     doc.line(MARGIN, y + rowHeight, PAGE_WIDTH - MARGIN, y + rowHeight);
 
     cells.forEach((cell, column) => {
-      if (column === 6) return;
+      if (column === 7) return;
       doc.setFont('helvetica', column === 3 ? 'bold' : 'normal');
       doc.setFontSize(7);
       doc.setTextColor(...(column === 0 ? MUTED_INK_RGB : INK_RGB));
@@ -191,7 +204,7 @@ export async function generatePaymentHistoryPdf({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.setTextColor(...MUTED_INK_RGB);
-    doc.text(details, COLUMN_X[6], y + 4.2);
+    doc.text(details, COLUMN_X[7], y + 4.2);
 
     y += rowHeight;
   });

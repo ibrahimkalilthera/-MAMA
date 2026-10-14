@@ -209,6 +209,19 @@ export const GUARD_INVENTORY = [
     via: 'e2e-writes.mjs',
   },
   {
+    check: 'check-e2e-targets.mjs',
+    input: 'workflows+source',
+    // Ce contrôle lit des WORKFLOWS et juge OÙ un job écrit : sa non-vacuité
+    // (aucun workflow lu, aucun E2E jugé ⇒ sortie 2) et sa cécité à la prose
+    // (les commentaires YAML sont blanchis AVANT tout jugement — sans quoi un
+    // en-tête qui CITE la base de l’école accuserait un job juste, et une
+    // phrase qui DÉCRIT une pile ferait passer un job qui n’en monte aucune)
+    // vivent dans le module qui juge, et elles y sont NOMMÉES : le blanchiment
+    // est celui de la couche partagée (`maskYamlComments`, source-text.mjs).
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    via: 'e2e-target.mjs',
+  },
+  {
     check: 'check-download-contract.mjs',
     input: 'source',
     // Ce contrôle lit des SCRIPTS et des COMPOSANTS et juge du texte : il relie
@@ -373,6 +386,51 @@ export const GUARD_INVENTORY = [
     // le module qui déduit le schéma, où elle est prouvée (`blankComments`), et
     // elle y est pour ça — mesuré : le mot de la prose créait une colonne.
     via: 'schema-expected.mjs',
+  },
+  {
+    check: 'check-rls-policies.mjs',
+    input: 'migrations+network',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // Ce qu'il lit est du SQL de migration, et la prose y NOMME des politiques
+    // (« … puis dropper la policy héritée »). La cécité à la prose vit dans le
+    // module qui compare : la STRUCTURE est lue sur `blankComments` (la couche
+    // partagée) et les conditions recopiées du texte d'origine aux mêmes index —
+    // mesuré : une apostrophe française dans un commentaire (« l'économe »)
+    // ouvrait une fausse chaîne et avalait les instructions suivantes, donc des
+    // `DROP POLICY` réels disparaissaient de la lecture.
+    via: 'rls-policies.mjs',
+  },
+  {
+    check: 'check-write-gates.mjs',
+    input: 'migrations+source',
+    // Ce contrôle croise les POLITIQUES D'ÉCRITURE des migrations avec les PORTES
+    // d'affichage de l'app : il lit les deux, donc les deux pièges le guettent.
+    // Sa non-vacuité est écrite trois fois (aucune porte, aucune écriture lue,
+    // aucune politique déclarée, aucune liste de rôles lisible ⇒ exit 2), et sa
+    // cécité à la prose vit dans `write-gates.mjs`, où elle est NOMMÉE : la couche
+    // partagée blanchit les commentaires AVANT tout jugement — sans quoi une
+    // écriture `example.from('t').delete()` citée dans un commentaire de la
+    // couche dataOps compterait comme une écriture, et une liste de rôles
+    // commentée dans un module de droits passerait pour une porte.
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    via: 'write-gates.mjs',
+  },
+  {
+    check: 'check-db-objects.mjs',
+    input: 'migrations+catalog',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // Son sujet est le CATALOGUE d'une base (`pg_index`, `pg_constraint`,
+    // `pg_trigger`) confronté aux migrations, pas un corpus de fichiers. Trois
+    // absences sont des REFUS écrits, jamais un vert : pas de mot de passe →
+    // exit 2, corpus vide (aucune migration, ou aucun objet déclaré) → exit 2, et
+    // une énumération qui n'a rien atteint → exit 2 (`report.vacuous`). Le défaut
+    // qu'il poursuit — un index, une contrainte ou un déclencheur que la base ne
+    // porte pas, ou porte autrement — n'a pas le droit de passer pour un
+    // catalogue aligné.
+    via: 'db-objects.mjs',
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit des migrations SQL et un catalogue Postgres, jamais du code source',
+    },
   },
   {
     check: 'check-owner-accounts.mjs',

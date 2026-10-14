@@ -15,6 +15,17 @@
  * MT-2026-42 ») : une recherche réussie se vérifie des yeux, au lieu d'un nom
  * seul qui laisse le caissier deviner si c'est bien l'élève du reçu.
  *
+ * Le MOTIF (voir src/lib/paymentMotifs.ts) est un choix SIMPLE, placé juste
+ * AU-DESSUS des mois : « Frais de scolarité » (le geste ordinaire, proposé
+ * d'avance) ou « Inscription ». C'est ce mot que la ligne « Motif » du reçu
+ * officiel imprime — il est donc choisi ici, une fois, et gardé en base.
+ *
+ * L'INSCRIPTION change la RÈGLE DES MOIS et rien d'autre : c'est un droit
+ * d'entrée, il ne couvre aucun mois de scolarité, donc les pastilles cessent
+ * d'être obligatoires (elles restent proposées — une famille peut régler les
+ * deux le même matin). Exiger un mois pour une inscription rendrait le guichet
+ * infranchissable le jour de la rentrée.
+ *
  * Les MOIS PAYÉS (voir src/lib/paymentMonths.ts) sont des PASTILLES, une par
  * mois de l'année scolaire, et pas une liste déroulante multiple : douze mois
  * tiennent à l'écran, et un clic dit exactement ce qu'il coche. Le mois de la
@@ -35,6 +46,8 @@ import type { TranslationDict } from '../i18n/translations';
 import { ModalShell } from './ModalShell';
 import { studentMatricule } from '../lib/studentIdentifiers';
 import { formatPaidMonths, paymentMonthLabel } from '../lib/paymentMonths';
+import { PAYMENT_MOTIFS, isPaymentMotif, paymentMotifLabel, paymentMotifNeedsMonths } from '../lib/paymentMotifs';
+import type { PaymentMotif } from '../lib/paymentMotifs';
 import { ALL_CLASSES, filterStudents, matchesClass, matchesSearch } from '../lib/paymentStudentFilter';
 
 export interface PaymentEntryModalProps {
@@ -47,6 +60,13 @@ export interface PaymentEntryModalProps {
   setPaymentAmount: Dispatch<SetStateAction<string>>;
   paymentDate: string;
   setPaymentDate: Dispatch<SetStateAction<string>>;
+  /**
+   * Le motif du paiement (`scolarite` / `inscription`, voir
+   * src/lib/paymentMotifs.ts) — ce que la ligne « Motif » du reçu imprimera.
+   * L'état vit dans le domaine (`usePayments`), pas dans la modale.
+   */
+  paymentMotif: PaymentMotif;
+  setPaymentMotif: Dispatch<SetStateAction<PaymentMotif>>;
   /** Les mois proposés — ceux de l'année scolaire de la date — en `YYYY-MM`. */
   paymentMonthOptions: string[];
   /** Les mois cochés : le mois de la date tant que le caissier n'a rien touché. */
@@ -66,7 +86,7 @@ export interface PaymentEntryModalProps {
 }
 
 export function PaymentEntryModal(props: PaymentEntryModalProps) {
-  const { t, currentTheme, students, paymentStudentId, setPaymentStudentId, paymentAmount, setPaymentAmount, paymentDate, setPaymentDate, paymentMonthOptions, paymentMonths, togglePaymentMonth, formatCurrency, availableClasses, getGradeDisplay, lang, handlePaymentSubmit, overlayRef, onClose } = props;
+  const { t, currentTheme, students, paymentStudentId, setPaymentStudentId, paymentAmount, setPaymentAmount, paymentDate, setPaymentDate, paymentMotif, setPaymentMotif, paymentMonthOptions, paymentMonths, togglePaymentMonth, formatCurrency, availableClasses, getGradeDisplay, lang, handlePaymentSubmit, overlayRef, onClose } = props;
 
   // Le texte EXACT de la ligne « Mois » du reçu — le même module, les mêmes
   // mots : ce qui se lit ici est ce qui s'imprime.
@@ -77,8 +97,20 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
   });
 
   // Au moins un mois est exigé dès lors que la liste est proposée (elle ne l'est
-  // que si l'année scolaire de la date se lit) : le bouton reste alors fermé.
-  const missingMonth = paymentMonthOptions.length > 0 && paymentMonths.length === 0;
+  // que si l'année scolaire de la date se lit) — SAUF pour l'inscription, qui
+  // est un droit d'entrée et ne couvre aucun mois : le bouton reste alors
+  // fermé. La règle vit dans `paymentMotifNeedsMonths`, avec le motif, pour
+  // que l'écran et le domaine n'en aient qu'une.
+  const missingMonth =
+    paymentMotifNeedsMonths(paymentMotif) &&
+    paymentMonthOptions.length > 0 &&
+    paymentMonths.length === 0;
+
+  // Ce que la ligne sous les pastilles dit : l'exigence, ou le texte exact du
+  // reçu. Sous une INSCRIPTION sans mois coché les deux sont vides — la ligne
+  // disparaît alors au lieu de laisser un trou (un droit d'entrée n'a rien à
+  // déclarer sur les mois).
+  const monthsFeedback = missingMonth ? t.paidMonthsRequired : monthsReceiptLine;
 
   // Le filtre repart de « toutes les classes » à chaque montage du formulaire.
   const [classFilter, setClassFilter] = useState<string>(ALL_CLASSES);
@@ -252,6 +284,32 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
                   </div>
                 </div>
 
+                {/* Le MOTIF — AU-DESSUS des mois, dans l'ordre où le reçu les
+                    porte : la famille lit « Motif » avant de vérifier les mois
+                    que ce paiement couvre. Les deux choix sont la liste FERMÉE
+                    de `src/lib/paymentMotifs.ts`, et leurs libellés sont les
+                    MOTS DU REÇU : ce qui se choisit ici s'imprime là. */}
+                <div className="space-y-2" data-slot="payment-motif">
+                  <label htmlFor="payment-motif-select" className={`text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.paymentMotif}</label>
+                  <select
+                    id="payment-motif-select"
+                    value={paymentMotif}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      // La valeur vient d'une liste fermée, mais elle traverse
+                      // le DOM en chaîne : on ne pose dans l'état que ce qui est
+                      // un motif connu.
+                      if (isPaymentMotif(next)) setPaymentMotif(next);
+                    }}
+                    className={`w-full px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
+                  >
+                    {PAYMENT_MOTIFS.map((motif) => (
+                      <option key={motif} value={motif} className={currentTheme.isDark ? 'bg-[#121212]' : 'bg-white'}>{paymentMotifLabel(motif, t)}</option>
+                    ))}
+                  </select>
+                  <p className={`text-2xs font-semibold ${currentTheme.muted}`}>{t.paymentMotifHint}</p>
+                </div>
+
                 {paymentMonthOptions.length > 0 && (
                   <div className="space-y-3" data-slot="payment-months">
                     <span className={`block text-2xs font-black ${currentTheme.muted} uppercase tracking-widest`}>{t.paidMonths}</span>
@@ -277,9 +335,11 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
                       })}
                     </div>
                     <p className={`text-2xs font-semibold ${currentTheme.muted}`}>{t.paidMonthsHint}</p>
-                    <p className={`text-xs font-black ${missingMonth ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                      {missingMonth ? t.paidMonthsRequired : monthsReceiptLine}
-                    </p>
+                    {monthsFeedback !== '' && (
+                      <p className={`text-xs font-black ${missingMonth ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {monthsFeedback}
+                      </p>
+                    )}
                   </div>
                 )}
 
