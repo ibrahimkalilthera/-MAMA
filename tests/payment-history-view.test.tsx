@@ -29,6 +29,7 @@ import { createRoot } from 'react-dom/client';
 import { MainViewsContext } from '../src/app/mainViewsContext';
 import { PaymentHistoryView } from '../src/components/PaymentHistoryView';
 import { translations } from '../src/i18n/translations';
+import { DEFAULT_PAYMENT_MOTIF, paymentMotifLabel } from '../src/lib/paymentMotifs';
 import { archivedPaymentFrom, paymentSnapshotMetadata } from '../src/lib/paymentUndo';
 import type { AuditLogEntry } from '../src/lib/auditLogger';
 import type { Payment, Student } from '../src/lib/domainTypes';
@@ -42,7 +43,11 @@ const alice: Student = {
   totalDue: 0, amountPaid: 0, dueDate: '2026-10-01', payments: [], notes: '',
 };
 
-const PAY: Payment = { id: 'pay1', date: '2026-10-02', amount: 4000, academicYear: '2026-2027', receiptNumber: 'REC-568556' };
+// Le reçu de la fixture est un DROIT D'INSCRIPTION : le cas du motif se lit donc
+// sur une ligne qui dit autre chose que le geste ordinaire, à côté de
+// l'encaissement d'avant la colonne — qui doit, lui, dire « Frais de scolarité »
+// comme le papier qu'il a produit.
+const PAY: Payment = { id: 'pay1', date: '2026-10-02', amount: 4000, academicYear: '2026-2027', receiptNumber: 'REC-568556', motif: 'inscription' };
 /** Le geste d'avant l'instantané, tel qu'il vit encore dans `payments`. */
 const PAY_LEGACY: Payment = { id: 'pay0', date: '2026-09-20', amount: 6000, academicYear: '2026-2027', receiptNumber: 'REC-0' };
 /**
@@ -184,6 +189,28 @@ describe('PaymentHistoryView — ce que la caisse relit', () => {
 
       h.change(h.select()!, 'all');
       assert.match(h.body(), new RegExp(t.auditActionRecordPayment), 'revenir à « toutes les actions » rend les encaissements');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('affiche le MOTIF de chaque reçu — les mots du papier, jamais une seconde formulation', () => {
+    const h = mount();
+    try {
+      const header = h.container.querySelector('thead')?.textContent ?? '';
+      assert.match(header, new RegExp(t.paymentMotif), 'la colonne MOTIF est annoncée');
+
+      const body = h.body();
+      assert.match(
+        body,
+        new RegExp(paymentMotifLabel('inscription', t)),
+        'le reçu d’inscription dit son motif — le mot imprimé sur le papier remis',
+      );
+      assert.match(
+        body,
+        new RegExp(paymentMotifLabel(DEFAULT_PAYMENT_MOTIF, t)),
+        'un reçu d’avant la colonne porte le motif que son papier portait alors',
+      );
     } finally {
       h.cleanup();
     }

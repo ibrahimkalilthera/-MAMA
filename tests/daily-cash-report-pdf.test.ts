@@ -26,6 +26,8 @@ import type { TranslationDict } from '../src/i18n/translations';
 import { formatCurrency } from '../src/lib/formatters';
 import { dailyCashReport } from '../src/lib/dailyCashReport';
 import { paymentHistoryRows } from '../src/lib/paymentHistory';
+import { DEFAULT_PAYMENT_MOTIF, paymentMotifLabel } from '../src/lib/paymentMotifs';
+import type { PaymentMotif } from '../src/lib/paymentMotifs';
 import { archivedPaymentFrom, paymentSnapshotMetadata } from '../src/lib/paymentUndo';
 import type { AuditLogEntry } from '../src/lib/auditLogger';
 import type { Payment, Student } from '../src/lib/domainTypes';
@@ -52,8 +54,8 @@ const alice: Student = {
   totalDue: 0, amountPaid: 0, dueDate: '2026-09-01', payments: [], notes: '',
 };
 
-const pay = (id: string, amount: number, receiptNumber: string): Payment => ({
-  id, date: DAY, amount, academicYear: '2026-2027', receiptNumber,
+const pay = (id: string, amount: number, receiptNumber: string, motif?: PaymentMotif): Payment => ({
+  id, date: DAY, amount, academicYear: '2026-2027', receiptNumber, motif,
 });
 
 const logs: AuditLogEntry[] = [
@@ -88,7 +90,9 @@ const logs: AuditLogEntry[] = [
     targetId: alice.id,
     createdAt: `${DAY}T10:00:00Z`,
     details: 'Paiement de 4000 FCFA (reçu REC-2)',
-    metadata: paymentSnapshotMetadata(archivedPaymentFrom(alice.id, alice.name, pay('d3', 4000, 'REC-2'))),
+    // Un DROIT D'INSCRIPTION : la journée mêle donc les deux motifs, et le papier
+    // doit dire lequel a rapporté quoi.
+    metadata: paymentSnapshotMetadata(archivedPaymentFrom(alice.id, alice.name, pay('d3', 4000, 'REC-2', 'inscription'))),
   },
 ];
 
@@ -98,7 +102,10 @@ const report = (day: string, source = rows) => dailyCashReport({ rows: source, d
 /** Le texte de chaque item, espace insécable normalisée (celle de `formatCurrency`). */
 const norm = (value: string) => value.replace(/\u00a0/g, ' ');
 
-interface Rendered { filename: string; pages: number; width: number; height: number; items: string[]; texts: string[] }
+interface Rendered { filename: string; pages: number; width: number; height: number; items: string[]; texts: string[]; cells: Cell[] }
+
+/** Un item de la couche texte, avec sa position — pour lire une LIGNE du document. */
+interface Cell { str: string; x: number; y: number }
 
 async function renderPdf(day: string, lang: 'en' | 'fr' = 'fr', source = rows): Promise<Rendered> {
   blobs.length = 0;
@@ -113,12 +120,14 @@ async function renderPdf(day: string, lang: 'en' | 'fr' = 'fr', source = rows): 
   const doc = await task.promise;
   try {
     const items: string[] = [];
+    const cells: Cell[] = [];
     for (let p = 1; p <= doc.numPages; p += 1) {
       const page = await doc.getPage(p);
       const content = await page.getTextContent();
       for (const item of content.items) {
         if (!('str' in item) || !item.str.trim()) continue;
         items.push(item.str);
+        cells.push({ str: item.str, x: item.transform[4], y: item.transform[5] });
       }
     }
     const viewport = await (await doc.getPage(1)).getViewport({ scale: 1 });
@@ -129,6 +138,7 @@ async function renderPdf(day: string, lang: 'en' | 'fr' = 'fr', source = rows): 
       height: viewport.height,
       items,
       texts: items.map(norm),
+      cells,
     };
   } finally {
     await task.destroy();
@@ -224,6 +234,47 @@ describe('PDF du rapport de caisse — les octets réels', () => {
       'le total du jour est imprimé quand même — à zéro, il ne ment pas',
     );
     assert.equal(items.includes('Aggee Diarra'), false, 'aucun caissier n’est inventé');
+  });
+
+  // ─── La répartition par MOTIF ──────────────────────────────────────────────
+  // Le motif est un fait du REÇU : le papier de la caisse doit nommer ce que
+  // chaque motif a rapporté dans la journée, avec ses mots à lui (ceux du reçu
+  // remis aux familles), et rappeler le motif du reçu qu'une annulation a défait.
+  // Ce cas mesure les OCTETS, et il lit la LIGNE du document — le montant doit
+  // être sur la même ligne que le motif qu'il additionne, pas seulement présent.
+  it('imprime ce que la journée a encaissé motif par motif, et le motif des annulations', async () => {
+    const { items, texts, cells } = await renderPdf(DAY);
+    const has = (needle: string) => texts.some((text) => text.includes(norm(needle)));
+    /** Le montant de `value` est imprimé SUR LA MÊME LIGNE que `label`. */
+    const onLine = (label: string, value: string) => {
+      const anchor = cells.find((cell) => cell.str === label);
+      if (!anchor) return false;
+      const money = norm(value);
+      return cells.some((cell) => Math.abs(cell.y - anchor.y) < 1 && norm(cell.str) === money);
+    };
+
+    assert.ok(
+      has(t.dailyCashReportMotifs.replace('{count}', '2')),
+      'le bloc des motifs du jour est titré, et il compte les motifs présents',
+    );
+    assert.ok(items.includes(t.paymentMotif), 'l’en-tête MOTIF ouvre le tableau des motifs');
+    assert.ok(has(formatCurrency(6000)), 'l’encaissé du premier motif est imprimé');
+
+    // La journée a encaissé 6000 en scolarité (dont 4000 annulés) et 4000 en
+    // inscription : chaque montant est sur la ligne de SON motif.
+    assert.ok(
+      onLine(paymentMotifLabel(DEFAULT_PAYMENT_MOTIF, t), formatCurrency(6000)),
+      'la scolarité porte l’addition de ses reçus du jour',
+    );
+    assert.ok(
+      onLine(paymentMotifLabel('inscription', t), formatCurrency(4000)),
+      'et l’inscription la sienne — le papier ne mélange pas les deux',
+    );
+    // L'annulation dit AUSSI ce que le reçu réglait : sa ligne porte le motif.
+    assert.ok(
+      items.filter((item) => item === paymentMotifLabel(DEFAULT_PAYMENT_MOTIF, t)).length >= 2,
+      'le motif est répété sur la ligne d’annulation, pas seulement dans la répartition',
+    );
   });
 
   it('suit la langue du poste jusque dans le document', async () => {

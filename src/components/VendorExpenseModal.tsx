@@ -32,9 +32,12 @@ export interface VendorExpenseModalProps {
   handleVendorExpenseSubmit: (e: FormEvent) => Promise<void>;
   /** Promoter-only fields: vendor name + amount stay locked for everyone else. */
   isPromoter: boolean;
-  /** Gestionnaire Principal — may fill vendor/amount when CREATING, but like
-   *  staff keeps existing records' vendor/amount read-only (promoter monopoly). */
-  isGeneralManager?: boolean;
+  /** Le rôle peut-il ÉCRIRE une dépense fournisseur ? Décidé par la BASE
+   *  (`public.is_finance_writer()` — `src/lib/payrollRights.ts`) : il remplit
+   *  donc le fournisseur et le montant à la CRÉATION. Sur une fiche EXISTANTE,
+   *  `vendor_name`/`amount` restent au promoteur (trigger
+   *  `protect_vendor_expense_financial_fields`, 20260828000000). */
+  canWriteExpenses: boolean;
   expenseCategoryList: { key: string; label: string }[];
   availableClasses: ManagedClass[];
   /** The dialog root — registered in AppModals' overlay refs (slot 3). */
@@ -53,17 +56,19 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
     setVendorExpenseForm,
     handleVendorExpenseSubmit,
     isPromoter,
-    isGeneralManager,
+    canWriteExpenses,
     expenseCategoryList,
     availableClasses,
     overlayRef,
     onClose,
   } = props;
   const tokens = modalTokens(currentTheme);
-  // Financial fields (vendor name + amount): the promoter monopoly applies to
-  // EXISTING records; a general_manager may still type them when creating a
-  // new vendor expense (the app's create gate + RLS INSERT both allow it).
-  const financialFieldsLocked = editingVendorExpense ? !isPromoter : !(isPromoter || isGeneralManager);
+  // Financial fields (vendor name + amount): le monopole du promoteur porte sur
+  // les fiches EXISTANTES ; à la CRÉATION, la même liste que la policy
+  // d'insertion (`is_finance_writer()` : admin, dev, general_manager, econome)
+  // décide — sinon l'économe ouvrirait un formulaire dont les deux champs requis
+  // sont figés, c'est-à-dire une écriture qui ne peut pas aboutir.
+  const financialFieldsLocked = editingVendorExpense ? !isPromoter : !canWriteExpenses;
 
   return (
           <ModalShell

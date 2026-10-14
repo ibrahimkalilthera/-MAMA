@@ -1,8 +1,13 @@
 /**
  * Canonical domain types (extracted from useSupabaseData.ts).
  *
- * Pure module: no imports, no runtime logic.
+ * Pure module: no runtime logic. Le seul import est un TYPE (effacé à la
+ * compilation) : `PaymentMotif` vit dans `lib/paymentMotifs.ts`, qui en porte
+ * aussi la liste, la relecture et les mots du reçu — une seule déclaration,
+ * donc aucun risque qu'une liste et un type divergent.
  */
+import type { PaymentMotif } from './paymentMotifs';
+
 // ─── Type Definitions (matching App.tsx types) ───────────────────────────────
 
 /**
@@ -51,6 +56,18 @@ export interface Payment {
    * alors sur le mois de sa date, exactement comme avant.
    */
   months?: string[];
+  /**
+   * Ce que le paiement RÈGLE, en clé courte et stable (`scolarite`,
+   * `inscription`) — jamais un libellé : « Frais de scolarité » gravé en base
+   * serait faux dans un reçu anglais. Voir `src/lib/paymentMotifs.ts` pour la
+   * liste fermée, la relecture et les mots du reçu.
+   *
+   * Absent (ou `null` en base) signifie « non renseigné » — le cas de toute
+   * ligne écrite avant la colonne : le reçu imprime alors le motif
+   * d'ORDINAIRE (« Frais de scolarité »), donc une réimpression d'avant cette
+   * colonne ne change pas.
+   */
+  motif?: PaymentMotif;
 }
 
 export interface Student {
