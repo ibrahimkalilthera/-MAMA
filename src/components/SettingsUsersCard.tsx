@@ -63,7 +63,7 @@ export function SettingsUsersCard() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => auth.fetchAllProfiles().then(profiles => setUserProfiles(profiles))}
-                        className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'text-[#E2E8F0] hover:text-[#E2E8F0] hover:bg-white/5' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'} transition-all text-xs font-bold flex items-center gap-1.5 shadow-sm`}
+                        className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.hoverSurface} ${currentTheme.isDark ? 'text-[#E2E8F0]' : 'text-slate-600 hover:text-slate-900'} transition-all text-xs font-bold flex items-center gap-1.5 shadow-sm`}
                         title={t.refreshUserList}
                       >
                         <span>↻</span>
@@ -319,7 +319,7 @@ export function SettingsUsersCard() {
                                 {/* Set Password Button (admin/dev: direct password change) */}
                                 <button
                                   onClick={() => { setPasswordInput(''); setPasswordTarget(profile); }}
-                                  className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 border border-white/10"
+                                  className={`px-3 py-2 bg-slate-800 ${currentTheme.hoverSurfaceStrong} text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 border border-white/10`}
                                   title={t.setPassword}
                                 >
                                   <Lock size={14} className="text-slate-400 flex-shrink-0" />
@@ -329,7 +329,7 @@ export function SettingsUsersCard() {
                                 {/* Password Reset Email Button */}
                                 <button
                                   onClick={() => handleSendPasswordReset(profile.email)}
-                                  className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 border border-white/10"
+                                  className={`px-3 py-2 bg-slate-800 ${currentTheme.hoverSurfaceStrong} text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 border border-white/10`}
                                   title={t.sendPasswordResetEmail}
                                 >
                                   <KeyRound size={14} className="text-slate-400 flex-shrink-0" />

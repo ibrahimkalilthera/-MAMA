@@ -102,7 +102,7 @@ export function FloatingChat(props: FloatingChatProps) {
               </div>
               <button
                 onClick={() => setIsFloatingChatOpen(false)}
-                className="p-1.5 hover:bg-white/10 rounded-xl transition-all"
+                className={`p-1.5 ${currentTheme.hoverSurfaceDark} rounded-xl transition-all`}
                 aria-label={t.closeChat}
               >
                 <X size={16} />
@@ -146,7 +146,7 @@ export function FloatingChat(props: FloatingChatProps) {
                   key={idx}
                   type="button"
                   onClick={() => q && handleFloatingAiQuery(q)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-100 font-bold rounded-full text-2xs transition-all shrink-0 border border-slate-200/50 dark:border-slate-600"
+                  className={`px-3 py-1.5 bg-slate-100 dark:bg-slate-700 ${currentTheme.hoverSurfaceSolid} text-slate-700 dark:text-slate-100 font-bold rounded-full text-2xs transition-all shrink-0 border border-slate-200/50 dark:border-slate-600`}
                 >
                   {(q ?? '').length > 35 ? (q ?? '').substring(0, 32) + '...' : q}
                 </button>

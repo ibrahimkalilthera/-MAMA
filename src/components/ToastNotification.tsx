@@ -204,7 +204,7 @@ export function OfflineBanner({
           <button
             onClick={onSync}
             disabled={isSyncing}
-            className="bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1 rounded-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+            className="bg-white/20 state-hover-dark text-white text-xs font-bold px-3 py-1 rounded-md transition-all flex items-center gap-1.5 disabled:opacity-50"
           >
             <RefreshCw size={12} className={isSyncing ? 'animate-spin' : ''} />
             {isSyncing

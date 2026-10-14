@@ -23,6 +23,7 @@ const os = require('node:os');
 const { downloadPlan } = require('./download-policy.cjs');
 const { installCsp } = require('./csp-policy.cjs');
 const { appendEntry, readEntries, journalPath, pendingReports, markReported } = require('./update-journal.cjs');
+const { beatPayload, recordBeat, stationPath } = require('./station-beat.cjs');
 
 // L'origine publique vit dans UN SEUL fichier (`public-origin.cjs`), lu ici par le
 // poste et par `scripts/check-public-origin.mjs` : deux écritures de la même URL
@@ -241,6 +242,67 @@ function setupAutoUpdater(win) {
   // l'envoi au journal d'audit est l'autre moitié, et elle part de l'interface,
   // où l'utilisateur connecté existe.
   const journalFile = journalPath({ userDataDir: app.getPath('userData') });
+  // Le relevé de parc (§7 du canal) tient à côté du journal, dans `userData` :
+  // même disque, même absence de réseau, même absence de session.
+  const stationBeatFile = stationPath({ userDataDir: app.getPath('userData') });
+
+  /**
+   * Le majeur de Windows, tel que le relevé le publie (« 10 », « 11 »).
+   *
+   * Il vient de la PLATEFORME, pas de `process.platform` (qui dit seulement
+   * « win32 ») : c'est le seul champ du relevé qui parle du système, et il sert
+   * à repérer un poste resté sur une version que l'école a cessé d'utiliser.
+   */
+  const osMajor = () => {
+    try {
+      return String(process.getSystemVersion() || '').split('.')[0] || null;
+    } catch {
+      return null;
+    }
+  };
+
+  /**
+   * Inscrire le battement du poste — et JAMAIS faire dépendre une mise à jour
+   * de cette écriture. `recordBeat` ne jette pas : un disque plein rend `false`,
+   * on le dit dans le journal du poste, et le contrôle continue. Le contraire
+   * (une mise à jour bloquée par un relevé) serait le pire des deux sens.
+   */
+  const recordStationBeat = ({ lastCheck, proposedVersion = null } = {}) => {
+    const written = recordBeat(stationBeatFile, {
+      appVersion: app.getVersion(),
+      osVersion: osMajor(),
+      lastCheck,
+      lastCheckVersion: proposedVersion,
+    });
+    if (!written) log(`battement non inscrit (${lastCheck}) — la mise à jour n'en dépend pas`);
+    return written;
+  };
+
+  /**
+   * Classer un échec de contrôle dans les QUATRE états du relevé.
+   *
+   * La spécification (§7) nomme trois façons d'échouer, et elles n'ont pas le
+   * même remède : `feed-absent` (le flux n'existe pas — c'est le canal qu'il faut
+   * réparer, et pour TOUS les postes), `html` (l'origine a répondu 200 en HTML :
+   * le piège mesuré de cette origine, qui n'est PAS un 404), `unreachable` (le
+   * poste n'a pas pu joindre le réseau — le remède est sur le poste). Le
+   * classement se fait sur le message de la bibliothèque, faute de mieux :
+   * electron-updater ne rend pas de code typé pour ces cas.
+   *
+   * Le DÉFAUT est `unreachable`, et c'est délibéré : un échec qu'on ne sait pas
+   * classer dit « nous n'avons pas eu de réponse exploitable », jamais « tout va
+   * bien ». Inventer `ok` sur un échec déclarerait à jour un poste qui vient
+   * d'échouer — exactement ce que ce relevé existe pour empêcher.
+   */
+  const checkStateOfFailure = (detail) => {
+    const text = String(detail || '').toLowerCase();
+    if (/404|not found|cannot find|no such file|enoent/.test(text)) return 'feed-absent';
+    if (/html|yaml|unexpected token|unexpected character|invalid /.test(text)) return 'html';
+    if (/enotfound|eai_again|etimedout|econnrefused|econnreset|socket hang up|timeout|network|offline/.test(text)) {
+      return 'unreachable';
+    }
+    return 'unreachable';
+  };
   const station = os.hostname();
   /** Le dernier état de blocage connu, ou null — poussé à l'interface. */
   let blocked = null;
@@ -318,6 +380,11 @@ function setupAutoUpdater(win) {
     // Le frein se lit AVANT d'annoncer : une version retenue ne doit ni être
     // proposée, ni imposée, ni installée.
     const hold = await readHold(i.version);
+    // Le flux a répondu, et il propose une version : c'est un contrôle RÉUSSI,
+    // même quand le frein retient ensuite cette version. Le relevé publie la
+    // version proposée pour qu'une retenue se lise au niveau du parc, et pas
+    // seulement dans le journal d'un poste.
+    recordStationBeat({ lastCheck: 'ok', proposedVersion: i.version });
     const patch = pressureState(i);
     const gate = updateGate({ pressure, hold });
     if (!gate.deliverable) {
@@ -343,6 +410,7 @@ function setupAutoUpdater(win) {
     void askToDownload({ version: i.version });
   });
   autoUpdater.on('update-not-available', () => {
+    recordStationBeat({ lastCheck: 'ok' });
     broadcast({ status: 'current', version: app.getVersion() });
     log('update-not-available');
   });
@@ -396,6 +464,7 @@ function setupAutoUpdater(win) {
 
   autoUpdater.on('error', (e) => {
     const detail = (e && e.message) || String(e);
+    recordStationBeat({ lastCheck: checkStateOfFailure(detail) });
     broadcast({ status: 'error', detail });
     log(`error ${detail}`);
     void reportFailure({ detail, version: state.version ?? null });
@@ -619,6 +688,13 @@ function setupAutoUpdater(win) {
   // L'interface peut aussi demander elle-même l'état (bandeau monté après coup).
   try {
     ipcMain.handle('updates:get-state', () => state);
+    // LE BATTEMENT, en LECTURE seule : le rendu emporte ce que le processus
+    // principal a inscrit, il ne compose rien lui-même. L'identité du poste ne
+    // traverse donc jamais la page — elle ne peut ni être lue, ni être réécrite,
+    // ni être fabriquée par ce qui s'exécute dans le navigateur embarqué.
+    ipcMain.handle('updates:station-beat', () =>
+      beatPayload({ userDataDir: app.getPath('userData'), fs, env: process.env }),
+    );
     // L'interface peut relancer une vérification : une mise à jour obligatoire
     // dont le téléchargement a échoué doit offrir un remède, sinon la seule
     // issue serait d'attendre l'intervalle suivant — ou de fermer l'application.

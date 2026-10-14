@@ -185,7 +185,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
                   <button
                     type="button"
                     onClick={onOpenAddClass}
-                    className="text-2xs font-black text-blue-500 hover:text-blue-600 hover:underline flex items-center gap-1"
+                    className={`text-2xs font-black text-blue-500 ${currentTheme.accentSoftTextHover} hover:underline flex items-center gap-1`}
                   >
                     <Plus size={12} />
                     <span>{t.newClass}</span>
@@ -453,7 +453,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
             <button
               type="button"
               onClick={() => onDeleteRequest(editingStudent)}
-              className="w-full bg-rose-600 hover:bg-rose-700 text-white py-4 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
+              className={`w-full bg-rose-600 ${currentTheme.hoverAlertSolid} text-white py-4 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20 active:scale-[0.98] flex items-center justify-center gap-2`}
             >
               <Trash2 size={16} />
               {t.deleteStudent}

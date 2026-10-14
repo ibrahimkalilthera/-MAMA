@@ -9,7 +9,7 @@ import { EmptyState } from './SharedUi';
 export interface ArchivesViewProps {
   lang: 'en' | 'fr';
   t: Record<string, string> & { revenueVsExpenses: string };
-  currentTheme: { card: string; border: string; isDark: boolean; muted: string; text: string; inkStrong: string; accentBg: string; accentHover: string; accentText: string; accentShadow: string; accentBorder: string };
+  currentTheme: { card: string; border: string; isDark: boolean; muted: string; text: string; inkStrong: string; accentBg: string; accentHover: string; accentText: string; accentShadow: string; accentBorder: string; hoverSurface: string; rowHover: string; hoverAlertSolid: string };
   academicYears: string[];
   lockedYears: string[];
   students: Student[];
@@ -79,7 +79,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                     </button>
                     <button
                       onClick={handlePrint}
-                      className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.text} hover:bg-slate-50 transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm active:scale-95`}
+                      className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.text} ${currentTheme.hoverSurface} transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm active:scale-95`}
                       title={t.printReport}
                     >
                       <Printer size={16} />
@@ -115,7 +115,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                         const { revenue, expenses, balance } = getYearStats(year);
                         const isLocked = lockedYears.includes(year);
                         return (
-                          <tr key={year} className={`${currentTheme.isDark ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50/50'} transition-all`}>
+                          <tr key={year} className={`${currentTheme.rowHover} transition-all`}>
                             <td className="px-6 py-4 font-bold">{year}</td>
                             <td className="px-6 py-4 text-right font-semibold text-emerald-600">
                               {formatCurrency(revenue)}
@@ -205,7 +205,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                             setAuditYear(selectedYear);
                             setShowAuditModal(true);
                           }}
-                          className={`text-xs font-bold text-slate-600 hover:text-slate-800 hover:underline flex items-center gap-1.5`}
+                          className={`text-xs font-bold text-slate-600 hover:text-slate-800 dark:hover:text-slate-200 hover:underline flex items-center gap-1.5`}
                         >
                           <Printer size={12} />
                           {t.viewPrintFinalAudit}
@@ -214,7 +214,7 @@ export function ArchivesView(props: ArchivesViewProps) {
                     ) : (
                       <button
                         onClick={() => setConfirmCloseYear(true)}
-                        className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold px-8 py-5 rounded-3xl text-sm transition-all flex items-center gap-3 shadow-xl shadow-rose-600/30 active:scale-[0.98]"
+                        className={`bg-rose-600 ${currentTheme.hoverAlertSolid} text-white font-extrabold px-8 py-5 rounded-3xl text-sm transition-all flex items-center gap-3 shadow-xl shadow-rose-600/30 active:scale-[0.98]`}
                       >
                         <Lock size={18} />
                         {t.closeYear}
