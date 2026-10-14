@@ -1,5 +1,6 @@
 import type { Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, Payment } from './domainTypes';
 import type { PaymentMotif } from './paymentMotifs';
+import type { DisplayPreferenceName } from './displayPreferences';
 
 /**
  * Offline Action Queue Manager
@@ -38,7 +39,8 @@ export type OfflineActionType =
   | 'deleteNote'
   | 'setCurrentYear'
   | 'addAuditLog'
-  | 'updateUserRole';
+  | 'updateUserRole'
+  | 'setDisplayPreference';
 
 /** Une classe personnalisée, telle que le formulaire la produit (codes compris). */
 export interface QueuedClassFields {
@@ -119,7 +121,18 @@ export type OfflinePayload =
   | { type: 'deleteNote'; payload: { id: string } }
   | { type: 'setCurrentYear'; payload: { year: string } }
   | { type: 'addAuditLog'; payload: QueuedAuditEntry }
-  | { type: 'updateUserRole'; payload: { id: string; role: string } };
+  | { type: 'updateUserRole'; payload: { id: string; role: string } }
+  /**
+   * Un réglage d'affichage changé sans réseau (thème, densité, verre, langue).
+   *
+   * Ces quatre préférences vivent en base pour voyager avec la sauvegarde : le
+   * rejeu écrit la MÊME ligne que le chemin en ligne
+   * (`displayPreferenceRow`, src/lib/dataOps/settings.ts). Le nom voyage plutôt
+   * que la clé `app_settings` : la correspondance nom → clé n'existe qu'à un
+   * endroit, et une file écrite par une version antérieure ne peut pas porter
+   * une clé que le contrat ne connaît pas.
+   */
+  | { type: 'setDisplayPreference'; payload: { name: DisplayPreferenceName; value: string } };
 
 export interface QueueItemBase {
   id: string;

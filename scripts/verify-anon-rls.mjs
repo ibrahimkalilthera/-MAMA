@@ -559,6 +559,48 @@ export async function verifyAnonRls({ base, anonKey, serviceKey, fetchImpl = fet
   });
   check(RLS_REFUSAL(anonRpc), `rpc admin_set_user_password refusé pour anon (${anonRpc.status})`);
 
+  // 12bis. RPC DU BATTEMENT DE VERSION (§7 de la spécification du canal) : la
+  // seule écriture anon de l'application, et elle doit PASSER.
+  //
+  // Pourquoi cette sonde existe, dans un fichier qui ne prouve que des refus :
+  // `public.record_station_beat` est le SEUL chemin par lequel un poste déclare
+  // sa version (la table n'a aucune politique, et ses privilèges ont été retirés
+  // à `anon`). Si ce GRANT saute, les postes cessent de battre EN SILENCE : le
+  // relevé se vide, et « le parc est passé à la version de bascule » (section 6)
+  // redevient une phrase que personne ne peut vérifier. Un garde-fou qui ne
+  // prouverait que l'absence de fuite laisserait donc la panne la plus coûteuse
+  // — l'absence de relevé — sans témoin.
+  //
+  // Ce que la sonde mesure, et RIEN DE PLUS : le payload est VOLONTAIREMENT
+  // invalide (un identifiant de poste de deux caractères, très en dessous de la
+  // borne de 8). Un 400 signifie donc « la fonction s'est exécutée et a refusé »
+  // — la même lecture que la sonde d'insertion : une erreur de validation ne
+  // survient qu'APRÈS le contrôle de privilège. Un 401/403 dirait que le GRANT a
+  // disparu (le poste ne peut plus battre) ; un 2xx dirait que la fonction a
+  // accepté un battement hors bornes (le relevé accepte n'importe quoi).
+  //
+  // Et elle n'écrit AUCUNE ligne : c'est ce qui évite de laisser dans une table
+  // de parc une ligne de sonde que `npm run fleet:versions` compterait comme un
+  // poste — un résidu ferait mentir le relevé au moment précis où on le lit.
+  const beatRpc = await api('rpc/record_station_beat', anonKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      p_station_id: 'ci',
+      p_app_version: '0.0.0-probe',
+      p_last_check: 'ok',
+    }),
+  });
+  if (beatRpc.status === 0) {
+    // Transport inconclusif : ni une preuve, ni une brèche (la règle du fichier).
+    console.log('  ⚠ battement : transport inconclusif — sonde du GRANT anon SKIPPÉE, pas une brèche.');
+  } else {
+    check(
+      beatRpc.status === 400,
+      `rpc record_station_beat atteinte par anon, battement hors bornes refusé par la fonction (${beatRpc.status})`,
+    );
+  }
+
   // 13. Le flux de reset légitime (recover GoTrue) reste joignable pour anon :
   // un garde-fou qui « réussirait » en verrouillant tout l'auth casserait
   // l'app tout en restant vert.
@@ -840,6 +882,34 @@ export async function verifyAnonRemote({ base, anonKey, fetchImpl = fetch, table
     check(false, 'rpc admin_set_user_password absente de la base distante — dérive de schéma (404)');
   } else {
     check(RLS_REFUSAL(anonRpc), `rpc admin_set_user_password refusé pour anon (${anonRpc.status})`);
+  }
+
+  // RPC du BATTEMENT DE VERSION (§7) : le GRANT doit TENIR contre la base
+  // réelle, et c'est la veille quotidienne qui le dit. Le raisonnement complet
+  // vit dans la passe locale (`verifyAnonRls`, 12bis) : payload volontairement
+  // hors bornes, donc 400 = la fonction s'exécute et refuse — aucune ligne de
+  // sonde n'est écrite dans la table du parc. Ici, un 404 est une DÉRIVE DE
+  // SCHÉMA (la table et la fonction ne sont pas arrivées en production), pas une
+  // brèche anon : elle est nommée comme telle, exactement comme pour la RPC de
+  // mot de passe.
+  const beatRpc = await api('rpc/record_station_beat', anonKey, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      p_station_id: 'ci',
+      p_app_version: '0.0.0-probe',
+      p_last_check: 'ok',
+    }),
+  });
+  if (beatRpc.status === 404) {
+    check(false, 'rpc record_station_beat absente de la base distante — dérive de schéma (404)');
+  } else if (beatRpc.status === 0) {
+    console.log('  ⚠ battement : transport inconclusif en remote — sonde du GRANT anon SKIPPÉE, pas une brèche.');
+  } else {
+    check(
+      beatRpc.status === 400,
+      `rpc record_station_beat atteinte par anon sur la base distante (${beatRpc.status})`,
+    );
   }
 
   // Admin GoTrue : aucune route admin pour anon (404 = endpoints absents,

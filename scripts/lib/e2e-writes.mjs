@@ -449,6 +449,12 @@ export const touchesSupabase = (source) => SUPABASE_MARKERS.some((m) => String(s
       'et le run échoue. Il n’y a rien à réconcilier (le payload est `{}` ou un nom de sonde) et une sonde refusée ne laisse aucune ligne. ' +
       'La quatrième est la sonde d’ÉNUMÉRATION (2026-10-11) : la surface exposée est comparée au dépôt, et chaque table hors dépôt reçoit ' +
       'le même POST de refus — c’est elle qui aurait pris `students_dupe_backup_20261005` s’il ne portait que 0 ligne. ' +
+      'Les deux sondes du BATTEMENT DE VERSION (2026-10-14, une par passe — §8 du canal) sont dans ce fichier mais PAS dans ce compte, ' +
+      'et c’est la lecture de NON_CREATING ci-dessus qui les en sort : ce sont des POST `rpc/record_station_beat`, donc des appels de ' +
+      'fonction, jamais des insertions. Elles appellent avec un payload volontairement hors bornes, la fonction lève, et le 400 est le ' +
+      'signe que son GRANT anon TIENT. Le compte reste donc 4 : une exemption qui monterait à 6 pour des appels que le contrôle ne compte ' +
+      'pas autoriserait quatre vraies insertions de plus en silence — et un battement qui laisserait une ligne dans la table du parc ferait ' +
+      'compter une sonde comme un poste par `npm run fleet:versions`. ' +
       'Les quatre écritures RÉELLES du même fichier, elles, passent par l’enrobage rejouable.',
   },
 ];

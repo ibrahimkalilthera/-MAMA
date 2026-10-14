@@ -226,7 +226,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
           </h3>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-xl transition-all"
+            className={`p-2 ${currentTheme.hoverSurfaceDark} rounded-xl transition-all`}
           >
             <X size={20} />
           </button>
@@ -269,25 +269,25 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
               <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto custom-scrollbar">
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion1)}
-                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-[#E2E8F0]' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.hoverSurface} ${currentTheme.isDark ? 'text-[#E2E8F0]' : 'text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion1}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion2)}
-                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-[#E2E8F0]' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.hoverSurface} ${currentTheme.isDark ? 'text-[#E2E8F0]' : 'text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion2}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion3)}
-                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-[#E2E8F0]' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.hoverSurface} ${currentTheme.isDark ? 'text-[#E2E8F0]' : 'text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion3}
                 </button>
                 <button
                   onClick={() => handleAiQuery(t.aiQuickQuestion4)}
-                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.isDark ? 'hover:bg-slate-800 text-[#E2E8F0]' : 'hover:bg-slate-50 text-slate-700'} text-left transition-all truncate`}
+                  className={`text-2xs font-bold px-3 py-2 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.hoverSurface} ${currentTheme.isDark ? 'text-[#E2E8F0]' : 'text-slate-700'} text-left transition-all truncate`}
                 >
                   <Lightbulb size={12} className="flex-shrink-0 text-amber-500" /> {t.aiQuickQuestion4}
                 </button>
@@ -409,7 +409,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                     <button
                       onClick={() => deleteTodo(section.todo.id)}
                       title={t.deleteTask}
-                      className="px-2.5 py-1.5 rounded-lg text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 transition-all flex items-center gap-1 text-2xs font-bold whitespace-nowrap"
+                      className={`px-2.5 py-1.5 rounded-lg text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} transition-all flex items-center gap-1 text-2xs font-bold whitespace-nowrap`}
                     >
                       <Trash2 size={14} />
                       {t.deleteTask}

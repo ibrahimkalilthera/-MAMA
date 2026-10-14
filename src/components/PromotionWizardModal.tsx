@@ -188,7 +188,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/20 rounded-full transition-colors"
+            className={`p-2 ${currentTheme.hoverSurfaceDark} rounded-full transition-colors`}
           >
             <X className="w-5 h-5" />
           </button>
@@ -317,7 +317,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSelectAllAction('repeat')}
-                    className="px-2 py-1 text-xs bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 rounded font-medium hover:bg-amber-200 transition-colors"
+                    className="px-2 py-1 text-xs bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 rounded font-medium hover:bg-amber-200 dark:hover:bg-amber-950/80 transition-colors"
                   >
                     <span className="w-2 h-2 rounded-full flex-shrink-0 bg-amber-500" /> {t.repeatAll}
                   </button>
@@ -342,7 +342,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
                       const action = studentActions[st.id] || 'promote';
 
                       return (
-                        <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <tr key={st.id} className={currentTheme.rowHover}>
                           <td className="p-3 font-mono text-slate-400">{idx + 1}</td>
                           <td className="p-3 font-medium text-slate-800 dark:text-slate-100">{st.name}</td>
                           <td className="p-3 text-slate-500">{st.parentName || st.parentPhone || 'N/A'}</td>
@@ -382,7 +382,7 @@ export const PromotionWizardModal: React.FC<PromotionWizardModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-800 transition-colors"
+            className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
           >
             {t.cancel}
           </button>

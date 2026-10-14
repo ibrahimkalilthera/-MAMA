@@ -395,7 +395,7 @@ export function DashboardView() {
                           <p className="text-sm font-black text-rose-600">{formatCurrency(balance)}</p>
                           <p className={`text-2xs ${currentTheme.muted} font-bold uppercase tracking-widest`}>{t.balance}</p>
                         </div>
-                        <ChevronRight className={`${currentTheme.muted} group-hover:text-blue-600 group-hover:translate-x-1 transition-all`} size={20} />
+                        <ChevronRight className={`${currentTheme.muted} ${currentTheme.hoverAccentGroupInk} group-hover:translate-x-1 transition-all`} size={20} />
                       </div>
                     );
                   })}

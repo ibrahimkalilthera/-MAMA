@@ -128,13 +128,13 @@ export function PaymentLedger(props: PaymentLedgerProps) {
                     <button
                       onClick={() => { void handleDeletePayment(p); }}
                       disabled={deletingPaymentId === p.id}
-                      className="px-2 py-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded text-2xs font-bold transition-all"
+                      className={`px-2 py-1 bg-rose-600 ${currentTheme.hoverAlertSolid} disabled:opacity-50 text-white rounded text-2xs font-bold transition-all`}
                     >
                       {t.deletePayment}
                     </button>
                     <button
                       onClick={() => setPendingDeletePaymentId(null)}
-                      className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 rounded text-2xs font-bold transition-all`}
+                      className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 dark:hover:text-slate-200 rounded text-2xs font-bold transition-all`}
                     >
                       {t.cancel}
                     </button>
@@ -200,7 +200,7 @@ export function PaymentLedger(props: PaymentLedgerProps) {
                     {canDeletePayment && p.id && (
                       <button
                         onClick={() => setPendingDeletePaymentId(p.id ?? null)}
-                        className="px-2 py-1 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded text-2xs font-bold transition-all flex items-center gap-1"
+                        className={`px-2 py-1 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} rounded text-2xs font-bold transition-all flex items-center gap-1`}
                         title={t.deletePayment}
                       >
                         <Trash2 size={12} /> {t.deletePayment}

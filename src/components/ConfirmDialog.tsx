@@ -12,7 +12,7 @@ export interface ConfirmDialogProps {
   cancelLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
-  currentTheme: { card: string; border: string; muted: string; isDark: boolean; accentBorder: string };
+  currentTheme: { card: string; border: string; muted: string; isDark: boolean; accentBorder: string; hoverSurface: string; hoverAlertSolid: string };
   /**
    * Mode danger pour les actions irréversibles :
    *  - 'type' : l'utilisateur doit taper `danger.text` pour activer le bouton
@@ -132,7 +132,7 @@ export function ConfirmDialog({
             <div className="flex justify-end gap-3">
               <button
                 onClick={handleCancel}
-                className={`h-11 px-4 rounded-2xl border ${currentTheme.border} text-xs font-bold ${currentTheme.muted} hover:bg-slate-100 dark:hover:bg-white/10 transition-all whitespace-nowrap`}
+                className={`h-11 px-4 rounded-2xl border ${currentTheme.border} text-xs font-bold ${currentTheme.muted} ${currentTheme.hoverSurface} transition-all whitespace-nowrap`}
               >
                 {cancelLabel}
               </button>
@@ -141,8 +141,8 @@ export function ConfirmDialog({
                 disabled={!canConfirm}
                 className={`h-11 px-4 rounded-2xl text-xs font-black text-white transition-all shadow-lg flex items-center gap-1.5 whitespace-nowrap ${
                   isArmed
-                    ? 'bg-rose-700 hover:bg-rose-800 shadow-rose-700/30'
-                    : 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
+                    ? `bg-rose-700 ${currentTheme.hoverAlertSolid} shadow-rose-700/30`
+                    : `bg-rose-600 ${currentTheme.hoverAlertSolid} shadow-rose-600/20`
                 } ${!canConfirm ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
                 {isArmed ? armedLabel : confirmLabel}
