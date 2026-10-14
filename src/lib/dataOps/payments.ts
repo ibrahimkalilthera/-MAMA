@@ -14,6 +14,7 @@ import { archivedPaymentFrom, paymentSnapshotMetadata } from '../paymentUndo';
 import type { ArchivedPayment } from '../paymentUndo';
 import { logAuditEvent } from '../auditLogger';
 import { sortPaymentMonths } from '../paymentMonths';
+import { paymentMotifAuditTag } from '../paymentMotifs';
 
 export function createPaymentOps(ctx: SupabaseDataCtx) {
   const { students, setStudents, setSalaryPayments, notifySuccess, notifyError, isOffline, enqueueOffline, updateQueueCount } = ctx;
@@ -86,6 +87,11 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         // Les mois couverts — `[]` quand rien n'est précisé, jamais `null` :
         // la colonne est NOT NULL, et un reçu relu y lit « rien de renseigné ».
         months: payment.months ?? [],
+        // Le MOTIF — `null` quand il n'est pas déclaré, ce que le CHECK accepte
+        // et que le reçu lit « non renseigné » (il imprime alors le motif
+        // d'avant la colonne). La clé stockée est courte et stable :
+        // `scolarite` / `inscription` (src/lib/paymentMotifs.ts).
+        motif: payment.motif ?? null,
       });
 
       if (error) {
@@ -118,7 +124,7 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         // d'école se lit par l'école. La phrase anglaise homologue reste lisible :
         // les entrées écrites avant le 2026-09-13 sont traduites à l'AFFICHAGE
         // (`src/lib/auditDisplay.ts`), jamais réécrites en base.
-        details: `Paiement de ${payment.amount} FCFA (reçu ${payment.receiptNumber || 'N/A'})`,
+        details: `Paiement de ${payment.amount} FCFA (reçu ${payment.receiptNumber || 'N/A'})${paymentMotifAuditTag(paymentWithId.motif)}`,
         // L'instantané STRUCTURÉ du geste — la même forme qu'à la suppression et
         // à la restauration. C'est lui, et rien d'autre, qui donne à l'Historique
         // des paiements un montant CHIFFRÉ et un élève lié : découper le montant
@@ -203,6 +209,10 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
           // écrire l'instantané complet, et la suppression ne serait pas annulable.
           academicYear: payment.academicYear,
           studentName,
+          // Le motif voyage avec le geste : sans lui, la suppression rejouée
+          // n'aurait pas de quoi écrire un instantané complet, et la
+          // restauration rendrait un reçu qui ne dit plus ce qui a été réglé.
+          motif: payment.motif,
         });
       } catch {
         // Le refus est DÉJÀ annoncé par `enqueueOffline` : on ne rend que l'échec.
@@ -273,19 +283,29 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
    *   • **Aucun mois n'est accepté** : « renseigner » veut dire nommer au moins
    *     un mois. Enregistrer `{}` ne déclarerait rien de plus que le silence
    *     d'avant, tout en donnant l'impression d'une fiche complétée.
-   *   • **Zéro ligne rendue n'est pas un succès** : la policy « Admin update
-   *     payments » (`public.is_admin()`) est vérifiée par le NOMBRE de lignes
-   *     rendues, pas par l'absence d'erreur — PostgREST répond 200 avec zéro
-   *     ligne quand la policy filtre la cible. L'écran le DIT, comme pour la
-   *     suppression (voir `deletePayment`).
-   *   • **Rien d'autre que `months` n'est écrit** : ni le montant, ni la date,
-   *     ni le reçu. Le solde de l'élève n'est donc pas réconcilié — ce geste ne
-   *     touche pas à l'argent. C'est aussi ce qui rend l'opération idempotente
-   *     par nature : la rejouer écrit le même tableau.
+   *   • **Zéro ligne ÉCRITE n'est pas un succès** : la fonction de la base rend le
+   *     NOMBRE de lignes écrites (`public.set_payment_months`) — l’écran ne se
+   *     contente donc pas d’une absence d’erreur, il exige « au moins une ligne ».
+   *     Une cible qui n’existe plus rend un succès HTTP sans rien écrire, et un
+   *     « 0 » avalé ferait annoncer « mois renseignés » sur rien.
+   *   • **Rien d’autre que `months` n’est écrit** : ni le montant, ni la date,
+   *     ni le reçu, ni l’élève. Le solde de l’élève n’est donc pas réconcilié —
+   *     ce geste ne touche pas à l’argent. C’est aussi ce qui rend l’opération
+   *     idempotente par nature : la rejouer écrit le même tableau.
+   *
+   * Et ce geste ne passe plus par un `UPDATE` du client, précisément pour ça : une
+   * policy RLS borne des LIGNES, pas des colonnes — l’ouvrir à l’économe (décision
+   * du 2026-10-13 : il tient la caisse, et il supprime DÉJÀ un reçu fautif) lui
+   * aurait ouvert le MONTANT avec. Le seul chemin est donc la FONCTION
+   * `public.set_payment_months(uuid, text[])`
+   * (`supabase/migrations/20261013000000_econome_payment_months.sql`) :
+   * `SECURITY DEFINER`, gardée par `public.is_payment_month_editor()` (admin, dev,
+   * econome), dont la seule colonne nommée est `months`. Le droit vit dans la
+   * base ; `src/lib/paymentRights.ts` n’en est que le miroir lisible à l’écran.
    *
    * Hors ligne, le geste est mis en file : le rejeu écrit la même colonne et le
    * journal rend la même phrase, avec le marqueur de rejeu. Si la file refuse
-   * (quota atteint), l'opération rend `false` — et l'écran ne dit pas
+   * (quota atteint), l’opération rend `false` — et l’écran ne dit pas
    * « enregistré ».
    */
   const updatePaymentMonths = async (
@@ -337,18 +357,28 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
       return true;
     }
 
-    const { data, error } = await supabase
-      .from('payments')
-      .update({ months: clean })
-      .eq('id', paymentId)
-      .select('id');
+    // Le droit vit dans la BASE, et il est plus ÉTROIT qu'une policy : la
+    // fonction `public.set_payment_months(uuid, text[])`
+    // (`20261013000000_econome_payment_months.sql`, `SECURITY DEFINER`) est le
+    // seul chemin d'écriture de `months` pour TOUT LE MONDE. Elle vérifie
+    // elle-même le rôle de l'appelant (`public.is_payment_month_editor()` :
+    // admin, dev, econome) et ne nomme QUE cette colonne — le montant, la date et
+    // le reçu ne sont pas dans sa requête, donc ni l'écran ni un appel direct ne
+    // peuvent les atteindre par là.
+    //
+    // Elle rend le nombre de lignes écrites : zéro n'est pas un succès (le reçu
+    // visé n'existe plus, ou l'appelant n'y a pas droit), et l'écran le DIT.
+    const { data, error } = await supabase.rpc('set_payment_months', {
+      p_payment_id: paymentId,
+      p_months: clean,
+    });
     if (error) {
       console.error('updatePaymentMonths error:', error.message);
       notifyError('updatePaymentMonths', error.message);
       return false;
     }
-    if (!data || data.length === 0) {
-      console.error('updatePaymentMonths: aucune ligne modifiée — cible filtrée par la policy RLS');
+    if (typeof data !== 'number' || data === 0) {
+      console.error('updatePaymentMonths: aucune ligne écrite — reçu introuvable, ou refusé par la base');
       notifyError('updatePaymentMonths', 'Aucune ligne modifiée — droits insuffisants sur ce paiement.');
       return false;
     }
@@ -420,6 +450,9 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
       // Les mois reviennent avec le reste : une restauration qui les perdrait
       // rendrait un reçu amputé — le contraire du geste annulé.
       months: archived.months ?? [],
+      // Le motif aussi : `null` quand l'instantané n'en portait pas — on ne
+      // devine pas ce qui n'a jamais été écrit.
+      motif: archived.motif ?? null,
     });
     if (error && error.code !== '23505') {
       console.error('restorePayment error:', error.message);
@@ -439,6 +472,7 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         academicYear: archived.academicYear,
         receiptNumber: archived.receiptNumber,
         months: archived.months,
+        motif: archived.motif,
       };
       const payments = already ? student.payments : [...student.payments, restored];
       const dates = payments.map(p => p.date).filter(Boolean).sort();

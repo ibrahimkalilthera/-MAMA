@@ -25,10 +25,27 @@ import { CalendarView } from '../src/components/CalendarView';
 import { NotesView } from '../src/components/NotesView';
 import { AuditView } from '../src/components/AuditView';
 import { PaymentHistoryView } from '../src/components/PaymentHistoryView';
+import { SilentReceiptsView } from '../src/components/SilentReceiptsView';
 import { blockedAuditEntry } from '../src/lib/desktopUpdateReport';
 import { SettingsView } from '../src/components/SettingsView';
 
 import { makeProps, renderWithContext } from './views-harness';
+
+/**
+ * Un poste connecté réduit à son RÔLE.
+ *
+ * `auth.profile.role` est ce que la BASE lit (`public.is_finance_writer()`,
+ * `public.is_payroll_writer()`) : les vues qui portent une écriture financière
+ * comparent le rôle du profil, pas un booléen d'écran. Les cas qui mesurent ces
+ * boutons doivent donc DÉCLARER leur rôle — sinon ils mesurent l'absence de
+ * profil, c'est-à-dire « aucun droit », en croyant mesurer l'inverse.
+ */
+function authWithRole(role: 'admin' | 'dev' | 'general_manager' | 'econome' | 'staff'): MainViewsProps['auth'] {
+  return {
+    ...makeProps().auth,
+    profile: { id: 'u-role', email: `${role}@mamathera.org`, fullName: 'Poste de test', role },
+  };
+}
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +60,7 @@ describe('views render inside MainViewsContext', () => {
     { name: 'NotesView', node: createElement(NotesView), expectedText: 'notes' },
     { name: 'AuditView', node: createElement(AuditView), expectedText: 'refreshLogs' },
     { name: 'PaymentHistoryView', node: createElement(PaymentHistoryView), expectedText: 'paymentHistory' },
+    { name: 'SilentReceiptsView', node: createElement(SilentReceiptsView), expectedText: 'silentReceiptsTitle' },
     { name: 'SettingsView', node: createElement(SettingsView), expectedText: 'systemLanguage' },
   ];
 
@@ -93,12 +111,17 @@ describe('views render inside MainViewsContext', () => {
     assert.equal(badgeCount, 1, 'un seul badge admin — Proviseur, pas Enseignante');
   });
 
-  it('ExpensesView affiche le bouton « Ajouter une dépense » pour un rôle finance et le masque pour les autres', () => {
-    const visible = renderWithContext(createElement(ExpensesView)); // makeProps: isPromoter=true
-    assert.ok(visible.includes(translations.en.addExpense), 'bouton visible pour le promoteur/admin');
+  it('ExpensesView affiche « Ajouter une dépense » aux rôles qui ÉCRIVENT et le masque aux autres', () => {
+    // La liste est celle de la base (`public.is_finance_writer()`, migration
+    // 20261014000000) : l'économe y figure — mesuré le 2026-10-13, la base
+    // acceptait déjà sa dépense (1 ligne) alors que l'écran lui cachait l'icône.
+    for (const role of ['admin', 'dev', 'general_manager', 'econome'] as const) {
+      const html = renderWithContext(createElement(ExpensesView), { auth: authWithRole(role) });
+      assert.ok(html.includes(translations.en.addExpense), `bouton visible pour ${role}`);
+    }
 
-    const hidden = renderWithContext(createElement(ExpensesView), { isPromoter: false, isGeneralManager: false });
-    assert.ok(!hidden.includes(translations.en.addExpense), 'bouton masqué pour un rôle non finance');
+    const hidden = renderWithContext(createElement(ExpensesView), { auth: authWithRole('staff') });
+    assert.ok(!hidden.includes(translations.en.addExpense), 'bouton masqué pour un rôle hors écriture financière');
   });
 
   it('ExpensesView : cliquer « Ajouter une dépense » ouvre ExpenseFormModal avec le formulaire pré-rempli', async () => {
@@ -116,6 +139,7 @@ describe('views render inside MainViewsContext', () => {
             MainViewsContext.Provider,
             {
               value: makeProps({
+                auth: authWithRole('econome'),
                 setShowExpenseModal: (v: boolean | ((prev: boolean) => boolean)) => opened.push(v as boolean),
                 setExpenseForm: (f) => prefilled.push(f),
               }),

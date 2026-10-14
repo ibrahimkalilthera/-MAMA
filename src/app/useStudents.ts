@@ -83,6 +83,12 @@ export function useStudents(deps: UseStudentsDeps) {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  // Le reçu MUET sur lequel une fiche doit s'OUVRIR, quand un écran l'a demandé
+  // (l'écran École des reçus muets, `SilentReceiptsView`). `null` = ouverture
+  // ordinaire. L'état vit ICI, à côté de la fiche qu'il concerne, et AppModals le
+  // remet à zéro à chaque fermeture : le focus d'un clic ne doit jamais se rejouer
+  // sur une fiche ouverte plus tard, depuis la liste des élèves ou la cloche.
+  const [studentFileFocus, setStudentFileFocus] = useState<string | null>(null);
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
@@ -346,6 +352,7 @@ export function useStudents(deps: UseStudentsDeps) {
   return {
     searchTerm, setSearchTerm,
     selectedStudent, setSelectedStudent,
+    studentFileFocus, setStudentFileFocus,
     showStudentModal, setShowStudentModal,
     editingStudent, setEditingStudent,
     studentGradeFilter, setStudentGradeFilter,

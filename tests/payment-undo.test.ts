@@ -45,6 +45,9 @@ describe('paymentUndo — l’instantané fait l’aller-retour', () => {
       paymentId: 'pay1', studentId: 'st1', studentName: 'Ali Diallo',
       date: '2026-10-01', amount: 25000, academicYear: '2026-2027', receiptNumber: 'REC-1',
       months: ['2026-09', '2026-10'],
+      // Ce paiement ne déclare pas de motif : l'instantané n'en invente aucun,
+      // et le reçu retombe alors sur « Frais de scolarité ».
+      motif: undefined,
     });
   });
 
@@ -56,6 +59,7 @@ describe('paymentUndo — l’instantané fait l’aller-retour', () => {
     assert.equal(back?.academicYear, undefined);
     assert.equal(back?.receiptNumber, undefined);
     assert.equal(back?.months, undefined, 'sans mois, l’instantané n’en invente aucun');
+    assert.equal(back?.motif, undefined, 'ni de motif');
   });
 
   it('n’invente rien : mauvaise action, pas de metadata, ou forme étrangère → null', () => {
@@ -98,6 +102,7 @@ describe('paymentUndo — ce qui est encore annulable', () => {
       paymentId: 'pay1', studentId: 'st1', studentName: 'Ali Diallo',
       date: '2026-10-01', amount: 25000, academicYear: '2026-2027', receiptNumber: 'REC-1',
       months: ['2026-09', '2026-10'],
+      motif: undefined,
     });
   });
 

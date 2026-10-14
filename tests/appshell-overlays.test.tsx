@@ -440,4 +440,58 @@ describe('AppShell — overlays rendus une seule fois', () => {
     });
     container.remove();
   });
+
+  it('la pastille des reçus muets est DÉRIVÉE une fois et remise AUX DEUX navigations', async () => {
+    // Le chiffre de la pastille est celui de l'ÉCOLE : il se calcule dans le shell
+    // sur la brique pure de l'onglet École, et se remet au rail (bureau) comme à
+    // la barre du bas (terrain). Ce cas mesure les deux MOITIÉS de la règle déjà
+    // écrite pour l'archive en attente : le nombre est le bon, et en rater une
+    // des deux surfaces tombe ici.
+    const label = (count: number) => t.silentReceiptsBadge.replace('{count}', String(count));
+    const silentReceipt = (id: string, date: string) => ({ id, date, amount: 25000 });
+    const declaredReceipt = (id: string, date: string) => ({ id, date, amount: 25000, months: ['2026-09'] });
+    const student = (id: string, payments: unknown[]) => ({
+      id, name: `Élève ${id}`, parentName: `Parent ${id}`, parentEmail: '', parentPhone: '',
+      totalDue: 150000, amountPaid: 25000, dueDate: '2027-06-30', notes: '',
+      payments, grade: '3A', academicYear: '2026-2027',
+    });
+    const withWork = [
+      student('st-1', [silentReceipt('p1', '2026-09-15'), silentReceipt('p2', '2026-10-12')]),
+      // Ce reçu déclare ses mois : il ne compte PAS dans les reçus muets.
+      student('st-2', [declaredReceipt('p3', '2026-09-20')]),
+    ];
+
+    const mount = async (students: unknown[]) => {
+      const container = win.document.createElement('div');
+      win.document.body.appendChild(container);
+      const root: Root = createRoot(container as unknown as Element);
+      await act(async () => {
+        root.render(createElement(AppShell, {
+          ...shellProps(), students, selectedYear: '2026-2027', today: '2026-10-20',
+        } as never));
+      });
+      return {
+        container,
+        badges: () => container.querySelectorAll(`[aria-label="${label(2)}"]`),
+        unmount: async () => { await act(async () => { root.unmount(); }); container.remove(); },
+      };
+    };
+
+    const withBadges = await mount(withWork);
+    try {
+      const badges = withBadges.badges();
+      assert.equal(badges.length, 2,
+        `les DEUX navigations portent la pastille (rendues ${badges.length} fois) — en rater une, c'est rater l'autre`);
+      for (const badge of badges) assert.equal(badge.textContent?.trim(), '2', 'elle porte le nombre de reçus muets');
+    } finally {
+      await withBadges.unmount();
+    }
+
+    const empty = await mount([]);
+    try {
+      assert.equal(empty.badges().length, 0, 'sans reçu muet, aucune des deux navigations n’annonce un chiffre');
+    } finally {
+      await empty.unmount();
+    }
+  });
 });

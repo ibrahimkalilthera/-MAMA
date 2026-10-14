@@ -45,7 +45,7 @@ anchorProto.click = function click() { filenames.push(this.getAttribute('downloa
 
 const { generatePaymentHistoryPdf } = await import('../src/lib/pdfPaymentHistory');
 
-const PAY: Payment = { id: 'pay1', date: '2026-10-02', amount: 4000, academicYear: '2026-2027', receiptNumber: 'REC-568556' };
+const PAY: Payment = { id: 'pay1', date: '2026-10-02', amount: 4000, academicYear: '2026-2027', receiptNumber: 'REC-568556', motif: 'inscription' };
 
 const logs: AuditLogEntry[] = [
   {
@@ -130,7 +130,7 @@ const sameColumn = (value: Item | undefined, header: Item | undefined) =>
 describe('PDF de l’historique — les octets réels', () => {
   const t = translations.fr as TranslationDict;
 
-  it('sort en paysage, sur une seule page, avec ses sept colonnes', async () => {
+  it('sort en paysage, sur une seule page, avec ses huit colonnes', async () => {
     const { filename, width, height, pages, items } = await renderPdf({ from: '2026-10-01', to: '2026-10-31' });
 
     assert.equal(pages, 1, 'deux gestes tiennent sur une page');
@@ -138,7 +138,16 @@ describe('PDF de l’historique — les octets réels', () => {
     assert.ok(Math.abs(width - 842) < 1 && Math.abs(height - 595) < 1, 'A4 paysage');
     assert.match(filename, /^Historique_Paiements_\d{4}-\d{2}-\d{2}\.pdf$/, 'le fichier remis au poste est nommé');
 
-    for (const label of [t.timestamp, t.studentName, t.actions, t.amount2, t.receipt, t.paymentHistoryCollectedBy, t.details]) {
+    for (const label of [
+      t.timestamp,
+      t.studentName,
+      t.actions,
+      t.amount2,
+      t.receipt,
+      t.paymentMotif,
+      t.paymentHistoryCollectedBy,
+      t.details,
+    ]) {
       assert.ok(at(items, label), `la colonne « ${label} » manque à l’en-tête du document`);
     }
     assert.ok(at(items, t.paymentHistoryPdfTitle), 'le titre du document est imprimé');
@@ -189,6 +198,10 @@ describe('PDF de l’historique — les octets réels', () => {
 
     assert.ok(sameColumn(at(items, 'Alice Traoré (6B)'), at(items, t.studentName)), 'l’élève est sous ÉLÈVE');
     assert.ok(sameColumn(at(items, 'REC-568556'), at(items, t.receipt)), 'le reçu est sous N° REÇU');
+    assert.ok(
+      sameColumn(at(items, 'Inscription'), at(items, t.paymentMotif)),
+      'le motif du reçu est sous son en-tête, à côté du numéro qu’il qualifie',
+    );
     assert.ok(sameColumn(at(items, 'Paiement supprimé'), at(items, t.actions)), 'le geste est sous ACTIONS');
     assert.ok(
       sameColumn(at(items, 'Moussa Keïta'), at(items, t.paymentHistoryCollectedBy)),
