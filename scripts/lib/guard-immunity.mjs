@@ -59,6 +59,23 @@ export const GUARD_INVENTORY = [
   { check: 'check-jsx-i18n.mjs', input: 'source', needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND] },
   { check: 'check-css-selectors.mjs', input: 'source-css', needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND] },
   {
+    check: 'check-icon-glass-doses.mjs',
+    input: 'source+stylesheet',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // Il lit les DEUX moitiés d'un même réglage : la liste des doses dans du
+    // TypeScript (`src/lib/iconGlass.ts`) et les blocs de dose écrits dans une
+    // feuille (`src/themes/icons.css`). Or la prose y CITE exactement ce que le
+    // contrôle cherche — l'en-tête de la feuille nomme `.icon-glass-crisp`, la
+    // JSDoc du module cite `'discreet'`. La cécité vit donc dans la couche
+    // partagée, où elle est nommée : `maskComments` pour le TypeScript (les noms
+    // de dose sont des LITTÉRAUX, c'est la donnée même qu'on compare) et
+    // `maskMarkupComments` pour la feuille. Sa vacuité est DOUBLE et écrite :
+    // fichier absent ou vide d'abord, puis zéro dose déclarée ou zéro bloc de
+    // dose — sortie **2** dans les deux cas, jamais un ✅ sur un corpus que le
+    // lecteur n'atteint plus.
+    via: 'icon-glass-doses.mjs',
+  },
+  {
     check: 'check-theme-accents.mjs',
     input: 'source',
     needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
@@ -91,6 +108,19 @@ export const GUARD_INVENTORY = [
     // refus de la vacuité est double : `assertScanned` (aucun fichier) ET une
     // sortie 2 quand AUCUNE surface verte n'est lue — un motif disparu n'est
     // pas un vert.
+    literals: 'kept',
+  },
+  {
+    check: 'check-state-hover.mjs',
+    input: 'source',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // La classe vit dans un LITTÉRAL : blanchir les littéraux effacerait la
+    // donnée même que le contrôle lit — un jeton d'allowlist EST une classe.
+    // Seuls les commentaires sont masqués, pour qu'un en-tête qui CITE
+    // `'hover:bg-slate-50'` (l'échelle en est pleine) ne soit pas accusé. Sa
+    // vacuité est double et écrite : `assertScanned` quand aucun fichier n'est
+    // lu, ET une sortie 2 quand plus aucune recette de survol colorée n'est
+    // lue — un motif disparu n'est pas un vert.
     literals: 'kept',
   },
   {

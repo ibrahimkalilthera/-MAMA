@@ -26,6 +26,17 @@ type ErrResult = { data: null; error: { message: string } };
  */
 interface FakeBuilder extends Promise<OkResult | ErrResult> {
   insert(row?: unknown): FakeBuilder;
+  /**
+   * L'écriture qui crée la ligne OU la remplace (`onConflict`).
+   *
+   * Les réglages d'affichage s'écrivent ainsi (src/lib/dataOps/settings.ts et le
+   * rejeu) : une clé de préférence existe une fois, et un poste qui change son
+   * thème écrit la même ligne. Comme `insert`, la ligne est CAPTURÉE — c'est elle
+   * qu'un cas compare (la clé publiée, la valeur, jamais d'`updated_by`) — et
+   * comme `update`, elle subit `emptyWrites` : une écriture retirée par une
+   * politique répond 200 avec un corps vide, et ne doit pas passer pour écrite.
+   */
+  upsert(row?: unknown, options?: unknown): FakeBuilder;
   update(row?: unknown): FakeBuilder;
   delete(): FakeBuilder;
   eq(): FakeBuilder;
@@ -111,6 +122,10 @@ export function makeFakeDb(opts: FakeReplayDbOptions = {}): FakeReplayDb {
       insert: (row?: unknown) => {
         if (row) rows.push({ table, row: row as Record<string, unknown> });
         return mk(fail, table);
+      },
+      upsert: (row?: unknown) => {
+        if (row) rows.push({ table, row: row as Record<string, unknown> });
+        return mk(fail, table, writeEmpty(table));
       },
       // update/delete on an `emptyWrites` table answer 200 with NO row — the
       // case the honesty checks exist for (an RLS-filtered write). It is not an

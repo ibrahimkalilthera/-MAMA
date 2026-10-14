@@ -84,12 +84,14 @@ const STACK_FIXTURE = (preferenceSlots: string[]): Record<string, string> => ({
   'SettingsUsersCard.tsx': sectionSource(['settings-staff-access']),
 });
 
-// Doit refléter `SETTINGS_STACK_SLOTS` : les cinq blocs de préférences, dans
-// l'ordre du DOM (langue, devise, densité des tableaux, thème, logo).
+// Doit refléter `SETTINGS_STACK_SLOTS` : les six blocs de préférences, dans
+// l'ordre du DOM (langue, devise, densité des tableaux, verre des icônes, thème,
+// logo).
 const PREFERENCE_SLOTS = [
   'settings-system-language',
   'settings-currency-format',
   'settings-table-density',
+  'settings-icon-glass',
   'settings-theme-settings',
   'settings-upload-logo',
 ];
@@ -179,11 +181,11 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
     assert.match(result.stderr, /Rien à vérifier/);
   });
 
-  it('la pile conforme (cinq blocs de préférences + trois sections) passe', () => {
+  it('la pile conforme (six blocs de préférences + trois sections) passe', () => {
     withFixture(STACK_FIXTURE(PREFERENCE_SLOTS), (dir) => {
       const result = runGuard(join(dir, 'SettingsView.tsx'), dir);
       assert.equal(result.status, 0, `une pile conforme doit être verte : ${result.stderr}`);
-      assert.match(result.stdout, /la pile porte ses 8 enfants/);
+      assert.match(result.stdout, /la pile porte ses 9 enfants/);
     });
   });
 
@@ -192,7 +194,7 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
     withFixture(withExtra, (dir) => {
       const result = runGuard(join(dir, 'SettingsView.tsx'), dir);
       assert.equal(result.status, 1, 'changer la structure sans la table doit échouer');
-      assert.match(result.stderr, /la pile doit porter 8 enfants/);
+      assert.match(result.stderr, /la pile doit porter 9 enfants/);
       assert.match(result.stderr, /SANS que la table/);
       assert.match(result.stderr, /settings-extra-block/);
     });
@@ -203,7 +205,7 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
     withFixture(withFewer, (dir) => {
       const result = runGuard(join(dir, 'SettingsView.tsx'), dir);
       assert.equal(result.status, 1);
-      assert.match(result.stderr, /la pile doit porter 8 enfants/);
+      assert.match(result.stderr, /la pile doit porter 9 enfants/);
     });
   });
 

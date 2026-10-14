@@ -100,14 +100,14 @@ export function LatePaymentTicketModal(props: LatePaymentTicketModalProps) {
                       onClick={() => {
                         setTimeout(() => window.print(), 100);
                       }}
-                      className="flex-1 bg-rose-600 hover:bg-rose-700 text-white py-4 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20 flex items-center justify-center gap-2"
+                      className={`flex-1 bg-rose-600 ${currentTheme.hoverAlertSolid} text-white py-4 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20 flex items-center justify-center gap-2`}
                     >
                       <Printer size={18} />
                       {t.printTicket}
                     </button>
                     <button 
                       onClick={() => onClose()}
-                      className={`px-8 py-4 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 hover:bg-slate-50 rounded-2xl font-bold text-sm transition-all`}
+                      className={`px-8 py-4 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 ${currentTheme.hoverSurface} dark:hover:text-slate-200 rounded-2xl font-bold text-sm transition-all`}
                     >
                       {t.close}
                     </button>

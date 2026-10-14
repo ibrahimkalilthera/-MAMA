@@ -199,7 +199,7 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
                         onClick={() => setSearch('')}
                         title={t.clearSearch}
                         aria-label={t.clearSearch}
-                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full ${currentTheme.muted} hover:bg-slate-200/60 dark:hover:bg-white/10 transition-all`}
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full ${currentTheme.muted} ${currentTheme.hoverSurface} transition-all`}
                       >
                         <X size={14} />
                       </button>

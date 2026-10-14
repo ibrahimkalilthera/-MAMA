@@ -344,13 +344,13 @@ export function PayrollView() {
                       <div className="flex gap-2">
                         <a 
                           href={`tel:${s.phone}`}
-                          className={`p-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600'} transition-all`}
+                          className={`p-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? `bg-white/20 text-white ${currentTheme.hoverSurfaceDark}` : `bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 ${currentTheme.hoverAccent}`} transition-all`}
                         >
                           <Phone size={16} />
                         </a>
                         <a 
                           href={`mailto:${s.email}`}
-                          className={`p-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600'} transition-all`}
+                          className={`p-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? `bg-white/20 text-white ${currentTheme.hoverSurfaceDark}` : `bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 ${currentTheme.hoverAccent}`} transition-all`}
                         >
                           <Mail size={16} />
                         </a>
@@ -389,7 +389,7 @@ export function PayrollView() {
                           <span className={`text-2xs font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted}`}>{t.bankDetails}</span>
                           <button 
                             onClick={() => setVisibleBankDetails(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
-                            className={`p-1 rounded-lg ${paidThisMonth > 0 || payDatePassed ? 'hover:bg-white/10 text-white/80' : 'hover:bg-slate-200 text-slate-400'} transition-all`}
+                            className={`p-1 rounded-lg ${paidThisMonth > 0 || payDatePassed ? `${currentTheme.hoverSurfaceDark} text-white/80` : `${currentTheme.hoverSurfaceSolid} text-slate-400`} transition-all`}
                             title={isBankVisible ? t.hideBankDetails : t.showBankDetails}
                           >
                             <Globe size={14} />
@@ -431,7 +431,7 @@ export function PayrollView() {
                         {canManageStaff && (
                         <button 
                           onClick={() => openEditStaffModal(s)}
-                          className={`flex-1 py-2 rounded-xl border ${paidThisMonth > 0 || payDatePassed ? 'border-white/30 text-white hover:bg-white/10' : 'border-slate-100 text-slate-600 hover:bg-slate-50'} text-xs font-bold transition-all`}
+                          className={`flex-1 py-2 rounded-xl border ${paidThisMonth > 0 || payDatePassed ? `border-white/30 text-white ${currentTheme.hoverSurfaceDark}` : `border-slate-100 text-slate-600 ${currentTheme.hoverSurface}`} text-xs font-bold transition-all`}
                         >
                           {t.edit}
                         </button>
@@ -442,14 +442,14 @@ export function PayrollView() {
                               setSalaryForm({ ...salaryForm, staffId: s.id, amount: balance.toString() });
                               setShowSalaryModal(true);
                             }}
-                            className={`flex-1 py-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white text-slate-800 hover:bg-white/90' : `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover}`} text-xs font-bold transition-all shadow-md`}
+                            className={`flex-1 py-2 rounded-xl ${paidThisMonth > 0 || payDatePassed ? `bg-white text-slate-800 ${currentTheme.hoverSurfaceClear}` : `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover}`} text-xs font-bold transition-all shadow-md`}
                           >
                             {t.recordSalary}
                           </button>
                         )}
                         <button 
                           onClick={() => handleExportStaffReceiptPdf(s)}
-                          className={`p-2 rounded-xl border ${paidThisMonth > 0 || payDatePassed ? 'border-white/30 text-white hover:bg-white/10' : 'border-slate-100 text-slate-600 hover:bg-emerald-50'} text-xs font-bold transition-all`}
+                          className={`p-2 rounded-xl border ${paidThisMonth > 0 || payDatePassed ? `border-white/30 text-white ${currentTheme.hoverSurfaceDark}` : 'border-slate-100 text-slate-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60'} text-xs font-bold transition-all`}
                           title={t.downloadReceiptPdf}
                         >
                           <Download size={16} />
@@ -461,7 +461,7 @@ export function PayrollView() {
                         {canDelete && (
                           <button
                             onClick={() => setConfirmDeleteStaff(s)}
-                            className={`px-3 py-2 rounded-xl border flex items-center gap-1.5 whitespace-nowrap ${paidThisMonth > 0 || payDatePassed ? 'border-white/30 text-white hover:bg-rose-500/30' : 'border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/60'} text-2xs font-bold transition-all`}
+                            className={`px-3 py-2 rounded-xl border flex items-center gap-1.5 whitespace-nowrap ${paidThisMonth > 0 || payDatePassed ? `border-white/30 text-white ${currentTheme.hoverAlertPlate}` : `border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 ${currentTheme.hoverAlert}`} text-2xs font-bold transition-all`}
                             title={t.deleteStaffMember}
                           >
                             <Trash2 size={16} /> {t.deleteStaffMember}
@@ -514,7 +514,7 @@ export function PayrollView() {
                             {staffMember && (
                               <button
                                 onClick={() => generateStaffPayslipPdf({ staffMember, payment: p, lang })}
-                                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ml-auto active:scale-95"
+                                className={`px-3 py-1.5 bg-slate-800 ${currentTheme.hoverSurfaceStrong} text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ml-auto active:scale-95`}
                                 title={t.downloadPayslipPdf}
                               >
                                 <Receipt size={12} /> {t.payslip}

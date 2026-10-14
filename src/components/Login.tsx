@@ -111,7 +111,7 @@ export const Login = ({
       <div className="absolute top-8 right-8">
         <button 
           onClick={() => setLang(lang === 'en' ? 'fr' : 'en')}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all text-sm font-bold border border-white/10"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white state-hover-dark transition-all text-sm font-bold border border-white/10"
         >
           <Globe size={18} />
           {t.langToggle}
@@ -194,7 +194,12 @@ export const Login = ({
           <button 
             type="submit"
             disabled={isLoading}
-            className={`w-full bg-slate-800 hover:bg-slate-900 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-slate-800/20 active:scale-[0.98] flex items-center justify-center gap-2 ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+            // Ce chrome est EN DUR (bg-slate-800/900), identique dans les six thèmes :
+          // aucun remap de thème ne couvre `hover:bg-slate-900`, donc le cran qui
+          // s'applique ici est celui d'un contrôle neutre DÉJÀ REMPLI sur un
+          // chrome toujours sombre — écrit en clair, puisque cet écran ne reçoit
+          // pas `currentTheme`.
+          className={`w-full bg-slate-800 state-hover-deep text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-slate-800/20 active:scale-[0.98] flex items-center justify-center gap-2 ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
             {isLoading ? (
               <>

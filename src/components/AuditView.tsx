@@ -132,7 +132,7 @@ export function AuditView() {
                 </button>
                 <button
                   onClick={() => fetchAuditLogs()}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 self-start sm:self-auto active:scale-95"
+                  className={`px-4 py-2 bg-slate-800 ${currentTheme.hoverSurfaceStrong} text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 self-start sm:self-auto active:scale-95`}
                 >
                   <span>{t.refreshLogs}</span>
                 </button>

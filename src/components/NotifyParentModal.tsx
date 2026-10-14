@@ -123,7 +123,7 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
                     className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
                       notifyTemplateType === 'polite'
                         ? `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentBorder} shadow-md ${currentTheme.accentShadow}`
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
+                        : `bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent ${currentTheme.hoverSurfaceSolid}`
                     }`}
                   >
                     {t.templatePolite}
@@ -134,7 +134,7 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
                     className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
                       notifyTemplateType === 'urgent'
                         ? 'bg-rose-600 text-white border-rose-600 shadow-md shadow-rose-600/20'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
+                        : `bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent ${currentTheme.hoverSurfaceSolid}`
                     }`}
                   >
                     {t.templateUrgent}
@@ -145,7 +145,7 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
                     className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
                       notifyTemplateType === 'detailed'
                         ? 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/20'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:bg-slate-200'
+                        : `bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent ${currentTheme.hoverSurfaceSolid}`
                     }`}
                   >
                     {t.templateDetailed}
@@ -177,7 +177,7 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={handleCopyNotifyMessage}                  className="w-full sm:w-auto h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center gap-2 transition-all whitespace-nowrap"
+                onClick={handleCopyNotifyMessage}                  className={`w-full sm:w-auto h-11 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs ${currentTheme.hoverSurface} flex items-center justify-center gap-2 transition-all whitespace-nowrap`}
                 >
                   <Copy size={16} className="flex-shrink-0" />
                 <span>{t.copyMessage}</span>
@@ -187,7 +187,7 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
                 <button
                   type="button"
                   onClick={handleSendSMS}
-                  className="flex-1 sm:flex-initial h-11 px-4 rounded-2xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all whitespace-nowrap"
+                  className={`flex-1 sm:flex-initial h-11 px-4 rounded-2xl bg-slate-800 dark:bg-slate-700 ${currentTheme.hoverSurfaceStrong} text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all whitespace-nowrap`}
                 >
                   <MessageSquare size={16} className="flex-shrink-0" />
                   <span>{t.sendSMS}</span>

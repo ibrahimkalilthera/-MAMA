@@ -44,7 +44,7 @@ export function modalTokens(currentTheme: CurrentTheme): ModalTokens {
     backdrop: 'absolute inset-0 bg-slate-900/60 backdrop-blur-md',
     panelSurface: `${currentTheme.card} border ${currentTheme.border}`,
     headerBar: 'p-8 border-b border-slate-50 flex justify-between items-center bg-[#0F172A] text-white',
-    headerClose: 'p-2 hover:bg-white/10 rounded-xl transition-all',
+    headerClose: `p-2 ${currentTheme.hoverSurfaceDark} rounded-xl transition-all`,
     // Disabled fields dim to a proper dark inset in slate/midnight instead of
     // rendering as white chips. The dark text color is REQUIRED: these are
     // <input> elements, which do not inherit color (UA fieldtext stays black

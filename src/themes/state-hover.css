@@ -1,0 +1,244 @@
+/* ─── L'échelle de survol d'état — ses crans ET leurs valeurs ────────────────
+   Un survol était une RECETTE recopiée : `hover:bg-slate-50
+   dark:hover:bg-white/10` sur une rangée, `hover:bg-slate-100
+   dark:hover:bg-slate-800` sur la suivante, et un rose écrit à la main sur
+   chaque action destructive. La conséquence se lisait à l'écran : dans un thème
+   chaud le survol restait froid (les remaps `!important` d'un thème ne
+   connaissent que leur propre palette), sur un fond sombre une rangée virait au
+   blanc, et l'accent d'une ÉCOLE (la couleur de son logo, décidée à l'exécution)
+   n'atteignait aucun de ces survols.
+
+   Ce fichier est la seule adresse de l'échelle : les crans (les classes) ET
+   leurs valeurs par thème (`--state-*`) vivent ici, côte à côte, pour qu'une
+   lecture suffise à répondre « et dans le thème crème ? ». Un composant ne dit
+   que l'INTENTION, par un jeton (`currentTheme.hoverSurface`, …) ; la valeur,
+   elle, ne regarde que le thème. `scripts/check-state-hover.mjs` refuse toute
+   recette de survol écrite à la main hors des familles SÉMANTIQUES (ambre,
+   émeraude, violet…), donc un bouton neuf hérite d'un cran au lieu d'inventer
+   le sien.
+
+   ── Les quatre familles, treize crans ──
+   NEUTRE — la surface de page :
+     · `state-hover`        rangées, cartes cliquables, boutons fantômes.
+     · `state-hover-solid`  sur un contrôle dont le REPOS est déjà un
+                            remplissage neutre doux (`bg-slate-100`
+                            `dark:bg-slate-800`) : le pas part de ce repos-là.
+     · `state-hover-strong` sur un remplissage neutre FORT (le bouton
+                            `bg-slate-800 dark:bg-slate-700` des modales).
+     · `state-hover-dark`   sur une surface TOUJOURS sombre ou COLORÉE (le rail,
+                            un bandeau, un en-tête teinté) : un voile blanc, le
+                            même dans les six thèmes puisque ces surfaces le
+                            sont aussi.
+     · `state-hover-deep`   le pas d'un contrôle neutre DÉJÀ REMPLI posé sur un
+                            chrome TOUJOURS sombre (le CTA de l'écran de
+                            connexion, `bg-slate-800`) : sa valeur ne suit pas
+                            le thème, ce chrome ne le suit pas non plus.
+     · `state-hover-clear`  un contrôle dont le REPOS est un BLANC OPAQUE posé
+                            sur un aplat COLORÉ : le seul pas lisible est que
+                            l'aplat reparaisse sous lui (90 % d'opacité).
+   ACCENT — ce qui s'allume à la couleur de l'école :
+     · `state-accent-hover`     surface d'accent atténuée + son encre.
+     · `state-accent-group-ink` l'encre seule, l'ancêtre `.group` survolé.
+   ALERTE — le geste destructif :
+     · `state-alert-hover`  surface rose + encre rose.
+     · `state-alert-tint`   la surface seule (une RANGÉE en retard se teint
+                            sans repeindre l'encre de ses cellules).
+     · `state-alert-solid`  l'ombre d'un CTA destructif déjà plein.
+     · `state-alert-dark`   sur un chrome TOUJOURS sombre (la déconnexion du
+                            rail) : un voile rose + l'encre LEVÉE, les deux
+                            ensemble — le cran de page poserait là une pastille
+                            pâle opaque sous une encre profonde.
+     · `state-alert-plate`  sur un APLAT COLORÉ (la corbeille du bandeau payé),
+                            qui porte DÉJÀ son encre : la surface seule, en
+                            voile, l'encre du bandeau restant la sienne.
+
+   ── Deux mécanismes, et la différence est mesurée, pas décorative ──
+   • `background-color` — la surface d'une page, d'un remplissage neutre ou
+     d'une pastille d'alerte est CONNUE du thème : le cran la remplace. C'est
+     exactement ce que faisaient les recettes (`dark:hover:bg-white/10`
+     remplace aussi la carte), donc aucun pixel ne bouge à la migration.
+   • `background-image` (un dégradé d'une seule couleur, un CALQUE) — sur le
+     rail, un bandeau ou un CTA destructif, le repos n'est pas une teinte de
+     thème : le voile s'AJOUTE. Une pastille déjà en `bg-white/20` verrait un
+     cran opaque la pâlir ; un CTA `bg-rose-500` recevrait la teinte d'un autre
+     ton (rose-600/700) que le sien.
+
+   ── L'ordre compte ──
+   À spécificité égale, la dernière règle gagne : les crans d'accent et
+   d'alerte viennent donc APRÈS les crans neutres, pour qu'une rangée en retard
+   (`state-hover` + `state-alert-tint`) finisse rose.
+   Et les blocs `.theme-*` viennent après `:root` : le thème est posé sur
+   `documentElement`, donc `:root` et `.theme-slate` ont la MÊME spécificité —
+   seul l'ordre décide. */
+
+:root {
+  /* Fallbacks du thème par défaut (Navy), comme les variables d'accent
+     ci-dessus : chaque thème pose SES valeurs plus bas. */
+  --state-hover: #F8FAFC;
+  --state-hover-solid: #E2E8F0;
+  --state-hover-strong: #0F172A;
+  --state-hover-dark: rgba(255, 255, 255, 0.10);
+  --state-alert-hover: #FFE4E6;
+  /* rose-700, pas rose-600 : c'est le cran que les remaps clairs emploient DÉJÀ
+     pour `.text-rose-600` (`#BE123C`, mesuré à 5,2:1 sur `#FFE4E6` par
+     `npm run check:contrast`, contre 3,9:1 pour rose-600). Le survol d'une
+     action destructive est une encre de 12 px : elle vise AA, pas AA-large. */
+  --state-alert-ink: #BE123C;
+  --state-alert-solid: rgba(15, 23, 42, 0.22);
+
+  /* ── Les quatre valeurs qui NE SUIVENT PAS le thème ──────────────────────
+     Elles décrivent des surfaces dont l'identité est la même dans les six
+     thèmes : un chrome toujours sombre (l'écran de connexion, le rail), un
+     APLAT COLORÉ (le bandeau de paie, la fiche parent). Le thème n'y a rien à
+     dire, donc elles sont posées UNE fois, ici, et non dans les blocs
+     `.theme-*` — un `--state-hover-deep` par thème serait six fois la même
+     valeur, et six occasions de les faire diverger.
+
+     Ce qu'elles reproduisent, mesuré : les recettes qu'elles remplacent
+     (`hover:bg-slate-900`, `hover:bg-white/90`, `hover:bg-rose-500/10` +
+     `hover:text-rose-300`, `hover:bg-rose-500/30`) ne sont remappées par AUCUN
+     thème — `npm run check:contrast` les lit comme des couleurs fixes. */
+  --state-hover-deep: #0F172A; /* slate-900 */
+  --state-hover-clear: rgba(255, 255, 255, 0.90);
+  --state-alert-dark: rgba(244, 63, 94, 0.10); /* rose-500/10 */
+  --state-alert-dark-ink: #FDA4AF; /* rose-300, levée pour un rail sombre */
+  --state-alert-plate: rgba(244, 63, 94, 0.30); /* rose-500/30 */
+}
+
+/* Les thèmes clairs et tièdes, dont le survol NEUTRE doit rester chaud : ces
+   valeurs sont celles qu'ils employaient déjà pour leurs rangées (l'ancien
+   `rowHover` de useTheme), donc la migration change l'endroit où elles vivent,
+   pas les pixels. Le remplissage FORT et le voile des surfaces sombres gardent
+   les valeurs de `:root` — un gris froid y serait le même écart que le survol
+   froid qu'on répare. */
+.theme-emerald {
+  --state-hover: #F0FDF4;
+}
+
+.theme-bordeaux {
+  --state-hover: #FFF1F2;
+}
+
+.theme-cream {
+  --state-hover: #FAF7F0;
+  /* Le cran des contrôles neutres REMPLIS : la teinte de bordure du thème, qui
+     est déjà dans sa palette. */
+  --state-hover-solid: #E5DEC9;
+}
+
+/* Les deux thèmes sombres : un voile blanc sur les surfaces (un gris y serait
+   invisible), un cran plus soutenu (slate-600) là où le repos est déjà un
+   remplissage, et le cran d'alerte en rose translucide portant son encre levée
+   — sans elle, un rose -600 posé sur ces fonds tomberait sous le seuil de
+   lisibilité. `--state-hover-strong` rejoint le remplissage des contrôles
+   `dark:bg-slate-700`, comme les recettes qu'il remplace. */
+.theme-slate {
+  --state-hover: rgba(255, 255, 255, 0.06);
+  --state-hover-solid: #475569;
+  --state-hover-strong: #475569;
+  --state-alert-hover: rgba(225, 29, 72, 0.18);
+  --state-alert-ink: #FDA4AF;
+}
+
+.theme-midnight {
+  --state-hover: rgba(255, 255, 255, 0.04);
+  --state-hover-solid: #475569;
+  --state-hover-strong: #475569;
+  --state-alert-hover: rgba(225, 29, 72, 0.22);
+  --state-alert-ink: #FDA4AF;
+}
+
+.state-hover:hover {
+  background-color: var(--state-hover);
+}
+
+.state-hover-solid:hover {
+  background-color: var(--state-hover-solid);
+}
+
+.state-hover-strong:hover {
+  background-color: var(--state-hover-strong);
+}
+
+/* Un calque, pas une surface : voir « deux mécanismes » en tête de fichier. */
+.state-hover-dark:hover {
+  background-image: linear-gradient(var(--state-hover-dark), var(--state-hover-dark));
+}
+
+/* Le pas d'un contrôle neutre DÉJÀ REMPLI sur un chrome TOUJOURS sombre : le
+   CTA `bg-slate-800` de l'écran de connexion. Il ne peut PAS prendre
+   `--state-hover-strong` : cette valeur-là suit le thème (slate-600 en Cyber
+   Minuit comme en Ardoise, où un contrôle rempli s'ÉCLAIRCIT), alors que ce
+   chrome ne suit aucun thème — il resterait `bg-slate-800` dans les six, et un
+   survol qui l'éclaircit serait le seul de l'application à aller dans l'autre
+   sens. Une SURFACE (background-color) : le repos est un remplissage connu. */
+.state-hover-deep:hover {
+  background-color: var(--state-hover-deep);
+}
+
+/* Un contrôle dont le REPOS est un blanc OPAQUE posé sur un aplat coloré : le
+   bouton « Enregistrer le salaire » du bandeau payé, le « Télécharger » de la
+   fiche parent. Un voile (`state-hover-dark`) y serait INVISIBLE — il s'ajoute à
+   du blanc — et le seul pas que ces contrôles demandent est que l'aplat
+   reparaisse SOUS eux : la surface perd 10 % de son opacité. C'est donc une
+   SURFACE, pas un calque : le repos, lui, est connu (opaque). */
+.state-hover-clear:hover {
+  background-color: var(--state-hover-clear);
+}
+
+/* Les deux moitiés de l'accent : surface et encre. Elles s'écrivaient en deux
+   classes (`hover:bg-blue-50` + `hover:text-blue-600`), donc deux occasions d'en
+   oublier une — et l'oubli se payait en contraste. L'encre est celle de l'accent
+   atténué, la même que `.accent-soft-text`, donc lisible sur un thème sombre
+   (levée) comme sur un thème clair (profonde). */
+.state-accent-hover:hover {
+  background-color: var(--accent-primary-muted-hover);
+  color: var(--accent-soft-ink, var(--accent-primary));
+}
+
+/* La moitié « encre » seule, pour un descendant : le chevron d'une carte dont
+   l'ancêtre `.group` est survolé. Même encre que `.accent-group-hover`, dont il
+   ne prend que l'ink — le fond, lui, est déjà celui de la carte. */
+.group:is(:hover, :focus-visible) .state-accent-group-ink {
+  color: var(--accent-soft-ink, var(--accent-primary));
+}
+
+/* La famille d'alerte, même raison : la surface rose et son encre voyagent
+   ensemble. */
+.state-alert-hover:hover {
+  background-color: var(--state-alert-hover);
+  color: var(--state-alert-ink);
+}
+
+/* La moitié « surface » seule : la rangée en retard se teint, l'encre de ses
+   cellules reste la sienne. */
+.state-alert-tint:hover {
+  background-color: var(--state-alert-hover);
+}
+
+/* Un calque d'ombre : il ASSOMBRIT la teinte du CTA, donc les trois tons
+   d'alerte (rose-500/600/700) reçoivent le pas qui leur revient, sans un cran
+   par ton. */
+.state-alert-solid:hover {
+  background-image: linear-gradient(var(--state-alert-solid), var(--state-alert-solid));
+}
+
+/* L'alerte d'un chrome TOUJOURS sombre — la déconnexion du rail. Le cran de
+   page (`.state-alert-hover`) est calculé pour la surface de la PAGE : en thème
+   clair il poserait ici une pastille rose pâle OPAQUE et son encre rose PROFONDE
+   sur un rail sombre, où les deux se trompent. Le voile s'AJOUTE (le rail n'est
+   pas une teinte de thème) et l'encre est LEVÉE — et puisque l'erreur du cran de
+   page était d'emmener la mauvaise moitié, celui-ci porte les deux ENSEMBLE. */
+.state-alert-dark:hover {
+  background-image: linear-gradient(var(--state-alert-dark), var(--state-alert-dark));
+  color: var(--state-alert-dark-ink);
+}
+
+/* L'alerte d'un APLAT COLORÉ — la corbeille du bandeau payé. Ce contrôle porte sa
+   PROPRE encre de repos (`text-white`, celle du bandeau) : la lui remplacer
+   serait une faute de lisibilité (l'encre d'alerte est profonde en thème clair).
+   Ce cran ne peint donc QUE la surface, en voile — le même mécanisme que
+   `state-hover-dark`, seul pas qui teinte un aplat sans le repeindre. */
+.state-alert-plate:hover {
+  background-image: linear-gradient(var(--state-alert-plate), var(--state-alert-plate));
+}
