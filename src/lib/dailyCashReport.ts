@@ -21,7 +21,14 @@
  *     ligne de résumé de l'historique, appliquée une fois au jour entier et une
  *     fois par caissier. Deux additions écrites à la main auraient fini par
  *     diverger d'un centime, et c'est le genre d'écart qu'une caisse ne pardonne
- *     pas : le rapport ne peut donc pas contredire l'écran qui l'héberge.
+ *     pas : le rapport ne peut donc pas contredire l'écran qui l'héberge ;
+ *   • **le motif se regroupe comme le caissier, et pour la même raison** — c'est un
+ *     fait du REÇU, pas de la personne qui l'a encaissé : une même journée mêle
+ *     l'inscription et la scolarité, et une caisse qui ferme doit pouvoir dire ce
+ *     que chacune a rapporté. Le regroupement passe par la MÊME
+ *     `paymentHistorySummary` (jamais une addition écrite ici), et l'ordre est
+ *     déterministe : encaissé décroissant, puis l'ordre de la liste fermée des
+ *     motifs (`PAYMENT_MOTIFS`).
  *
  * Ce que le module refuse de faire : deviner un montant absent de l'instantané
  * (les gestes sans montant chiffré sont COMPTÉS à part, par caissier et pour le
@@ -34,6 +41,8 @@
  */
 import type { PaymentHistoryRow } from './paymentHistory';
 import { filterPaymentHistory, paymentHistorySummary } from './paymentHistory';
+import { PAYMENT_MOTIFS } from './paymentMotifs';
+import type { PaymentMotif } from './paymentMotifs';
 
 /**
  * La journée LOCALE d'un instant, en `AAAA-MM-JJ`.
@@ -63,6 +72,18 @@ export interface CashierDayTotals {
   withoutAmount: number;
 }
 
+/** Ce qu'un MOTIF a représenté dans la journée — la même forme qu'un caissier. */
+export interface MotifDayTotals {
+  /** Le motif du reçu (`scolarite` / `inscription`, voir `lib/paymentMotifs.ts`). */
+  motif: PaymentMotif;
+  count: number;
+  collected: number;
+  cancelled: number;
+  net: number;
+  /** Les gestes dont le montant n'est PAS chiffré (voir `paymentHistorySummary`). */
+  withoutAmount: number;
+}
+
 /** Le rapport d'une journée — ce que la carte affiche et que le PDF imprime. */
 export interface DailyCashReport {
   day: string;
@@ -70,6 +91,12 @@ export interface DailyCashReport {
   rows: PaymentHistoryRow[];
   /** Les caissiers, encaissé décroissant — le premier est celui qui a le plus pris. */
   cashiers: CashierDayTotals[];
+  /**
+   * Les motifs du jour, encaissé décroissant — le premier est celui qui a le plus
+   * rapporté. Un motif que la journée n'a pas vu n'a PAS de ligne : le rapport
+   * décrit ce qui s'est passé, il ne remplit pas un formulaire.
+   */
+  motifs: MotifDayTotals[];
   /** Les annulations du jour, dans l'ordre des gestes. */
   cancellations: PaymentHistoryRow[];
   count: number;
@@ -117,12 +144,39 @@ export function dailyCashReport({ rows, day }: { rows: PaymentHistoryRow[]; day:
     })
     .sort((a, b) => b.collected - a.collected || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
+  // Le motif est un fait du REÇU : il se regroupe donc comme le caissier, avec la
+  // même addition que la ligne de résumé de l'historique. Une clé est TOUJOURS
+  // présente (`PaymentHistoryRow.motif` n'est jamais nul : un reçu d'avant la
+  // colonne est ordinaire) — aucun geste ne peut donc s'évaporer d'un sous-total.
+  const byMotif = new Map<PaymentMotif, PaymentHistoryRow[]>();
+  for (const row of dayRows) {
+    const bucket = byMotif.get(row.motif);
+    if (bucket) bucket.push(row);
+    else byMotif.set(row.motif, [row]);
+  }
+  const motifs: MotifDayTotals[] = [...byMotif.entries()]
+    .map(([motif, groupRows]) => {
+      const summary = paymentHistorySummary(groupRows);
+      return {
+        motif,
+        count: summary.count,
+        collected: summary.collected,
+        cancelled: summary.cancelled,
+        net: summary.net,
+        withoutAmount: summary.withoutAmount,
+      };
+    })
+    // Deux motifs à égalité d'encaissement gardent l'ordre de la liste FERMÉE :
+    // le rapport ne change pas d'ordre d'un poste à l'autre pour un même jour.
+    .sort((a, b) => b.collected - a.collected || PAYMENT_MOTIFS.indexOf(a.motif) - PAYMENT_MOTIFS.indexOf(b.motif));
+
   const totals = paymentHistorySummary(dayRows);
 
   return {
     day,
     rows: dayRows,
     cashiers,
+    motifs,
     cancellations: dayRows.filter((row) => row.action === 'DELETE_PAYMENT'),
     count: totals.count,
     collected: totals.collected,

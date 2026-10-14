@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMainViews } from '../app/mainViewsContext';
 import type { VendorExpense, Expense } from '../lib/useSupabaseData';
 import { sameYearMonth } from '../lib/dateWindows';
+import { canDeleteVendorExpenses, canWriteFinance } from '../lib/payrollRights';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EmptyState } from './SharedUi';
 
@@ -17,14 +18,22 @@ const GENERAL_EXPENSE_CATEGORIES = ['Supplies', 'Utilities', 'Maintenance', 'bnd
 export function ExpensesView() {
   const [confirmDeleteVendor, setConfirmDeleteVendor] = useState<VendorExpense | null>(null);
   const [confirmDeleteExpense, setConfirmDeleteExpense] = useState<Expense | null>(null);
-  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, canDelete, currentMonth, currentYear, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, generalExpenseCategoryFilter, generalExpenseSearch, getGradeDisplay, handleDeleteExpense, handleDeleteVendorExpense, handlePrint, isPromoter, isGeneralManager, lang, selectedYear, setEditingVendorExpense, setExpenseForm, setGeneralExpenseCategoryFilter, setGeneralExpenseSearch, setShowExpenseModal, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorExpensesTab, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorExpensesTab, vendorSearch, vendorStatusFilter } = useMainViews();
-  // Vendor create/delete are finance-admin powers (promoter/admin + Gestionnaire
-  // Principal) — mirrors the isFinanceAdmin gate in useExpenses.
-  // Écrire une dépense fournisseur (Policy « … gm ») et la SUPPRIMER ne
-  // demandent pas le même rôle : la suppression est réservée à
-  // `public.is_admin()` — donc le droit d'écrire ne fait pas le droit de
-  // supprimer, et l'écran suit la règle de la BASE.
-  const canManageVendors = isPromoter || isGeneralManager;
+  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, canDelete, currentMonth, currentYear, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, generalExpenseCategoryFilter, generalExpenseSearch, auth, getGradeDisplay, handleDeleteExpense, handleDeleteVendorExpense, handlePrint, lang, selectedYear, setEditingVendorExpense, setExpenseForm, setGeneralExpenseCategoryFilter, setGeneralExpenseSearch, setShowExpenseModal, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorExpensesTab, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorExpensesTab, vendorSearch, vendorStatusFilter } = useMainViews();
+  // Le droit d'ÉCRIRE une dépense (générale ou fournisseur) vient de la BASE :
+  // la même liste de rôles que `public.is_finance_writer()`
+  // (`src/lib/payrollRights.ts`, migration 20261014000000). Un compte `econome`
+  // voyait la base ACCEPTER sa dépense (insertion mesurée le 2026-10-13 : 1
+  // ligne) et l'écran lui cacher l'icône ✚ : la porte fermait seule.
+  //
+  // Écrire et SUPPRIMER ne demandent pas le même rôle. Une dépense GÉNÉRALE se
+  // supprime sous `public.is_admin()` (`canDelete`, plus bas) ; une dépense
+  // FOURNISSEUR sous `public.is_finance_admin()`, que la base exécute depuis le
+  // 2026-10-13 (`20260906000002_vendor_expense_gm_policies.sql`) : admin, dev et
+  // Gestionnaire Principal — pas l'économe, qui les SAISIT sans les détruire.
+  // Le rôle est lu sur le PROFIL, comme pour l'écriture : c'est lui que la
+  // policy lit, donc c'est lui qui décide.
+  const canWriteExpenses = canWriteFinance(auth.profile?.role);
+  const canDeleteVendorExpense = canDeleteVendorExpenses(auth.profile?.role);
   return (
     <>
           <div className="space-y-8">
@@ -105,7 +114,7 @@ export function ExpensesView() {
                               <FileText size={16} />
                               <span>{t.exportPdf}</span>
                             </button>
-                            {canManageVendors && (
+                            {canWriteExpenses && (
                               <button
                                 onClick={() => {
                                   setExpenseForm({ category: 'Other', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
@@ -186,7 +195,7 @@ export function ExpensesView() {
                                         icon={<Receipt size={22} />}
                                         title={t.noExpensesFoundMatchingTheSelectedFilter}
                                         hint={t.generalExpensesEmptyHint}
-                                        action={canManageVendors ? (
+                                        action={canWriteExpenses ? (
                                           <button
                                             onClick={() => {
                                               setExpenseForm({ category: 'Other', description: '', amount: '', date: new Date().toISOString().split('T')[0] });
@@ -299,7 +308,7 @@ export function ExpensesView() {
                           <Printer size={16} />
                           <span className="hidden sm:inline">{t.print}</span>
                         </button>
-                        {canManageVendors && (
+                        {canWriteExpenses && (
                           <button
                             onClick={() => {
                               setEditingVendorExpense(null);
@@ -541,7 +550,7 @@ export function ExpensesView() {
                                         >
                                           <FileText size={16} />
                                         </button>
-                        {canDelete && (
+                        {canDeleteVendorExpense && (
                           <button
                             onClick={() => setConfirmDeleteVendor(v)}
                             className="px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded-xl text-2xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap"

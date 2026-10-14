@@ -10,7 +10,7 @@
 //     résout plus (mesuré le 2026-10-12, DNS absent) — une ressource externe
 //     qu'aucun contrôle ne relève pourrit en silence, et celle-ci a pourri ;
 //   • la recette a donc sa PROPRE pile Supabase, montée par le job
-//     (`business-e2e.yml` : Postgres, GoTrue, PostgREST, RLS, les 34 migrations,
+//     (`business-e2e.yml` : Postgres, GoTrue, PostgREST, RLS, les 35 migrations,
 //     vierge à chaque run) — rien à mettre en pause, aucun secret, et l'école
 //     n'est ni lue ni écrite ;
 //   • les cycles E2E ont écrit dans la base partagée tant qu'elle était libre —
