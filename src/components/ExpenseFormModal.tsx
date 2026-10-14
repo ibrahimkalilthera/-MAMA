@@ -83,7 +83,7 @@ export function ExpenseFormModal(props: ExpenseFormModalProps) {
                     />
                   </div>
                 </div>
-                <button type="submit" className="w-full bg-rose-500 hover:bg-rose-600 text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20">
+                <button type="submit" className={`w-full bg-rose-500 ${currentTheme.hoverAlertSolid} text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20`}>
                   {t.submit}
                 </button>
               </form>

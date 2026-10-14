@@ -152,7 +152,7 @@ export function ExcelImportModal({
           </div>
           <button
             onClick={() => { resetWizard(); onClose(); }}
-            className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-all"
+            className={`p-2 rounded-xl text-white/60 hover:text-white ${currentTheme.hoverSurfaceDark} transition-all`}
           >
             <X size={18} />
           </button>
@@ -241,7 +241,7 @@ export function ExcelImportModal({
                       </div>
                       <button
                         onClick={() => { setFile(null); setSheets([]); setDetection(null); }}
-                        className="p-2 hover:bg-white/10 rounded-lg text-rose-500 flex items-center justify-center"
+                        className={`p-2 ${currentTheme.hoverSurfaceDark} rounded-lg text-rose-500 flex items-center justify-center`}
                       >
                         <X size={16} />
                       </button>
@@ -261,7 +261,7 @@ export function ExcelImportModal({
                               className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
                                 selectedSheetIdx === i
                                   ? `${currentTheme.accentBorder} ${currentTheme.accentSoft} ${currentTheme.accentSoftText}`
-                                  : `${currentTheme.border} ${textSecondary} hover:bg-white/5`
+                                  : `${currentTheme.border} ${textSecondary} ${currentTheme.hoverSurfaceDark}`
                               }`}
                             >
                               {s.name} ({s.rows.length} {t.rows})
@@ -318,7 +318,7 @@ export function ExcelImportModal({
                             className={`p-2.5 rounded-xl text-center border transition-all ${
                               category === cat
                                 ? `${currentTheme.accentBorder} ${currentTheme.accentSoft}`
-                                : `${currentTheme.border} hover:bg-white/5`
+                                : `${currentTheme.border} ${currentTheme.hoverSurfaceDark}`
                             }`}
                           >
                             <span className="text-lg block">{CATEGORY_LABELS[cat].icon}</span>
@@ -359,7 +359,7 @@ export function ExcelImportModal({
                       {mappings.map((m, i) => {
                         const fields = TARGET_FIELDS[category];
                         return (
-                          <tr key={i} className={`border-b ${currentTheme.border} hover:${bgMuted}`}>
+                          <tr key={i} className={`border-b ${currentTheme.border} ${currentTheme.rowHover}`}>
                             <td className={`py-2.5 px-3 font-bold ${textPrimary}`}>
                               <div className="flex items-center gap-2">
                                 <FileSpreadsheet size={14} className="text-blue-500 flex-shrink-0" />
@@ -562,7 +562,7 @@ export function ExcelImportModal({
             {step === 4 && !isProcessing && (
               <button
                 onClick={() => resetWizard()}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-blue-500 hover:text-blue-400 transition-all flex items-center gap-1.5"
+                className={`px-4 py-2 rounded-xl text-xs font-bold text-blue-500 ${currentTheme.accentSoftTextHover} transition-all flex items-center gap-1.5`}
               >
                 <RefreshCw size={14} />
                 {t.newImport}

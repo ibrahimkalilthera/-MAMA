@@ -41,11 +41,14 @@
 //     rapport le dise au lieu de l'avaler.
 //
 // ─── L'état d'aujourd'hui, et donc la preuve de vie du contrôle ─────────────
-// Après la suppression de l'artefact : 15 tables dans `public`, les 15 avec RLS,
-// 0 vue. Ce contrôle naît donc VERT. Sa preuve de vie n'est pas la couleur du
-// jour — c'est `tests/public-rls.test.ts`, qui l'exerce ROUGE sur un catalogue
-// reconstitué, et qui l'exerce aussi à vide (zéro relation lue n'est pas un
-// vert, c'est « je n'ai pas pu regarder »).
+// Après le battement de version (2026-10-18) : 16 tables dans `public`, les 16
+// avec RLS, 0 vue — et DEUX scellées (`student_matricule_counters`, atteinte par
+// une fonction `security definer`, et `station_versions`, atteinte par
+// `record_station_beat`). Scellée n'est pas ouverte : ces deux tables sont
+// NOMMÉES dans le rapport, pas exemptées. Ce contrôle naît donc VERT. Sa preuve
+// de vie n'est pas la couleur du jour — c'est `tests/public-rls.test.ts`, qui
+// l'exerce ROUGE sur un catalogue reconstitué, et qui l'exerce aussi à vide
+// (zéro relation lue n'est pas un vert, c'est « je n'ai pas pu regarder »).
 //
 // ─── Ce que ce module ne juge pas ──────────────────────────────────────────
 // Les POLITIQUES. `relrowsecurity` vrai ne dit pas que la politique laisse

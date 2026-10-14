@@ -21,7 +21,9 @@ import { database } from '../lib/sharedDatabase';
 import { UpdateBanner } from './UpdateBanner';
 import { ReceiptPreviewModal } from './ReceiptPreviewModal';
 import { useDensity } from '../app/densityContext';
+import { useIconGlass } from '../app/iconGlassContext';
 import { flushJournalReports, reportBlockedStation } from '../lib/desktopUpdateReport';
+import { sendStationBeat } from '../lib/stationVersion';
 import type { JournalQueueApi } from '../lib/desktopUpdateReport';
 import type { AppEnv } from '../lib/networkUtils';
 import type { ImportCategory } from '../lib/excelImporter';
@@ -158,6 +160,13 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
   // `.density-compact` cible; fournie par <App> via le contexte.
   const { density } = useDensity();
 
+  // Verre des icônes (discret/net/animé) — même mécanisme, même raison : la
+  // couche `src/themes/icons.css` a besoin d'un seul ancêtre commun pour doser
+  // toutes les icônes d'un coup, et la racine du shell est cet ancêtre. Sans
+  // provider (un test qui monte le shell seul), la valeur par défaut — animé —
+  // laisse la couche telle qu'elle a été livrée.
+  const { iconGlass } = useIconGlass();
+
   // ── « La semaine précédente attend son archive » ───────────────────────────
   // Le rappel est une notification de cloche (voir `useAuditArchiveReminder`),
   // donc la liste reçue le porte déjà. On en dérive UN booléen, lu aux deux
@@ -198,6 +207,53 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
     void flushJournalReports({ api }).catch(() => {});
   }, [currentUser?.username]);
 
+  // ── Le battement de version du poste (§7 de la spécification du canal) ────
+  //
+  // Il ne dépend PAS d'une session, et c'est le point : la table du relevé
+  // s'écrit en `anon` justement pour qu'un poste qui n'ouvre jamais de session
+  // soit recensé. Un battement qui exigerait un compte laisserait muets
+  // exactement les postes qu'on cherche à retrouver.
+  //
+  // Il part DEUX fois plutôt qu'une, et la raison est mesurée : le premier
+  // contrôle de mise à jour a lieu quelques secondes APRÈS le lancement (voir le
+  // `setTimeout` de `electron/main.cjs`), donc un battement unique au montage
+  // partirait avant que le fait existe — et un poste sain se lirait ensuite
+  // « silencieux » dans `npm run fleet:versions`, c'est-à-dire exactement le
+  // mensonge que ce relevé existe pour empêcher. Le second battement suit le
+  // verdict du contrôle, une fois par état distinct (l'écriture REMPLACE la ligne
+  // du poste : elle n'ajoute pas d'historique, donc battre souvent ne gonfle
+  // rien).
+  useEffect(() => {
+    const updates = (
+      globalThis as {
+        desktop?: {
+          updates?: {
+            stationBeat?: unknown;
+            onState?: (cb: (state?: { status?: string; version?: string | null }) => void) => () => void;
+          };
+        };
+      }
+    ).desktop?.updates;
+    // Sans pont de bureau (page web), il n'y a ni identité de poste ni état
+    // d'updater : c'est un no-op silencieux, pas une erreur à signaler.
+    if (!updates?.stationBeat) return;
+
+    let lastKey = '';
+    const beat = (state?: { status?: string; version?: string | null }) => {
+      const key = `${state?.status ?? 'startup'}|${state?.version ?? ''}`;
+      if (key === lastKey) return;
+      lastKey = key;
+      // Un battement refusé n'est jamais fatal : la base peut refuser, le réseau
+      // peut manquer — le canal de mise à jour, lui, n'en dépend pas.
+      void sendStationBeat().catch(() => {});
+    };
+    beat();
+    const off = typeof updates.onState === 'function' ? updates.onState(beat) : undefined;
+    return () => {
+      if (typeof off === 'function') off();
+    };
+  }, []);
+
   return (
     <>
       {authLoading ? (
@@ -207,13 +263,13 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
       ) : supabaseLoading ? (
 <AppLoadingScreen title={t.loadingFinanceSuite} subtitle={t.connectingToDatabase} />
       ) : (
-        <div data-slot="app-shell" className={`min-h-screen ${currentTheme.bg} flex font-sans ${currentTheme.text} transition-colors duration-300 theme-${theme} density-${density} ${currentTheme.isDark ? 'dark ' : ''}${ticketStudent ? 'no-print-ticket' : ''}`}>
+        <div data-slot="app-shell" className={`min-h-screen ${currentTheme.bg} flex font-sans ${currentTheme.text} transition-colors duration-300 theme-${theme} density-${density} icon-glass-${iconGlass} ${currentTheme.isDark ? 'dark ' : ''}${ticketStudent ? 'no-print-ticket' : ''}`}>
           {supabaseError && (
             <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white text-center py-2 text-xs font-semibold flex items-center justify-center gap-3">
               <span className="flex items-center gap-1.5"><AlertTriangle size={14} className="flex-shrink-0" /> {t.databaseConnectionIssue}: {formatSupabaseError(supabaseError, lang).message}</span>
               <button
                 onClick={() => fetchAll()}
-                className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-2xs uppercase tracking-wider transition-colors"
+                className={`px-3 py-1 bg-white/20 ${currentTheme.hoverSurfaceDark} rounded-lg font-bold text-2xs uppercase tracking-wider transition-colors`}
               >
                 {t.retry}
               </button>

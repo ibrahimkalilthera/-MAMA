@@ -193,6 +193,16 @@ export function resolveCondition(text, roleSets = new Map()) {
   // Un filtre de LIGNE (`created_by = auth.uid()`) nomme l'auteur, pas le rôle :
   // il borne les lignes d'un compte connecté, donc l'ensemble est « connecté ».
   if (/auth\.uid\(\)/.test(raw)) return ANY_AUTHENTICATED;
+  // Un filtre de LIGNE sur la CLÉ d'un réglage (`key IN (…)`, `key = '…'`) : il
+  // borne les lignes qu'une politique ouvre, jamais les RÔLES — c'est la clause
+  // `TO` qui dit qui peut écrire. Le lire comme une condition illisible faisait
+  // échouer tout le contrôle sur une politique pourtant lisible : mesuré le
+  // 2026-10-19 sur les préférences d'affichage (`app_settings`, quatre clés
+  // bornées, écriture ouverte à tout compte connecté — voir
+  // supabase/migrations/20261019000000_display_preferences.sql). Une clé n'est
+  // pas un rôle : elle n'élargit donc rien, et l'intersection avec la clause `TO`
+  // reste ce qu'elle dit.
+  if (/^(?:[a-z_]\w*\.)?key\s*(?:<>|!=|=|not\s+in\b|in\b)/.test(raw)) return ANY_ROLE;
   return ILLEGIBLE;
 }
 
@@ -442,6 +452,22 @@ export const WRITE_GATE_INVENTORY = [
     screen: 'src/components/StudentsView.tsx',
     shown: /canDelete/,
     gate: { file: 'src/lib/deleteRights.ts', symbol: 'ADMIN_ROLES', reader: /canDelete/ },
+  },
+  // ── Les réglages d'affichage (thème, densité, verre des icônes, langue) : ils
+  //    vivent en base pour VOYAGER avec la sauvegarde, donc n'importe quel poste
+  //    connecté doit pouvoir les enregistrer. La base le dit par deux politiques
+  //    bornées à ces quatre clés-là (`20261019000000_display_preferences.sql`),
+  //    jamais par une ouverture de `app_settings` — c'est le magasin des réglages
+  //    d'équipe, et il reste administré. L'écran, lui, n'a aucune garde de rôle :
+  //    la densité d'une tablette de classe et la langue d'un poste de guichet
+  //    regardent la personne devant l'écran, pas son rôle.
+  {
+    action: 'Changer un réglage d’affichage (thème, densité, verre, langue)',
+    table: 'app_settings',
+    cmd: 'INSERT',
+    screen: 'src/components/SettingsPreferencesCard.tsx',
+    shown: /setTheme|setDensity|setIconGlass|toggleLanguage/,
+    gate: null,
   },
   {
     action: 'Enregistrer un parent',

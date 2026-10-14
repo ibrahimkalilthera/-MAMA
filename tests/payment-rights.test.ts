@@ -338,6 +338,18 @@ const theme: CurrentTheme = {
   surfaceInset: 'bg-slate-50', inkStrong: 'text-slate-800',
   accentSoftDark: 'bg-blue-500/15', accentSoftDarkHover: 'hover:bg-blue-500/25', accentSoftDarkText: 'text-blue-300',
   tableHeader: 'bg-slate-100', rowHover: 'hover:bg-slate-50', input: 'bg-white', isDark: false,
+  hoverSurface: 'state-hover',
+  hoverSurfaceSolid: 'state-hover-solid',
+  hoverSurfaceStrong: 'state-hover-strong',
+  hoverSurfaceDark: 'state-hover-dark',
+  hoverSurfaceClear: 'state-hover-clear',
+  hoverAccent: 'state-accent-hover',
+  hoverAccentGroupInk: 'state-accent-group-ink',
+  hoverAlert: 'state-alert-hover',
+  hoverAlertTint: 'state-alert-tint',
+  hoverAlertSolid: 'state-alert-solid',
+  hoverAlertDark: 'state-alert-dark',
+  hoverAlertPlate: 'state-alert-plate',
 };
 
 const PAY: Payment = { id: 'pay1', date: '2026-10-01', amount: 25000, receiptNumber: 'REC-1' };

@@ -50,6 +50,7 @@ import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
+import { DB_READY_SCRIPT, judgeDbReady } from './lib/db-ready.mjs';
 import { runGateAttempts } from './lib/gate-runner.mjs';
 import { expectedArtifacts } from './lib/release-compare.mjs';
 import { parseLatestYml } from './lib/latest-yml.mjs';
@@ -297,6 +298,63 @@ function runGate(flag, { label, attempts = 1, delayMs = 4000 } = {}) {
 }
 
 /**
+ * La base porte-t-elle ce que ce build embarque ? — LE gate qui manquait.
+ *
+ * L'ordre « la base d'abord, le build ensuite » n'était tenu que par le
+ * déploiement du SITE (sa quatrième porte) : un autre canal, sur un autre
+ * déclencheur. Un installeur publié avant sa migration atteint pourtant le
+ * parc, et une publication ne se reprend pas. Le publieur juge donc lui-même la
+ * base qu'il va nourrir, AVANT la première requête — le même endroit que le
+ * contrat de mise à jour, et pour la même raison : une fois un octet promu,
+ * aucune correction locale ne rattrape les postes équipés.
+ *
+ * Ce qu'il interroge est le contrôle qui existe déjà
+ * (`scripts/check-hosted-schema.mjs`, `npm run check:hosted-schema`) : jamais
+ * une deuxième liste de tables, qui dériverait de la première. Ce que ce gate
+ * ajoute, c'est la CONSÉQUENCE — un refus de publier, y compris quand le
+ * contrôle n'a pas pu rendre de verdict : « je n'ai pas pu regarder » ne peut
+ * pas autoriser un geste que « la base est en retard » interdit.
+ */
+function assertMigrationsApplied() {
+  console.log('\n── la base hébergée porte-t-elle ce que ce build embarque ? ──');
+  // Les deux issues du contrôle, et AUCUNE valeur d'attente : un code et une
+  // sortie sont toujours ceux d'un vrai run, jamais un défaut qui ferait passer
+  // « je n'ai rien exécuté » pour une sortie vide.
+  const probe = (() => {
+    try {
+      return {
+        code: 0,
+        output: String(
+          execFileSync(process.execPath, [DB_READY_SCRIPT], {
+            cwd: root,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+          }) ?? '',
+        ),
+      };
+    } catch (error) {
+      // Le refus et son motif sont sur la sortie d’erreur, les vérifications sur
+      // la sortie standard : les deux sont montrées, parce qu’un refus sans son
+      // motif serait un refus qu’on ne peut pas réparer.
+      return {
+        code: Number(error?.status ?? NaN),
+        output: `${error?.stdout ?? ''}${error?.stderr ?? ''}`,
+      };
+    }
+  })();
+  const verdict = judgeDbReady(probe);
+  if (verdict.ok) {
+    // Le contrôle montre lui-même ce qu'il a vérifié : le vert est PROUVÉ, pas
+    // annoncé. En cas de refus, c'est le verdict qui porte le motif (les lignes
+    // de succès sortent du rapport cité, elles repousseraient le motif hors de
+    // l’écran).
+    process.stdout.write(probe.output);
+    return;
+  }
+  fail(verdict.title, verdict.problems);
+}
+
+/**
  * Le contrat de confiance du parc envers SA PROCHAINE mise à jour.
  *
  * MESURÉ le 2026-09-13 : l'installeur publié portait un `app-update.yml`
@@ -332,8 +390,14 @@ if (!existsSync(latestFile)) {
     'Lance `npm run electron:build` (ou `npm run electron:release`) d’abord.',
   ]);
 }
-// Le contrat de mise à jour se juge AVANT tout accès au canal : rien de ce qui
-// figerait un parc ne doit atteindre une requête, même en lecture.
+// ── Deux préconditions, jugées ICI, avant tout accès au canal ────────────────
+// La base d'abord : c'est elle qui dit si ce build PEUT fonctionner, et son
+// refus envoie corriger une migration, pas chercher un certificat. Puis le
+// contrat de mise à jour, qui dit si le parc pourra encaisser sa prochaine
+// version. Aucune des deux n'écrit quoi que ce soit, même en lecture — c'est
+// pour ça qu'elles précèdent la lecture du canal (`api`) et le `--dry-run` :
+// un « je ferais ceci » qui tairait un refus ferait perdre une publication.
+assertMigrationsApplied();
 assertUpdaterTrust();
 
 const latestText = readFileSync(latestFile, 'utf8');

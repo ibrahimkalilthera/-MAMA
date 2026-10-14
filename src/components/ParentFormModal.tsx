@@ -225,7 +225,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                           type="button"
                           onClick={() => setParentStudentSearch('')}
                           title={t.clearSearch}
-                          className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 dark:hover:bg-white/10 transition-all flex-shrink-0"
+                          className={`p-1 rounded-full text-slate-400 hover:text-slate-600 ${currentTheme.hoverSurface} transition-all flex-shrink-0`}
                         >
                           <X size={12} />
                         </button>
@@ -258,7 +258,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                                 setParentStudentSearch('');
                                 setParentClassFilter('all');
                               }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-2xs font-black text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10 transition-all"
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-2xs font-black text-slate-500 ${currentTheme.hoverSurface} transition-all`}
                             >
                               <X size={12} />
                               {t.clearSearch}
@@ -271,7 +271,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                         return (
                           <label
                             key={s.id}
-                            className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${checked ? `${currentTheme.accentSoft} ${currentTheme.accentSoftText}` : 'hover:bg-white/10'}`}
+                            className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${checked ? `${currentTheme.accentSoft} ${currentTheme.accentSoftText}` : currentTheme.hoverSurface}`}
                           >
                             <input
                               type="checkbox"
@@ -323,7 +323,7 @@ export function ParentFormModal(props: ParentFormModalProps) {
                     <button
                       type="button"
                       onClick={() => setParentForm({ ...parentForm, linkedStudentIds: [] })}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-2xs font-black text-rose-500 hover:bg-rose-500/10 transition-all"
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-2xs font-black text-rose-500 ${currentTheme.hoverAlert} transition-all`}
                     >
                       <X size={12} />
                       {t.deselectAll}
