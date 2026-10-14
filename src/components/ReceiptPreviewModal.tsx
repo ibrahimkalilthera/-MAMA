@@ -53,7 +53,14 @@ export function ReceiptPreviewModal({ currentTheme }: { currentTheme: CurrentThe
         </dl>
         {renderError && <p role="alert">{t.receiptPreviewFailed}</p>}
         <canvas ref={canvasRef} aria-label={t.receiptPreview} className="w-full h-auto rounded-xl bg-white" />
-        <button type="button" onClick={() => { downloadPreparedReceipt(receipt); closeReceiptPreview(); }}
+        {/* Le second geste du reçu — celui qui télécharge VRAIMENT. Il porte un
+            marqueur stable (`data-slot="receipt-preview-download"`) parce que le
+            pixel-check E2E l'attend et le clique : un contrôle qui viserait sa
+            phrase traduite (« Télécharger le reçu ») dépendrait du vocabulaire de
+            toute la page, ce que le rouge du 2026-10-14 a coûté une fois
+            (scripts/lib/e2e-receipt.mjs). */}
+        <button type="button" data-slot="receipt-preview-download"
+          onClick={() => { downloadPreparedReceipt(receipt); closeReceiptPreview(); }}
           className={`px-5 py-3 rounded-xl font-bold ${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover}`}>
           {t.downloadReceipt}
         </button>
