@@ -13,10 +13,11 @@ import type { Parent, Student, Staff } from '../app/types';
 import { studentMatricule } from './studentIdentifiers';
 import { isUuid } from './rowMappers';
 import { paymentSnapshotMetadata } from './paymentUndo';
+import { paymentMotifAuditTag } from './paymentMotifs';
 import type { LogAuditParams } from './auditLogger';
 
 /** The surface of the Supabase client that replay touches. */
-export type ReplayDb = Pick<SupabaseClient<Database>, 'from'>;
+export type ReplayDb = Pick<SupabaseClient<Database>, 'from' | 'rpc'>;
 
 /**
  * The `id` to send for a row that was created while the station was offline.
@@ -231,6 +232,9 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       // Les mois choisis voyagent avec le geste : un paiement rejoué sans eux
       // rendrait un reçu qui ne dit plus ce que la famille a payé.
       months: payment.months ?? [],
+      // Le motif aussi — `null` quand il n'est pas déclaré (le CHECK de
+      // `payments.motif` l'accepte, et le reçu lit « non renseigné »).
+      motif: payment.motif ?? null,
     });
     // `23505` : ce geste est DÉJÀ en base. On réconcilie quand même le solde —
     // le seul chemin qui mène ici est une première tentative qui a inséré la ligne
@@ -311,23 +315,27 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       success = await reconcileStudentBalance(db, studentId, { delta: -amount, recomputeLastDate: true });
     }
   } else if (item.type === 'updatePaymentMonths') {
-    // Renseigner les mois d'un reçu ANTÉRIEUR à la colonne `months` : la seule
+    // Renseigner les mois d’un reçu ANTÉRIEUR à la colonne `months` : la seule
     // colonne écrite est `months` — le montant, la date et le reçu ne bougent pas
     // (une correction de mois ne peut pas changer ce qui a été encaissé).
     //
-    // Zéro ligne rendue n'est donc PAS un succès : la même lecture que le chemin
-    // en ligne (`.select('id')`, voir dataOps/payments.ts). C'est la policy
-    // « Admin update payments » (`public.is_admin()`) qui refuse — la ligne
-    // reste en file, l'écran le dit, et rien n'est annoncé comme écrit.
-    const { data, error } = await db
-      .from('payments')
-      .update({ months: item.payload.months })
-      .eq('id', item.payload.paymentId)
-      .select('id');
+    // Ce n’est plus un UPDATE du client, mais la FONCTION de la base
+    // (`public.set_payment_months`, 20261013000000_econome_payment_months.sql) : une
+    // policy RLS borne des LIGNES, pas des colonnes — l’ouvrir à l’économe lui
+    // aurait donc ouvert le MONTANT avec. La fonction, elle, ne nomme que `months`
+    // et vérifie le rôle de l’appelant elle-même (`public.is_payment_month_editor()`).
+    //
+    // Elle rend le NOMBRE de lignes écrites : zéro n’est PAS un succès — l’item
+    // reste en file et le dira, au lieu d’être avalé avec une entrée de journal
+    // qui annoncerait des mois renseignés sur rien.
+    const { data, error } = await db.rpc('set_payment_months', {
+      p_payment_id: item.payload.paymentId,
+      p_months: item.payload.months,
+    });
     if (error) {
       console.error('updatePaymentMonths: écriture refusée au rejeu —', error.message);
-    } else if (!data || data.length === 0) {
-      console.error('updatePaymentMonths: aucune ligne modifiée au rejeu — cible filtrée par la policy RLS');
+    } else if (typeof data !== 'number' || data === 0) {
+      console.error('updatePaymentMonths: aucune ligne écrite au rejeu — reçu introuvable, ou refusé par la base');
     } else {
       success = true;
     }
@@ -555,6 +563,12 @@ function recordingDb(db: ReplayDb, sink: { error: unknown }): ReplayDb {
     });
   return {
     from: (table: string) => wrap(db.from(table)),
+    // `rpc` est le chemin des écritures BORNÉES (les mois d'un reçu,
+    // `public.set_payment_months`). Sans lui ici, `replayOfflineItemDetailed`
+    // lèverait un TypeError au lieu de rendre sa raison — et le drainage
+    // s'arrêterait net sur cet item, la bannière muette.
+    rpc: (fn: string, args?: Record<string, unknown>) =>
+      wrap((db.rpc as (f: string, a?: Record<string, unknown>) => unknown)(fn, args)),
   } as unknown as ReplayDb;
 }
 
@@ -592,7 +606,10 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
         action: 'RECORD_PAYMENT',
         targetType: 'payment',
         targetId: item.payload.studentId,
-        details: `Paiement de ${item.payload.payment.amount} FCFA (reçu ${item.payload.payment.receiptNumber || 'N/A'})${tag}`,
+        // La mention du motif (clé stockée, rien pour le geste ordinaire) vient
+        // de `paymentMotifs.ts`, comme le chemin en ligne : un même fait ne se
+        // lit pas de deux façons selon qu'il a été rejoué ou non.
+        details: `Paiement de ${item.payload.payment.amount} FCFA (reçu ${item.payload.payment.receiptNumber || 'N/A'})${paymentMotifAuditTag(item.payload.payment.motif)}${tag}`,
         metadata: paymentSnapshotMetadata({
           paymentId: item.payload.payment.id ?? item.localId ?? '',
           studentId: item.payload.studentId,
@@ -600,6 +617,7 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
           amount: item.payload.payment.amount,
           academicYear: item.payload.payment.academicYear,
           receiptNumber: item.payload.payment.receiptNumber,
+          motif: item.payload.payment.motif,
         }),
       };
     case 'deletePayment':
@@ -619,6 +637,7 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
           amount: item.payload.amount,
           academicYear: item.payload.academicYear,
           receiptNumber: item.payload.receiptNumber,
+          motif: item.payload.motif,
         }),
       };
     case 'updatePaymentMonths':

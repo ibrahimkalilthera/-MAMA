@@ -13,6 +13,7 @@ import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpens
 import type { CalendarEvent, CurrentTheme, ExpenseForm, ManagedClass, ParentForm, SalaryForm, StaffForm, StaffModalMode, VendorExpenseForm } from './mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
+import type { PaymentMotif } from '../lib/paymentMotifs';
 import type { StudentForm } from '../components/StudentFormModal';
 import type { ClassForm } from '../components/AddClassModal';
 export interface AppModalsProps {
@@ -148,6 +149,14 @@ export interface AppModalsProps {
   paymentDate: string;
   /** Mois proposés au guichet — ceux de l'année scolaire de la date (`YYYY-MM`). */
   paymentMonthOptions: string[];
+  /**
+   * Ce que le paiement saisi RÈGLE (`scolarite` / `inscription`, voir
+   * src/lib/paymentMotifs.ts) : c'est le mot que la ligne « Motif » du reçu
+   * officiel imprime, et il part en base avec le geste — une réimpression doit
+   * pouvoir le redire. L'inscription dispense de cocher un mois (droit d'entrée).
+   */
+  paymentMotif: PaymentMotif;
+  setPaymentMotif: Dispatch<SetStateAction<PaymentMotif>>;
   /** Mois cochés pour ce paiement. */
   paymentMonths: string[];
   paymentStudentId: string;
@@ -165,6 +174,13 @@ export interface AppModalsProps {
    */
   selectedYear: string;
   selectedStudent: Student | null;
+  /**
+   * Le reçu MUET sur lequel la fiche ouverte doit s'ouvrir, ou `null`. Posé par
+   * l'écran École des reçus muets (`SilentReceiptsView`), il descend tel quel dans
+   * `StudentDetailsModal.focusPaymentId` ; la fermeture de la fiche le remet à
+   * zéro, pour qu'une ouverture ordinaire n'active rien.
+   */
+  studentFileFocus: string | null;
   setAiInput: Dispatch<SetStateAction<string>>;
   setEditClassForm: Dispatch<SetStateAction<ClassForm>>;
   setEditingVendorExpense: Dispatch<SetStateAction<VendorExpense | null>>;
@@ -180,6 +196,8 @@ export interface AppModalsProps {
   setProductivitySidebarTab: Dispatch<SetStateAction<'tasks' | 'ai'>>;
   setSalaryForm: Dispatch<SetStateAction<SalaryForm>>;
   setSelectedStudent: Dispatch<SetStateAction<Student | null>>;
+  /** Remet le focus de la fiche à zéro — la fermeture s'en sert (voir `close`). */
+  setStudentFileFocus: Dispatch<SetStateAction<string | null>>;
   setShowAddClassModal: Dispatch<SetStateAction<boolean>>;
   setShowAuditModal: Dispatch<SetStateAction<boolean>>;
   setShowCalendarModal: Dispatch<SetStateAction<boolean>>;

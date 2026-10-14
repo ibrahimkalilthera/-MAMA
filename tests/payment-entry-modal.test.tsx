@@ -7,11 +7,18 @@ import { translations } from '../src/i18n/translations';
 import type { Student } from '../src/lib/useSupabaseData';
 import {
   academicYearMonths,
-  effectivePaymentMonths,
   formatPaidMonths,
   paymentMonthLabel,
-  toggledPaymentMonths,
 } from '../src/lib/paymentMonths';
+import {
+  DEFAULT_PAYMENT_MOTIF,
+  PAYMENT_MOTIFS,
+  paymentMotifLabel,
+  paymentMotifMonths,
+  paymentMotifNeedsMonths,
+  toggledPaymentMonthsForMotif,
+} from '../src/lib/paymentMotifs';
+import type { PaymentMotif } from '../src/lib/paymentMotifs';
 import { academicYearOf } from '../src/lib/dateWindows';
 import { installDomGlobals } from './harness';
 import { makeProps } from './views-harness';
@@ -39,6 +46,10 @@ function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '') {
     // de vrai — jamais avec un tableau fabriqué pour la circonstance.
     const [selected, setSelected] = useState<string[]>([]);
     const [touched, setTouched] = useState(false);
+    // Le motif vit aussi dans le domaine : le même état et la même règle PURE
+    // sont rejoués ici (`paymentMotifMonths`), pour que la modale soit essayée
+    // avec ce qu'elle reçoit pour de vrai.
+    const [motif, setMotif] = useState<PaymentMotif>(DEFAULT_PAYMENT_MOTIF);
     const monthOptions = academicYearMonths(academicYearOf(paymentDate));
     const dateMonth = paymentDate.slice(0, 7);
     return createElement(PaymentEntryModal, {
@@ -52,9 +63,11 @@ function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '') {
       paymentStudentId, setPaymentStudentId, paymentAmount, setPaymentAmount,
       paymentDate, setPaymentDate,
       paymentMonthOptions: monthOptions,
-      paymentMonths: effectivePaymentMonths(selected, touched, dateMonth, monthOptions),
+      paymentMotif: motif,
+      setPaymentMotif: setMotif,
+      paymentMonths: paymentMotifMonths(motif, selected, touched, dateMonth, monthOptions),
       togglePaymentMonth: (month: string) => {
-        setSelected((prev) => toggledPaymentMonths(prev, touched, dateMonth, monthOptions, month));
+        setSelected((prev) => toggledPaymentMonthsForMotif(motif, prev, touched, dateMonth, monthOptions, month));
         setTouched(true);
       },
       formatCurrency: (amount) => `${amount} XOF`,
@@ -81,8 +94,9 @@ function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '') {
   };
   const click = (month: string) => act(() => chip(month).click());
   const monthsLine = () => container.querySelector<HTMLParagraphElement>('[data-slot="payment-months"] p:last-of-type');
+  const motifSelect = () => container.querySelector<HTMLSelectElement>('#payment-motif-select');
   return {
-    container, select, change, submissions, chip, click, monthsLine,
+    container, select, change, submissions, chip, click, monthsLine, motifSelect,
     reopen: () => { act(() => root.render(null)); render(); },
     cleanup: () => { act(() => root.unmount()); container.remove(); },
   };
@@ -171,6 +185,94 @@ describe('PaymentEntryModal — champ de recherche par nom ou matricule', () => 
       assert.ok(texts[1].includes('80000 XOF'), 'le solde reste affiché à côté du matricule');
       assert.ok(texts[2].includes('2026-0002'), 'un matricule sans préfixe s’affiche aussi');
       assert.equal(texts[3].includes(translations.fr.studentId), false, 'aucun matricule inventé pour un élève qui n’en a pas');
+    } finally { h.cleanup(); }
+  });
+});
+
+describe('PaymentEntryModal — le motif du paiement', () => {
+  it('propose la liste fermée des motifs, ses mots de reçu, et l’ordinaire d’avance', () => {
+    const h = mount('fr');
+    try {
+      const select = h.motifSelect();
+      assert.ok(select, 'le motif doit être un choix de la fenêtre de saisie');
+      assert.ok(h.container.querySelector('label[for="payment-motif-select"]'), 'le choix doit être étiqueté');
+      assert.deepEqual(values(select), [...PAYMENT_MOTIFS], 'la liste est celle du module, et rien d’autre');
+      assert.deepEqual(
+        Array.from(select.options, (o) => o.textContent),
+        PAYMENT_MOTIFS.map((m) => paymentMotifLabel(m, translations.fr)),
+        'les libellés sont les MOTS DU REÇU : ce qui se choisit ici s’imprime là',
+      );
+      assert.equal(select.value, DEFAULT_PAYMENT_MOTIF, 'l’encaissement ordinaire reste le défaut');
+      assert.ok(h.container.textContent?.includes(translations.fr.paymentMotif), 'le champ est intitulé');
+      assert.ok(h.container.textContent?.includes(translations.fr.paymentMotifHint), 'et expliqué');
+    } finally { h.cleanup(); }
+  });
+
+  it('localise les deux motifs', () => {
+    const h = mount('en');
+    try {
+      assert.deepEqual(
+        Array.from(h.motifSelect()!.options, (o) => o.textContent),
+        PAYMENT_MOTIFS.map((m) => paymentMotifLabel(m, translations.en)),
+      );
+      assert.equal(h.motifSelect()!.options[1].textContent, translations.en.pdfMotifRegistration);
+    } finally { h.cleanup(); }
+  });
+
+  // La demande est explicite : le motif se choisit EN HAUT des mois payés. Un
+  // ordre inversé ferait cocher des mois avant de dire à quoi ils correspondent.
+  it('se place AU-DESSUS des mois payés, dans l’ordre du reçu', () => {
+    const h = mount('fr');
+    try {
+      const html = h.container.innerHTML;
+      const motif = html.indexOf('data-slot="payment-motif"');
+      const months = html.indexOf('data-slot="payment-months"');
+      assert.ok(motif >= 0, 'le marqueur du motif doit être posé');
+      assert.ok(months >= 0, 'le champ des mois doit être présent');
+      assert.ok(motif < months, 'le motif doit précéder les mois payés');
+    } finally { h.cleanup(); }
+  });
+
+  // Le cœur de la demande : pouvoir ENREGISTRER une inscription. C’est un droit
+  // d’entrée, il ne couvre aucun mois — donc le bouton ne doit plus être fermé
+  // faute de mois coché, et AUCUN mois ne doit être déclaré à sa place (sinon la
+  // fiche de l’élève compterait Octobre réglé par un reçu d’inscription).
+  it('l’inscription s’enregistre sans mois — et n’en déclare aucun', () => {
+    const h = mount('fr');
+    try {
+      const submit = () => h.container.querySelector<HTMLButtonElement>('button[type="submit"]');
+      assert.equal(paymentMotifNeedsMonths(DEFAULT_PAYMENT_MOTIF), true, 'la scolarité, elle, exige un mois');
+      assert.equal(h.chip('2026-10').getAttribute('aria-pressed'), 'true', 'le mois de la date est proposé d’avance');
+
+      h.change('payment-motif-select', 'inscription');
+      assert.equal(h.motifSelect()?.value, 'inscription');
+      assert.equal(h.chip('2026-10').getAttribute('aria-pressed'), 'false', 'aucun mois n’est coché d’avance pour une inscription');
+      assert.equal(submit()?.disabled, false, 'une inscription s’enregistre sans mois');
+      assert.ok(h.container.textContent?.includes(translations.fr.paidMonthsHint), 'les mois restent PROPOSÉS');
+      assert.equal(
+        h.container.textContent?.includes(translations.fr.paidMonthsRequired),
+        false,
+        'et ne sont plus EXIGÉS : l’écran ne réclame pas un mois pour une inscription',
+      );
+
+      // Un mois coché À LA MAIN reste possible : une famille peut régler les deux.
+      h.click('2026-11');
+      assert.equal(h.chip('2026-11').getAttribute('aria-pressed'), 'true');
+      assert.equal(h.chip('2026-10').getAttribute('aria-pressed'), 'false', 'cocher n’entraîne pas le mois de la date');
+      assert.equal(h.monthsLine()?.textContent, 'Novembre');
+      h.click('2026-11');
+      assert.equal(h.chip('2026-11').getAttribute('aria-pressed'), 'false');
+      assert.equal(submit()?.disabled, false, 'de nouveau sans mois : toujours enregistrable');
+
+      // Revenir à la scolarité remet l’exigence — et rien n’est coché d’office :
+      // un mois coché plus tôt ne suit plus la date (le choix du caissier prime),
+      // donc c’est à lui de cocher.
+      h.change('payment-motif-select', 'scolarite');
+      assert.equal(h.chip('2026-10').getAttribute('aria-pressed'), 'false');
+      assert.equal(submit()?.disabled, true, 'la scolarité sans mois est fermée');
+      h.click('2026-10');
+      assert.equal(submit()?.disabled, false);
+      assert.equal(h.monthsLine()?.textContent, 'Octobre', 'et la ligne annonce ce que le reçu écrira');
     } finally { h.cleanup(); }
   });
 });

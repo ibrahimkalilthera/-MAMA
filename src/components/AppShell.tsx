@@ -8,7 +8,7 @@
  * Props: `viewsProps` (the MainViewsProps & AppModalsProps wiring built by
  * App) plus the shell-only values (auth gate, toast, confirm dialog, chat).
  */
-import { lazy, Suspense, useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
@@ -16,6 +16,7 @@ import type { MainViewsProps } from '../app/mainViewsProps';
 import type { AppModalsProps } from './AppModals';
 import type { StudentFormScope, User } from '../app/types';
 import { formatSupabaseError } from '../lib/networkUtils';
+import { silentReceiptRows, silentReceiptsCatchUp } from '../lib/silentReceipts';
 import { database } from '../lib/sharedDatabase';
 import { UpdateBanner } from './UpdateBanner';
 import { ReceiptPreviewModal } from './ReceiptPreviewModal';
@@ -54,7 +55,7 @@ const MainViews = lazy(() => import('./MainViews').then(m => ({ default: m.MainV
 
 export type ActiveTab =
   | 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses'
-  | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit' | 'paymentHistory';
+  | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory';
 
 type ConfirmAction = { title: string; message: string; confirmLabel: string; onConfirm: () => void };
 
@@ -136,7 +137,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
     setSearchTerm, studentGradeFilter, setStudentGradeFilter, setIsPromotionWizardOpen,
     setShowExcelImport, setSelectedDraftMonth, setSelectedDraftYear,
     setShowMonthlyDraftModal, generateMultiYearReportPdf, lockedYears, students,
-    pendingFailures, cacheSavedAt,
+    today, pendingFailures, cacheSavedAt,
     expenses, vendorExpenses, salaryPayments, handlePrint, vendorExpensesTab,
     handleExport, generateFinancialReportPdf, generateExpensesReportPdf,
     notifications, setSelectedStudent, readNotificationIds, deletedNotificationIds,
@@ -163,6 +164,20 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
   // seuls endroits visibles depuis n'importe quelle page : le menu latéral
   // (bureau) et la barre du bas (mobile). En rater un, c'est rater l'autre.
   const auditArchivePending = notifications.some((n) => n.type === 'archive');
+
+  // ── « Combien de reçus muets restent » — la pastille de l'onglet École ─────
+  // Le chiffre est celui de l'ÉCOLE, pas d'un écran : il se calcule ICI, une
+  // fois, sur la MÊME brique pure que l'écran École et que la carte du tableau
+  // de bord (`silentReceiptRows` → `silentReceiptsCatchUp`), puis se remet AUX
+  // DEUX navigations (rail du bureau, barre du bas) — exactement la règle de
+  // l'archive en attente ci-dessus : en rater une, c'est rater l'autre. Une année
+  // ILLISIBLE rend une liste vide, donc aucune pastille : on n'annonce pas
+  // « aucun reçu muet » là où l'application ne sait pas de quelle année elle
+  // parle.
+  const silentReceiptsCount = useMemo(
+    () => silentReceiptsCatchUp(silentReceiptRows(students, selectedYear), today).receipts,
+    [students, selectedYear, today],
+  );
 
   // ─── La file d'attente du poste, vidée au premier démarrage CONNECTÉ ───────
   // Un poste d'école démarre bloqué SANS personne de connecté — c'est le cas
@@ -236,6 +251,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
         onAddCr={() => openAddStudentModal('nursery')}
         onRecordPayment={() => setShowPaymentForm(true)}
         auditArchivePending={auditArchivePending}
+        silentReceiptsCount={silentReceiptsCount}
       />
 
       {/* --- Mobile Bottom Navigation (sidebar is hidden below lg) --- */}
@@ -248,6 +264,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
         currentUser={currentUser}
         fetchAuditLogs={fetchAuditLogs}
         auditArchivePending={auditArchivePending}
+        silentReceiptsCount={silentReceiptsCount}
       />
 
       {/* --- Main Content --- */}

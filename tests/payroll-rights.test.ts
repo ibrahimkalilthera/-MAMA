@@ -13,10 +13,11 @@
  *
  * Trois choses sont verrouillées, et pas une de moins :
  *   1. la règle elle-même (qui peut, qui ne peut pas) ;
- *   2. la non-divergence avec les MIGRATIONS — les listes de rôles de
- *      `is_payroll_writer()` et `is_finance_admin()` sont comparées dans les
- *      deux sens, donc un rôle ajouté d'un seul côté fait rougir ce test au lieu
- *      de rouvrir un bouton qui ne peut pas aboutir ;
+ *   2. la non-divergence avec la MIGRATION — la liste de rôles de
+ *      `is_payroll_writer()` est comparée dans les deux sens, donc un rôle ajouté
+ *      d'un seul côté fait rougir ce test au lieu de rouvrir un bouton qui ne
+ *      peut pas aboutir. Le personnel et les dépenses fournisseur suivent la
+ *      leur (`public.is_finance_writer()`) : c'est `tests/finance-rights.test.ts` ;
  *   3. le rendu RÉEL de la vue : le bouton de paie est là pour l'`econome`,
  *      absent pour `staff` — mesuré sur le HTML produit, pas déduit du code.
  */
@@ -28,13 +29,12 @@ import { createElement } from 'react';
 import { renderWithContext } from './views-harness';
 import { translations } from '../src/i18n/translations';
 import { PayrollView } from '../src/components/PayrollView';
-import { PAYROLL_WRITER_ROLES, STAFF_WRITER_ROLES, canManageStaff, canWritePayroll } from '../src/lib/payrollRights';
+import { PAYROLL_WRITER_ROLES, canWritePayroll } from '../src/lib/payrollRights';
 import type { AppRole, AuthState } from '../src/lib/useAuth';
 import type { Staff } from '../src/lib/domainTypes';
 
 const ROOT = join(import.meta.dirname, '..');
 const PAYROLL_MIGRATION = join(ROOT, 'supabase', 'migrations', '20261005000000_econome_payroll_writes.sql');
-const FINANCE_MIGRATION = join(ROOT, 'supabase', 'migrations', '20260902000000_general_manager_role.sql');
 
 /** Les rôles cités par `role IN (…)` dans la fonction `name` d'un fichier SQL. */
 function rolesOf(sql: string, name: string): string[] {
@@ -63,15 +63,15 @@ describe('payrollRights — qui la base accepte', () => {
     assert.equal(canWritePayroll('Econome '), true, 'la casse et les espaces sont absorbés, comme Postgres les lit');
   });
 
-  it('le personnel reste réservé aux finance admins — l’econome ne le gère pas', () => {
-    for (const role of ['admin', 'dev', 'general_manager']) {
-      assert.equal(canManageStaff(role), true, `${role} gère le personnel`);
-    }
-    for (const role of ['econome', 'staff', null, '']) {
-      assert.equal(canManageStaff(role), false, `« ${String(role)} » ne gère pas le personnel`);
-    }
+  it('l’écriture du PERSONNEL a son propre droit, et il ne vit plus ici', () => {
+    // Jusqu'au 2026-10-13, le personnel était gardé par `is_finance_admin()` et
+    // cette suite comparait `STAFF_WRITER_ROLES` à cette fonction. La décision du
+    // propriétaire a déplacé la règle : l'économe ajoute un employé, un membre de
+    // l'administration et un membre T et P — c'est `public.is_finance_writer()`
+    // (`20261014000000_finance_writer_staff_vendor.sql`), comparé à
+    // `FINANCE_WRITER_ROLES` dans `tests/finance-rights.test.ts`, avec le rendu
+    // de l'écran. Ce qui reste ici est la PAIE, et elle seule.
     assert.equal((PAYROLL_WRITER_ROLES as readonly string[]).includes('econome'), true);
-    assert.equal((STAFF_WRITER_ROLES as readonly string[]).includes('econome'), false);
   });
 });
 
@@ -79,7 +79,6 @@ describe('payrollRights — qui la base accepte', () => {
 
 describe('la règle de l’app et les fonctions de la base ne peuvent pas diverger', () => {
   const payrollSql = readFileSync(PAYROLL_MIGRATION, 'utf8');
-  const financeSql = readFileSync(FINANCE_MIGRATION, 'utf8');
 
   it('is_payroll_writer() : les rôles sont les mêmes, dans les deux sens', () => {
     assert.deepEqual(
@@ -87,10 +86,6 @@ describe('la règle de l’app et les fonctions de la base ne peuvent pas diverg
       rolesOf(payrollSql, 'is_payroll_writer'),
       'un rôle ajouté d’un seul côté rouvrirait (ou fermerait) un bouton que la base ne suit pas',
     );
-  });
-
-  it('is_finance_admin() : les rôles de l’écriture du personnel sont les mêmes, dans les deux sens', () => {
-    assert.deepEqual([...STAFF_WRITER_ROLES].sort(), rolesOf(financeSql, 'is_finance_admin'));
   });
 
   it('les policies d’ÉCRITURE de salary_payments appellent bien is_payroll_writer()', () => {
@@ -135,7 +130,6 @@ describe('la règle de l’app et les fonctions de la base ne peuvent pas diverg
 
   it('les migrations sont bien lues — un contrôle vide ne prouve rien', () => {
     assert.ok(rolesOf(payrollSql, 'is_payroll_writer').length >= 4, 'au moins quatre rôles de paie');
-    assert.ok(rolesOf(financeSql, 'is_finance_admin').length >= 3, 'au moins trois rôles de personnel');
   });
 });
 
@@ -183,25 +177,21 @@ function render(role: AppRole): string {
 
 describe('l’écriture n’est pas offerte là où la base refuse', () => {
   const salaryLabel = translations.en.recordSalary;
-  const addStaffLabel = translations.en.addStaff;
 
-  it('econome : enregistre la paie, mais ne gère pas le personnel', () => {
+  it('econome : le bouton de salaire est là — la base l’accepte', () => {
     const html = render('econome');
     assert.ok(html.includes('Mariam Coulibaly'), 'la fiche est rendue (sinon rien n’est mesuré)');
     assert.ok(html.includes(salaryLabel), `l’econome doit voir « ${salaryLabel} »`);
-    assert.equal(html.includes(addStaffLabel), false, 'la base refuse le personnel à l’econome : le bouton ne s’affiche pas');
   });
 
-  it('staff : ni paie ni personnel — la base refuse les deux', () => {
+  it('staff : aucun bouton de paie — la base refuse', () => {
     const html = render('staff');
     assert.ok(html.includes('Mariam Coulibaly'));
     assert.equal(html.includes(salaryLabel), false, 'aucun bouton de paie pour un compte staff');
-    assert.equal(html.includes(addStaffLabel), false, 'aucun bouton de personnel pour un compte staff');
   });
 
-  it('admin : paie et personnel, comme la base les accepte', () => {
+  it('admin : le bouton de paie est là, comme la base l’accepte', () => {
     const html = render('admin');
     assert.ok(html.includes(salaryLabel));
-    assert.ok(html.includes(addStaffLabel));
   });
 });
