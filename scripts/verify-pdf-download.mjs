@@ -101,6 +101,7 @@ import { dirname, join } from 'node:path';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
 import { assertEphemeralTarget, ephemeralEmail, pickEphemeralUser } from './lib/ephemeral-accounts.mjs';
+import { PREVIEW_DOWNLOAD_SELECTOR, RECEIPT_BUTTON_SELECTOR } from './lib/e2e-receipt.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { firstRow, readUntil } from './lib/read-after-submit.mjs';
 import { replayableWrite, withTransientRetry } from './lib/transient-http.mjs';
@@ -888,20 +889,22 @@ async function readBackfillPanel(page) {
  * des parents et celui du GESTE des mois (mode recu-mois).
  */
 async function confirmReceiptPreview(page, label) {
-  const previewReady = await page.waitForFunction(() =>
-    [...document.querySelectorAll('button')].some((b) =>
-      /télécharger le reçu|download receipt/i.test(b.textContent || '')),
-    { timeout: 30000 }).then(() => true).catch(() => false);
+  // L'attente et le clic visent le MARQUEUR du bouton de l'aperçu
+  // (`data-slot="receipt-preview-download"`), jamais sa phrase : la même raison
+  // que le premier clic (voir scripts/lib/e2e-receipt.mjs) — une phrase appartient
+  // à l'écran entier, un marqueur appartient au geste.
+  const previewReady = await page.waitForFunction((selector) =>
+    Boolean(document.querySelector(selector)),
+    { timeout: 30000 }, PREVIEW_DOWNLOAD_SELECTOR).then(() => true).catch(() => false);
   if (!previewReady) {
     throw new Error(`aperçu du reçu (${label}) non affiché — bouton « Télécharger le reçu » introuvable`);
   }
-  const confirmed = await page.evaluate(() => {
-    const btn = [...document.querySelectorAll('button')].find((b) =>
-      /télécharger le reçu|download receipt/i.test(b.textContent || ''));
+  const confirmed = await page.evaluate((selector) => {
+    const btn = document.querySelector(selector);
     if (!btn) return false;
     btn.click();
     return true;
-  });
+  }, PREVIEW_DOWNLOAD_SELECTOR);
   if (!confirmed) throw new Error(`bouton « Télécharger le reçu » de l’aperçu (${label}) introuvable`);
   console.log(`✅ aperçu du reçu (${label}) confirmé — téléchargement déclenché`);
 }
@@ -909,17 +912,24 @@ async function confirmReceiptPreview(page, label) {
 /**
  * « Télécharger Reçu PDF » depuis la fiche d'un élève, puis l'aperçu — le
  * parcours RÉEL de l'utilisateur pour un paiement DÉJÀ en base.
+ *
+ * Le bouton est visé par son MARQUEUR (`data-slot^="payment-receipt"`), et non
+ * plus par le mot « reçu » : ce contrôle-là avait été écrit au libellé, et le
+ * 2026-10-14 la facture est tombée — l'onglet du rail « Reçus muets », rendu
+ * AVANT les modales dans le DOM, matchait /reçu/i et recevait le clic. Le
+ * contrôle sortait de la fiche, ne voyait aucun aperçu, et accusait
+ * l'application d'un défaut qui n'existait pas (voir scripts/lib/e2e-receipt.mjs).
+ * Un marqueur, lui, ne dépend pas du vocabulaire de l'écran.
  */
 async function downloadReceiptFromPreview(page, studentName) {
   let clicked = false;
   for (let attempt = 0; attempt < 4; attempt++) {
-    clicked = await page.evaluate(() => {
-      const btns = [...document.querySelectorAll('button')].filter((b) =>
-        /reçu|recu|receipt/i.test(b.title || '') || /reçu|recu/i.test(b.textContent || ''));
-      if (!btns.length) return false;
-      btns[0].click();
+    clicked = await page.evaluate((selector) => {
+      const btn = document.querySelector(selector);
+      if (!btn) return false;
+      btn.click();
       return true;
-    });
+    }, RECEIPT_BUTTON_SELECTOR);
     if (clicked) break;
     await wait(2000);
   }
@@ -1407,11 +1417,14 @@ async function runE2E(target) {
       }
 
       // Click the member's Reçu PDF button. Walk up from the NAME leaf and stop
-      // at the first ancestor that contains EXACTLY ONE Reçu button (the card);
-      // walking from the button up is wrong with ≥2 cards (a shared container
-      // holds every card's text, so the first button matches for every name).
-      clicked = await page.evaluate((name) => {
-        const isReçu = (b) => /reçu|recu|receipt/i.test(b.title || '') || /reçu|recu/i.test(b.textContent || '');
+      // at the first ancestor that contains EXACTLY ONE receipt button (the
+      // card); walking from the button up is wrong with ≥2 cards (a shared
+      // container holds every card's text, so the first button matches for every
+      // name). Le bouton est reconnu à son MARQUEUR, jamais au mot « reçu » — un
+      // libellé traduit appartient à l'écran, pas au geste (voir
+      // scripts/lib/e2e-receipt.mjs, et le rouge du 2026-10-14).
+      clicked = await page.evaluate((name, selector) => {
+        const isReceipt = (b) => b.matches(selector);
         const nameEls = [...document.querySelectorAll('*')].filter((el) =>
           el.children.length === 0 && el.textContent?.trim() === name);
         for (const nameEl of nameEls) {
@@ -1419,13 +1432,13 @@ async function runE2E(target) {
           for (let i = 0; i < 10 && anc; i++) {
             anc = anc.parentElement;
             if (!anc) break;
-            const btns = [...anc.querySelectorAll('button')].filter(isReçu);
+            const btns = [...anc.querySelectorAll('button')].filter(isReceipt);
             if (btns.length === 1) { btns[0].click(); return true; }
             if (btns.length > 1) break; // shared container — not the card
           }
         }
         return false;
-      }, targetName);
+      }, targetName, RECEIPT_BUTTON_SELECTOR);
       if (!clicked) throw new Error(`bouton Reçu PDF de « ${targetName} » introuvable`);
       console.log(`✅ clic sur « Télécharger Reçu PDF » de ${targetName}`);
     }
