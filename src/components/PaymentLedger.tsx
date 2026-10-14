@@ -35,8 +35,12 @@
  * base refuse est un échec annoncé, pas empêché.
  *
  * Les marqueurs sont ceux du pixel-check E2E (`scripts/verify-pdf-download.mjs`,
- * mode `recu-muet`) : `data-slot="payment-months-fill"` sur le geste des mois. Ce
- * mode lit la fiche par CLÉ, jamais par un libellé traduit.
+ * modes `recu-parent`, `recu-mois`, `recu-muet`) : `data-slot="payment-months-fill"`
+ * sur le geste des mois, et `data-slot="payment-receipt-ledger"` sur celui du
+ * reçu. Ce contrôle lit la fiche par CLÉ, jamais par un libellé traduit — la
+ * leçon d'un rouge payé le 2026-10-14, quand il visait le reçu au mot « reçu » et
+ * tombait sur l'onglet du rail « Reçus muets », rendu avant les modales (voir
+ * `scripts/lib/e2e-receipt.mjs`).
  */
 import { useRef, useState } from 'react';
 import { Calendar, Receipt, Trash2 } from 'lucide-react';
@@ -181,6 +185,7 @@ export function PaymentLedger(props: PaymentLedgerProps) {
                       </button>
                     )}
                     <button
+                      data-slot="payment-receipt-ledger"
                       onClick={() => generatePaymentReceiptPdf({
                         student,
                         payment: p,

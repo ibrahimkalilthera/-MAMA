@@ -448,6 +448,7 @@ export function PayrollView() {
                           </button>
                         )}
                         <button 
+                          data-slot="payment-receipt-payroll"
                           onClick={() => handleExportStaffReceiptPdf(s)}
                           className={`p-2 rounded-xl border ${paidThisMonth > 0 || payDatePassed ? `border-white/30 text-white ${currentTheme.hoverSurfaceDark}` : 'border-slate-100 text-slate-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60'} text-xs font-bold transition-all`}
                           title={t.downloadReceiptPdf}
