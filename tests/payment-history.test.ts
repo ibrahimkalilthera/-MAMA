@@ -347,3 +347,81 @@ describe('livePaymentOf — le paiement ENCORE VIVANT qu’une ligne désigne', 
     assert.equal(livePaymentOf(rows[0]!, students), null);
   });
 });
+
+describe('paymentHistory — le MOTIF du reçu, porté par chaque ligne', () => {
+  const inscription: Payment = { ...PAY, id: 'pay-ins', receiptNumber: 'REC-INS', motif: 'inscription' };
+
+  it('le lit dans l’instantané quand le geste en porte un', () => {
+    const rows = paymentHistoryRows({
+      students: STUDENTS,
+      logs: [entry({ id: 'l1', action: 'RECORD_PAYMENT', targetId: 'st1', metadata: snapshot('st1', 'Ali Diallo', inscription) })],
+    });
+    assert.equal(rows[0]!.motif, 'inscription');
+  });
+
+  it('le relit dans la PHRASE quand l’entrée précède la colonne `payments.motif`', () => {
+    // L'autre moitié de la chaîne : les gestes d'avant l'instantané n'ont que
+    // leur phrase, et la mention y est écrite par `paymentMotifAuditTag` — le
+    // gabarit a son écrivain et son lecteur dans le MÊME module.
+    const rows = paymentHistoryRows({
+      students: STUDENTS,
+      logs: [
+        entry({
+          id: 'l1',
+          action: 'RECORD_PAYMENT',
+          targetId: 'st2',
+          details: 'Paiement de 25000 FCFA (reçu REC-7) — élève Awa Traoré — motif : inscription',
+        }),
+      ],
+    });
+    assert.equal(rows[0]!.motif, 'inscription');
+    assert.equal(rows[0]!.amount, 25000, 'le montant reste lisible dans la même phrase');
+    assert.equal(rows[0]!.receiptNumber, 'REC-7');
+  });
+
+  it('ne devine JAMAIS : ce qu’il ne sait pas lire vaut le motif ORDINAIRE, jamais un trou', () => {
+    const rows = paymentHistoryRows({
+      students: STUDENTS,
+      logs: [
+        entry({ id: 'l1', action: 'RECORD_PAYMENT', targetId: 'st1', details: 'Paiement de 4000 FCFA (reçu REC-1) — motif : bourse' }),
+        entry({ id: 'l2', action: 'RECORD_PAYMENT', targetId: 'st1', details: 'Paiement de 4000 FCFA (reçu REC-2)' }),
+        entry({ id: 'l3', action: 'RECORD_PAYMENT', targetId: 'st1', details: 'Paiement restauré' }),
+      ],
+    });
+    assert.deepEqual(
+      rows.map((row) => row.motif),
+      ['scolarite', 'scolarite', 'scolarite'],
+      'une clé inconnue, une phrase sans mention et une phrase hors gabarit donnent le reçu d’avant la colonne',
+    );
+  });
+
+  it('un instantané SANS motif (écrit avant la colonne) laisse la phrase parler', () => {
+    const legacySnapshot = paymentSnapshotMetadata({ ...archivedPaymentFrom('st1', 'Ali Diallo', PAY), motif: undefined });
+    const rows = paymentHistoryRows({
+      students: STUDENTS,
+      logs: [
+        entry({
+          id: 'l1',
+          action: 'DELETE_PAYMENT',
+          targetId: 'pay1',
+          metadata: legacySnapshot,
+          details: 'Paiement de 4000 FCFA (reçu REC-1) du 2026-10-01 supprimé — élève Ali Diallo — motif : inscription',
+        }),
+      ],
+    });
+    assert.equal(rows[0]!.motif, 'inscription', 'l’absence dans l’instantané n’efface pas la mention de la phrase');
+  });
+
+  it('une annulation et une restauration portent le motif du reçu qu’elles défont', () => {
+    // Sans lui, réparer un geste rendrait un reçu d'inscription muet sur ce qu'il
+    // réglait — le même défaut que la suppression d'un reçu d'inscription.
+    const rows = paymentHistoryRows({
+      students: STUDENTS,
+      logs: [
+        entry({ id: 'l1', action: 'DELETE_PAYMENT', targetId: 'pay-ins', metadata: snapshot('st1', 'Ali Diallo', inscription) }),
+        entry({ id: 'l2', action: 'RESTORE_PAYMENT', targetId: 'pay-ins', metadata: snapshot('st1', 'Ali Diallo', inscription) }),
+      ],
+    });
+    assert.deepEqual(rows.map((row) => row.motif), ['inscription', 'inscription']);
+  });
+});

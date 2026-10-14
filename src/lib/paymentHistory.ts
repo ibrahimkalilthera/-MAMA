@@ -43,6 +43,8 @@
  */
 import type { AuditLogEntry } from './auditLogger';
 import type { Payment, Student } from './domainTypes';
+import { paymentMotifFromDetails, paymentMotifOf } from './paymentMotifs';
+import type { PaymentMotif } from './paymentMotifs';
 import { paymentSnapshotOf } from './paymentUndo';
 
 /**
@@ -156,6 +158,19 @@ export interface PaymentHistoryRow {
   amount: number | null;
   receiptNumber: string | null;
   /**
+   * Le motif du reçu — `scolarite` (le geste ordinaire) quand la ligne n'en
+   * déclare aucun, JAMAIS `null`.
+   *
+   * C'est la règle du reçu lui-même (`paymentMotifOf`) : un paiement d'avant la
+   * colonne `payments.motif` a été imprimé « Frais de scolarité », et la
+   * réimpression d'aujourd'hui doit dire exactement ce que le papier d'alors
+   * disait. Un trou (« — ») ferait croire à un motif PERDU là où il n'y en a
+   * jamais eu. Il se lit dans l'instantané `metadata` quand le geste en porte un,
+   * sinon dans la mention ` — motif : …` de la phrase du journal, sinon il est
+   * ordinaire.
+   */
+  motif: PaymentMotif;
+  /**
    * L'id du PAIEMENT que le geste désigne, ou `null`.
    *
    * Il vient de l'instantané, ou de `target_id` pour une suppression et une
@@ -214,6 +229,10 @@ export function paymentHistoryRows({
       // dépôt (voir `paymentFactsFromDetails`).
       amount: snapshot ? snapshot.amount : facts.amount,
       receiptNumber: snapshot?.receiptNumber?.trim() || facts.receiptNumber,
+      // L'instantané d'abord ; sinon la mention de la phrase, quand l'entrée
+      // précède la colonne `payments.motif` ; sinon le motif ordinaire — celui
+      // qu'un reçu muet imprime.
+      motif: paymentMotifOf(snapshot?.motif ?? paymentMotifFromDetails(log.details)),
       paymentId: snapshot?.paymentId || (log.action === 'RECORD_PAYMENT' ? null : log.targetId || null),
       log,
     });

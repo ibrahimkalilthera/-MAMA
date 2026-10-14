@@ -25,6 +25,8 @@ import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import { localDayIso } from '../src/lib/dailyCashReport';
 import { paymentHistoryRows } from '../src/lib/paymentHistory';
+import { DEFAULT_PAYMENT_MOTIF, paymentMotifLabel } from '../src/lib/paymentMotifs';
+import type { PaymentMotif } from '../src/lib/paymentMotifs';
 import type { PaymentHistoryRow } from '../src/lib/paymentHistory';
 import { archivedPaymentFrom, paymentSnapshotMetadata } from '../src/lib/paymentUndo';
 import type { AuditLogEntry } from '../src/lib/auditLogger';
@@ -51,8 +53,8 @@ const bob: Student = {
   totalDue: 0, amountPaid: 0, dueDate: '2026-10-01', payments: [], notes: '',
 };
 
-const pay = (id: string, amount: number, receiptNumber: string): Payment => ({
-  id, date: DAY, amount, academicYear: '2026-2027', receiptNumber,
+const pay = (id: string, amount: number, receiptNumber: string, motif?: PaymentMotif): Payment => ({
+  id, date: DAY, amount, academicYear: '2026-2027', receiptNumber, motif,
 });
 
 const logs: AuditLogEntry[] = [
@@ -88,7 +90,8 @@ const logs: AuditLogEntry[] = [
     userEmail: 'moussa@mama.test',
     createdAt: `${DAY}T10:00:00Z`,
     details: 'Paiement de 6000 FCFA (reçu REC-2)',
-    metadata: paymentSnapshotMetadata(archivedPaymentFrom(bob.id, bob.name, pay('c3', 6000, 'REC-2'))),
+    // Un DROIT D'INSCRIPTION : la journée mêle donc les deux motifs.
+    metadata: paymentSnapshotMetadata(archivedPaymentFrom(bob.id, bob.name, pay('c3', 6000, 'REC-2', 'inscription'))),
   },
   {
     // Le geste sans caissier identifiable : sa ligne existe, sous le libellé de repli.
@@ -135,6 +138,10 @@ function mount(cardRows: PaymentHistoryRow[] = rows) {
     container,
     text: () => container.textContent ?? '',
     body: () => container.querySelector('tbody')?.textContent ?? '',
+    /** Le tableau des MOTIFS : le second de la carte (le premier est celui des caissiers). */
+    motifBody: () => container.querySelectorAll('table')[1]?.querySelector('tbody')?.textContent ?? '',
+    /** La liste des annulations du jour. */
+    cancelList: () => container.querySelector('ul')?.textContent ?? '',
     dayField: () => container.querySelector<HTMLInputElement>(`input[aria-label="${t.dailyCashReportDay}"]`),
     exportButton: () => [...container.querySelectorAll('button')].find((b) => (b.textContent ?? '').includes(t.exportPdf)),
     cleanup: () => { act(() => root.unmount()); container.remove(); },
@@ -152,7 +159,11 @@ describe('DailyCashReportCard — la caisse du jour, en un tableau', () => {
       assert.match(text, new RegExp(t.dailyCashReportCancelled));
 
       // Trois caissiers : Aggee, Moussa, et les gestes sans compte.
-      assert.equal(h.container.querySelectorAll('tbody tr').length, 3, 'un caissier par ligne');
+      assert.equal(
+        h.container.querySelector('table')?.querySelectorAll('tbody tr').length,
+        3,
+        'un caissier par ligne — le tableau des caissiers, pas celui des motifs',
+      );
       const body = h.body();
       assert.match(body, /Aggee Diarra/);
       assert.match(body, /Moussa Keïta/);
@@ -215,6 +226,35 @@ describe('DailyCashReportCard — la caisse du jour, en un tableau', () => {
       assert.equal(field.getAttribute('type'), 'date');
       assert.equal(field.value, localDayIso(), 'la journée proposée est celle du poste, pas celle d’UTC');
       assert.equal(h.exportButton()?.disabled, false, 'avec des gestes, le rapport s’exporte');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  // ─── La répartition par MOTIF ──────────────────────────────────────────────
+  // Le motif est un fait du REÇU : la carte doit dire, sans ouvrir un journal, ce
+  // que la journée a encaissé en scolarité et en inscription — et chaque
+  // annulation doit rappeler le motif du reçu qu'elle a défait, sinon la fermeture
+  // repose la question au guichet. Le calcul vit dans le module pur
+  // (`tests/daily-cash-report.test.ts`) ; ce cas mesure ce que la carte EN MONTRE,
+  // avec les mots du papier remis aux familles.
+  it('dit ce que la journée a encaissé motif par motif, et le motif des annulations', () => {
+    const h = mount();
+    try {
+      assert.ok(
+        h.text().includes(t.dailyCashReportMotifs.replace('{count}', '2')),
+        'le bloc des motifs du jour est titré, et il compte les motifs présents',
+      );
+      const body = h.motifBody();
+      assert.match(body, new RegExp(paymentMotifLabel('inscription', t)), 'le reçu d’inscription est nommé avec les mots du papier');
+      assert.match(body, new RegExp(paymentMotifLabel(DEFAULT_PAYMENT_MOTIF, t)), 'la scolarité aussi');
+      assert.match(body, /6000 XOF/, 'l’encaissé du motif suit le formateur de l’écran');
+      assert.match(body, /5000 XOF/, 'et la scolarité porte l’addition de ses reçus du jour');
+      assert.match(
+        h.cancelList(),
+        new RegExp(paymentMotifLabel(DEFAULT_PAYMENT_MOTIF, t)),
+        'l’annulation dit AUSSI ce que le reçu réglait',
+      );
     } finally {
       h.cleanup();
     }

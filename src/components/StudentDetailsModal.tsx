@@ -1,12 +1,13 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { AlertTriangle, Calendar, Copy, FileText, Printer, Receipt, StickyNote, Trash2, Users, X } from 'lucide-react';
+import { AlertTriangle, Calendar, Copy, FileText, Printer, StickyNote, Trash2, Users, X } from 'lucide-react';
 import type { Student, Payment } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import { academicYearMonths, monthsCoverage, paymentMonthLabel } from '../lib/paymentMonths';
-import { PaymentMonthsEditor } from './PaymentMonthsEditor';
+import { PaymentLedger } from './PaymentLedger';
+import { PaymentMonthsBackfill } from './PaymentMonthsBackfill';
 import { studentMatricule } from '../lib/studentIdentifiers';
 import { ModalShell } from './ModalShell';
 
@@ -97,6 +98,14 @@ export interface StudentDetailsModalProps {
    * impression) n'affiche pas un geste qui ne mène nulle part.
    */
   onReviewDuplicates?: (student: Student) => void;
+  /**
+   * Le reçu MUET sur lequel cette fiche doit s'OUVRIR, quand un écran l'a
+   * demandé — l'écran École des reçus muets (`SilentReceiptsView`), qui liste les
+   * élèves porteurs de reçus sans mois et ouvre celui par lequel on commence.
+   * L'éditeur des mois s'ouvre alors tout seul, sur ce reçu-là et sur aucun
+   * autre. `null`/absent = ouverture ordinaire : rien ne s'ouvre.
+   */
+  focusPaymentId?: string | null;
 }
 
 export function StudentDetailsModal(props: StudentDetailsModalProps) {
@@ -106,7 +115,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
     handleSaveNote, studentDetailTab, setStudentDetailTab, selectedYear, overlayRef,
     onClose, onEdit, onPrint, onDeleteRequest, canDelete, canDeletePayment, onDeletePayment,
     canEditPaymentMonths, onUpdatePaymentMonths,
-    duplicateGroupSize, onReviewDuplicates,
+    duplicateGroupSize, onReviewDuplicates, focusPaymentId,
   } = props;
   // ── Les MOIS DE SCOLARITÉ de cet élève ──────────────────────────────────────
   // Ce que ses paiements DÉCLARENT couvrir, et ce qui reste — calculé par la
@@ -121,40 +130,78 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
   const coverageCount = t.monthsCoveredCount
     .replace('{covered}', String(coverage.covered.length))
     .replace('{total}', String(yearMonths.length));
+  // ── Le PARCOURS DE RATTRAPAGE : les reçus MUETS, du plus ancien au plus récent
+  // Le critère est celui de `coverage.undeclared` — un reçu sans mois DÉCLARÉ ne
+  // dit pas ce qu'il couvre, il ne déclare pas « rien » pour autant. La liste est
+  // ordonnée par la date (une date `YYYY-MM-DD` se trie en texte, et le tri est
+  // STABLE : deux reçus du même jour gardent leur ordre) : on rattrape dans
+  // l'ordre du calendrier, pas dans celui des clics.
+  const silentPayments = selectedStudent.payments
+    .filter((p) => p.id && (!p.months || p.months.length === 0))
+    .sort((a, b) => a.date.localeCompare(b.date));
   // Notes ⇄ Calendar bridge: optional date picked next to the sticky note.
   const [noteDateInput, setNoteDateInput] = useState('');
-  // Suppression d'un paiement : une confirmation EN LIGNE (pas de dialogue
-  // navigateur) puis l'appel. `deletingPaymentId` désactive le bouton pendant
-  // l'aller-retour et `deletingPaymentIdRef` ferme la course d'un double clic —
-  // le second appel verrait « zéro ligne supprimée » et crierait à tort
-  // « droits insuffisants » (même garde que le formulaire de paiement).
-  const [pendingDeletePaymentId, setPendingDeletePaymentId] = useState<string | null>(null);
-  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
-  const deletingPaymentIdRef = useRef<string | null>(null);
-  const handleDeletePayment = async (payment: Payment) => {
-    if (!payment.id || deletingPaymentIdRef.current) return;
-    deletingPaymentIdRef.current = payment.id;
-    setDeletingPaymentId(payment.id);
-    const ok = await onDeletePayment(selectedStudent.id, payment);
-    deletingPaymentIdRef.current = null;
-    setDeletingPaymentId(null);
-    // Succès : la ligne a quitté la liste, on referme la confirmation. Échec :
-    // on la laisse ouverte (le toast a déjà dit pourquoi).
-    if (ok) setPendingDeletePaymentId(null);
-  };
+  // La suppression d'un paiement (confirmation en ligne, garde de double clic)
+  // vit désormais dans le carnet lui-même (`PaymentLedger`) : c'est un état
+  // purement local à une ligne, et le laisser ici obligeait à faire remonter
+  // trois props pour une course qui n'existe qu'entre cette ligne et sa
+  // confirmation.
   // ── Renseigner les mois d'un reçu MUET ───────────────────────────────────
   // Un reçu antérieur à la colonne `months` (ou envoyé sans cocher) ne dit pas
-  // ce qu'il couvre. On ne le devine pas : on le demande à l'école, ici, sur la
-  // ligne du reçu que la fiche compte déjà comme muet. Mêmes gardes que la
-  // suppression : un seul geste à la fois (`savingMonthsIdRef`), et la ligne
-  // reste ouverte si la base refuse (le toast dit pourquoi).
+  // ce qu'il couvre. On ne le devine pas : on le demande à l'école, depuis la
+  // ligne du carnet comme depuis le parcours de rattrapage, qui ouvrent le MÊME
+  // éditeur. Un seul geste à la fois (`savingMonthsIdRef`), et l'éditeur reste
+  // OUVERT si la base refuse (le toast a déjà dit pourquoi).
   //
   // Le choix lui-même vit dans `PaymentMonthsEditor` : la fiche ne garde que
   // l'identité du reçu en cours d'édition, et le composant rend les mois TRIÉS.
   const [editingMonthsPaymentId, setEditingMonthsPaymentId] = useState<string | null>(null);
   const [savingMonthsId, setSavingMonthsId] = useState<string | null>(null);
   const savingMonthsIdRef = useRef<string | null>(null);
-  const openMonthsEditor = (payment: Payment) => setEditingMonthsPaymentId(payment.id ?? null);
+  // D'où l'éditeur a été ouvert : la ligne du carnet, ou le parcours de
+  // rattrapage. UN SEUL hôte à la fois — sans quoi le même reçu rendrait deux
+  // éditeurs (vingt-quatre pastilles au lieu de douze), et le `waitForSelector`
+  // du pixel-check ne saurait plus quel éditeur il juge. C'est aussi ce qui
+  // décide de la suite à donner à un succès (voir `handleSaveMonths`).
+  const [editorHost, setEditorHost] = useState<'ledger' | 'backfill' | null>(null);
+  // `useCallback` n'est pas décoratif ici : l'effet du FOCUS ci-dessous doit
+  // pouvoir l'appeler sans se rejouer à chaque rendu (la fonction ne touche que
+  // deux `setState`, donc son identité n'a aucune raison de changer).
+  const openMonthsEditor = useCallback((payment: Payment, host: 'ledger' | 'backfill') => {
+    setEditingMonthsPaymentId(payment.id ?? null);
+    setEditorHost(host);
+  }, []);
+  const closeMonthsEditor = () => {
+    setEditingMonthsPaymentId(null);
+    setEditorHost(null);
+  };
+  /**
+   * ── Le reçu MUET qu'un autre écran a demandé d'ouvrir ────────────────────
+   * L'écran École des reçus muets ouvre une fiche SUR un reçu précis
+   * (`focusPaymentId`) : l'éditeur des mois doit s'ouvrir au premier rendu, sur
+   * ce reçu et sur aucun autre (d'où l'hôte `backfill` : l'enregistrement
+   * enchaîne alors sur le reçu muet suivant, comme le parcours le fait déjà).
+   *
+   * Le focus est CONSOMMÉ une fois par identifiant : l'énregistrement retire le
+   * reçu de `silentPayments` et re-rend la fiche — une seconde ouverture de
+   * l'éditeur que l'école vient de fermer serait un vol de clic. AppModals remet
+   * `studentFileFocus` à zéro à chaque fermeture, donc le même reçu rouvert depuis
+   * l'écran École rouvre bien son éditeur : c'est un NOUVEAU clic.
+   *
+   * Un reçu demandé qui n'est pas (ou plus) muet de CET élève ne fait rien : un
+   * focus périmé n'ouvre pas un éditeur sur un reçu déjà renseigné — l'écraser
+   * serait un autre geste. Et sans droit d'écrire les mois
+   * (`canEditPaymentMonths`, lu sur la base), la fiche s'affiche simplement.
+   */
+  const consumedFocusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusPaymentId || consumedFocusRef.current === focusPaymentId) return;
+    if (!canEditPaymentMonths || yearMonths.length === 0) return;
+    const target = silentPayments.find((p) => p.id === focusPaymentId);
+    if (!target) return;
+    consumedFocusRef.current = focusPaymentId;
+    openMonthsEditor(target, 'backfill');
+  }, [focusPaymentId, canEditPaymentMonths, yearMonths.length, silentPayments, openMonthsEditor]);
   const handleSaveMonths = async (payment: Payment, months: string[]) => {
     if (!payment.id || savingMonthsIdRef.current || months.length === 0) return;
     savingMonthsIdRef.current = payment.id;
@@ -162,7 +209,19 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
     const ok = await onUpdatePaymentMonths(selectedStudent.id, payment, months);
     savingMonthsIdRef.current = null;
     setSavingMonthsId(null);
-    if (ok) setEditingMonthsPaymentId(null);
+    // Un refus laisse l'éditeur OUVERT avec le choix intact : le toast a déjà dit
+    // pourquoi, et refermer effacerait le travail de l'école.
+    if (!ok) return;
+    // Un succès AVANCE : le parcours enchaîne sur le reçu muet suivant, dans
+    // l'ordre de la liste d'AVANT l'enregistrement (le reçu qu'on vient d'écrire
+    // en est retiré par son id, donc « le premier restant » EST le suivant).
+    // Depuis le carnet, il n'y a pas de suite : on referme.
+    const remaining = silentPayments.filter((p) => p.id !== payment.id);
+    if (editorHost === 'backfill' && remaining.length > 0) {
+      setEditingMonthsPaymentId(remaining[0].id ?? null);
+      return;
+    }
+    closeMonthsEditor();
   };
   return (
     <ModalShell
@@ -382,125 +441,62 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                       <p className="text-2xs font-semibold text-emerald-600 dark:text-emerald-400">{t.monthsCoverageComplete}</p>
                     )}
                     {coverage.undeclared > 0 && (
-                      <p className="text-2xs font-semibold text-amber-600 dark:text-amber-400">
+                      <p data-slot="student-months-undeclared" className="text-2xs font-semibold text-amber-600 dark:text-amber-400">
                         {t.monthsUndeclaredNote.replace('{count}', String(coverage.undeclared))}
                       </p>
                     )}
                   </div>
                 )}
 
-                {/* Mini Payment Ledger */}
-                <div className="space-y-2">
-                  <span className={`text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.paymentHistoryLedger}</span>
-                  {/* L'éditeur des mois est plus haut que trois lignes de reçu :
-                      dans la fenêtre d'origine (6 rem) ses pastilles et son
-                      bouton de validation tombaient hors du cadre. La fenêtre
-                      s'ouvre pendant l'édition, et reprend sa taille ensuite. */}
-                  <div className={`space-y-2 ${editingMonthsPaymentId ? 'max-h-80' : 'max-h-24'} overflow-y-auto pr-2 custom-scrollbar`}>
-                    {selectedStudent.payments.length > 0 ? (
-                      [...selectedStudent.payments].reverse().map((p, idx) => (
-                        <div key={`${p.date}-${p.amount}-${idx}`} className={`flex items-center justify-between p-3 ${currentTheme.surfaceInset} rounded-xl text-xs`}>
-                          {pendingDeletePaymentId === p.id ? (
-                            /* Confirmation EN LIGNE (pas de dialogue navigateur) :
-                               la phrase dit ce qui part, et le journal en gardera
-                               la trace sous « Paiement supprimé ». */
-                            <div className="flex flex-col gap-2 w-full">
-                              <span className="text-2xs font-bold text-rose-600">
-                                {t.deletePaymentConfirm
-                                  .replace('{amount}', formatCurrency(p.amount))
-                                  .replace('{receipt}', p.receiptNumber || 'N/A')}
-                              </span>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => { void handleDeletePayment(p); }}
-                                  disabled={deletingPaymentId === p.id}
-                                  className="px-2 py-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded text-2xs font-bold transition-all"
-                                >
-                                  {t.deletePayment}
-                                </button>
-                                <button
-                                  onClick={() => setPendingDeletePaymentId(null)}
-                                  className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 rounded text-2xs font-bold transition-all`}
-                                >
-                                  {t.cancel}
-                                </button>
-                              </div>
-                            </div>
-                          ) : editingMonthsPaymentId === p.id ? (
-                            /* Renseigner les mois — l'éditeur REMPLACE la ligne,
-                               comme la confirmation de suppression : un seul
-                               geste à l'écran à la fois. */
-                            <PaymentMonthsEditor
-                              yearMonths={yearMonths}
-                              initialMonths={p.months ?? []}
-                              t={t}
-                              currentTheme={currentTheme}
-                              saving={savingMonthsId === p.id}
-                              onSave={(months) => { void handleSaveMonths(p, months); }}
-                              onCancel={() => setEditingMonthsPaymentId(null)}
-                            />
-                          ) : (
-                            <>
-                              <div className="flex flex-col">
-                                <span className={currentTheme.muted}>{formatDate(p.date)}</span>
-                                {p.receiptNumber && <span className="text-2xs text-slate-400 font-mono">{t.receiptNoShort} {p.receiptNumber}</span>}
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="font-bold text-emerald-600">+{formatCurrency(p.amount)}</span>
-                                {/* Le reçu NE DÉCLARE aucun mois : ses
-                                    réimpressions ne nomment que le mois de sa
-                                    date, et la famille repart avec un papier
-                                    incomplet. C'est le seul cas où l'école doit
-                                    compléter, donc le seul où le bouton
-                                    apparaît — dans la couleur de la phrase qui
-                                    compte ces reçus juste au-dessus. Il faut
-                                    aussi une année lisible : sans elle, il n'y
-                                    a pas de mois à proposer. */}
-                                {canEditPaymentMonths && p.id && yearMonths.length > 0 && (!p.months || p.months.length === 0) && (
-                                  <button
-                                    onClick={() => openMonthsEditor(p)}
-                                    className="px-2 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60 hover:bg-amber-100 dark:hover:bg-amber-950/60 rounded text-2xs font-bold transition-all flex items-center gap-1"
-                                    title={t.paymentMonthsEdit}
-                                  >
-                                    <Calendar size={12} /> {t.paymentMonthsEdit}
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => generatePaymentReceiptPdf({
-                                    student: selectedStudent,
-                                    payment: p,
-                                    lang,
-                                    cashierName: currentUser?.name || 'Administration'
-                                  })}
-                                  className={`px-2 py-1 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} rounded text-2xs font-bold transition-all shadow-sm flex items-center gap-1`}
-                                  title={t.downloadReceiptPdf}
-                                >
-                                  <Receipt size={12} /> {t.receipt2}
-                                </button>
-                                {/* « Payment deleters delete payments » : pas de rôle
-                                    (admin, dev ou econome), pas de bouton. Le libellé
-                                    accompagne l'icône — une corbeille seule se lit comme
-                                    un ornement — et la pastille reprend la forme du bouton
-                                    « Reçu » voisin. */}
-                                {canDeletePayment && p.id && (
-                                  <button
-                                    onClick={() => setPendingDeletePaymentId(p.id ?? null)}
-                                    className="px-2 py-1 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded text-2xs font-bold transition-all flex items-center gap-1"
-                                    title={t.deletePayment}
-                                  >
-                                    <Trash2 size={12} /> {t.deletePayment}
-                                  </button>
-                                )}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <p className={`text-xs ${currentTheme.muted} italic p-2`}>{t.noPayments}</p>
-                    )}
-                  </div>
-                </div>
+                {/* ── LE PARCOURS DE RATTRAPAGE des reçus muets ───────────────
+                    Ce que la phrase ambre ci-dessus COMPTE, ce parcours le LISTE
+                    et l'enchaîne : un reçu, un enregistrement, le suivant qui
+                    s'ouvre tout seul. Il ne remplace pas le geste direct du
+                    carnet — les deux ouvrent le MÊME éditeur, et un seul à la
+                    fois (`editorHost`). Sans droit d'écriture (`admin`/`dev`),
+                    il n'y a pas de parcours : la phrase compte, et s'arrête là. */}
+                {canEditPaymentMonths && yearMonths.length > 0 && silentPayments.length > 0 && (
+                  <PaymentMonthsBackfill
+                    silentPayments={silentPayments}
+                    yearMonths={yearMonths}
+                    editingPaymentId={editorHost === 'backfill' ? editingMonthsPaymentId : null}
+                    saving={savingMonthsId !== null}
+                    t={t}
+                    currentTheme={currentTheme}
+                    formatDate={formatDate}
+                    formatCurrency={formatCurrency}
+                    onOpen={(p) => openMonthsEditor(p, 'backfill')}
+                    onSave={(p, months) => { void handleSaveMonths(p, months); }}
+                    onCancel={closeMonthsEditor}
+                  />
+                )}
+
+                {/* Le CARNET des paiements — extrait dans son propre composant
+                    (`PaymentLedger`) pour tenir le budget de 700 lignes par
+                    fichier, comme l'éditeur des mois l'a été avant lui. La fiche
+                    lui passe ce qu'il ne peut pas décider seul : le droit
+                    d'écrire les mois (policy UPDATE de `payments`), le droit de
+                    supprimer, et QUI héberge l'éditeur déjà ouvert. */}
+                <PaymentLedger
+                  student={selectedStudent}
+                  yearMonths={yearMonths}
+                  t={t}
+                  lang={lang}
+                  currentTheme={currentTheme}
+                  currentUser={currentUser}
+                  formatDate={formatDate}
+                  formatCurrency={formatCurrency}
+                  generatePaymentReceiptPdf={generatePaymentReceiptPdf}
+                  canEditPaymentMonths={canEditPaymentMonths}
+                  canDeletePayment={canDeletePayment}
+                  editingPaymentId={editingMonthsPaymentId}
+                  editorHost={editorHost}
+                  savingMonthsId={savingMonthsId}
+                  onOpenMonths={(p) => openMonthsEditor(p, 'ledger')}
+                  onSaveMonths={(p, months) => { void handleSaveMonths(p, months); }}
+                  onCancelMonths={closeMonthsEditor}
+                  onDeletePayment={onDeletePayment}
+                />
               </div>
             )}
 
