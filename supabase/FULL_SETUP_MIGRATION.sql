@@ -10,7 +10,7 @@
 -- Régénération :  node supabase/regenerate-full-setup.mjs
 -- Vérification :  node supabase/regenerate-full-setup.mjs --check
 --
--- Ce script est la concaténation des 34 migrations suivantes, dans
+-- Ce script est la concaténation des 40 migrations suivantes, dans
 -- l'ordre chronologique de leur nom de fichier :
 --
 --   20260801000000_init.sql
@@ -47,6 +47,12 @@
 --   20261006000000_students_matricule_all.sql
 --   20261011000000_payments_months.sql
 --   20261011000001_drop_students_dupe_backup.sql
+--   20261013000000_econome_payment_months.sql
+--   20261013000001_payments_write_lock.sql
+--   20261014000000_finance_writer_staff_vendor.sql
+--   20261015000000_inherited_policy_closure.sql
+--   20261016000000_payments_motif.sql
+--   20261017000000_rls_declared_alignment.sql
 --
 -- Exécuté dans le Supabase SQL Editor, il recrée le schéma complet
 -- (tables, index, fonctions, triggers, politiques RLS, données de
@@ -1168,48 +1174,75 @@ ALTER TABLE public.staff
 -- MIGRATION : 20260906000002_vendor_expense_gm_policies.sql
 -- ============================================================================
 
--- Migration: vendor_expenses write policies → finance admins.
+-- Migration: la SUPPRESSION d'une dépense fournisseur passe aux finance admins
+--            (admin, dev, Gestionnaire Principal) — pas aux seuls admin/dev.
 --
--- The app has ALWAYS treated the general_manager (Gestionnaire Principal) as a
--- finance admin able to CREATE and DELETE vendor expenses: the UI gates
--- (ExpensesView canManageVendors, useExpenses isFinanceAdmin) and the submit
--- handler's "only the promoter can create a vendor expense" alert all fire
--- for finance admins (admin/dev + general_manager), and the role migration
--- 20260902000000 documented general_manager as "full FINANCIAL
--- administration: vendor expenses, scholarship discounts, Excel imports,
--- staff & salary writes".
+-- ─── Ce que ce fichier devait faire, et ce qu'il en reste ───────────────────
+-- Écrit le 2026-09-06 pour le Gestionnaire Principal, il n'a JAMAIS été appliqué
+-- à la base de l'école. Entre-temps, sa moitié INSERTION a été livrée autrement
+-- et sa moitié SUPPRESSION est restée fermée : les deux moitiés ne se rejouent
+-- donc pas de la même façon, et ce fichier dit maintenant laquelle il porte.
 --
--- The RLS policies introduced by 20260828000000 were never widened when the
--- general_manager role landed: INSERT and DELETE still demanded
--- public.is_admin() (admin/dev only), so a general_manager saw the create /
--- delete buttons in the UI but every write was silently rejected by Postgres
--- ("new row violates row-level security policy"). This migration closes that
--- app↔DB gap.
+--   • INSERTION (`vendor_expenses`) — SUPPLANTÉE, retirée de ce fichier.
+--     L'insertion que cette migration ouvrait à `is_finance_admin()` a été livrée
+--     le 2026-10-13 par `20261014000000_finance_writer_staff_vendor.sql`, sous une
+--     règle PLUS LARGE — `public.is_finance_writer()`, qui ajoute l'économe
+--     (« il a accès à tout sauf les paramètres du système », propriétaire,
+--     2026-10-13). La recréer ici rouvrirait un SECOND nom pour la même écriture,
+--     c'est-à-dire exactement ce que `20261014000000` a retiré.
+--     MESURÉ le 2026-10-13 : le fichier tel qu'il était écrit ne s'appliquait
+--     même plus — `npm run db:apply` répondait « déjà ABSENT avant :
+--     policy:Promoter insert vendor_expenses », parce que sa moitié INSERT avait
+--     déjà été retirée par `20261014000000`. C'est la preuve que cette moitié est
+--     de l'HISTOIRE, pas un geste à rejouer.
 --
--- The promoter-only monopoly is NOT removed for existing records: the
--- BEFORE UPDATE trigger (protect_vendor_expense_financial_edit) still keeps
--- vendor_name / amount immutable for everyone but admin/dev, so the update
--- semantics documented in 20260828000000 are unchanged.
+--   • SUPPRESSION (`vendor_expenses`) — c'est ce que ce fichier applique.
+--     La base de l'école porte DEUX noms hérités, tous deux `is_admin()` :
+--       « Admin can delete vendor_expenses »  — qu'AUCUNE migration ne déclare
+--                                              ni ne retire (génération d'avant
+--                                              les migrations) ;
+--       « Promoter delete vendor_expenses »   — déclaré par 20260828000000,
+--                                              supplanté ici.
+--     Mesuré le 2026-10-13 par `npm run check:rls-policies` : « Finance admins
+--     delete vendor_expenses » ABSENTE en base, ces deux noms EN TROP. Le
+--     Gestionnaire Principal voyait donc le bouton « Supprimer » sur sa page
+--     Dépenses — l'écran le lui montrait depuis 20260902000000 — et la base
+--     refusait chacune de ses suppressions : le même défaut app↔base que
+--     l'insertion, dans la même table, cinq semaines plus tard.
+--
+-- ─── La décision ────────────────────────────────────────────────────────────
+-- La suppression d'une dépense fournisseur appartient à `public.is_finance_admin()`
+-- (`20260902000000_general_manager_role.sql`) : admin, dev, Gestionnaire Principal.
+-- L'économe n'y est PAS : il SAISIT les dépenses fournisseur
+-- (`is_finance_writer()`), il ne les détruit pas — écrire et détruire ne sont pas
+-- le même droit (même partage que la paie, 20261005000000 / 20261005000003).
+-- L'écran lit la même règle (`canDeleteVendorExpenses`, `src/lib/payrollRights.ts`) :
+-- un rôle ajouté d'un seul côté fait rougir `tests/finance-rights.test.ts` au lieu
+-- d'ouvrir une corbeille que la base refuse (42501) ou d'en cacher une qu'elle
+-- accepte.
+--
+-- Ce qui NE bouge pas : le monopole promoteur sur les enregistrements EXISTANTS
+-- (trigger `protect_vendor_expense_financial_fields` : `vendor_name` et `amount`
+-- restent à admin/dev hors création, 20260828000000), la lecture de la table
+-- (tout compte connecté), et la suppression d'une dépense GÉNÉRALE (`expenses`),
+-- qui reste `is_admin()` — le Gestionnaire Principal n'y reçoit toujours pas de
+-- corbeille (`canDelete`, `src/lib/deleteRights.ts`).
+--
+-- Rejouable : le nom que cette migration crée est retiré AVANT d'être recréé.
 
--- ─── 1. INSERT: finance admins may create ───────────────────────────────────
-DROP POLICY IF EXISTS "Promoter insert vendor_expenses" ON public.vendor_expenses;
-
-CREATE POLICY "Finance admins insert vendor_expenses"
-    ON public.vendor_expenses
-    FOR INSERT
-    TO authenticated
-    WITH CHECK (public.is_finance_admin());
-
--- ─── 2. DELETE: finance admins may delete ───────────────────────────────────
+-- ─── vendor_expenses : la suppression passe aux finance admins ───────────────
+-- Les deux noms hérités partent. Les policies permissives se cumulent par OR,
+-- donc en laisser un n'aurait pas changé le RÉSULTAT — mais il laisserait croire
+-- que `is_admin()` (admin, dev) est encore la règle de la suppression d'une
+-- dépense fournisseur. Elle ne l'est plus : le Gestionnaire Principal la partage.
+DROP POLICY IF EXISTS "Admin can delete vendor_expenses" ON public.vendor_expenses;
 DROP POLICY IF EXISTS "Promoter delete vendor_expenses" ON public.vendor_expenses;
-
-CREATE POLICY "Finance admins delete vendor_expenses"
-    ON public.vendor_expenses
-    FOR DELETE
-    TO authenticated
+DROP POLICY IF EXISTS "Finance admins delete vendor_expenses" ON public.vendor_expenses;
+CREATE POLICY "Finance admins delete vendor_expenses" ON public.vendor_expenses
+    FOR DELETE TO authenticated
     USING (public.is_finance_admin());
 
--- ─── 3. PostgREST schema cache reload ───────────────────────────────────────
+-- ─── PostgREST schema cache reload ──────────────────────────────────────────
 NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
@@ -2115,3 +2148,677 @@ ALTER TABLE public.payments
 -- puis le relevé à la clé publique : la table doit répondre 404 (PGRST205), et
 -- surtout ne plus rendre une seule ligne.
 DROP TABLE IF EXISTS public.students_dupe_backup_20261005;
+
+-- ============================================================================
+-- MIGRATION : 20261013000000_econome_payment_months.sql
+-- ============================================================================
+
+-- Migration: l'économe peut RENSEIGNER les mois d'un reçu — et RIEN d'autre.
+--
+-- ─── Le défaut, mesuré le 2026-10-13 ────────────────────────────────────────
+-- La fiche de l'élève offre « Renseigner les mois » sur un reçu muet, mais
+-- seulement là où la base l'autorise : l'écriture de `payments.months` passait
+-- par la policy « Admin update payments » (`public.is_admin()` = admin, dev —
+-- 20260809000000_auth_and_rls.sql). Or c'est l'économe qui tient la caisse,
+-- repartage les reçus et sait ce qu'un reçu ANTÉRIEUR à la colonne
+-- (20261011000000_payments_months.sql) couvrait. Il SUPPRIME déjà un reçu fautif
+-- (`public.is_payment_deleter()` = admin, dev, econome) mais ne pouvait pas en
+-- renseigner les mois : refuser le second tout en accordant le premier laissait
+-- l'école devant un reçu qui ne nomme qu'un mois, indéfiniment — et le seul
+-- recours était de le SUPPRIMER pour le ressaisir, ce qui change son numéro, sa
+-- date et son auteur au journal.
+--
+-- ─── La décision (propriétaire, 2026-10-13) ─────────────────────────────────
+-- L'économe RENSEIGNE les mois — c'est ce que son guichet voit — mais il ne
+-- réécrit pas l'ARGENT : ni `amount`, ni `date`, ni `receipt_number`, ni
+-- `student_id`.
+--
+-- Pourquoi une FONCTION, et pas une policy élargie. Une policy RLS est au niveau
+-- de la LIGNE : `FOR UPDATE USING (public.is_payment_month_editor())` laisserait
+-- le rôle `authenticated` — que TOUS les postes partagent — réécrire n'importe
+-- quelle colonne d'un reçu autorisé, montant compris. Les privilèges de colonne
+-- (`GRANT UPDATE (months) …`) ne répondent pas non plus : ils sont portés par le
+-- rôle de BASE, pas par le rôle métier, donc ils s'appliqueraient aussi à `admin`,
+-- et le seul AUTRE UPDATE de `payments` de l'application — `student_id`, la
+-- ré-attribution d'un reçu lors d'une fusion d'élèves
+-- (src/lib/dataOps/students.ts) — devrait être ouvert avec, ce qui donnerait à
+-- l'économe le pouvoir de DÉPLACER de l'argent d'un élève à un autre. Le rôle
+-- d'écriture est donc borné par CONSTRUCTION : `public.set_payment_months()` est
+-- le seul chemin, et la seule colonne nommée dans sa requête est `months`.
+--
+-- Ce qui n'est PAS borné, volontairement : réécrire des mois DÉJÀ déclarés. La
+-- borne « seulement si le reçu ne déclare rien » serait un théâtre : l'économe
+-- détient la suppression, donc il peut retirer le reçu et le ressaisir avec les
+-- mois de son choix. Une borne plus faible que celle déjà accordée ne protège
+-- rien ; elle ferait seulement croire que la caisse est plus contrainte qu'elle
+-- ne l'est. L'écran, lui, n'offre le geste que sur un reçu muet.
+--
+-- ─── Ce que la fonction REFUSE, et ce qu'elle rend ──────────────────────────
+--   • un appelant qui n'est ni `admin`, ni `dev`, ni `econome` → `42501` (le code
+--     que l'école a déjà vu dans la file de rejeu) ;
+--   • un identifiant de reçu absent → `23514`, plutôt qu'un UPDATE qui ne touche
+--     rien et rendrait « 0 » sans dire pourquoi ;
+--   • un tableau de mois VIDE → `23514` : écrire `{}` ne déclare rien de plus que
+--     le silence d'avant, en donnant l'impression d'une fiche complétée ;
+--   • un mois qui n'est pas `AAAA-MM` (ou `NULL`) → `23514`, la même forme que le
+--     CHECK `payments_months_shape_check`, refusée ici avec un message qui dit
+--     quoi écrire.
+--
+-- Elle rend le NOMBRE de lignes écrites. Zéro n'est pas un succès : l'application
+-- le DIT, comme pour la suppression — une cible absente rend un succès HTTP sans
+-- avoir rien écrit, et un « 0 » avalé ferait annoncer « mois renseignés » sur rien.
+--
+-- ─── L'EXECUTE, nommément (leçon du 2026-09-06) ─────────────────────────────
+-- `ALTER DEFAULT PRIVILEGES` de Supabase donne à `anon` un droit d'exécution
+-- DIRECT sur toute fonction créée — un `REVOKE … FROM public` ne le retire pas
+-- (20260906000000_anon_cannot_execute_admin_set_user_password.sql). On retire
+-- donc explicitement `anon` ET `public`, et on n'accorde qu'à `authenticated`.
+-- La garde de rôle dans le corps reste la barrière : `anon` n'a pas de session,
+-- donc `auth.uid()` est NULL et `is_payment_month_editor()` est faux.
+--
+-- `public.is_payment_month_editor()` n'est pas restreinte, comme `is_admin()`,
+-- `is_payment_deleter()` et `is_payroll_writer()` : elle ne lit que le rôle de
+-- l'appelant et ne rend vrai que pour lui.
+
+-- ─── Helper: qui peut RENSEIGNER les mois d'un reçu ─────────────────────────
+CREATE OR REPLACE FUNCTION public.is_payment_month_editor()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'dev', 'econome')
+  );
+$$;
+
+-- ─── L'écriture bornée : les mois d'un reçu, et rien d'autre ────────────────
+CREATE OR REPLACE FUNCTION public.set_payment_months(
+    p_payment_id UUID,
+    p_months TEXT[]
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_months TEXT[];
+  v_rows INTEGER;
+BEGIN
+  IF NOT public.is_payment_month_editor() THEN
+    RAISE EXCEPTION 'renseigner les mois d’un reçu demande le rôle admin, dev ou econome'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_payment_id IS NULL THEN
+    RAISE EXCEPTION 'le reçu à renseigner doit être nommé (identifiant manquant)'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF p_months IS NULL OR cardinality(p_months) = 0 THEN
+    RAISE EXCEPTION 'au moins un mois est requis : un tableau vide ne déclare rien'
+      USING ERRCODE = '23514';
+  END IF;
+
+  -- `m IS NULL` est nommé : `NULL !~ '…'` vaut NULL, donc un élément NULL
+  -- traverserait le EXISTS sans être refusé, et n'irait buter que sur le CHECK.
+  IF EXISTS (
+    SELECT 1 FROM unnest(p_months) AS m
+    WHERE m IS NULL OR m !~ '^\d{4}-(0[1-9]|1[0-2])$'
+  ) THEN
+    RAISE EXCEPTION 'un mois s’écrit AAAA-MM (par exemple 2026-09)'
+      USING ERRCODE = '23514';
+  END IF;
+
+  -- Canonique : dédoublonné et rangé. L'application trie déjà avant d'appeler
+  -- (src/lib/paymentMonths.ts) ; le refaire ici ferme la question pour TOUT
+  -- appelant, y compris un appel direct à la RPC.
+  SELECT array_agg(DISTINCT m ORDER BY m) INTO v_months FROM unnest(p_months) AS m;
+
+  -- UNE seule colonne. Ni `amount`, ni `date`, ni `receipt_number`, ni
+  -- `student_id` : ce n'est pas une convention, c'est la requête.
+  UPDATE public.payments SET months = v_months WHERE id = p_payment_id;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  RETURN v_rows;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.set_payment_months(uuid, text[]) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.set_payment_months(uuid, text[]) FROM public;
+GRANT EXECUTE ON FUNCTION public.set_payment_months(uuid, text[]) TO authenticated;
+
+-- ─── PostgREST schema cache reload ──────────────────────────────────────────
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- MIGRATION : 20261013000001_payments_write_lock.sql
+-- ============================================================================
+
+-- Migration: refermer l'écriture d'un reçu — l'argent ne se réécrit plus par un
+-- UPDATE de table, et la seule ré-attribution utile passe par une FONCTION bornée.
+--
+-- ─── Le défaut, mesuré le 2026-10-13 sur la base de l'ÉCOLE ─────────────────
+-- `20261013000000_econome_payment_months.sql` promet une borne : l'économe
+-- renseigne les MOIS d'un reçu, et l'argent lui reste fermé (`Admin update
+-- payments` = `public.is_admin()`). La promesse était vraie dans les migrations et
+-- FAUSSE dans la base : celle-ci portait encore les trois politiques de sa mise en
+-- place manuelle — « Authenticated users can read / insert / update payments »,
+-- cette dernière avec `USING (true)` — ANTÉRIEURES aux politiques du dépôt
+-- (xid 1282 contre 1505-1507), et `20260809000000_auth_and_rls.sql` ne les avait
+-- jamais retirées : il retirait les « Allow anonymous … », un autre jeu de noms.
+--
+-- Or les politiques PERMISSIVE s'ADDITIONNENT : `USING (true)` rendait la garde
+-- `is_admin()` inopérante. Mesuré, transaction annulée, sur un reçu réel de la
+-- base partagée : `general_manager` — `is_admin()` faux, `is_payment_deleter()`
+-- faux, `is_payment_month_editor()` faux — modifiait `amount` (1 ligne). Tout
+-- compte connecté le pouvait, et `payments` est la table de l'argent.
+--
+-- ─── Ce que ces trois `DROP` changent, et ce qu'ils ne changent pas ─────────
+--   • `… can update payments` (`USING true`) : LE trou. Sans elle, la seule
+--     écriture directe de `payments` redevient « Admin update payments »
+--     (`public.is_admin()` : admin, dev) — ce que le dépôt déclare depuis le
+--     2026-08-09, et que `tests/payment-rights.test.ts` verrouille.
+--   • `… can insert payments` (`WITH CHECK (true)`) et `… can read payments`
+--     (`USING true`) : des DOUBLONS. La base porte déjà « Authenticated insert
+--     payments » (`auth.role() = 'authenticated'`) et « Authenticated read
+--     payments » (même condition) — MÊME portée, même effet pour un compte
+--     connecté. Les retirer ne change donc rien pour personne : c'est la même
+--     paire, écrite une fois, dans le seul jeu que le dépôt lit. Ce qui change,
+--     c'est qu'il n'y a plus DEUX endroits qui décident, dont un que le dépôt ne
+--     lit pas. `anon`, lui, était déjà refusé (ses « Allow anonymous … » sont
+--     parties le 2026-08-09) : mesuré, 0 ligne.
+--
+-- Insérer un reçu reste ouvert à tout compte connecté, et ce n'est pas un oubli :
+-- c'est le geste du GUICHET — la caisse saisit un reçu, et plusieurs rôles le
+-- font. Le retirer demanderait de nommer qui encaisse : une autre décision. Ce que
+-- ce fichier ferme, c'est l'écriture d'un reçu DÉJÀ enregistré, celle qui touche
+-- l'argent et ne laisse aucune trace du geste.
+--
+-- ─── La seule ré-attribution utile, ouverte NOMMÉMENT ──────────────────────
+-- Le dépôt a UN autre UPDATE de `payments` : la fusion de deux fiches d'élève
+-- déplace leurs reçus (`src/lib/dataOps/students.ts`). Une policy borne des
+-- LIGNES, pas des colonnes — la rouvrir pour ça rouvrirait le MONTANT avec, et
+-- fermer sans rien ouvrir casserait la fusion. Le geste devient donc une FONCTION
+-- bornée, comme les mois :
+--
+--   `public.reassign_payment_student(p_payment_id, p_from_student_id, p_to_student_id)`
+--     • gardée par `public.is_admin()` — le rôle que l'écran offre DÉJÀ pour
+--       fusionner ou supprimer une fiche (`src/lib/deleteRights.ts`, `ADMIN_ROLES`) ;
+--     • un seul SET : `student_id` ;
+--     • la fiche d'ORIGINE est EXIGÉE : un reçu qui n'est plus sur la fiche
+--       attendue rend 0. C'est le `WHERE student_id = …` que le filtre du client
+--       portait ; sans lui, la fusion pourrait déplacer un reçu que quelqu'un vient
+--       de rattacher ailleurs — et c'est ce compte, ligne par ligne, qui arrête le
+--       geste AVANT que la fiche soit supprimée (la cascade emporterait les reçus
+--       restés derrière : c'est l'accident que ce contrôle existe pour empêcher) ;
+--     • elle rend le NOMBRE de lignes écrites : zéro n'est pas un succès, et
+--       l'application le DIT.
+--
+-- ORDRE DE DÉPLOIEMENT : l'application doit être livrée avec ce fichier. Un poste
+-- qui fusionnerait encore par UPDATE direct sera refusé (« Reçus non rattachés —
+-- droits insuffisants, ou les reçus ont changé. Rien n'a été fusionné. »), et la
+-- fusion s'arrête AVANT toute suppression : un refus, jamais un demi-geste.
+--
+-- ─── L'EXECUTE, nommément (leçon du 2026-09-06) ─────────────────────────────
+-- `ALTER DEFAULT PRIVILEGES` de Supabase donne à `anon` un droit d'exécution
+-- DIRECT sur toute fonction créée — un `REVOKE … FROM public` ne le retire pas
+-- (`20260906000000_anon_cannot_execute_admin_set_user_password.sql`). On retire
+-- donc explicitement `anon` ET `public`, et on n'accorde qu'à `authenticated` :
+-- la garde de rôle du corps reste la barrière, et `anon` n'a pas de session.
+
+-- ─── 1. Fermer l'écriture ouverte à tout compte connecté ────────────────────
+DROP POLICY IF EXISTS "Authenticated users can update payments" ON public.payments;
+DROP POLICY IF EXISTS "Authenticated users can insert payments" ON public.payments;
+DROP POLICY IF EXISTS "Authenticated users can read payments" ON public.payments;
+
+-- ─── 2. Rouvrir le SEUL chemin nommé : la ré-attribution d'un reçu ──────────
+CREATE OR REPLACE FUNCTION public.reassign_payment_student(
+    p_payment_id UUID,
+    p_from_student_id UUID,
+    p_to_student_id UUID
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_rows INTEGER;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'déplacer un reçu d’une fiche à une autre demande le rôle admin ou dev'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_payment_id IS NULL OR p_from_student_id IS NULL OR p_to_student_id IS NULL THEN
+    RAISE EXCEPTION 'le reçu, sa fiche d’origine et sa fiche d’arrivée doivent être nommés'
+      USING ERRCODE = '23514';
+  END IF;
+
+  -- Déplacer un reçu vers la fiche où il est déjà ne déplace rien : l'annoncer
+  -- comme un succès ferait croire à une fusion qui n'a pas eu lieu.
+  IF p_from_student_id = p_to_student_id THEN
+    RAISE EXCEPTION 'un reçu ne se déplace pas vers la fiche où il est déjà (rien à faire)'
+      USING ERRCODE = '23514';
+  END IF;
+
+  -- UNE seule colonne, et la fiche d'origine dans le filtre : ce n'est pas une
+  -- convention, c'est la requête. Ni `amount`, ni `date`, ni `receipt_number`.
+  UPDATE public.payments
+     SET student_id = p_to_student_id
+   WHERE id = p_payment_id AND student_id = p_from_student_id;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  RETURN v_rows;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.reassign_payment_student(uuid, uuid, uuid) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.reassign_payment_student(uuid, uuid, uuid) FROM public;
+GRANT EXECUTE ON FUNCTION public.reassign_payment_student(uuid, uuid, uuid) TO authenticated;
+
+-- ─── PostgREST schema cache reload ──────────────────────────────────────────
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- MIGRATION : 20261014000000_finance_writer_staff_vendor.sql
+-- ============================================================================
+
+-- Migration: l'économe (Accountant) peut AJOUTER un membre du personnel et une
+--            dépense fournisseur — « il a accès à tout sauf les paramètres du
+--            système » (propriétaire, 2026-10-13).
+--
+-- ─── Le défaut, mesuré le 2026-10-13 sur la base de l'école ─────────────────
+-- Sur le poste connecté `econome` (aggeediarra@mamathera.org), deux écrans
+-- n'offraient AUCUNE action, et deux autres l'offraient pour être refusés :
+--
+--   • « Pai/Salaires » → Répertoire du personnel : « Ajouter un employé »,
+--     « Ajouter un membre de l'administration », « Ajouter un membre T et P »
+--     n'apparaissaient pas — `canManageStaff` ne citait que `is_finance_admin()`.
+--     Mesuré en base : insertion `staff` en `econome` → 42501 :
+--       [INSERT] « Admin can insert staff »        CHECK is_admin()
+--       [INSERT] « Finance admins insert staff »   CHECK is_finance_admin()
+--
+--   • « Dépenses » → Dépenses générales : l'icône ✚ « Ajouter une dépense »
+--     n'apparaissait pas non plus (la porte de l'écran citait le même
+--     `isPromoter || isGeneralManager`). Là, la base ACCEPTAIT déjà l'économe
+--     (`Authenticated insert expenses` → insertion mesurée : 1) : c'est
+--     l'INTERFACE qui fermait, pas la policy. Ces deux portes passent par la
+--     droit nommé ci-dessous, qui dit qui écrit sans dépendre d'un booléen
+--     d'écran.
+--
+--   • « Dépenses » → Fournisseurs & Services : insertion `vendor_expenses` en
+--     `econome` ET en `general_manager` → 42501. La seule policy d'insertion en
+--     base est encore « Promoter insert vendor_expenses » CHECK is_admin(),
+--     c'est-à-dire la version d'AVANT `20260906000002_vendor_expense_gm_policies.sql`
+--     — laquelle n'a jamais été appliquée ici : le Gestionnaire Principal voit
+--     le bouton « Ajouter une dépense fournisseur » depuis son poste et la base
+--     refuse chacune de ses écritures. Ce n'est pas la demande, c'est le même
+--     défaut dans la même table : le corriger est le seul moyen de nommer la
+--     règle d'écriture des dépenses fournisseur une fois pour tout le monde.
+--
+-- ─── La décision ────────────────────────────────────────────────────────────
+-- Un droit NOMMÉ, `public.is_finance_writer()` = `is_finance_admin()`
+-- (admin, dev, general_manager) **plus `econome`** — la même forme que
+-- `public.is_payroll_writer()` (20261005000000). Les policies d'ÉCRITURE du
+-- personnel et d'INSERTION des dépenses fournisseur passent par lui ; l'écran
+-- lit la même liste (`src/lib/financeRights.ts`), donc un rôle ajouté d'un seul
+-- côté fait rougir `tests/finance-rights.test.ts` au lieu de rouvrir une action
+-- que la base refuse (42501) ou d'en cacher une qu'elle accepte.
+--
+-- CE QUI NE BOUGE PAS, et pourquoi :
+--   • la SUPPRESSION d'un membre du personnel reste `is_finance_admin()` —
+--     recruter et licencier ne sont pas le même droit. L'économe enregistre le
+--     personnel et la paie ; il ne supprime ni l'un ni l'autre.
+--   • la SUPPRESSION d'une dépense (générale ou fournisseur) reste `is_admin()`
+--     (`Admin can delete expenses`, `Promoter delete vendor_expenses`) : mesuré,
+--     l'économe y reçoit 0 ligne touchée. L'écran ne lui montre donc pas de
+--     corbeille (`canDelete`, `src/lib/deleteRights.ts`).
+--   • les policies d'écriture de `expenses` sont laissées INTACTES : elles
+--     acceptent déjà l'économe (et tout compte authentifié — la saisie
+--     quotidienne des dépenses fait partie du rôle `staff`, décision de
+--     20260902000000). Resserrer ici retirerait un droit que des comptes
+--     exercent déjà : cette migration ne fait qu'OUVRIR ce qui est fermé.
+--   • la modification d'une dépense fournisseur existante : la policy large et le
+--     trigger `protect_vendor_expense_financial_fields` gardent `vendor_name` et
+--     `amount` au promoteur (20260828000000) — inchangé.
+
+-- ─── Helper: qui ÉCRIT le personnel et les dépenses fournisseur ─────────────
+CREATE OR REPLACE FUNCTION public.is_finance_writer()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'dev', 'general_manager', 'econome')
+  );
+$$;
+
+-- ─── staff : insertion et correction ouvertes à l'économe ────────────────────
+-- Deux noms hérités se succèdent sur cette table (« Admin can … » puis
+-- « Finance admins … ») : les deux partent. Les policies permissives se
+-- cumulent par OR, donc en laisser une n'aurait pas changé le RÉSULTAT — mais
+-- elle laisserait croire que `is_admin()` ou `is_finance_admin()` est encore la
+-- règle de l'écriture du personnel. Rejouable : on retire AUSSI les noms que
+-- cette migration crée, avant de les recréer (une migration appliquée deux fois
+-- échouait sur « policy already exists » et annulait tout son bloc).
+DROP POLICY IF EXISTS "Admin can insert staff" ON public.staff;
+DROP POLICY IF EXISTS "Finance admins insert staff" ON public.staff;
+DROP POLICY IF EXISTS "Finance writers insert staff" ON public.staff;
+CREATE POLICY "Finance writers insert staff" ON public.staff
+    FOR INSERT WITH CHECK (public.is_finance_writer());
+
+DROP POLICY IF EXISTS "Admin can update staff" ON public.staff;
+DROP POLICY IF EXISTS "Finance admins update staff" ON public.staff;
+DROP POLICY IF EXISTS "Finance writers update staff" ON public.staff;
+CREATE POLICY "Finance writers update staff" ON public.staff
+    FOR UPDATE USING (public.is_finance_writer());
+
+-- ─── vendor_expenses : insertion ouverte à l'économe (et au gestionnaire) ───
+-- Cette policy répare au passage la dérive mesurée sur la base de l'école : le
+-- Gestionnaire Principal, promis « full FINANCIAL administration » depuis
+-- 20260902000000, était refusé à l'insertion.
+DROP POLICY IF EXISTS "Promoter insert vendor_expenses" ON public.vendor_expenses;
+DROP POLICY IF EXISTS "Finance admins insert vendor_expenses" ON public.vendor_expenses;
+DROP POLICY IF EXISTS "Finance writers insert vendor_expenses" ON public.vendor_expenses;
+CREATE POLICY "Finance writers insert vendor_expenses" ON public.vendor_expenses
+    FOR INSERT WITH CHECK (public.is_finance_writer());
+
+-- ─── PostgREST schema cache reload ──────────────────────────────────────────
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- MIGRATION : 20261015000000_inherited_policy_closure.sql
+-- ============================================================================
+
+-- Migration: retirer les POLITIQUES HÉRITÉES de cinq tables — students, parents,
+--            staff, salary_payments, expenses — celles de la mise en place
+--            MANUELLE de la base, antérieures aux politiques du dépôt.
+--
+-- ─── Le défaut, mesuré le 2026-10-13 sur la base de l'ÉCOLE ─────────────────
+-- `20261013000001_payments_write_lock.sql` a fermé les trois politiques héritées
+-- de `payments` — celles que `20260809000000_auth_and_rls.sql` n'avait jamais
+-- retirées parce qu'elles portaient d'AUTRES noms que les « Allow anonymous … »
+-- qu'il retirait. Cinq autres tables portaient la même génération de politiques :
+-- quinze noms que le dépôt ne déclare ni ne retire, sur des tables du registre
+-- scolaire et de l'argent. `npm run check:rls-policies` les nomme « en base,
+-- déclarée par AUCUNE migration » — et ils y restaient parce que le défaut de
+-- `payments` avait été traité seul.
+--
+-- ─── CE QUI EST MESURÉ AVANT D'ÉCRIRE, et pourquoi c'est nécessaire ─────────
+-- Les politiques PERMISSIVES s'ADDITIONNENT : lire le texte d'une policy ne dit
+-- pas qui passe, c'est l'UNION de toutes celles de la table. Avant de retirer
+-- quoi que ce soit, la carte des écritures a donc été MESURÉE sur la base réelle,
+-- rôle par rôle, dans une transaction annulée (`SET LOCAL ROLE authenticated` et
+-- les deux claims JWT, exactement ce que PostgREST pose) :
+--
+--   table             lire   insérer                    corriger   corriger$   supprimer
+--   students          tous   tous                       tous       tous ⚠️     admin, dev
+--   parents           tous   tous                       tous       —           admin, dev
+--   staff             tous   admin, dev, GM, économe    idem       idem        admin, dev, GM
+--   salary_payments   tous   admin, dev, GM, économe    idem       idem        admin, dev, GM
+--   expenses          tous   tous                       tous       tous ⚠️     admin, dev
+--
+--   « tous » = tout compte connecté ; « corriger$ » = la colonne de l'ARGENT
+--   (`students.amount_paid`, `expenses.amount`, `staff.salary`,
+--   `salary_payments.amount`) ; `anon` est refusé partout (0 ligne).
+--
+-- ─── CE QUE CETTE MIGRATION FAIT, ET CE QU'ELLE NE FAIT PAS ─────────────────
+-- Elle retire les quinze noms hérités, et RIEN d'autre. Chacun a, sur la même
+-- table et pour la même commande, un homologue DÉCLARÉ par le dépôt dont l'effet
+-- le COUVRE :
+--
+--   students         « Authenticated users can read / insert / update students »
+--                    → « Authenticated read / insert / update students »
+--                      (`auth.role() = 'authenticated'`, 20260809000000)
+--                    « Admin can delete students » → « Admin delete students »
+--                      (`public.is_admin()`)
+--   parents          les quatre mêmes paires, sur `parents`
+--   expenses         les quatre mêmes paires, sur `expenses`
+--   staff            « Authenticated users can read staff » → « Authenticated
+--                      read staff »
+--                    « Admin can delete staff » → « Finance admins delete staff »
+--                      (`public.is_finance_admin()`, 20260902000000) : un
+--                      SUR-ENSEMBLE — `is_admin()` ⊂ `is_finance_admin()`
+--   salary_payments  « Authenticated users can read salary_payments »
+--                    → « Authenticated read salary_payments »
+--
+-- Donc AUCUN droit ne change : c'est une déduplication, pas un resserrement. Ce
+-- qu'elle retire, c'est le SECOND endroit qui décidait — celui que le dépôt ne
+-- lit pas, et dans lequel une relecture de la sécurité voit une règle
+-- `USING (true)` que rien ne rattache au code.
+--
+-- ⚠️ CE QUI RESTE OUVERT est un CHOIX, pas un oubli, et il est nommé ici parce
+-- qu'une fermeture qui se tait sur ce qu'elle laisse ouverte se lit comme un
+-- quitus. Sur `students`, `parents` et `expenses`, la règle DÉCLARÉE est
+-- elle-même large (`auth.role() = 'authenticated'`) : la saisie quotidienne du
+-- guichet — fiches, reçus, dépenses — est le métier du rôle `staff`
+-- (20260902000000_general_manager_role.sql : « staff → daily entries (students,
+-- payments, receipts, expenses) »). En particulier `students.amount_paid` est
+-- réécrit par l'APPLICATION à chaque geste d'argent (`addPayment`,
+-- `deletePayment`, `restorePayment`, `src/lib/dataOps`) : le fermer aux comptes
+-- du guichet demanderait de faire passer ces gestes par une FONCTION bornée,
+-- comme les mois d'un reçu — c'est une décision, et une autre migration.
+--
+-- ─── ORDRE, ET REJOUABILITÉ ────────────────────────────────────────────────
+-- Ce fichier s'applique APRÈS `20261014000000_finance_writer_staff_vendor.sql` :
+-- celui-ci remplace « Admin insert staff » et « Admin update staff » par
+-- « Finance writers insert / update staff », et n'a AUCUN nom en commun avec les
+-- quinze ci-dessous. Un `DROP POLICY IF EXISTS` ne dépend donc pas de l'ordre —
+-- mais l'écrire ici évite qu'un rejeu chronologique laisse croire le contraire.
+-- Rejouable : `IF EXISTS` partout, aucun `CREATE` à heurter.
+
+-- ─── 1. students ────────────────────────────────────────────────────────────
+-- Restent : « Authenticated read students », « Authenticated insert students »,
+-- « Authenticated update students » (authenticated) et « Admin delete students »
+-- (`is_admin()`).
+DROP POLICY IF EXISTS "Authenticated users can read students" ON public.students;
+DROP POLICY IF EXISTS "Authenticated users can insert students" ON public.students;
+DROP POLICY IF EXISTS "Authenticated users can update students" ON public.students;
+DROP POLICY IF EXISTS "Admin can delete students" ON public.students;
+
+-- ─── 2. parents ─────────────────────────────────────────────────────────────
+-- Restent : les trois « Authenticated … parents » et « Admin delete parents ».
+DROP POLICY IF EXISTS "Authenticated users can read parents" ON public.parents;
+DROP POLICY IF EXISTS "Authenticated users can insert parents" ON public.parents;
+DROP POLICY IF EXISTS "Authenticated users can update parents" ON public.parents;
+DROP POLICY IF EXISTS "Admin can delete parents" ON public.parents;
+
+-- ─── 3. expenses ────────────────────────────────────────────────────────────
+-- Restent : les trois « Authenticated … expenses » et « Admin delete expenses ».
+DROP POLICY IF EXISTS "Authenticated users can read expenses" ON public.expenses;
+DROP POLICY IF EXISTS "Authenticated users can insert expenses" ON public.expenses;
+DROP POLICY IF EXISTS "Authenticated users can update expenses" ON public.expenses;
+DROP POLICY IF EXISTS "Admin can delete expenses" ON public.expenses;
+
+-- ─── 4. staff ───────────────────────────────────────────────────────────────
+-- Restent : « Authenticated read staff », « Finance writers insert / update
+-- staff » (`is_finance_writer()`) et « Finance admins delete staff »
+-- (`is_finance_admin()`).
+DROP POLICY IF EXISTS "Authenticated users can read staff" ON public.staff;
+DROP POLICY IF EXISTS "Admin can delete staff" ON public.staff;
+
+-- ─── 5. salary_payments ─────────────────────────────────────────────────────
+-- Restent : « Authenticated read salary_payments », « Payroll writers insert /
+-- update salary_payments » (`is_payroll_writer()`) et « Finance admins delete
+-- salary_payments » (`is_finance_admin()`).
+DROP POLICY IF EXISTS "Authenticated users can read salary_payments" ON public.salary_payments;
+
+-- ─── PostgREST schema cache reload ──────────────────────────────────────────
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- MIGRATION : 20261016000000_payments_motif.sql
+-- ============================================================================
+
+-- Migration: À QUOI correspond un paiement — scolarité ou inscription.
+--
+-- Le reçu officiel (`public/templates/recu-parent.pdf`) porte une ligne
+-- « Motif » sous « Classe ». Jusqu'ici le générateur y imprimait TOUJOURS le
+-- même mot (« Frais de scolarité »), parce que la base ne savait pas dire
+-- l'autre : une famille qui venait payer le DROIT D'INSCRIPTION recevait un
+-- reçu qui parlait de scolarité. Le geste était enregistré, le papier était
+-- faux — et une réimpression tirée de l'historique l'aurait été aussi.
+--
+-- Le motif est donc une COLONNE, écrite par le geste qui l'a choisi et relue à
+-- chaque réimpression, comme `months` avant elle.
+--
+-- Forme stockée : une clé courte et stable — `scolarite` / `inscription` —
+-- jamais un libellé. « Frais de scolarité » gravé ici serait faux dans un reçu
+-- anglais, et un libellé ne se traduit pas ; c'est `src/lib/paymentMotifs.ts`
+-- qui rend le mot, dans la langue du reçu.
+--
+-- Le CHECK tient la forme : `motif IS NULL` (les lignes d'avant la colonne, et
+-- tout import qui n'en déclare pas) OU l'une des deux clés connues. Une chaîne
+-- inventée est refusée par la base, pas seulement par l'écran.
+--
+-- Les lignes existantes gardent `NULL` — « motif non renseigné » — et le reçu
+-- retombe alors sur « Frais de scolarité », exactement comme avant : un reçu
+-- déjà imprimé ne change pas d'un caractère.
+--
+-- Aucune politique RLS à ajouter : celles de `payments` sont au niveau TABLE
+-- (« Authenticated read payments », « Authenticated insert payments », …), et
+-- une colonne de plus ne change ni qui lit, ni qui écrit.
+
+ALTER TABLE public.payments
+    ADD COLUMN IF NOT EXISTS motif TEXT;
+
+ALTER TABLE public.payments
+    DROP CONSTRAINT IF EXISTS payments_motif_shape_check;
+
+ALTER TABLE public.payments
+    ADD CONSTRAINT payments_motif_shape_check
+    CHECK (motif IS NULL OR motif IN ('scolarite', 'inscription'));
+
+-- ============================================================================
+-- MIGRATION : 20261017000000_rls_declared_alignment.sql
+-- ============================================================================
+
+-- Migration: aligner la base sur ce que le dépôt DÉCLARE — trois tables, cinq
+--            politiques héritées retirées et deux politiques déclarées posées.
+--            Aucun droit ne change : c'est un RENOMMAGE et une DÉDUPLICATION,
+--            mesurés avant et après, commande par commande.
+--
+-- ─── Le défaut, mesuré le 2026-10-13 sur la base de l'école ─────────────────
+-- `npm run check:rls-policies` nommait NEUF écarts entre les politiques que les
+-- migrations déclarent et celles que `pg_policies` porte. Quatre étaient des
+-- MANQUES, cinq des politiques qu'AUCUNE migration ne déclare ni ne retire :
+--
+--   academic_years   « Allow authenticated read access on academic_years »
+--                    (SELECT) et « Allow admin write access on academic_years »
+--                    (ALL) — déclarées par 20260820000000, ABSENTES en base ;
+--   academic_years   « Authenticated read academic_years » (SELECT,
+--                    `authenticated`, `true`) et « Admin manage academic_years »
+--                    (ALL, `authenticated`, `USING is_admin()` /
+--                    `WITH CHECK is_admin()`) — EN BASE, déclarées par rien ;
+--   user_profiles    « Users can read own profile or admin reads all » (SELECT,
+--                    `(id = auth.uid()) OR is_admin()`) et « Admin can update
+--                    profiles » (UPDATE, `authenticated`, `is_admin()`) —
+--                    EN BASE, déclarées par rien ;
+--   todos            « Authenticated users can manage todos » (ALL,
+--                    `authenticated`, `USING true` / `WITH CHECK true`) —
+--                    EN BASE, déclarée par rien ;
+--   custom_grades    « Authenticated read custom grades » (SELECT) et
+--                    « Authenticated insert custom grades » (INSERT) —
+--                    déclarées par 20260828000002/3.
+--
+-- ─── CE QUE CETTE MIGRATION NE RÉPARE PAS, ET POURQUOI ─────────────────────
+-- Les deux « manques » de `custom_grades` ne sont PAS des droits à écrire : la
+-- table est RETIRÉE par `20260828000004_custom_classes.sql` (bloc `DO $$ … $$`
+-- conditionnel : ses lignes sont migrées vers `custom_classes`, puis
+-- `DROP TABLE public.custom_grades`). Le dépôt ne peut donc pas vouloir ces deux
+-- politiques — elles étaient le fait d'avant le retrait de la table, et le
+-- contrôle qui les réclamait ne regardait pas les `DROP TABLE` de son propre
+-- corpus. C'est LUI qui a été corrigé (`scripts/lib/rls-policies.mjs` : une table
+-- retirée par une migration ne réclame plus les politiques qu'elle déclarait
+-- avant), ses cas sont dans `tests/rls-policies.test.ts` et les deux noms sont
+-- figés dans `tests/rls-declared-alignment.test.ts`. Recréer la table pour y
+-- poser deux politiques que le dépôt a lui-même retirées aurait été le contraire
+-- d'une réparation.
+--
+-- ─── CE QUI EST MESURÉ AVANT D'ÉCRIRE ──────────────────────────────────────
+-- Une politique PERMISSIVE ne dit pas qui passe : c'est l'UNION de toutes celles
+-- de la table. La carte des ÉCRITURES a donc été mesurée sur la base réelle,
+-- rôle par rôle, dans des transactions ANNULÉES (`SET LOCAL ROLE authenticated`
+-- + les deux claims JWT, ce que PostgREST pose) — AVANT cette migration, puis
+-- APRÈS son application : les deux cartes sont IDENTIQUES (voir
+-- `DEVELOPMENT_HISTORY.md` pour le relevé). Les cinq retraits sont des
+-- DÉDUPLICATIONS :
+--
+--   academic_years   « Authenticated read academic_years »   ≡ « Allow
+--                      authenticated read access on academic_years »
+--                      (`authenticated`, SELECT, `USING true`) : même règle,
+--                      même commande, mêmes rôles — un renommage, pas un droit ;
+--                    « Admin manage academic_years »         ≡ « Allow admin
+--                      write access on academic_years »
+--                      (`authenticated`, ALL, `USING is_admin()` /
+--                      `WITH CHECK is_admin()`) : idem. L'écran qui entretient
+--                      l'année courante (`src/lib/dataOps/academicYears.ts`) ne
+--                      l'essaie déjà que pour `admin` / `dev` : inchangé.
+--   user_profiles    « Users can read own profile or admin reads all »
+--                    ≡ « Users can view own profile » (`USING (auth.uid() = id)
+--                    OR is_admin()`), DÉCLARÉE et portée par la base depuis
+--                    20260809000000 : le retrait ne ferme rien, l'homologue
+--                    déclaré est de la MÊME règle et d'une audience PLUS LARGE
+--                    (`public`, la condition gardant le seuil).
+--                    « Admin can update profiles » ≡ « Admins can update
+--                    profiles » (`USING is_admin()`) : idem — et sur un UPDATE
+--                    sans `WITH CHECK`, la condition de lecture s'applique aussi
+--                    à la ligne écrite, exactement comme le double `is_admin()`
+--                    de la version héritée.
+--   todos            « Authenticated users can manage todos » (`ALL`,
+--                    `authenticated`, `true`) est couverte commande par
+--                    commande par les QUATRE politiques déclarées de
+--                    20260809000000 — « Authenticated read / insert / update /
+--                    delete todos » (`auth.role() = 'authenticated'`) : `SELECT`,
+--                    `INSERT`, `UPDATE` et `DELETE` y ont chacun leur règle, donc
+--                    le `ALL … true` n'ajoutait rien à un compte connecté.
+--
+-- ⚠️ Ce qui RESTE ouvert sur ces tables est un CHOIX, et il est nommé : `todos`
+-- reste lisible et écrit par tout compte connecté (le carnet de tâches est
+-- partagé par le secrétariat), et `user_profiles` reste lisible par son
+-- propriétaire ou par un administrateur. Rien n'est resserré ici : les deux
+-- politiques posées ci-dessous sont copiées MOT POUR MOT de
+-- 20260820000000_academic_year_promotions.sql, ce que la suite vérifie champ par
+-- champ (commande, rôles, `USING`, `WITH CHECK`).
+--
+-- ─── REJOUABILITÉ ───────────────────────────────────────────────────────────
+-- Les deux noms que cette migration POSE sont retirés avant d'être posés, comme
+-- les hérités : un fichier appliqué deux fois ne s'interrompt pas sur un
+-- « policy already exists », et un rejeu laisse l'état décrit ci-dessus.
+
+-- ─── 1. academic_years : les deux noms hérités → les deux noms DÉCLARÉS ─────
+DROP POLICY IF EXISTS "Authenticated read academic_years" ON public.academic_years;
+DROP POLICY IF EXISTS "Admin manage academic_years" ON public.academic_years;
+
+DROP POLICY IF EXISTS "Allow authenticated read access on academic_years" ON public.academic_years;
+CREATE POLICY "Allow authenticated read access on academic_years"
+    ON public.academic_years FOR SELECT
+    TO authenticated
+    USING (true);
+
+DROP POLICY IF EXISTS "Allow admin write access on academic_years" ON public.academic_years;
+CREATE POLICY "Allow admin write access on academic_years"
+    ON public.academic_years FOR ALL
+    TO authenticated
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+-- ─── 2. user_profiles : deux doublons hérités des politiques déclarées ──────
+-- Restent : « Users can view own profile » (SELECT), « Admins can insert /
+-- update / delete profiles » (`is_admin()`) — les quatre que 20260809000000
+-- déclare, et que la base porte déjà.
+DROP POLICY IF EXISTS "Users can read own profile or admin reads all" ON public.user_profiles;
+DROP POLICY IF EXISTS "Admin can update profiles" ON public.user_profiles;
+
+-- ─── 3. todos : le `ALL … true` hérité, couvert par les quatre déclarées ────
+-- Restent : « Authenticated read / insert / update / delete todos ».
+DROP POLICY IF EXISTS "Authenticated users can manage todos" ON public.todos;
+
+-- ─── PostgREST schema cache reload ──────────────────────────────────────────
+NOTIFY pgrst, 'reload schema';

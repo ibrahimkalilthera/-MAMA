@@ -5,6 +5,7 @@ import type { DbRow } from './database.types';
 import type { Parent, Payment, SalaryPayment, Staff, Student, StudentNoteEntry, Todo, VendorExpense, Expense } from './domainTypes';
 import { studentMatricule } from './studentIdentifiers';
 import { isStaffCategory } from './adminPositions';
+import { isPaymentMotif } from './paymentMotifs';
 
 // ─── IDs of records created OFFLINE ───────────────────────────────────────────
 // A record written without a network gets its DEFINITIVE id right here: the
@@ -61,6 +62,13 @@ export function mapParentRow(row: DbRow<'parents'>): Parent {
  * Une liste VIDE vaut « non renseigné » (et non « zéro mois ») : le reçu
  * retombe alors sur le mois de la date, donc une réimpression d'avant cette
  * colonne ne change pas d'un caractère.
+ *
+ * Le MOTIF suit la même règle, pour la même raison : la clé stockée est
+ * relue telle quelle si elle est connue (`scolarite` / `inscription`, voir
+ * `lib/paymentMotifs.ts`), et tout le reste — `NULL` d'une ligne d'avant la
+ * colonne, ou une clé qu'une version future aurait écrite — vaut « non
+ * renseigné » plutôt que d'être deviné. C'est `paymentMotifOf` qui tranche au
+ * moment d'imprimer : un motif absent donne le reçu d'AVANT cette colonne.
  */
 export function mapPaymentRow(row: DbRow<'payments'>): Payment {
   return {
@@ -70,6 +78,7 @@ export function mapPaymentRow(row: DbRow<'payments'>): Payment {
     academicYear: row.academic_year ?? undefined,
     receiptNumber: row.receipt_number ?? undefined,
     months: Array.isArray(row.months) && row.months.length > 0 ? row.months : undefined,
+    motif: isPaymentMotif(row.motif) ? row.motif : undefined,
   };
 }
 

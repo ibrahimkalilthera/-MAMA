@@ -35,6 +35,7 @@ import {
   paymentHistorySummary,
 } from '../src/lib/paymentHistory';
 import { archivedPaymentFrom, paymentSnapshotMetadata } from '../src/lib/paymentUndo';
+import { paymentMotifLabel } from '../src/lib/paymentMotifs';
 import {
   PAYMENT_HISTORY_CSV_MIME,
   buildPaymentHistoryCsv,
@@ -91,7 +92,10 @@ const alice: Student = {
   totalDue: 0, amountPaid: 0, dueDate: '2026-10-01', payments: [], notes: '',
 };
 
-const PAY: Payment = { id: 'pay1', date: '2026-10-02', amount: 4000, academicYear: '2026-2027', receiptNumber: 'REC-568556' };
+// Le reçu de la fixture est un DROIT D'INSCRIPTION : c'est ce que sa ligne de
+// motif doit dire — et les gestes d'avant la colonne, eux, doivent continuer de
+// dire « Frais de scolarité », comme le papier qu'ils ont produit.
+const PAY: Payment = { id: 'pay1', date: '2026-10-02', amount: 4000, academicYear: '2026-2027', receiptNumber: 'REC-568556', motif: 'inscription' };
 
 const logs: AuditLogEntry[] = [
   {
@@ -160,7 +164,7 @@ describe('export CSV — les colonnes de l’écran, et rien d’autre', () => {
     // Les sept libellés viennent du dictionnaire, pas d'une chaîne recopiée.
     assert.ok(header.includes(`"${t.timestamp}"`) && header.includes(`"${t.receipt}"`));
     assert.ok(header.includes(`"${t.paymentHistoryCollectedBy}"`), 'la colonne qui nomme l’encaisseur est là');
-    assert.equal(header.split(',').length, 7, 'sept colonnes, comme le tableau de l’écran');
+    assert.equal(header.split(',').length, 8, 'huit colonnes, comme le tableau de l’écran');
   });
 
   it('signe une annulation, CHIFFRE une phrase lisible et renvoie au détail pour le reste', () => {
@@ -175,6 +179,17 @@ describe('export CSV — les colonnes de l’écran, et rien d’autre', () => {
     assert.ok(csv.includes('"REC-0"'), 'et son reçu se relit de la même phrase');
     assert.ok(csv.includes(`"${t.paymentHistoryAmountInDetails}"`), 'une phrase HORS gabarit renvoie, elle, au détail');
     assert.ok(csv.includes('"Moussa Keïta"'), 'l’encaisseur est nommé');
+    // Le MOTIF part avec le fichier, et dans les mots du PAPIER (le libellé du
+    // reçu) : un tableur qui nommerait le motif autrement que le reçu remis à la
+    // famille ferait douter des deux.
+    assert.ok(
+      csv.includes(`"${paymentMotifLabel('inscription', t)}"`),
+      'le motif déclaré par le reçu est écrit dans la colonne MOTIF',
+    );
+    assert.ok(
+      csv.includes(`"${paymentMotifLabel('scolarite', t)}"`),
+      'un geste d’avant la colonne porte le motif ordinaire, comme son papier',
+    );
     assert.ok(csv.includes(`"${t.auditActionDeletePayment}"`), 'le geste est libellé, pas son code');
     assert.doesNotMatch(csv, /DELETE_PAYMENT|RECORD_PAYMENT/, 'aucun code brut ne part dans le fichier');
     assert.doesNotMatch(csv, /Fatou BOLLY/, 'un geste qui n’est pas un paiement n’entre pas dans l’export');
@@ -279,12 +294,16 @@ describe('le PDF de l’historique — mêmes lignes, mêmes filtres, cachet une
 
     // Les colonnes tombent là où l'en-tête les annonce : le montant sous son
     // libellé, le détail à sa place, et la valeur de l'annulation signée.
-    assert.ok(at(t.receipt, 170), 'l’en-tête REÇU est dans sa colonne');
-    assert.ok(at('REC-568556', 170), 'le numéro de reçu est dans cette colonne');
+    assert.ok(at(t.receipt, 156), 'l’en-tête REÇU est dans sa colonne');
+    assert.ok(at('REC-568556', 156), 'le numéro de reçu est dans cette colonne');
+    // Le motif est JUSTE APRÈS le reçu qu'il qualifie — l'en-tête et la valeur
+    // tombent à la même abscisse (180 mm).
+    assert.ok(at(t.paymentMotif, 180), 'l’en-tête MOTIF est dans sa colonne');
+    assert.ok(at(paymentMotifLabel('inscription', t), 180), 'le motif du reçu est sous son en-tête');
     // Le montant est aligné à DROITE : son abscisse enregistrée est le bord droit
-    // de la colonne, le même que son en-tête (166 mm).
-    assert.ok(texts.some((c) => c.x === 166 && c.str === '- 4000 XOF'), 'le montant signé est sous MONTANT');
-    assert.ok(texts.some((c) => c.x === 242 && c.str.includes('Alice Traoré')), 'le détail reste dans sa colonne');
+    // de la colonne, le même que son en-tête (152 mm).
+    assert.ok(texts.some((c) => c.x === 152 && c.str === '- 4000 XOF'), 'le montant signé est sous MONTANT');
+    assert.ok(texts.some((c) => c.x === 248 && c.str.includes('Alice Traoré')), 'le détail reste dans sa colonne');
     assert.ok(texts.some((c) => c.str.includes('page 1/1')), 'le pied de page est numéroté');
   });
 

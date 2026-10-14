@@ -31,6 +31,16 @@
 // Un `DROP` écrit dans une chaîne, un commentaire ou un corps `$$ … $$` n'est pas
 // vu : une chaîne n'est pas un geste.
 //
+// Le 2026-10-13, la même question s'est posée pour une POLITIQUE. La base de
+// l'école portait trois policies héritées (`Authenticated users can … payments`,
+// `USING (true)`) que les migrations n'avaient jamais retirées, et la fermeture du
+// trou consistait à les `DROP` : un fichier de retrait à qui il aurait manqué la
+// lecture des retraits n'aurait déclaré qu'une fonction — la fermeture du trou
+// n'aurait donc été NI exigée AVANT, NI vérifiée APRÈS. Les quatre familles
+// nommées (politique, fonction, déclencheur, contrainte) se lisent donc comme les
+// tables et les colonnes, et par la même règle de NET : ce qu'un fichier retire ET
+// redéclare dans le même souffle n'est pas un retrait.
+//
 // ─── Ce qu'il refuse de laisser passer pour une preuve ──────────────────────
 // Un fichier qui ne déclare AUCUN objet observable (table, colonne, contrainte,
 // fonction, politique, déclencheur) ne peut pas être prouvé appliqué : la
@@ -250,6 +260,58 @@ const OBJECT_STATEMENTS = [
 ];
 
 /**
+ * Les quatre familles nommées d'un fichier, avec leur RANG, add et drop mêlés.
+ *
+ * Le texte jugé est celui de `blankComments` : la prose est blanche, donc un
+ * `DROP POLICY` raconté dans un commentaire n'est pas un geste. Un `DROP` écrit
+ * dans une chaîne est blanchi de la même façon — les regex de `OBJECT_STATEMENTS`
+ * ne le voient pas.
+ *
+ * @param {string} sql
+ * @returns {{ rank: number, kind: string, op: string, name: string }[]}
+ */
+function objectMatches(sql) {
+  const text = blankComments(String(sql ?? ''));
+  const matches = [];
+  for (const { kind, op, re } of OBJECT_STATEMENTS) {
+    for (const match of text.matchAll(re)) {
+      const name = (match[1] ?? match[2] ?? '').trim();
+      if (name) matches.push({ rank: match.index ?? 0, kind, op, name });
+    }
+  }
+  matches.sort((a, b) => a.rank - b.rank);
+  return matches;
+}
+
+/**
+ * Le NET des quatre familles : ce que le fichier laisse (`kept`) et ce qu'il
+ * emporte (`gone`).
+ *
+ * `DROP …` puis `CREATE …` du même nom laisse l'objet (une remise à zéro, pas un
+ * retrait) ; `CREATE …` puis `DROP …` l'emporte. C'est le rang qui décide, donc
+ * l'ordre où PostgreSQL lira le fichier.
+ *
+ * @param {string} sql
+ * @returns {{ kept: Record<string, Set<string>>, gone: Record<string, string[]> }}
+ */
+function netObjects(sql) {
+  const kept = { constraint: new Set(), trigger: new Set(), policy: new Set(), function: new Set() };
+  const dropped = { constraint: new Set(), trigger: new Set(), policy: new Set(), function: new Set() };
+  for (const { kind, op, name } of objectMatches(sql)) {
+    if (op === 'add') kept[kind].add(name);
+    else {
+      dropped[kind].add(name);
+      kept[kind].delete(name);
+    }
+  }
+  const gone = {};
+  for (const kind of Object.keys(kept)) {
+    gone[kind] = [...dropped[kind]].filter((name) => !kept[kind].has(name)).sort();
+  }
+  return { kept, gone };
+}
+
+/**
  * Les instructions de RETRAIT, et le nom qu'elles emportent.
  *
  * Ancrées au début et à la fin de l'instruction (`topLevelStatements` les a déjà
@@ -274,8 +336,13 @@ const REMOVAL_STATEMENTS = [
  * Les noms reviennent triés, pour que deux fichiers disent la même chose du même
  * jeu — comme `objectKeys` le fait des ajouts.
  *
+ * Les quatre familles nommées (politique, fonction, déclencheur, contrainte)
+ * viennent de `netObjects`, avec la même règle de net : un fichier qui `DROP` puis
+ * `CREATE` le même nom ne retire rien.
+ *
  * @param {string} sql
- * @returns {{ tables: string[], columns: { table: string, column: string }[] }}
+ * @returns {{ tables: string[], columns: { table: string, column: string }[],
+ *   policies: string[], functions: string[], triggers: string[], constraints: string[] }}
  */
 export function removedObjects(sql) {
   const tables = new Set();
@@ -294,11 +361,16 @@ export function removedObjects(sql) {
       columns.set(`${table}.${column}`, { table, column });
     }
   }
+  const { gone } = netObjects(sql);
   return {
     tables: [...tables].sort(),
     columns: [...columns.values()].sort(
       (a, b) => a.table.localeCompare(b.table) || a.column.localeCompare(b.column),
     ),
+    policies: gone.policy,
+    functions: gone.function,
+    triggers: gone.trigger,
+    constraints: gone.constraint,
   };
 }
 
@@ -308,31 +380,20 @@ export function removedObjects(sql) {
  * @param {string} sql
  * @returns {{ tables: { name: string, columns: string[] }[], constraints: string[],
  *   functions: string[], policies: string[], triggers: string[],
- *   removed: { tables: string[], columns: { table: string, column: string }[] } }}
+ *   removed: { tables: string[], columns: { table: string, column: string }[],
+ *     policies: string[], functions: string[], triggers: string[], constraints: string[] } }}
  */
 export function declaredObjects(sql) {
-  const text = blankComments(String(sql ?? ''));
   const schema = expectedSchemaFromMigrations([{ name: 'fichier', sql: String(sql ?? '') }]);
   const tables = [...schema].map(([name, columns]) => ({ name, columns: [...columns].sort() }));
 
-  const seen = { constraint: new Map(), trigger: new Map(), policy: new Map(), function: new Map() };
-  const matches = [];
-  for (const { kind, op, re } of OBJECT_STATEMENTS) {
-    for (const match of text.matchAll(re)) {
-      const name = (match[1] ?? match[2] ?? '').trim();
-      if (name) matches.push({ rank: match.index ?? 0, kind, op, name });
-    }
-  }
-  matches.sort((a, b) => a.rank - b.rank);
-  for (const { kind, op, name } of matches) {
-    if (op === 'add') seen[kind].set(name, true);
-    else seen[kind].delete(name);
-  }
+  const { kept, gone } = netObjects(sql);
 
   // Le retrait se lit NET : ce qu'un fichier retire ET redéclare dans le même
   // souffle (`DROP TABLE x; CREATE TABLE x (…)`) n'est pas un retrait mais une
   // remise à zéro — et c'est le net qui décide, exactement comme
-  // `expectedSchemaFromMigrations` le fait du schéma attendu.
+  // `expectedSchemaFromMigrations` le fait du schéma attendu. `removedObjects`
+  // applique déjà cette règle aux quatre familles nommées.
   const removed = removedObjects(sql);
   const declaredTables = new Set(tables.map((table) => table.name));
   const declaredColumns = new Set(
@@ -341,13 +402,17 @@ export function declaredObjects(sql) {
 
   return {
     tables,
-    constraints: [...seen.constraint.keys()].sort(),
-    functions: [...seen.function.keys()].sort(),
-    policies: [...seen.policy.keys()].sort(),
-    triggers: [...seen.trigger.keys()].sort(),
+    constraints: [...kept.constraint].sort(),
+    functions: [...kept.function].sort(),
+    policies: [...kept.policy].sort(),
+    triggers: [...kept.trigger].sort(),
     removed: {
       tables: removed.tables.filter((name) => !declaredTables.has(name)),
       columns: removed.columns.filter(({ table, column }) => !declaredColumns.has(`${table}.${column}`)),
+      policies: gone.policy,
+      functions: gone.function,
+      triggers: gone.trigger,
+      constraints: gone.constraint,
     },
   };
 }
@@ -389,6 +454,10 @@ export function removalKeys(objects) {
   const keys = [];
   for (const name of objects?.removed?.tables ?? []) keys.push(`table:${name}`);
   for (const { table, column } of objects?.removed?.columns ?? []) keys.push(`column:${table}.${column}`);
+  for (const name of objects?.removed?.constraints ?? []) keys.push(`constraint:${name}`);
+  for (const name of objects?.removed?.functions ?? []) keys.push(`function:${name}`);
+  for (const name of objects?.removed?.policies ?? []) keys.push(`policy:${name}`);
+  for (const name of objects?.removed?.triggers ?? []) keys.push(`trigger:${name}`);
   return keys.sort();
 }
 

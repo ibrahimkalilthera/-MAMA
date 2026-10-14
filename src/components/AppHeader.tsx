@@ -95,6 +95,8 @@ export function AppHeader(props: AppHeaderProps) {
            activeTab === 'expenses' ? t.expenses : 
            activeTab === 'calendar' ? t.calendar : 
            activeTab === 'archives' ? t.yearlyArchives : 
+           activeTab === 'silentReceipts' ? t.navSilentReceipts : 
+
            activeTab === 'audit' ? (t.auditTrail) : 
            activeTab === 'paymentHistory' ? (t.paymentHistory) : t.settings}
         </h2>
