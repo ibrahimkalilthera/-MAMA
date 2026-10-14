@@ -185,6 +185,21 @@ export const GUARD_INVENTORY = [
     exempt: { [IMMUNITY.PROSE_BLIND]: 'les `run:` sont découpés par le module partagé (scripts/lib/ci-commands.mjs)' },
   },
   {
+    check: 'check-workflow-syntax.mjs',
+    input: 'workflows',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // Le balayage ne lit PAS du TypeScript : la couche partagée blanchit du TS
+    // (`maskComments`) et du CSS, pas du YAML. La prose est donc blanchie par la
+    // règle elle-même, et c'est écrit dans scripts/lib/workflow-scalars.mjs : on
+    // ne juge que le texte HORS guillemets, on saute le contenu des blocs
+    // littéraux (`|` et `>`) et on coupe le commentaire final — sans quoi un
+    // simple commentaire citant la règle (« un `foo: bar` ici casse le fichier »)
+    // ferait rougir la porte. Son test le mesure sur les trois formes.
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'la prose est blanchie par la règle elle-même (scripts/lib/workflow-scalars.mjs), mesuré par tests/workflow-scalars.test.ts',
+    },
+  },
+  {
     check: 'check-node-version.mjs',
     input: 'runtime+config',
     needs: [],
