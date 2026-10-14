@@ -209,6 +209,23 @@ export function formatPaidMonths(months: readonly string[], words: PaidMonthsWor
 }
 
 /**
+ * Vrai pour un reçu MUET : il ne déclare AUCUN mois.
+ *
+ * C'est LE critère, écrit une seule fois. `monthsCoverage().undeclared` compte
+ * exactement ces reçus, et l'écran École des reçus muets (`src/lib/silentReceipts.ts`)
+ * les LISTE avec cette même fonction : deux définitions de « muet » finiraient
+ * par diverger, et l'école verrait alors un compte qui ne nomme pas les mêmes
+ * reçus que sa liste.
+ *
+ * Absent ou vide, c'est la même chose — un reçu d'avant la colonne `payments.months`
+ * a pris `{}`, et un reçu envoyé sans cocher arrive vide. Sa couverture est
+ * INCONNUE, elle n'est pas nulle : d'où le mot « muet » plutôt que « vide ».
+ */
+export function isSilentReceipt(months: readonly string[] | undefined): boolean {
+  return !months || months.length === 0;
+}
+
+/**
  * Ce qu'une fiche élève peut AFFIRMER de ses mois, et ce qu'elle ne peut pas.
  *
  *   • `covered` — les mois de l'année que des paiements déclarent couvrir,
@@ -243,6 +260,6 @@ export function monthsCoverage(
   const declared = payments.flatMap((months) => months ?? []);
   const covered = sortPaymentMonths(declared).filter((ym) => yearMonths.includes(ym));
   const missing = yearMonths.filter((ym) => !covered.includes(ym));
-  const undeclared = payments.filter((months) => !months || months.length === 0).length;
+  const undeclared = payments.filter((months) => isSilentReceipt(months)).length;
   return { covered, missing, undeclared };
 }

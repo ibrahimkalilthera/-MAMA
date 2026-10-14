@@ -246,6 +246,51 @@ export function maskMarkupComments(text) {
 }
 
 /**
+ * Blanchit les commentaires YAML (`#` jusqu'à la fin de la ligne, hors
+ * guillemets), en gardant longueur et sauts de ligne.
+ *
+ * Pourquoi PAS `maskComments` : un workflow n'est pas du TypeScript. Le scanner
+ * de TypeScript ne connaît pas le `#` comme début de commentaire — il lirait
+ * donc la prose des en-têtes comme du CODE. Mesuré le 2026-10-13 : les en-têtes
+ * de ces workflows EXPLIQUENT la règle, et citent pour cela l'hôte Supabase de
+ * l'école, la clé service et les commandes que les jobs n'exécutent plus. Un
+ * contrôle qui lit ces phrases accuse du travail juste — et, dans l'autre sens,
+ * un commentaire qui DÉCRIT une pile (« supabase start est lancé plus haut »)
+ * ferait passer un job qui n'en monte aucune.
+ *
+ * Dans un workflow, le `#` est un commentaire à DEUX niveaux : en YAML, et dans
+ * les blocs `run:` que le YAML transporte — du shell, où le `#` est aussi un
+ * commentaire. Une seule règle suffit pour les deux, et elle est la même : hors
+ * guillemets, `#` ouvre un commentaire ; entre guillemets, c'est une donnée
+ * (`echo "# canal 2"`). C'est la règle unique des fichiers de CI, comme
+ * `maskMarkupComments` est celle des feuilles de style et du balisage.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function maskYamlComments(text) {
+  return String(text ?? '')
+    .split('\n')
+    .map((line) => {
+      let quote = null;
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (quote) {
+          if (ch === quote) quote = null;
+          continue;
+        }
+        if (ch === '"' || ch === "'") {
+          quote = ch;
+          continue;
+        }
+        if (ch === '#') return line.slice(0, i) + ' '.repeat(line.length - i);
+      }
+      return line;
+    })
+    .join('\n');
+}
+
+/**
  * Liste récursive, triée, en chemins à barres obliques (stable entre postes).
  * @param {string} root
  * @param {{ ext?: RegExp, skip?: string[] }} [options]

@@ -19,7 +19,7 @@ name: Business E2E — cycles métier sur la pile de recette
 #     ressource externe que personne ne relevait, et elle a pourri en silence ;
 #   • la recette ne dépend donc plus d'aucune ressource externe. Le job monte SA
 #     PROPRE pile Supabase (Docker : Postgres, GoTrue, PostgREST, RLS), y applique
-#     les 34 migrations, construit l'application en mode `staging` pointée dessus,
+#     les 35 migrations, construit l'application en mode `staging` pointée dessus,
 #     sert ce build en local, et jette le tout avec le runner. Aucun secret,
 #     aucune donnée de l'école lue ou écrite, base vierge à chaque run — donc un
 #     verdict qui ne dépend plus de ce que la production contient ce jour-là.
@@ -27,7 +27,7 @@ name: Business E2E — cycles métier sur la pile de recette
 # CE QUE CETTE PILE PROUVE, ET CE QU'ELLE NE PROUVE PAS
 #   • elle prouve les cycles métier réels (formulaires, écritures, totaux, RLS
 #     authentifiée, trigger `user_profiles`, nettoyage des comptes jetables) sur
-#     le MÊME schéma que la production : les 34 migrations, appliquées depuis un
+#     le MÊME schéma que la production : les 35 migrations, appliquées depuis un
 #     schéma vierge ;
 #   • elle ne prouve pas le RÉSEAU ni la plateforme hébergée (latence, quotas,
 #     mise en pause d'un projet). C'est le métier d'autres veilles qui, elles,
@@ -84,7 +84,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Élever la pile de recette (les 34 migrations, base vierge)
+      - name: Élever la pile de recette (les 35 migrations, base vierge)
         run: supabase start
 
       # Les clés de la pile locale sont ÉPHÉMÈRES et le CLI les rend : elles
@@ -178,4 +178,4 @@ jobs:
         if: success()
         run: >-
           node scripts/publish-automation-evidence.mjs --acted
-          --reason "cycles métier E2E allés au bout sur la pile de recette de CE job (les 34 migrations, base vierge, jetée avec le runner) : élève → paiement → totaux, parent → salaire → dépense, aucune ligne de démo résiduelle, aucun compte éphémère restant — la mesure est publiée par scripts/e2e-business.mjs"
+          --reason "cycles métier E2E allés au bout sur la pile de recette de CE job (les 34 migrations, base vierge, jetée avec le runner, les 35 migrations) : élève → paiement → totaux, parent → salaire → dépense, aucune ligne de démo résiduelle, aucun compte éphémère restant — la mesure est publiée par scripts/e2e-business.mjs"

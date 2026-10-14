@@ -280,7 +280,7 @@ export interface MainViewsProps {
   Wifi: LucideIcon;
   X: LucideIcon;
   Zap: LucideIcon;
-  activeTab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit' | 'paymentHistory';
+  activeTab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory';
   auditLogs: AuditLogEntry[];
   auth: AuthState;
   availableClasses: ManagedClass[];
@@ -377,6 +377,27 @@ export interface MainViewsProps {
    */
   canDeletePayment: boolean;
   /** Gestionnaire Principal — finance admin without user/settings/audit access. */
+  /**
+   * Le rôle peut-il RENSEIGNER les mois d'un reçu déjà enregistré ? Décidé par la
+   * BASE (`public.is_payment_month_editor()`, `src/lib/paymentRights.ts`), pas
+   * par l'écran. C'est ce droit qui garde l'éditeur des mois et le parcours de
+   * rattrapage — et l'écran École des reçus muets, qui ne fait que les MONTRER,
+   * le lit pour DIRE qu'il manque au lieu de laisser croire qu'un clic ouvrira un
+   * éditeur que la base refuserait.
+   */
+  canEditPaymentMonths: boolean;
+  /**
+   * Renseigne les mois qu'un reçu MUET couvrait — la fonction
+   * `public.set_payment_months(uuid, text[])` de la base (un reçu par appel,
+   * `months` seule colonne nommée) ou la file hors ligne. Rend `true` seulement
+   * si le geste a abouti.
+   *
+   * La fiche l'utilise pour un reçu, et l'écran École des reçus muets pour une
+   * PASSE groupée : plusieurs élèves d'une même classe, un seul choix de mois,
+   * mais toujours **un appel par reçu** — il n'existe aucune écriture de masse de
+   * `months`, et chaque appel laisse sa propre entrée au journal.
+   */
+  updatePaymentMonths: (studentId: string, payment: Payment, months: string[]) => Promise<boolean>;
   isGeneralManager: boolean;
   lang: 'en' | 'fr';
   lateStudents: Student[];
@@ -400,6 +421,15 @@ export interface MainViewsProps {
   searchTerm: string;
   selectedYear: string;
   setActiveLinkingParent: Dispatch<SetStateAction<Parent | null>>;
+  /**
+   * L'onglet actif — le shell le porte déjà (`AppShell`, via `AppShellExtras`),
+   * et le contrat le redéclare ici pour qu'une VUE puisse y RENVOYER : le tableau
+   * de bord publie le compte des reçus muets et ouvre l'écran École d'un clic —
+   * sans quoi le chiffre se lirait sans suite. Le type est celui du shell (une
+   * fonction d'onglet, pas un `Dispatch<SetStateAction<…>>`) : la valeur vient de
+   * `ShellDeps`, où le setter est déjà réduit à `(tab) => void`.
+   */
+  setActiveTab: (tab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory') => void;
   setCalendarDate: Dispatch<SetStateAction<Date>>;
   setEditingParent: Dispatch<SetStateAction<Parent | null>>;
   setEditingStaff: Dispatch<SetStateAction<Staff | null>>;
@@ -422,6 +452,14 @@ export interface MainViewsProps {
   setSelectedDraftMonth: Dispatch<SetStateAction<number>>;
   setSelectedDraftYear: Dispatch<SetStateAction<number>>;
   setSelectedStudent: Dispatch<SetStateAction<Student | null>>;
+  /**
+   * Le reçu MUET sur lequel la fiche doit s'ouvrir — posé par l'écran École des
+   * reçus muets juste AVANT `setSelectedStudent`, pour que la fiche naisse avec
+   * son focus et ouvre son éditeur des mois au premier rendu. `null` = ouverture
+   * ordinaire (liste des élèves, cloche, doublons). Toute fermeture de la fiche
+   * le remet à zéro (AppModals) : rien ne se rejoue d'une ouverture à l'autre.
+   */
+  setStudentFileFocus: Dispatch<SetStateAction<string | null>>;
   setShowAddClassModal: Dispatch<SetStateAction<boolean>>;
   setShowAddUserModal: Dispatch<SetStateAction<boolean>>;
   setShowCalendarModal: Dispatch<SetStateAction<boolean>>;

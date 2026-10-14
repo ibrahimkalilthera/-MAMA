@@ -16,6 +16,7 @@ import {
   Briefcase,
   Receipt,
   Calendar,
+  CalendarClock,
   StickyNote,
   TrendingUp,
   ShieldCheck,
@@ -40,11 +41,22 @@ export interface MobileNavProps {
   fetchAuditLogs?: () => void;
   /** Une semaine du journal attend son archive — pastille sur l'onglet Réglages. */
   auditArchivePending?: boolean;
+  /**
+   * Combien de reçus muets restent à documenter — la pastille de l'onglet École,
+   * la même valeur qu'au rail (voir `SidebarProps.silentReceiptsCount`).
+   *
+   * Ici la pastille porte le CHIFFRE et non le mot : la barre du bas n'a pas la
+   * largeur d'un rail, donc « reçus muets à rattraper » ne peut pas s'y écrire —
+   * c'est le nom accessible (`aria-label`, la phrase traduite) qui dit ce qui est
+   * compté. Zéro (ou absent) rend l'icône nue.
+   */
+  silentReceiptsCount?: number;
 }
 
 export function MobileNav(props: MobileNavProps) {
-  const { t, activeTab, setActiveTab, payrollWindowStatus, onToggleLanguage, currentUser, fetchAuditLogs, auditArchivePending = false } = props;
+  const { t, activeTab, setActiveTab, payrollWindowStatus, onToggleLanguage, currentUser, fetchAuditLogs, auditArchivePending = false, silentReceiptsCount = 0 } = props;
   const isAdminDev = currentUser?.role === 'admin' || currentUser?.role === 'dev';
+  const silentReceiptsBadge = t.silentReceiptsBadge.replace('{count}', String(silentReceiptsCount));
 
   const items: { tab: AppTab; label: string; icon: React.ReactNode }[] = [
     { tab: 'dashboard', label: t.navDashboard, icon: <LayoutDashboard size={20} /> },
@@ -55,6 +67,9 @@ export function MobileNav(props: MobileNavProps) {
     { tab: 'calendar', label: t.navCalendar, icon: <Calendar size={20} /> },
     { tab: 'notes', label: t.notes, icon: <StickyNote size={20} /> },
     { tab: 'archives', label: t.navArchives, icon: <TrendingUp size={20} /> },
+    // Reçus muets : hors du bloc admin/dev — l'écran ne lit que les élèves déjà
+    // chargés, donc tout compte connecté peut voir ce qui reste à documenter.
+    { tab: 'silentReceipts', label: t.navSilentReceipts, icon: <CalendarClock size={20} /> },
     ...(isAdminDev
       ? [
           { tab: 'audit' as const, label: t.auditTrail, icon: <ShieldCheck size={20} /> },
@@ -107,6 +122,18 @@ export function MobileNav(props: MobileNavProps) {
                     className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full accent-surface animate-badge-pulse"
                     aria-label={t.auditArchiveBadge}
                   />
+                )}
+                {/* Les deux autres pastilles de cette barre sont des POINTS (un
+                    état : en retard, une archive en attente). Celle-ci porte un
+                    NOMBRE : sa largeur suit donc le chiffre, et son nom accessible
+                    dit ce qu'elle compte. */}
+                {tab === 'silentReceipts' && silentReceiptsCount > 0 && (
+                  <span
+                    className="absolute -top-1.5 -right-2 min-w-[0.875rem] h-3.5 px-1 rounded-full bg-amber-500 text-amber-950 text-3xs font-black flex items-center justify-center animate-badge-pulse"
+                    aria-label={silentReceiptsBadge}
+                  >
+                    {silentReceiptsCount}
+                  </span>
                 )}
               </span>
               <span className="w-full truncate text-center text-2xs font-bold leading-tight">{label}</span>

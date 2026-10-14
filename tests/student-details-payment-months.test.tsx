@@ -96,8 +96,17 @@ function mount(opts: { canEditPaymentMonths?: boolean; result?: boolean; onCall?
     container,
     calls,
     click,
-    /** Le bouton « renseigner les mois » : repéré par son `title`. */
-    triggers: () => Array.from(container.querySelectorAll(`button[title="${t.paymentMonthsEdit}"]`)),
+    /**
+     * Le bouton « renseigner les mois » DU CARNET — repéré par son marqueur, et
+     * non par son `title`.
+     *
+     * Les deux portes vers le même éditeur (la ligne du carnet et le parcours de
+     * rattrapage, `data-slot="payment-months-backfill-fill"`) portent le même
+     * libellé accessible : un sélecteur par titre les compterait toutes les deux
+     * et ne dirait plus laquelle de ces suites mesure. Ce que ces cas-ci
+     * tiennent, c'est le geste direct sur la ligne.
+     */
+    triggers: () => Array.from(container.querySelectorAll('[data-slot="payment-months-fill"]')),
     /** Les pastilles de l'éditeur : ce sont les seuls boutons `aria-pressed`. */
     chips: () => Array.from(container.querySelectorAll('button[aria-pressed]')),
     /** Une pastille, par le MOT qu'elle affiche (« Septembre »). */
