@@ -103,7 +103,7 @@
   "main": "electron/main.cjs",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@napi-rs/canvas": "^1.0.9",
+    "@napi-rs/canvas": "^1.0.11",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
