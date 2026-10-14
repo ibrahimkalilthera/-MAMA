@@ -1,9 +1,28 @@
+import { useMemo } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { CalendarClock } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
 import type { TranslationDict } from '../i18n/translations';
+import { academicYearMonths } from '../lib/paymentMonths';
+import { silentReceiptRows, silentReceiptsCatchUp } from '../lib/silentReceipts';
 
 export function DashboardView() {
-  const { AlertCircle, Calendar, ChartsFallback, CheckCircle2, ChevronRight, Clock, Coins, DashboardCharts, GraduationCap, PieChart, Suspense, TrendingDown, TrendingUp, Wallet, chartData, currentTheme, formatCurrency, lateStudents, payrollWindowStatus, pieData, setSelectedStudent, stats, t, theme } = useMainViews();
+  const { AlertCircle, Calendar, ChartsFallback, CheckCircle2, ChevronRight, Clock, Coins, DashboardCharts, GraduationCap, PieChart, Suspense, TrendingDown, TrendingUp, Wallet, chartData, currentTheme, formatCurrency, formatDate, lateStudents, payrollWindowStatus, pieData, selectedYear, setActiveTab, setSelectedStudent, stats, students, t, theme, today } = useMainViews();
+  /**
+   * Le rattrapage des reçus muets, publié sur le tableau de bord.
+   *
+   * Le calcul n'est pas refait ici : les lignes viennent de l'agrégat de l'écran
+   * École (`silentReceiptRows`, année jugée par la DATE du reçu) et le compte
+   * publié est leur somme — le chiffre du tableau de bord et la liste de l'écran
+   * ne peuvent donc pas diverger. Une année ILLISIBLE ne produit aucune ligne :
+   * dans ce cas la carte disparaît, plutôt que d'annoncer « aucun reçu muet » là
+   * où l'application ne sait pas de quelle année elle parle.
+   */
+  const yearMonths = academicYearMonths(selectedYear);
+  const catchUp = useMemo(
+    () => silentReceiptsCatchUp(silentReceiptRows(students, selectedYear), today),
+    [students, selectedYear, today],
+  );
   return (
           <div className="space-y-12">
             {/* Payroll Window Banner Alerts */}
@@ -46,6 +65,55 @@ export function DashboardView() {
                 </div>
               );
             })()}
+
+            {/* --- Rattrapage des reçus muets : le chiffre de l'école, et depuis quand --- */}
+            {yearMonths.length > 0 && (
+              <div
+                data-slot="dashboard-silent-receipts"
+                data-receipts={catchUp.receipts}
+                data-oldest-days={catchUp.oldestDays ?? ''}
+                className={`p-5 rounded-3xl border flex flex-wrap items-center gap-4 no-print ${
+                  catchUp.receipts > 0
+                    ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50'
+                    : `${currentTheme.card} ${currentTheme.border}`
+                }`}
+              >
+                <div className={`p-2 rounded-xl flex-shrink-0 ${
+                  catchUp.receipts > 0
+                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200'
+                    : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 dark:text-emerald-300'
+                }`}>
+                  {catchUp.receipts > 0 ? <CalendarClock size={20} /> : <CheckCircle2 size={20} />}
+                </div>
+                <div className="min-w-0">
+                  <h4 className={`font-black text-sm ${catchUp.receipts > 0 ? 'text-amber-800 dark:text-amber-200' : currentTheme.inkStrong}`}>
+                    {t.navSilentReceipts}
+                  </h4>
+                  <p className={`text-xs font-semibold mt-0.5 ${catchUp.receipts > 0 ? 'text-amber-800 dark:text-amber-200' : currentTheme.muted}`}>
+                    {catchUp.receipts > 0
+                      ? `${t.dashboardSilentReceiptsCount.replace('{count}', String(catchUp.receipts))} · ${t.dashboardSilentReceiptsStudents.replace('{count}', String(catchUp.students))}`
+                      : t.dashboardSilentReceiptsClear}
+                  </p>
+                  {catchUp.oldestDays !== null && (
+                    <p data-slot="dashboard-silent-receipts-oldest" className="text-xs font-bold mt-0.5 text-amber-800 dark:text-amber-200">
+                      {t.dashboardSilentReceiptsOldest
+                        .replace('{date}', formatDate(catchUp.oldestDate ?? ''))
+                        .replace('{days}', String(catchUp.oldestDays))}
+                    </p>
+                  )}
+                </div>
+                {catchUp.receipts > 0 && (
+                  <button
+                    type="button"
+                    data-slot="dashboard-silent-receipts-open"
+                    onClick={() => setActiveTab('silentReceipts')}
+                    className={`ml-auto px-3 py-1.5 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} rounded text-2xs font-bold transition-all`}
+                  >
+                    {t.dashboardSilentReceiptsOpen}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* --- Premium KPI Cards --- */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 no-print">

@@ -32,7 +32,7 @@ import type { Expense, Parent, Payment, SalaryPayment, Staff, Student, Todo, Ven
 const DATAOPS_DIR = join(import.meta.dirname, '..', 'src', 'lib', 'dataOps');
 
 interface Call {
-  op: 'insert' | 'update' | 'delete' | 'select';
+  op: 'insert' | 'update' | 'delete' | 'select' | 'rpc';
   table: string;
   payload?: Record<string, unknown>;
   eqColumn?: string;
@@ -103,6 +103,14 @@ const fakeSupabase = {
       return chain(() => rowsResult);
     },
   }),
+  // L'écriture BORNÉE (les mois d'un reçu). Elle rend le NOMBRE de lignes
+  // écrites — c'est ce nombre que l'app lit (0 n'est pas un succès) — et elle est
+  // enregistrée à part d'un appel de table : un appel de FONCTION n'est pas une
+  // table, et un chemin qui repasserait par un UPDATE de payments doit se voir ici.
+  rpc: (fn: string, args?: Record<string, unknown>) => {
+    calls.push({ op: 'rpc', table: fn, payload: args });
+    return chain(() => rowsResult);
+  },
 };
 
 mockModule('../src/lib/supabaseClient', { supabase: fakeSupabase });
@@ -283,8 +291,8 @@ describe('deleteParent — la même règle pour un parent', () => {
     assert.ok(selects > 0, '.select demande ce qui a été supprimé');
   });
 
-  it('ÉCHOUE et le dit quand la policy a filtré la cible (0 ligne, HTTP 200)', async () => {
-    rowsResult = { data: [], error: null };
+  it('ÉCHOUE et le dit quand la base n’écrit RIEN (0 ligne rendue)', async () => {
+    rowsResult = { data: 0, error: null };
     const { ops, events, state } = parentOps();
 
     assert.equal(await ops.deleteParent('pa1'), false);
@@ -554,6 +562,69 @@ describe('addPayment — l’id du geste empêche un second reçu', () => {
     assert.equal(s.payments.length, 1, 'un seul reçu local, pas deux');
     assert.equal(s.amountPaid, 75000, 'le solde n’a été incrémenté qu’une fois');
   });
+
+  /**
+   * Le MOTIF — à quoi le paiement correspond (« Frais de scolarité » ou
+   * « Inscription »). Il part EN BASE parce que le reçu officiel a une ligne
+   * « Motif » : sans la colonne, une réimpression dans six mois redirait
+   * « Frais de scolarité » sur un reçu d'inscription, et l'erreur ne se verrait
+   * qu'à l'impression.
+   */
+  it('écrit le motif du geste dans la ligne ET dans l’instantané du journal', async () => {
+    insertResult = { data: null, error: null };
+    const { ops } = paymentOps();
+
+    await ops.addPayment('st1', {
+      date: '2026-10-05', amount: 25000, receiptNumber: 'REC-1', id: GESTURE_ID, motif: 'scolarite',
+    } as PaymentDraft);
+
+    const insert = calls.find((c) => c.op === 'insert' && c.table === 'payments');
+    assert.equal(insert?.payload?.motif, 'scolarite', 'le motif choisi part avec la ligne');
+    const audit = calls.find((c) => c.op === 'insert' && c.table === 'audit_logs');
+    const meta = audit?.payload?.metadata as Record<string, unknown>;
+    assert.equal(meta?.motif, 'scolarite', 'et il est dans l’instantané STRUCTURÉ, avec le reste de la ligne');
+  });
+
+  it('ne devine ni n’écrit aucun motif quand le geste n’en déclare pas', async () => {
+    insertResult = { data: null, error: null };
+    const { ops } = paymentOps();
+
+    // Un import Excel, ou un geste d'une version antérieure : la colonne reçoit
+    // `null` — jamais « scolarite » écrit à la place du client.
+    await ops.addPayment('st1', { date: '2026-10-05', amount: 25000, id: GESTURE_ID } as PaymentDraft);
+
+    const insert = calls.find((c) => c.op === 'insert' && c.table === 'payments');
+    assert.equal(insert?.payload?.motif, null, 'sans motif, la colonne reçoit NULL');
+    const meta = calls.find((c) => c.op === 'insert' && c.table === 'audit_logs')?.payload?.metadata as Record<string, unknown>;
+    assert.equal(meta?.motif ?? null, null, 'l’instantané non plus n’en invente aucun');
+  });
+
+  // Le journal n'a pas de langue : la clé est écrite TELLE QU'ELLE EST STOCKÉE
+  // (`inscription`), comme les mois (`2026-09`). Et le geste ORDINAIRE garde la
+  // phrase d'avant — c'est le motif pré-imprimé du formulaire officiel, donc un
+  // suffixe sur chaque encaissement ferait relire autre chose à l'historique.
+  it('nomme l’inscription dans la phrase du journal, et laisse l’ordinaire inchangé', async () => {
+    insertResult = { data: null, error: null };
+    const { ops } = paymentOps();
+
+    await ops.addPayment('st1', {
+      date: '2026-10-05', amount: 25000, receiptNumber: 'REC-1', id: GESTURE_ID, motif: 'scolarite',
+    } as PaymentDraft);
+    const ordinal = calls.filter((c) => c.op === 'insert' && c.table === 'audit_logs').at(-1);
+    assert.equal(ordinal?.payload?.details, 'Paiement de 25000 FCFA (reçu REC-1)', 'la phrase ordinaire ne bouge pas');
+
+    const SECOND = '9f8b7a6c-1111-4222-8333-444455556677';
+    await ops.addPayment('st1', {
+      date: '2026-10-06', amount: 10000, receiptNumber: 'REC-2', id: SECOND, motif: 'inscription',
+    } as PaymentDraft);
+    const registration = calls.filter((c) => c.op === 'insert' && c.table === 'audit_logs').at(-1);
+    assert.match(String(registration?.payload?.details), /motif : inscription/, 'l’inscription est nommée dans le journal');
+    assert.equal(
+      (registration?.payload?.metadata as Record<string, unknown>)?.motif,
+      'inscription',
+      'et l’instantané porte la même clé',
+    );
+  });
 });
 
 /**
@@ -667,6 +738,42 @@ describe('deletePayment — retirer le seul reçu fautif, et l’écrire au jour
     assert.equal(await ops.deletePayment('st1', PAY1), true);
     assert.equal((state()[0] as { amountPaid: number }).amountPaid, 0);
   });
+
+  /**
+   * Le MOTIF voyage avec la suppression.
+   *
+   * La suppression emporte ce qu'il faut pour RÉINSÉRER la ligne à l'identique
+   * (l'instantané) : sans le motif, une suppression puis une restauration
+   * rendraient un reçu d'inscription muet sur ce qui a été réglé — la réparation
+   * du geste écrirait un papier faux. Le motif part donc dans l'instantané en
+   * ligne, ET dans l'item de la file hors ligne.
+   */
+  it('emporte le motif dans l’instantané — en ligne comme dans la file hors ligne', async () => {
+    const REGISTRATION = {
+      id: 'pay1', date: '2026-10-01', amount: 25000, receiptNumber: 'REC-1', motif: 'inscription',
+    } as Payment;
+
+    rowsResult = { data: [{ id: 'pay1' }], error: null };
+    const online = opsFor([{ ...PAYING, payments: [REGISTRATION, PAY2] }]);
+    assert.equal(await online.ops.deletePayment('st1', REGISTRATION), true);
+    const meta = calls.find((c) => c.op === 'insert' && c.table === 'audit_logs')?.payload?.metadata as Record<string, unknown>;
+    assert.equal(meta?.motif, 'inscription', 'l’instantané qui rend la suppression annulable porte le motif');
+
+    // Hors ligne : le motif part dans l'item, sinon le rejeu écrirait un
+    // instantané incomplet et la restauration ne pourrait plus le rendre.
+    calls = [];
+    const queued: { type: string; payload: Record<string, unknown> }[] = [];
+    const offline = opsFor([{ ...PAYING, payments: [REGISTRATION, PAY2] }]);
+    (offline.ctx as Record<string, unknown>).isOffline = () => true;
+    (offline.ctx as Record<string, unknown>).enqueueOffline = (type: string, payload: Record<string, unknown>) => queued.push({ type, payload });
+    const offlineOps = createPaymentOps(offline.ctx as unknown as Parameters<typeof createPaymentOps>[0]);
+    assert.equal(await offlineOps.deletePayment('st1', REGISTRATION), true);
+
+    const item = queued.at(-1);
+    assert.equal(item?.type, 'deletePayment');
+    assert.equal(item?.payload?.motif, 'inscription', 'le motif voyage avec la mise en file');
+    assert.equal(item?.payload?.paymentId, 'pay1');
+  });
 });
 
 /**
@@ -747,6 +854,35 @@ describe('restorePayment — remettre le reçu retiré, et l’écrire au journa
     assert.equal(await offlineOps.restorePayment(ARCHIVED), false);
     assert.equal(calls.filter((c) => c.op === 'insert').length, 0, 'aucune requête tentée sans réseau');
     assert.ok(events.find((e) => e.startsWith('err:restorePayment')), 'l’échec est dit');
+  });
+
+  /**
+   * Le MOTIF revient avec le reste.
+   *
+   * Une suppression puis une restauration doivent rendre le reçu ENTIER :
+   * remettre un reçu d'inscription en « frais de scolarité » (ou sans motif)
+   * ferait survivre l'erreur au geste qui la répare. Et quand l'instantané n'en
+   * porte PAS, la colonne reçoit `null` — on ne devine pas ce qui n'a jamais été
+   * écrit. L'écran suit la base : le paiement restauré porte le même motif.
+   */
+  it('réinsère le motif de l’instantané, et n’en invente aucun quand il n’y en a pas', async () => {
+    insertResult = { data: null, error: null };
+    rowsResult = { data: null, error: null };
+    const { ops, state } = opsFor();
+
+    assert.equal(await ops.restorePayment({ ...ARCHIVED, motif: 'inscription' }), true);
+    const inserted = calls.filter((c) => c.op === 'insert' && c.table === 'payments').at(-1);
+    assert.equal(inserted?.payload?.motif, 'inscription', 'le motif restauré est celui de l’instantané');
+    const back = (state()[0] as { payments: Payment[] }).payments.find((p) => p.id === 'pay1');
+    assert.equal(back?.motif, 'inscription', 'et l’écran le montre');
+
+    // Sans motif dans l’instantané : NULL, jamais le défaut écrit au nom du client.
+    const second = opsFor();
+    assert.equal(await second.ops.restorePayment(ARCHIVED), true);
+    const plain = calls.filter((c) => c.op === 'insert' && c.table === 'payments').at(-1);
+    assert.equal(plain?.payload?.motif, null, 'aucun motif inventé');
+    const plainBack = (second.state()[0] as { payments: Payment[] }).payments.find((p) => p.id === 'pay1');
+    assert.equal(plainBack?.motif, undefined, 'et l’écran n’en affiche aucun');
   });
 });
 
@@ -855,10 +991,11 @@ describe('file hors ligne qui REFUSE — l’argent ne s’annonce pas « enregi
  * l'école qui le sait, et c'est ici qu'elle l'écrit.
  *
  * Quatre contrats, et chacun répare un mensonge possible :
- *   • l'écriture ne touche QUE `months` (ni montant, ni date, ni reçu), et laisse
- *     une entrée `UPDATE_PAYMENT_MONTHS` au journal ;
- *   • une mise à jour que la policy « Admin update payments » a filtrée (0 ligne,
- *     HTTP 200) ÉCHOUE et le DIT — les mois restent inconnus ;
+ *   • l'écriture ne touche QUE `months` (ni montant, ni date, ni reçu), passe par
+ *     la FONCTION bornée `public.set_payment_months` — jamais par un UPDATE de
+ *     table — et laisse une entrée `UPDATE_PAYMENT_MONTHS` au journal ;
+ *   • une écriture que la base n'a pas faite (la fonction rend 0 ligne) ÉCHOUE et
+ *     le DIT — les mois restent inconnus ;
  *   • hors ligne, rien n'est tenté : le geste part dans la file AVEC de quoi
  *     écrire la même phrase au rejeu ;
  *   • et rien ne s'écrit sans au moins un mois : « renseigner » veut dire nommer.
@@ -882,7 +1019,8 @@ describe('updatePaymentMonths — les mois d’un reçu muet, sans toucher au re
   }
 
   it('écrit les mois TRIÉS, ne touche à rien d’autre, et journalise le geste', async () => {
-    rowsResult = { data: [{ id: 'pay0' }], error: null };
+    // La fonction rend le NOMBRE de lignes écrites : 1 = le reçu a été touché.
+    rowsResult = { data: 1, error: null };
     const { ops, events, state } = opsFor();
 
     // Ordre de clics bricolé et doublon : la brique pure range et dédoublonne
@@ -890,16 +1028,19 @@ describe('updatePaymentMonths — les mois d’un reçu muet, sans toucher au re
     assert.equal(await ops.updatePaymentMonths('st1', MUTE, ['2026-11', '2026-09', '2026-11']), true);
     assert.deepEqual(events, ['ok:updatePaymentMonths'], 'un seul succès, aucune erreur');
 
-    const update = calls.find((c) => c.op === 'update' && c.table === 'payments');
-    assert.ok(update, 'un UPDATE part vers payments');
-    assert.equal(update.eqColumn, 'id');
-    assert.equal(update.eqValue, 'pay0', 'le reçu visé est celui de la ligne muette');
+    const call = calls.find((c) => c.op === 'rpc');
+    assert.ok(call, 'l’écriture passe par une FONCTION, jamais par un UPDATE de table');
+    assert.equal(call.table, 'set_payment_months', 'la fonction bornée de la migration 20261013000000');
     assert.deepEqual(
-      update.payload,
-      { months: ['2026-09', '2026-11'] },
-      'SEULS les mois partent — triés, sans doublon : l’argent n’est pas dans cette requête',
+      call.payload,
+      { p_payment_id: 'pay0', p_months: ['2026-09', '2026-11'] },
+      'le reçu VISÉ et les mois TRIÉS, sans doublon — le montant n’est pas dans cette requête',
     );
-    assert.ok(selects > 0, 'la requête demande CE QUI a été modifié (.select)');
+    assert.equal(
+      calls.filter((c) => c.op === 'update').length,
+      0,
+      'aucun UPDATE de table : c’est ce qui empêche un rôle de réécrire le montant',
+    );
 
     const s = state()[0] as { payments: { id: string; months?: string[] }[]; amountPaid: number };
     assert.deepEqual(s.payments.find(p => p.id === 'pay0')?.months, ['2026-09', '2026-11'], 'l’écran suit la base');
@@ -931,6 +1072,31 @@ describe('updatePaymentMonths — les mois d’un reçu muet, sans toucher au re
     );
   });
 
+  it('ÉCHOUE et le dit quand la base REFUSE le geste (droits : 42501)', async () => {
+    // Le miroir de paymentRights.ts : un rôle qui n'est PAS éditeur des mois
+    // (staff, un compte inconnu) reçoit un refus, pas un silence. La fonction lève
+    // 42501, l'app le dit, et RIEN n'est journalisé ni montré comme écrit.
+    rowsResult = {
+      data: null,
+      error: { message: 'renseigner les mois d’un reçu demande le rôle admin, dev ou econome', code: '42501' },
+    };
+    const { ops, events, state } = opsFor();
+
+    assert.equal(await ops.updatePaymentMonths('st1', MUTE, ['2026-09']), false);
+    assert.match(
+      String(events.find((e) => e.startsWith('err:updatePaymentMonths'))),
+      /admin, dev ou econome/,
+      'la raison de la base est montrée telle quelle',
+    );
+    const s = state()[0] as { payments: { id: string; months?: string[] }[] };
+    assert.equal(s.payments.find(p => p.id === 'pay0')?.months, undefined, 'les mois restent inconnus');
+    assert.equal(
+      calls.filter((c) => c.op === 'insert' && c.table === 'audit_logs').length,
+      0,
+      'rien n’est journalisé : la base a refusé',
+    );
+  });
+
   it('refuse un reçu sans identifiant, et refuse d’écrire ZÉRO mois', async () => {
     const { ops, events } = opsFor();
 
@@ -943,7 +1109,11 @@ describe('updatePaymentMonths — les mois d’un reçu muet, sans toucher au re
     // déclarerait rien de plus que le silence d'avant, en donnant l'impression
     // d'une fiche complétée.
     assert.equal(await ops.updatePaymentMonths('st1', MUTE, []), false, 'zéro mois n’est pas un renseignement');
-    assert.equal(calls.filter((c) => c.op === 'update').length, 0, 'aucune requête tentée');
+    assert.equal(
+      calls.filter((c) => c.op === 'rpc' || c.op === 'update').length,
+      0,
+      'aucune requête tentée vers la base',
+    );
     assert.equal(
       events.filter((e) => e.startsWith('err:updatePaymentMonths')).length,
       2,
@@ -962,7 +1132,11 @@ describe('updatePaymentMonths — les mois d’un reçu muet, sans toucher au re
     const ops = createPaymentOps(ctx as unknown as Parameters<typeof createPaymentOps>[0]);
 
     assert.equal(await ops.updatePaymentMonths('st1', MUTE, ['2026-11', '2026-09']), true);
-    assert.equal(calls.filter((c) => c.op === 'update').length, 0, 'aucune requête tentée sans réseau');
+    assert.equal(
+      calls.filter((c) => c.op === 'rpc' || c.op === 'update').length,
+      0,
+      'aucune requête tentée sans réseau — ni fonction, ni table',
+    );
     // Montant, reçu, date et élève voyagent AVEC le geste : au rejeu, le journal
     // doit nommer le même reçu sans relire une ligne `payments`.
     assert.deepEqual(enqueued, [{

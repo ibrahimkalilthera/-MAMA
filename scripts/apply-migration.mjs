@@ -164,7 +164,7 @@ if (empty.length > 0) {
   for (const plan of empty) {
     console.error(
       `   • ${plan.name} — aucun ajout (table, colonne, contrainte, fonction, politique, déclencheur) ` +
-        'et aucun retrait lu (DROP TABLE, ALTER TABLE … DROP COLUMN)',
+        'et aucun retrait lu (DROP TABLE, ALTER TABLE … DROP COLUMN, DROP POLICY/FUNCTION/TRIGGER/CONSTRAINT)',
     );
   }
   process.exit(2);
@@ -247,6 +247,12 @@ async function connect() {
  * `COMMIT`, donc une vérification « après » faite là-bas serait un échec
  * systématique — ou, pire selon le sens, un vert qui ne prouve rien de la
  * transaction en cours.
+ *
+ * Les noms RETIRÉS sont sondés par la MÊME question, dans les mêmes catalogues :
+ * une politique à retirer se lit dans `pg_policies`, une fonction dans `pg_proc`,
+ * un déclencheur dans `pg_trigger`, une contrainte dans `pg_constraint`. C'est ce
+ * qui rend la preuve « présent AVANT, absent APRÈS » possible pour un `DROP
+ * POLICY` — une fermeture qui ne se vérifie pas est une fermeture qu'on espère.
  */
 async function probeObjects(client, objects) {
   const present = new Set();
@@ -264,12 +270,18 @@ async function probeObjects(client, objects) {
       }
     }
   }
+  // Ajouts ET retraits, dans la même sonde : le verdict se pose deux fois sur le
+  // même ensemble — « absent avant, présent après » pour un ajout, « présent
+  // avant, absent après » pour un retrait.
+  const withRemovals = (added = [], dropped = []) => [...new Set([...added, ...dropped])];
+  const droppedOf = (kind) => objects.removed?.[kind] ?? [];
   const families = [
-    ['constraint', 'select conname as name from pg_constraint where conname = any($1::text[])', objects.constraints],
-    ['function', 'select proname as name from pg_proc where proname = any($1::text[])', objects.functions],
-    ['policy', 'select policyname as name from pg_policies where policyname = any($1::text[])', objects.policies],
-    ['trigger', 'select tgname as name from pg_trigger where tgname = any($1::text[]) and not tgisinternal', objects.triggers],
+    ['constraint', 'select conname as name from pg_constraint where conname = any($1::text[])', withRemovals(objects.constraints, droppedOf('constraints'))],
+    ['function', 'select proname as name from pg_proc where proname = any($1::text[])', withRemovals(objects.functions, droppedOf('functions'))],
+    ['policy', 'select policyname as name from pg_policies where policyname = any($1::text[])', withRemovals(objects.policies, droppedOf('policies'))],
+    ['trigger', 'select tgname as name from pg_trigger where tgname = any($1::text[]) and not tgisinternal', withRemovals(objects.triggers, droppedOf('triggers'))],
   ];
+
   for (const [kind, query, names] of families) {
     if (!names.length) continue;
     const { rows } = await client.query(query, [names]);

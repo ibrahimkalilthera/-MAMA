@@ -53,6 +53,13 @@ export interface FakeReplayDbOptions {
    * read that as a refusal, not as a success.
    */
   emptyWrites?: string[];
+  /**
+   * Functions whose `rpc()` returns ZERO rows — le même refus, mais du côté des
+   * écritures BORNÉES : `public.set_payment_months` rend un NOMBRE de lignes
+   * écrites, et 0 n'est pas un succès (le reçu visé n'existe plus, ou l'appelant
+   * n'y a pas droit).
+   */
+  emptyRpc?: string[];
 }
 
 export interface FakeReplayDb {
@@ -72,6 +79,14 @@ export interface FakeReplayDb {
    * would otherwise vanish from the queue with nothing to notice it.
    */
   updates: CapturedRow[];
+  /**
+   * Every `rpc()` call, in call order. Kept APART from `queries` on purpose: un
+   * appel de fonction n'est pas une table. Une écriture bornée à une colonne (les
+   * mois d'un reçu, `public.set_payment_months`) se prouve par son nom ET par
+   * l'absence de tout UPDATE de table — un rejeu qui repasserait par
+   * `from('payments').update(…)` doit se voir ici même.
+   */
+  rpcs: { fn: string; args: Record<string, unknown> }[];
 }
 
 /**
@@ -83,6 +98,7 @@ export function makeFakeDb(opts: FakeReplayDbOptions = {}): FakeReplayDb {
   const queries: string[] = [];
   const rows: CapturedRow[] = [];
   const updates: CapturedRow[] = [];
+  const rpcs: { fn: string; args: Record<string, unknown> }[] = [];
   const ok: OkResult = { data: [{ id: 'fake-row' }], error: null };
   const empty: OkResult = { data: [], error: null };
   const bad: ErrResult = { data: null, error: { message: 'boom' } };
@@ -118,5 +134,18 @@ export function makeFakeDb(opts: FakeReplayDbOptions = {}): FakeReplayDb {
     return mk(opts.allFail || Boolean(opts.failTables?.includes(table)), table);
   };
 
-  return { db: { from } as unknown as ReplayDb, queries, rows, updates };
+  /**
+   * Le chemin des écritures BORNÉES. Il rend le NOMBRE de lignes écrites (la
+   * fonction de la base rend un entier), donc `1` par défaut : un rejeu sain doit
+   * pouvoir réussir, et un faux qui répondrait « rien écrit » ferait passer pour
+   * un refus une écriture que personne n'a refusée.
+   */
+  const rpc = async (fn: string, args?: Record<string, unknown>) => {
+    rpcs.push({ fn, args: (args ?? {}) as Record<string, unknown> });
+    if (opts.allFail || Boolean(opts.failTables?.includes(fn))) return bad;
+    if (opts.emptyRpc?.includes(fn)) return empty;
+    return { data: 1, error: null };
+  };
+
+  return { db: { from, rpc } as unknown as ReplayDb, queries, rows, updates, rpcs };
 }

@@ -1,5 +1,13 @@
 // Pure replay-core suite: no DOM/React (see tests/harness.ts "When NOT to
 // use it") — replayOfflineItem is exercised against a plain fake ReplayDb.
+//
+// Depuis le 2026-10-13, UNE action passe par une FONCTION de la base et non par
+// un UPDATE de table : `updatePaymentMonths` appelle
+// `public.set_payment_months`
+// (supabase/migrations/20261013000000_econome_payment_months.sql), l'écriture
+// BORNÉE à la colonne `months` — une policy RLS borne des LIGNES, donc l'ouvrir à
+// l'économe lui aurait ouvert le MONTANT avec. Ces cas le vérifient par le NOM de
+// la fonction ET par l'absence de tout UPDATE de table.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -30,9 +38,14 @@ function itemOf<T extends OfflineActionType>(
  */
 function reconcilingDb(
   rows: Record<string, Array<Record<string, unknown>>>,
-  opts: { insertError?: { message: string; code?: string } } = {},
-): { db: ReplayDb; updates: { table: string; row: Record<string, unknown> }[] } {
+  opts: { insertError?: { message: string; code?: string }; monthsWritten?: number } = {},
+): {
+  db: ReplayDb;
+  updates: { table: string; row: Record<string, unknown> }[];
+  rpcs: { fn: string; args: Record<string, unknown> }[];
+} {
   const updates: { table: string; row: Record<string, unknown> }[] = [];
+  const rpcs: { fn: string; args: Record<string, unknown> }[] = [];
   const make = (table: string, result: { data: unknown; error: unknown }) => {
     const builder = Object.assign(Promise.resolve(result), {
       select: () => builder,
@@ -49,16 +62,22 @@ function reconcilingDb(
     return builder;
   };
   const from = (table: string) => make(table, { data: rows[table] ?? [{ id: 'fake-row' }], error: null });
-  return { db: { from } as unknown as ReplayDb, updates };
+  /** L'écriture bornée : la fonction rend un NOMBRE de lignes écrites. */
+  const rpc = (fn: string, args?: Record<string, unknown>) => {
+    rpcs.push({ fn, args: (args ?? {}) as Record<string, unknown> });
+    return Promise.resolve({ data: opts.monthsWritten ?? 1, error: null });
+  };
+  return { db: { from, rpc } as unknown as ReplayDb, updates, rpcs };
 }
 
 
 
 /** The player with the full typed payloads, and the table each one should hit. */
-const CASES: { type: OfflineActionType; build: () => QueueItem; table: string }[] = [
+const CASES: { type: OfflineActionType; build: () => QueueItem; table?: string; rpc?: string }[] = [
   { type: 'addPayment', build: () => itemOf('addPayment', { studentId: 's1', payment: { date: '2026-01-01', amount: 500, receiptNumber: 'R1' } }), table: 'payments' },
   { type: 'deletePayment', build: () => itemOf('deletePayment', { studentId: 's1', paymentId: 'pay1', amount: 500, receiptNumber: 'R1', date: '2026-01-01' }), table: 'payments' },
-  { type: 'updatePaymentMonths', build: () => itemOf('updatePaymentMonths', { studentId: 's1', paymentId: 'pay1', months: ['2026-09', '2026-11'], amount: 500, receiptNumber: 'R1', date: '2026-01-01' }), table: 'payments' },
+  // Les mois d'un reçu : une FONCTION, jamais un UPDATE de table (voir l'en-tête).
+  { type: 'updatePaymentMonths', build: () => itemOf('updatePaymentMonths', { studentId: 's1', paymentId: 'pay1', months: ['2026-09', '2026-11'], amount: 500, receiptNumber: 'R1', date: '2026-01-01' }), rpc: 'set_payment_months' },
   { type: 'addExpense', build: () => itemOf('addExpense', { category: 'stationery', description: 'desk', amount: 10, date: '2026-01-01' }), table: 'expenses' },
   { type: 'updateExpense', build: () => itemOf('updateExpense', { id: 'e1', updates: { amount: 12 } }), table: 'expenses' },
   { type: 'deleteExpense', build: () => itemOf('deleteExpense', { id: 'e1' }), table: 'expenses' },
@@ -122,13 +141,24 @@ describe('offline queue replay (replayOfflineItem)', () => {
     assert.deepEqual(declared, all.slice().sort(), 'un type déclaré sans cas de test doit échouer');
   });
 
-  for (const { type, build, table } of CASES) {
-    it(`replays '${type}' without error and queries '${table}'`, async () => {
-      const { db, queries } = makeFakeDb();
-      const ok = await replayOfflineItem(db, build());
-      assert.equal(ok, true, `${type} should report success on a healthy db`);
-      assert.ok(queries.includes(table), `${type} should hit table '${table}' (got ${queries.join(', ')})`);
-    });
+  for (const { type, build, table, rpc } of CASES) {
+    it(
+      `replays '${type}' without error and reaches ${rpc ? `the function '${rpc}'` : `the table '${table}'`}`,
+      async () => {
+        const fake = makeFakeDb();
+        const ok = await replayOfflineItem(fake.db, build());
+        assert.equal(ok, true, `${type} should report success on a healthy db`);
+        if (rpc) {
+          // L'écriture bornée : la FONCTION nommée, et AUCUN UPDATE de table.
+          // C'est la différence qui empêche un rôle de réécrire le MONTANT d'un
+          // reçu en passant par le chemin des mois.
+          assert.deepEqual(fake.rpcs.map((call) => call.fn), [rpc], `${type} doit appeler la fonction '${rpc}'`);
+          assert.deepEqual(fake.queries, [], `${type} ne doit toucher aucune table (got ${fake.queries.join(', ')})`);
+          return;
+        }
+        assert.ok(fake.queries.includes(table!), `${type} should hit table '${table}' (got ${fake.queries.join(', ')})`);
+      },
+    );
   }
 
   it('reports failure (success=false) when the db returns an error', async () => {
@@ -463,40 +493,57 @@ describe('ids des lignes créées hors ligne', () => {
     assert.deepEqual(inserts[1].row.months, [], 'sans mois, la colonne reçoit un tableau vide');
   });
 
-  it('renseigner les mois au rejeu n’écrit QUE `months`, et sur le reçu visé', async () => {
+  it('un paiement en file garde son MOTIF au rejeu — et n’en invente aucun', async () => {
+    // Le motif choisi au guichet pendant la coupure doit arriver en base avec le
+    // geste : un rejeu qui le perdrait rendrait un reçu d'inscription en « frais
+    // de scolarité », et la famille garderait ce papier-là.
+    const { db, rows } = makeFakeDb();
+    await replayOfflineItem(db, itemOf('addPayment', {
+      studentId: 's1',
+      payment: { date: '2026-10-04', amount: 100, receiptNumber: 'R1', motif: 'inscription' },
+    }));
+    await replayOfflineItem(db, itemOf('addPayment', {
+      studentId: 's1',
+      payment: { date: '2026-10-05', amount: 100, receiptNumber: 'R2' },
+    }));
+
+    const inserts = rows.filter((r) => r.table === 'payments');
+    assert.equal(inserts[0].row.motif, 'inscription', 'le motif du geste arrive en base');
+    assert.equal(inserts[1].row.motif, null, 'sans motif, la colonne reçoit NULL (on ne devine rien)');
+  });
+
+  it('renseigner les mois au rejeu appelle la FONCTION bornée, et sur le reçu visé', async () => {
     // Le geste en file est un CORRECTIF de reçu : il ne doit ni toucher au
     // montant, ni à la date, ni au solde de l'élève — et il doit viser LE reçu
     // dont l'école a parlé, pas un autre de la même fiche.
-    const db = reconcilingDb({ payments: [{ id: 'pay0' }] });
-    const ok = await replayOfflineItem(db.db, itemOf('updatePaymentMonths', {
+    //
+    // Depuis le 2026-10-13, il ne passe plus par un UPDATE de `payments` mais par
+    // `public.set_payment_months` : c'est la seule façon d'ouvrir cette correction
+    // à l'économe sans lui ouvrir le MONTANT, une policy RLS ne sachant borner que
+    // des lignes. Ce que la RPC reçoit est donc la preuve du périmètre : l'id du
+    // reçu, et les mois. Rien d'autre ne voyage.
+    const fake = reconcilingDb({ payments: [{ id: 'pay0' }] });
+    const ok = await replayOfflineItem(fake.db, itemOf('updatePaymentMonths', {
       studentId: 's1', paymentId: 'pay0', months: ['2026-09', '2026-11'],
       amount: 10000, receiptNumber: 'REC-0', date: '2026-01-10', studentName: 'Ali Diallo',
     }));
 
     assert.equal(ok, true);
-    const written = db.updates.filter((u) => u.table === 'payments');
-    assert.equal(written.length, 1, 'un seul UPDATE, et sur payments');
-    assert.deepEqual(written[0].row, { months: ['2026-09', '2026-11'] }, 'seuls les mois sont écrits');
-    assert.equal(
-      db.updates.filter((u) => u.table === 'students').length,
-      0,
-      'le solde n’est pas réconcilié : rien d’autre n’a changé',
+    assert.deepEqual(
+      fake.rpcs,
+      [{ fn: 'set_payment_months', args: { p_payment_id: 'pay0', p_months: ['2026-09', '2026-11'] } }],
+      'la RPC porte le reçu visé et les seuls mois',
     );
+    assert.deepEqual(fake.updates, [], 'aucun UPDATE de table : ni `payments`, ni le solde de l’élève');
   });
 
-  it('un rejeu de mois que la policy a filtré (0 ligne) ne se déclare pas écrit', async () => {
-    // Même lecture qu'en ligne : PostgREST répond 200 avec zéro ligne quand la
-    // policy retire la cible. L'item reste alors en file et le dira — un rejeu
-    // qui « avale » le geste le perdrait sans que personne ne le sache.
+  it('un rejeu de mois devant un reçu ABSENT (0 ligne écrite) ne se déclare pas écrit', async () => {
+    // La fonction de la base rend le NOMBRE de lignes écrites : zéro n'est pas un
+    // succès (le reçu visé n'existe plus, ou n'est pas là). L'item reste en file et
+    // le dira — un rejeu qui « avale » le geste le perdrait sans que personne ne le
+    // sache.
     const refused = {
-      from: () => {
-        const builder = Object.assign(Promise.resolve({ data: [], error: null }), {
-          update: () => builder,
-          eq: () => builder,
-          select: () => builder,
-        });
-        return builder;
-      },
+      rpc: async () => ({ data: 0, error: null }),
     } as unknown as ReplayDb;
 
     const ok = await replayOfflineItem(refused, itemOf('updatePaymentMonths', {
@@ -504,7 +551,30 @@ describe('ids des lignes créées hors ligne', () => {
       amount: 10000, receiptNumber: 'REC-0', date: '2026-01-10', studentName: 'Ali Diallo',
     }));
 
-    assert.equal(ok, false, 'zéro ligne modifiée n’est pas un succès');
+    assert.equal(ok, false, 'zéro ligne écrite n’est pas un succès');
+  });
+
+  it('un rejeu de mois REFUSÉ par la base (droits) reste en file, avec sa raison', async () => {
+    // Le cas d'un rôle qui n'est PAS éditeur des mois (`staff`, un compte
+    // inconnu) : la fonction lève 42501, l'item n'est pas retiré de la file, et la
+    // bannière peut nommer le refus au lieu de le taire — c'est la raison qui
+    // distingue « en attente d'envoi » de « refusé, il ne partira pas tout seul ».
+    const denied = () => ({
+      rpc: async () => ({
+        data: null,
+        error: { message: 'renseigner les mois d’un reçu demande le rôle admin, dev ou econome', code: '42501' },
+      }),
+    } as unknown as ReplayDb);
+    const item = itemOf('updatePaymentMonths', {
+      studentId: 's1', paymentId: 'pay0', months: ['2026-09'],
+      amount: 10000, receiptNumber: 'REC-0', date: '2026-01-10', studentName: 'Ali Diallo',
+    });
+
+    assert.equal(await replayOfflineItem(denied(), item), false);
+    const outcome = await replayOfflineItemDetailed(denied(), item);
+    assert.equal(outcome.ok, false);
+    assert.match(outcome.reason ?? '', /admin, dev ou econome/, 'la raison nomme le refus, elle ne le tait pas');
+    assert.match(outcome.reason ?? '', /42501/, 'et le code de la base y est');
   });
 });
 
@@ -603,6 +673,46 @@ describe('offline replay audit mapping (offlineAuditInfo)', () => {
       assert.ok(info.details && info.details.endsWith(' [replay]'), `${type} details should carry the [replay] tag`);
     });
   }
+
+  /**
+   * Le MOTIF dans le journal REJOUÉ — la même forme que le chemin en ligne.
+   *
+   * Un fait ne doit pas se lire de deux façons selon qu'il a attendu la ligne :
+   * l'encaissement d'une inscription dit son motif dans sa phrase (clé STOCKÉE,
+   * le journal n'a pas de langue) et le porte dans l'instantané STRUCTURÉ ;
+   * l'encaissement ordinaire garde la phrase d'avant, mot pour mot.
+   */
+  it('porte le motif d’une inscription, en clair et dans l’instantané — et laisse l’ordinaire intact', () => {
+    const registration = offlineAuditInfo(itemOf('addPayment', {
+      studentId: 's1',
+      payment: { id: 'pay1', date: '2026-10-04', amount: 100, receiptNumber: 'R1', motif: 'inscription' },
+    }));
+    assert.ok(registration);
+    assert.match(String(registration.details), /motif : inscription/, 'la phrase nomme l’inscription');
+    assert.equal(
+      (registration.metadata as Record<string, unknown>)?.motif,
+      'inscription',
+      'et l’instantané porte la même clé que le chemin en ligne',
+    );
+
+    const ordinary = offlineAuditInfo(itemOf('addPayment', {
+      studentId: 's1',
+      payment: { id: 'pay2', date: '2026-10-04', amount: 100, receiptNumber: 'R2', motif: 'scolarite' },
+    }));
+    assert.equal(
+      ordinary?.details,
+      'Paiement de 100 FCFA (reçu R2) [replay]',
+      'le geste ordinaire garde exactement la phrase d’avant',
+    );
+    assert.equal((ordinary?.metadata as Record<string, unknown>)?.motif, 'scolarite');
+
+    // La suppression mise en file : le motif voyage avec elle (il finit dans
+    // l'instantané qui rend le geste annulable).
+    const deletion = offlineAuditInfo(itemOf('deletePayment', {
+      studentId: 's1', paymentId: 'pay1', amount: 100, receiptNumber: 'R1', date: '2026-10-04', motif: 'inscription',
+    }));
+    assert.equal((deletion?.metadata as Record<string, unknown>)?.motif, 'inscription');
+  });
 
   for (const type of SILENT) {
     it(`keeps '${type}' silent (no audit entry)`, () => {

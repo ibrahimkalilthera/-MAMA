@@ -1,4 +1,5 @@
 import type { Parent, Student, Staff, SalaryPayment, Expense, VendorExpense, Todo, Payment } from './domainTypes';
+import type { PaymentMotif } from './paymentMotifs';
 
 /**
  * Offline Action Queue Manager
@@ -75,9 +76,12 @@ export type OfflinePayload =
   /**
    * Suppression d'un paiement saisi par erreur. Le montant, le reçu et la date
    * voyagent avec le geste : le rejeu les écrit dans le journal d'audit, sans
-   * avoir à relire une ligne qui n'existe plus.
+   * avoir à relire une ligne qui n'existe plus. Le MOTIF voyage aussi
+   * (`scolarite` / `inscription`, voir `src/lib/paymentMotifs.ts`) : l'instantané
+   * du rejeu doit être aussi complet que celui du chemin en ligne, sinon une
+   * restauration rendrait un reçu d'inscription muet sur son motif.
    */
-  | { type: 'deletePayment'; payload: { studentId: string; paymentId: string; amount: number; receiptNumber?: string; date: string; academicYear?: string; studentName?: string } }
+  | { type: 'deletePayment'; payload: { studentId: string; paymentId: string; amount: number; receiptNumber?: string; date: string; academicYear?: string; studentName?: string; motif?: PaymentMotif } }
   /**
    * Renseigner les mois couverts d'un reçu ANTÉRIEUR à la colonne `months`, ou
    * saisi sans cocher. Le montant, le reçu, la date et l'élève voyagent avec le

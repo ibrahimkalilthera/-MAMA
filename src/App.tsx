@@ -67,7 +67,7 @@ export default function App() {
   // Onglet actif : déclaré ici parce que le domaine auth/welcome en dépend, et
   // que la session doit exister AVANT le domaine données (elle lui dit à QUI
   // appartient l'instantané hors ligne, et si la session a un jeton).
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'audit' | 'paymentHistory'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory'>('dashboard');
 
   // Auth/welcome domain (session, greeting banner, profiles, admin tab guard) —
   // extracted to src/app/useAuthWelcome.ts.

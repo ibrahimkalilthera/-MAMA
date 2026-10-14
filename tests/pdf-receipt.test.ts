@@ -26,6 +26,7 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { createCanvas } from '@napi-rs/canvas';
 import { translations } from '../src/i18n/translations';
 import type { ReceiptDataOptions } from '../src/lib/pdfReceipt';
+import type { Payment } from '../src/lib/domainTypes';
 import {
   buildParentReceiptPdf,
   SCHOOL_PHONE,
@@ -479,5 +480,85 @@ describe('ligne « Mois » — les mois couverts, pas seulement celui de la date
     assert.ok(strs.includes('7 mois'), `le nombre seul doit rester (${strs.join(' | ')})`);
     assert.ok(!strs.some((s) => s.includes('…')), 'aucun nom de mois tronqué');
     assert.ok(!strs.some((s) => s.includes('Septembre')), 'la liste trop longue n’est pas écrite à moitié');
+  });
+});
+
+/**
+ * La ligne « Motif » — À QUOI ce paiement correspond.
+ *
+ * Elle imprimait toujours « Frais de scolarité » : une famille venue régler le
+ * DROIT D'INSCRIPTION recevait un reçu qui parlait de scolarité — le geste était
+ * bon, le papier faux. Ces cas verrouillent les deux mots, la langue du reçu, et
+ * le fait que le mot reste SUR la ligne pointillée.
+ */
+describe('ligne « Motif » — scolarité ou inscription', () => {
+  const PT_PER_MM = 72 / 25.4;
+
+  async function textsOf(bytes: Uint8Array): Promise<string[]> {
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+    const doc = await loadingTask.promise;
+    try {
+      const content = await (await doc.getPage(1)).getTextContent();
+      return content.items
+        .filter((item): item is Extract<typeof item, { str: string }> => 'str' in item)
+        .map((item) => item.str);
+    } finally {
+      await loadingTask.destroy();
+    }
+  }
+
+  /** Un paiement du 04/10/2026 portant le motif donné (ou aucun). */
+  const withMotif = (motif: Payment['motif'], lang: 'fr' | 'en' = 'fr') => options({
+    lang,
+    payment: {
+      date: '2026-10-04', amount: 25000, academicYear: '2026-2027', receiptNumber: 'REC-777001',
+      ...(motif ? { motif } : {}),
+    },
+  });
+
+  it('sans motif déclaré, garde « Frais de scolarité » — un reçu d’avant ne change pas', async () => {
+    const strs = await textsOf((await buildParentReceiptPdf(withMotif(undefined))).bytes);
+    assert.ok(strs.includes('Frais de scolarité'), `le motif d’avant la colonne reste écrit (${strs.join(' | ')})`);
+    assert.ok(!strs.includes('Inscription'), 'et aucun motif n’est deviné');
+  });
+
+  it('écrit « Inscription » quand la ligne le déclare — et plus « Frais de scolarité »', async () => {
+    const strs = await textsOf((await buildParentReceiptPdf(withMotif('inscription'))).bytes);
+    assert.ok(strs.includes('Inscription'), `le motif du paiement est écrit (${strs.join(' | ')})`);
+    assert.ok(!strs.includes('Frais de scolarité'), 'la scolarité ne s’ajoute pas à l’inscription');
+  });
+
+  it('écrit la scolarité quand elle est DÉCLARÉE, comme le reçu d’avant', async () => {
+    const strs = await textsOf((await buildParentReceiptPdf(withMotif('scolarite'))).bytes);
+    assert.ok(strs.includes('Frais de scolarité'));
+    assert.ok(!strs.includes('Inscription'));
+  });
+
+  it('suit la langue du reçu', async () => {
+    const strs = await textsOf((await buildParentReceiptPdf(withMotif('inscription', 'en'))).bytes);
+    assert.ok(strs.includes('Registration'), `motif anglais absent de [${strs.join(' | ')}]`);
+    assert.ok(!strs.includes('Inscription'), 'le mot français n’est pas imprimé sur un reçu anglais');
+  });
+
+  it('reste sur la ligne pointillée, du début à la fin (x 33 → 190 mm)', async () => {
+    const { bytes } = await buildParentReceiptPdf(withMotif('inscription'));
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+    const doc = await loadingTask.promise;
+    try {
+      const content = await (await doc.getPage(1)).getTextContent();
+      const items = content.items.filter((item): item is Extract<typeof item, { str: string }> => 'str' in item);
+      const motifItem = items.find((item) => item.str === 'Inscription');
+      assert.ok(motifItem, 'la ligne du motif est écrite');
+      const media = (await PDFDocument.load(bytes)).getPage(0).getMediaBox();
+      const lineStart = media.x + MOTIF.x * PT_PER_MM;
+      const lineEnd = media.x + 190 * PT_PER_MM;
+      assert.ok(motifItem.transform[4] >= lineStart - 0.1, 'le texte commence après le libellé imprimé');
+      assert.ok(
+        motifItem.transform[4] + motifItem.width <= lineEnd + 0.1,
+        `le texte tient sur la ligne (fin ${(motifItem.transform[4] + motifItem.width).toFixed(1)} pt ≤ ${lineEnd.toFixed(1)})`,
+      );
+    } finally {
+      await loadingTask.destroy();
+    }
   });
 });
