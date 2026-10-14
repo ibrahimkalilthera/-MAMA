@@ -152,7 +152,7 @@ export function ParentsView() {
                       className={`${currentTheme.card} rounded-3xl border ${currentTheme.border} shadow-xl shadow-slate-200/50 overflow-hidden transition-all`}
                     >
                       {/* Main Card Header Bar */}
-                      <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 cursor-pointer hover:bg-slate-500/5 transition-colors" onClick={() => setExpandedParentId(isExpanded ? null : parent.id)}>
+                      <div className={`p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6 cursor-pointer ${currentTheme.hoverSurface} transition-colors`} onClick={() => setExpandedParentId(isExpanded ? null : parent.id)}>
                         <div className="flex items-center gap-4">
                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black ${currentTheme.surfaceInset} ${currentTheme.inkStrong}`}>
                             {parent.fullName.charAt(0).toUpperCase()}
@@ -263,7 +263,7 @@ export function ParentsView() {
                                 e.stopPropagation();
                                 openEditParentModal(parent);
                               }}
-                              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center justify-center flex-shrink-0"
+                              className={`p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 ${currentTheme.hoverSurfaceSolid} transition-all flex items-center justify-center flex-shrink-0`}
                             >
                               <Edit2 size={16} className="flex-shrink-0" />
                             </button>
@@ -277,7 +277,7 @@ export function ParentsView() {
                                   e.stopPropagation();
                                   handleDeleteParent(parent.id);
                                 }}
-                                className="px-3 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-all flex items-center gap-1.5 flex-shrink-0 text-2xs font-bold whitespace-nowrap"
+                                className={`px-3 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} transition-all flex items-center gap-1.5 flex-shrink-0 text-2xs font-bold whitespace-nowrap`}
                               >
                                 <Trash2 size={16} className="flex-shrink-0" />
                                 {t.deleteParent}
@@ -286,7 +286,7 @@ export function ParentsView() {
 
                             <button
                               onClick={() => setExpandedParentId(isExpanded ? null : parent.id)}
-                              className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center justify-center flex-shrink-0"
+                              className={`p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 ${currentTheme.hoverSurfaceSolid} transition-all flex items-center justify-center flex-shrink-0`}
                             >
                               {isExpanded ? <ChevronUp size={16} className="flex-shrink-0" /> : <ChevronDown size={16} className="flex-shrink-0" />}
                             </button>
@@ -331,7 +331,7 @@ export function ParentsView() {
                                 <button
                                   type="button"
                                   onClick={() => handleExportParentLedgerPdf(parent)}
-                                  className="px-4 py-2.5 rounded-xl bg-white hover:bg-white/90 font-black text-xs shadow-md flex items-center gap-2 transition-all active:scale-95"
+                                  className={`px-4 py-2.5 rounded-xl bg-white ${currentTheme.hoverSurfaceClear} font-black text-xs shadow-md flex items-center gap-2 transition-all active:scale-95`}
                                   style={{ color: currentTheme.accentHexDeep }}
                                 >
                                   <Download size={16} />
@@ -551,7 +551,7 @@ export function ParentsView() {
                                             <button
                                               onClick={() => handleUnlinkStudent(child.id)}
                                               title={t.unlinkStudent}
-                                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                              className={`p-1.5 rounded-lg text-slate-400 ${currentTheme.hoverAlert} transition-colors`}
                                             >
                                               <Unlink size={14} />
                                             </button>
@@ -599,7 +599,7 @@ export function ParentsView() {
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                       {paymentHistory.map((item, idx) => (
-                                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                        <tr key={idx} className={`${currentTheme.rowHover} transition-colors`}>
                                           <td className={`py-2.5 px-3 font-mono font-bold ${currentTheme.accentSoftText}`}>
                                             {item.receiptNumber}
                                           </td>

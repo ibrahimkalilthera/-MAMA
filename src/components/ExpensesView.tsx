@@ -62,13 +62,13 @@ export function ExpensesView() {
             <div className={`inline-flex items-center rounded-2xl border ${currentTheme.border} bg-${currentTheme.isDark ? 'slate-800/60' : 'white'} p-1.5 gap-1 no-print`}>
               <button
                 onClick={() => setVendorExpensesTab('general')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${vendorExpensesTab === 'general' ? `${currentTheme.accentBg} ${currentTheme.accentText} shadow-md` : `${currentTheme.muted} hover:bg-slate-100 dark:hover:bg-slate-800`}`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${vendorExpensesTab === 'general' ? `${currentTheme.accentBg} ${currentTheme.accentText} shadow-md` : `${currentTheme.muted} ${currentTheme.hoverSurface}`}`}
               >
                 {t.generalExpensesTabLabel}
               </button>
               <button
                 onClick={() => setVendorExpensesTab('vendors')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${vendorExpensesTab === 'vendors' ? `${currentTheme.accentBg} ${currentTheme.accentText} shadow-md` : `${currentTheme.muted} hover:bg-slate-100 dark:hover:bg-slate-800`}`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${vendorExpensesTab === 'vendors' ? `${currentTheme.accentBg} ${currentTheme.accentText} shadow-md` : `${currentTheme.muted} ${currentTheme.hoverSurface}`}`}
               >
                 {t.vendorExpensesTabLabel}
               </button>
@@ -231,7 +231,7 @@ export function ExpensesView() {
                                         <div className="flex justify-end">
                                           <button
                                             onClick={() => setConfirmDeleteExpense(e)}
-                                            className="px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded-xl text-2xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap"
+                                            className={`px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} rounded-xl text-2xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap`}
                                             title={t.deleteExpense}
                                           >
                                             <Trash2 size={16} /> {t.deleteExpense}
@@ -302,7 +302,7 @@ export function ExpensesView() {
                         </button>
                         <button
                           onClick={handlePrint}
-                          className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.text} hover:bg-slate-50 transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm active:scale-95`}
+                          className={`p-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.card} ${currentTheme.text} ${currentTheme.hoverSurface} transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm active:scale-95`}
                           title={t.printReport}
                         >
                           <Printer size={16} />
@@ -467,7 +467,7 @@ export function ExpensesView() {
                                 })();
 
                                 return (
-                                  <tr key={v.id} className={`${currentTheme.rowHover} transition-all ${isOverdue ? 'bg-rose-50/10 hover:bg-rose-50/20' : ''}`}>
+                                  <tr key={v.id} className={`${isOverdue ? currentTheme.hoverAlertTint : currentTheme.rowHover} transition-all ${isOverdue ? 'bg-rose-50/10' : ''}`}>
                                     <td className="px-8 py-6">
                                       <span className="inline-flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-2xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">
                                         {categoryIcon}
@@ -545,7 +545,7 @@ export function ExpensesView() {
                                             });
                                             setShowVendorExpenseModal(true);
                                           }}
-                                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded-xl transition-all"
+                                          className={`p-2 text-slate-400 ${currentTheme.hoverAccent} rounded-xl transition-all`}
                                           title={t.editExpense}
                                         >
                                           <FileText size={16} />
@@ -553,7 +553,7 @@ export function ExpensesView() {
                         {canDeleteVendorExpense && (
                           <button
                             onClick={() => setConfirmDeleteVendor(v)}
-                            className="px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded-xl text-2xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap"
+                            className={`px-3 py-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} rounded-xl text-2xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap`}
                             title={t.deleteExpense}
                           >
                             <Trash2 size={16} /> {t.deleteExpense}

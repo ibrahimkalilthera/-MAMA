@@ -149,7 +149,7 @@ export function NotificationsPanel({ notifications, currentTheme, onOpenStudent,
                     onClick={onClearAll}
                     aria-label={t.clearNotifications}
                     title={t.clearNotifications}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-2xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all"
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-2xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 ${currentTheme.hoverAlert} transition-all`}
                   >
                     <Trash2 size={12} />
                     <span>{t.clearNotifications}</span>
@@ -170,7 +170,7 @@ export function NotificationsPanel({ notifications, currentTheme, onOpenStudent,
                   type="button"
                   onClick={() => setOpen(false)}
                   aria-label={t.close}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                  className={`p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 ${currentTheme.hoverSurface} transition-all`}
                 >
                   <X size={14} />
                 </button>
@@ -233,7 +233,7 @@ export function NotificationsPanel({ notifications, currentTheme, onOpenStudent,
                         if (isRead) onMarkUnread(n.id);
                       }}
                       title={isRead ? t.markAsUnread : undefined}
-                      className={`group w-full text-left px-5 py-3.5 flex items-start gap-3 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors last:border-b-0 cursor-pointer ${
+                      className={`group w-full text-left px-5 py-3.5 flex items-start gap-3 border-b border-slate-50 dark:border-slate-800/50 ${currentTheme.hoverSurface} transition-colors last:border-b-0 cursor-pointer ${
                         isRead ? 'opacity-50' : ''
                       } ${
                         n.type === 'due'
@@ -271,7 +271,7 @@ export function NotificationsPanel({ notifications, currentTheme, onOpenStudent,
                           }}
                           aria-label={t.markAsUnread}
                           title={t.markAsUnread}
-                          className={`flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 text-slate-400 dark:text-slate-500 ${currentTheme.accentSoftTextHover} hover:bg-slate-100 dark:hover:bg-slate-800 transition-all`}
+                          className={`flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 text-slate-400 dark:text-slate-500 ${currentTheme.accentSoftTextHover} ${currentTheme.hoverSurface} transition-all`}
                         >
                           <RotateCcw size={12} />
                         </button>
@@ -286,7 +286,7 @@ export function NotificationsPanel({ notifications, currentTheme, onOpenStudent,
                         }}
                         aria-label={`${t.deleteNotification} — ${n.message}`}
                         title={t.deleteNotification}
-                        className="flex-shrink-0 p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all"
+                        className={`flex-shrink-0 p-1.5 rounded-lg text-slate-500 dark:text-slate-400 ${currentTheme.hoverAlert} transition-all`}
                       >
                         <Trash2 size={13} />
                       </button>

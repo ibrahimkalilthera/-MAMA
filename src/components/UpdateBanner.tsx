@@ -119,7 +119,7 @@ export function UpdateBanner({
   currentTheme,
 }: {
   labels: UpdateLabels;
-  currentTheme: Pick<CurrentTheme, 'accentBg' | 'accentText' | 'accentHover' | 'accentShadow'>;
+  currentTheme: Pick<CurrentTheme, 'accentBg' | 'accentText' | 'accentHover' | 'accentShadow' | 'hoverSurfaceDark'>;
   /**
    * Envoie le blocage au journal d'audit et rend ce qui s'est réellement passé.
    * Injecté : ce composant ne connaît ni Supabase ni la session — il montre, il
@@ -364,7 +364,7 @@ export function UpdateBanner({
           type="button"
           aria-label={labels.dismiss}
           onClick={() => setDismissed(true)}
-          className="p-0.5 hover:bg-white/20 rounded-md"
+          className={`p-0.5 ${currentTheme.hoverSurfaceDark} rounded-md`}
         >
           <X size={12} />
         </button>

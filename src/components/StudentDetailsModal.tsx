@@ -235,7 +235,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
         <div className="h-24 relative" style={{ backgroundColor: currentTheme.header }}>
           <button
             onClick={onClose}
-            className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all"
+            className={`absolute top-6 right-6 p-2 bg-white/10 ${currentTheme.hoverSurfaceDark} text-white rounded-2xl transition-all`}
           >
             <X size={20} />
           </button>
@@ -331,7 +331,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
                 studentDetailTab === 'general'
                   ? `${currentTheme.accentBorder} ${currentTheme.accentSoftText}`
-                  : `${currentTheme.muted} border-transparent hover:text-slate-600`
+                  : `${currentTheme.muted} border-transparent hover:text-slate-600 dark:hover:text-slate-200`
               }`}
             >
               {t.generalInfo}
@@ -341,7 +341,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
                 studentDetailTab === 'parent'
                   ? `${currentTheme.accentBorder} ${currentTheme.accentSoftText}`
-                  : `${currentTheme.muted} border-transparent hover:text-slate-600`
+                  : `${currentTheme.muted} border-transparent hover:text-slate-600 dark:hover:text-slate-200`
               }`}
             >
               {t.parentEmergency}
@@ -351,7 +351,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               className={`flex-1 pb-3 text-xs font-black uppercase tracking-wider transition-all border-b-2 text-center ${
                 studentDetailTab === 'medical'
                   ? `${currentTheme.accentBorder} ${currentTheme.accentSoftText}`
-                  : `${currentTheme.muted} border-transparent hover:text-slate-600`
+                  : `${currentTheme.muted} border-transparent hover:text-slate-600 dark:hover:text-slate-200`
               }`}
             >
               {t.medicalHistory}
@@ -524,7 +524,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                       {selectedStudent.parentEmail && (
                         <button
                           onClick={() => copyToClipboard(selectedStudent.parentEmail)}
-                          className="p-2 hover:bg-blue-50 text-blue-500 rounded-lg transition-all"
+                          className={`p-2 ${currentTheme.hoverAccent} text-blue-500 rounded-lg transition-all`}
                           title={t.copyEmail}
                         >
                           <Copy size={14} />
@@ -632,7 +632,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
 
             <button
               onClick={onPrint}
-              className="h-11 px-3 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap"
+              className={`h-11 px-3 bg-slate-800 ${currentTheme.hoverSurfaceStrong} text-white rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap`}
             >
               <Printer size={16} className="flex-shrink-0" />
               <span className="truncate">{t.printStudentFile}</span>
@@ -642,7 +642,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
             {canDelete && (
               <button
                 onClick={onDeleteRequest}
-                className="h-11 px-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap"
+                className={`h-11 px-3 rounded-2xl bg-rose-600 ${currentTheme.hoverAlertSolid} text-white font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap`}
               >
                 <Trash2 size={16} className="flex-shrink-0" />
                 <span className="truncate">{t.deleteStudent}</span>
@@ -651,7 +651,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
 
             <button
               onClick={onClose}
-              className={`h-11 px-3 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 hover:bg-slate-50 rounded-2xl font-bold text-xs transition-all flex items-center justify-center whitespace-nowrap`}
+              className={`h-11 px-3 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 ${currentTheme.hoverSurface} dark:hover:text-slate-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center whitespace-nowrap`}
             >
               {t.close}
             </button>

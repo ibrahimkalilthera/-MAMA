@@ -194,7 +194,7 @@ export function AddClassModal(props: AddClassModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+              className={`px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 ${currentTheme.hoverSurface}`}
             >
               {t.cancel}
             </button>

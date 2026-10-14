@@ -42,7 +42,10 @@
 //      MÊME contrainte : la base rend la seconde, le dépôt écrit la première. La
 //      comparaison normalise les deux formes (voir `normalizeDefinition`) — sans
 //      quoi le contrôle signalerait une dérive sur chaque contrainte du dépôt, et
-//      un contrôle qui crie toujours ne se lit plus.
+//      un contrôle qui crie toujours ne se lit plus. Le même écart existe pour les
+//      BORNES : `char_length(x) BETWEEN 8 AND 64` (le dépôt) et
+//      `((char_length(x) >= 8) AND (char_length(x) <= 64))` (le catalogue), dont
+//      `station_versions_station_id_bounds` a payé le cas le 2026-10-18.
 //   3. **L'index d'une contrainte n'est pas un index déclaré.** Une clé primaire
 //      ou une contrainte UNIQUE crée un index (`students_pkey`) : le compter comme
 //      un index à part ferait de chaque table une dérive permanente. Le catalogue
@@ -207,6 +210,17 @@ export function normalizeDefinition(value) {
   const rewritten = String(value ?? '')
     .replace(/\b([a-z_]\w*)\s*=\s*any\s*\(\s*array\s*\[([^\]]*)\]\s*\)/gi, '$1 in ($2)')
     .replace(/\b([a-z_]\w*)\s*=\s*any\s*\(\s*([^()]*)\)/gi, '$1 in ($2)')
+    // `x BETWEEN a AND b` → `x >= a AND x <= b` : Postgres rend l'idiome ÉCLATÉ
+    // (mesuré sur `station_versions` le 2026-10-18 —
+    // `((char_length(app_version) >= 1) AND (char_length(app_version) <= 32))`
+    // pour un `BETWEEN 1 AND 32`), et l'opérande de gauche y est RÉPÉTÉ. Seules
+    // les bornes SIMPLES sont réduites (littéral, nombre) : une borne composée
+    // reste intacte, donc une vraie différence est SIGNALÉE plutôt que blanchie —
+    // le refus est du bon côté.
+    .replace(
+      /\b([a-z_]\w*(?:\s*\(\s*[a-z_]\w*(?:\s*,\s*[a-z_]\w*)*\s*\))?)\s+between\s+('[^']*'|[-+]?\d+(?:\.\d+)?)\s+and\s+('[^']*'|[-+]?\d+(?:\.\d+)?)/gi,
+      '$1 >= $2 and $1 <= $3',
+    )
     .replace(/::\s*"?[a-z_][a-z0-9_]*"?(\s*\[\])?(\s*\(\s*\d+(\s*,\s*\d+)?\s*\))?/gi, '')
     .replace(/\bpublic\./gi, '')
     .replace(/"/g, ' ');

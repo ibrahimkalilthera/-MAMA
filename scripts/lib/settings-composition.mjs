@@ -46,13 +46,15 @@ export const SETTINGS_STACK_SECTIONS = SETTINGS_SECTIONS.filter(
 /**
  * Les enfants de la pile, dans l'ordre du DOM. Ce sont les `data-slot` que les
  * composants de `SETTINGS_STACK_SECTIONS` déclarent : `SettingsPreferencesCard`
- * en porte cinq (langue, devise, densité des tableaux, thème, logo), les trois
- * autres un chacun. C'est CETTE longueur — 8 — que comptent les deux preuves.
+ * en porte six (langue, devise, densité des tableaux, verre des icônes, thème,
+ * logo), les trois autres un chacun. C'est CETTE longueur — 9 — que comptent les
+ * deux preuves.
  */
 export const SETTINGS_STACK_SLOTS = [
   'settings-system-language',
   'settings-currency-format',
   'settings-table-density',
+  'settings-icon-glass',
   'settings-theme-settings',
   'settings-upload-logo',
   'settings-backup',

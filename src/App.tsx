@@ -32,10 +32,12 @@ import { useAuditArchiveReminder } from './app/useAuditArchiveReminder';
 import { useYearOps } from './app/useYearOps';
 import { buildShellProps } from './app/viewsWiring';
 import { OPERATION_LABELS } from './app/operationLabels';
-import { applyLanguage } from './app/applyLanguage';
 import { useNotificationAlerts } from './app/useNotificationAlerts';
 import { useBackgroundRefresh } from './app/useBackgroundRefresh';
-import { DensityContext, useDensityState } from './app/densityContext';
+import { DensityContext } from './app/densityContext';
+import { IconGlassContext } from './app/iconGlassContext';
+import { useDisplayPreferences } from './app/useDisplayPreferences';
+import { getStoredLanguage } from './lib/displayPreferences';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { AppShell } from './components/AppShell';
 
@@ -49,15 +51,13 @@ import type { Language, User, Parent, Student, Staff, SalaryPayment, Expense, Ve
 
 
 export default function App() {
-  const [lang, setLang] = useState<Language>('fr');
+  // La langue est relue du poste à l'initialisation : c'est elle qui dit si ce
+  // poste a DÉJÀ choisi (voir useDisplayPreferences), et un poste qui a choisi
+  // n'est jamais écrasé par la copie de la base.
+  const [lang, setLang] = useState<Language>(() => getStoredLanguage());
   // Derived once per render; declared early so every effect below can list
   // translated strings in its dependency array (tsc: no use-before-declaration).
   const t = translations[lang];
-
-  const toggleLanguage = (newLang: Language) => {
-    setLang(newLang);
-    applyLanguage(newLang);
-  };
 
   // Data is now fetched from Supabase via the useSupabaseData hook
   // Toast notifications provide user-facing feedback for all database operations
@@ -595,11 +595,26 @@ const {
   // sans pouvoir réécrire ses mois : la base ne l'y autorise pas, donc le
   // bouton ne lui est pas montré.
   const canEditPaymentMonths = canUpdatePaymentMonths(auth.profile?.role);
+
+  // Préférences d'affichage (thème, densité, verre des icônes, langue) : le poste
+  // les garde EN LOCAL, et la base en porte une copie — c'est elle que la
+  // sauvegarde emporte, donc un poste réinstallé retrouve le réglage de l'école
+  // au lieu de repartir aux défauts. Un poste qui a déjà choisi n'est jamais
+  // écrasé ; un réglage CHANGÉ part en base (voir src/app/useDisplayPreferences).
+  const displayPreferences = useDisplayPreferences({
+    userId: auth.profile?.id ?? null,
+    setTheme,
+    setLang,
+  });
+
   const shellProps = buildShellProps({
     ...supabaseData,
     ...authWelcomeData,
     ...usersData,
     ...themeData,
+    // Le thème du shell passe par le domaine des préférences : il publie le
+    // changement en base en plus de le poser sur le poste.
+    setTheme: displayPreferences.setTheme,
     ...expensesData,
     ...studentsData,
     ...dashboardData,
@@ -632,7 +647,7 @@ const {
     generateInstallmentMemo,
     showSuccessToast,
     copyToClipboard,
-    toggleLanguage,
+    toggleLanguage: displayPreferences.setLanguage,
     openAddStudentModal,
     setSelectedYear,
     lockedYears,
@@ -659,13 +674,18 @@ const {
     formatCurrency,
   });
 
-  // Densité des tableaux (confort/compact) — possédée ici, fournie à la racine
-  // du shell (la classe `density-*`) et à la carte Réglages → Préférences.
-  const densityValue = useDensityState();
+  // Densité des tableaux (confort/compact) et verre des icônes (discret/net/animé)
+  // — possédés par le domaine des préférences d'affichage, fournis à la racine du
+  // shell (les classes `density-*` et `icon-glass-*`) et à la carte Réglages →
+  // Préférences : une seule valeur pour les deux lecteurs.
+  const densityValue = displayPreferences.density;
+  const iconGlassValue = displayPreferences.iconGlass;
 
   return (
     <DensityContext.Provider value={densityValue}>
-      <AppShell {...shellProps} />
+      <IconGlassContext.Provider value={iconGlassValue}>
+        <AppShell {...shellProps} />
+      </IconGlassContext.Provider>
     </DensityContext.Provider>
   );
 }
