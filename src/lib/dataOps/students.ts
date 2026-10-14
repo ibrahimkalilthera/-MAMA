@@ -228,11 +228,14 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
    * portent le même nom dans la même classe, l'école désigne la BONNE, et l'autre
    * disparaît — sans perdre ce qu'elle portait. Trois écritures, dans cet ordre,
    * et c'est l'ordre qui fait la sûreté :
-   *
-   *   1. les REÇUS des fiches fusionnées sont RATTACHÉS à la fiche gardée
-   *      (`payments.student_id`). Le compte est VÉRIFIÉ : « Admin update payments »
-   *      filtre en RLS, et un `UPDATE` qui ne touche aucune ligne répond 200 — se
-   *      croire « déplacé » sur une réponse vide laisserait la cascade qui suit
+   *   *   1. les REÇUS des fiches fusionnées sont RATTACHÉS à la fiche gardée
+   *      (`payments.student_id`), par la FONCTION bornée de la base
+   *      `public.reassign_payment_student` — le SEUL chemin d'écriture de cette
+   *      colonne depuis le 2026-10-13
+   *      (`supabase/migrations/20261013000001_payments_write_lock.sql`) : une
+   *      policy borne des LIGNES, donc l'ouvrir pour ce geste aurait rouvert le
+   *      MONTANT avec. Elle rend le NOMBRE de lignes écrites, et zéro n'est pas un
+   *      succès — se croire « déplacé » sur un zéro laisserait la cascade qui suit
    *      DÉTRUIRE les reçus avec la fiche. Moins de lignes que prévu = refus ;
    *   2. le grand livre consolidé est écrit sur la fiche gardée : montant payé =
    *      SOMME des montants enregistrés (jamais recalculé depuis les lignes de
@@ -273,14 +276,42 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
       return false;
     }
 
-    const movedReceipts = removed.flatMap(fiche => fiche.payments);
-
+    const movedReceipts = removed.flatMap(fiche => fiche.payments);    /**
+     * Le rattachement borné d'un reçu — la SEULE écriture de `payments` de ce
+     * dépôt. La fonction de la base
+     * (`public.reassign_payment_student(uuid, uuid, uuid)`,
+     * `20261013000001_payments_write_lock.sql`) est `SECURITY DEFINER`, gardée par
+     * `public.is_admin()`, et sa requête ne nomme qu'UNE colonne : `student_id`.
+     * Ni le montant, ni la date, ni le numéro du reçu n'y sont : c'est une borne
+     * par CONSTRUCTION, celle qu'une policy ne pouvait pas donner.
+     *
+     * Elle EXIGE la fiche d'origine et rend le NOMBRE de lignes écrites : un reçu
+     * qui n'est plus sur la fiche attendue rend 0, et zéro n'est pas un succès —
+     * quelqu'un l'a rattaché ailleurs entre-temps, et partir de là ferait
+     * supprimer une fiche en emportant par cascade des reçus qu'on croit déplacés.
+     */
+    const reassignReceipt = async (
+      paymentId: string,
+      fromStudentId: string,
+      toStudentId: string,
+    ): Promise<boolean> => {
+      const { data, error } = await supabase.rpc('reassign_payment_student', {
+        p_payment_id: paymentId,
+        p_from_student_id: fromStudentId,
+        p_to_student_id: toStudentId,
+      });
+      if (error) {
+        console.error('mergeStudents: reçu non rattaché —', error.message);
+        return false;
+      }
+      return data === 1;
+    };
     /** Les reçus remis sur leur fiche d'origine — l'annulation d'un demi-geste. */
     const putReceiptsBack = async () => {
       for (const fiche of removed) {
         for (const payment of fiche.payments) {
           if (!payment.id) continue;
-          await supabase.from('payments').update({ student_id: fiche.id }).eq('id', payment.id);
+          await reassignReceipt(payment.id, survivorId, fiche.id);
         }
       }
     };
@@ -291,24 +322,32 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
         last_payment_date: survivor.lastPaymentDate ?? null,
         notes: survivor.notes,
       }).eq('id', survivorId);
-    };
-
-    // 1. Les reçus changent de fiche — et le compte est vérifié.
+    };    // 1. Les reçus changent de fiche, UN PAR UN — et chacun est vérifié.
     for (const fiche of removed) {
-      const expected = fiche.payments.length;
-      if (expected === 0) continue;
-      const { data, error } = await supabase
+      for (const payment of fiche.payments) {
+        if (!payment.id) continue;
+        if (!(await reassignReceipt(payment.id, fiche.id, survivorId))) {
+          await putReceiptsBack();
+          notifyError('mergeStudents', 'Reçus non rattachés — droits insuffisants, ou les reçus ont changé. Rien n’a été fusionné.');
+          return false;
+        }
+      }
+      // Et AUCUN reçu ne doit rester sous une fiche qu'on va supprimer : la
+      // cascade `ON DELETE CASCADE` emporterait tout ce qui traîne — y compris un
+      // reçu arrivé depuis que l'écran a lu la fiche, que la liste ci-dessus ne
+      // connaît pas. C'est le compte exact que la mise à jour groupée faisait
+      // autrefois (`data.length !== expected`).
+      const { data: left, error: leftError } = await supabase
         .from('payments')
-        .update({ student_id: survivorId })
-        .eq('student_id', fiche.id)
-        .select('id');
-      if (error || !data || data.length !== expected) {
-        console.error('mergeStudents: reçus non rattachés —', error?.message ?? `${data?.length ?? 0}/${expected} ligne(s)`);
+        .select('id')
+        .eq('student_id', fiche.id);
+      if (leftError || !left || left.length > 0) {
+        console.error('mergeStudents: reçus restés sur la fiche —', leftError?.message ?? `${left?.length ?? 0} ligne(s)`);
         await putReceiptsBack();
         notifyError('mergeStudents', 'Reçus non rattachés — droits insuffisants, ou les reçus ont changé. Rien n’a été fusionné.');
         return false;
       }
-    }
+    }
 
     // 2. Le grand livre consolidé + les notes recopiées, sur la fiche gardée.
     const ledger = mergedLedger(survivor, removed);

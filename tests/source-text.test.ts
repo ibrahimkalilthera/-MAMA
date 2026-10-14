@@ -29,7 +29,14 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { lineAt, lineIndex, listFiles, maskComments, maskProse } from '../scripts/lib/source-text.mjs';
+import {
+  lineAt,
+  lineIndex,
+  listFiles,
+  maskComments,
+  maskProse,
+  maskYamlComments,
+} from '../scripts/lib/source-text.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -165,6 +172,40 @@ describe('source-text — lire du code, pas de la prose', () => {
         `${file} doit lire par la couche partagée`,
       );
     }
+  });
+
+  it('le blanchiment de la prose des workflows n’a qu’une définition — une copie locale est un échec', () => {
+    // Un workflow est du YAML qui transporte du SHELL : le `#` y est un
+    // commentaire aux DEUX niveaux, et le scanner de TypeScript ne le connaît
+    // pas — il lirait donc la prose des en-têtes comme du code. Mesuré le
+    // 2026-10-13 : ces en-têtes CITENT l'hôte Supabase de l'école, la clé
+    // service et les commandes que les jobs n'exécutent plus ; les lire comme du
+    // code, c'est accuser du travail juste — et, à l'envers, un commentaire qui
+    // décrit une pile que le job ne monte pas passerait pour la preuve qu'il la
+    // monte.
+    const src = [
+      'run: echo "$API_URL" # la prose cite rpcjdohfxwukbqngbprw.supabase.co',
+      "  x: 'valeur # gardée'",
+      '# tout un commentaire',
+    ].join('\n');
+    const masked = maskYamlComments(src);
+    assert.equal(masked.length, src.length, 'la longueur ne bouge pas');
+    assert.equal(masked.split('\n').length, src.split('\n').length, 'les sauts de ligne restent');
+    assert.doesNotMatch(masked, /rpcjdohfxwukbqngbprw/);
+    assert.match(masked, /run: echo "\$API_URL"/, 'le code de la même ligne reste lisible');
+    assert.match(masked, /'valeur # gardée'/, 'un `#` entre guillemets est une donnée');
+
+    // La règle unique vit ici : personne d'autre ne la réécrit à la main.
+    const offenders = readdirSync(join(root, 'scripts'), { recursive: true })
+      .map((name) => String(name).replace(/\\/g, '/'))
+      .filter((rel) => rel.endsWith('.mjs') && rel !== 'lib/source-text.mjs')
+      .filter((rel) => readFileSync(join(root, 'scripts', rel), 'utf8').includes('function maskYamlComments'));
+    assert.deepEqual(offenders, [], 'le blanchiment YAML vit dans le seul maskYamlComments');
+    assert.match(
+      readFileSync(join(root, 'scripts', 'lib', 'e2e-target.mjs'), 'utf8'),
+      /import \{ maskYamlComments \} from '\.\/source-text\.mjs'/,
+      'le contrôle des cibles E2E doit lire par la couche partagée',
+    );
   });
 
   it('la règle de prose CSS n’a qu’une définition — une copie locale est un échec', () => {

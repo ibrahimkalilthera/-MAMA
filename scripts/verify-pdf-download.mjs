@@ -26,6 +26,17 @@
 //                perdu les mois cochés écrirait précisément ce mois-là. La
 //                FICHE de l'élève est jugée au passage : les mois que la base
 //                garde y sont RÉGLÉS, tous les autres À RÉGLER)
+//   • recu-muet   (le RATTRAPAGE, par la FICHE : le reçu visé est MUET —
+//                antérieur à la colonne `payments.months`, il ne déclare donc
+//                aucun mois, sa réimpression ne nomme que le mois de sa DATE et
+//                la fiche le compte parmi les paiements « sans mois déclaré ».
+//                L'école le complète depuis la fiche (bouton « Renseigner les
+//                mois », pastilles cochées par leur CLÉ, enregistrement) — puis
+//                la page est RECHARGÉE : la fiche doit alors marquer ces mois
+//                RÉGLÉS, ne plus compter ce reçu comme muet et ne plus offrir de
+//                le compléter. Le reçu est enfin RÉIMPRIMÉ : il NOMME les mois,
+//                et le mois de sa DATE reste absent — c'est exactement tout ce
+//                qu'un reçu muet écrivait)
 //
 // Steps, in one run:
 //   1. Create an ephemeral auth account via the service role (always deleted
@@ -54,17 +65,20 @@
 //   node scripts/verify-pdf-download.mjs --mode technique
 //   node scripts/verify-pdf-download.mjs --mode recu-parent
 //   node scripts/verify-pdf-download.mjs --mode recu-mois
+//   node scripts/verify-pdf-download.mjs --mode recu-muet
 //   node scripts/verify-pdf-download.mjs --target "Madi"
 //   node scripts/verify-pdf-download.mjs --url http://127.0.0.1:4000/ --keep
 //
 // Flags:
 //   --target <name>  staff member to download (default: first of the mode)
-//   --mode <auto|fiche|bulletin|technique|recu-parent|recu-mois>  which PDF to
-//                    expect (default auto, decided from the member's position —
+//   --mode <auto|fiche|bulletin|technique|recu-parent|recu-mois|recu-muet>
+//                    which PDF to expect (default auto, decided from the member's position —
 //                    admin positions → bulletin, TECH_POSITIONS → technique,
 //                    else fiche; recu-parent and recu-mois are explicit: the
 //                    parent payment receipt is a different flow, the Élèves page
-//                    for the first, the payment form's gesture for the second)
+//                    for the first, the payment form's gesture for the second,
+//                    and the retro-fill of a mute receipt, driven from the
+//                    Élèves fiche, for the third)
 //   --url <url>      app URL (default https://mama-thera-finance.vercel.app/)
 //   --keep           keep the downloaded PDF + pixel report in ./.verify-pdf/
 //   --cleanup-only   only delete any leftovers (ephemeral account, demo admin,
@@ -159,6 +173,38 @@ const MONTHS_TICKED = ['2026-09', '2026-11', '2026-12'];
 // côté. Ici, l'attendu est écrit en toutes lettres — un contrôle qui calculerait
 // son attendu avec le code jugé ne prouverait rien.
 const MONTHS_EXPECTED = '3 mois : Septembre, Novembre, Décembre';
+
+/**
+ * ─── Le flux « reçu muet rattrapé par la fiche » (mode recu-muet) ───────────
+ *
+ * Le reçu jugé ici est ANTÉRIEUR à la colonne `payments.months` (migration
+ * `20261011000000_payments_months.sql`) : sa couverture est INCONNUE, donc sa
+ * réimpression ne nomme que le mois de sa DATE, et la fiche le compte parmi les
+ * paiements « sans mois déclaré ». L'école le complète depuis la fiche — et
+ * c'est CETTE moitié que ce mode mesure, pas le geste du guichet (mode
+ * recu-mois, qui part d'une saisie neuve et n'écrit jamais sur un reçu ancien).
+ *
+ * Sa date n'est pas décorative : le 2026-10-04 est ANTÉRIEUR à la migration qui
+ * a créé la colonne, donc ce reçu est muet de plein droit — pas un reçu du
+ * moment auquel il manquerait un champ. Son mois (octobre) est aussi celui du
+ * geste du guichet, ce qui donne aux deux modes la même phrase de refus : un
+ * reçu qui aurait perdu le choix du caissier écrirait précisément ce mois-là.
+ *
+ * Les mois cochés sont les MÊMES que ceux du geste (`MONTHS_TICKED`) : le
+ * rattrapage doit écrire ce qu'un encaissement du moment aurait écrit, et c'est
+ * le même littéral qui le dit — un contrôle qui recalculerait son attendu avec
+ * le code jugé ne prouverait rien.
+ */
+const MUTE_RECEIPT_DATE = MONTHS_DATE;
+const MUTE_RECEIPT_AMOUNT = 20000;
+
+/**
+ * Les modes dont le document MESURÉ est le reçu des parents (`recu-parent.pdf`).
+ * Une seule liste, parce qu'elle décide de trois choses qui doivent rester
+ * d'accord : le modèle auquel se compare le pixel-check, la branche de zones à
+ * juger, et le fait que le flux passe (ou non) par la page Paie d'abord.
+ */
+const RECEIPT_MODES = ['recu-parent', 'recu-mois', 'recu-muet'];
 
 const TPL_FICHE = 'public/templates/fiche-paiement-salaire.pdf';
 const TPL_BULLETIN = 'public/templates/bulletin-paie-mensuelle.pdf';
@@ -444,6 +490,41 @@ async function resolveTarget() {
     demoStudentId = ins.body[0].id;
     console.log(`  ℹ️ élève de démo créé pour le geste des mois (${demo.name}) — supprimé au nettoyage`);
     return { member: null, student: { id: demoStudentId, name: demo.name }, mode: 'recu-mois' };
+  }
+  if (MODE === 'recu-muet') {
+    // L'élève de démo ne porte pas d'année scolaire (`academic_year` NULL) : le
+    // filtre d'année de l'application l'affiche dans TOUTES les années, donc sa
+    // ligne est trouvable quel que soit l'écran. Le reçu est inséré SANS la clé
+    // `months` — un tableau VIDE serait déjà une déclaration, et la fiche
+    // n'aurait alors rien à proposer à l'école.
+    const demo = {
+      name: `E2E Muet ${TS}`,
+      parent_name: 'Parent E2E',
+      parent_phone: '+223 70 00 00 00',
+      grade: '9eme A',
+      total_due: 150000,
+      amount_paid: 0,
+      status: 'Active',
+    };
+    const ins = await insertOnce('students', demo, `name=eq.${encodeURIComponent(demo.name)}`);
+    if (!ins.body?.[0]?.id) throw new Error(`insertion élève de démo échouée (${ins.status})`);
+    demoStudentId = ins.body[0].id;
+    const rec = {
+      student_id: demoStudentId,
+      date: MUTE_RECEIPT_DATE,
+      amount: MUTE_RECEIPT_AMOUNT,
+      academic_year: '2026-2027',
+      receipt_number: `REC-MUET-${TS}`,
+    };
+    const pin = await insertOnce('payments', rec, `receipt_number=eq.${encodeURIComponent(rec.receipt_number)}`);
+    if (!pin.body?.[0]?.id) throw new Error(`insertion du reçu muet échouée (${pin.status})`);
+    console.log(`  ℹ️ élève + reçu MUET créés (${demo.name}, ${rec.receipt_number}, ${MUTE_RECEIPT_DATE}, aucun mois déclaré)`);
+    return {
+      member: null,
+      student: { id: demoStudentId, name: demo.name },
+      muteReceipt: { id: pin.body[0].id, receiptNumber: rec.receipt_number, date: rec.date, amount: rec.amount },
+      mode: 'recu-muet',
+    };
   }
   if (MODE === 'recu-parent') {
     // Find a student that already has ≥1 payment; else create a demo pair via
@@ -753,6 +834,43 @@ async function readMonthsStrip(page) {
       // et de la note, dans des `<p>`. Les deux sont relus, dans cet ordre.
       header: (strip.firstElementChild?.textContent || '').trim(),
       lines: [...strip.querySelectorAll('p')].map((p) => (p.textContent || '').trim()),
+      // La phrase qui compte les reçus SANS mois déclaré, lue par son marqueur et
+      // non par ses mots : elle dit, en une ligne, si la fiche croit encore
+      // ignorer ce qu'un reçu couvre. Vide = plus aucun reçu muet.
+      undeclaredNote: (strip.querySelector('[data-slot="student-months-undeclared"]')?.textContent || '').trim(),
+    };
+  });
+}
+
+/**
+ * Le PARCOURS DE RATTRAPAGE de la fiche (`PaymentMonthsBackfill`), lu par ses
+ * CLÉS — et son ABSENCE est une lecture, pas une erreur.
+ *
+ * La fiche offrait déjà de renseigner un reçu muet ligne par ligne ; ce que ce
+ * parcours ajoute, c'est la LISTE de ce qui reste et l'ENCHAÎNEMENT (le suivant
+ * s'ouvre après un enregistrement réussi). Ce mode le lit donc aux deux bouts :
+ *
+ *   • AVANT le geste — le parcours doit LISTER le reçu muet inséré pour ce run,
+ *     par son identifiant : sans cette lecture, le contrôle ne prouverait pas
+ *     que l'écran offrait le rattrapage, seulement qu'un bouton existait ;
+ *   • APRÈS le rechargement — il ne doit plus être là. C'est la moitié écran de
+ *     « la fiche ne compte PLUS ce reçu comme muet » : une phrase qui disparaît
+ *     ne suffit pas si la liste, elle, restait offerte.
+ *
+ * Rien n'est ATTENDU ici (un `null` n'est pas une exception) : c'est au jugement
+ * de dire ce que l'absence veut dire, à chaque bout.
+ */
+async function readBackfillPanel(page) {
+  return page.evaluate(() => {
+    const panel = document.querySelector('[data-slot="payment-months-backfill"]');
+    if (!panel) return { present: false, receipts: [], progress: '' };
+    return {
+      present: true,
+      receipts: [...panel.querySelectorAll('[data-receipt]')].map((el) => el.getAttribute('data-receipt') || ''),
+      // La progression est lue par son MARQUEUR, jamais par ses mots : « reçu 1
+      // sur 2 » est une phrase traduite, et un contrôle qui la viserait casserait
+      // à la première traduction.
+      progress: (panel.querySelector('[data-slot="payment-months-backfill-progress"]')?.textContent || '').trim(),
     };
   });
 }
@@ -958,6 +1076,174 @@ async function proveMonthsChain(page, screenLine, studentName) {
   return { ticked: MONTHS_TICKED, screenLine, stored: settled.value.months, reads: settled.reads, reprint, strip };
 }
 
+/**
+ * ─── Le RATTRAPAGE d'un reçu muet, par la fiche (mode recu-muet) ───────────
+ *
+ * Trois gestes, et aucun n'est décoratif :
+ *
+ *   • l'ÉDITEUR est ouvert depuis la ligne du reçu, et jugé AVANT d'écrire :
+ *     douze mois offerts, AUCUN coché, l'enregistrement FERMÉ. Écrire un tableau
+ *     vide ne déclarerait pas plus que le silence d'avant — la règle est celle de
+ *     l'écran, et un contrôle qui la sauterait laisserait l'application décider à
+ *     sa place ;
+ *   • les mois se cochent par leur CLÉ (`data-month`), jamais par leur libellé :
+ *     « Septembre » se traduit, `2026-09` non ;
+ *   • l'écran ANNONCE la ligne que le reçu imprimera (le même module de calcul
+ *     que le PDF), et c'est cette promesse que le papier devra tenir.
+ *
+ * Un clic par rendez-vous de rendu : plusieurs clics dans le même tick
+ * partageraient l'état d'avant (React regroupe les mises à jour de l'état).
+ */
+async function fillMuteMonthsFromFile(page) {
+  const offered = await page.$$eval('[data-slot="payment-months-fill"]', (els) => els.length);
+  if (offered !== 1) {
+    throw new Error(`la fiche offre ${offered} reçu(s) muet(s) à renseigner — attendu 1 (le reçu inséré sans mois)`);
+  }
+  const opened = await page.evaluate(() => {
+    const btn = document.querySelector('[data-slot="payment-months-fill"]');
+    if (!btn) return false;
+    btn.scrollIntoView({ block: 'center' });
+    btn.click();
+    return true;
+  });
+  if (!opened) throw new Error('le bouton « Renseigner les mois » de la fiche n’a pas pu être cliqué');
+  const editor = await page.waitForSelector('[data-slot="payment-months-editor"]', { timeout: 15000 })
+    .then(() => true).catch(() => false);
+  if (!editor) throw new Error('l’éditeur des mois ne s’est pas ouvert sur la fiche');
+
+  const chips = await page.$$eval('[data-slot="payment-months-editor"] button[data-month]', (els) =>
+    els.map((b) => ({ month: b.getAttribute('data-month'), pressed: b.getAttribute('aria-pressed') === 'true' })));
+  if (chips.length !== 12) throw new Error(`l’éditeur offre ${chips.length} mois — attendu 12 (les douze de l’année scolaire)`);
+  if (chips.some((c) => c.pressed)) throw new Error('l’éditeur pré-coche un mois : le reçu est muet, rien ne doit l’être');
+  const saveClosed = await page.$eval('[data-slot="payment-months-save"]', (b) => b.disabled);
+  if (!saveClosed) throw new Error('« Enregistrer » est ouvert alors qu’aucun mois n’est coché');
+
+  for (const month of MONTHS_TICKED) {
+    const hit = await page.evaluate((m) => {
+      const btn = document.querySelector(`[data-slot="payment-months-editor"] button[data-month="${m}"]`);
+      if (!btn) return false;
+      btn.click();
+      return true;
+    }, month);
+    if (!hit) throw new Error(`pastille du mois ${month} introuvable dans l’éditeur de la fiche`);
+    await wait(300);
+  }
+  const pressed = await page.$$eval('[data-slot="payment-months-editor"] button[data-month][aria-pressed="true"]', (els) =>
+    els.map((b) => b.getAttribute('data-month')));
+  if (pressed.join(',') !== MONTHS_TICKED.join(',')) {
+    throw new Error(`l’éditeur porte ${pressed.join(', ') || '(aucun mois)'} — les mois demandés ne sont pas cochés`);
+  }
+  const line = await page.$eval('[data-slot="payment-months-line"]', (el) => (el.textContent || '').trim());
+  const submitted = await page.evaluate(() => {
+    const btn = document.querySelector('[data-slot="payment-months-save"]');
+    if (!btn || btn.disabled) return false;
+    btn.click();
+    return true;
+  });
+  if (!submitted) throw new Error('le bouton « Enregistrer » de l’éditeur est resté fermé après avoir coché les mois');
+  console.log(`✅ fiche : reçu muet complété — l’écran annonce : « ${line} »`);
+  return { line, editorMonths: chips.length, saveClosed };
+}
+
+/**
+ * La moitié RETOUR du rattrapage : la base, le SOLDE, puis le RECHARGEMENT.
+ *
+ * Le rechargement est le cœur du mode, et pas une formalité : tant que la page
+ * n'est pas rechargée, la fiche peut très bien porter les mois sans qu'ils aient
+ * jamais quitté la mémoire de l'écran — ce que le mode recu-mois disait déjà de
+ * son reçu du moment. On repart donc d'une page neuve, on rouvre la fiche, et
+ * c'est CETTE fiche-là qui est jugée : ses pastilles, sa note des reçus muets,
+ * son bouton.
+ *
+ * Le solde de l'élève est relu en base : des mois ne sont pas de l'argent, donc
+ * `amount_paid` ne doit pas bouger d'un franc.
+ */
+async function proveMuteFilled(page, target, filled) {
+  // `api` rend l'enveloppe `{ status, body }` : c'est `firstRow` qui ouvre le
+  // corps. La première lecture a lieu TOUT DE SUITE (le cas courant, l'écriture
+  // est déjà arrivée) et n'attend que si elle manque.
+  //
+  // Ce qui est ATTENDU, ce sont les MOIS, pas la ligne : la ligne existe depuis
+  // l'insertion, et `payments.months` vaut `'{}'` par défaut — un prédicat qui
+  // se contenterait de la lire rendrait la main AVANT l'écriture et mesurerait
+  // l'état d'avant (mesuré le 2026-10-13 : `months=[]` annoncé comme un échec de
+  // l'application, alors que seule la sonde était en avance).
+  const settled = await readUntil({
+    read: () => api(`/rest/v1/payments?select=id,months,date,amount,receipt_number&id=eq.${target.muteReceipt.id}`),
+    isReady: (r) => {
+      const row = firstRow(r?.body);
+      return Array.isArray(row?.months) && row.months.length > 0 ? row : null;
+    },
+    attempts: 20,
+    intervalMs: 500,
+    sleep: wait,
+  });
+  if (!settled.value) {
+    throw new Error(`le reçu muet n’est plus lisible en base après ${settled.reads} lecture(s)`);
+  }
+  console.log(`  ℹ️ reçu relu en base après ${settled.reads} lecture(s) — months=${JSON.stringify(settled.value.months)}`);
+  const student = await api(`/rest/v1/students?select=id,amount_paid&id=eq.${target.student.id}`);
+
+  // Le dossier de téléchargement est vidé avant la réimpression : la capture
+  // suivante doit être celle du reçu réimprimé, jamais un fichier d'avant.
+  for (const f of readdirSync(DL_DIR).filter((f) => f.endsWith('.pdf'))) rmSync(join(DL_DIR, f), { force: true });
+  await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
+  await wait(4000);
+  await goToStudents(page);
+  await openStudentFile(page, target.student.name);
+  // La FICHE avant le papier : elle est ouverte ici, et c'est la même vérité que
+  // le reçu doit porter. La bande est lue AVANT le téléchargement pour que la
+  // capture des pastilles ne dépende pas de ce que la modale d'aperçu laisse
+  // derrière elle.
+  const strip = await readMonthsStrip(page);
+  const fillButtons = await page.$$eval('[data-slot="payment-months-fill"]', (els) => els.length);
+  // Et le PARCOURS, relu après le rechargement : plus rien à rattraper, donc plus
+  // de liste. C'est la moitié écran de la même phrase que la note ci-dessus.
+  const backfillAfter = await readBackfillPanel(page);
+  await downloadReceiptFromPreview(page, target.student.name);
+  const reprint = await captureDownloadedPdf('réimpression après rattrapage');
+
+  return {
+    ticked: MONTHS_TICKED,
+    screenLine: filled.line,
+    editorMonths: filled.editorMonths,
+    saveClosed: filled.saveClosed,
+    stored: settled.value.months,
+    reads: settled.reads,
+    amountPaid: Number(firstRow(student.body)?.amount_paid),
+    strip,
+    fillButtons,
+    backfillAfter,
+    reprint,
+  };
+}
+
+/**
+ * Le flux complet du mode recu-muet, dans l'ordre où l'école le vit : la fiche
+ * AVANT (ce que l'application dit d'un reçu dont elle ne sait rien), le
+ * rattrapage, puis la fiche APRÈS rechargement.
+ *
+ * L'état « avant » est CAPTURÉ, pas supposé : sans lui, un reçu qui aurait déjà
+ * déclaré ses mois passerait le contrôle du rattrapage pour un simple affichage,
+ * et le mode se féliciterait d'avoir complété ce qui était déjà complet.
+ */
+async function runMuteFillFlow(page, target) {
+  await goToStudents(page);
+  await openStudentFile(page, target.student.name);
+  const before = await readMonthsStrip(page);
+  const fillOffered = await page.$$eval('[data-slot="payment-months-fill"]', (els) => els.length);
+  // Le PARCOURS, lu AVANT le geste : c'est lui qui LISTE ce qui reste. La bande
+  // des mois est attendue juste avant, donc la fiche est rendue et une absence
+  // de parcours ici serait un vrai constat, pas une course.
+  const backfillBefore = await readBackfillPanel(page);
+  const filled = await fillMuteMonthsFromFile(page);
+  const mute = await proveMuteFilled(page, target, filled);
+  return {
+    ...mute.reprint,
+    months: { ...mute, before, fillOffered, backfillBefore, muteReceiptId: target.muteReceipt.id },
+  };
+}
+
 // target: { member (Staff row) | null, mode, createViaUI? }
 async function runE2E(target) {
   const browser = await puppeteer.launch({
@@ -1063,11 +1349,12 @@ async function runE2E(target) {
     await wait(4000);
 
     // open Paie (retry on transient JWT clock skew)
-    // Le mode recu-mois n'y passe pas : le bouton du guichet vit dans l'en-tête,
+    // Les modes qui partent de la FICHE n'y passent pas : le bouton du guichet vit dans l'en-tête,
     // disponible depuis n'importe quelle page — et sauter cette navigation, c'est
     // une étape de moins qui peut échouer pour une raison qui ne regarde pas le
     // geste jugé.
-    for (let attempt = 0; target.mode !== 'recu-mois' && attempt < 4; attempt++) {
+    const needsPayrollPage = !RECEIPT_MODES.includes(target.mode);
+    for (let attempt = 0; needsPayrollPage && attempt < 4; attempt++) {
       const ok = await page.evaluate(() => {
         const items = [...document.querySelectorAll('a, button, [role="menuitem"]')];
         const target = items.find((el) => /paie|salaires|payroll/i.test(el.textContent || '') && (el.textContent || '').trim().length < 25);
@@ -1083,6 +1370,11 @@ async function runE2E(target) {
 
     let clicked = false;
     let monthsScreenLine = '';
+    // ── recu-muet : le RATTRAPAGE d'un reçu muet, par la fiche. Le flux entier
+    // vit de part et d'autre du rechargement, donc il est rendu ici — et rendu
+    // SEUL, sans le « reçu du geste » que les autres modes capturent en commun.
+    if (target.mode === 'recu-muet') return await runMuteFillFlow(page, target);
+
     if (target.mode === 'recu-parent') {
       // ── recu-parent : la fiche d'un élève qui a DÉJÀ un paiement → son reçu
       await goToStudents(page);
@@ -1194,7 +1486,7 @@ async function pixelCheck(pdfPath, mode) {
   // parents, rempli par le geste du guichet au lieu d'un paiement déjà en base.
   const tplFile = mode === 'bulletin' ? TPL_BULLETIN
     : mode === 'technique' ? TPL_TECHNIQUE
-    : (mode === 'recu-parent' || mode === 'recu-mois') ? TPL_RECU : TPL_FICHE;
+    : RECEIPT_MODES.includes(mode) ? TPL_RECU : TPL_FICHE;
   const tpl = await raster(join(root, tplFile));
   const live = await raster(pdfPath.bytes || pdfPath);
   check('taille de page identique au modèle',
@@ -1258,7 +1550,7 @@ async function pixelCheck(pdfPath, mode) {
       const d = diffBBox(live, tpl, x0, x1, y0, y1);
       check(`données « ${name} » posées`, !!d && d.count > 100, d ? `${d.count} px` : 'absentes');
     }
-  } else if (mode === 'recu-parent' || mode === 'recu-mois') {
+  } else if (RECEIPT_MODES.includes(mode)) {
     // Parent payment receipt — the school's paper form (201.1 × 155.8 mm):
     // every field must land on its printed zone. Zones calibrated at
     // 34 px/mm against the raster (see the geometry comment in
@@ -1474,6 +1766,88 @@ async function checkMonthsPaper(pdf) {
     strip ? (strip.lines[0] ?? 'aucune ligne de restants') : 'aucune bande de mois sur la fiche');
 }
 
+/**
+ * Le rattrapage jugé bout à bout : ce que la fiche disait AVANT, ce que l'écran a
+ * promis, ce que la base a gardé, et ce que la fiche dit APRÈS RECHARGEMENT.
+ *
+ * Chaque contrôle accuse une panne différente, et deux d'entre eux n'existent
+ * que pour empêcher un vert VIDE :
+ *
+ *   • « AVANT : la fiche offrait de renseigner ce reçu » — sans ce bouton, le
+ *     geste jugé n'a pas eu lieu, et tout ce qui suit porterait sur rien ;
+ *   • « le mois de la DATE reste À RÉGLER » — c'est ce qui distingue les mois
+ *     écrits par l'école de ceux qu'un reçu muet aurait déduits de sa date.
+ */
+async function checkMuteFilledPaper(pdf) {
+  console.log('\n— Reçu muet : la fiche, le rattrapage, le rechargement —');
+  const m = pdf.months;
+  const before = m.before;
+  const dateMonth = MUTE_RECEIPT_DATE.slice(0, 7); // le mois de la DATE du reçu
+
+  // ── AVANT : la fiche disait VRAIMENT qu'elle ne savait rien de ce reçu ────
+  check('AVANT : la fiche n’accordait aucun mois réglé à cet élève',
+    !!before && before.total === 12 && before.months.every((c) => c.state === 'due'),
+    before ? `${before.months.filter((c) => c.state === 'paid').length} réglé(s) sur ${before.total}` : 'aucune bande de mois avant le geste');
+  check('AVANT : la fiche comptait ce reçu comme « sans mois déclaré »',
+    !!before && before.undeclaredNote.length > 0,
+    before ? (before.undeclaredNote || 'aucune note') : 'aucune bande de mois avant le geste');
+  check('AVANT : la fiche offrait de renseigner ce reçu',
+    m.fillOffered === 1, `${m.fillOffered} bouton(s) « Renseigner les mois »`);
+  check('AVANT : le parcours de rattrapage LISTE ce reçu muet',
+    !!m.backfillBefore?.present && m.backfillBefore.receipts.join(',') === m.muteReceiptId,
+    m.backfillBefore?.present
+      ? `reçus listés : ${m.backfillBefore.receipts.join(', ') || 'aucun'} (attendu ${m.muteReceiptId})`
+      : 'aucun parcours de rattrapage sur la fiche');
+
+  // ── LE GESTE ─────────────────────────────────────────────────────────────
+  check('l’éditeur s’est ouvert sur les douze mois, l’enregistrement FERMÉ',
+    m.editorMonths === 12 && m.saveClosed === true,
+    `${m.editorMonths} mois, enregistrement ${m.saveClosed ? 'fermé' : 'OUVERT'}`);
+  check('l’éditeur annonce la ligne que le reçu imprimera', m.screenLine === MONTHS_EXPECTED,
+    `« ${m.screenLine} »`);
+  check('la base garde les mois, dans l’ordre du calendrier',
+    Array.isArray(m.stored) && m.stored.join(',') === MONTHS_TICKED.join(','),
+    `months=${JSON.stringify(m.stored)}`);
+
+  // ── APRÈS RECHARGEMENT : la même vérité, relue en base par l'application ─
+  const strip = m.strip;
+  const paid = strip ? strip.months.filter((c) => c.state === 'paid').map((c) => c.month) : [];
+  const offered = strip ? strip.months.map((c) => c.month) : [];
+  check('APRÈS RECHARGEMENT : la fiche marque RÉGLÉS exactement ces trois mois',
+    paid.join(',') === MONTHS_TICKED.join(','),
+    `réglés : ${paid.join(', ') || 'aucun'}`);
+  check('APRÈS RECHARGEMENT : les mois tombent dans l’année que la fiche affiche',
+    MONTHS_TICKED.every((x) => offered.includes(x)),
+    `bande : ${offered[0] ?? 'aucun mois'} … ${offered[offered.length - 1] ?? ''}`);
+  check(`APRÈS RECHARGEMENT : le mois de la DATE (${dateMonth}) reste À RÉGLER`,
+    !!strip && strip.months.some((c) => c.month === dateMonth && c.state === 'due'),
+    strip ? `${dateMonth} → ${strip.months.find((c) => c.month === dateMonth)?.state ?? 'absent'}` : 'aucune bande de mois');
+  check('APRÈS RECHARGEMENT : la fiche ne compte PLUS ce reçu comme muet',
+    !!strip && strip.undeclaredNote === '',
+    strip ? (strip.undeclaredNote || 'aucune note « sans mois déclaré »') : 'aucune bande de mois');
+  check('APRÈS RECHARGEMENT : la fiche n’offre PLUS de renseigner ce reçu',
+    m.fillButtons === 0, `${m.fillButtons} bouton(s) « Renseigner les mois »`);
+  check('APRÈS RECHARGEMENT : le parcours de rattrapage a DISPARU',
+    !!m.backfillAfter && m.backfillAfter.present === false,
+    m.backfillAfter?.present
+      ? `il liste encore : ${m.backfillAfter.receipts.join(', ') || 'aucun reçu'}`
+      : 'plus aucun reçu muet à rattraper');
+  check('APRÈS RECHARGEMENT : la fiche écrit le compte de ses mois réglés',
+    !!strip && strip.header.includes(`${MONTHS_TICKED.length} mois réglés sur ${strip.total}`),
+    strip ? strip.header : 'aucune bande de mois');
+  check('le solde de l’élève n’a pas bougé — des mois ne sont pas de l’argent',
+    m.amountPaid === 0, `amount_paid=${m.amountPaid}`);
+
+  // ── LE PAPIER : le reçu réimprimé, après le rechargement ─────────────────
+  const reprint = monthsOnPaper(await pdfText(m.reprint.bytes.slice()));
+  check('la réimpression NOMME les trois mois', reprint.names.length === 3,
+    reprint.names.join(', ') || 'aucun mois nommé');
+  check('la réimpression écrit le compte (liste, pas plage)', reprint.count,
+    reprint.count ? '« 3 mois »' : 'absent');
+  check('la réimpression ne retombe PAS sur le mois de la date', !reprint.october,
+    reprint.october ? 'Octobre imprimé — les mois n’ont pas été relus' : 'aucun « Octobre »');
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 // Startup sweep: kill Chrome orphans left by interrupted runs (Windows only).
 const swept = await sweepOrphanPuppeteer();
@@ -1497,7 +1871,8 @@ try {
   // Les mois se jugent AVANT le pixel-check : `pdfjs` prend possession du tampon
   // d'octets qu'on lui donne, donc celui qui lit le texte en premier est celui
   // qui aura les octets vivants — les suivants reçoivent des copies.
-  if (pdf.months) await checkMonthsPaper(pdf);
+  if (mode === 'recu-muet') await checkMuteFilledPaper(pdf);
+  else if (pdf.months) await checkMonthsPaper(pdf);
   await pixelCheck(pdf, mode);
   if (KEEP) {
     const report = checks.map((c) => `${c.ok ? 'PASS' : 'FAIL'}  ${c.name}${c.detail ? ' — ' + c.detail : ''}`).join('\n');

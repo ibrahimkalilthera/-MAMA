@@ -29,6 +29,13 @@
  * résolu (`livePaymentOf`), sinon aucun bouton n'est rendu — un bouton qui ne
  * peut pas marcher est un mensonge, pas une aide.
  *
+ * La colonne MOTIF dit ce que la famille est venue RÉGLER — les mots de la ligne
+ * « Motif » du reçu (`paymentMotifLabel`), et non une seconde formulation : un
+ * reçu d'inscription réimprimé depuis cette page doit se lire comme le papier
+ * remis au comptoir. Le motif d'un geste d'AVANT la colonne `payments.motif` est
+ * celui de son reçu d'alors (« Frais de scolarité »), posé par `PaymentHistoryRow`
+ * : la vue ne décide jamais d'un motif, elle affiche celui que la ligne porte.
+ *
  * Les montants CHIFFRÉS viennent de l'instantané `metadata` du geste ; à défaut,
  * ils se relisent dans la phrase `details`, dont le gabarit est écrit par ce dépôt
  * (voir `paymentFactsFromDetails` — c'est la réparation du 2026-10-06 : les 3
@@ -62,6 +69,7 @@ import {
   paymentHistoryExportFilename,
 } from '../lib/paymentHistoryExport';
 import { generatePaymentHistoryPdf } from '../lib/pdfPaymentHistory';
+import { DEFAULT_PAYMENT_MOTIF, paymentMotifLabel } from '../lib/paymentMotifs';
 import type { AuditLogEntry } from '../lib/auditLogger';
 
 /** Le libellé i18n de chaque geste — le même que la colonne ACTIONS du journal. */
@@ -346,6 +354,7 @@ export function PaymentHistoryView() {
                 <th className="px-4 py-4">{t.actions}</th>
                 <th className="px-4 py-4 text-right">{t.amount2}</th>
                 <th className="px-4 py-4">{t.receipt}</th>
+                <th className="px-4 py-4">{t.paymentMotif}</th>
                 <th className="px-4 py-4">{t.paymentHistoryCollectedBy}</th>
                 <th className="px-4 py-4">{t.details}</th>
               </tr>
@@ -473,6 +482,21 @@ export function PaymentHistoryView() {
                       <td className="px-4 py-4 whitespace-nowrap align-top">
                         <span className={`text-xs font-mono ${currentTheme.muted}`}>{row.receiptNumber || '—'}</span>
                       </td>
+                      {/* Le motif du reçu. Le geste ORDINAIRE reste discret ; ce qui
+                          sort de l'ordinaire (l'inscription) prend l'accent, parce
+                          que c'est ce qu'une caisse doit repérer d'un coup d'œil
+                          dans une liste d'encaissements. */}
+                      <td className="px-4 py-4 whitespace-nowrap align-top">
+                        <span
+                          className={`text-2xs font-bold px-2 py-0.5 rounded-full border ${
+                            row.motif === DEFAULT_PAYMENT_MOTIF
+                              ? `${currentTheme.border} ${currentTheme.muted}`
+                              : `${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentBorder}`
+                          }`}
+                        >
+                          {paymentMotifLabel(row.motif, t)}
+                        </span>
+                      </td>
                       <td className="px-4 py-4 align-top">
                         <div className="flex flex-col">
                           <span className={`text-xs font-bold ${currentTheme.text}`}>{row.actorName || t.roleStaff}</span>
@@ -495,7 +519,7 @@ export function PaymentHistoryView() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400 italic">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-400 italic">
                     {rows.length === 0 ? t.paymentHistoryEmpty : t.noAuditEntriesMatchingFilters}
                   </td>
                 </tr>

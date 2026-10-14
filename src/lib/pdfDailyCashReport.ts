@@ -14,7 +14,14 @@
  *     classeur, pas sur un bureau.
  *   • **ce qui n'est pas chiffré est DIT** : quand un caissier a des gestes sans
  *     montant structuré, la mention de total partiel est imprimée sous le tableau
- *     — un total silencieusement incomplet serait pire que pas de total.
+ *     — un total silencieusement incomplet serait pire que pas de total ;
+ *   • **le motif du reçu est une ligne du rapport**, sous le tableau des caissiers
+ *     et dans les mêmes colonnes : la feuille qu'on classe dit donc ce que la
+ *     journée a encaissé en inscription et en scolarité, dans les mots du reçu
+ *     (`paymentMotifLabel`) ; chaque annulation porte aussi le motif du reçu qu'elle
+ *     a défait. Un motif absent de la journée n'a pas de ligne — le document décrit
+ *     ce qui s'est passé, il ne remplit pas un formulaire, et le bloc s'écrit en
+ *     entier sur la page ou passe à la suivante.
  *   • **les caractères restent dans la police** : mesuré sur les PDF réels du
  *     dépôt, une police standard de jsPDF est en WinAnsi, donc le signe « − » de
  *     l'écran et la flèche « → » n'y survivent pas (`pdfPaymentHistory.ts` porte
@@ -26,6 +33,7 @@
 import type { DailyCashReport } from './dailyCashReport';
 import { downloadBytes } from './browserDownload';
 import { drawSchoolStamp } from './pdfStamp';
+import { paymentMotifLabel } from './paymentMotifs';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
 
@@ -62,10 +70,15 @@ const FOOTER_Y = 291;
 
 /** Les bords droits des cinq colonnes du tableau des caissiers. */
 const CASHIER_COLUMNS = { entries: 100, collected: 130, cancelled: 160, net: 196 };
-/** Les abscisses des cinq colonnes de la liste des annulations. */
-const CANCEL_COLUMNS = [14, 48, 76, 164];
+/**
+ * Les abscisses des colonnes de la liste des annulations — moment, reçu, élève,
+ * motif, caissier. Le motif s'est glissé entre l'élève et le montant, comme à
+ * l'écran : c'est le reçu qu'il qualifie, et il ne coûte à l'élève que quelques
+ * millimètres de repli.
+ */
+const CANCEL_COLUMNS = [14, 48, 74, 114, 172];
 /** Le bord droit de la colonne MONTANT des annulations. */
-const CANCEL_AMOUNT_X = 160;
+const CANCEL_AMOUNT_X = 168;
 
 /** Un montant signé, dans les caractères que la police WinAnsi porte vraiment. */
 function signedNet(net: number, formatMoney: (amount: number) => string): string {
@@ -216,7 +229,87 @@ export async function generateDailyCashReportPdf({
     y += 9;
   });
 
-  // 4. Les annulations du jour, une ligne chacune.
+  // 4. Les motifs du jour — une ligne par motif présent, dans les colonnes du
+  //    tableau des caissiers : les deux blocs se lisent d'un seul regard.
+  y += 6;
+  if (y > ROW_LIMIT) {
+    doc.addPage();
+    y = 20;
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...MONEY_INK_RGB);
+  doc.text(t.dailyCashReportMotifs.replace('{count}', String(report.motifs.length)), MARGIN, y);
+  y += 4;
+
+  const drawMotifHeader = () => {
+    doc.setFillColor(...HEADER_FILL_RGB);
+    doc.rect(MARGIN, y, PAGE_WIDTH - MARGIN * 2, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(...HEADER_INK_RGB);
+    doc.text(t.paymentMotif, MARGIN + 2, y + 4.8);
+    doc.text(t.dailyCashReportEntries, CASHIER_COLUMNS.entries, y + 4.8, { align: 'right' });
+    doc.text(t.dailyCashReportCollected, CASHIER_COLUMNS.collected, y + 4.8, { align: 'right' });
+    doc.text(t.dailyCashReportCancelled, CASHIER_COLUMNS.cancelled, y + 4.8, { align: 'right' });
+    doc.text(t.dailyCashReportNet, CASHIER_COLUMNS.net, y + 4.8, { align: 'right' });
+    y += 7;
+  };
+  drawMotifHeader();
+
+  if (report.motifs.length === 0) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(t.dailyCashReportEmpty, MARGIN + 2, y + 6);
+    y += 12;
+  }
+
+  report.motifs.forEach((line, index) => {
+    if (y > ROW_LIMIT) {
+      doc.addPage();
+      y = 20;
+      drawMotifHeader();
+    }
+    if (index % 2 === 1) {
+      doc.setFillColor(...ROW_LINE_RGB);
+      doc.rect(MARGIN, y, PAGE_WIDTH - MARGIN * 2, 9, 'F');
+    }
+    doc.setDrawColor(...ROW_LINE_RGB);
+    doc.line(MARGIN, y + 9, PAGE_WIDTH - MARGIN, y + 9);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...INK_RGB);
+    doc.text(paymentMotifLabel(line.motif, t), MARGIN + 2, y + 4.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED_INK_RGB);
+    doc.text(String(line.count), CASHIER_COLUMNS.entries, y + 4.5, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...MONEY_INK_RGB);
+    doc.text(formatMoney(line.collected), CASHIER_COLUMNS.collected, y + 4.5, { align: 'right' });
+    doc.setTextColor(...(line.cancelled > 0 ? CANCEL_INK_RGB : MUTED_INK_RGB));
+    doc.text(
+      line.cancelled > 0 ? signedNet(-line.cancelled, formatMoney) : formatMoney(0),
+      CASHIER_COLUMNS.cancelled,
+      y + 4.5,
+      { align: 'right' },
+    );
+    doc.setTextColor(...(line.net < 0 ? CANCEL_INK_RGB : MONEY_INK_RGB));
+    doc.text(signedNet(line.net, formatMoney), CASHIER_COLUMNS.net, y + 4.5, { align: 'right' });
+
+    if (line.withoutAmount > 0) {
+      // Le sous-total de CE motif est partiel, et il le dit là où on le lit.
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(6.5);
+      doc.setTextColor(180, 83, 9);
+      doc.text(t.paymentHistoryWithoutAmount.replace('{count}', String(line.withoutAmount)), MARGIN + 2, y + 8);
+    }
+    y += 9;
+  });
+
+  // 5. Les annulations du jour, une ligne chacune.
   y += 6;
   if (y > ROW_LIMIT) {
     doc.addPage();
@@ -241,8 +334,9 @@ export async function generateDailyCashReportPdf({
     doc.text(t.timestamp, CANCEL_COLUMNS[0], y + 4.8);
     doc.text(t.receipt, CANCEL_COLUMNS[1], y + 4.8);
     doc.text(t.studentName, CANCEL_COLUMNS[2], y + 4.8);
+    doc.text(t.paymentMotif, CANCEL_COLUMNS[3], y + 4.8);
     doc.text(t.amount2, CANCEL_AMOUNT_X, y + 4.8, { align: 'right' });
-    doc.text(t.paymentHistoryCollectedBy, CANCEL_COLUMNS[3], y + 4.8);
+    doc.text(t.paymentHistoryCollectedBy, CANCEL_COLUMNS[4], y + 4.8);
     y += 7;
   };
   drawCancelHeader();
@@ -278,7 +372,12 @@ export async function generateDailyCashReportPdf({
     );
     doc.text(row.receiptNumber || '—', CANCEL_COLUMNS[1], y + 4.5);
     doc.setTextColor(...INK_RGB);
-    doc.text(doc.splitTextToSize(row.studentName || t.paymentHistoryUnknownStudent, 44)[0] ?? '', CANCEL_COLUMNS[2], y + 4.5);
+    doc.text(doc.splitTextToSize(row.studentName || t.paymentHistoryUnknownStudent, 38)[0] ?? '', CANCEL_COLUMNS[2], y + 4.5);
+    // Le motif du reçu ANNULÉ : sans lui, la ligne dirait qu'un reçu est parti
+    // sans dire ce qu'il réglait — et la question se repose à chaque fermeture.
+    doc.setFontSize(6.5);
+    doc.setTextColor(...MUTED_INK_RGB);
+    doc.text(doc.splitTextToSize(paymentMotifLabel(row.motif, t), 46)[0] ?? '', CANCEL_COLUMNS[3], y + 4.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...CANCEL_INK_RGB);
     // Le signe vient d'une seule fonction (`signedNet`) : le montant annulé ici et
@@ -286,11 +385,11 @@ export async function generateDailyCashReportPdf({
     doc.text(row.amount === null ? t.paymentHistoryAmountInDetails : signedNet(-row.amount, formatMoney), CANCEL_AMOUNT_X, y + 4.5, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MUTED_INK_RGB);
-    doc.text(doc.splitTextToSize(row.actorName || t.roleStaff, 30)[0] ?? '', CANCEL_COLUMNS[3], y + 4.5);
+    doc.text(doc.splitTextToSize(row.actorName || t.roleStaff, 24)[0] ?? '', CANCEL_COLUMNS[4], y + 4.5);
     y += 7;
   });
 
-  // 5. Cachet + mention officielle, SOUS le contenu.
+  // 6. Cachet + mention officielle, SOUS le contenu.
   let stampCy = y + 18;
   if (stampCy + STAMP_DIAMETER / 2 + 8 > 289) {
     doc.addPage();
@@ -307,7 +406,7 @@ export async function generateDailyCashReportPdf({
     { align: 'center' },
   );
 
-  // 6. Pied de page numéroté sur toutes les pages.
+  // 7. Pied de page numéroté sur toutes les pages.
   const pages = doc.getNumberOfPages();
   for (let page = 1; page <= pages; page += 1) {
     doc.setPage(page);

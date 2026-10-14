@@ -24,6 +24,7 @@ import type { TranslationDict } from '../i18n/translations';
 import { getCalendarDays } from '../lib/classes';
 import { getMonthName as getMonthNameImpl, getDayName as getDayNameImpl } from '../lib/formatters';
 import { localIsoDate, systemClock, type Clock } from '../lib/dateWindows';
+import { canDeleteVendorExpenses, canWriteFinance } from '../lib/payrollRights';
 import { useGestureId } from '../lib/gestureId';
 
 export interface ExpenseForm {
@@ -79,10 +80,19 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
   } = deps;
   // Le jour local du repère d'horloge, calculé à l'initialisation une fois.
   const todayIso = localIsoDate(nowFn());
-  // Finance admins (promoter/admin, dev, general manager) share the vendor
-  // create/delete powers; only the promoter keeps the amount/vendorName edit
-  // monopoly on existing records.
+  // SUPPRIMER une dépense GÉNÉRALE reste un acte d'administrateur : la base
+  // l'exige (`public.is_admin()`, 0 ligne touchée pour l'économe — mesuré) et
+  // l'écran ne montre cette corbeille qu'à `canDelete` (`src/lib/deleteRights.ts`).
+  // La suppression d'une dépense FOURNISSEUR ne se lit plus ici : elle suit
+  // `public.is_finance_admin()` LUE SUR LE RÔLE (`canDeleteVendorExpenses`,
+  // ci-dessous), qui inclut le Gestionnaire Principal depuis l'application de
+  // `20260906000002_vendor_expense_gm_policies.sql` (2026-10-13).
   const isFinanceAdmin = isPromoter || isGeneralManager;
+  // ÉCRIRE une dépense fournisseur suit la liste de la BASE :
+  // `public.is_finance_writer()` (`src/lib/payrollRights.ts`) inclut l'économe
+  // depuis le 2026-10-13. Le rôle est lu sur le PROFIL, pas sur un booléen
+  // d'écran — c'est le rôle que la policy lit, donc c'est lui qui décide.
+  const canWriteFinanceRecords = canWriteFinance(currentUser?.role);
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showVendorExpenseModal, setShowVendorExpenseModal] = useState(false);
@@ -152,7 +162,7 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
 
   const handleVendorExpenseSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!editingVendorExpense && !isFinanceAdmin) {
+    if (!editingVendorExpense && !canWriteFinanceRecords) {
       toastError(t.onlyThePromoterCanCreateAVendorExpense);
       return;
     }
@@ -228,7 +238,9 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
       toastError(t.thisAcademicYearIsLocked);
       return;
     }
-    if (!isFinanceAdmin) {
+    // Le RÔLE décide, pas l'état d'écran : la même liste que la policy
+    // (`public.is_finance_admin()`) — admin, dev, Gestionnaire Principal.
+    if (!canDeleteVendorExpenses(currentUser?.role)) {
       toastError(t.onlyThePromoterCanDeleteExpenses);
       return;
     }

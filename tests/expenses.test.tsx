@@ -5,14 +5,18 @@
  *   1. handleExpenseSubmit — a locked year blocks with an alert; an invalid
  *      amount is silently ignored; success parses the amount, stamps the
  *      academic year, closes the modal and resets the form;
- *   2. handleVendorExpenseSubmit — creation is gated to finance admins
- *      (promoter / general manager get through, staff is alerted); the
+ *   2. handleVendorExpenseSubmit — creation is gated to the roles that WRITE
+ *      (`public.is_finance_writer()` : promoter/admin, dev, general manager
+ *      and, depuis le 2026-10-13, l'économe ; `staff` est alerté) ; the
  *      promoter alone may set the amount and vendor name; a
  *      general_manager keeps the existing amount/vendorName on EDIT of an
  *      existing record; paid/unpaid/partial drive amountPaid; social_cases
  *      fills the aid fields, other categories drop them;
- *   3. handleDeleteVendorExpense — locked year blocks, non-finance roles are
- *      alerted, finance roles delete and toast;
+ *   3. handleDeleteVendorExpense — locked year blocks, then the DELETION follows
+ *      the ROLE read on the profile, not the screen booleans :
+ *      `public.is_finance_admin()` (admin, dev, general manager) depuis
+ *      l'application de `20260906000002_vendor_expense_gm_policies.sql` —
+ *      l'économe ÉCRIT la dépense fournisseur et ne la DÉTRUIT pas ;
  *   4. handleEditVendorExpense — hydrates the form from the record and opens
  *      the modal;
  *   5. expenseCategoryList — localized labels, alphabetically sorted.
@@ -38,6 +42,7 @@ const win = installDomGlobals();
 const promoter: User = { username: 'ibrahim', name: 'Ibrahim Thera', role: 'admin' };
 const gmUser: User = { username: 'mamadou', name: 'Mamadou Lamine Thera', role: 'general_manager' };
 const staffUser: User = { username: 'sekou', name: 'Sékou Traoré', role: 'staff' };
+const economeUser: User = { username: 'aggee', name: 'Aggee Diarra', role: 'econome' };
 
 const vendor: VendorExpense = {
   id: 'v1',
@@ -233,6 +238,34 @@ describe('useExpenses.handleVendorExpenseSubmit', () => {
     }
   });
 
+  it('ouvre la CRÉATION à l’économe — la base l’accepte, l’écran aussi (2026-10-13)', async () => {
+    // Mesuré le 2026-10-13 : `vendor_expenses` refuse l'économe en base (42501)
+    // tant que la policy d'insertion reste `is_admin()`. Le rôle le plus étroit
+    // qui doit passer est donc celui-là : s'il passe, la porte de l'écran et
+    // celle de la base citent bien la même liste.
+    const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false, currentUser: economeUser });
+    const { ref, root, restoreAlert } = await setup(args, spies.alerts);
+    try {
+      await act(async () => {
+        ref.current!.setVendorExpenseForm({
+          ...ref.current!.vendorExpenseForm,
+          vendorName: 'E.G Senelec',
+          category: 'electricity',
+          amount: '45000',
+          paymentStatus: 'unpaid',
+        });
+      });
+      await act(async () => { await ref.current!.handleVendorExpenseSubmit(submitEvent); });
+      assert.equal(spies.alerts.length, 0, 'aucune alerte : il a le droit');
+      assert.equal(spies.addVendorCalls.length, 1);
+      assert.equal(spies.addVendorCalls[0]?.amount, 45000, 'le montant qu’il a saisi est écrit');
+      assert.equal(spies.addVendorCalls[0]?.vendorName, 'E.G Senelec');
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+
   it('lets the promoter set amount and vendorName on create', async () => {
     const { args, spies } = baseDeps({ isPromoter: true, isGeneralManager: false });
     const { ref, root, restoreAlert } = await setup(args, spies.alerts);
@@ -351,9 +384,9 @@ describe('useExpenses.handleDeleteVendorExpense', () => {
         restoreAlert();
       }
     }
-    // non-finance role
+    // le RÔLE du poste décide — pas les booléens d'écran : `staff` est refusé
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false });
+      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false, currentUser: staffUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => { await ref.current!.handleDeleteVendorExpense('v1'); });
@@ -364,14 +397,27 @@ describe('useExpenses.handleDeleteVendorExpense', () => {
         restoreAlert();
       }
     }
-    // GM deletes and toasts
+    // GM deletes and toasts — il l'obtient de son RÔLE, quels que soient ses booléens d'écran
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: true });
+      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false, currentUser: gmUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => { await ref.current!.handleDeleteVendorExpense('v1'); });
         assert.deepEqual(spies.deleteVendorCalls, ['v1']);
         assert.equal(spies.toasts, 1);
+      } finally {
+        act(() => root.unmount());
+        restoreAlert();
+      }
+    }
+    // et l'économe ÉCRIT la dépense fournisseur sans pouvoir la DÉTRUIRE
+    {
+      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: true, currentUser: economeUser });
+      const { ref, root, restoreAlert } = await setup(args, spies.alerts);
+      try {
+        await act(async () => { await ref.current!.handleDeleteVendorExpense('v1'); });
+        assert.equal(spies.alerts[0], t.onlyThePromoterCanDeleteExpenses);
+        assert.equal(spies.deleteVendorCalls.length, 0);
       } finally {
         act(() => root.unmount());
         restoreAlert();

@@ -34,6 +34,7 @@ import { filterPaymentHistory, paymentHistoryRows, paymentHistorySummary } from 
 import type { PaymentHistoryRow } from '../src/lib/paymentHistory';
 import { archivedPaymentFrom, paymentSnapshotMetadata } from '../src/lib/paymentUndo';
 import type { Payment, Student } from '../src/lib/domainTypes';
+import type { PaymentMotif } from '../src/lib/paymentMotifs';
 
 const DAY = '2026-10-06';
 const OTHER_DAY = '2026-10-05';
@@ -283,5 +284,108 @@ describe('les annulations du jour', () => {
     assert.equal(group!.name, cancel.actorName);
     assert.equal(group!.cancelled, cancel.amount);
     assert.ok(t.dailyCashReportCancellations.includes('{count}'), 'la phrase du titre attend son compte — la clé existe');
+  });
+});
+
+// ─── La répartition par MOTIF ────────────────────────────────────────────────
+//
+// Le motif est un fait du REÇU, pas du caissier : une même journée mêle
+// l'inscription et la scolarité, et une caisse qui ferme doit pouvoir dire ce que
+// chacune a rapporté. Deux choses sont mesurées ici, et ce sont les seules qui
+// puissent mentir : la somme des motifs doit être EXACTEMENT le total du jour
+// (même addition, même fonction), et un geste dont la ligne ne déclare aucun motif
+// compte comme l'ORDINAIRE — c'est ce que son papier disait.
+
+describe('la répartition par motif — ce que la journée a encaissé, motif par motif', () => {
+  const TIE_DAY = '2026-10-07';
+
+  const payment = (id: string, amount: number, receiptNumber: string, motif?: PaymentMotif): Payment => ({
+    id,
+    date: DAY,
+    amount,
+    academicYear: '2026-2027',
+    receiptNumber,
+    motif,
+  });
+
+  /** Un geste daté d'une journée choisie, avec son motif quand il en déclare un. */
+  function gesture(
+    action: 'RECORD_PAYMENT' | 'DELETE_PAYMENT',
+    id: string,
+    at: string,
+    student: Student,
+    amount: number,
+    receiptNumber: string,
+    motif?: PaymentMotif,
+  ): AuditLogEntry {
+    const receipt = `Paiement de ${amount} FCFA (reçu ${receiptNumber})`;
+    return {
+      id,
+      action,
+      targetType: 'payment',
+      targetId: student.id,
+      userName: AGGEE.name,
+      userEmail: AGGEE.email,
+      userRole: AGGEE.role,
+      createdAt: at,
+      details: action === 'DELETE_PAYMENT' ? `${receipt} supprimé — élève ${student.name}` : receipt,
+      metadata: paymentSnapshotMetadata(archivedPaymentFrom(student.id, student.name, payment(id, amount, receiptNumber, motif))),
+    };
+  }
+
+  const motifLogs: AuditLogEntry[] = [
+    gesture('RECORD_PAYMENT', 'f1', `${DAY}T08:00:00Z`, alice, 4000, 'REC-1'),
+    gesture('RECORD_PAYMENT', 'f2', `${DAY}T09:00:00Z`, bob, 25000, 'REC-2', 'inscription'),
+    gesture('DELETE_PAYMENT', 'f3', `${DAY}T10:00:00Z`, bob, 25000, 'REC-2', 'inscription'),
+    // La veille : son inscription ne doit pas rejoindre la répartition du jour.
+    gesture('RECORD_PAYMENT', 'f4', `${OTHER_DAY}T11:00:00Z`, alice, 99999, 'REC-9', 'inscription'),
+    // Une seconde journée, à encaissements ÉGAUX entre les deux motifs.
+    gesture('RECORD_PAYMENT', 'f5', `${TIE_DAY}T09:00:00Z`, alice, 7000, 'REC-5', 'inscription'),
+    gesture('RECORD_PAYMENT', 'f6', `${TIE_DAY}T10:00:00Z`, bob, 7000, 'REC-6'),
+  ];
+
+  const motifRows = paymentHistoryRows({ logs: motifLogs, students: [alice, bob] });
+  const motifReport = (day: string) => dailyCashReport({ rows: motifRows, day });
+
+  it('regroupe les reçus du jour par motif, avec l’addition de l’historique', () => {
+    assert.deepEqual(
+      motifReport(DAY).motifs,
+      [
+        { motif: 'inscription', count: 2, collected: 25000, cancelled: 25000, net: 0, withoutAmount: 0 },
+        { motif: 'scolarite', count: 1, collected: 4000, cancelled: 0, net: 4000, withoutAmount: 0 },
+      ],
+      'un motif par ligne, encaissé décroissant',
+    );
+    assert.deepEqual(
+      motifReport(OTHER_DAY).motifs.map((line) => line.motif),
+      ['inscription'],
+      'la veille garde sa propre répartition',
+    );
+    assert.deepEqual(motifReport('2026-10-04').motifs, [], 'une journée sans geste n’a aucun motif à montrer');
+  });
+
+  it('la somme des motifs est EXACTEMENT le total du jour', () => {
+    const day = motifReport(DAY);
+    const sum = (pick: (line: (typeof day.motifs)[number]) => number) =>
+      day.motifs.reduce((total, line) => total + pick(line), 0);
+    assert.equal(sum((line) => line.collected), day.collected);
+    assert.equal(sum((line) => line.cancelled), day.cancelled);
+    assert.equal(sum((line) => line.net), day.net);
+    assert.equal(sum((line) => line.count), day.count);
+    assert.equal(sum((line) => line.withoutAmount), day.withoutAmount);
+  });
+
+  it('à encaissement égal, l’ordre est celui de la liste FERMÉE des motifs', () => {
+    assert.deepEqual(
+      motifReport(TIE_DAY).motifs.map((line) => line.motif),
+      ['scolarite', 'inscription'],
+      'un rapport ne change pas d’ordre d’un poste à l’autre pour un même jour',
+    );
+  });
+
+  it('un geste dont la ligne ne déclare aucun motif compte comme l’ORDINAIRE', () => {
+    const ordinary = motifReport(DAY).motifs.find((line) => line.motif === 'scolarite');
+    assert.equal(ordinary?.count, 1);
+    assert.equal(ordinary?.collected, 4000, 'c’est le reçu d’avant la colonne : son papier disait « frais de scolarité »');
   });
 });

@@ -19,13 +19,21 @@
  *     calendrier LOCAL du poste (`localDayIso`) ;
  *   • ce qui n'est pas chiffré est écrit. Un caissier dont un geste n'a pas de
  *     montant structuré voit sa ligne le dire, et le total du jour aussi — un
- *     total partiel qui se tairait serait pire qu'un total absent.
+ *     total partiel qui se tairait serait pire qu'un total absent ;
+ *   • **le motif du reçu est une ligne du rapport** (`report.motifs`) : la journée
+ *     mêle l'inscription et la scolarité, et une caisse qui ferme doit pouvoir
+ *     dire ce que chacune a rapporté. Les mots sont ceux du reçu
+ *     (`paymentMotifLabel`), donc la carte, le PDF et le papier remis aux familles
+ *     nomment le même motif de la même façon ; chaque annulation porte aussi le
+ *     motif du reçu qu'elle a défait. La répartition est calculée par le module pur
+ *     (`dailyCashReport`) : la carte ne l'additionne pas elle-même.
  */
 import { useState } from 'react';
 import { CalendarDays, Download } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
 import { dailyCashReport, localDayIso } from '../lib/dailyCashReport';
 import { paymentHistoryMoment } from '../lib/paymentHistoryExport';
+import { paymentMotifLabel } from '../lib/paymentMotifs';
 import { generateDailyCashReportPdf } from '../lib/pdfDailyCashReport';
 import type { PaymentHistoryRow } from '../lib/paymentHistory';
 
@@ -139,6 +147,52 @@ export function DailyCashReportCard({ rows }: { rows: PaymentHistoryRow[] }) {
         </table>
       </div>
 
+      {/* Ce que la journée a encaissé, motif par motif — la question posée en
+          fermant une caisse : « la journée, c'est de l'inscription ou de la
+          scolarité ? ». Les motifs absents de la journée n'ont pas de ligne. */}
+      <div className="space-y-2">
+        <h4 className={`text-2xs font-black uppercase tracking-wider ${currentTheme.muted}`}>
+          {t.dailyCashReportMotifs.replace('{count}', String(report.motifs.length))}
+        </h4>
+        {report.motifs.length > 0 ? (
+          <div className={`border ${currentTheme.border} rounded-xl overflow-hidden`}>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className={`${currentTheme.surfaceInset} ${currentTheme.muted} text-2xs font-black uppercase tracking-[0.2em]`}>
+                  <th className="px-4 py-3">{t.paymentMotif}</th>
+                  <th className="px-4 py-3 text-right">{t.dailyCashReportEntries}</th>
+                  <th className="px-4 py-3 text-right">{t.dailyCashReportCollected}</th>
+                  <th className="px-4 py-3 text-right">{t.dailyCashReportNet}</th>
+                </tr>
+              </thead>
+              <tbody className={`divide-y ${currentTheme.border}`}>
+                {report.motifs.map((line) => (
+                  <tr key={line.motif} className={`${currentTheme.rowHover} transition-all`}>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col">
+                        <span className={`text-xs font-bold ${currentTheme.text}`}>{paymentMotifLabel(line.motif, t)}</span>
+                        {line.withoutAmount > 0 && (
+                          <span className="text-2xs font-bold text-amber-600 dark:text-amber-300">
+                            {t.paymentHistoryWithoutAmount.replace('{count}', String(line.withoutAmount))}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className={`px-4 py-3 text-right text-xs font-bold tabular-nums ${currentTheme.muted}`}>{line.count}</td>
+                    <td className={`px-4 py-3 text-right text-xs font-black tabular-nums ${currentTheme.text}`}>{money(line.collected)}</td>
+                    <td className={`px-4 py-3 text-right text-xs font-black tabular-nums ${line.net < 0 ? 'text-rose-600 dark:text-rose-300' : currentTheme.text}`}>
+                      {line.net < 0 ? `- ${money(-line.net)}` : money(line.net)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-2xs italic text-slate-400">{t.dailyCashReportEmpty}</p>
+        )}
+      </div>
+
       <div className="space-y-2">
         <h4 className="text-2xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-300">
           {t.dailyCashReportCancellations.replace('{count}', String(report.cancellations.length))}
@@ -149,6 +203,9 @@ export function DailyCashReportCard({ rows }: { rows: PaymentHistoryRow[] }) {
               <li key={row.id} className="px-4 py-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <span className={`text-2xs font-mono ${currentTheme.muted}`}>{paymentHistoryMoment(row.at, lang)}</span>
                 <span className={`text-xs font-mono ${currentTheme.muted}`}>{row.receiptNumber || '—'}</span>
+                <span className={`text-2xs font-bold px-2 py-0.5 rounded-full border ${currentTheme.border} ${currentTheme.muted}`}>
+                  {paymentMotifLabel(row.motif, t)}
+                </span>
                 <span className={`text-xs font-bold ${currentTheme.text}`}>
                   {row.studentName || t.paymentHistoryUnknownStudent}
                 </span>

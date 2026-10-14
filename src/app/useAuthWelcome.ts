@@ -25,6 +25,7 @@ export type MainTab =
   | 'calendar'
   | 'notes'
   | 'archives'
+  | 'silentReceipts'
   | 'audit'
   | 'paymentHistory';
 

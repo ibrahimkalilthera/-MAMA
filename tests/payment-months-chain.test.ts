@@ -55,7 +55,7 @@ import { mockModule } from './module-mock';
 // gestionnaire (le vrai client ne se charge pas sous le lanceur de tests), et
 // c'est ce journal qui porte la jointure « charge utile → ligne écrite ».
 interface Call {
-  op: 'insert' | 'update' | 'delete' | 'select';
+  op: 'insert' | 'update' | 'delete' | 'select' | 'rpc';
   table: string;
   payload?: Record<string, unknown>;
 }
@@ -113,7 +113,15 @@ const fakeSupabase = {
       return chain(() => rowsResult);
     },
   }),
-  rpc: async () => ({ data: null, error: null }),
+  // L'écriture BORNÉE des mois (20261013000000_econome_payment_months.sql) : la
+  // fonction de la base rend le NOMBRE de lignes écrites, et c'est ce nombre que
+  // l'app lit — 0 n'est pas un succès. Elle est capturée comme un appel à part :
+  // un appel de FONCTION n'est pas une table, et un chemin qui repasserait par un
+  // UPDATE de `payments` doit se voir ici.
+  rpc: async (fn: string, args?: Record<string, unknown>) => {
+    calls.push({ op: 'rpc', table: fn, payload: args });
+    return { data: 1, error: null };
+  },
 };
 
 installDomGlobals();
@@ -289,6 +297,9 @@ function rowFromBase(sent: Record<string, unknown>): DbRow<'payments'> {
     academic_year: (sent.academic_year ?? null) as string | null,
     receipt_number: (sent.receipt_number ?? null) as string | null,
     months: (sent.months ?? []) as string[],
+    // Le motif suit la même règle : ce que la base stocke est ce qu'on lui a
+    // donné, et `null` quand le geste n'en déclarait pas.
+    motif: (sent.motif ?? null) as string | null,
     created_at: '2026-10-12T00:00:00.000Z',
   };
 }
@@ -344,6 +355,45 @@ describe('la chaîne des mois — guichet → base → reçu', () => {
 
     const texts = await printedTexts(readBack);
     assert.ok(texts.includes('Octobre'), `le reçu retombe sur le mois de sa date (imprimé : ${texts.join(' | ')})`);
+  });
+
+  it('un reçu MUET corrigé par la fonction bornée : la réimpression dit enfin ses mois', async () => {
+    calls = [];
+    // Le reçu d'avant la colonne : sa couverture est INCONNUE, donc sa
+    // réimpression ne nomme que le mois de sa date.
+    const mute: Payment = { id: 'pay-muet', date: '2026-10-04', amount: 25000, academicYear: '2026-2027', receiptNumber: 'REC-MUET' };
+    const before = await printedTexts(mute);
+    assert.ok(before.includes('Octobre'), 'avant le geste, le papier retombe sur le mois de sa date');
+
+    // Le geste du guichet : l'école renseigne les mois réellement réglés. Il passe
+    // par la FONCTION de la base — jamais par un UPDATE de table — parce qu'une
+    // policy borne des lignes, pas des colonnes : c'est ce qui empêche ce même
+    // geste d'atteindre le MONTANT du reçu (décision du 2026-10-13).
+    assert.equal(
+      await createPaymentOps(ctx()).updatePaymentMonths('s1', mute, ['2026-11', '2026-09', '2026-12']),
+      true,
+    );
+    const call = calls.find((c) => c.op === 'rpc');
+    assert.ok(call, 'l’écriture part par la fonction, pas par un UPDATE de table');
+    assert.equal(call.table, 'set_payment_months');
+    assert.deepEqual(call.payload, { p_payment_id: 'pay-muet', p_months: ['2026-09', '2026-11', '2026-12'] });
+    assert.equal(
+      calls.filter((c) => c.op === 'update').length,
+      0,
+      'aucun UPDATE de table : le montant n’est pas atteignable par ce chemin',
+    );
+
+    // Ce que la base stocke (l'application a déjà trié), puis ce que le PAPIER en dit.
+    const readBack = mapPaymentRow(rowFromBase({
+      id: 'pay-muet', student_id: 's1', date: '2026-10-04', amount: 25000,
+      academic_year: '2026-2027', receipt_number: 'REC-MUET',
+      months: ['2026-09', '2026-11', '2026-12'],
+    }));
+    const expected = formatPaidMonths(readBack.months!, words());
+    assert.equal(expected, '3 mois : Septembre, Novembre, Décembre');
+    const after = await printedTexts(readBack);
+    assert.ok(after.includes(expected), `le PAPIER porte « ${expected} » — imprimé : ${after.join(' | ')}`);
+    assert.ok(!after.includes('Octobre'), 'et le mois de la date ne se substitue plus aux mois réglés');
   });
 
   it('PREUVE PAR MUTATION : une relecture qui perd les mois ferait rougir ce fichier', async () => {

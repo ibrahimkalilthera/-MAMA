@@ -139,6 +139,36 @@ describe('MobileNav', () => {
     container.remove();
   });
 
+  it('« Reçus muets » est offert à TOUT compte connecté et navigue vers son onglet', async () => {
+    // L'écran ne lit que les élèves déjà chargés : il ne demande aucun droit, donc
+    // il vit hors du bloc admin/dev — un compte staff doit le voir, et le clic
+    // doit poser l'onglet que le routeur connaît.
+    const container = win.document.createElement('div');
+    win.document.body.appendChild(container);
+    const root = createRoot(container as unknown as Element);
+    const navigated: string[] = [];
+
+    await act(async () => {
+      root.render(createElement(MobileNav, {
+        t,
+        activeTab: 'dashboard',
+        setActiveTab: (tab) => navigated.push(tab),
+        payrollWindowStatus: windowStatus(),
+        onToggleLanguage: () => {},
+        currentUser: { role: 'staff' },
+      }));
+    });
+
+    assert.ok(container.textContent?.includes(t.navSilentReceipts), 'onglet visible pour un compte staff');
+    await act(async () => {
+      findButton(container as unknown as Element, t.navSilentReceipts).click();
+    });
+    assert.deepEqual(navigated, ['silentReceipts'], 'le clic navigue vers silentReceipts — sans toucher au journal');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
   it('marque l’onglet actif et affiche le point de retard sur Paie quand la fenêtre est en retard', async () => {
     const container = win.document.createElement('div');
     win.document.body.appendChild(container);
