@@ -47,6 +47,17 @@
 # paquet et ses octets, et les octets TÉLÉVERSÉS (brouillon) doivent répondre à
 # latest.yml avant que la promotion ne les rende visibles.
 #
+# Et l'ORDRE « base d'abord » ne dépend plus d'un autre canal : `release:publish`
+# juge la base que ce build va nourrir AVANT sa première requête
+# (scripts/lib/db-ready.mjs, sur le verdict de `check:hosted-schema`), et REFUSE
+# de publier quand une migration déclarée n'est pas en base — y compris quand le
+# contrôle n'a pas pu rendre de verdict. Cette porte n'existait que dans le
+# déploiement du SITE : un autre workflow, sur un autre déclencheur. Un
+# installeur publié avant sa migration aurait équipé TOUT le parc d'une
+# application qui écrit dans une table absente, et une publication ne se reprend
+# pas. Elle vit dans le publieur — donc elle s'applique aussi à un
+# `npm run release:publish` lancé à la main.
+#
 # Secrets à configurer (Settings → Secrets and variables → Actions) :
 #   CSC_PFX_B64       certificat .pfx encodé en base64
 #   CSC_KEY_PASSWORD  mot de passe du certificat
@@ -236,10 +247,13 @@ jobs:
             #    contenu : republier n'atteint aucun poste). Le refus tombe ici,
             #    avant que quoi que ce soit n'ait été téléversé.
             npm run check:release:tag
-            # 2. Build + gate local + téléversement en BROUILLON + gate du
-            #    brouillon : les octets téléversés sont rehachés depuis le dépôt
-            #    et comparés à ce que latest.yml promet. Un gate rouge fait
-            #    échouer le job ICI, donc la promotion ci-dessous n'a pas lieu.
+            # 2. Build + gate local + gate de la BASE + téléversement en
+            #    BROUILLON + gate du brouillon : les octets téléversés sont
+            #    rehachés depuis le dépôt et comparés à ce que latest.yml
+            #    promet, et la base hébergée doit déjà porter les migrations que
+            #    ce build embarque (le refus tombe dans `release:publish`, avant
+            #    sa première requête). Un gate rouge fait échouer le job ICI,
+            #    donc la promotion ci-dessous n'a pas lieu.
             npm run electron:release
             # 3. La promotion est le geste qui REND VISIBLE : un brouillon n'est
             #    lu par aucun poste, donc l'étape 2 seule ne livre rien. Elle ne

@@ -28,7 +28,7 @@ export function SettingsBackupCard() {
                     </div>
                     <button
                       onClick={handleExportAllData}
-                      className="bg-slate-800 hover:bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center gap-2 shadow-xl shadow-slate-800/20 active:scale-[0.98]"
+                      className={`bg-slate-800 ${currentTheme.hoverSurfaceStrong} text-white px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center gap-2 shadow-xl shadow-slate-800/20 active:scale-[0.98]`}
                     >
                       <Download size={20} />
                       {t.exportData}

@@ -48,6 +48,18 @@ const theme: CurrentTheme = {
   accentSoftDark: 'accent-soft-surface', accentSoftDarkHover: 'accent-soft-hover',
   accentSoftDarkText: 'accent-on-dark-text',
   tableHeader: 'bg-slate-50', rowHover: 'hover:bg-slate-50', input: 'bg-white', isDark: false,
+  hoverSurface: 'state-hover',
+  hoverSurfaceSolid: 'state-hover-solid',
+  hoverSurfaceStrong: 'state-hover-strong',
+  hoverSurfaceDark: 'state-hover-dark',
+  hoverSurfaceClear: 'state-hover-clear',
+  hoverAccent: 'state-accent-hover',
+  hoverAccentGroupInk: 'state-accent-group-ink',
+  hoverAlert: 'state-alert-hover',
+  hoverAlertTint: 'state-alert-tint',
+  hoverAlertSolid: 'state-alert-solid',
+  hoverAlertDark: 'state-alert-dark',
+  hoverAlertPlate: 'state-alert-plate',
 };
 
 const BLUE = ['bg-blue-600', 'bg-blue-500', 'bg-blue-700', 'bg-sky-400', 'bg-sky-500'];

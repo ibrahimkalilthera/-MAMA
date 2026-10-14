@@ -51,6 +51,7 @@ const theme = {
   accentHover: 'accent-surface-hover',
   accentText: 'accent-surface-text',
   accentShadow: 'accent-shadow',
+  hoverSurface: 'state-hover',
 };
 
 function mount(node: React.ReactNode): { root: Root; container: HTMLElement } {

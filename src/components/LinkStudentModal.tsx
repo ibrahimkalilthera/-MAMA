@@ -108,7 +108,7 @@ export function LinkStudentModal(props: LinkStudentModalProps) {
                       onClick={() => setSearch('')}
                       title={t.clearSearch}
                       aria-label={t.clearSearch}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 dark:hover:bg-white/10 transition-all"
+                      className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-slate-400 hover:text-slate-600 ${currentTheme.hoverSurfaceSolid} transition-all`}
                     >
                       <X size={12} />
                     </button>

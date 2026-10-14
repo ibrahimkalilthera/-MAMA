@@ -5,6 +5,14 @@
    overrides layer (light themes + slate). Keep this order — it is the one
    the pre-split single file had. */
 @import './themes/overrides.css';
+/* La couche des icônes vient EN DERNIER : le verre et la morphose habillent une
+   icône telle qu'un thème l'a peinte, ils ne repeignent aucun thème. La placer
+   après les remaps évite qu'un `!important` de thème la recouvre. */
+@import './themes/icons.css';
+/* L'échelle de survol d'état : ses crans et leurs valeurs par thème. Importée
+   après les remaps de thème — les blocs `.theme-*` du fichier doivent gagner
+   sur son propre `:root`, à spécificité égale, par le seul ordre. */
+@import './themes/state-hover.css';
 
 /* The app theme is class-based (theme-slate / theme-midnight = dark, the rest
    light) but Tailwind v4 defaults `dark:` to the OS `prefers-color-scheme`.
@@ -98,6 +106,9 @@
   --accent-ink: #FFFFFF;
   --accent-soft-ink: #047857;
   --accent-soft-ink-lifted: #6EE7B7;
+
+  /* L'échelle de survol d'état (ses crans ET leurs valeurs par thème) vit dans
+     src/themes/state-hover.css : un seul endroit, importé juste en dessous. */
 
   /* ─── Shadow Tokens (tinted, not pure black) ─── */
   --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
