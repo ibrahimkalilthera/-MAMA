@@ -216,7 +216,7 @@ export function SilentReceiptsPass(props: SilentReceiptsPassProps) {
                   type="button"
                   data-slot="silent-receipts-pass-all"
                   onClick={() => setSelected(classRows.map((row) => row.student.id))}
-                  className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 rounded text-2xs font-bold transition-all`}
+                  className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 dark:hover:text-slate-200 rounded text-2xs font-bold transition-all`}
                 >
                   {t.silentReceiptsPassAll}
                 </button>
@@ -224,7 +224,7 @@ export function SilentReceiptsPass(props: SilentReceiptsPassProps) {
                   type="button"
                   data-slot="silent-receipts-pass-clear"
                   onClick={() => setSelected([])}
-                  className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 rounded text-2xs font-bold transition-all`}
+                  className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 dark:hover:text-slate-200 rounded text-2xs font-bold transition-all`}
                 >
                   {t.silentReceiptsPassClear}
                 </button>
@@ -404,7 +404,7 @@ export function SilentReceiptsPass(props: SilentReceiptsPassProps) {
           <button
             type="button"
             onClick={reset}
-            className={`px-3 py-1.5 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 rounded text-2xs font-bold transition-all`}
+            className={`px-3 py-1.5 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 dark:hover:text-slate-200 rounded text-2xs font-bold transition-all`}
           >
             {t.silentReceiptsPassAgain}
           </button>

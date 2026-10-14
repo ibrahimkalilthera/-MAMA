@@ -257,7 +257,7 @@ export function PaymentHistoryView() {
           </button>
           <button
             onClick={() => fetchAuditLogs()}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95"
+            className={`px-4 py-2 bg-slate-800 ${currentTheme.hoverSurfaceStrong} text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95`}
           >
             <RefreshCw size={14} />
             <span>{t.refreshLogs}</span>
@@ -421,13 +421,13 @@ export function PaymentHistoryView() {
                                 <button
                                   onClick={(e) => { e.stopPropagation(); void confirmDelete(row, live); }}
                                   disabled={deletingId === row.id}
-                                  className="px-2 py-1 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded text-2xs font-bold transition-all"
+                                  className={`px-2 py-1 bg-rose-600 ${currentTheme.hoverAlertSolid} disabled:opacity-50 text-white rounded text-2xs font-bold transition-all`}
                                 >
                                   {t.deletePayment}
                                 </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setPendingDeleteId(null); }}
-                                  className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 rounded text-2xs font-bold transition-all`}
+                                  className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 dark:hover:text-slate-200 rounded text-2xs font-bold transition-all`}
                                 >
                                   {t.cancel}
                                 </button>
@@ -452,7 +452,7 @@ export function PaymentHistoryView() {
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setPendingDeleteId(row.id); }}
                                   title={t.deletePayment}
-                                  className="px-2 py-1 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded text-2xs font-bold transition-all flex items-center gap-1"
+                                  className={`px-2 py-1 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} rounded text-2xs font-bold transition-all flex items-center gap-1`}
                                 >
                                   <Trash2 size={12} /> {t.deletePayment}
                                 </button>

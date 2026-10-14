@@ -53,7 +53,7 @@ export function SettingsClassesCard() {
                                   type="button"
                                   onClick={() => openEditClass(c)}
                                   title={t.renameClass}
-                                  className="ml-1 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-500 transition-all"
+                                  className={`ml-1 p-0.5 rounded-md ${currentTheme.hoverAccent} text-slate-400 transition-all`}
                                 >
                                   <Edit2 size={12} />
                                 </button>
@@ -61,7 +61,7 @@ export function SettingsClassesCard() {
                                   type="button"
                                   onClick={() => handleDeleteClass(c)}
                                   title={t.deleteClass}
-                                  className="p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-rose-500 transition-all"
+                                  className={`p-0.5 rounded-md ${currentTheme.hoverAlert} text-slate-400 transition-all`}
                                 >
                                   <Trash2 size={12} />
                                 </button>
@@ -92,7 +92,7 @@ export function SettingsClassesCard() {
                                   type="button"
                                   onClick={() => openEditClass(c)}
                                   title={t.renameClass}
-                                  className="ml-1 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-500 transition-all"
+                                  className={`ml-1 p-0.5 rounded-md ${currentTheme.hoverAccent} text-slate-400 transition-all`}
                                 >
                                   <Edit2 size={12} />
                                 </button>
@@ -100,7 +100,7 @@ export function SettingsClassesCard() {
                                   type="button"
                                   onClick={() => handleDeleteClass(c)}
                                   title={t.deleteClass}
-                                  className="p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-rose-500 transition-all"
+                                  className={`p-0.5 rounded-md ${currentTheme.hoverAlert} text-slate-400 transition-all`}
                                 >
                                   <Trash2 size={12} />
                                 </button>
@@ -131,7 +131,7 @@ export function SettingsClassesCard() {
                                     type="button"
                                     onClick={() => openEditClass(c)}
                                     title={t.renameClass}
-                                    className="ml-1 p-0.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-400 hover:text-blue-600 transition-all"
+                                    className={`ml-1 p-0.5 rounded-md ${currentTheme.hoverAccent} text-blue-400 transition-all`}
                                   >
                                     <Edit2 size={12} />
                                   </button>
@@ -139,7 +139,7 @@ export function SettingsClassesCard() {
                                     type="button"
                                     onClick={() => handleDeleteClass(c)}
                                     title={t.deleteClass}
-                                    className="p-0.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-400 hover:text-rose-500 transition-all"
+                                    className={`p-0.5 rounded-md ${currentTheme.hoverAlert} text-blue-400 transition-all`}
                                   >
                                     <Trash2 size={12} />
                                   </button>

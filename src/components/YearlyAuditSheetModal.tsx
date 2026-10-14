@@ -78,7 +78,7 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
           </div>
           <button 
             onClick={onClose}
-            className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all ${currentTheme.muted}`}
+            className={`p-2 ${currentTheme.hoverSurface} rounded-xl transition-all ${currentTheme.muted}`}
           >
             <X size={20} />
           </button>
@@ -205,7 +205,7 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
               <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
                 <button 
                   onClick={onClose}
-                  className={`h-11 px-4 rounded-2xl border ${currentTheme.border} ${currentTheme.text} hover:bg-slate-50 text-xs font-black transition-all whitespace-nowrap`}
+                  className={`h-11 px-4 rounded-2xl border ${currentTheme.border} ${currentTheme.text} ${currentTheme.hoverSurface} text-xs font-black transition-all whitespace-nowrap`}
                 >
                   {t.closePreview}
                 </button>

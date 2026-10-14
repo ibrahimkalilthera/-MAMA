@@ -360,7 +360,7 @@ export function SilentReceiptsWalk(props: SilentReceiptsWalkProps) {
             type="button"
             data-slot="silent-receipts-walk-again"
             onClick={() => { setPlan(null); setIndex(0); setOutcomes([]); onTakeEditor(null); }}
-            className={`px-3 py-1.5 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 rounded text-2xs font-bold transition-all`}
+            className={`px-3 py-1.5 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 dark:hover:text-slate-200 rounded text-2xs font-bold transition-all`}
           >
             {t.silentReceiptsWalkAgain}
           </button>
