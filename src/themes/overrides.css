@@ -197,11 +197,15 @@
 
 /* Amber productivity toggle inside the sidebar: the white-text protection
    above would force the label white on the amber-500 chip (2.1:1). The
-   active chip keeps its amber fill but uses dark text (≈7:1). */
+   active chip keeps its amber fill but uses dark text (≈7:1). Crème doit être
+   nommé DEUX fois : sa protection blanche (`.theme-cream .app-sidebar span`,
+   0,2,1) bat cette règle (0,2,0) — la pastille ambre du rail y mesurait
+   2,13:1 dans les treize étapes de `npm run check:contrast`, ce thème-là seul. */
 .app-sidebar .bg-amber-500,
 .app-sidebar .bg-amber-500 span,
 .app-sidebar .bg-amber-500 button,
-.app-sidebar .bg-amber-500 svg {
+.app-sidebar .bg-amber-500 svg,
+.theme-cream .app-sidebar .bg-amber-500 {
   color: #451A03 !important;
 }
 
