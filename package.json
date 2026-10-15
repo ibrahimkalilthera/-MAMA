@@ -120,7 +120,7 @@
     "happy-dom": "^20.14.5",
     "husky": "^9.1.7",
     "lighthouse": "^13.5.0",
-    "pdfjs-dist": "^6.3.289",
+    "pdfjs-dist": "^6.4.299",
     "puppeteer-core": "^25.13.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.13",
