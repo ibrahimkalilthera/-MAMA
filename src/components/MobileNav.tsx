@@ -5,9 +5,12 @@
  * language toggle (the old floating language FAB was folded in here so mobile
  * users get one dock instead of two floating buttons).
  *
- * The audit & settings tabs are admin/dev-only, exactly like the sidebar;
- * opening audit (or the payment history, which reads the same journal) also
- * refreshes the audit log first (fetchAuditLogs).
+ * The audit & settings tabs are admin/dev-only, exactly like the sidebar. The
+ * payment history tab is NOT: since 2026-10-15 the accountant (econome) reads it
+ * too, because the base hands that role the rows of that one screen and nothing
+ * else of the journal (see src/lib/paymentHistoryRights.ts). Opening audit (or
+ * the payment history, which reads the same journal) also refreshes the audit log
+ * first (fetchAuditLogs).
  */
 import {
   LayoutDashboard,
@@ -28,6 +31,7 @@ import type { TranslationDict } from '../i18n/translations';
 import type { AppTab } from './Sidebar';
 import type { User } from '../app/types';
 import type { PayrollWindowStatus } from '../app/mainViewsProps';
+import { canViewPaymentHistory } from '../lib/paymentHistoryRights';
 
 export interface MobileNavProps {
   t: TranslationDict;
@@ -56,6 +60,10 @@ export interface MobileNavProps {
 export function MobileNav(props: MobileNavProps) {
   const { t, activeTab, setActiveTab, payrollWindowStatus, onToggleLanguage, currentUser, fetchAuditLogs, auditArchivePending = false, silentReceiptsCount = 0 } = props;
   const isAdminDev = currentUser?.role === 'admin' || currentUser?.role === 'dev';
+  // L'historique des paiements n'est plus dans le bloc admin/dev : l'économe lit
+  // cet écran depuis le 2026-10-15 (la base lui rend les lignes de la caisse, et
+  // elle seule). Le journal d'audit et les Réglages, eux, gardent leur garde.
+  const canSeePaymentHistory = canViewPaymentHistory(currentUser?.role);
   const silentReceiptsBadge = t.silentReceiptsBadge.replace('{count}', String(silentReceiptsCount));
 
   const items: { tab: AppTab; label: string; icon: React.ReactNode }[] = [
@@ -70,12 +78,17 @@ export function MobileNav(props: MobileNavProps) {
     // Reçus muets : hors du bloc admin/dev — l'écran ne lit que les élèves déjà
     // chargés, donc tout compte connecté peut voir ce qui reste à documenter.
     { tab: 'silentReceipts', label: t.navSilentReceipts, icon: <CalendarClock size={20} /> },
+    // Trois gates, et pas un seul : l'historique des paiements s'adresse à
+    // l'économe (il tient la caisse), le journal d'audit et les Réglages non.
+    // L'ordre reste celui du rail — journal, historique, réglages.
     ...(isAdminDev
-      ? [
-          { tab: 'audit' as const, label: t.auditTrail, icon: <ShieldCheck size={20} /> },
-          { tab: 'paymentHistory' as const, label: t.paymentHistory, icon: <History size={20} /> },
-          { tab: 'settings' as const, label: t.navSettings, icon: <SettingsIcon size={20} /> },
-        ]
+      ? [{ tab: 'audit' as const, label: t.auditTrail, icon: <ShieldCheck size={20} /> }]
+      : []),
+    ...(canSeePaymentHistory
+      ? [{ tab: 'paymentHistory' as const, label: t.paymentHistory, icon: <History size={20} /> }]
+      : []),
+    ...(isAdminDev
+      ? [{ tab: 'settings' as const, label: t.navSettings, icon: <SettingsIcon size={20} /> }]
       : []),
   ];
 
