@@ -1,0 +1,114 @@
+name: Désinstalleur NSIS (sortie 0)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « Une montée d'electron-builder peut-elle réintroduire le plantage en silence ? »
+#
+# La question n'est pas théorique : le 2026-10-12, le désinstalleur des versions
+# installées est sorti en `0xC0000374` (STATUS_HEAP_CORRUPTION) APRÈS avoir vidé le
+# dossier d'installation, et l'installeur neuf a refusé de continuer — poste vidé,
+# sans application. La cause (le greffon `StdUtils.TestParameter`, dont
+# `app-builder-lib` se sert pour lire ses sept drapeaux) est réparée dans
+# `build/installer.nsh`.
+#
+# Cette réparation tient à des détails de l'AMONT : l'ordre de l'en-tête commun
+# (les `!define` des drapeaux AVANT l'`nsis.include` du dépôt), la forme du gabarit
+# `uninstaller.nsh`, la liste des sept drapeaux, la façon dont le script part à
+# makensis. Les deux suites de tests de l'installateur LISENT le fichier : elles ne
+# compilent rien, n'exécutent rien, et une montée d'`electron-builder` les laisserait
+# vertes. Le premier endroit où on l'apprendrait serait un poste d'école bloqué.
+#
+# Ce workflow est ce qui rend la question mesurable : `check:uninstaller-exit`
+# compile le désinstalleur que l'installation COURANTE d'`app-builder-lib` émet,
+# le fait tourner sur un arbre de banc (registre de banc, GUID distinct de
+# l'appId : l'installation de l'école n'est jamais touchée) avec les arguments
+# exacts d'`installUtil.nsh`, et exige une sortie `0` et un arbre vidé.
+#
+# ─── Pourquoi ces déclencheurs ───────────────────────────────────────────────
+# Un `push` filtré sur les fichiers qu'une montée déplace : `package.json` et son
+# lockfile (c'est là qu'arrive Dependabot), la configuration NSIS, le script de
+# réparation, et le banc lui-même — modifier le banc doit l'exercer.
+# Le cron hebdomadaire couvre ce qu'aucun commit ne couvre : l'amont et la machine
+# dérivent pendant que le dépôt ne bouge pas (et le premier run d'un poste neuf
+# télécharge le makensis d'electron-builder, ce qui doit être vu une fois par
+# semaine plutôt qu'à la première mise à jour d'une école).
+#
+# Le run est unique sur `windows-latest` : le binaire mesuré est un exécutable
+# Windows, et le banc écrit dans `HKCU` seulement.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'electron-builder.yml'
+      - 'build/installer.nsh'
+      - 'scripts/check-uninstaller-exit.mjs'
+      - 'scripts/lib/uninstaller-emission.mjs'
+      - '.github/workflows/uninstaller-exit-watch.yml'
+
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'electron-builder.yml'
+      - 'build/installer.nsh'
+      - 'scripts/check-uninstaller-exit.mjs'
+      - 'scripts/lib/uninstaller-emission.mjs'
+      - '.github/workflows/uninstaller-exit-watch.yml'
+
+  schedule:
+    # Lundi 04:20 UTC — après les crons de nuit, avant la semaine de travail.
+    - cron: '20 4 * * 1'
+
+  workflow_dispatch:
+
+concurrency:
+  group: uninstaller-exit-watch-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  emit-and-run:
+    name: Compiler le désinstalleur émis, l’exécuter, exiger 0
+    runs-on: windows-latest
+    # `npm ci` + le premier makensis (téléchargé par electron-builder) + deux
+    # compilations NSIS + l'exécution : quelques minutes, pas une demi-heure.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Installer Node ne prouve pas le majeur réellement exécuté dans ce job.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      # La mesure elle-même. Aucun installeur à construire : le banc compile le
+      # désinstalleur à partir des gabarits installés, donc il mesure l'amont
+      # ACTUEL — c'est précisément ce qu'une montée déplace.
+      #
+      # Mandat de preuve : l'étape qui exécute le script lui donne le droit de
+      # parler au nom de ce job. Ce qu'il publie est SA mesure (le désinstalleur
+      # compilé, sa sortie, l'arbre de banc vidé).
+      - name: Le désinstalleur émis sort-il en 0 ?
+        env:
+          AUTOMATION_EVIDENCE: '1'
+        run: npm run check:uninstaller-exit
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — désinstalleur émis
+        if: success()
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "le désinstalleur que l’installation courante d’app-builder-lib émet a été compilé puis exécuté sur un arbre de banc, avec les arguments exacts d’installUtil.nsh — sortie 0 et arbre vidé, registre de banc sous HKCU, installation de l’école jamais touchée ; mesure publiée par scripts/check-uninstaller-exit.mjs"

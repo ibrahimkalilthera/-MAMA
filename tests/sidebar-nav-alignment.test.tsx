@@ -68,8 +68,12 @@ describe('Sidebar — l’alignement des libellés du rail', () => {
   /**
    * Le rail, tel qu'un dev le voit : sans badge vivant, pour que la seule chose
    * qui puisse faire varier une ligne soit son libellé.
+   *
+   * Le rôle est paramétrable, et il le FAUT depuis le 2026-10-15 : toutes les
+   * lignes du rail ne s'adressent pas au même compte, et le cas qui mesure
+   * l'économe doit le déclarer au lieu de mesurer le rail d'un dev.
    */
-  async function renderSidebar(): Promise<{ root: ReturnType<typeof createRoot>; container: Element }> {
+  async function renderSidebar(role: 'dev' | 'admin' | 'econome' | 'staff' = 'dev'): Promise<{ root: ReturnType<typeof createRoot>; container: Element }> {
     const container = win.document.createElement('div');
     win.document.body.appendChild(container);
     const root = createRoot(container as unknown as Element);
@@ -81,7 +85,7 @@ describe('Sidebar — l’alignement des libellés du rail', () => {
         activeTab: 'dashboard',
         setActiveTab: () => {},
         payrollWindowStatus: windowStatus(),
-        currentUser: { username: 'ibrahim', role: 'dev' },
+        currentUser: { username: 'ibrahim', role },
         fetchAuditLogs: () => {},
         showTodoSidebar: false,
         setShowTodoSidebar: () => {},
@@ -156,6 +160,37 @@ describe('Sidebar — l’alignement des libellés du rail', () => {
     } finally {
       await act(async () => root.unmount());
       container.remove();
+    }
+  });
+
+  it('donne l’Historique des Paiements à l’ÉCONOME — et pas le journal ni les Réglages', async () => {
+    // La mesure du 2026-10-15 : le propriétaire l'a constatée lui-même — « j'ai
+    // vérifié et ça ne s'affiche pas ». La ligne était dans le bloc admin/dev du
+    // rail ; elle en est sortie avec sa propre garde, celle de la base
+    // (`public.is_payment_history_viewer()` : admin, dev, économe). L'économe tient
+    // la caisse : c'est son écran. Le Journal d'audit, lui, reste fermé pour lui —
+    // la policy ne lui rend que les gestes de caisse.
+    const econome = await renderSidebar('econome');
+    try {
+      const labels = itemsOf(econome.container).map((item) => item.textContent ?? '');
+      assert.ok(labels.some((label) => label.includes(t.paymentHistory)), 'la ligne de l’historique est dans le rail');
+      assert.ok(!labels.some((label) => label.includes(t.auditTrail)), 'le Journal d’audit reste fermé à son compte');
+      assert.ok(!labels.some((label) => label.includes(t.navSettings)), 'les Réglages aussi');
+    } finally {
+      await act(async () => econome.root.unmount());
+      econome.container.remove();
+    }
+
+    // Le contrôle inverse, sur le même rail : un compte qui n'a AUCUN de ces
+    // droits ne doit pas voir la ligne non plus — sinon la garde ne garderait rien.
+    const staff = await renderSidebar('staff');
+    try {
+      const labels = itemsOf(staff.container).map((item) => item.textContent ?? '');
+      assert.ok(!labels.some((label) => label.includes(t.paymentHistory)), 'rien de réservé pour un compte staff');
+      assert.ok(!labels.some((label) => label.includes(t.auditTrail)), 'ni le journal');
+    } finally {
+      await act(async () => staff.root.unmount());
+      staff.container.remove();
     }
   });
 });

@@ -50,7 +50,12 @@ function authWithRole(role: 'admin' | 'dev' | 'general_manager' | 'econome' | 's
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('views render inside MainViewsContext', () => {
-  const views: { name: string; node: ReactNode; expectedText: string }[] = [
+  // Une entrée peut DÉCLARER le poste qu'elle mesure : depuis le 2026-10-15,
+  // `PaymentHistoryView` est gardée par le RÔLE (`canViewPaymentHistory`,
+  // miroir de `public.is_payment_history_viewer()`), et le harnais par défaut
+  // n'a pas de profil — il ne doit donc plus l'ouvrir. L'écran d'audit, lui,
+  // garde `auth.isAdmin` et se rend comme avant.
+  const views: { name: string; node: ReactNode; expectedText: string; props?: Partial<MainViewsProps> }[] = [
     { name: 'DashboardView', node: createElement(DashboardView), expectedText: 'cashBalance' },
     { name: 'StudentsView', node: createElement(StudentsView), expectedText: 'studentName' },
     { name: 'ParentsView', node: createElement(ParentsView), expectedText: 'addParent' },
@@ -59,14 +64,14 @@ describe('views render inside MainViewsContext', () => {
     { name: 'CalendarView', node: createElement(CalendarView), expectedText: 'today' },
     { name: 'NotesView', node: createElement(NotesView), expectedText: 'notes' },
     { name: 'AuditView', node: createElement(AuditView), expectedText: 'refreshLogs' },
-    { name: 'PaymentHistoryView', node: createElement(PaymentHistoryView), expectedText: 'paymentHistory' },
+    { name: 'PaymentHistoryView', node: createElement(PaymentHistoryView), expectedText: 'paymentHistory', props: { auth: authWithRole('admin') } },
     { name: 'SilentReceiptsView', node: createElement(SilentReceiptsView), expectedText: 'silentReceiptsTitle' },
     { name: 'SettingsView', node: createElement(SettingsView), expectedText: 'systemLanguage' },
   ];
 
-  for (const { name, node, expectedText } of views) {
+  for (const { name, node, expectedText, props } of views) {
     it(`${name} renders without error and emits content`, () => {
-      const html = renderWithContext(node);
+      const html = renderWithContext(node, props);
       assert.ok(html.length > 0, `${name} produced empty output`);
       assert.ok(
         html.includes(translations.en[expectedText as keyof TranslationDict]),
@@ -376,8 +381,8 @@ describe('views render inside MainViewsContext', () => {
   it('each view still renders with a minimal/empty dataset (no data crash)', () => {
     // Same as above but explicitly with empty arrays — guards against
     // rendering code that assumes non-empty collections.
-    for (const { node } of views) {
-      const html = renderWithContext(node);
+    for (const { node, props } of views) {
+      const html = renderWithContext(node, props);
       assert.ok(html.length > 0);
     }
   });
