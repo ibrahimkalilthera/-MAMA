@@ -182,6 +182,43 @@ function judgeMuteFlow(source: string): string[] {
     problems.push('la moitié retour doit relire le parcours APRÈS le rechargement : plus rien à rattraper, donc plus de liste à offrir');
   }
 
+  // 8. La REPRISE DE TRANSPORT — et c'est un rouge MESURÉ, pas une précaution.
+  //    Le 2026-10-15 (runs `f0f9f07` et `9b0d030`), le geste a été perdu par le
+  //    réseau (`TypeError: Failed to fetch` sur la RPC des mois) et le mode a
+  //    conclu que l'APPLICATION ne déclarait rien, alors que la base répondait à
+  //    toutes ses lectures : un rouge de transport pris pour un jugement sur
+  //    l'application, la faute que ce dépôt a déjà payée le 2026-09-23.
+  //
+  //    La reprise doit exister, rejouer le GESTE (pas seulement le constater),
+  //    repartir d'une page RECHARGÉE (après un envoi refusé l'éditeur peut porter
+  //    les mois cochés EN MÉMOIRE), se NOMMER dans le récapitulatif des
+  //    transients, et précéder TOUT verdict — sinon un échec rendu avant elle
+  //    accuserait l'application d'une requête perdue.
+  const replay = bodyOf(source, 'async function replayMuteGesture(page, target) {');
+  if (!replay.found) {
+    problems.push('la reprise de transport (`replayMuteGesture`) doit exister : une requête perdue n’est pas un verdict sur l’application');
+  } else {
+    if (at(replay.body, 'page.reload(') < 0) {
+      problems.push('la reprise doit RECHARGER la page : après un envoi refusé, l’éditeur peut porter les mois cochés en mémoire, et le geste doit repartir de ce que la base dit');
+    }
+    if (at(replay.body, 'fillMuteMonthsFromFile(page)') < 0) {
+      problems.push('la reprise doit rejouer le GESTE (`fillMuteMonthsFromFile`), pas seulement le constater');
+    }
+  }
+  const retried = at(prove.body, 'replayMuteGesture(page, target)');
+  const verdict = at(prove.body, 'throw new Error(');
+  if (retried < 0) {
+    problems.push('la moitié retour doit REPRENDRE le geste quand les mois ne sont pas en base (transport perdu)');
+  } else if (verdict >= 0 && retried > verdict) {
+    problems.push('la reprise doit précéder le verdict : un échec rendu AVANT elle accuserait l’application d’une requête perdue');
+  }
+  if (at(prove.body, 'noteTransient(') < 0) {
+    problems.push('la reprise doit se NOMMER (`noteTransient`) : une reprise silencieuse se lirait comme un run sans histoire');
+  }
+  if (retried < 0 || at(prove.body.slice(retried), 'await readStoredMonths(target)') < 0) {
+    problems.push('la reprise doit RELIRE les mois en base après le second geste : sans cette lecture, le second geste n’est pas jugé');
+  }
+
   return problems;
 }
 
@@ -302,6 +339,15 @@ describe('mode recu-muet — la source du pixel-check', () => {
     assert.ok(
       judgeMuteFlow(noPanelAfter).some((p) => /APRÈS le rechargement/.test(p)),
       `ne plus relire le parcours après le rechargement doit rougir — ${judgeMuteFlow(noPanelAfter).join(' | ')}`,
+    );
+
+    // La REPRISE de transport retirée : le mode accuserait de nouveau
+    // l'application d'une requête que le réseau a perdue.
+    const noRetry = real.replace('gesture = await replayMuteGesture(page, target);', 'gesture = filled;');
+    assert.ok(noRetry !== real, 'la mutation doit s’appliquer');
+    assert.ok(
+      judgeMuteFlow(noRetry).some((p) => /REPRENDRE le geste/.test(p)),
+      `retirer la reprise doit rougir — ${judgeMuteFlow(noRetry).join(' | ')}`,
     );
 
     // La lecture par LIBELLÉ : le marqueur de la racine remplacé par un sélecteur

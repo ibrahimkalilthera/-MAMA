@@ -1156,6 +1156,63 @@ async function fillMuteMonthsFromFile(page) {
 }
 
 /**
+ * Les MOIS d'un reçu, relus en base jusqu'à ce qu'ils soient là.
+ *
+ * Ce qui est ATTENDU, ce sont les MOIS, pas la ligne : la ligne existe depuis
+ * l'insertion, et `payments.months` vaut `'{}'` par défaut — un prédicat qui se
+ * contenterait de la lire rendrait la main AVANT l'écriture et mesurerait l'état
+ * d'avant (mesuré le 2026-10-13 : `months=[]` annoncé comme un échec de
+ * l'application, alors que seule la sonde était en avance).
+ *
+ * La première lecture a lieu TOUT DE SUITE (le cas courant : l'écriture est déjà
+ * arrivée) et n'attend que si elle manque.
+ */
+async function readStoredMonths(target) {
+  return readUntil({
+    read: () => api(`/rest/v1/payments?select=id,months,date,amount,receipt_number&id=eq.${target.muteReceipt.id}`),
+    isReady: (r) => {
+      const row = firstRow(r?.body);
+      return Array.isArray(row?.months) && row.months.length > 0 ? row : null;
+    },
+    attempts: 20,
+    intervalMs: 500,
+    sleep: wait,
+  });
+}
+
+/**
+ * REJOUER le geste quand le TRANSPORT a perdu la première écriture.
+ *
+ * Mesuré le 2026-10-15 (runs `f0f9f07` et `9b0d030`, deux fois sur six) : le mode
+ * `recu-muet` est tombé sur `updatePaymentMonths error: TypeError: Failed to
+ * fetch` — la requête RPC n'a jamais quitté le navigateur —, puis le contrôle a
+ * conclu « le reçu muet n'est plus lisible en base » alors que la base répondait
+ * très bien à toutes ses autres lectures. C'est la faute que ce dépôt a déjà
+ * payée (entrée du 2026-09-23 : un rouge de transport pris pour un jugement sur
+ * l'application), et le remède est celui de toute cette chaîne : le transport se
+ * REPREND, il ne se juge pas.
+ *
+ * Le rechargement n'est pas décoratif : après un envoi refusé, l'éditeur peut
+ * encore porter les pastilles cochées EN MÉMOIRE, et le geste doit repartir de ce
+ * que la BASE dit (un reçu muet, un bouton « Renseigner les mois » offert) — sans
+ * quoi la reprise ferait rougir la garde « l'éditeur pré-coche un mois » sur un
+ * état que l'écran, lui, portait déjà.
+ *
+ * Ce que la reprise ne fait PAS : excuser l'application. Elle a lieu UNE fois,
+ * avant tout verdict, et le geste rejoué est jugé par les mêmes règles que le
+ * premier — si le second n'écrit pas non plus, l'échec est rendu, et il nomme le
+ * fait (« après DEUX gestes ») au lieu de l'ancienne phrase, qui accusait la
+ * LECTURE.
+ */
+async function replayMuteGesture(page, target) {
+  await page.reload({ waitUntil: 'networkidle2', timeout: 90000 });
+  await wait(4000);
+  await goToStudents(page);
+  await openStudentFile(page, target.student.name);
+  return fillMuteMonthsFromFile(page);
+}
+
+/**
  * La moitié RETOUR du rattrapage : la base, le SOLDE, puis le RECHARGEMENT.
  *
  * Le rechargement est le cœur du mode, et pas une formalité : tant que la page
@@ -1169,27 +1226,23 @@ async function fillMuteMonthsFromFile(page) {
  * `amount_paid` ne doit pas bouger d'un franc.
  */
 async function proveMuteFilled(page, target, filled) {
-  // `api` rend l'enveloppe `{ status, body }` : c'est `firstRow` qui ouvre le
-  // corps. La première lecture a lieu TOUT DE SUITE (le cas courant, l'écriture
-  // est déjà arrivée) et n'attend que si elle manque.
-  //
-  // Ce qui est ATTENDU, ce sont les MOIS, pas la ligne : la ligne existe depuis
-  // l'insertion, et `payments.months` vaut `'{}'` par défaut — un prédicat qui
-  // se contenterait de la lire rendrait la main AVANT l'écriture et mesurerait
-  // l'état d'avant (mesuré le 2026-10-13 : `months=[]` annoncé comme un échec de
-  // l'application, alors que seule la sonde était en avance).
-  const settled = await readUntil({
-    read: () => api(`/rest/v1/payments?select=id,months,date,amount,receipt_number&id=eq.${target.muteReceipt.id}`),
-    isReady: (r) => {
-      const row = firstRow(r?.body);
-      return Array.isArray(row?.months) && row.months.length > 0 ? row : null;
-    },
-    attempts: 20,
-    intervalMs: 500,
-    sleep: wait,
-  });
+  // Le geste peut être REJOUÉ : le transport peut avoir perdu la première
+  // écriture (voir `replayMuteGesture`), et une requête perdue n'est pas un
+  // verdict sur l'application. Le rejeu n'est donc pas une tolérance, c'est une
+  // reprise NOMMÉE — elle apparaît dans le récapitulatif des transients.
+  let gesture = filled;
+  let settled = await readStoredMonths(target);
   if (!settled.value) {
-    throw new Error(`le reçu muet n’est plus lisible en base après ${settled.reads} lecture(s)`);
+    console.log('  ↻ les mois ne sont pas en base — le geste est REJOUÉ (le transport a perdu la première écriture)');
+    noteTransient('écriture des mois d’un reçu muet (transport)');
+    gesture = await replayMuteGesture(page, target);
+    settled = await readStoredMonths(target);
+  }
+  if (!settled.value) {
+    throw new Error(
+      `les mois ne sont pas écrits en base après DEUX gestes (${settled.reads} lecture(s) au second) — ` +
+        'ce n’est plus un transport : le geste de l’application ne déclare rien',
+    );
   }
   console.log(`  ℹ️ reçu relu en base après ${settled.reads} lecture(s) — months=${JSON.stringify(settled.value.months)}`);
   const student = await api(`/rest/v1/students?select=id,amount_paid&id=eq.${target.student.id}`);
@@ -1215,9 +1268,9 @@ async function proveMuteFilled(page, target, filled) {
 
   return {
     ticked: MONTHS_TICKED,
-    screenLine: filled.line,
-    editorMonths: filled.editorMonths,
-    saveClosed: filled.saveClosed,
+    screenLine: gesture.line,
+    editorMonths: gesture.editorMonths,
+    saveClosed: gesture.saveClosed,
     stored: settled.value.months,
     reads: settled.reads,
     amountPaid: Number(firstRow(student.body)?.amount_paid),

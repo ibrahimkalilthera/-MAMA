@@ -169,10 +169,28 @@ const roleMarker = (roles) => `roleset.${[...roles].sort().join('.')}`;
  * base rend `is_finance_writer()` ; `(auth.role() = 'authenticated')` devient
  * `(auth.role() = 'authenticated'::text)`. Sans cette réduction, chaque politique
  * déclarerait une différence qui n'existe pas.
+ *
+ * Et une LISTE de valeurs, elle, ne survit pas du tout telle qu'elle est écrite :
+ * `key IN ('display.theme', …)` est rendue `key = ANY (ARRAY['display.theme'::text,
+ * …])` (mesuré le 2026-10-15 sur `app_settings_display_insert`, la première
+ * politique de ce dépôt à énumérer des valeurs littérales). `IN (l1, l2)` et
+ * `= ANY (ARRAY[l1, l2])` sont LA MÊME règle — deux écritures du même opérateur —,
+ * donc les comparer ferait un faux rouge permanent sur toute politique qui
+ * énumère : un contrôle qui crie toujours ne se lit plus. Les deux formes sont
+ * donc ramenées à `IN`, la forme que le dépôt écrit, et la seule NÉGATION qui
+ * compte l'est aussi (`x NOT IN (…)` sort du catalogue en `x <> ALL (ARRAY[…])`).
+ *
+ * Ce que ces réductions ne font PAS : rapprocher deux listes différentes. Les
+ * valeurs restent dans le texte comparé, donc remplacer un littéral par un autre
+ * change les jetons et reste une DÉRIVE.
  */
 export function normalizeExpression(text) {
   return String(text ?? '')
     .replace(/::\s*(?:text|character\s+varying|varchar|name|bpchar|boolean|bool)\b/gi, '')
+    .replace(/\b([a-z_]\w*)\s*=\s*any\s*\(\s*array\s*\[([^\]]*)\]\s*\)/gi, '$1 in ($2)')
+    .replace(/\b([a-z_]\w*)\s*=\s*any\s*\(\s*([^()]*)\)/gi, '$1 in ($2)')
+    .replace(/\b([a-z_]\w*)\s*(?:<>|!=)\s*all\s*\(\s*array\s*\[([^\]]*)\]\s*\)/gi, '$1 not in ($2)')
+    .replace(/\b([a-z_]\w*)\s*(?:<>|!=)\s*all\s*\(\s*([^()]*)\)/gi, '$1 not in ($2)')
     .replace(/\bpublic\./gi, '')
     .replace(/\s+/g, ' ')
     .trim()

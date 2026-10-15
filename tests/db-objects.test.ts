@@ -253,6 +253,33 @@ describe('implicitConstraintName — les noms que Postgres dérive lui-même', (
     );
   });
 
+  it('la forme `<> ALL (ARRAY[…])` et la forme `NOT IN (…)` sont la MÊME règle — le miroir qui manquait', () => {
+    // Mesuré le 2026-10-15 sur `app_settings_display_keys_check` : la migration
+    // écrit `key NOT IN (…)`, le catalogue rend `key <> ALL (ARRAY[…])`. Sans ce
+    // miroir, une contrainte appliquée MOT POUR MOT était dite CHANGÉE — la
+    // négation n'était reconnue dans aucun sens.
+    assert.equal(
+      normalizeDefinition(
+        "CHECK (((key <> ALL (ARRAY['display.theme'::text, 'display.density'::text])) OR (jsonb_typeof(value) = 'string'::text)))",
+      ),
+      normalizeDefinition("CHECK (key NOT IN ('display.theme', 'display.density') OR jsonb_typeof(value) = 'string')"),
+    );
+  });
+
+  it('mais la négation n’est pas blanchie en égalité, et deux listes restent deux règles', () => {
+    // Une réduction qui ramènerait les deux formes à la même chaîne inverserait
+    // une règle (« aucune de ces valeurs » vs « une de ces valeurs ») ; et une
+    // valeur changée doit continuer de sauter aux yeux.
+    assert.notEqual(
+      normalizeDefinition("CHECK (key <> ALL (ARRAY['a'::text, 'b'::text]))"),
+      normalizeDefinition("CHECK (key = ANY (ARRAY['a'::text, 'b'::text]))"),
+    );
+    assert.notEqual(
+      normalizeDefinition("CHECK (key NOT IN ('a', 'b'))"),
+      normalizeDefinition("CHECK (key IN ('a', 'c'))"),
+    );
+  });
+
   it('la forme `BETWEEN a AND b` et la forme `>= a AND <= b` sont la MÊME règle', () => {
     // Mesuré le 2026-10-18 sur `station_versions_station_id_bounds` : le dépôt
     // écrit une BORNE, le catalogue la rend éclatée avec son opérande répété.

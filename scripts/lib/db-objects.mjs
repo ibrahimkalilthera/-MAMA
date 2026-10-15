@@ -191,6 +191,13 @@ function views(span) {
  * catalogue :
  *   • `= ANY (ARRAY['a','b'])` → `IN ('a','b')` — la même règle, écrite par la base
  *     (`payments_motif_shape_check`, `user_profiles_role_check`) ;
+ *   • `<> ALL (ARRAY['a','b'])` → `NOT IN ('a','b')` — la NÉGATION de la même
+ *     règle, et le miroir qui manquait : le catalogue ne rend pas toujours un
+ *     `NOT IN` écrit à la main sous la forme `NOT (… = ANY …)`, mais sous celle
+ *     de l'opérateur négatif (mesuré le 2026-10-15 sur
+ *     `app_settings_display_keys_check`, écrit `key NOT IN (…)` dans la migration
+ *     et rendu `key <> ALL (ARRAY[…])`). Sans ce miroir, une contrainte que la
+ *     migration venait d'écrire mot pour mot était signalée comme une dérive ;
  *   • les CASTS (`'x'::text`, `(months)::text`) : Postgres les rend, le dépôt ne
  *     les écrit pas — les comparer ferait de chaque contrainte une dérive ;
  *   • le schéma `public.` : absent du rendu du catalogue ;
@@ -210,6 +217,10 @@ export function normalizeDefinition(value) {
   const rewritten = String(value ?? '')
     .replace(/\b([a-z_]\w*)\s*=\s*any\s*\(\s*array\s*\[([^\]]*)\]\s*\)/gi, '$1 in ($2)')
     .replace(/\b([a-z_]\w*)\s*=\s*any\s*\(\s*([^()]*)\)/gi, '$1 in ($2)')
+    // La NÉGATION, sans quoi le miroir de la réduction ci-dessus n'existe que dans
+    // un sens : `NOT IN` écrit par la migration sort du catalogue en `<> ALL`.
+    .replace(/\b([a-z_]\w*)\s*(?:<>|!=)\s*all\s*\(\s*array\s*\[([^\]]*)\]\s*\)/gi, '$1 not in ($2)')
+    .replace(/\b([a-z_]\w*)\s*(?:<>|!=)\s*all\s*\(\s*([^()]*)\)/gi, '$1 not in ($2)')
     // `x BETWEEN a AND b` → `x >= a AND x <= b` : Postgres rend l'idiome ÉCLATÉ
     // (mesuré sur `station_versions` le 2026-10-18 —
     // `((char_length(app_version) >= 1) AND (char_length(app_version) <= 32))`

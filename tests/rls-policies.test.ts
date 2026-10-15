@@ -215,6 +215,40 @@ describe('canonicalisation — deux écritures, une seule règle', () => {
     );
   });
 
+  it('une LISTE énumérée survit à son rendu : `key IN (…)` et `key = ANY (ARRAY[…])` pèsent pareil', () => {
+    // Mesuré le 2026-10-15 : `app_settings_display_insert` est écrite
+    // `key IN ('display.theme', …)` et la base la rend
+    // `key = ANY (ARRAY['display.theme'::text, …])`. Sans cette réduction, TOUTE
+    // politique qui énumère des valeurs serait une fausse dérive permanente — et
+    // un contrôle qui crie toujours ne se lit plus.
+    assert.equal(
+      expressionTokens("key IN ('display.theme', 'display.density')", roleSets).join(' '),
+      expressionTokens("(key = ANY (ARRAY['display.theme'::text, 'display.density'::text]))", roleSets).join(' '),
+      'la même liste, écrite par le dépôt et rendue par le catalogue, est la même règle',
+    );
+    assert.equal(
+      expressionTokens("key NOT IN ('display.theme')", roleSets).join(' '),
+      expressionTokens("(key <> ALL (ARRAY['display.theme'::text]))", roleSets).join(' '),
+      'et sa négation aussi : le catalogue rend `NOT IN` en `<> ALL (ARRAY[…])`',
+    );
+  });
+
+  it('mais une liste DIFFÉRENTE reste une dérive, et la négation n’est pas blanchie', () => {
+    // La réduction rapproche deux écritures de la MÊME liste, jamais deux listes :
+    // une valeur changée reste une dérive, et « aucune de ces valeurs » n'est pas
+    // « une de ces valeurs » — sinon le contrôle absoudrait exactement ce qu'il
+    // existe pour voir.
+    assert.notEqual(
+      expressionTokens("key IN ('display.theme')", roleSets).join(' '),
+      expressionTokens("key IN ('display.density')", roleSets).join(' '),
+    );
+    assert.notEqual(
+      expressionTokens("key NOT IN ('display.theme')", roleSets).join(' '),
+      expressionTokens("key IN ('display.theme')", roleSets).join(' '),
+      'la négation et l’affirmation ne sont pas la même règle',
+    );
+  });
+
   it('un changement de colonne ou de valeur change bien les jetons', () => {
     assert.notEqual(expressionTokens('created_by = auth.uid()', roleSets).join(' '), expressionTokens('created_by = id', roleSets).join(' '));
     assert.equal(canonicalExpression('TRUE', roleSets), 'true');
