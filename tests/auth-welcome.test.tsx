@@ -9,7 +9,9 @@
  *   2. it never shows before the profile is there, and re-arms when the
  *      session disappears;
  *   3. admins fetch the profile list into userProfiles;
- *   4. the tab guard bounces non-admin accounts out of settings/audit;
+ *   4. the tab guard bounces non-admin accounts out of settings/audit, and
+ *      treats the payment-history tab by its own READ right (the économe keeps
+ *      it ; a role the base would refuse is bounced);
  *   5. the currentUser/isPromoter/isGeneralManager derivations.
  */
 import { describe, it, mock } from 'node:test';
@@ -131,6 +133,26 @@ describe('useAuthWelcome', () => {
 
     const { unmount: unmount2, tabs: tabs2 } = render('audit');
     assert.deepEqual(tabs2, ['dashboard'], 'audit forced back to dashboard exactly once');
+    act(() => unmount2());
+  });
+
+  it('ne ramène PAS l’économe hors de l’onglet Historique des paiements, mais bien un rôle sans ce droit', () => {
+    // Le garde d'onglets suit maintenant le droit de LIRE l'historique
+    // (`canViewPaymentHistory`, le miroir de `is_payment_history_viewer()`),
+    // pas `auth.isAdmin` : la base ouvre cette lecture à l'économe depuis la
+    // migration `20261020000000_econome_payment_history.sql`. Mesuré : le profil
+    // ci-dessous déclenche AUSSI l'effet de bienvenue, qui remet une fois
+    // l'onglet à « dashboard » (comportement d'hier, vérifié plus haut). Ce qui
+    // est compté ici est le SECOND retour — celui du garde : absent pour
+    // l'économe, présent pour un rôle que la base refuserait.
+    authFixture = { ...authFixture, profile: profile({ role: 'econome' }), isAdmin: false };
+    const { unmount, tabs } = render('paymentHistory');
+    assert.deepEqual(tabs, ['dashboard'], 'l’économe reste sur l’historique : le garde n’a pas rappelé setActiveTab');
+    act(() => unmount());
+
+    authFixture = { ...authFixture, profile: profile({ role: 'general_manager' }), isAdmin: false };
+    const { unmount: unmount2, tabs: tabs2 } = render('paymentHistory');
+    assert.deepEqual(tabs2, ['dashboard', 'dashboard'], 'un rôle sans droit de lecture est ramené au tableau de bord');
     act(() => unmount2());
   });
 

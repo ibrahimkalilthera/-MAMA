@@ -1,6 +1,7 @@
 // Mobile bottom navigation tests: every main tab renders (dashboard, students,
 // parents, payroll, expenses, calendar, notes, archives), the audit & settings
-// tabs appear only for admin/dev roles, the active tab is marked, the payroll
+// tabs appear only for admin/dev roles, the payment-history tab appears for the
+// accountant (econome) too — the 2026-10-15 decision — the active tab is marked, the payroll
 // window badge appears when overdue, clicking audit refreshes the audit log,
 // and the language pill fires onToggleLanguage.
 import { describe, it } from 'node:test';
@@ -57,6 +58,41 @@ describe('MobileNav', () => {
     assert.ok(!container.textContent?.includes(t.auditTrail), 'Audit masqué pour un compte staff');
     assert.ok(!container.textContent?.includes(t.paymentHistory), 'Historique des paiements masqué pour un compte staff');
     assert.ok(!container.textContent?.includes(t.navSettings), 'Réglages masqués pour un compte staff');
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  it('affiche l’Historique des paiements à l’ÉCONOME, et RIEN d’autre des onglets réservés', async () => {
+    // La demande du propriétaire, mesurée : « l'économe doit avoir accès à
+    // l'historique des paiements » — et la garde de cette ligne a quitté le bloc
+    // admin/dev le 2026-10-15, parce que la base lui rend les lignes de cet écran
+    // et seulement elles. Le journal d'audit, lui, reste fermé pour lui : la même
+    // policy ne lui rend que les gestes de caisse.
+    const container = win.document.createElement('div');
+    win.document.body.appendChild(container);
+    const root = createRoot(container as unknown as Element);
+    const navigated: string[] = [];
+
+    await act(async () => {
+      root.render(createElement(MobileNav, {
+        t,
+        activeTab: 'dashboard',
+        setActiveTab: (tab) => navigated.push(tab),
+        payrollWindowStatus: windowStatus(),
+        onToggleLanguage: () => {},
+        currentUser: { role: 'econome' },
+      }));
+    });
+
+    assert.ok(container.textContent?.includes(t.paymentHistory), 'Historique des paiements visible pour l’économe');
+    assert.ok(!container.textContent?.includes(t.auditTrail), 'Journal d’audit masqué pour l’économe');
+    assert.ok(!container.textContent?.includes(t.navSettings), 'Réglages masqués pour l’économe');
+
+    await act(async () => {
+      findButton(container as unknown as Element, t.paymentHistory).click();
+    });
+    assert.deepEqual(navigated, ['paymentHistory'], 'le clic navigue vers l’onglet de l’historique');
 
     await act(async () => root.unmount());
     container.remove();
