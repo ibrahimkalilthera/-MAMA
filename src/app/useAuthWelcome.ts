@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { TranslationDict } from '../i18n/translations';
 import { useAuth } from '../lib/useAuth';
 import type { UserProfile } from '../lib/useAuth';
+import { canViewPaymentHistory } from '../lib/paymentHistoryRights';
 import type { User } from './types';
 
 export type MainTab =
@@ -97,16 +98,28 @@ export function useAuthWelcome(deps: AuthWelcomeDeps) {
     // exhaustive-deps since it arrives as a prop here, not from a local useState.
   }, [authProfile, hasShownWelcome, authIsAdmin, fetchAllProfiles, t.welcomeBackName, setActiveTab]);
 
-  // Safety net: keep admin-only tabs (System Settings / Audit Trail / Payment
-  // History) out of reach for non-admin, non-dev accounts. L'historique des
-  // paiements est du même lot : il LIT `audit_logs`, dont la policy RLS ne
-  // laisse lire que `admin`/`dev` — un autre rôle n'y verrait rien, et un écran
-  // vide se lirait « l'école n'a rien encaissé ».
+  // Safety net: keep admin-only tabs (System Settings / Audit Trail) out of
+  // reach for non-admin, non-dev accounts — and keep the Payment History tab
+  // itself out of reach of a role the BASE would refuse to read it from.
+  //
+  // L'historique des paiements a QUITTÉ le lot admin/dev le 2026-10-15. Il lit
+  // `audit_logs`, dont la policy RLS n'ouvrait que ces deux rôles : un autre
+  // compte n'y voyait rien, et un écran vide se lisait « rien n'a été
+  // encaissé » sur une caisse pleine. La migration
+  // `20261020000000_econome_payment_history.sql` a ouvert la LECTURE à l'économe
+  // (`public.is_payment_history_viewer()`), donc ce garde suit maintenant CE
+  // droit-là — `canViewPaymentHistory`, la même liste que la base — et non plus
+  // `auth.isAdmin`. Sans ce changement, la ligne du rail s'afficherait pour
+  // l'économe et l'onglet serait ramené au tableau de bord dans la même seconde :
+  // la fonctionnalité serait morte À L'ÉCRAN, tout en paraissant ouverte.
+  const mayReadPaymentHistory = canViewPaymentHistory(auth.profile?.role);
   useEffect(() => {
-    if (!auth.isAdmin && (activeTab === 'settings' || activeTab === 'audit' || activeTab === 'paymentHistory')) {
+    if (!auth.isAdmin && (activeTab === 'settings' || activeTab === 'audit')) {
+      setActiveTab('dashboard');
+    } else if (activeTab === 'paymentHistory' && !mayReadPaymentHistory) {
       setActiveTab('dashboard');
     }
-  }, [activeTab, auth.isAdmin, setActiveTab]);
+  }, [activeTab, auth.isAdmin, mayReadPaymentHistory, setActiveTab]);
 
   return {
     auth,

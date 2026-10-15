@@ -259,7 +259,31 @@ describe('PDF de l’historique — les octets réels', () => {
     assert.ok(items.some((item) => item.str.includes('page 1/1')), 'le pied de page est numéroté');
   });
 
-  it('imprime les corrections — signe compris — sans toucher aux encaissements', async () => {
+  it('imprime les corrections — signe compris — sans toucher aux encaissements', async (ctx) => {
+    // L'horloge est figée le temps des DEUX rendus, et pas par confort : le pied de
+    // page porte l'instant du rendu à la SECONDE près
+    // (`src/lib/pdfPaymentHistory.ts`, « page 1/1 » précédé de `toLocaleString`),
+    // donc deux rendus qui tombent de part et d'autre d'une seconde produisent deux
+    // pieds de page différents — et la comparaison « rien de ce que le document
+    // sans corrections imprimait ne change » échouait sans qu'un seul montant ait
+    // bougé. Mesuré le 2026-10-15 sur la suite complète, sous charge : le seul
+    // élément signalé absent était la ligne du pied de page, horodatée de la
+    // seconde voisine. La preuve garde toute sa force (tous les autres textes sont
+    // comparés à l'identique) ; c'est le moment du test qui ne décide plus.
+    ctx.mock.timers.enable({ apis: ['Date'] });
+    // Et le gel se PROUVE, sinon il ne serait qu'une intention : le faux horloge
+    // part de 0 ms, donc l'année lue ici est 1970 quand le gel a lieu — et 2026
+    // quand il n'a pas lieu. Un harnais qui cesserait de figer l'horloge rougit
+    // ici, au lieu de rendre le cas dépendant de la seconde où il tourne.
+    assert.equal(new Date().getFullYear(), 1970, 'le harnais doit bel et bien figer l’horloge');
+    try {
+      await assertCorrectionsDoNotMoveTheEncashments();
+    } finally {
+      ctx.mock.timers.reset();
+    }
+  });
+
+  async function assertCorrectionsDoNotMoveTheEncashments() {
     const bare = await renderPdf(undefined);
     const { items, pages } = await renderPdf(undefined, 'fr', plainMoney, correctionLogs);
 
@@ -290,7 +314,7 @@ describe('PDF de l’historique — les octets réels', () => {
     const before = bare.items.map((item) => item.str);
     const missing = before.filter((str) => !items.some((item) => item.str === str));
     assert.deepEqual(missing, [], 'les encaissements et le net imprimé ne bougent pas quand on ajoute des corrections');
-  });
+  }
 
   it('suit la langue du poste jusque dans le document', async () => {
     const { items } = await renderPdf(undefined, 'en');
