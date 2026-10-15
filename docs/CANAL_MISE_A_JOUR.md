@@ -123,6 +123,8 @@ Trois invariants en découlent :
 
 **Lecture.** `npm run fleet:versions [--silent-days=N] [--max-rows=N]` imprime la répartition par version, la répartition du dernier contrôle, et **nomme les postes silencieux** (aucun battement depuis N jours, `--silent-days`, 7 par défaut) au lieu de les supposer à jour — un poste silencieux est une **information** (sortie 0), pas un échec ; la sortie 1 est réservée au désaccord entre le relevé et le dépôt, et la 2 à « je n'ai pas pu regarder ». Elle lit avec la clé `service_role` : la clé publique ne voit rien de cette table, par construction. **Ce qu'elle ne peut pas voir, et le dit** : un poste qui n'a **jamais** battu est invisible — on ne nomme pas ce qu'on n'a jamais vu —, donc la bascule du parc (section 6) se prouve aussi poste par poste ; ce relevé ne la remplace pas.
 
+**Exécution — une commande que rien n'appelait ne mesurait rien (arbitré le 2026-10-19).** Le lecteur existait et le battement écrivait en base ; il manquait le geste qui décide de tout : **personne ne l'exécutait**. Le mot `fleet` n'apparaissait dans aucun workflow, donc « le parc n'a aucun relevé par version » restait vrai à chaque livraison, et « toutes les stations sont passées » se prouvait **poste par poste** — c'est-à-dire ne se prouvait pas. `.github/workflows/fleet-versions-watch.yml` l'exécute désormais **chaque jour à 07:20 UTC** (après la veille de la base partagée, loin de l'audit des automatisations qui juge sa preuve), plus un `push` limité aux chemins du relevé — le moment où le contrôle lui-même change — et un `workflow_dispatch`. Les **chiffres** (postes recensés, silencieux, contrôles non aboutis) sont publiés par le script lui-même, sous le mandat de l'étape (`AUTOMATION_EVIDENCE=1`) : un run vert qui ne dirait pas combien de postes il a vus prouverait autant qu'un run qui n'a rien regardé. Un relevé quotidien est ce qui distingue cette mesure d'une photo : un poste qui se tait ne produit aucun commit, donc le silence d'une école ne se voit que dans le temps.
+
 ---
 
 ## 8. Preuves attendues
@@ -136,6 +138,7 @@ Trois invariants en découlent :
 | canal jamais authentifié | `npm run check:release:channel` vert **sans aucun jeton**, et la veille sans `GH_TOKEN` |
 | désaccord entre origines | cas qui refuse un flux annonçant un fichier absent du dépôt d'octets |
 | battement | cas unitaire (une ligne, champs exacts) + l'inégalité anon prouvée en CI par `verify-anon-rls` (les deux directions, la sonde skippée sur coupure de transport) ; et la table en base : `check:public-rls` la nomme « scellée », `check:db-objects` aligne ses 6 contraintes, `check:hosted-schema` juge ses 6 colonnes |
+| relevé du parc **exécuté** | `tests/fleet-versions.test.ts` (21 cas : drapeau inconnu refusé, ordre **numérique** des versions, état de contrôle inconnu compté, silence mesuré sur `seen_at`, seuil de volume qui fait échouer) + la veille `fleet-versions-watch.yml`, dont le run **publie ses propres chiffres** — postes recensés, silencieux, contrôles non aboutis — dans l'annotation « Automation evidence » que lit l'audit des automatisations : un run vert sans chiffres ne vaut pas mieux qu'un run qui n'a rien regardé |
 
 ---
 
