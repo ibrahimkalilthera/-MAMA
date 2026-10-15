@@ -357,6 +357,30 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-uninstaller-exit.mjs',
+    input: 'emitted-binary+data-config',
+    needs: [],
+    // Le sujet lu est le désinstalleur que le banc vient de COMPILER et qu'il
+    // exécute : il n'y a pas de corpus de fichiers à parcourir, et aucune absence
+    // ne peut passer pour un vert — pas de makensis, émetteur en échec, aucun
+    // désinstalleur écrit, ou plateforme non-Windows sont des REFUS nommés
+    // (exit 1). Le verdict qui décide est PUR : `benchVerdict`
+    // (scripts/lib/uninstaller-emission.mjs) refuse `measurable: false`, un
+    // émetteur non nul, une absence de désinstalleur, un dépassement de délai et
+    // une sortie non nulle — mesuré le 2026-10-15 : sortie 0 avec la réparation,
+    // `-1073740940` (0xC0000374) sans elle. Il ne lit de ce dépôt que des DONNÉES
+    // (`electron-builder.yml`, `package.json`) et le script NSIS qu'il fait
+    // compiler par makensis, jamais du code source : la prose du dépôt ne peut ni
+    // le satisfaire ni le tromper. `tests/uninstaller-exit-check.test.ts` verrouille
+    // les deux refus, les arguments de l'essai et la séparation d'avec
+    // l'installation réelle.
+    via: 'uninstaller-emission.mjs',
+    exempt: {
+      [IMMUNITY.NON_VACUOUS]: 'il compile puis EXÉCUTE un binaire ; l’absence de binaire mesurable est un refus nommé (exit 1), il n’y a pas de corpus à lire',
+      [IMMUNITY.PROSE_BLIND]: 'il lit des données de configuration (electron-builder.yml, package.json) et les gabarits d’app-builder-lib installé, jamais le texte source de ce dépôt',
+    },
+  },
+  {
     check: 'check-updater-trust.mjs',
     input: 'artifact+contract+signature',
     needs: [],

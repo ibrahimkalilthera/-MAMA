@@ -9,9 +9,13 @@
  *     chiffré, sa ligne le DIT et le résumé compte ces lignes au lieu de laisser
  *     croire à un total complet.
  *
- * La garde de rôle est mesurée elle aussi : le journal (`audit_logs`) n'est
- * lisible que par `admin`/`dev`, donc un autre rôle ne doit pas voir un écran
- * vide qui se lirait « l'école n'a rien encaissé ».
+ * La garde de rôle est mesurée elle aussi, et elle a changé le 2026-10-15 :
+ * l'ÉCONOME lit cet écran (décision du propriétaire — c'est lui qui tient la
+ * caisse), parce que la base lui rend désormais les lignes de cette caisse et
+ * elles seules (policy « Payment history viewers read payment gestures »,
+ * `20261020000000`). Les rôles que la base REFUSE (`staff`, `general_manager`,
+ * et un poste dont le profil n'est pas encore chargé) ne doivent pas voir un
+ * écran vide qui se lirait « l'école n'a rien encaissé ».
  *
  * Depuis la correction des paies fautives, un QUATRIÈME sujet s'y mesure : les
  * GESTES DE CORRECTION (un salaire retiré, une dépense retirée, un salaire
@@ -42,10 +46,26 @@ import { archivedSalaryFrom, salarySnapshotMetadata } from '../src/lib/salaryUnd
 import type { ArchivedSalaryPayment } from '../src/lib/salaryUndo';
 import type { AuditLogEntry } from '../src/lib/auditLogger';
 import type { Payment, SalaryPayment, Student } from '../src/lib/domainTypes';
+import type { AuthState } from '../src/lib/useAuth';
 import { installDomGlobals } from './harness';
-import { declaredDefaults, makeProps } from './views-harness';
+import { makeProps } from './views-harness';
 
 const t = translations.fr;
+
+/**
+ * Un poste connecté réduit à son RÔLE.
+ *
+ * La garde de cet écran lit `auth.profile.role` — ce que la BASE lit
+ * (`public.is_payment_history_viewer()`), pas un booléen d'écran. Les cas qui
+ * mesurent QUI peut lire doivent donc déclarer leur rôle : un poste sans profil
+ * ne doit rien ouvrir, et `isAdmin` seul ne l'ouvre plus.
+ */
+function authWithRole(role: 'admin' | 'dev' | 'general_manager' | 'econome' | 'staff'): AuthState {
+  return {
+    ...makeProps().auth,
+    profile: { id: 'u-role', email: `${role}@mamathera.org`, fullName: 'Poste de test', role },
+  };
+}
 
 const alice: Student = {
   id: 'st1', name: 'Alice Traoré', grade: '6B', parentName: '', parentEmail: '', parentPhone: '',
@@ -160,7 +180,11 @@ function mount(overrides: Parameters<typeof makeProps>[0] = {}) {
     root.render(
       createElement(
         MainViewsContext.Provider,
-        { value: makeProps({ auditLogs: logs, students: [alice], t, lang: 'fr', ...overrides }) },
+        // Le poste des cas ordinaires est un ADMIN : cet écran ne rend rien à un rôle
+        // que la base refuse, donc un défaut sans profil rendrait VIDE chaque cas qui
+        // croit mesurer une ligne du tableau. Qui veut mesurer la garde passe son
+        // propre `auth` (les overrides viennent APRÈS celui-ci).
+        { value: makeProps({ auditLogs: logs, students: [alice], t, lang: 'fr', auth: authWithRole('admin'), ...overrides }) },
         createElement(PaymentHistoryView),
       ),
     );
@@ -293,10 +317,45 @@ describe('PaymentHistoryView — ce que la caisse relit', () => {
     }
   });
 
-  it('ne rend rien pour un rôle qui ne peut pas lire le journal', () => {
-    const h = mount({ auth: { ...declaredDefaults.auth!, isAdmin: false } });
+  it('rend l’écran à l’ÉCONOME — c’est lui qui tient la caisse', () => {
+    // La décision du 2026-10-15 : l'économe lit l'historique des paiements, et la
+    // base lui en rend les lignes (policy filtrée par action). Ce cas le mesure sur
+    // la VUE, pas sur l'intention : les lignes de la caisse sont là, le tableau
+    // aussi, et le bandeau n'est pas un écran vide.
+    const h = mount({ auth: authWithRole('econome') });
     try {
-      assert.equal(h.text(), '', 'la policy RLS réserve audit_logs à admin/dev : pas d’écran vide qui se lirait « rien encaissé »');
+      assert.match(h.text(), /Alice Traoré/, 'l’économe lit les lignes de la caisse');
+      assert.match(h.body(), /4000 XOF/, 'et les montants encaissés');
+      assert.match(h.text(), /Aggee Diarra/, 'dont l’encaisseur — la question de cet écran');
+      assert.ok(h.container.querySelectorAll('table').length > 0, 'le tableau est rendu, pas un écran vide');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('ne rend rien pour un rôle à qui la base refuse ces lignes', () => {
+    // `staff` et `general_manager` sont hors de la policy : leur montrer l'écran
+    // afficherait « rien encaissé » sur une caisse pleine.
+    for (const role of ['staff', 'general_manager'] as const) {
+      const h = mount({ auth: authWithRole(role) });
+      try {
+        assert.equal(h.text(), '', `${role} : pas d’écran vide qui se lirait « rien encaissé »`);
+        assert.equal(h.container.querySelectorAll('table').length, 0, 'aucun tableau n’est rendu');
+      } finally {
+        h.cleanup();
+      }
+    }
+  });
+
+  it('ne rend rien tant que le PROFIL n’est pas chargé, même si `isAdmin` est vrai', () => {
+    // La garde lit le RÔLE du profil, pas le booléen d'écran : un poste dont la
+    // session existe sans profil (chargement, session hors ligne avant résolution)
+    // n'a pas de rôle à lire, donc pas d'écran à montrer. `isAdmin: true` sans
+    // profil est exactement la forme du harnais d'avant, et elle ne doit plus ouvrir
+    // la porte — c'est ce qui a été mesuré ici.
+    const h = mount({ auth: { ...authWithRole('admin'), profile: null, isAdmin: true } });
+    try {
+      assert.equal(h.text(), '', 'sans rôle lisible, la garde ferme');
       assert.equal(h.container.querySelectorAll('table').length, 0, 'aucun tableau n’est rendu');
     } finally {
       h.cleanup();
