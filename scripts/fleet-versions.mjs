@@ -56,6 +56,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { parseEnvFile } from './lib/hosted-db.mjs';
 import { SHARED_PROJECT_URL, projectRefOf } from './lib/shared-project.mjs';
 
@@ -318,6 +319,61 @@ async function readFleet({ base, key, maxRows, fetchImpl = fetch }) {
   return { rows, total: Number.isFinite(declared) ? declared : rows.length };
 }
 
+/**
+ * La preuve que ce relevé publie — pure, donc éprouvable sans base ni réseau.
+ *
+ * Le `count` est OMIS quand il n'y a rien à compter, et ce n'est pas un détail :
+ * le contrat de preuve REFUSE `--acted --count 0` (« une preuve qui déclare avoir
+ * agi sur zéro chose se contredit elle-même »), alors qu'un parc vide est une
+ * issue NORMALE du relevé — le jour où le battement vient d'être livré, il n'y a
+ * aucun poste à compter. La substance ne disparaît pas pour autant : elle est
+ * dans la RAISON, qui nomme le zéro. Mesuré le jour où cette veille a été
+ * branchée — un relevé à 0 poste faisait rougir le script sur son propre contrat.
+ *
+ * @param {{ total?: number, silent?: object[], failing?: number, silentDays?: number,
+ *   maxRows?: number, projectRef?: string|null, volumeOk?: boolean }} [input]
+ * @returns {{ acted: boolean, count: number|null, reason: string }}
+ */
+export function censusEvidence({
+  total = 0,
+  silent = [],
+  failing = 0,
+  silentDays = DEFAULT_SILENT_DAYS,
+  maxRows = DEFAULT_MAX_ROWS,
+  projectRef = null,
+  volumeOk = true,
+} = {}) {
+  return {
+    acted: true,
+    count: total > 0 ? total : null,
+    reason:
+      `relevé du parc lu sur la base partagée ${projectRef ?? '(ref inconnue)'} : ` +
+      `${total} poste(s) recensé(s), ${silent.length} silencieux depuis ${silentDays} jour(s), ` +
+      `${failing} dont le dernier contrôle n’a pas abouti` +
+      (volumeOk ? '' : ` — VOLUME au-delà du seuil de ${maxRows} ligne(s)`),
+  };
+}
+
+/**
+ * Un refus qui n'a PAS PU REGARDER se dit, puis sort en 2.
+ *
+ * Le relevé est une automatisation : sans preuve, un run vert ou rouge ne dit
+ * pas s'il a seulement lu quelque chose. La substance (« combien de postes, dont
+ * combien de silencieux ») part d'ICI, du seul endroit qui la connaît ; le
+ * workflow, lui, ne fait que le lancement.
+ *
+ * Hors mandat (`AUTOMATION_EVIDENCE=1` absent — un lancement à la main, la suite
+ * de tests) `publishEvidence` se tait : cette fonction n'ajoute donc rien à la
+ * sortie locale, et ne peut pas faire accuser un job qui n'est pas le sien.
+ *
+ * @param {string} reason
+ * @returns {never}
+ */
+function inertAndExit(reason) {
+  publishEvidence({ acted: false, reason });
+  process.exit(2);
+}
+
 async function main() {
   const flags = parseFlags(process.argv.slice(2));
   if (flags.help) {
@@ -327,7 +383,7 @@ async function main() {
   if (flags.problems.length > 0) {
     for (const problem of flags.problems) console.error(`❌ ${problem}`);
     console.error(USAGE);
-    process.exit(2);
+    inertAndExit(`drapeaux refusés : ${flags.problems.join(' ; ')}`);
   }
 
   // Le `.env` est lu par le lecteur du dépôt (`parseEnvFile`) : une troisième
@@ -339,7 +395,10 @@ async function main() {
       '❌ SUPABASE_SERVICE_ROLE_KEY absente — la table des battements est ILLISIBLE par la clé publique, ' +
         'donc ce relevé ne peut pas être rendu. Ce n’est pas un parc vide, c’est un relevé qui n’a pas eu lieu.',
     );
-    process.exit(2);
+    inertAndExit(
+      'SUPABASE_SERVICE_ROLE_KEY absente — la table des battements est ILLISIBLE par la clé publique, ' +
+        'donc le relevé n’a pas eu lieu (ce n’est pas un parc vide)',
+    );
   }
   // L'origine : celle de l'environnement quand elle est donnée (une base de test
   // se recense aussi), sinon LA base partagée — définie une seule fois dans
@@ -351,11 +410,11 @@ async function main() {
     fleet = await readFleet({ base, key: String(key).trim(), maxRows: flags.maxRows });
   } catch (error) {
     console.error(`❌ base injoignable (${base}) — ${error?.message ?? error}`);
-    process.exit(2);
+    inertAndExit(`base injoignable (${base}) — ${error?.message ?? error}`);
   }
   if (fleet.error) {
     console.error(`❌ ${fleet.error}`);
-    process.exit(2);
+    inertAndExit(fleet.error);
   }
 
   const nowMs = Date.now();
@@ -370,7 +429,23 @@ async function main() {
     }),
   );
 
+  // La SUBSTANCE de la preuve : ce que ce relevé a réellement compté. Un run
+  // vert qui ne dit pas combien de postes il a vus ne prouve rien de plus qu'un
+  // run qui n'a rien regardé — c'est la raison d'être du contrat de preuve.
+  const silent = silentStations(fleet.rows, { silentDays: flags.silentDays, nowMs });
+  const failing = fleet.rows.filter((row) => String(row?.last_check ?? '') !== 'ok').length;
   const verdict = volumeVerdict({ total: fleet.total, maxRows: flags.maxRows });
+  publishEvidence(
+    censusEvidence({
+      total: fleet.total,
+      silent,
+      failing,
+      silentDays: flags.silentDays,
+      maxRows: flags.maxRows,
+      projectRef: projectRefOf(base),
+      volumeOk: verdict.ok,
+    }),
+  );
   if (!verdict.ok) {
     console.error(`\n❌ ${verdict.problem}`);
     process.exit(1);

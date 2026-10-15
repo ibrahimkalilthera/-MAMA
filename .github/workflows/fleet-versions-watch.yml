@@ -1,0 +1,118 @@
+name: Fleet versions watch
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « Où en sont les postes, et lesquels ne disent plus rien ? »
+#
+# LE DÉFAUT QUE CETTE VEILLE FERME, ET IL ÉTAIT MESURÉ
+#
+# Le battement de version (§7 de docs/CANAL_MISE_A_JOUR.md) était écrit des deux
+# côtés : `electron/station-beat.cjs` inscrit le fait sur le poste, le pont le
+# porte, `sendStationBeat()` l'envoie, la table et sa fonction existent en base,
+# et `scripts/fleet-versions.mjs` sait lire et rendre la répartition. Une chose
+# manquait, et c'est celle qui décidait de tout : PERSONNE NE L'EXÉCUTAIT. Le mot
+# `fleet` n'apparaissait dans aucun workflow, aucune veille, aucun inventaire —
+# une commande juste que rien n'appelait.
+#
+# La conséquence était écrite noir sur blanc dans ce dépôt, à chaque livraison :
+# « le parc n'a aucun relevé par version, donc toutes les stations sont passées
+# se prouve poste par poste » — c'est-à-dire ne se prouve pas. C'est exactement
+# la panne que la §6 du canal a payée trois jours en septembre : une affirmation
+# que personne ne pouvait ni confirmer ni démentir.
+#
+# CE QUE CETTE VEILLE LIT, ET COMMENT
+#
+# `npm run fleet:versions` lit la BASE PARTAGÉE avec la clé de service —
+# la table des battements est ILLISIBLE par la clé publique, et c'est le prix
+# assumé d'une écriture anonyme : la clé livrée dans le bundle ne doit pas
+# permettre de recenser le parc. Les CHIFFRES (postes recensés, silencieux,
+# états de contrôle) sont publiés par le script lui-même, sous le mandat de
+# l'étape (`AUTOMATION_EVIDENCE=1`) : un run vert qui ne dirait pas combien de
+# postes il a vus ne prouverait pas plus qu'un run qui n'a rien regardé.
+#
+# LA SÉMANTIQUE DE LA §7 EST CONSERVÉE, ELLE EST LE CONTRAT
+#
+#   • un poste SILENCIEUX est une INFORMATION (sortie 0) : un poste éteint tout
+#     un week-end n'est pas une panne de l'outil, et un signal qui clignote pour
+#     rien s'apprend à être ignoré ;
+#   • le DÉPASSEMENT DU SEUIL DE VOLUME fait ROUGIR (sortie 1) : la clé publique
+#     peut appeler le geste d'écriture, donc une table qui s'emballe est soit un
+#     parc qui a explosé, soit des `station_id` inventés — un relevé vert sur une
+#     table qui s'emballe masquerait précisément ce qu'on lui demande de voir ;
+#   • « JE N'AI PAS PU REGARDER » fait ROUGIR AUSSI (sortie 2, preuve d'inaction
+#     publiée) : sans la clé de service, ou sur une base injoignable, le refus est
+#     NOMMÉ. Un relevé vide n'est pas un parc vide.
+#
+# DEUX DÉCLENCHEURS, COMME LES AUTRES VEILLES
+#
+# Le push (limité aux chemins du relevé) : c'est le moment où le contrôle
+# lui-même change, et — la première fois — le merge qui ajoute ce fichier, sans
+# quoi le cron neuf resterait sans run et l'audit des automatisations le dirait
+# « dormant ». Et un cron quotidien, parce qu'un poste qui se tait ne produit
+# aucun commit : le silence d'une école ne se voit que dans le temps.
+#
+# CE QUE CE RELEVÉ NE PEUT PAS VOIR, ET LE DIT À CHAQUE RUN
+#
+# Un poste qui n'a JAMAIS battu est invisible ici — on ne nomme pas ce qu'on n'a
+# jamais vu. La bascule du parc (§6) se prouve donc poste par poste AUSSI : ce
+# relevé la complète, il ne la remplace pas.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/fleet-versions.mjs'
+      - 'scripts/lib/hosted-db.mjs'
+      - 'scripts/lib/shared-project.mjs'
+      - 'scripts/lib/evidence-publisher.mjs'
+      - 'scripts/lib/automation-evidence.mjs'
+      - 'tests/fleet-versions.test.ts'
+      - '.github/workflows/fleet-versions-watch.yml'
+
+  schedule:
+    # 07:20 UTC — après la veille de la base partagée (07:12), et loin de
+    # l'audit des automatisations (06:41), qui juge la preuve publiée ici.
+    - cron: '20 7 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: fleet-versions-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  census:
+    name: Lire le relevé du parc par version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      # Comme les autres jobs : installer Node ne prouve pas le majeur exécuté.
+      - name: Node version parity (.nvmrc ↔ engines ↔ runtime)
+        run: node scripts/check-node-version.mjs
+
+      # Mandat de preuve : le script publie lui-même ce qu'il a compté (postes
+      # recensés, silencieux, états de contrôle). Les fermetures de sortie sont
+      # celles de la §7 — un poste silencieux ne rougit pas, le seuil de volume
+      # et « je n'ai pas pu regarder » rougissent.
+      - name: Lire le relevé du parc
+        env:
+          AUTOMATION_EVIDENCE: '1'
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run fleet:versions
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — relevé du parc
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "relevé du parc lu sur la base partagée ; les chiffres (postes recensés, postes silencieux, états du dernier contrôle) sont publiés par scripts/fleet-versions.mjs"
