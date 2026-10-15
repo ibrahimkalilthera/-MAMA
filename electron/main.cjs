@@ -647,6 +647,62 @@ function setupAutoUpdater(win) {
    * la fenêtre le soir, et la preuve du canal s'appuie dessus — mais il ne doit
    * pas s'AJOUTER à un clic : deux gestes humains, un seul installeur.
    *
+   * ─── L'INSTALLATION NE DEMANDE PLUS RIEN : les deux arguments, et pourquoi ──
+   * Mesuré le 2026-10-15, poste de 1.0.35, clic sur « Installer » : au milieu de
+   * la barre de progression, « MamaTheraFinance ne peut pas être fermé. Veuillez
+   * la fermer manuellement et cliquez sur Réessayer pour continuer. » — et
+   * « Réessayer » ne débloque rien, seul « Annuler » fait continuer. Le défaut
+   * n'était pas dans l'installeur : il était dans CET appel.
+   *
+   * `quitAndInstall()` sans argument vaut `install(false, autoRunAppAfterInstall)`
+   * (`BaseUpdater.js:13-16`), et `NsisUpdater.doInstall` en tire la ligne de
+   * commande (`NsisUpdater.js:107-113`) : `--updated` toujours, `/S` SEULEMENT si
+   * silencieux, `--force-run` si relance. L'installeur partait donc en mode
+   * ASSISTÉ — l'assistant, ses pages, ses boîtes. Or chacune des boîtes qui
+   * peuvent RETENIR une installation porte, dans le gabarit, un défaut `/SD` qui
+   * n'est lu qu'en mode silencieux : sans `/S`, ce défaut ne s'applique jamais,
+   * et c'est un humain qui répond.
+   *
+   * La boîte de la capture est l'une des DEUX boucles du gabarit qui portent ce
+   * texte, et la mesure désigne celle-ci : `installUtil.nsh:219`, la boucle de
+   * relance du désinstalleur de la version EN PLACE — après cinq sorties non nulles
+   * (`UninstallLoop` ; et cette sortie non nulle est le plantage que
+   * build/installer.nsh tolère plus bas), le gabarit affiche
+   * `$(appCannotBeClosed)` avec `/SD IDCANCEL IDRETRY OneMoreAttempt`. Le compteur
+   * ne redescend jamais sous cinq : « Réessayer » relance le vieux désinstalleur
+   * UNE fois de plus, puis la MÊME boîte revient. Le bouton mis en avant est donc
+   * celui qui ne finit pas, et le seul qui finit est celui que personne ne veut
+   * cliquer. C'est aussi pourquoi la tolérance de `build/installer.nsh` ne
+   * suffisait pas : elle juge le RÉSULTAT (`handleUninstallResult`), pas cette
+   * boucle-ci — les deux moitiés se complètent, elles ne se remplacent pas.
+   *
+   * L'AUTRE boucle qui porte ce texte (`allowOnlyOneInstallerInstance.nsh:156`,
+   * « l'application ne peut pas être fermée ») tombe dans le même piège — son
+   * `/SD IDCANCEL` est suivi d'un `IDRETRY loop` qui ramène la même boîte — et
+   * c'est la même chose qui la règle : le mode silencieux. C'est ce que
+   * `tests/updater-silent-install.test.ts` vérifie comme une PROPRIÉTÉ du gabarit
+   * installé (« aucune boîte qui peut retenir une installation sans `/SD` »)
+   * plutôt que comme une liste de boîtes connues : la prochaine version de
+   * `app-builder-lib` peut en ajouter une, et elle sera couverte.
+   *
+   * Les deux autres boîtes portant ce texte ont, elles aussi, un défaut qui
+   * CONTINUE, donc rien n'est contourné : `allowOnlyOneInstallerInstance.nsh:156`
+   * (`/SD IDCANCEL` — une application qu'on ne peut vraiment pas fermer laisse le
+   * poste sur sa version, jamais à moitié installé) et `extractAppPackage.nsh:116`
+   * (`/SD IDRETRY` — le dernier recours écrit en place et l'installation continue).
+   * Le mode silencieux ne fait donc qu'une chose : il laisse le gabarit répondre
+   * lui-même, dans le seul sens qui termine l'installation. Le chemin est déjà
+   * éprouvé sur le canal réel — la fermeture du soir installe en silencieux depuis
+   * toujours (`BaseUpdater.js:80`) ; c'est le CLIC qui lançait, pour les mêmes
+   * octets, un installeur d'un autre mode.
+   *
+   * Le second argument est l'autre moitié, et sans lui la mise à jour fermerait
+   * l'application pour de bon : sur l'installeur ASSISTÉ, la relance n'a lieu que
+   * si `${isForceRun}` ET `${Silent}` (`installSection.nsh:104-108`) — elle vient
+   * sinon de la case de la page finale, qu'une installation silencieuse n'a pas.
+   * `--force-run` rend donc au bandeau la promesse qu'il affiche déjà (« version
+   * prête : redémarrer pour l'installer »), sans qu'un humain ait à cliquer.
+   *
    * @param {string} origin qui demande (pour que le journal du poste le dise)
    * @returns {{ ok: boolean, action?: string, reason?: string }}
    */
@@ -661,8 +717,11 @@ function setupAutoUpdater(win) {
     // Sentinel: marks an install attempt. If the app comes up again on this
     // version, purgeStaleUpdaterCache() wipes the shared cache on next start.
     try { fs.writeFileSync(installPendingFlag(), `${new Date().toISOString()}\n`); } catch { /* best-effort */ }
-    log(`installation demandée (${origin})`);
-    autoUpdater.quitAndInstall();
+    log(`installation demandée (${origin}) — silencieuse, avec relance`);
+    // Les deux `true` sont la réparation (voir l'en-tête) : silencieux, pour que
+    // les défauts `/SD` du gabarit s'appliquent au lieu d'attendre un clic ;
+    // relance, pour que l'application revienne sans page finale à valider.
+    autoUpdater.quitAndInstall(true, true);
     return { ok: true, action: 'restart' };
   }
 
