@@ -46,6 +46,15 @@ interface UsePayrollDeps {
   addStaff: (s: Omit<Staff, 'id'> & { id?: string }) => Promise<Staff | null>;
   updateStaff: (id: string, updates: Partial<Staff>) => Promise<boolean>;
   addSalaryPayment: (sp: Omit<SalaryPayment, 'id'> & { id?: string }) => Promise<SalaryPayment | null>;
+  /**
+   * Le rôle peut-il RETIRER un salaire fautif ? Décidé par la BASE
+   * (`public.is_finance_admin()`), lu une fois dans App.tsx — le gestionnaire
+   * refuse ici le geste, il ne se contente pas de masquer le bouton : un booléen
+   * d'écran ne décide pas d'un droit.
+   */
+  canDeleteSalaryPayment: boolean;
+  /** Retire la SEULE ligne de salaire fautive (voir `dataOps/payments.ts`). */
+  deleteSalaryPayment: (payment: SalaryPayment) => Promise<boolean>;
   /** Uploaded school logo (data URL) — embedded in the bulletin / fiche headers. */
   schoolLogo: string | null;
   /** Reference clock for the monthly payroll window (draft month/year, salary
@@ -54,7 +63,7 @@ interface UsePayrollDeps {
 }
 
 export function usePayroll(deps: UsePayrollDeps) {
-  const { t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast, toastError, addStaff, updateStaff, addSalaryPayment, schoolLogo, now: nowFn = systemClock } = deps;
+  const { t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast, toastError, addStaff, updateStaff, addSalaryPayment, canDeleteSalaryPayment, deleteSalaryPayment, schoolLogo, now: nowFn = systemClock } = deps;
 
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [staffModalMode, setStaffModalMode] = useState<StaffModalMode>('employee');
@@ -177,6 +186,33 @@ export function usePayroll(deps: UsePayrollDeps) {
     showToast();
   };
 
+  /**
+   * Retirer un salaire saisi par erreur — le seul correctif possible jusque-là
+   * était de supprimer le MEMBRE (et toute sa paie avec, `ON DELETE CASCADE`).
+   *
+   * Deux refus, dans cet ordre, et aucun n'est cosmétique :
+   *   • un exercice CLOS ne se corrige pas — la même règle que la saisie d'un
+   *     salaire et celle des dépenses (`lockedYears`) : sinon un montant pourrait
+   *     disparaître d'un exercice déjà arrêté ;
+   *   • un rôle que la base n'autorise pas (`canDeleteSalaryPayment`,
+   *     `public.is_finance_admin()`), même si l'écran lui montrait le bouton par
+   *     accident : l'économe enregistre la paie sans pouvoir la détruire.
+   *
+   * Le refus est ANNONCÉ (toast d'erreur) et le succès aussi (toast) : le geste
+   * qui n'a pas abouti ne dit jamais « c'est fait ».
+   */
+  const handleDeleteSalaryPayment = async (payment: SalaryPayment) => {
+    if (lockedYears.includes(selectedYear)) {
+      toastError(t.thisAcademicYearIsLocked);
+      return;
+    }
+    if (!canDeleteSalaryPayment) {
+      toastError(t.onlyFinanceAdminCanDeleteSalary);
+      return;
+    }
+    if (await deleteSalaryPayment(payment)) showToast();
+  };
+
   const openEditStaffModal = (s: Staff) => {
     setStaffModalMode('employee'); // editing always uses the free-text position
     setEditingStaff(s);
@@ -288,6 +324,7 @@ export function usePayroll(deps: UsePayrollDeps) {
     adminStaffCount,
     handleStaffSubmit,
     handleSalarySubmit,
+    handleDeleteSalaryPayment,
     openEditStaffModal,
     handleExportStaffReceiptPdf,
     handleExportMonthlyPayrollExcel,

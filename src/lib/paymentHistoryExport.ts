@@ -41,6 +41,7 @@ import { auditActionLabel, localizeAuditDetails } from './auditDisplay';
 import { offlineOriginNote, offlineOriginOf } from './auditOffline';
 import { paymentMotifLabel } from './paymentMotifs';
 import type { PaymentHistoryFilter, PaymentHistoryRow } from './paymentHistory';
+import type { CorrectionHistoryRow } from './correctionHistory';
 
 /** Le type MIME du CSV — le même que l'export du journal d'audit. */
 export const PAYMENT_HISTORY_CSV_MIME = 'text/csv;charset=utf-8';
@@ -117,15 +118,25 @@ function studentCell(row: PaymentHistoryRow, { t }: PaymentHistoryExportContext)
   return row.studentName && row.studentGrade ? `${name} (${row.studentGrade})` : name;
 }
 
-/** L'encaisseur : nom, compte et rôle, comme la colonne ENCAISSÉ PAR les montre. */
-function cashierCell(row: PaymentHistoryRow, { t }: PaymentHistoryExportContext): string {
+/**
+ * L'encaisseur : nom, compte et rôle, comme la colonne ENCAISSÉ PAR les montre.
+ *
+ * La signature ne demande que ce qu'elle lit (et non un `PaymentHistoryRow`
+ * entier) : un GESTE DE CORRECTION a le même auteur et se lit donc avec la MÊME
+ * fonction — deux formats de nom d'auteur dans un même fichier feraient douter
+ * des deux.
+ */
+function cashierCell(
+  row: { actorName: string; actorEmail: string; actorRole: string },
+  { t }: PaymentHistoryExportContext,
+): string {
   const name = row.actorName || t.roleStaff;
   const account = row.actorEmail ? ` (${row.actorEmail})` : '';
   return row.actorRole ? `${name}${account} · ${row.actorRole}` : `${name}${account}`;
 }
 
 /** Le détail d'une ligne, avec la note hors ligne quand elle existe (comme l'écran). */
-function detailsCell(row: PaymentHistoryRow, { t, lang }: PaymentHistoryExportContext): string {
+function detailsCell(row: { log: PaymentHistoryRow['log'] }, { t, lang }: PaymentHistoryExportContext): string {
   const details = localizeAuditDetails(row.log.details, lang) || '—';
   const origin = offlineOriginOf(row.log);
   if (!origin) return details;
@@ -151,18 +162,63 @@ export function paymentHistoryCells(row: PaymentHistoryRow, context: PaymentHist
 }
 
 /**
+ * Les cellules d'un GESTE DE CORRECTION — les huit MÊMES colonnes, dans le même
+ * ordre que les lignes de paiement.
+ *
+ * C'est ce qui permet au fichier de porter les deux familles sans changer de
+ * forme : la colonne ACTIONS dit déjà le geste (« Salaire supprimé »,
+ * « Dépense supprimée »), la colonne ÉLÈVE porte le MEMBRE pour un salaire, et
+ * les colonnes d'un reçu (numéro, motif) restent vides — un tiret, jamais un
+ * zéro ni un motif inventé : un salaire n'a pas de reçu, et lui en prêter un
+ * ferait douter des vrais.
+ *
+ * Le signe moins est le trait d'union ASCII, comme pour une annulation de reçu
+ * (WinAnsi, voir l'en-tête du module) : un montant retiré se lit « - 150000 » dans
+ * un tableur comme sur le papier.
+ */
+export function correctionHistoryCells(
+  row: CorrectionHistoryRow,
+  context: PaymentHistoryExportContext,
+): string[] {
+  const { t, lang, formatMoney } = context;
+  const removed = row.action === 'DELETE_SALARY_PAYMENT' || row.action === 'DELETE_EXPENSE' || row.action === 'DELETE_VENDOR_EXPENSE';
+  return [
+    paymentHistoryMoment(row.at, lang),
+    row.subject || '—',
+    auditActionLabel(row.action, t),
+    row.amount === null ? '—' : (removed ? `- ${formatMoney(row.amount)}` : formatMoney(row.amount)),
+    '—',
+    '—',
+    cashierCell(row, context),
+    detailsCell(row, context),
+  ];
+}
+
+/**
  * Le CSV complet : en-tête puis lignes, `\r\n` et guillemets doublés.
  *
  * Les lignes sont celles qu'on lui donne — déjà filtrées. Une liste vide donne un
  * en-tête seul : un fichier qui n'aurait aucune ligne reste lisible comme « la
  * question posée n'a rien ramené », ce que le bouton désactivé dit déjà.
+ *
+ * Les GESTES DE CORRECTION (salaire ou dépense retirés, salaire rétabli) suivent
+ * les lignes de paiement, dans les mêmes colonnes : l'écran les montre, et un
+ * export qui les tairait ferait dire au fichier le contraire de la vue — le
+ * lecteur croirait que rien n'a été retiré. Ils arrivent APRÈS, et le tri par
+ * horodatage de chaque famille est conservé : mêler les deux trierait deux
+ * natures de gestes ensemble.
  */
 export function buildPaymentHistoryCsv(
   rows: PaymentHistoryRow[],
   context: PaymentHistoryExportContext,
+  corrections: CorrectionHistoryRow[] = [],
 ): string {
   const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
-  const lines = [paymentHistoryColumnLabels(context.t), ...rows.map((row) => paymentHistoryCells(row, context))];
+  const lines = [
+    paymentHistoryColumnLabels(context.t),
+    ...rows.map((row) => paymentHistoryCells(row, context)),
+    ...corrections.map((row) => correctionHistoryCells(row, context)),
+  ];
   return lines.map((cells) => cells.map(escape).join(',')).join('\r\n');
 }
 

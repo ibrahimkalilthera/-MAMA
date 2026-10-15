@@ -58,6 +58,10 @@ describe('horloge injectée — fenêtres mensuelles des hooks', () => {
         addStaff: asyncNull as never,
         updateStaff: asyncTrue,
         addSalaryPayment: asyncNull as never,
+        // Le domaine de la paie refuse le retrait d'un salaire sans ce droit
+        // (`public.is_finance_admin()`) : le câblage le porte explicitement.
+        canDeleteSalaryPayment: false,
+        deleteSalaryPayment: asyncTrue,
         schoolLogo: null,
         now: clock,
       },

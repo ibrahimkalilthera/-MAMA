@@ -13,6 +13,7 @@ import type { Parent, Student, Staff } from '../app/types';
 import { studentMatricule } from './studentIdentifiers';
 import { isUuid } from './rowMappers';
 import { paymentSnapshotMetadata } from './paymentUndo';
+import { replayAddSalaryPayment, replayDeleteSalaryPayment, salaryAddAuditInfo, salaryDeleteAuditInfo } from './offlineReplayPayroll';
 import { paymentMotifAuditTag } from './paymentMotifs';
 import type { LogAuditParams } from './auditLogger';
 import { replayDisplayPreference, displayPreferenceAuditInfo } from './offlineReplaySettings';
@@ -359,14 +360,9 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     const { error } = await db.from('staff').delete().eq('id', item.payload.id);
     if (!error) success = true;
   } else if (item.type === 'addSalaryPayment') {
-    const { error } = await db.from('salary_payments').insert({
-      ...rowIdColumn(item.localId),
-      staff_id: item.payload.staffId,
-      amount: item.payload.amount,
-      date: item.payload.date,
-      academic_year: item.payload.academicYear || null,
-    });
-    if (!error) success = true;
+    if (await replayAddSalaryPayment(db, item.localId, item.payload)) success = true;
+  } else if (item.type === 'deleteSalaryPayment') {
+    if (await replayDeleteSalaryPayment(db, item.payload)) success = true;
   } else if (item.type === 'addParent') {
     const { data, error } = await db
       .from('parents')
@@ -680,7 +676,9 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
     case 'deleteStaff':
       return { action: 'DELETE_STAFF', targetType: 'staff', targetId: item.payload.id, details: `suppression membre${tag}` };
     case 'addSalaryPayment':
-      return { action: 'RECORD_SALARY_PAYMENT', targetType: 'salary_payment', targetId: null, details: `${item.payload.amount} FCFA (${item.payload.date})${tag}` };
+      return salaryAddAuditInfo(item.payload, tag);
+    case 'deleteSalaryPayment':
+      return salaryDeleteAuditInfo(item.payload, tag);
     case 'addParent':
       return { action: 'ADD_PARENT', targetType: 'parent', targetId: null, details: `${item.payload.fullName}${tag}` };
     case 'updateParent':

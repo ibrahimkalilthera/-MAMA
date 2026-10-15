@@ -16,6 +16,7 @@ import type { ReplayDb } from '../src/lib/offlineReplay';
 import { createRowId, isUuid } from '../src/lib/rowMappers';
 import type { OfflineActionType, OfflinePayload, QueueItem } from '../src/lib/offlineQueue';
 import { makeFakeDb } from './fakes';
+import { archivedSalaryOf } from '../src/lib/salaryUndo';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -91,6 +92,9 @@ const CASES: { type: OfflineActionType; build: () => QueueItem; table?: string; 
   { type: 'updateStaff', build: () => itemOf('updateStaff', { id: 't1', updates: { salary: 160000 } }), table: 'staff' },
   { type: 'deleteStaff', build: () => itemOf('deleteStaff', { id: 't1' }), table: 'staff' },
   { type: 'addSalaryPayment', build: () => itemOf('addSalaryPayment', { staffId: 't1', amount: 150000, date: '2026-01-31' }), table: 'salary_payments' },
+  // Le RETRAIT d'une paie fautive : la même table, et un instantané qui rend le
+  // geste annulable (voir le bloc « un salaire retiré hors ligne » plus bas).
+  { type: 'deleteSalaryPayment', build: () => itemOf('deleteSalaryPayment', { id: 'sp1', staffId: 't1', staffName: 'T', amount: 150000, date: '2026-01-31', academicYear: '2026-2027' }), table: 'salary_payments' },
   { type: 'addParent', build: () => itemOf('addParent', { fullName: 'Mme X', phones: ['123'], address: 'A', occupation: 'O', relationship: 'Mother' }), table: 'parents' },
   { type: 'updateParent', build: () => itemOf('updateParent', { id: 'p1', updates: { address: 'B' } }), table: 'parents' },
   { type: 'deleteParent', build: () => itemOf('deleteParent', { id: 'p1' }), table: 'parents' },
@@ -120,7 +124,7 @@ describe('offline queue replay (replayOfflineItem)', () => {
       'addPayment', 'deletePayment', 'updatePaymentMonths', 'addExpense', 'updateExpense', 'deleteExpense',
       'addVendorExpense', 'updateVendorExpense', 'deleteVendorExpense',
       'addStudent', 'updateStudent', 'deleteStudent',
-      'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment',
+      'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment', 'deleteSalaryPayment',
       'addParent', 'updateParent', 'deleteParent',
       'addTodo', 'updateTodo', 'deleteTodo',
       'addClass', 'updateClass', 'deleteClass',
@@ -218,6 +222,51 @@ describe('un réglage d’affichage changé hors ligne', () => {
     assert.equal(info?.targetType, 'app_settings');
     assert.equal(info?.targetId, 'display.density');
     assert.match(String(info?.details), /display\.density = compact/);
+  });
+});
+
+// ─── Un salaire retiré hors ligne : le geste ET sa trace ─────────────────────
+// Corriger une paie fautive doit marcher SANS réseau — c'est le cas normal ici —
+// et la correction doit rester ANNULABLE : le rejeu écrit donc la même entrée de
+// journal que le chemin en ligne, instantané compris (`salaryUndo.ts`), sinon la
+// ligne du journal dirait qu'un salaire a disparu sans rien à réinsérer.
+
+describe('un salaire retiré hors ligne', () => {
+  const deleted = () => itemOf('deleteSalaryPayment', {
+    id: 'sp1', staffId: 't1', staffName: 'Alice', amount: 150000, date: '2026-01-31', academicYear: '2026-2027',
+  });
+
+  it('la ligne du journal est celle du chemin en ligne, instantané compris', () => {
+    const info = offlineAuditInfo(deleted());
+    assert.equal(info?.action, 'DELETE_SALARY_PAYMENT');
+    assert.equal(info?.targetType, 'salary_payment');
+    assert.equal(info?.targetId, 'sp1');
+    assert.match(String(info?.details), /Alice/);
+    // L'instantané est ce qui rend le geste réversible : c'est LUI que
+    // `restorableSalary` relit pour proposer « Rétablir ».
+    const archived = archivedSalaryOf({ action: 'DELETE_SALARY_PAYMENT', metadata: info?.metadata ?? null });
+    assert.equal(archived?.salaryPaymentId, 'sp1');
+    assert.equal(archived?.staffId, 't1');
+    assert.equal(archived?.staffName, 'Alice');
+    assert.equal(archived?.amount, 150000);
+    assert.equal(archived?.date, '2026-01-31');
+    assert.equal(archived?.academicYear, '2026-2027');
+  });
+
+  it('une suppression retirée par la policy (200 sans ligne) n’est PAS un succès', async () => {
+    const { db } = makeFakeDb({ emptyWrites: ['salary_payments'] });
+    assert.equal(
+      await replayOfflineItem(db, deleted()),
+      false,
+      'compter ce retrait comme envoyé enlèverait de la file une suppression que la base n’a jamais reçue',
+    );
+  });
+
+  it('un rejeu sain ne retire qu’une ligne et n’en insère aucune', async () => {
+    const fake = makeFakeDb();
+    assert.equal(await replayOfflineItem(fake.db, deleted()), true);
+    assert.deepEqual(fake.queries, ['salary_payments']);
+    assert.equal(fake.rows.length, 0, 'un retrait n’insère rien');
   });
 });
 
@@ -637,7 +686,7 @@ describe('offline replay audit mapping (offlineAuditInfo)', () => {
     'addPayment', 'deletePayment', 'updatePaymentMonths', 'addExpense', 'updateExpense', 'deleteExpense',
     'addVendorExpense', 'updateVendorExpense', 'deleteVendorExpense',
     'addStudent', 'updateStudent', 'deleteStudent',
-    'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment',
+    'addStaff', 'updateStaff', 'deleteStaff', 'addSalaryPayment', 'deleteSalaryPayment',
     'addParent', 'updateParent', 'deleteParent',
     // Un réglage d'affichage est audité EN LIGNE aussi (`UPDATE_SETTING`, voir
     // dataOps/settings.ts) : le rejeu doit s'y lire de la même façon.

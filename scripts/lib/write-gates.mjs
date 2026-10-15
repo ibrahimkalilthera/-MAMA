@@ -541,6 +541,20 @@ export const WRITE_GATE_INVENTORY = [
     shown: /canWritePayroll/,
     gate: { file: 'src/lib/payrollRights.ts', symbol: 'PAYROLL_WRITER_ROLES', reader: /canWritePayroll/ },
   },
+  {
+    // La corbeille de la PAIE, et elle ne dit pas la même chose que celle du
+    // personnel : « Finance admins delete salary_payments »
+    // (`public.is_finance_admin()` — admin, dev, Gestionnaire Principal) alors
+    // que l'INSERT/UPDATE passe par `is_payroll_writer()` (l'économe en plus).
+    // Écrire et détruire ne sont pas le même droit : l'économe enregistre la paie
+    // sans pouvoir la retirer, et l'écran ne lui montre donc pas le bouton.
+    action: 'Supprimer un paiement de salaire',
+    table: 'salary_payments',
+    cmd: 'DELETE',
+    screen: 'src/components/PayrollView.tsx',
+    shown: /canDeleteSalaryPayment/,
+    gate: { file: 'src/lib/payrollRights.ts', symbol: 'SALARY_PAYMENT_DELETER_ROLES', reader: /canDeleteSalaryPayment/ },
+  },
 
   // ── Dépenses : la saisie quotidienne est ouverte à tout compte connecté en
   //    base ; l'écran la borne aux rôles financiers (écart déclaré), et la

@@ -10,8 +10,7 @@ import { useToast } from './lib/useToast';
 import { useAcademicYears } from './app/useAcademicYears';
 import { useFloatingChat } from './app/useFloatingChat';
 import { useAuthWelcome } from './app/useAuthWelcome';
-import { canDeleteRecords } from './lib/deleteRights';
-import { canDeletePayments, canUpdatePaymentMonths } from './lib/paymentRights';
+import { roleRights } from './app/roleRights';
 import { useTodoSidebar } from './app/useTodoSidebar';
 import { useParents } from './app/useParents';
 import { usePayments } from './app/usePayments';
@@ -126,6 +125,7 @@ const {
     fetchAll,
     addPayment,
     addSalaryPayment,
+    deleteSalaryPayment,
     addExpense,
     deleteStudent,
     deleteStaff,
@@ -498,9 +498,19 @@ const {
   getNotesForDay,
 } = paymentsData;
 
+// Les droits de l'ÉCRAN — détruire une ligne, renseigner les MOIS d'un reçu,
+// retirer un SALAIRE fautif — sont lus ICI, une seule fois, et descendus aux vues
+// (`src/app/roleRights.ts` cite pour chacun la policy dont il est le miroir). La
+// lecture précède le domaine de la paie parce que `usePayroll` s'en sert pour
+// REFUSER le geste, pas seulement pour masquer le bouton.
+const { canDelete, canDeletePayment, canEditPaymentMonths, canDeleteSalaryPayment } = roleRights(auth.profile?.role);
+
 const payrollData = usePayroll({
   t, lang, selectedYear, lockedYears, staff, salaryPayments, showToast,
   addStaff, updateStaff, addSalaryPayment, schoolLogo,
+  // Le geste est refusé ici aussi : « un booléen d'écran ne décide pas d'un droit ».
+  canDeleteSalaryPayment,
+  deleteSalaryPayment,
   toastError: (msg) => toast.error(msg),
 });
 const {
@@ -523,6 +533,7 @@ const {
   openEditStaffModal,
   handleExportStaffReceiptPdf,
   handleExportMonthlyPayrollExcel,
+  handleDeleteSalaryPayment,
 } = payrollData;
 
   const classesData = useClasses({
@@ -581,20 +592,6 @@ const {
   // src/app/viewsWiring.ts against both interfaces, so a partial wiring
   // still fails the gate. The literal moved there so App.tsx stays under
   // the line budget; buildShellProps recombines it with the shell extras.
-  // Le droit de SUPPRIMER vient de la base, pas de l'écran : la même liste de
-  // rôles que `public.is_admin()` (`src/lib/deleteRights.ts`), lue une seule
-  // fois ici et descendue aux vues. Une action que le serveur refuserait n'est
-  // donc plus AFFICHÉE — l'échec est empêché au lieu d'être annoncé.
-  const canDelete = canDeleteRecords(auth.profile?.role);
-  // Le droit de supprimer un PAIEMENT a sa propre liste : l'économe y figure
-  // (base : `public.is_payment_deleter()`), pas dans celle des tables admin.
-  const canDeletePayment = canDeletePayments(auth.profile?.role);
-  // Renseigner les MOIS d'un reçu déjà enregistré : encore une autre liste —
-  // la policy « Admin update payments » (`public.is_admin()`), plus ÉTROITE que
-  // la suppression. L'économe corrige un reçu fautif (il a `canDeletePayment`)
-  // sans pouvoir réécrire ses mois : la base ne l'y autorise pas, donc le
-  // bouton ne lui est pas montré.
-  const canEditPaymentMonths = canUpdatePaymentMonths(auth.profile?.role);
 
   // Préférences d'affichage (thème, densité, verre des icônes, langue) : le poste
   // les garde EN LOCAL, et la base en porte une copie — c'est elle que la
@@ -634,6 +631,7 @@ const {
     canDelete,
     canDeletePayment,
     canEditPaymentMonths,
+    canDeleteSalaryPayment,
     lang,
     t,
     toast,

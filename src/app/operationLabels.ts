@@ -23,6 +23,8 @@ export const OPERATION_LABELS: Record<string, { en: string; fr: string }> = {
   updateStaff: { en: 'Staff updated', fr: 'Employé mis à jour' },
   deleteStaff: { en: 'Staff deleted', fr: 'Employé supprimé' },
   addSalaryPayment: { en: 'Salary recorded', fr: 'Salaire enregistré' },
+  deleteSalaryPayment: { en: 'Salary deleted', fr: 'Salaire supprimé' },
+  restoreSalaryPayment: { en: 'Salary restored', fr: 'Salaire rétabli' },
   addExpense: { en: 'Expense added', fr: 'Dépense ajoutée' },
   addVendorExpense: { en: 'Vendor expense added', fr: 'Charge fournisseur ajoutée' },
   updateVendorExpense: { en: 'Vendor expense updated', fr: 'Charge fournisseur mise à jour' },

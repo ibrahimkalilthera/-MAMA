@@ -30,9 +30,11 @@
  * relit sans avoir à rouvrir le papier remis au comptoir.
  */
 import type { PaymentHistoryFilter, PaymentHistoryRow, PaymentHistorySummary } from './paymentHistory';
+import { correctionHistorySummary, type CorrectionHistoryRow } from './correctionHistory';
 import { downloadBytes } from './browserDownload';
 import { drawSchoolStamp } from './pdfStamp';
 import {
+  correctionHistoryCells,
   describePaymentHistoryFilter,
   paymentHistoryCells,
   paymentHistoryColumnLabels,
@@ -50,6 +52,16 @@ export interface PaymentHistoryPdfOptions {
   filter?: PaymentHistoryFilter;
   /** Le formateur de montants de l'écran — le papier et la vue ne peuvent pas diverger. */
   formatMoney: (amount: number) => string;
+  /**
+   * Les GESTES DE CORRECTION de la même vue (salaires et dépenses retirés,
+   * salaires rétablis), tels que `correctionHistoryRows` les rend.
+   *
+   * Ils sont imprimés dans une section à part, après les encaissements, et leur
+   * total ne touche PAS le net de caisse : un salaire ou une dépense retiré n'est
+   * pas un encaissement. Le document le dit en tête de section — un lecteur qui
+   * aurait additionné les deux blocs aurait un chiffre faux.
+   */
+  corrections?: CorrectionHistoryRow[];
   lang?: 'en' | 'fr';
 }
 
@@ -92,6 +104,7 @@ export async function generatePaymentHistoryPdf({
   rows,
   summary,
   filter,
+  corrections = [],
   formatMoney,
   lang = 'fr',
 }: PaymentHistoryPdfOptions): Promise<void> {
@@ -99,6 +112,7 @@ export async function generatePaymentHistoryPdf({
   const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const locale = lang === 'fr' ? 'fr-FR' : 'en-US';
   const list = Array.isArray(rows) ? rows : [];
+  const correctionList = Array.isArray(corrections) ? corrections : [];
   const context = { t, lang, formatMoney };
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -168,13 +182,17 @@ export async function generatePaymentHistoryPdf({
   };
   drawHeader();
 
-  list.forEach((row, index) => {
+  /**
+   * Dessine une ligne du tableau — les encaissements ET les corrections passent
+   * par ICI : deux boucles écrites à la main auraient fini par dessiner deux
+   * tableaux différents dans le même document.
+   */
+  const drawRow = (cells: string[], index: number) => {
     if (y > ROW_LIMIT) {
       doc.addPage();
       y = 18;
       drawHeader();
     }
-    const cells = paymentHistoryCells(row, context);
     // Le détail est le seul texte qui puisse déborder : c'est lui qui décide de
     // la hauteur de la ligne (un repli sur trois lignes ne chevauchera pas la
     // ligne suivante). Il est la DERNIÈRE cellule — son rang suit l'en-tête, il
@@ -207,7 +225,29 @@ export async function generatePaymentHistoryPdf({
     doc.text(details, COLUMN_X[7], y + 4.2);
 
     y += rowHeight;
-  });
+  };
+
+  list.forEach((row, index) => drawRow(paymentHistoryCells(row, context), index));
+
+  // 3 bis. Les GESTES DE CORRECTION, dans leur propre section : ils ne sont pas
+  //       des encaissements, et le bloc le dit AVANT de les lister pour qu'aucun
+  //       lecteur ne les additionne au net ci-dessus.
+  if (correctionList.length > 0) {
+    const totals = correctionHistorySummary(correctionList);
+    if (y > ROW_LIMIT - 12) {
+      doc.addPage();
+      y = 18;
+    } else {
+      y += 4;
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(180, 83, 9);
+    doc.text(t.paymentHistoryCorrectionsNote.replace('{count}', String(totals.count)), MARGIN, y);
+    y += 5.5;
+    drawHeader();
+    correctionList.forEach((row, index) => drawRow(correctionHistoryCells(row, context), index));
+  }
 
   // 4. Cachet + mention officielle, SOUS le contenu (jamais par-dessus une ligne) :
   //    une page trop pleine déplace le bloc entier sur une page neuve.

@@ -90,13 +90,13 @@ export function SettingsUsersCard() {
                   )}
 
                   {/* Role Definitions & Stats Banner */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className={`p-4 rounded-2xl border ${currentTheme.accentBorder} ${currentTheme.accentSoft}`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-2xs font-black uppercase tracking-wider ${currentTheme.accentSoftText} flex items-center gap-1.5`}>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <span className={`text-2xs font-black uppercase tracking-wider leading-tight ${currentTheme.accentSoftText} flex min-w-0 items-center gap-1.5`}>
                           <Crown size={14} className="text-amber-500 flex-shrink-0" /> {t.promoterAdminsPlusGM}
                         </span>
-                        <span className={`text-xs font-black ${currentTheme.accentSoft} ${currentTheme.accentSoftText} px-2 py-0.5 rounded-full`}>
+                        <span className={`shrink-0 whitespace-nowrap text-xs font-black ${currentTheme.accentSoft} ${currentTheme.accentSoftText} px-2 py-0.5 rounded-full`}>
                           {userProfiles.filter(p => p.role === 'admin' || p.role === 'general_manager').length}
                         </span>
                       </div>
@@ -106,11 +106,11 @@ export function SettingsUsersCard() {
                     </div>
 
                     <div className={`p-4 rounded-2xl border ${currentTheme.accentBorder} ${currentTheme.accentSoft}`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-2xs font-black uppercase tracking-wider ${currentTheme.accentSoftText} flex items-center gap-1.5`}>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <span className={`text-2xs font-black uppercase tracking-wider leading-tight ${currentTheme.accentSoftText} flex min-w-0 items-center gap-1.5`}>
                           <Briefcase size={14} className="flex-shrink-0" /> {t.roleStaff}
                         </span>
-                        <span className={`text-xs font-black ${currentTheme.accentSoft} ${currentTheme.accentSoftText} px-2 py-0.5 rounded-full`}>
+                        <span className={`shrink-0 whitespace-nowrap text-xs font-black ${currentTheme.accentSoft} ${currentTheme.accentSoftText} px-2 py-0.5 rounded-full`}>
                           {userProfiles.filter(p => p.role === 'staff').length}
                         </span>
                       </div>
@@ -120,11 +120,11 @@ export function SettingsUsersCard() {
                     </div>
 
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-teal-950/20 border-teal-500/30' : 'bg-teal-50/70 border-teal-200'}`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-2xs font-black uppercase tracking-wider text-teal-700 dark:text-teal-400 flex items-center gap-1.5">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <span className="text-2xs font-black uppercase tracking-wider leading-tight text-teal-700 dark:text-teal-400 flex min-w-0 items-center gap-1.5">
                           <Receipt size={14} className="text-violet-500 flex-shrink-0" /> {t.roleEconome}
                         </span>
-                        <span className="text-xs font-black bg-teal-500/20 text-teal-800 dark:text-teal-400 px-2 py-0.5 rounded-full">
+                        <span className="shrink-0 whitespace-nowrap text-xs font-black bg-teal-500/20 text-teal-800 dark:text-teal-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'econome').length}
                         </span>
                       </div>
@@ -134,11 +134,11 @@ export function SettingsUsersCard() {
                     </div>
 
                     <div className={`p-4 rounded-2xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-purple-950/20 border-purple-500/30' : 'bg-purple-50/70 border-purple-200'}`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-2xs font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <span className="text-2xs font-black uppercase tracking-wider leading-tight text-purple-600 dark:text-purple-400 flex min-w-0 items-center gap-1.5">
                           <Zap size={14} className="text-amber-500 flex-shrink-0" /> {t.engineeringDev}
                         </span>
-                        <span className="text-xs font-black bg-purple-500/20 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full">
+                        <span className="shrink-0 whitespace-nowrap text-xs font-black bg-purple-500/20 text-purple-700 dark:text-purple-400 px-2 py-0.5 rounded-full">
                           {userProfiles.filter(p => p.role === 'dev').length}
                         </span>
                       </div>
@@ -149,8 +149,8 @@ export function SettingsUsersCard() {
                   </div>
 
                   {/* Filter & Search Bar */}
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative flex-1">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="relative min-w-0 flex-1">
                       {/* Un champ de RECHERCHE, et il le DIT. Un <input type="text">
                           voisin d'un champ mot de passe est, pour le gestionnaire de
                           mots de passe du navigateur, un champ « identifiant » : il y
@@ -168,10 +168,10 @@ export function SettingsUsersCard() {
                         placeholder={t.searchByNameOrEmail}
                         className={`w-full pl-10 pr-4 py-2.5 rounded-xl border ${currentTheme.border} ${currentTheme.isDark ? 'bg-white/5 text-white' : 'bg-slate-50 text-slate-800'} text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/30`}
                       />
-                      <Users size={16} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
+                      <Users size={16} className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} />
                     </div>
 
-                    <div className="flex items-center gap-1 p-1 bg-white/5 rounded-xl border border-white/10 self-start">
+                    <div className="flex max-w-full items-center gap-1 self-start overflow-x-auto p-1 bg-white/5 rounded-xl border border-white/10 sm:self-center">
                       {([
                         { id: 'all', label: t.all },
                         { id: 'admin', label: 'Admins' },
@@ -181,7 +181,7 @@ export function SettingsUsersCard() {
                         <button
                           key={tab.id}
                           onClick={() => setUserRoleFilter(tab.id)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             userRoleFilter === tab.id
                               ? `${currentTheme.accentBg} ${currentTheme.accentText} shadow-sm`
                               : `${currentTheme.muted} hover:text-white`

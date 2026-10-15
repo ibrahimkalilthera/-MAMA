@@ -5091,3 +5091,41 @@ graph TD
 - **Chaîne locale verte sur l'arbre exact** : `npm run lint` **exit 0** (tsc strict, les 45 contrôles inventoriés dont la porte YAML neuve) et `npm test` **exit 0 — 3345/3345**, sur le runtime épinglé 22.23.3.
 - **Ce qui n'a PAS été touché** : aucun code applicatif, aucun droit, aucune migration, aucune porte d'écriture, et **la version reste 1.0.33** — ces bumps ne portent aucun changement de comportement à annoncer aux postes. Ce qui les emportera dans l'application installée est la **prochaine** version (une version se publie sur un numéro inédit, jamais sur un fichier) ; le site, lui, les sert depuis ce déploiement.
 - **Reste ouvert, et nommé** : la limite de PR est repartie de zéro (0 ouverte), donc Dependabot peut proposer de nouveau — c'est tout ce que cette opération devait rouvrir. Les trois serveurs de dev Vite tournent toujours avec un `node_modules` qu'ils n'ont pas vu changer : s'ils se comportent bizarrement, c'est leur redémarrage qu'il faut, pas une réparation du dépôt.
+
+---
+
+## 14/10/2026 — Une station en retard voyait la mise à jour **deux fois** : le poste et la fenêtre parlaient tous les deux
+
+### Le symptôme, tel qu'une secrétaire le voit
+
+Un poste sur une version ancienne est ouvert : la fenêtre de l'app annonce « Mise à jour disponible » (bandeau React), et **la boîte de dialogue native** d'electron-updater apparaît par-dessus. Les deux lancent le téléchargement, les deux proposent « Redémarrer », et l'installation part **deux fois** — ce qui, en NSIS, se termine par un poste bloqué au milieu de la mise à jour. Ce n'est pas une question d'affichage : c'est deux automates qui décident en parallèle sur la même installation.
+
+### La cause, mesurée ligne à ligne
+
+`electron/main.cjs` laissait `autoUpdater.autoDownload = true` et laissait la bibliothèque **afficher sa propre boîte** (`autoInstallOnAppQuit` + dialogue interne). Or `electron/updater-policy.cjs` porte déjà **toutes** les décisions : `downloadConsent()` (télécharger seulement si annoncé, ou si le mode preuve/presse l'exige), `gateFailure()` (une installation non aboutie se dit), `updatePressure()`/`updateGate()` (le retard, sa porte obligatoire ou non), `updateAction()`. Le poste décidait donc deux fois : une fois par notre politique, une fois par la bibliothèque qui n'en sait rien — et la seconde était aveugle à nos règles (mode portable, hold, silence volontaire).
+
+### Le remède : un seul décideur, et le rail des fenêtres dans le preload
+
+1. **La politique redevient la seule voix** : la bibliothèque ne télécharge plus toute seule et n'affiche plus rien — toutes les décisions passent par `updater-policy.cjs`, et l'annonce passe par **notre** bandeau.
+2. **La fenêtre native est *retirée* si la politique la refuse** (mode portable, hold publié dans `updates/holds.json`, silence volontaire d'une station) : la carte « distribuer » sort par `checkForUpdates()` puis `autoDownload = false` + `autoInstallOnAppQuit = false` + `autoRunAppAfterInstall = false`, dans cet ordre — le retrait avant l'appel, sinon la bibliothèque a le temps de lancer son propre téléchargement entre les deux.
+3. **Le rail manquant du preload** : le pont portait déjà `getState`, `onState`, `install`, `retry`, `journal`, `stationBeat` — mais **rien pour dire « le bandeau est à l'écran »**. `electron/preload.cjs` gagne donc `updates.uiReady` seul, et c'est **le** fait qui manquait : sans lui, le processus principal ne pouvait pas savoir si quelqu'un regardait l'écran, donc `askOwner` restait aveugle et les deux demandeurs parlaient ensemble.
+4. **La retombée, pas la montée** : `uiReady` s'arme sur le montage **et se retire au démontage** (`uiReady?.(false)`), pour qu'un rechargement de fenêtre ne laisse pas croire que le bandeau est encore là.
+5. **L'installation reste au poste** : `restartAndInstall` n'agit que si `updater-policy.cjs` donne le feu (`updateAction`), et une version refusée sur ses octets ne s'installe par aucun des trois chemins (bouton, fermeture, rappel déjà programmé).
+
+### La porte qui a mordu, et c'est la suite qui a parlé
+
+Le premier jet de `tests/update-banner.test.tsx` prouvait la surface avec `assert.ok(banner.classList.contains(...))` — forme acceptée — mais un cas voisin comparait **un nœud happy-dom** au lieu d'un booléen. `tests/settings-filter-honesty.test.tsx` (la règle de classe : « aucune assertion des suites ne reçoit un élément à inspecter ») l'a refusé : un nœud passé à une assertion fait exploser le tas au lieu de dire « attendu null, reçu `<div…>` ». Corrigé par la **projection en booléen** — pas d'exception, pas de porte désarmée. La suite a donc trouvé ma propre violation, ce qui est exactement son travail.
+
+### Ce qui a été mesuré sur l'arbre exact
+
+- `npm test` → **exit 0, 3353/3353** (dont les cas neufs du bandeau et la règle de classe qui continue de mordre).
+- `npm run lint` → **exit 0** (tsc strict + les contrôles inventoriés).
+- Les **deux** builds → **exit 0** : `npm run build` (site) et `npm run electron:ui` (le bundle que l'application de bureau charge réellement).
+- **Contrôle dans les artefacts, pas dans les sources** : le bundle compilé contient `uiReady?.(` (montage) **et** `uiReady?.(!1` (retrait, `false` minifié), et `electron/preload.cjs` porte bien les quatre gestes du rail. C'est la seule preuve qui parle du fichier installé.
+
+### Les limites, nommées — et aucune n'est maquillée
+
+- **Le correctif est dans le mécanisme de mise à jour : il ne peut atteindre les postes que par une mise à jour.** Un poste figé sur une version qui contient encore le dialogue natif continuera de le voir une fois — c'est irréparable depuis l'extérieur ; la version suivante l'apaise définitivement.
+- **La preuve de bout en bout en NSIS n'est pas jouable ici** : `npm run verify:updater` s'arrête au fait `update-downloaded` (l'installation exige Windows et un canal publié) et `Desktop E2E` tourne sur les runners Windows, hebdomadaire et à la demande. Ce qui est prouvé : le poste refuse les octets menteurs, un seul décideur, le bandeau porte la nouvelle, et le retrait du rail est dans le bundle. Ce qui reste non prouvé : le `restartAndInstall` cliqué pour de vrai sur une station.
+- **Un coin d'**affichage** demeure** : dans une installation **non obligatoire** où l'utilisateur a **déjà fermé** le bandeau, un `update-downloaded` tardif peut re-proposer la surface. Le verrou d'installation rend la chose inoffensive (aucun second téléchargement, aucune seconde installation) — c'est de la cosmétique, pas un chemin d'installation, et c'est dit plutôt que caché.
+- **La version reste 1.0.33, rien n'est commité** : l'arbre porte le correctif, les tests et cette trace. Ce qui l'emportera vers les postes est une **nouvelle** version publiée (une version se publie sur un numéro inédit), geste du propriétaire, pas un effet de bord de ce travail.

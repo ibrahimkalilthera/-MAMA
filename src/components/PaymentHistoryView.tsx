@@ -53,6 +53,8 @@ import { offlineOriginNote, offlineOriginOf } from '../lib/auditOffline';
 import { downloadBytes } from '../lib/browserDownload';
 import type { Payment, Student } from '../lib/domainTypes';
 import { restorablePayment, type ArchivedPayment } from '../lib/paymentUndo';
+import { restorableSalary, type ArchivedSalaryPayment } from '../lib/salaryUndo';
+import { correctionHistoryRows } from '../lib/correctionHistory';
 import {
   PAYMENT_HISTORY_ACTIONS,
   filterPaymentHistory,
@@ -95,8 +97,8 @@ function mergeLogs(...lists: AuditLogEntry[][]): AuditLogEntry[] {
 
 export function PaymentHistoryView() {
   const {
-    t, lang, currentTheme, auditLogs, students, fetchAuditLogs, fetchAuditJournalRange, formatCurrency, auth,
-    canDeletePayment, deletePayment, generatePaymentReceiptPdf, restorePayment,
+    t, lang, currentTheme, auditLogs, students, staff, fetchAuditLogs, fetchAuditJournalRange, formatCurrency, auth,
+    canDeletePayment, deletePayment, generatePaymentReceiptPdf, restorePayment, restoreSalaryPayment,
   } = useMainViews();
   const [actionFilter, setActionFilter] = useState<PaymentHistoryAction | 'all'>('all');
   const [fromDate, setFromDate] = useState('');
@@ -123,6 +125,10 @@ export function PaymentHistoryView() {
   const rows = paymentHistoryRows({ logs: allLogs, students });
   const viewRows = filterPaymentHistory(rows, { action: actionFilter, from: fromDate, to: toDate, search });
   const summary = paymentHistorySummary(viewRows);
+  // Les GESTES DE CORRECTION (salaire ou dépense retirés, salaire rétabli) vivent
+  // dans leur propre lecture : ils ne sont pas des encaissements, donc le net et
+  // les colonnes du tableau ci-dessus ne les voient pas (voir `correctionHistory`).
+  const corrections = correctionHistoryRows({ logs: allLogs, staff });
   const fmt = (iso: string) => new Date(iso).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US');
   const day = (iso: string) => new Date(iso).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-US');
   const money = (amount: number) => formatCurrency(amount);
@@ -143,15 +149,19 @@ export function PaymentHistoryView() {
    */
   const downloadCsv = () => {
     downloadBytes(
-      paymentHistoryCsvBytes(buildPaymentHistoryCsv(viewRows, exportContext)),
+      paymentHistoryCsvBytes(buildPaymentHistoryCsv(viewRows, exportContext, corrections)),
       paymentHistoryExportFilename('csv'),
       PAYMENT_HISTORY_CSV_MIME,
     );
   };
 
-  /** Le PDF de la même vue : mêmes lignes, mêmes filtres écrits en tête. */
+  /**
+   * Le PDF de la même vue : mêmes lignes, mêmes filtres écrits en tête — et les
+   * gestes de correction dans leur propre section, sinon le papier dirait moins
+   * que l'écran, et un lecteur croirait que rien n'a été retiré.
+   */
   const downloadPdf = async () => {
-    await generatePaymentHistoryPdf({ rows: viewRows, summary, filter: activeFilter, formatMoney: money, lang });
+    await generatePaymentHistoryPdf({ rows: viewRows, summary, filter: activeFilter, corrections, formatMoney: money, lang });
   };
 
   /**
@@ -192,6 +202,19 @@ export function PaymentHistoryView() {
   /** Annuler une suppression — le MÊME geste que le journal d'audit. */
   const restore = async (archived: ArchivedPayment) => {
     if (await restorePayment(archived)) await fetchAuditLogs();
+  };
+
+  /**
+   * Rétablir un SALAIRE retiré — l'exact pendant de la corbeille de la paie.
+   *
+   * La règle est celle de `restorableSalary` : seule une suppression À
+   * INSTANTANÉ se rétablit, et jamais deux fois (une entrée
+   * `RESTORE_SALARY_PAYMENT` retire le bouton). Une suppression d'avant cette
+   * fonction n'en porte pas : la ligne reste visible, sans bouton — on n'invente
+   * pas la ligne qu'on n'a pas gardée.
+   */
+  const restoreSalary = async (archived: ArchivedSalaryPayment) => {
+    if (await restoreSalaryPayment(archived)) await fetchAuditLogs();
   };
 
   /**
@@ -527,6 +550,120 @@ export function PaymentHistoryView() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/*
+        ─── LES GESTES DE CORRECTION ───────────────────────────────────────────
+        Ce que l'école a RETIRÉ du registre — un salaire saisi pour le mauvais
+        membre, une dépense enregistrée deux fois — et ce qu'elle a rétabli.
+
+        Pourquoi un bloc À PART, et pas des lignes de plus dans le tableau : ce ne
+        sont pas des encaissements. Une seule liste aurait fait dire au net
+        « encaissé » un montant qu'aucune famille n'a payé. Ici, chaque famille
+        garde son sens : le net reste celui de la caisse, et les corrections se
+        lisent pour ce qu'elles sont — des gestes, avec leur auteur.
+
+        Le montant n'existe que si l'instantané en porte un (`salaryUndo`) : une
+        ligne sans montant le dit par un tiret plutôt que d'afficher un zéro qui
+        aurait l'air d'un montant.
+      */}
+      <div className={`${currentTheme.card} border ${currentTheme.border} rounded-2xl overflow-hidden shadow-sm`}>
+        <div className="p-6 border-b border-slate-100">
+          <h3 className={`text-sm font-black ${currentTheme.inkStrong} flex items-center gap-2`}>
+            <Trash2 size={16} className="text-rose-600 dark:text-rose-300" />
+            <span>{t.paymentHistoryCorrections}</span>
+          </h3>
+          <p className={`text-2xs ${currentTheme.muted} mt-1`}>
+            {t.paymentHistoryCorrectionsNote.replace('{count}', String(corrections.length))}
+          </p>
+        </div>
+        {corrections.length === 0 ? (
+          <p className={`px-6 py-8 text-center text-xs italic ${currentTheme.muted}`}>
+            {t.paymentHistoryCorrectionsEmpty}
+          </p>
+        ) : (
+          <div className="max-h-[50vh] overflow-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 z-10">
+                <tr className={`${currentTheme.surfaceInset} ${currentTheme.muted} text-2xs font-black uppercase tracking-[0.2em]`}>
+                  <th className="px-4 py-4">{t.timestamp}</th>
+                  <th className="px-4 py-4">{t.actions}</th>
+                  <th className="px-4 py-4">{t.paymentHistorySubject}</th>
+                  <th className="px-4 py-4 text-right">{t.amount2}</th>
+                  <th className="px-4 py-4">{t.paymentHistoryCollectedBy}</th>
+                  <th className="px-4 py-4">{t.details}</th>
+                </tr>
+              </thead>
+              <tbody className={`divide-y ${currentTheme.border}`}>
+                {corrections.map((row) => {
+                  const offline = offlineOriginOf(row.log);
+                  // Une suppression encore annulable : la MÊME règle que la
+                  // restauration d'un reçu, sur le même journal fusionné.
+                  const archived = restorableSalary(row.log, allLogs);
+                  const removed = row.action !== 'RESTORE_SALARY_PAYMENT';
+                  return (
+                    <tr key={row.id} className={`${currentTheme.rowHover} ${offline ? 'bg-rose-500/5' : ''} transition-all`}>
+                      <td className="px-4 py-4 whitespace-nowrap align-top">
+                        <span className={`text-xs font-mono ${offline ? 'text-rose-600 dark:text-rose-300 font-bold' : currentTheme.muted}`}>
+                          {fmt(row.at)}
+                        </span>
+                        {offline && (
+                          <span className="ml-2 text-2xs font-black tracking-wider uppercase px-2 py-0.5 rounded-full border bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20">
+                            {t.auditOfflineBadge}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap align-top">
+                        <div className="flex flex-col items-start gap-2">
+                          <span className={`text-2xs font-black tracking-wider uppercase px-2.5 py-1 rounded-full border ${
+                            removed
+                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/20'
+                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20'
+                          }`}>
+                            {auditActionLabel(row.action, t)}
+                          </span>
+                          {archived && (
+                            <button
+                              onClick={() => { void restoreSalary(archived); }}
+                              title={t.restoreSalaryPaymentHint}
+                              className="px-2 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 rounded text-2xs font-bold transition-all flex items-center gap-1"
+                            >
+                              <RotateCcw size={12} /> {t.restoreSalaryPayment}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <span className={`text-xs font-bold ${currentTheme.text}`}>{row.subject || '—'}</span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap align-top text-right">
+                        {row.amount === null ? (
+                          <span className={`text-2xs italic ${currentTheme.muted}`}>{t.paymentHistoryAmountInDetails}</span>
+                        ) : (
+                          <span className={`text-xs font-black tabular-nums ${removed ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                            {removed ? `− ${money(row.amount)}` : money(row.amount)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex flex-col">
+                          <span className={`text-xs font-bold ${currentTheme.text}`}>{row.actorName || t.roleStaff}</span>
+                          <span className="text-2xs text-slate-400 font-mono">{row.actorEmail || '—'}</span>
+                          {row.actorRole && <span className={`text-2xs ${currentTheme.muted}`}>{row.actorRole}</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <span className={`text-xs font-medium ${offline ? 'text-rose-600 dark:text-rose-300' : currentTheme.text}`}>
+                          {localizeAuditDetails(row.log.details, lang) || '—'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Le rapport de caisse du jour : la MÊME lecture que le tableau ci-dessus,

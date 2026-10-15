@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useMainViews } from '../app/mainViewsContext';
 import type { StaffPositionFilter } from '../app/mainViewsProps';
-import type { Staff } from '../lib/useSupabaseData';
+import type { SalaryPayment, Staff } from '../lib/useSupabaseData';
 import { sameYearMonth } from '../lib/dateWindows';
 import { isPayrollWindowOverdue } from '../lib/payrollWindow';
 import { payrollGridCellStatus } from '../lib/payrollGrid';
@@ -18,7 +18,10 @@ const SCHOOL_YEAR_MONTH_INDEXES = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7];
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
-  const { AlertCircle, ChevronDown, Download, FileText, Globe, GraduationCap, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, auth, canDelete, currentMonth, currentYear, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails  } = useMainViews();
+  // Le salaire dont la suppression attend sa confirmation. La confirmation dit
+  // le MEMBRE, le MONTANT et la DATE qui partent — jamais « êtes-vous sûr ? ».
+  const [confirmDeleteSalary, setConfirmDeleteSalary] = useState<SalaryPayment | null>(null);
+  const { AlertCircle, ChevronDown, Download, FileText, Globe, GraduationCap, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, auth, canDelete, canDeleteSalaryPayment, currentMonth, currentYear, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleDeleteSalaryPayment, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails  } = useMainViews();
   // Le droit d'ÉCRIRE la paie et le personnel vient de la BASE, pas de l'écran :
   // les mêmes listes de rôles que `public.is_payroll_writer()` et
   // `public.is_finance_writer()` (`src/lib/payrollRights.ts`). Un compte `econome`
@@ -512,15 +515,35 @@ export function PayrollView() {
                             <span className="text-sm font-black text-emerald-600">{formatCurrency(p.amount)}</span>
                           </td>
                           <td className="px-8 py-6 text-right">
-                            {staffMember && (
-                              <button
-                                onClick={() => generateStaffPayslipPdf({ staffMember, payment: p, lang })}
-                                className={`px-3 py-1.5 bg-slate-800 ${currentTheme.hoverSurfaceStrong} text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ml-auto active:scale-95`}
-                                title={t.downloadPayslipPdf}
-                              >
-                                <Receipt size={12} /> {t.payslip}
-                              </button>
-                            )}
+                            <div className="flex items-center justify-end gap-2">
+                              {staffMember && (
+                                <button
+                                  onClick={() => generateStaffPayslipPdf({ staffMember, payment: p, lang })}
+                                  className={`px-3 py-1.5 bg-slate-800 ${currentTheme.hoverSurfaceStrong} text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95`}
+                                  title={t.downloadPayslipPdf}
+                                >
+                                  <Receipt size={12} /> {t.payslip}
+                                </button>
+                              )}
+                              {/* « Finance admins delete salary_payments » : la
+                                  corbeille n'existe QUE pour les rôles que la base
+                                  accepte pour une suppression (admin, dev,
+                                  Gestionnaire Principal) — l'économe enregistre la
+                                  paie sans pouvoir la détruire. Pas de rôle, pas de
+                                  bouton : un bouton que le serveur refuserait est un
+                                  mensonge, pas une aide. Le libellé accompagne
+                                  l'icône, sinon une corbeille se lit comme un
+                                  ornement. */}
+                              {canDeleteSalaryPayment && p.id && (
+                                <button
+                                  onClick={() => setConfirmDeleteSalary(p)}
+                                  className={`px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 ${currentTheme.hoverAlert} text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95`}
+                                  title={t.deleteSalaryPayment}
+                                >
+                                  <Trash2 size={12} /> {t.deleteSalaryPayment}
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -548,6 +571,26 @@ export function PayrollView() {
             setConfirmDeleteStaff(null);
           }}
           onCancel={() => setConfirmDeleteStaff(null)}
+          currentTheme={currentTheme}
+        />
+
+        {/* La confirmation d'un salaire fautif : elle nomme le membre, le montant
+            et la date, pour qu'on ne retire pas la paie du mauvais mois. */}
+        <ConfirmDialog
+          open={!!confirmDeleteSalary}
+          title={t.deleteSalaryPayment}
+          message={t.deleteSalaryPaymentConfirm
+            .replace('{name}', confirmDeleteSalary ? (staff.find(s => s.id === confirmDeleteSalary.staffId)?.name || t.unknown) : '')
+            .replace('{amount}', confirmDeleteSalary ? formatCurrency(confirmDeleteSalary.amount) : '')
+            .replace('{date}', confirmDeleteSalary?.date || '')}
+          confirmLabel={t.deleteSalaryPayment}
+          cancelLabel={t.cancel}
+          onConfirm={() => {
+            const target = confirmDeleteSalary;
+            setConfirmDeleteSalary(null);
+            if (target) void handleDeleteSalaryPayment(target);
+          }}
+          onCancel={() => setConfirmDeleteSalary(null)}
           currentTheme={currentTheme}
         />
     </>

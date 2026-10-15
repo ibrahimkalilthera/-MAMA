@@ -35,6 +35,8 @@ import {
   paymentHistorySummary,
 } from '../src/lib/paymentHistory';
 import { archivedPaymentFrom, paymentSnapshotMetadata } from '../src/lib/paymentUndo';
+import { archivedSalaryFrom, salarySnapshotMetadata } from '../src/lib/salaryUndo';
+import { correctionHistoryRows, type CorrectionHistoryRow } from '../src/lib/correctionHistory';
 import { paymentMotifLabel } from '../src/lib/paymentMotifs';
 import {
   PAYMENT_HISTORY_CSV_MIME,
@@ -149,6 +151,42 @@ const context: PaymentHistoryExportContext = {
   formatMoney: (amount: number) => `${amount} XOF`,
 };
 
+// ── Les GESTES DE CORRECTION : ce que l'école a RETIRÉ du registre ──────────
+// Un salaire dont la ligne fautive a été retirée — l'instantané porte le montant
+// ET le membre — et une dépense retirée sans instantané : son montant n'existe
+// nulle part, et le fichier doit le DIRE au lieu d'en inventer un. Ces deux
+// familles ne sont pas des encaissements (voir correctionHistory), donc elles se
+// mesurent à CÔTÉ du tableau des reçus, jamais dans ses totaux.
+const SALARY_AMOUNT = 150000;
+const correctionLogs: AuditLogEntry[] = [
+  {
+    id: 'sal1',
+    action: 'DELETE_SALARY_PAYMENT',
+    targetType: 'salary_payment',
+    targetId: 'sp1',
+    userName: 'Moussa Keïta',
+    userEmail: 'moussa@mama.test',
+    userRole: 'general_manager',
+    createdAt: '2026-10-07T09:00:00Z',
+    details: 'Salaire de 150000 FCFA (2026-01-31) supprimé — membre Awa Sy',
+    metadata: salarySnapshotMetadata(archivedSalaryFrom('t1', 'Awa Sy', {
+      id: 'sp1', staffId: 't1', amount: SALARY_AMOUNT, date: '2026-01-31', academicYear: '2026-2027',
+    })),
+  },
+  {
+    id: 'exp1',
+    action: 'DELETE_EXPENSE',
+    targetType: 'expense',
+    targetId: 'e1',
+    userName: 'Admin',
+    createdAt: '2026-10-08T09:00:00Z',
+    details: 'suppression dépense',
+  },
+];
+
+// L'ordre est celui du journal relu : la plus récente d'abord.
+const corrections: CorrectionHistoryRow[] = correctionHistoryRows({ logs: correctionLogs });
+
 /** Le CSV d'une liste de lignes, découpé : la première ligne est l'en-tête. */
 const csvLines = (list = rows) => buildPaymentHistoryCsv(list, context).split('\r\n');
 
@@ -227,6 +265,48 @@ describe('export CSV — les colonnes de l’écran, et rien d’autre', () => {
   });
 });
 
+describe('les gestes de correction dans l’export — à côté, jamais dans le net', () => {
+  it('écrit la correction APRÈS les encaissements, dans les colonnes de l’écran', () => {
+    const lines = buildPaymentHistoryCsv(rows, context, corrections).split('\r\n');
+    assert.equal(lines.length, 1 + rows.length + corrections.length, 'en-tête, encaissements, puis corrections');
+
+    const salaryLine = lines.find((line) => line.includes(`"${t.auditActionDeleteSalaryPayment}"`));
+    assert.ok(salaryLine, 'le retrait d’un salaire part dans le fichier — l’écran le montre, l’export ne peut pas le taire');
+    // Le découpage passe par la BORNE de cellule (« "," ») et non par la virgule :
+    // l'horodatage d'une ligne porte lui-même une virgule (« 07/10/2026, 09:00 »),
+    // donc `split(',')` décalerait toutes les colonnes qui suivent.
+    assert.equal(salaryLine!.split('","').length, 8, 'les MÊMES huit colonnes que les encaissements');
+    const label = t.auditActionDeleteSalaryPayment;
+    assert.ok(
+      salaryLine!.includes(`"Awa Sy","${label}","- ${SALARY_AMOUNT} XOF","—","—",`),
+      'MEMBRE, geste, montant SIGNÉ, puis deux tirets : un salaire n’a ni reçu ni motif, et on ne lui en prête pas',
+    );
+    assert.ok(
+      salaryLine!.includes('Moussa Keïta') && salaryLine!.includes('general_manager'),
+      'l’auteur du geste est nommé, avec son compte et son rôle',
+    );
+    assert.ok(lines.indexOf(salaryLine!) > rows.length, 'les corrections SUIVENT les encaissements, elles ne s’y mêlent pas');
+    assert.doesNotMatch(buildPaymentHistoryCsv(rows, context, corrections), /DELETE_SALARY_PAYMENT|DELETE_EXPENSE/, 'aucun code brut ne part dans le fichier');
+  });
+
+  it('un geste sans instantané DIT qu’il n’a pas de montant au lieu d’en inventer un', () => {
+    const lines = buildPaymentHistoryCsv(rows, context, corrections).split('\r\n');
+    const expenseLine = lines.find((line) => line.includes(`"${t.auditActionDeleteExpense}"`));
+    assert.ok(expenseLine, 'la dépense retirée se relit aussi');
+    assert.ok(
+      expenseLine!.includes(`"${t.auditActionDeleteExpense}","—","—","—",`),
+      'la colonne MONTANT reste vide — pas un zéro qui aurait l’air d’un montant',
+    );
+    assert.doesNotMatch(buildPaymentHistoryCsv(rows, context, corrections), /"0 XOF"/, 'aucun montant n’est inventé');
+  });
+
+  it('sans correction, le fichier garde ses lignes et n’ajoute aucune section', () => {
+    const plain = buildPaymentHistoryCsv(rows, context).split('\r\n');
+    assert.equal(plain.length, 1 + rows.length, 'les corrections sont un ajout, pas une ligne de plus à l’en-tête');
+    assert.deepEqual(buildPaymentHistoryCsv(rows, context, []).split('\r\n'), plain, 'une liste vide n’ajoute rien');
+  });
+});
+
 describe('la phrase des filtres actifs — un document imprimé doit se relire seul', () => {
   it('dit qu’il n’y a AUCUN filtre quand il n’y en a pas', () => {
     assert.equal(describePaymentHistoryFilter(undefined, t, 'fr'), t.paymentHistoryPdfNoFilter);
@@ -258,7 +338,10 @@ describe('la phrase des filtres actifs — un document imprimé doit se relire s
 describe('le PDF de l’historique — mêmes lignes, mêmes filtres, cachet une fois', () => {
   const at = (str: string, x: number) => texts.some((call) => call.str === str && call.x === x);
 
-  async function run(filter: Parameters<typeof describePaymentHistoryFilter>[0] = undefined) {
+  async function run(
+    filter: Parameters<typeof describePaymentHistoryFilter>[0] = undefined,
+    correctionRows: CorrectionHistoryRow[] = [],
+  ) {
     texts.length = 0;
     downloads.length = 0;
     stampDraws = 0;
@@ -267,6 +350,7 @@ describe('le PDF de l’historique — mêmes lignes, mêmes filtres, cachet une
       rows: viewRows,
       summary: paymentHistorySummary(viewRows),
       filter,
+      corrections: correctionRows,
       formatMoney: context.formatMoney,
       lang: 'fr',
     });
@@ -314,5 +398,53 @@ describe('le PDF de l’historique — mêmes lignes, mêmes filtres, cachet une
       'sans filtre, le document le dit au lieu de rester muet',
     );
     assert.ok(texts.some((c) => c.str.includes('Aggee Diarra')), 'la liste complète, elle, est bien là');
+  });
+
+  it('imprime les gestes de correction dans leur section, APRÈS les encaissements', async () => {
+    const viewRows = await run(undefined, corrections);
+    assert.ok(viewRows.length > 0, 'les encaissements sont toujours là');
+
+    // La section S'ANNONCE avant de lister : un lecteur qui aurait additionné les
+    // deux blocs aurait un net faux, et c'est le bloc qui le dit.
+    assert.ok(
+      at(t.paymentHistoryCorrectionsNote.replace('{count}', String(corrections.length)), 12),
+      'la section des corrections est annoncée, avec son compte',
+    );
+    // Les huit MÊMES colonnes : le geste sous ACTIONS (84 mm), le MEMBRE sous
+    // ÉLÈVE (46 mm), et le montant retiré sous MONTANT, aligné à droite (152 mm).
+    assert.ok(at(t.auditActionDeleteSalaryPayment, 84), 'le retrait du salaire est sous ACTIONS');
+    assert.ok(at('Awa Sy', 46), 'le membre est sous ÉLÈVE, comme un élève l’est pour un reçu');
+    assert.ok(
+      texts.some((c) => c.x === 152 && c.str === `- ${SALARY_AMOUNT} XOF`),
+      'le montant RETIRÉ est signé et tombe dans la colonne MONTANT',
+    );
+    assert.ok(at(t.auditActionDeleteExpense, 84), 'la dépense retirée suit dans la même section');
+  });
+
+  it('les corrections ne touchent PAS le net de caisse imprimé', async () => {
+    // La phrase du résumé est repérée par son DÉBUT (elle porte le compte des
+    // encaissements) : c'est la MÊME phrase entière qui doit être imprimée avec et
+    // sans corrections — sinon le document aurait changé le net sous les yeux de
+    // son lecteur.
+    const viewRows = await run(undefined);
+    const totalsStart = t.paymentHistoryTotals.replace('{count}', String(viewRows.length)).slice(0, 20);
+    const without = texts.map((c) => c.str).find((s) => s.includes(totalsStart));
+    assert.ok(without, 'le résumé de la caisse est imprimé');
+
+    await run(undefined, corrections);
+    const withList = texts.map((c) => c.str).find((s) => s.includes(totalsStart));
+    assert.equal(
+      withList,
+      without,
+      'un salaire ou une dépense retiré n’est pas un encaissement : le net de caisse ne bouge pas',
+    );
+  });
+
+  it('n’ajoute aucune section quand il n’y a aucune correction', async () => {
+    await run();
+    // La queue du gabarit (ce qui suit le compte) : la comparer telle quelle
+    // marche dans les deux sens — elle est absente sans correction, présente avec.
+    const noteTail = t.paymentHistoryCorrectionsNote.replace('{count}', '').trim();
+    assert.equal(texts.some((c) => c.str.includes(noteTail)), false, 'pas de section vide dans le document');
   });
 });

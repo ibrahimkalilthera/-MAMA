@@ -29,6 +29,8 @@ import { describePaymentHistoryFilter } from '../src/lib/paymentHistoryExport';
 import type { AuditLogEntry } from '../src/lib/auditLogger';
 import type { Payment, Student } from '../src/lib/domainTypes';
 import { archivedPaymentFrom, paymentSnapshotMetadata } from '../src/lib/paymentUndo';
+import { archivedSalaryFrom, salarySnapshotMetadata } from '../src/lib/salaryUndo';
+import { correctionHistoryRows } from '../src/lib/correctionHistory';
 import { installDomGlobals } from './harness';
 
 installDomGlobals();
@@ -76,6 +78,44 @@ const alice: Student = {
   totalDue: 0, amountPaid: 0, dueDate: '2026-10-01', payments: [], notes: '',
 };
 
+/**
+ * Les GESTES DE CORRECTION imprimés à côté des reçus : une paie retirée (montant
+ * et membre dans l'instantané) et la MÊME paie rétablie — le journal ne se réécrit
+ * jamais, donc les deux gestes se lisent dans l'ordre où ils ont eu lieu.
+ *
+ * Ils vivent dans leur propre fixture : les cas ci-dessus mesurent le document des
+ * ENCAISSEMENTS, et leur ajouter des lignes de salaire aurait changé ce qu'ils
+ * prouvent (le nombre de pages, la place des colonnes).
+ */
+const SALARY_AMOUNT = 150000;
+const salarySnapshot = salarySnapshotMetadata(archivedSalaryFrom('t1', 'Awa Sy', {
+  id: 'sp1', staffId: 't1', amount: SALARY_AMOUNT, date: '2026-01-31', academicYear: '2026-2027',
+}));
+const correctionLogs: AuditLogEntry[] = [
+  {
+    id: 'sal1',
+    action: 'DELETE_SALARY_PAYMENT',
+    targetType: 'salary_payment',
+    targetId: 'sp1',
+    userName: 'Moussa Keïta',
+    userEmail: 'moussa@mama.test',
+    userRole: 'general_manager',
+    createdAt: '2026-10-07T09:00:00Z',
+    details: 'Salaire de 150000 FCFA (2026-01-31) supprimé — membre Awa Sy',
+    metadata: salarySnapshot,
+  },
+  {
+    id: 'sal2',
+    action: 'RESTORE_SALARY_PAYMENT',
+    targetType: 'salary_payment',
+    targetId: 'sp1',
+    userName: 'Moussa Keïta',
+    createdAt: '2026-10-07T10:00:00Z',
+    details: 'Salaire de 150000 FCFA (2026-01-31) rétabli — membre Awa Sy',
+    metadata: salarySnapshot,
+  },
+];
+
 interface Item { str: string; x: number; y: number }
 
 /** Le formateur simple des cas : les montants s'y lisent sans ambiguïté d'espace. */
@@ -86,6 +126,7 @@ async function renderPdf(
   filter: Parameters<typeof describePaymentHistoryFilter>[0],
   lang: 'en' | 'fr' = 'fr',
   formatMoney: (amount: number) => string = plainMoney,
+  correctionLogList: AuditLogEntry[] = [],
 ): Promise<{ filename: string; width: number; height: number; pages: number; items: Item[] }> {
   blobs.length = 0;
   filenames.length = 0;
@@ -95,6 +136,7 @@ async function renderPdf(
     rows: viewRows,
     summary: paymentHistorySummary(viewRows),
     filter,
+    corrections: correctionHistoryRows({ logs: correctionLogList }),
     formatMoney,
     lang,
   });
@@ -215,6 +257,39 @@ describe('PDF de l’historique — les octets réels', () => {
       'le détail (qui cite le reçu) reste dans la dernière colonne',
     );
     assert.ok(items.some((item) => item.str.includes('page 1/1')), 'le pied de page est numéroté');
+  });
+
+  it('imprime les corrections — signe compris — sans toucher aux encaissements', async () => {
+    const bare = await renderPdf(undefined);
+    const { items, pages } = await renderPdf(undefined, 'fr', plainMoney, correctionLogs);
+
+    assert.equal(pages, bare.pages, 'la section des corrections ne déplace pas les encaissements sur une autre page');
+    assert.ok(
+      at(items, t.paymentHistoryCorrectionsNote.replace('{count}', '2')),
+      'la section s’annonce AVANT de lister, sinon un lecteur additionnerait les deux blocs',
+    );
+    assert.ok(at(items, t.auditActionDeleteSalaryPayment), 'le retrait du salaire est imprimé');
+    assert.ok(at(items, t.auditActionRestoreSalaryPayment), 'le rétablissement de la MÊME paie aussi');
+    assert.ok(
+      sameColumn(at(items, 'Awa Sy'), at(items, t.studentName)),
+      'le membre tombe dans la colonne ÉLÈVE, là où un reçu met l’élève',
+    );
+    // Un montant RETIRÉ est signé, un montant RÉTABLI ne l'est pas : le signe dit
+    // le sens du geste, et le trait d'union ASCII est celui que WinAnsi porte.
+    assert.ok(items.some((item) => item.str === `- ${SALARY_AMOUNT} XOF`), 'le montant retiré est imprimé, signé');
+    assert.ok(items.some((item) => item.str === `${SALARY_AMOUNT} XOF`), 'le montant rétabli est imprimé, sans signe');
+
+    // Le contrôle de police, sur CE document : un caractère absent de WinAnsi
+    // s'imprimerait autrement (mesuré : « − » sortait « " »).
+    const unsafe = items.filter((item) => /[\u2212\u2192\u2013\u202f\u2026]/.test(item.str)).map((item) => item.str);
+    assert.deepEqual(unsafe, [], 'aucun caractère hors de la police du document');
+
+    // La preuve qui compte pour la caisse : rien de ce que le document SANS
+    // corrections imprimait ne change — le net, les reçus et le pied de page sont
+    // les mêmes textes, à l'identique.
+    const before = bare.items.map((item) => item.str);
+    const missing = before.filter((str) => !items.some((item) => item.str === str));
+    assert.deepEqual(missing, [], 'les encaissements et le net imprimé ne bougent pas quand on ajoute des corrections');
   });
 
   it('suit la langue du poste jusque dans le document', async () => {

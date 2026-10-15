@@ -26,6 +26,7 @@ export type OfflineActionType =
   | 'updateStaff'
   | 'deleteStaff'
   | 'addSalaryPayment'
+  | 'deleteSalaryPayment'
   | 'addParent'
   | 'updateParent'
   | 'deleteParent'
@@ -108,6 +109,16 @@ export type OfflinePayload =
   | { type: 'updateStaff'; payload: { id: string; updates: Partial<Staff> } }
   | { type: 'deleteStaff'; payload: { id: string } }
   | { type: 'addSalaryPayment'; payload: Omit<SalaryPayment, 'id'> }
+  /**
+   * Suppression d'un paiement de salaire saisi par erreur.
+   *
+   * Le MEMBRE, le montant, la date et l'année voyagent avec le geste : le rejeu
+   * écrit la même entrée de journal que le chemin en ligne, avec le même
+   * instantané (`salaryUndo.ts`), sans avoir à relire une ligne qui n'existe
+   * plus. Une suppression saisie sans réseau reste donc annulable — sinon la
+   * ligne « supprimée » du journal ne porterait rien à réinsérer.
+   */
+  | { type: 'deleteSalaryPayment'; payload: { id: string; staffId: string; staffName?: string; amount: number; date: string; academicYear?: string } }
   | { type: 'addParent'; payload: Omit<Parent, 'id'> }
   | { type: 'updateParent'; payload: { id: string; updates: Partial<Parent> } }
   | { type: 'deleteParent'; payload: { id: string } }

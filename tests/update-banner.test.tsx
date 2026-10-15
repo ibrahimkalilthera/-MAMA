@@ -89,11 +89,15 @@ interface ReportCall {
 function installBridge(state: FakeState): {
   retried: () => number;
   installed: () => number;
+  ready: () => number;
+  retracted: () => number;
   opened: () => number;
   push: (next: FakeState) => void;
 } {
   let retries = 0;
   let installs = 0;
+  let ready = 0;
+  let retracted = 0;
   let opened = 0;
   const listeners: Array<(s: FakeState) => void> = [];
   Object.defineProperty(globalThis, 'desktop', {
@@ -108,6 +112,13 @@ function installBridge(state: FakeState): {
           return () => {};
         },
         install: async () => { installs += 1; },
+        // Le canal par lequel le bandeau ANNONCE qu'il montre la question : c'est
+        // lui qui fait taire la boîte native du processus principal.
+        uiReady: async (active = true) => {
+          if (active) ready += 1;
+          else retracted += 1;
+          return { ok: true, owner: active ? 'interface' : 'dialog' };
+        },
         retry: async () => { retries += 1; },
         openJournal: async () => { opened += 1; return { ok: true, path: state.blocked?.journal }; },
       },
@@ -118,6 +129,8 @@ function installBridge(state: FakeState): {
   return {
     retried: () => retries,
     installed: () => installs,
+    ready: () => ready,
+    retracted: () => retracted,
     opened: () => opened,
     push: (next: FakeState) => { state = next; for (const cb of listeners) cb(next); },
   };
@@ -482,6 +495,54 @@ describe('un poste bloqué se signale au lieu de rester muet', () => {
     assert.ok(buttonSaying(container, 'Relancer'), 'le remède est de revérifier, pas de réinstaller à l’aveugle');
     assert.equal(recorder.calls.length, 1, 'et il part au journal d’audit');
 
+    unmount(root, container);
+  });
+});
+
+// ─── L'interface annonce qu'elle montre la question ──────────────────────────
+//
+// C'est le signal qui fait taire la boîte native du processus principal : sans
+// lui, la même demande est posée deux fois (une modale ET un bandeau), et les
+// deux boutons peuvent lancer deux installeurs pour une seule mise à jour.
+describe('le bandeau annonce qu’il montre la question', () => {
+  it('au montage, une seule fois : le processus principal sait qu’un demandeur écoute', async () => {
+    const state: FakeState = { status: 'available', version: '2.0.0', action: 'restart' };
+    const bridge = installBridge(state);
+    const { root, container } = await mount(state);
+    assert.equal(bridge.ready(), 1, 'l’interface prend la main une seule fois');
+    assert.ok(container.querySelector('[role="status"]'), 'et le bandeau est bien à l’écran');
+    unmount(root, container);
+  });
+
+  it('masquer le bandeau REND la main : un bandeau masqué n’est pas un silence', async () => {
+    const state: FakeState = { status: 'available', version: '2.0.0', action: 'restart' };
+    const bridge = installBridge(state);
+    const { root, container } = await mount(state);
+    assert.equal(bridge.ready(), 1, 'le bandeau a pris la main au montage');
+
+    const hide = container.querySelector('button[aria-label="Masquer"]') as HTMLButtonElement | null;
+    assert.ok(hide, 'une annonce se masque — contrairement à une version prête, qui reste');
+    act(() => hide.click());
+    await flush();
+    assert.equal(bridge.retracted(), 1, 'l’interface rend la main au processus principal');
+    assert.equal(
+      container.querySelector('[role="status"]') !== null,
+      false,
+      'et le bandeau a bien disparu',
+    );
+
+    unmount(root, container);
+  });
+
+  it('sans le canal (pont plus ancien), le bandeau s’affiche quand même', async () => {
+    const state: FakeState = { status: 'available', version: '2.0.0', action: 'restart' };
+    installBridge(state);
+    // Le composant ne doit pas dépendre de ce canal : s'il manque, le processus
+    // principal garde la boîte native — donc rien ne se tait par accident.
+    const desktop = (globalThis as { desktop?: { updates?: Record<string, unknown> } }).desktop;
+    delete (desktop?.updates as { uiReady?: unknown } | undefined)?.uiReady;
+    const { root, container } = await mount(state);
+    assert.ok(container.querySelector('[role="status"]'), 'le bandeau s’affiche sans ce canal');
     unmount(root, container);
   });
 });

@@ -453,6 +453,61 @@ function updateGate({ pressure = null, hold = null } = {}) {
   return { deliverable: true, forced: late, held: false, detail: hold.detail };
 }
 
+/**
+ * ─── Un seul geste, un seul propriétaire ────────────────────────────────────
+ *
+ * Mesuré sur un poste : « la mise à jour se lance deux fois ». La cause n'est ni
+ * Windows ni l'installeur — la fenêtre qu'on voit est notre propre assistant NSIS
+ * (`nsis.oneClick: false`) — c'est que le MÊME geste avait plusieurs
+ * propriétaires et que rien ne les séparait :
+ *
+ *   • la boîte native (`askToDownload`, `askToInstall`) **et** le bandeau de
+ *     l'interface posaient la même question, chacun avec son bouton ;
+ *   • `quitAndInstall()` n'était gardé par RIEN : deux clics, deux installeurs ;
+ *   • `autoInstallOnAppQuit` reste à sa valeur par défaut (`true`) sur le chemin
+ *     normal, donc FERMER la fenêtre installe aussi — un clic sur « Redémarrer »
+ *     et la fermeture pouvaient lancer le même installeur deux fois ;
+ *   • deux instances de l'application (aucun verrou d'instance) donnaient deux
+ *     boucles de vérification sur le MÊME dossier de cache partagé.
+ *
+ * Deux décisions, et elles vivent ici parce qu'elles se testent :
+ *   • `askOwner` — QUI pose la question. L'interface a la main dès qu'elle a
+ *     annoncé qu'elle montre l'état : elle reste à l'écran (une modale fermée ne
+ *     revient pas), et c'est déjà elle qui porte le bouton. La boîte native reste
+ *     le propriétaire quand personne n'écoute — écran de connexion, interface
+ *     absente ou plantée, mode preuve. JAMAIS les deux à la fois : c'est la
+ *     duplication visible qui donne l'impression de deux mises à jour ;
+ *   • `installClaim` — une seule DEMANDE d'installation par process. La seconde
+ *     répond ce qu'elle a fait (rien) au lieu de lancer un second installeur
+ *     pour le même paiement. Un verrou par process suffit parce qu'il n'y a plus
+ *     qu'un process (voir `requestSingleInstanceLock` dans `electron/main.cjs`).
+ */
+
+/**
+ * Qui pose la question d'une étape : l'interface, ou la boîte native ?
+ *
+ * @param {{ uiReady?: boolean }} input `uiReady` = l'interface a annoncé qu'elle
+ *   montre l'état de mise à jour (bandeau monté)
+ * @returns {{ owner: 'interface' | 'dialog', detail: string }}
+ */
+function askOwner({ uiReady = false } = {}) {
+  return uiReady
+    ? { owner: 'interface', detail: 'l’interface montre l’état et son bouton — la boîte native se taît' }
+    : { owner: 'dialog', detail: 'personne n’écoute dans l’interface — la boîte native reste le seul demandeur' };
+}
+
+/**
+ * La demande d'installation est-elle accordée ? (verrou d'un seul coup)
+ *
+ * @param {{ claimed?: boolean }} input `claimed` = une installation a déjà été demandée
+ * @returns {{ granted: boolean, reason: string }}
+ */
+function installClaim({ claimed = false } = {}) {
+  return claimed
+    ? { granted: false, reason: 'installation déjà demandée — un seul installeur par process' }
+    : { granted: true, reason: 'première demande d’installation' };
+}
+
 module.exports = {
   CHECK_INTERVAL_MS,
   FOCUS_COOLDOWN_MS,
@@ -473,4 +528,6 @@ module.exports = {
   holdDecision,
   updateGate,
   gateFailure,
+  askOwner,
+  installClaim,
 };

@@ -77,6 +77,13 @@ interface DesktopUpdatesApi {
   getState: () => Promise<UpdateState>;
   onState: (cb: (state: UpdateState) => void) => () => void;
   install: () => Promise<unknown>;
+  /**
+   * Annonce au processus principal que l'interface montre la question (le
+   * bandeau est monté) : c'est ce qui le fait taire, lui et sa boîte native.
+   * Optionnel — un pont plus ancien ne porte pas ce canal, et le composant ne
+   * doit pas en dépendre pour fonctionner.
+   */
+  uiReady?: (active?: boolean) => Promise<unknown>;
   retry?: () => Promise<unknown>;
   journal?: () => Promise<{ path?: string; station?: string; entries?: unknown[] }>;
   openJournal?: () => Promise<{ ok?: boolean; path?: string }>;
@@ -148,6 +155,12 @@ export function UpdateBanner({
     // s'ouvrir après que l'application a déjà téléchargé la mise à jour, et
     // s'abonner seul ne rattraperait pas cet événement passé.
     void api.getState().then((s) => { if (alive) setState(s); }).catch(() => {});
+    // L'interface prend la main sur la question dès qu'elle est montée : c'est ce
+    // qui empêche la MÊME demande d'être posée deux fois (bandeau + boîte native),
+    // et donc deux installations pour une seule mise à jour. Si le pont ne porte
+    // pas ce canal, le processus principal garde la boîte native — rien ne se
+    // tait par accident.
+    void api.uiReady?.().catch(() => {});
     const off = api.onState((s) => { if (alive) setState(s); });
     return () => { alive = false; off?.(); };
   }, []);
@@ -363,7 +376,13 @@ export function UpdateBanner({
         <button
           type="button"
           aria-label={labels.dismiss}
-          onClick={() => setDismissed(true)}
+          onClick={() => {
+            setDismissed(true);
+            // Masquer, c'est RETIRER la question de l'écran : l'interface rend la
+            // main au processus principal, qui reprend la boîte native (et son
+            // rappel de 15 min). Un bandeau masqué ne doit pas être un silence.
+            void desktopUpdates()?.uiReady?.(false).catch(() => {});
+          }}
           className={`p-0.5 ${currentTheme.hoverSurfaceDark} rounded-md`}
         >
           <X size={12} />

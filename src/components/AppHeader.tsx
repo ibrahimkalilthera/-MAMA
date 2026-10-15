@@ -87,7 +87,7 @@ export function AppHeader(props: AppHeaderProps) {
   return (
     <header data-slot="app-header" className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
       <div className="min-w-0">
-        <h2 className={`text-2xl sm:text-3xl font-bold ${currentTheme.isDark ? currentTheme.accentSoftText : 'text-slate-800'} tracking-tight whitespace-nowrap`}>
+        <h2 className={`text-2xl sm:text-3xl font-bold ${currentTheme.isDark ? currentTheme.accentSoftText : 'text-slate-800'} tracking-tight text-balance`}>
           {activeTab === 'dashboard' ? t.dashboard : 
            activeTab === 'students' ? t.students :
            activeTab === 'parents' ? t.parents :
@@ -127,7 +127,7 @@ export function AppHeader(props: AppHeaderProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto xl:min-w-0 no-print">
-        <div className="relative flex-1 min-w-[10rem] sm:flex-none">
+        <div className="relative min-w-0 flex-1 sm:flex-none sm:min-w-[10rem]">
           {/* `focus:ring-${currentTheme.accent}/5` used to live here: Tailwind
               never sees an interpolated class, so nothing was generated. The
               focus ring now comes from the one global `:focus-visible` rule in
@@ -190,7 +190,7 @@ export function AppHeader(props: AppHeaderProps) {
           </button>
         )}
         {(activeTab === 'students' || activeTab === 'parents') && (
-          <div className="relative flex-1 basis-64 min-w-[15rem]">
+          <div className="relative min-w-0 w-full flex-1 sm:w-auto sm:basis-64">
             <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={18} />
             <input 
               type="text"
@@ -202,7 +202,7 @@ export function AppHeader(props: AppHeaderProps) {
           </div>
         )}
         {activeTab === 'students' && (
-          <div className="relative min-w-[170px]">
+          <div className="relative min-w-0 w-full sm:w-auto sm:min-w-[170px]">
             <select
               value={studentGradeFilter}
               onChange={(e) => setStudentGradeFilter(e.target.value)}

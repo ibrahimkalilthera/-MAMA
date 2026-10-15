@@ -13,6 +13,13 @@
  * lisible que par `admin`/`dev`, donc un autre rôle ne doit pas voir un écran
  * vide qui se lirait « l'école n'a rien encaissé ».
  *
+ * Depuis la correction des paies fautives, un QUATRIÈME sujet s'y mesure : les
+ * GESTES DE CORRECTION (un salaire retiré, une dépense retirée, un salaire
+ * rétabli). Ils vivent dans leur propre bloc — ce ne sont pas des encaissements —
+ * et les cas ci-dessous verrouillent trois choses qui se paieraient en silence :
+ * le montant retiré reste CHIFFRÉ et signé, le geste reste attribué à son auteur,
+ * et « rétablir » n'est offert QUE tant que la suppression est réversible.
+ *
  * ─── Ce que ce harnais ne sait PAS faire, et qui est donc mesuré ailleurs ─────
  * Une saisie au clavier ne peut pas être simulée ici : sous React 19 + happy-dom
  * 20, un `input` fabriqué puis dispatché sur un champ contrôlé n'atteint jamais
@@ -31,8 +38,10 @@ import { PaymentHistoryView } from '../src/components/PaymentHistoryView';
 import { translations } from '../src/i18n/translations';
 import { DEFAULT_PAYMENT_MOTIF, paymentMotifLabel } from '../src/lib/paymentMotifs';
 import { archivedPaymentFrom, paymentSnapshotMetadata } from '../src/lib/paymentUndo';
+import { archivedSalaryFrom, salarySnapshotMetadata } from '../src/lib/salaryUndo';
+import type { ArchivedSalaryPayment } from '../src/lib/salaryUndo';
 import type { AuditLogEntry } from '../src/lib/auditLogger';
-import type { Payment, Student } from '../src/lib/domainTypes';
+import type { Payment, SalaryPayment, Student } from '../src/lib/domainTypes';
 import { installDomGlobals } from './harness';
 import { declaredDefaults, makeProps } from './views-harness';
 
@@ -97,6 +106,51 @@ const logs: AuditLogEntry[] = [
   { id: 'x1', action: 'ADD_STUDENT', userName: 'Admin', createdAt: '2026-10-06T09:00:00Z', details: 'Fatou BOLLY' },
 ];
 
+// ─── Les GESTES DE CORRECTION ────────────────────────────────────────────────
+// Une paie saisie pour le mauvais membre se corrige en la RETIRANT — et c'est la
+// seule trace du montant qui a disparu. Ces entrées-là ne sont donc pas des
+// encaissements : elles vivent dans leur propre bloc, et le net de la caisse ne
+// les voit pas (c'est mesuré plus bas).
+
+const SALARY: SalaryPayment = { id: 'sp1', staffId: 't1', date: '2026-10-03', amount: 175000, academicYear: '2026-2027' };
+
+/**
+ * Le retrait tel que le journal l'écrit : avec son INSTANTANÉ — c'est lui qui
+ * rend le geste réversible (`restorableSalary` le relit pour offrir « Rétablir »).
+ */
+const salaryDeleted: AuditLogEntry = {
+  id: 'sp-del',
+  action: 'DELETE_SALARY_PAYMENT',
+  targetType: 'salary_payment',
+  targetId: SALARY.id,
+  userName: 'Salif Dembélé',
+  userEmail: 'salif@mama.test',
+  userRole: 'admin',
+  createdAt: '2026-10-07T09:00:00Z',
+  details: 'Salaire de 175000 FCFA (2026-10-03) supprimé — membre Awa Cissé',
+  metadata: salarySnapshotMetadata(archivedSalaryFrom('t1', 'Awa Cissé', SALARY)),
+};
+
+/** Le même retrait SANS instantané : le geste d'avant la colonne. */
+const salaryDeletedLegacy: AuditLogEntry = {
+  ...salaryDeleted,
+  id: 'sp-del-old',
+  createdAt: '2026-10-04T09:00:00Z',
+  metadata: null,
+};
+
+/** Le rétablissement qui suit : ses deux gestes se lisent, et l'offre disparaît. */
+const salaryRestored: AuditLogEntry = {
+  id: 'sp-back',
+  action: 'RESTORE_SALARY_PAYMENT',
+  targetType: 'salary_payment',
+  targetId: SALARY.id,
+  userName: 'Salif Dembélé',
+  createdAt: '2026-10-08T09:00:00Z',
+  details: 'Salaire de 175000 FCFA (2026-10-03) rétabli — membre Awa Cissé',
+  metadata: salarySnapshotMetadata(archivedSalaryFrom('t1', 'Awa Cissé', SALARY)),
+};
+
 function mount(overrides: Parameters<typeof makeProps>[0] = {}) {
   const win = installDomGlobals();
   const container = document.createElement('div');
@@ -111,9 +165,20 @@ function mount(overrides: Parameters<typeof makeProps>[0] = {}) {
       ),
     );
   });
+  /**
+   * Le tableau des GESTES DE CORRECTION — désigné par sa colonne « Membre / sujet »,
+   * la seule qui la porte : les autres tableaux de l'écran (reçus, rapport de
+   * caisse) ne l'ont pas. Le bloc est donc repéré par ce qu'il EST, jamais par sa
+   * position dans la page.
+   */
+  const correctionsTable = () => [...container.querySelectorAll('table')]
+    .find((table) => (table.querySelector('thead')?.textContent ?? '').includes(t.paymentHistorySubject)) ?? null;
   return {
     container,
     text: () => container.textContent ?? '',
+    correctionsTable,
+    corrections: () => correctionsTable()?.querySelector('tbody')?.textContent ?? '',
+    correctionsRows: () => [...(correctionsTable()?.querySelectorAll('tbody tr') ?? [])] as HTMLTableRowElement[],
     /** Le corps du tableau SEUL : les menus de filtre contiennent aussi des libellés de gestes. */
     body: () => container.querySelector('tbody')?.textContent ?? '',
     select: () => container.querySelector<HTMLSelectElement>(`select[aria-label="${t.auditFilterAction}"]`),
@@ -378,6 +443,139 @@ describe('PaymentHistoryView — ce que la caisse relit', () => {
       assert.ok(csvButton && pdfButton, 'les deux exports sont proposés');
       assert.equal(csvButton.disabled, true, 'rien à emporter : le bouton le dit au lieu de produire un fichier vide');
       assert.equal(pdfButton.disabled, true, 'idem pour le PDF');
+    } finally {
+      h.cleanup();
+    }
+  });
+});
+
+// ─── Les gestes de correction ────────────────────────────────────────────────
+// Le bloc se prouve sur ses CELLULES, pas sur la page entière : les phrases du
+// journal contiennent les mêmes mots que les colonnes, donc un cas qui lirait
+// `textContent` sans choisir sa cellule pourrait être vert pour la mauvaise
+// raison (le montant lu dans la phrase au lieu de la colonne MONTANT).
+
+describe('PaymentHistoryView — les gestes de correction', () => {
+  /** Les cellules d'une ligne, dans l'ordre des colonnes du bloc. */
+  const cellsOf = (row: HTMLTableRowElement) => [...row.querySelectorAll('td')];
+  const rowWith = (rows: HTMLTableRowElement[], label: string) =>
+    rows.find((row) => (row.textContent ?? '').includes(label));
+  const restoreButtons = (table: HTMLElement | null) =>
+    [...(table?.querySelectorAll('button') ?? [])] as HTMLButtonElement[];
+
+  it('trace un salaire RETIRÉ : membre, montant chiffré et signé, auteur du geste', () => {
+    const h = mount({ auditLogs: [...logs, salaryDeleted] });
+    try {
+      const table = h.correctionsTable();
+      assert.ok(table, 'le bloc des corrections est rendu');
+      const row = rowWith(h.correctionsRows(), t.auditActionDeleteSalaryPayment);
+      assert.ok(row, 'le retrait y est listé sous son libellé');
+      const cells = cellsOf(row!);
+      assert.equal(cells[2]!.textContent, 'Awa Cissé', 'la colonne Membre / sujet nomme qui a perdu la paie');
+      // Le signe moins est celui de l'écran (U+2212) : un montant retiré est une
+      // SORTIE, et sa colonne le dit au lieu d'un chiffre nu qui aurait l'air d'un
+      // encaissement.
+      assert.equal(cells[3]!.textContent, '\u2212 175000 XOF', 'le montant retiré est chiffré et signé');
+      assert.match(cells[4]!.textContent ?? '', /Salif Dembélé/, 'l’auteur du geste est nommé');
+      assert.match(cells[4]!.textContent ?? '', /salif@mama.test/, 'et son compte aussi');
+      assert.match(cells[5]!.textContent ?? '', /175000 FCFA/, 'le détail reste la phrase du journal');
+      assert.equal(h.text().includes(t.paymentHistoryCorrectionsNote.replace('{count}', '1')), true, 'le bloc dit combien de corrections il montre');
+
+      // Ce n'est PAS un encaissement : la ligne n'entre pas dans le tableau des
+      // reçus, qui garde ses trois gestes de caisse.
+      assert.doesNotMatch(h.body(), /Awa Cissé/, 'une correction n’est pas une ligne d’encaissement');
+      assert.doesNotMatch(h.body(), new RegExp(t.auditActionDeleteSalaryPayment));
+      // Et le net affiché reste celui de la CAISSE : un salaire retiré n'a jamais
+      // été encaissé, donc il ne peut pas en sortir.
+      assert.equal(
+        h.text().includes(t.paymentHistoryTotals
+          .replace('{count}', '3')
+          .replace('{collected}', '10000 XOF')
+          .replace('{cancelled}', '4000 XOF')
+          .replace('{net}', '6000 XOF')),
+        true,
+        'le net encaissé ne bouge pas : une correction vit hors de lui',
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('ne devine pas un montant pour une correction d’avant l’instantané', () => {
+    const h = mount({ auditLogs: [...logs, salaryDeletedLegacy] });
+    try {
+      const row = rowWith(h.correctionsRows(), t.auditActionDeleteSalaryPayment);
+      assert.ok(row, 'le geste d’avant la colonne reste lisible');
+      const cells = cellsOf(row!);
+      assert.equal(cells[2]!.textContent, '—', 'aucun membre inventé : le sujet se lit d’un tiret');
+      // La colonne le DIT (« voir le détail ») au lieu d'afficher un zéro, qui
+      // aurait l'air d'un montant — et le montant de ce geste n'existe que dans sa
+      // phrase, où il ne s'additionne pas.
+      assert.equal(cells[3]!.textContent, t.paymentHistoryAmountInDetails, 'aucun montant inventé');
+      // Et pas de rétablissement : on ne réinsère pas la ligne qu'on n'a pas gardée.
+      assert.equal(restoreButtons(h.correctionsTable()).length, 0, 'rien à rétablir sans instantané');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('offre « rétablir » sur la seule suppression encore réversible, et l’appelle', async () => {
+    const calls: ArchivedSalaryPayment[] = [];
+    // Le succès relit le JOURNAL : c'est la seule façon de voir apparaître l'entrée
+    // `RESTORE_SALARY_PAYMENT` qui retire l'offre. Un rétablissement qui ne
+    // relirait rien laisserait le bouton en place après un succès.
+    const refreshes: number[] = [];
+    const h = mount({
+      auditLogs: [...logs, salaryDeleted],
+      restoreSalaryPayment: async (archived) => { calls.push(archived); return true; },
+      fetchAuditLogs: async () => { refreshes.push(1); },
+    });
+    try {
+      const button = restoreButtons(h.correctionsTable()).find((b) => (b.textContent ?? '').includes(t.restoreSalaryPayment));
+      assert.ok(button, 'la suppression est réversible : l’offre est là');
+      assert.equal(button.title, t.restoreSalaryPaymentHint, 'et elle dit ce qu’elle réinsère');
+
+      await act(async () => { button.click(); });
+      assert.equal(calls.length, 1, 'un clic, une restauration');
+      // C'est la LIGNE de salaire qui revient, à l'identique : son id, son membre,
+      // son montant, sa date — c'est tout ce que l'instantané a gardé.
+      assert.equal(calls[0]!.salaryPaymentId, SALARY.id);
+      assert.equal(calls[0]!.staffId, SALARY.staffId);
+      assert.equal(calls[0]!.amount, SALARY.amount);
+      assert.equal(calls[0]!.date, SALARY.date);
+      assert.equal(refreshes.length, 1, 'et le succès relit le journal');
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('ne laisse plus rétablir une suppression DÉJÀ rétablie, et garde les deux gestes lisibles', () => {
+    const h = mount({ auditLogs: [...logs, salaryDeleted, salaryRestored] });
+    try {
+      const rows = h.correctionsRows();
+      const restored = rowWith(rows, t.auditActionRestoreSalaryPayment);
+      assert.ok(restored, 'le rétablissement est listé');
+      assert.ok(rowWith(rows, t.auditActionDeleteSalaryPayment), 'et la suppression qu’il répare reste lisible : le journal ne se réécrit pas');
+      // Un rétablissement REND le montant : sa colonne est positive, sans le signe
+      // de sortie du retrait.
+      assert.equal(cellsOf(restored!)[3]!.textContent, '175000 XOF');
+      assert.equal(
+        restoreButtons(h.correctionsTable()).length,
+        0,
+        'une seconde restauration écraserait un geste réel : l’offre se retire',
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('dit qu’il n’y a AUCUNE correction quand rien n’a été retiré du registre', () => {
+    const h = mount();
+    try {
+      assert.match(h.text(), new RegExp(t.paymentHistoryCorrections), 'le bloc est annoncé');
+      assert.equal(h.text().includes(t.paymentHistoryCorrectionsNote.replace('{count}', '0')), true, 'et il compte zéro geste');
+      assert.equal(h.text().includes(t.paymentHistoryCorrectionsEmpty), true, 'la phrase d’absence est rendue');
+      assert.equal(h.correctionsTable(), null, 'aucun tableau vide n’est rendu à la place');
     } finally {
       h.cleanup();
     }

@@ -29,24 +29,24 @@ export function NotesView() {
               </div>
 
               <div className="space-y-6">
-                <form onSubmit={handleAddTodo} className="flex gap-4">
+                <form onSubmit={handleAddTodo} className="flex flex-col gap-4 sm:flex-row">
                   <input
                     type="text"
                     value={todoInput}
                     onChange={(e) => setTodoInput(e.target.value)}
                     placeholder={t.taskPlaceholder}
-                    className={`flex-1 px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
+                    className={`w-full min-w-0 flex-1 px-6 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.inkStrong}`}
                   />
                   <input
                     type="date"
                     value={todoDate}
                     onChange={(e) => setTodoDate(e.target.value)}
                     aria-label={t.taskDate}
-                    className={`px-4 py-4 ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-[#E2E8F0] [color-scheme:dark]' : 'text-slate-800'}`}
+                    className={`w-full px-4 py-4 sm:w-auto ${currentTheme.surfaceInset} border ${currentTheme.border} rounded-2xl focus:outline-none ${currentTheme.accentRing} transition-all text-sm font-semibold ${currentTheme.isDark ? 'text-[#E2E8F0] [color-scheme:dark]' : 'text-slate-800'}`}
                   />
                   <button
                     type="submit"
-                    className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
+                    className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
                   >
                     <Plus size={20} />
                     {t.addTask}
@@ -60,14 +60,14 @@ export function NotesView() {
                       key={todo.id}
                       className={`p-6 rounded-3xl border ${currentTheme.border} ${currentTheme.card} shadow-sm flex items-center justify-between group`}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex min-w-0 flex-1 items-center gap-4">
                         <button
                           onClick={() => toggleTodo(todo.id)}
                           className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${todo.completed ? `${currentTheme.accentBg} ${currentTheme.accentBorder} ${currentTheme.accentText}` : `border-slate-200 ${currentTheme.accentBorderHover}`}`}
                         >
                           {todo.completed && <CheckCircle2 size={14} />}
                         </button>
-                        <span className={`text-sm font-bold ${todo.completed ? 'line-through text-slate-300' : (currentTheme.inkStrong)}`}>
+                        <span className={`min-w-0 break-words text-sm font-bold ${todo.completed ? 'line-through text-slate-300' : (currentTheme.inkStrong)}`}>
                           {todo.text}
                         </span>
                         {editingDateId === todo.id ? (
@@ -99,7 +99,7 @@ export function NotesView() {
                       <button
                         onClick={() => deleteTodo(todo.id)}
                         title={t.deleteTask}
-                        className={`px-2.5 py-1.5 rounded-lg text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} transition-all flex items-center gap-1 text-2xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100`}
+                        className={`px-2.5 py-1.5 rounded-lg text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} transition-all flex shrink-0 items-center gap-1 text-2xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100`}
                       >
                         <Trash2 size={14} />
                         {t.deleteTask}

@@ -18,10 +18,11 @@ import { en as parentsEn, fr as parentsFr } from './domains/parents';
 import { en as adminEn, fr as adminFr } from './domains/admin';
 import { en as pdfEn, fr as pdfFr } from './domains/pdf';
 import { en as cashReportEn, fr as cashReportFr } from './domains/cashReport';
+import { en as paymentCorrectionsEn, fr as paymentCorrectionsFr } from './domains/paymentCorrections';
 
 export const translations = {
-  en: { ...commonEn, ...calendarEn, ...studentsEn, ...financeEn, ...studentProfileEn, ...parentsEn, ...adminEn, ...pdfEn, ...cashReportEn },
-  fr: { ...commonFr, ...calendarFr, ...studentsFr, ...financeFr, ...studentProfileFr, ...parentsFr, ...adminFr, ...pdfFr, ...cashReportFr },
+  en: { ...commonEn, ...calendarEn, ...studentsEn, ...financeEn, ...studentProfileEn, ...parentsEn, ...adminEn, ...pdfEn, ...cashReportEn, ...paymentCorrectionsEn },
+  fr: { ...commonFr, ...calendarFr, ...studentsFr, ...financeFr, ...studentProfileFr, ...parentsFr, ...adminFr, ...pdfFr, ...cashReportFr, ...paymentCorrectionsFr },
 };
 
 export type TranslationDict = typeof translations.en;

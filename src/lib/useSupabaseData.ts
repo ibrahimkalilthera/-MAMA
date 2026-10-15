@@ -42,6 +42,7 @@ import { createClassOps } from './dataOps/classes';
 import { createParentOps } from './dataOps/parents';
 import { createStudentOps } from './dataOps/students';
 import { createPaymentOps } from './dataOps/payments';
+import { createSalaryCorrectionOps } from './dataOps/salaryCorrections';
 import { createStaffOps } from './dataOps/staff';
 import { createExpenseOps } from './dataOps/expenses';
 import { createTodoOps } from './dataOps/todos';
@@ -608,6 +609,11 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
   const { addParent, updateParent, deleteParent } = createParentOps(ctx);
   const { addStudent, updateStudent, deleteStudent, mergeStudents, batchPromoteStudents } = createStudentOps(ctx);
   const { addPayment, deletePayment, updatePaymentMonths, restorePayment, addSalaryPayment } = createPaymentOps(ctx);
+  // Les deux gestes de CORRECTION d'une paie vivent dans leur propre module
+  // (`dataOps/salaryCorrections.ts`) : ils ne touchent pas aux reçus, et
+  // `dataOps/payments.ts` est revenu sous le budget de lignes en les laissant
+  // partir.
+  const { deleteSalaryPayment, restoreSalaryPayment } = createSalaryCorrectionOps(ctx);
   const { addStaff, updateStaff, deleteStaff } = createStaffOps(ctx);
   const { addExpense, updateExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense } = createExpenseOps(ctx);
   const { addTodo, updateTodo, deleteTodo } = createTodoOps(ctx);
@@ -671,7 +677,7 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
     addStudent, updateStudent, deleteStudent, mergeStudents,
     addPayment, deletePayment, updatePaymentMonths, restorePayment,
     addStaff, updateStaff, deleteStaff,
-    addSalaryPayment,
+    addSalaryPayment, deleteSalaryPayment, restoreSalaryPayment,
     addExpense, updateExpense, deleteExpense,
     addVendorExpense, updateVendorExpense, deleteVendorExpense,
     addTodo, updateTodo, deleteTodo,

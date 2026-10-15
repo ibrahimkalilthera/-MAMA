@@ -57,6 +57,30 @@ const updaterCacheDir = () =>
 // failed) → purge the stale cache so the next check really re-downloads.
 const installPendingFlag = () => path.join(app.getPath('userData'), 'update-install-pending');
 
+// ─── Un poste = UNE instance ────────────────────────────────────────────────
+// Mesuré : deux instances de l'application, ce sont deux boucles de vérification
+// qui écrivent dans le MÊME dossier de cache (`updaterCacheDir()`, partagé entre
+// installations) — deux téléchargements, deux « Redémarrer », deux installeurs
+// pour une seule mise à jour. Le verrou est pris ICI, avant toute fenêtre : la
+// seconde instance rend la main et met au premier plan celle qui vit déjà.
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const [existing] = BrowserWindow.getAllWindows();
+    if (!existing) return;
+    if (existing.isMinimized()) existing.restore();
+    existing.focus();
+  });
+}
+
+// L'interface a-t-elle annoncé qu'elle montre la question de mise à jour ?
+// C'est l'entrée de `askOwner` (politique). Remise à FAUX à chaque nouveau
+// document : un renderer qui recharge n'a plus personne pour poser la question
+// tant qu'il n'a pas reparlé.
+let rendererReady = false;
+
 // Version targeted by the cached update (from update-info.json fileName), or
 // null if it cannot be read. Used to tell "install succeeded" (the app now
 // runs the cached version) from "install did not complete" (it does not).
@@ -126,7 +150,7 @@ function setupAutoUpdater(win) {
   const { autoUpdater } = require('electron-updater');
   const {
     shouldCheck, shouldPrompt, downloadConsent, updateAction, updatePressure,
-    holdsUrlFrom, holdDecision, updateGate, gateFailure,
+    holdsUrlFrom, holdDecision, updateGate, gateFailure, askOwner, installClaim,
     CHECK_INTERVAL_MS, FOCUS_COOLDOWN_MS, RE_PROMPT_MS, FORCED_RE_PROMPT_MS,
   } = require('./updater-policy.cjs');
   const { feedUrlFrom, inspectUpdateFailure } = require('./update-feed.cjs');
@@ -349,6 +373,12 @@ function setupAutoUpdater(win) {
   // et « redémarrer maintenant » sont deux consentements distincts, et reporter
   // l'un ne doit pas taire l'autre.
   let lastDownloadPromptAt = null;
+  // ─── Un seul installeur possible ──────────────────────────────────────
+  // Le verrou de la DEMANDE (pas de l'octet). Dès qu'une installation a été
+  // demandée — boîte native ou bouton de l'interface — la seconde ne lance
+  // rien : `quitAndInstall()` était appelé depuis deux endroits sans rien entre
+  // eux, et un double clic lançait deux fois l'installeur NSIS.
+  let installClaimed = false;
   // Le retard de CE poste, recalculé dès qu'une version est annoncée. Il vit à
   // part de l'état poussé à l'interface : l'interface a besoin de le MONTRER
   // (et de bloquer tant qu'il est obligatoire), le main a besoin de le décider.
@@ -538,6 +568,14 @@ function setupAutoUpdater(win) {
       autoUpdater.downloadUpdate().catch((e) => log(`téléchargement refusé ${(e && e.message) || e}`));
       return;
     }
+    // Même règle que pour l'installation : un seul demandeur. L'interface
+    // montre déjà l'état « disponible » avec son bouton (et, pour le portable,
+    // le lien vers la page de téléchargement) ; une modale en plus, c'est deux
+    // questions pour une seule réponse.
+    if (askOwner({ uiReady: rendererReady }).owner === 'interface') {
+      log('question de téléchargement portée par l’interface — aucune boîte native');
+      return;
+    }
     const forced = pressure.forced;
     const reinvite = forced ? FORCED_RE_PROMPT_MS : RE_PROMPT_MS;
     // `downloaded` vaut ici « il y a quelque chose à proposer », pas « les octets
@@ -595,6 +633,40 @@ function setupAutoUpdater(win) {
   }
 
   /**
+   * LE SEUL chemin vers `quitAndInstall()` — et sa garde.
+   *
+   * Le défaut mesuré (« la mise à jour se lance deux fois ») n'était pas dans
+   * l'installeur : il y avait deux portes pour le même paiement — la boîte
+   * native et le bouton de l'interface (`updates:install`) — et rien entre elles.
+   * Une demande par process ferme le sujet : la seconde réponse dit ce qu'elle a
+   * fait (rien) au lieu de lancer un second installeur.
+   *
+   * `autoInstallOnAppQuit` passe à FAUX ici, et c'est la moitié qui manquait à
+   * l'autre bout : sur le chemin normal sa valeur par défaut (`true`) fait
+   * installer la mise à jour À LA FERMETURE. Le geste est voulu — une école ferme
+   * la fenêtre le soir, et la preuve du canal s'appuie dessus — mais il ne doit
+   * pas s'AJOUTER à un clic : deux gestes humains, un seul installeur.
+   *
+   * @param {string} origin qui demande (pour que le journal du poste le dise)
+   * @returns {{ ok: boolean, action?: string, reason?: string }}
+   */
+  function requestInstall(origin) {
+    const claim = installClaim({ claimed: installClaimed });
+    if (!claim.granted) {
+      log(`installation refusée (${origin}) — ${claim.reason}`);
+      return { ok: false, reason: claim.reason };
+    }
+    installClaimed = true;
+    autoUpdater.autoInstallOnAppQuit = false;
+    // Sentinel: marks an install attempt. If the app comes up again on this
+    // version, purgeStaleUpdaterCache() wipes the shared cache on next start.
+    try { fs.writeFileSync(installPendingFlag(), `${new Date().toISOString()}\n`); } catch { /* best-effort */ }
+    log(`installation demandée (${origin})`);
+    autoUpdater.quitAndInstall();
+    return { ok: true, action: 'restart' };
+  }
+
+  /**
    * Pose la question — et la repose. « Plus tard » reporte, il ne refuse pas.
    */
   async function askToInstall(info) {
@@ -607,6 +679,13 @@ function setupAutoUpdater(win) {
     }
     if (refusedVersion === info.version) {
       log(`prompt refusé — les octets de ${info.version} ne répondent pas au flux`);
+      return;
+    }
+    // La question a UN seul demandeur (voir `askOwner`) : tant que l'interface
+    // l'affiche, la boîte native se taît. Sans ce partage, le poste demandait
+    // deux fois la même chose — une modale ET un bandeau, chacun avec son bouton.
+    if (askOwner({ uiReady: rendererReady }).owner === 'interface') {
+      log('question d’installation portée par l’interface — aucune boîte native');
       return;
     }
     // Une obligation ne se reporte pas : on relance tout de suite, et la
@@ -650,10 +729,10 @@ function setupAutoUpdater(win) {
       ...(forced ? {} : { cancelId: 1 }),
     });
     if (response === 0) {
-      // Sentinel: marks an install attempt. If the app comes up again on this
-      // version, purgeStaleUpdaterCache() wipes the shared cache on next start.
-      try { fs.writeFileSync(installPendingFlag(), `${new Date().toISOString()}\n`); } catch { /* best-effort */ }
-      autoUpdater.quitAndInstall();
+      // Le SEUL chemin d'installation, verrouillé (voir `requestInstall`) : la
+      // sentinelle, le désarmement de l'installation à la fermeture et le
+      // redémarrage vivent ensemble, au même endroit.
+      requestInstall('boîte native');
     } else {
       // Report : on repropose plus tard sans attendre un redémarrage.
       setTimeout(() => { void askToInstall(info); }, reinvite).unref?.();
@@ -688,6 +767,19 @@ function setupAutoUpdater(win) {
   // L'interface peut aussi demander elle-même l'état (bandeau monté après coup).
   try {
     ipcMain.handle('updates:get-state', () => state);
+    // L'interface ANNONCE qu'elle montre la question (bandeau monté) : c'est ce
+    // qui fait d'elle le demandeur, et ce qui fait taire la boîte native. Sans ce
+    // signal, le processus principal ne peut pas savoir si quelqu'un regarde
+    // l'écran — et c'est exactement ce qui laissait les deux demandeurs parler en
+    // même temps.
+    ipcMain.handle('updates:ui-ready', (_event, active) => {
+      // `false` = l'interface ne montre PLUS la question (bandeau masqué) : elle
+      // rend la main au processus principal, qui reprend la boîte native et son
+      // rappel. Sans ce retour, masquer le bandeau serait un silence — et la mise
+      // à jour ne serait plus jamais demandée sur ce poste.
+      rendererReady = active !== false;
+      return { ok: true, owner: askOwner({ uiReady: rendererReady }).owner };
+    });
     // LE BATTEMENT, en LECTURE seule : le rendu emporte ce que le processus
     // principal a inscrit, il ne compose rien lui-même. L'identité du poste ne
     // traverse donc jamais la page — elle ne peut ni être lue, ni être réécrite,
@@ -762,14 +854,19 @@ function setupAutoUpdater(win) {
       // télécharger, pas répondre « aucune mise à jour prête ». C'est le seul
       // chemin qui reste au poste dont la question a été fermée puis oubliée.
       if (state.version && state.status !== 'downloaded') {
+        // Un téléchargement DÉJÀ en cours ne repart pas : deux appels (la modale
+        // et le bandeau, ou deux clics) ne doivent pas faire deux fois 129 Mo sur
+        // le lien d'une école.
+        if (state.status === 'downloading') return { ok: true, action: 'download' };
         log(`téléchargement demandé depuis l'interface ${state.version}`);
         await autoUpdater.downloadUpdate().catch((e) => log(`téléchargement refusé ${(e && e.message) || e}`));
         return { ok: true, action: 'download' };
       }
       if (state.status !== 'downloaded') return { ok: false, reason: 'aucune mise à jour prête' };
-      try { fs.writeFileSync(installPendingFlag(), `${new Date().toISOString()}\n`); } catch { /* best-effort */ }
-      autoUpdater.quitAndInstall();
-      return { ok: true, action: 'restart' };
+      // Le MÊME verrou que la boîte native : l'interface DEMANDE, elle
+      // n'installe pas elle-même. Deux clics sur deux boutons différents ne
+      // peuvent donc plus lancer deux installeurs pour une seule mise à jour.
+      return requestInstall('interface');
     });
   } catch { /* canaux déjà enregistrés (rechargement) */ }
 }
@@ -799,6 +896,11 @@ function createWindow() {
   });
 
   win.once('ready-to-show', () => win.show());
+
+  // Un nouveau document, c'est une interface neuve : elle doit RE-annoncer
+  // qu'elle montre la question de mise à jour, sinon le processus principal
+  // croirait un bandeau vivant alors que le renderer vient de recharger.
+  win.webContents.on('did-start-loading', () => { rendererReady = false; });
 
   // External links (mailto:, https:// outside the app) → system browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -855,6 +957,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Une seconde instance a déjà rendu la main (`app.quit()` plus haut) : elle ne
+  // doit ni installer la CSP, ni ouvrir une fenêtre, ni brancher un updater.
+  if (!hasSingleInstanceLock) return;
   // Correct taskbar grouping / notifications on Windows.
   app.setAppUserModelId('com.mamathera.finance');
   // LA CSP, appliquée AVANT que la première fenêtre n'existe : une fenêtre créée

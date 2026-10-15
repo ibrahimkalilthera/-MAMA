@@ -41,6 +41,23 @@ contextBridge.exposeInMainWorld('desktop', {
     /** Demande l'installation (redémarrage) ou ouvre la page de téléchargement. */
     install: () => ipcRenderer.invoke('updates:install'),
     /**
+     * L'interface ANNONCE qu'elle montre la question de mise à jour.
+     *
+     * Ce n'est pas une politesse : c'est ce qui évite que la MÊME demande soit
+     * posée deux fois — la boîte native du processus principal ET le bandeau —,
+     * avec deux boutons qui lançaient chacun l'installation. Tant que personne
+     * n'a parlé dans l'interface (écran de connexion, renderer planté), la boîte
+     * native reste le seul demandeur : le poste n'est jamais muet.
+     *
+     * `false` = l'interface ne montre PLUS la question (bandeau masqué) : elle
+     * rend la main, et la boîte native redevient le demandeur — un bandeau masqué
+     * ne doit pas devenir un silence.
+     *
+     * @param {boolean} [active]
+     * @returns {Promise<{ok?: boolean, owner?: string}>}
+     */
+    uiReady: (active = true) => ipcRenderer.invoke('updates:ui-ready', Boolean(active)),
+    /**
      * Relancer une vérification / un téléchargement.
      *
      * Existe pour un seul cas, et il compte : une mise à jour OBLIGATOIRE dont

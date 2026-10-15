@@ -104,7 +104,7 @@ export function NotificationsPanel({ notifications, currentTheme, onOpenStudent,
   );
 
   return (
-    <div className="relative">
+    <div className="relative flex-shrink-0">
       {/* Transparent viewport backdrop — click outside closes the dropdown. */}
       {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
 

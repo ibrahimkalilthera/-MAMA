@@ -70,6 +70,22 @@ export const FINANCE_WRITER_ROLES = ['admin', 'dev', 'general_manager', 'econome
  */
 export const VENDOR_EXPENSE_DELETER_ROLES = FINANCE_ADMIN_ROLES;
 
+/**
+ * Les rôles qui SUPPRIMENT un paiement de salaire — `public.is_finance_admin()`,
+ * tel qu'il est exécuté par la policy « Finance admins delete salary_payments »
+ * (`20260902000000_general_manager_role.sql`, et sa revue de dédoublonnage
+ * `20261015000000_inherited_policy_closure.sql`).
+ *
+ * Même tableau que `VENDOR_EXPENSE_DELETER_ROLES`, nommé pour ce qu'il décide
+ * ici — et la distinction qui compte est ailleurs : l'ÉCONOME enregistre la paie
+ * (`PAYROLL_WRITER_ROLES`) sans pouvoir la détruire. C'est la décision écrite
+ * noir sur blanc par `20261005000000_econome_payroll_writes.sql` (« la
+ * suppression reste à `is_finance_admin()` : enregistrer et détruire ne sont pas
+ * le même droit ») — une saisie fautive se corrige donc en la RETIRANT, geste
+ * réservé aux gestionnaires financiers.
+ */
+export const SALARY_PAYMENT_DELETER_ROLES = FINANCE_ADMIN_ROLES;
+
 /** Le rôle, réduit à sa forme comparable (l'écriture vient d'une colonne Postgres). */
 const norm = (role: string | null | undefined): string => String(role ?? '').trim().toLowerCase();
 
@@ -109,4 +125,19 @@ export function canWriteFinance(role: string | null | undefined): boolean {
  */
 export function canDeleteVendorExpenses(role: string | null | undefined): boolean {
   return (VENDOR_EXPENSE_DELETER_ROLES as readonly string[]).includes(norm(role));
+}
+
+/**
+ * Ce rôle peut-il SUPPRIMER un paiement de salaire ?
+ * Le miroir exact de `public.is_finance_admin()` — admin, dev, Gestionnaire
+ * Principal. L'économe y est ABSENT alors qu'il enregistre la paie : écrire et
+ * détruire ne sont pas le même droit, et c'est la base qui le dit.
+ *
+ * L'écran lit cette fonction (`PayrollView`), la policy décide, et
+ * `tests/finance-rights.test.ts` compare les deux listes DANS LES DEUX SENS : un
+ * rôle ajouté d'un seul côté rouvrirait (ou fermerait) une corbeille que la base
+ * ne suit pas.
+ */
+export function canDeleteSalaryPayments(role: string | null | undefined): boolean {
+  return (SALARY_PAYMENT_DELETER_ROLES as readonly string[]).includes(norm(role));
 }

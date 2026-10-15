@@ -37,6 +37,8 @@ const {
   holdDecision,
   updateGate,
   gateFailure,
+  askOwner,
+  installClaim,
 } = require('../electron/updater-policy.cjs') as {
   CHECK_INTERVAL_MS: number;
   FOCUS_COOLDOWN_MS: number;
@@ -72,6 +74,8 @@ const {
     held: boolean;
     detail: string;
   };
+  askOwner: (i?: Record<string, unknown>) => { owner: string; detail: string };
+  installClaim: (i?: Record<string, unknown>) => { granted: boolean; reason: string };
 };
 
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
@@ -502,5 +506,81 @@ describe('les octets qui ne répondent pas au flux sont une cause À PART', () =
     // Et les octets menteurs sont retirés du cache : le cache d'electron-updater
     // resservirait sinon le même payload sans repasser par le réseau.
     assert.match(main, /wipeUpdaterCache\(log, 'payload refusé/);
+  });
+});
+
+// ─── Un seul geste, un seul propriétaire ─────────────────────────────────────
+//
+// Mesuré sur un poste : « la mise à jour se lance deux fois ». La mise à jour
+// avait plusieurs propriétaires et rien entre eux — la boîte native ET le
+// bandeau posaient la même question, `quitAndInstall()` n'était gardé par rien,
+// l'installation à la fermeture s'ajoutait au clic, et deux instances de
+// l'application écrivaient dans le même cache partagé.
+describe('la mise à jour n’a plus qu’un seul propriétaire', () => {
+  it('la question appartient à l’interface dès qu’elle l’a annoncé', () => {
+    // Tant que personne n'écoute (écran de connexion, renderer planté), la boîte
+    // native reste le seul demandeur : un poste muet serait pire que deux
+    // questions.
+    const quiet = askOwner({});
+    assert.equal(quiet.owner, 'dialog');
+    assert.match(quiet.detail, /personne n’écoute/);
+    const spoken = askOwner({ uiReady: true });
+    assert.equal(spoken.owner, 'interface', 'le bandeau reste à l’écran : c’est lui qui porte le bouton');
+    assert.match(spoken.detail, /boîte native se taît/);
+  });
+
+  it('une seule demande d’installation est accordée, la seconde ne lance rien', () => {
+    const first = installClaim({ claimed: false });
+    assert.equal(first.granted, true, 'la première demande installe');
+    const second = installClaim({ claimed: true });
+    assert.equal(second.granted, false, 'la seconde ne doit pas lancer un second installeur');
+    assert.match(second.reason, /un seul installeur/);
+  });
+
+  it('le processus principal garde UN SEUL chemin vers quitAndInstall()', () => {
+    const main = read('electron/main.cjs');
+    // L'invariant qui compte : `quitAndInstall()` n'est appelé qu'à UN endroit.
+    // Deux appels, et deux clics lancent deux installeurs — la panne même.
+    const calls = [...main.matchAll(/autoUpdater\.quitAndInstall\(\)/g)];
+    assert.equal(calls.length, 1, 'un seul appel à quitAndInstall() dans tout le fichier');
+    assert.match(main, /function requestInstall\(origin\)/, 'et il vit dans la porte gardée');
+    assert.match(
+      main,
+      /installClaim\(\{ claimed: installClaimed \}\)/,
+      'la garde vient de la politique, pas d’un booléen local',
+    );
+    // Les deux demandeurs passent par elle : la boîte native et l'interface.
+    assert.match(main, /requestInstall\('boîte native'\)/);
+    assert.match(main, /return requestInstall\('interface'\)/);
+    // L'installation à la fermeture ne s'ajoute plus à un clic : elle reste
+    // possible (une école ferme la fenêtre le soir), mais plus APRÈS une demande.
+    assert.match(main, /autoUpdater\.autoInstallOnAppQuit = false;/, 'désarmée au moment où un humain demande');
+    // Un téléchargement déjà en cours ne repart pas : deux clics ne font pas
+    // deux fois 129 Mo sur le lien d'une école.
+    assert.match(main, /if \(state\.status === 'downloading'\) return \{ ok: true, action: 'download' \}/);
+  });
+
+  it('un poste, une instance — sinon deux updaters sur le même cache', () => {
+    const main = read('electron/main.cjs');
+    // Deux instances écrivent dans le MÊME dossier de cache (partagé entre
+    // installations) : deux téléchargements, deux « Redémarrer ».
+    assert.match(main, /const hasSingleInstanceLock = app\.requestSingleInstanceLock\(\)/);
+    assert.match(main, /if \(!hasSingleInstanceLock\) \{\s*app\.quit\(\)/, 'la seconde instance rend la main');
+    assert.match(main, /app\.on\('second-instance'/, 'et met au premier plan celle qui vit déjà');
+    assert.match(main, /if \(!hasSingleInstanceLock\) return;/, 'sans verrou, aucune fenêtre ni updater');
+  });
+
+  it('l’interface annonce qu’elle montre la question, et le pont le porte', () => {
+    assert.match(
+      read('electron/preload.cjs'),
+      /uiReady: \(active = true\) => ipcRenderer\.invoke\('updates:ui-ready', Boolean\(active\)\)/,
+      'le canal porte aussi le RETRAIT : masquer le bandeau rend la main',
+    );
+    const main = read('electron/main.cjs');
+    assert.match(main, /ipcMain\.handle\('updates:ui-ready'/);
+    // Un nouveau document doit RE-annoncer : sans ça, le processus principal
+    // croirait un bandeau vivant alors que le renderer vient de recharger.
+    assert.match(main, /did-start-loading', \(\) => \{ rendererReady = false; \}/);
+    assert.match(read('src/components/UpdateBanner.tsx'), /void api\.uiReady\?\.\(\)\.catch\(\(\) => \{\}\)/);
   });
 });

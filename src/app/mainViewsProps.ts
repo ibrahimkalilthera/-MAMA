@@ -20,6 +20,7 @@ import type { Student, Staff, Parent, Todo, Expense, SalaryPayment, VendorExpens
 import type { Payment } from '../lib/domainTypes';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import type { ArchivedPayment } from '../lib/paymentUndo';
+import type { ArchivedSalaryPayment } from '../lib/salaryUndo';
 import type { AuthState, UserProfile } from '../lib/useAuth';
 import type { AuditLogEntry } from '../lib/auditLogger';
 import type { TranslationDict } from '../i18n/translations';
@@ -379,6 +380,28 @@ export interface MainViewsProps {
    * L'Historique des paiements l'offre là où une caisse relit son geste.
    */
   deletePayment: (studentId: string, payment: Payment) => Promise<boolean>;
+  /**
+   * Retire un PAIEMENT DE SALAIRE fautif (mauvais membre, montant doublé, mois
+   * payé deux fois) sans supprimer le membre — dont la clé étrangère est
+   * `ON DELETE CASCADE`, ce qui emportait toute sa paie. Écrit une entrée
+   * `DELETE_SALARY_PAYMENT` au journal, avec l'instantané qui rend le geste
+   * annulable (`src/lib/salaryUndo.ts`). Le droit est celui de la base
+   * (`canDeleteSalaryPayment`, « Finance admins delete salary_payments »).
+   */
+  deleteSalaryPayment: (payment: SalaryPayment) => Promise<boolean>;
+  /**
+   * Annule la suppression d'un salaire à partir de son instantané (le `metadata`
+   * de l'entrée `DELETE_SALARY_PAYMENT`, relu par l'Historique des paiements).
+   * Réinsère la ligne avec son id d'origine et écrit `RESTORE_SALARY_PAYMENT`.
+   * Demande le réseau, comme la restauration d'un reçu.
+   */
+  restoreSalaryPayment: (archived: ArchivedSalaryPayment) => Promise<boolean>;
+  /**
+   * Retire le salaire choisi, en refusant un exercice CLOS et un rôle que la base
+   * n'autorise pas — la même double garde que les dépenses. L'appelant reçoit le
+   * geste fait (toast) ou rien du tout (refus annoncé), jamais un faux succès.
+   */
+  handleDeleteSalaryPayment: (payment: SalaryPayment) => Promise<void>;
   expandedParentId: string | null;
   expenseCategoryList: { key: string; label: string }[];
   expenses: Expense[];
@@ -456,6 +479,14 @@ export interface MainViewsProps {
    * éditeur que la base refuserait.
    */
   canEditPaymentMonths: boolean;
+  /**
+   * Le rôle peut-il RETIRER un paiement de salaire fautif ? Décidé par la BASE
+   * (`public.is_finance_admin()` : admin, dev, Gestionnaire Principal — la policy
+   * « Finance admins delete salary_payments », voir `canDeleteSalaryPayments`
+   * dans `src/lib/payrollRights.ts`). L'économe ENREGISTRE la paie sans pouvoir
+   * la détruire : écrire et détruire ne sont pas le même droit.
+   */
+  canDeleteSalaryPayment: boolean;
   /**
    * Renseigne les mois qu'un reçu MUET couvrait — la fonction
    * `public.set_payment_months(uuid, text[])` de la base (un reçu par appel,
