@@ -1,5 +1,5 @@
 /**
- * Historique des paiements — admin/dev only, comme le journal dont il se lit.
+ * Historique des paiements — la caisse, et l'économe qui la tient.
  *
  * ─── Pourquoi cette vue, et pourquoi ici ─────────────────────────────────────
  * « Qui a encaissé ce paiement ? » n'a qu'une réponse possible : le journal
@@ -9,10 +9,20 @@
  * journal, en garde les trois gestes de paiement, et les rend lisibles pour une
  * caisse — élève, montant, reçu, encaisseur.
  *
- * Elle vit à côté du journal d'audit et porte la même garde (`auth.isAdmin`) pour
- * une raison qui n'est pas cosmétique : la policy RLS de `audit_logs` ne laisse
- * LIRE que les rôles `admin`/`dev`. Un économe verrait donc un historique vide,
- * pas un historique filtré — lui montrer l'onglet serait mentir.
+ * ─── Qui la lit, et ce que le 2026-10-15 a changé ────────────────────────────
+ * La garde n'est plus `auth.isAdmin` : elle est `canViewPaymentHistory`
+ * (`src/lib/paymentHistoryRights.ts`) — la MÊME liste de rôles que la base,
+ * `admin`, `dev` ET `econome` (policy « Payment history viewers read payment
+ * gestures », migration `20261020000000_econome_payment_history.sql`). L'économe
+ * tient la caisse : lui cacher qui a encaissé quoi revenait à lui demander de
+ * répondre à une question sans lui en donner les moyens.
+ *
+ * La policy ne lui ouvre QUE les lignes de cet écran — les trois gestes de caisse
+ * et les quatre corrections d'argent — donc le reste du journal (rôles, élèves,
+ * réglages) reste refusé à son rôle, et l'onglet du journal d'audit reste fermé
+ * pour lui. C'est ce que la garde d'écran et la RLS disent ENSEMBLE : l'écran ne
+ * montre pas plus que ce que la base accepte de rendre, et
+ * `tests/payment-history-rights.test.ts` tient les deux moitiés.
  *
  * ─── Trois gestes, là où la caisse les cherche ───────────────────────────────
  *   1. **Cliquer la ligne MONTRE le reçu** (`generatePaymentReceiptPdf` publie
@@ -55,6 +65,7 @@ import type { Payment, Student } from '../lib/domainTypes';
 import { restorablePayment, type ArchivedPayment } from '../lib/paymentUndo';
 import { restorableSalary, type ArchivedSalaryPayment } from '../lib/salaryUndo';
 import { correctionHistoryRows } from '../lib/correctionHistory';
+import { canViewPaymentHistory } from '../lib/paymentHistoryRights';
 import {
   PAYMENT_HISTORY_ACTIONS,
   filterPaymentHistory,
@@ -115,9 +126,11 @@ export function PaymentHistoryView() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyCoverage, setHistoryCoverage] = useState<{ count: number; from: string; to: string } | null>(null);
 
-  // The audit journal (and therefore this view) is reserved to admin/dev, on the
-  // sidebar AND by the RLS policy that guards audit_logs.
-  if (!auth?.isAdmin) return null;
+  // Qui lit ce journal est décidé par la BASE, et la garde d'écran est son miroir
+  // (`public.is_payment_history_viewer()` : admin, dev, économe). Un rôle hors de
+  // cette liste ne verrait AUCUNE ligne de la policy : lui montrer l'écran
+  // afficherait « rien encaissé » sur une caisse pleine.
+  if (!canViewPaymentHistory(auth?.profile?.role)) return null;
 
   // Le journal fusionné, lu UNE fois : le tableau, « restaurer » et le rapport de
   // caisse doivent voir les mêmes lignes.

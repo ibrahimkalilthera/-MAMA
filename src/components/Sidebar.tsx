@@ -30,6 +30,7 @@ import {
 import type { TranslationDict } from '../i18n/translations';
 import type { User } from '../app/types';
 import type { CurrentTheme, PayrollWindowStatus } from '../app/mainViewsProps';
+import { canViewPaymentHistory } from '../lib/paymentHistoryRights';
 
 export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory';
 
@@ -92,6 +93,19 @@ export function Sidebar(props: SidebarProps) {
    * lisent les tests (`aria-label`) et les lecteurs d'écran.
    */
   const silentReceiptsBadge = t.silentReceiptsBadge.replace('{count}', String(silentReceiptsCount));
+
+  /**
+   * Les deux familles de lignes qui ne s'adressent pas à tout le monde.
+   *
+   * `isAdminDev` garde le JOURNAL d'audit et les Réglages ; `canSeePaymentHistory`
+   * garde l'historique des paiements, et la liste des rôles vient de la base
+   * (`public.is_payment_history_viewer()`, `src/lib/paymentHistoryRights.ts`) :
+   * l'économe y est depuis le 2026-10-15 — c'est lui qui tient la caisse. Les deux
+   * ne se confondent pas : ouvrir l'historique des paiements ne lui ouvre pas le
+   * journal, dont la base ne lui rend que les lignes de caisse.
+   */
+  const isAdminDev = currentUser?.role === 'admin' || currentUser?.role === 'dev';
+  const canSeePaymentHistory = canViewPaymentHistory(currentUser?.role);
 
   /**
    * Une ligne du rail.
@@ -216,54 +230,64 @@ export function Sidebar(props: SidebarProps) {
           )}
         </button>
 
-        {(currentUser?.role === 'admin' || currentUser?.role === 'dev') && (
-          <>
-            <button
-              onClick={() => {
-                setActiveTab('audit');
-                fetchAuditLogs();
-              }}
-              className={navBtn('audit')}
-            >
-              <ShieldCheck size={20} />
-              <span className="font-semibold text-sm">{t.auditTrail}</span>
-            </button>
+        {isAdminDev && (
+          <button
+            onClick={() => {
+              setActiveTab('audit');
+              fetchAuditLogs();
+            }}
+            className={navBtn('audit')}
+          >
+            <ShieldCheck size={20} />
+            <span className="font-semibold text-sm">{t.auditTrail}</span>
+          </button>
+        )}
 
-            {/* L'historique des paiements se lit DANS le journal (c'est le seul
-                endroit qui nomme l'encaisseur) : il vit donc ici, à côté de lui,
-                et ouvre la même lecture (`fetchAuditLogs`).
+        {/* L'historique des paiements se lit DANS le journal (c'est le seul endroit
+            qui nomme l'encaisseur) : il vit donc ici, à côté de lui, et ouvre la
+            même lecture (`fetchAuditLogs`).
 
-                C'est aussi la seule ligne dont le libellé ne tient pas dans le
-                rail tel quel : il prend le rembourrage droit resserré (voir
-                `navBtn`), son icône ne se laisse pas comprimer par le texte, et
-                `truncate` garantit qu'il se coupe au pire au lieu de casser la
-                ligne — même règle que la barre mobile, qui porte le même
-                libellé. Le libellé entier reste lu au survol (`title`). */}
-            <button
-              onClick={() => {
-                setActiveTab('paymentHistory');
-                fetchAuditLogs();
-              }}
-              className={navBtn('paymentHistory', 'pr-1.5')}
-              title={t.paymentHistory}
-            >
-              <History size={20} className="flex-shrink-0" />
-              <span className="font-semibold text-sm truncate">{t.paymentHistory}</span>
-            </button>
+            Sa garde est la seule de ce rail à ne pas être « admin/dev » : le
+            2026-10-15, l'économe y est entré (demande du propriétaire : « il doit
+            avoir accès à l'historique des paiements »), parce que la base lui rend
+            désormais les lignes de cet écran et rien d'autre du journal. La ligne
+            est donc sortie du bloc admin/dev pour son propre gate — l'y laisser
+            l'aurait cachée, et l'en sortir SANS gate l'aurait montrée à tout le
+            monde, y compris au personnel pour qui la base refuse ces lignes.
 
-            <button onClick={() => setActiveTab('settings')} className={navBtn('settings')}>
-              <Globe size={20} className="flex-shrink-0" />
-              <span className="font-semibold text-sm" data-i18n="navSettings">{t.navSettings}</span>
-              {auditArchivePending && (
-                <span
-                  className={`ml-auto ${currentTheme.accentBg} ${currentTheme.accentText} text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0`}
-                  data-i18n="auditArchiveBadge"
-                >
-                  {t.auditArchiveBadge}
-                </span>
-              )}
-            </button>
-          </>
+            C'est aussi la seule ligne dont le libellé ne tient pas dans le rail
+            tel quel : il prend le rembourrage droit resserré (voir `navBtn`), son
+            icône ne se laisse pas comprimer par le texte, et `truncate` garantit
+            qu'il se coupe au pire au lieu de casser la ligne — même règle que la
+            barre mobile, qui porte le même libellé. Le libellé entier reste lu au
+            survol (`title`). */}
+        {canSeePaymentHistory && (
+          <button
+            onClick={() => {
+              setActiveTab('paymentHistory');
+              fetchAuditLogs();
+            }}
+            className={navBtn('paymentHistory', 'pr-1.5')}
+            title={t.paymentHistory}
+          >
+            <History size={20} className="flex-shrink-0" />
+            <span className="font-semibold text-sm truncate">{t.paymentHistory}</span>
+          </button>
+        )}
+
+        {isAdminDev && (
+          <button onClick={() => setActiveTab('settings')} className={navBtn('settings')}>
+            <Globe size={20} className="flex-shrink-0" />
+            <span className="font-semibold text-sm" data-i18n="navSettings">{t.navSettings}</span>
+            {auditArchivePending && (
+              <span
+                className={`ml-auto ${currentTheme.accentBg} ${currentTheme.accentText} text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0`}
+                data-i18n="auditArchiveBadge"
+              >
+                {t.auditArchiveBadge}
+              </span>
+            )}
+          </button>
         )}
 
         <button

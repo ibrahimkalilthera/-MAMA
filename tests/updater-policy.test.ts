@@ -541,7 +541,14 @@ describe('la mise à jour n’a plus qu’un seul propriétaire', () => {
     const main = read('electron/main.cjs');
     // L'invariant qui compte : `quitAndInstall()` n'est appelé qu'à UN endroit.
     // Deux appels, et deux clics lancent deux installeurs — la panne même.
-    const calls = [...main.matchAll(/autoUpdater\.quitAndInstall\(\)/g)];
+    //
+    // Ce qui est vérifié ici est le NOMBRE de portes, pas ce qu'on leur demande :
+    // les arguments de l'appel (silencieux, avec relance) sont l'objet d'une
+    // autre suite (`tests/updater-silent-install.test.ts`), et ils y ont une
+    // raison de ne pas disparaître. Deux suites, deux propriétés — celle-ci ne
+    // doit pas rougir parce que le mode change, ni l'autre parce qu'un second
+    // appel apparaît.
+    const calls = [...main.matchAll(/autoUpdater\.quitAndInstall\s*\(/g)];
     assert.equal(calls.length, 1, 'un seul appel à quitAndInstall() dans tout le fichier');
     assert.match(main, /function requestInstall\(origin\)/, 'et il vit dans la porte gardée');
     assert.match(
