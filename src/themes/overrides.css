@@ -59,7 +59,14 @@
   color: #6B6659 !important;
 }
 
-.theme-cream .bg-[#F8FAFC],
+/* Les crochets ÉCHAPPÉS (`\[`, comme dans les autres entrées `bg-\[#…\]` du
+   corpus) : écrits nus (`.bg-[#F8FAFC]`), ils se lisent comme un sélecteur
+   d'attribut sans nom qualifié — « No qualified name in attribute selector » —
+   et le parseur du pipeline (lightningcss, via @tailwindcss/vite) jette alors la
+   règle ENTIÈRE. Mesuré le 2026-10-15 sur le CSS DÉPLOYÉ : ces quatre surfaces
+   crème n'étaient repientes dans aucun build, production comprise.
+   `scripts/check-css-selectors.mjs` refuse désormais les deux formes nues. */
+.theme-cream .bg-\[#F8FAFC\],
 .theme-cream .bg-slate-50,
 .theme-cream .bg-slate-50\/50,
 .theme-cream .bg-slate-50\/30 {
@@ -332,65 +339,15 @@
   color: #F8FAFC !important;
 }
 
-/* Slate headings AND the slate-neutral text utilities (.text-slate-950..600)
-   are whitened ONLY inside containers this theme paints dark.
-   The former `.theme-slate h1..h4` / `.theme-slate .text-slate-700`
-   { color:#F8FAFC !important } catch-alls whitened EVERY heading and EVERY
-   slate-neutral text under the theme — including ones inside surfaces that
-   deliberately stay light (pastel badges, ticket/print zones, any future
-   fixed-light card), which is how white-on-pale text kept reappearing.
-   Headings and slate text now keep their normal (dark) color unless an
-   ancestor belongs to the slate dark system listed below: the card system
-   plus every background utility remapped to dark in this file. Text on any
-   other container is left dark → readable on a light surface by
-   construction. Keep this list in sync with the background remaps
-   (scripts/check-css-selectors.mjs cross-checks headings AND the text
-   family against them). */
-.theme-slate .bg-white :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-\[#F8FAFC\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-slate-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-slate-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-slate-50\/30 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-rose-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-rose-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-rose-50\/40 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-rose-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-rose-50\/60 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-blue-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-blue-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-blue-50\/30 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-emerald-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-emerald-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-emerald-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-amber-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-amber-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-yellow-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-yellow-50\/60 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-yellow-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-teal-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-teal-50\/70 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-purple-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-purple-50\/70 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-\[#121212\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-\[#1E1E1E\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-\[#1A1A1A\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-\[#2A2A2A\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-\[#2a2a2a\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-emerald-500 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-emerald-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-blue-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-emerald-500\/10 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-emerald-500\/20 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-blue-500\/10 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .bg-blue-500\/20 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .card-elevated :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .card-stat :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .card-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .surface-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-slate .card-hero :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600) {
-  color: #F8FAFC !important;
-}
-
+/* Le blanchiment d'encre d'Ardoise — ses DEUX moitiés, la descendante et celle
+   de l'élément qui porte LUI-MÊME la surface — vit dans
+   src/themes/ink-scope.css, importé juste après ce fichier : le budget de 700
+   lignes (scripts/check-line-budget.mjs) l'a fait sortir d'ici, et ses deux
+   moitiés se vérifient ensemble (scripts/check-css-selectors.mjs). La liste de
+   surfaces reste à tenir EN PHASE avec les remaps de fond de CE fichier : les
+   surfaces que ce thème peint en sombre sont celles qui doivent y figurer.
+   Pourquoi la moitié « élément lui-même » existe, et les deux pièges de parseur
+   qui avaient tenu cette règle hors du construit : en tête de ink-scope.css. */
 .theme-slate .text-slate-400,
 .theme-slate .text-slate-500 {
   color: #B6C2D6 !important;
@@ -546,11 +503,7 @@
 }
 
 /* Slate dark-mode specific overrides */
-.theme-slate .bg-\[#121212\],
-.theme-slate .bg-\[#1E1E1E\],
-.theme-slate .bg-\[#1A1A1A\],
-.theme-slate .bg-\[#2A2A2A\],
-.theme-slate .bg-\[#2a2a2a\] {
+.theme-slate .bg-\[\#121212\] {
   background-color: #1E293B !important;
 }
 

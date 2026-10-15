@@ -5,6 +5,10 @@
    overrides layer (light themes + slate). Keep this order — it is the one
    the pre-split single file had. */
 @import './themes/overrides.css';
+/* Le blanchiment d'encre des deux thèmes sombres (ses deux moitiés) : APRÈS
+   les remaps de ce fichier et de midnight.css, pour qu'aucun `!important` de
+   remap ne lui passe devant. */
+@import './themes/ink-scope.css';
 /* La couche des icônes vient EN DERNIER : le verre et la morphose habillent une
    icône telle qu'un thème l'a peinte, ils ne repeignent aucun thème. La placer
    après les remaps évite qu'un `!important` de thème la recouvre. */

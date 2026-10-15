@@ -1,3 +1,21 @@
+## [2026-10-19] 1.0.34 — l'encre des thèmes sombres part au parc, et le numéro est mesuré inédit
+
+Demande du propriétaire : « fais la mise à jour et publish and release, attention au doublon ».
+
+**Le doublon, nommé avant d'agir — et c'est le dépôt qui l'a dit.** La tête du canal était déjà **1.0.33** (`ef703ce`, release publiée le 2026-10-14T20:52:46Z). Publier « la même » n'aurait atteint aucune station : `npm run check:release:needed` — la commande même du job `release-gate` de `desktop-release.yml` — répondait **`needed=false`**, « ➖ v1.0.33 est DÉJÀ publié … un même numéro ne peut pas changer de contenu ». Le geste n'est donc pas de republier mais de **MONTER** le numéro : `git ls-remote --tags origin v1.0.34` rend **0** ligne (la plus récente est `ef703ce … refs/tags/v1.0.33`), et le même contrôle, relancé après la montée, bascule : « ✅ **v1.0.34 est inédit — il y a un release à faire** » (`needed=true`). Monter la version est ici la SEULE décision humaine d'une publication : la chaîne qualité de `main` fait le reste.
+
+**Et il n'y avait aucun brouillon en double à consolider.** Les 30 derniers releases relus par l'API (`/releases`, **sans jeton**) portent chacun **un seul** release par tag, tous `publié`, **5 actifs** chacun (installeur, portable, blockmap, `latest.yml`, manifeste). Le défaut que la consolidation du publieur existe pour réparer — electron-builder ouvrant un release **par cible**, donc deux brouillons pour un même tag, l'un le NSIS, l'autre le portable, les artefacts répartis entre les deux — n'est pas à reprendre ici : le seul doublon possible était **celui du numéro**, et il est fermé par la montée.
+
+**Ce que la 1.0.34 emporte.** Dix-sept commits déjà sur `main` au-dessus du tag `v1.0.33`, plus ce commit-ci : la suppression des salaires par l'économe et l'alignement des vues (`a20146c`), l'en-tête et les deux barres d'outils qui ne partagent plus la ligne du titre (`c86c303`, `fea7e8e`), le reçu visé par marqueur dans le pixel-check (`b781806`), la veille RLS qui repart et la porte qui refuse le YAML qui la tue (`371ee26`), les onze bumps Dependabot et le CLI Vercel 63 (`4f62847` … `8673aff`), la trace d'historique des PR (`f99bfbb`) — et le **correctif d'encre des deux thèmes sombres**, raison de ce numéro : la moitié « élément lui-même » du blanchiment (1,41:1 et 1,21:1 sur la pastille « Enregistrer Salaire »), les deux formes de sélecteur que `lightningcss` jetait en silence (42 surfaces ardoise absentes de **tous** les builds), et la garde qui exige désormais les deux moitiés — détail dans l'entrée « Le rouge de CI n'était pas la barre d'outils » du 15/10/2026, plus bas dans ce fichier.
+
+**Ce qu'un poste en fera, sans qu'on le lui demande.** La politique du poste force **toute** version de retard, correctif compris (`FORCED_PATCH_BEHIND = 1`) : une station en 1.0.33 reçoit 1.0.34 et ne peut pas la reporter — le frein d'urgence `updates/holds.json` est le SEUL levier, il est lisible et porte **0 retenue**.
+
+**Mesures, sur l'arbre exact.** `npm run lint` : **exit 0** (tsc strict, stylelint, les contrôles inventoriés — dont la garde de sélecteurs élargie). `npm test` : **exit 0 — 3422/3422**. `npm run check:contrast` — la commande du job « Contraste thèmes » — : **exit 0, 108/108 couvertures, 0 paire sous 3:1** sur les six thèmes. `npm run check:release:needed` : `needed=false` **avant** la montée, `needed=true` **après** — c'est la même commande qui dit le doublon et qui dit l'inédit. `npm run check:release:workshop` : atelier **propre** (les 509 Mo d'`win-unpacked` sont nommés sans être jugés, les 364 o de `latest.yml` conservés — la sortie du build en cours, que les contrôles locaux lisent).
+
+**Ce que cette entrée ne peut pas encore dire.** Que la 1.0.34 est publiée : au moment où elle est écrite, l'installeur n'est pas construit — monter le numéro est le déclencheur, `desktop-release.yml` fait le reste (build, signature ou non, brouillon, promotion, relecture du canal **sans jeton**), et la preuve qui compte — un poste de la version précédente rejoignant la tête tout seul — se fait **après**, par `npm run verify:updater:channel` sur le canal réel.
+
+**Limites dites.** ① `package-lock.json` porte toujours `1.0.33` comme version de paquet : aucune porte ne la compare à `package.json` — dette **déjà nommée** par l'entrée de la 1.0.32 (le verrou disait `1.0.29`), non corrigée au passage, parce qu'y toucher c'est toucher le verrou que `npm ci` emploie. ② Le parc n'a **aucun relevé par version** (`npm run fleet:versions` n'existe pas — le battement de la §7 de la spécification du canal n'est pas implémenté) : « toutes les stations sont passées » se prouve **poste par poste**. ③ La livraison dépend encore du canal GitHub : le dépôt source doit rester **public** pour le pont. ④ Le correctif d'encre ne peut atteindre les postes que **par une mise à jour** : une station figée garde son défaut jusqu'à ce qu'elle prenne ce numéro.
+
 ## [2026-10-19] Les barres d'outils des vues ont été MESURÉES — Paie et Parents corrigées, Dépenses innocentée
 
 Demande du propriétaire : « Mesure les barres d'outils de Paie, Dépenses et Parents à 1024/1280/1536 px et corrige celles qui écrasent leur titre ou leurs contrôles. »
@@ -5163,3 +5181,49 @@ Le premier jet de `tests/update-banner.test.tsx` prouvait la surface avec `asser
 - **La preuve de bout en bout en NSIS n'est pas jouable ici** : `npm run verify:updater` s'arrête au fait `update-downloaded` (l'installation exige Windows et un canal publié) et `Desktop E2E` tourne sur les runners Windows, hebdomadaire et à la demande. Ce qui est prouvé : le poste refuse les octets menteurs, un seul décideur, le bandeau porte la nouvelle, et le retrait du rail est dans le bundle. Ce qui reste non prouvé : le `restartAndInstall` cliqué pour de vrai sur une station.
 - **Un coin d'**affichage** demeure** : dans une installation **non obligatoire** où l'utilisateur a **déjà fermé** le bandeau, un `update-downloaded` tardif peut re-proposer la surface. Le verrou d'installation rend la chose inoffensive (aucun second téléchargement, aucune seconde installation) — c'est de la cosmétique, pas un chemin d'installation, et c'est dit plutôt que caché.
 - **La version reste 1.0.33, rien n'est commité** : l'arbre porte le correctif, les tests et cette trace. Ce qui l'emportera vers les postes est une **nouvelle** version publiée (une version se publie sur un numéro inédit), geste du propriétaire, pas un effet de bord de ce travail.
+---
+
+## 15/10/2026 — Le rouge de CI n'était pas la barre d'outils : la règle d'encre d'Ardoise n'avait **jamais** été construite
+
+### Ce que le job « Contraste thèmes » a dit
+
+Le push de `fea7e8e` (les barres d'outils de Paie et Parents, même journée) a rendu **le gate de contraste rouge** : deux paires, une par thème sombre, sur le **même** contrôle — « Enregistrer Salaire », `bg-white text-slate-800`, encre `rgb(29,41,61)` sur fond `rgb(51,65,85)` en Ardoise (**1,41:1**) et `rgb(17,24,39)` en Cyber Minuit (**1,21:1**). Les 106 autres couvertures étaient vertes, et le journal nommait la classe entière du bouton : la cause semblait donc être dans le composant.
+
+**Ce commit n'avait rien cassé : il avait déplacé la pastille dans la fenêtre mesurée.** `scanAndRecord` ne mesure que les nœuds **visibles** (le scanner écarte tout nœud hors de la fenêtre), et le passage de la barre d'outils sur sa propre ligne a changé la position de défilement du balayage « Boutons action Paie ». Le défaut, lui, était déjà là — et il avait **deux** causes, la seconde expliquant la première.
+
+### Cause 1 — il manquait la moitié « élément lui-même » du blanchiment d'encre
+
+`.theme-slate .bg-white :is(h1, h2, h3, h4, .text-slate-950 … .text-slate-600)` ne blanchit l'encre que des **descendants** d'une surface que le thème repeint en sombre. La pastille de paie porte la surface **et** son encre (`bg-white text-slate-800` sur le même élément) : `:is(…)` y est un enfant, donc la règle ne la voyait pas, le thème peignait bien le fond `#334155` et l'encre restait profonde.
+
+Ce trou était **invisible aux verrous statiques**, et pour une raison précise : `tests/tailwind-pairs.ts` résout l'encre contre la surface **sœur** du même segment de `className` — il blanchissait donc déjà cette paire et déclarait le contraste conforme… pour une règle CSS qui n'existait pas dans le HTML rendu. Seule la mesure en Chrome pouvait le dire.
+
+### Cause 2 — quatre règles de la couche de thème étaient **jetées entières** par le pipeline, en production comprise
+
+Le CSS de `src/` n'est pas servi tel quel : il est **lu par `lightningcss`** (via `@tailwindcss/vite`, la chaîne de `npm run build`). Un seul sélecteur illisible fait disparaître **la règle entière** — sans un mot, puisque le build réussit. Deux formes mesurées, chacune par la règle qu'elle a tuée :
+
+- `.theme-cream .bg-[#F8FAFC]` — **crochets nus** : ils se lisent comme un sélecteur d'attribut sans nom qualifié (« No qualified name in attribute selector »). Le groupe des **quatre surfaces crème** (`bg-[#F8FAFC]`, `bg-slate-50`, `/50`, `/30`) ne rendait donc pas `#FDFBF7` dans le construit.
+- `.theme-slate .bg-\[#121212\]` — crochet échappé mais **`#` nu devant un CHIFFRE** (« Unexpected token Hash("121212]") »). Cinq sélecteurs ainsi écrits (`#121212`, `#1E1E1E`, `#1A1A1A`, `#2A2A2A`, `#2a2a2a`) tenaient les **42 surfaces du blanchiment Ardoise** à l'écart de **tous** les builds, depuis leur naissance.
+
+Vérifié sur l'artefact et pas sur la source : le CSS **déployé** (`/assets/index-BVcUCdoT.css`, servi par la production) ne contenait **aucune** règle `.theme-slate … :is(h1` — les 48 présentes étaient toutes celles de Cyber Minuit. Mesure reproduite en local sur les six feuilles du corpus, bloc par bloc, avec `lightningcss` : **4 règles rejetées** avant (dont les deux moitiés du blanchiment ardoise), **0** après.
+
+### Le remède, et pourquoi chacun est à sa place
+
+1. **La moitié SELF** est ajoutée aux deux thèmes sombres : même liste de surfaces, `:is(…)` **sur** l'élément (43 sélecteurs en Ardoise, 24 en Cyber Minuit, recopiés par transformation — aucun retapé à la main).
+2. **`bg-[#121212]`** (le seul des cinq arbitraires qui a encore un porteur : les `<option>` de `PaymentEntryModal` en thème sombre) s'écrit `\[\#121212\]`, la forme que le parseur accepte ; les **quatre classes mortes** (aucun porteur dans `src/`) sont retirées au lieu d'être réécrites.
+3. **`bg-indigo-600`** rejoint la liste : le remap le peint en `#0369A1`, exactement comme `bg-blue-600`, mais le blanchiment l'avait oublié. Trouvé en **élargissant la dérivation de la garde** — son lecteur de lignes ignorait les règles écrites `.theme-slate .bg-white {` (accolade détachée) : 39 tokens lus, 42 en réalité. C'est ce qui manquait pour que la liste soit vraiment tenue en phase avec les remaps.
+4. **Les quatre surfaces crème** : crochets échappés, comme le reste du corpus.
+5. **`src/themes/ink-scope.css`** : le budget de 700 lignes (`scripts/check-line-budget.mjs`) a fait sortir les **quatre** règles du blanchiment (les deux moitiés × les deux thèmes sombres) — `overrides.css` 760 → **652**, `midnight.css` 259 → **246**, et les deux moitiés se lisent enfin côte à côte, ce que la garde vérifie ensemble. Importé **après** les remaps, pour rester le dernier mot sur l'encre.
+6. **La garde, élargie dans les deux sens** (`scripts/check-css-selectors.mjs`) : chaque surface peinte en sombre doit avoir **les deux moitiés** de la règle (retirer l'une ou l'autre fait sortir la garde en 1 en la nommant), et les **deux formes de sélecteur que le pipeline jette** sont refusées à la source — avec le chiffre et la règle qui l'ont payé.
+
+### Mesuré sur l'arbre exact
+
+- **Audit navigateur des six thèmes** (`npm run check:contrast`, la commande du job) : **exit 0 — 108/108 couvertures, 0 paire sous 3:1** (avant : 106 ok / 2 KO). La pastille : **9,90:1** en Ardoise, **16,98:1** en Cyber Minuit.
+- **Le construit, pas la source** : `dist/assets/index-*.css` porte les deux moitiés ardoise, les deux moitiés midnight, le groupe crème, la règle self de `card-hero`/`indigo-600` et les trois règles `#121212`.
+- **`npm run lint` exit 0** (tsc strict, stylelint, les 45 contrôles inventoriés — dont la garde élargie) ; **`npm test` exit 0 — 3422/3422** ; budget : **230 fichiers sous 700 lignes**.
+- **Éprouvé par mutation, restauré ensuite** : retirer la moitié SELF de `bg-white` → garde **1** (« SELF half ») ; retirer la moitié descendante → **1** ; réécrire `.bg-\[#121212\]` ou `.bg-[#F8FAFC]` → **1** ; restauré → **0**.
+
+### Les limites, nommées
+
+- **L'audit ne mesure que les nœuds visibles** : c'est ce qui a laissé ce défaut vivre, et c'est aussi pourquoi le rouge est arrivé par un changement de disposition sans rapport. Les surfaces ardoise qui ne sont dans aucune fenêtre balayée ne sont toujours jugées par personne (les verrous statiques les supposaient conformes).
+- **Les pixels changent en Ardoise, et en crème** : une règle qui n'avait jamais shipé ship désormais. Les textes explicitement `slate-950…600` posés **dans** une surface repeinte passent en clair (c'était l'intention d'origine, jamais servie), et les quatre surfaces crème reprennent leur ton (`#F8FAFC` → `#FDFBF7`, écart imperceptible mais réel). L'audit juge ≥ 3:1 ; il ne juge pas « est-ce joli ».
+- **La CI n'avait jamais vu la règle manquante** parce que les gardes statiques lisent la **source** : la source était juste, c'est le construit qui perdait la règle. La nouvelle règle de la garde ferme le trou à la source ; elle ne remplace pas la mesure sur l'artefact, qui reste le seul juge du CSS servi.

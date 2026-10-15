@@ -62,6 +62,29 @@ function cssFiles(dir) {
 }
 
 const violations = [];
+/**
+ * Sélecteurs qu'un `#` rend ILLISIBLES par le pipeline qui les expédie.
+ *
+ * Ce n'est pas de la cosmétique de style : le CSS de `src/` n'est pas servi tel
+ * quel, il est LU par `lightningcss` (via `@tailwindcss/vite`, la chaîne que
+ * `npm run build` emprunte). Une seule faute de frappe suffit donc à faire
+ * disparaître une règle ENTIÈRE — et sans un mot, puisque le build réussit.
+ *
+ * Les deux formes mesurées le 2026-10-15, chacune par la règle qu'elle a tuée :
+ *   • `.theme-cream .bg-[#F8FAFC]` — crochets NUS : ils se lisent comme un
+ *     sélecteur d'attribut sans nom qualifié (« No qualified name in attribute
+ *     selector ») et emportent les quatre surfaces crème du même groupe.
+ *   • `.theme-slate .bg-\[#121212\]` — crochet ÉCHAPPÉ mais `#` NU devant un
+ *     CHIFFRE (« Unexpected token Hash(\"121212]\") ») : cinq sélecteurs ainsi
+ *     écrits ont tenu les 42 surfaces du blanchiment ardoise à l'écart de TOUS
+ *     les builds, production comprise — c'est l'encre profonde de la pastille
+ *     « Enregistrer Salaire » relevée à 1,41:1 par `npm run check:contrast`.
+ *
+ * La forme que le parseur accepte est celle du reste du corpus : crochets
+ * échappés (`\[`), et `#` échappé SEULEMENT quand l'hexadécimal commence par un
+ * chiffre (`\[\#121212\]`), le `#` d'un `\[#F8FAFC\]` passant tel quel.
+ */
+const parseHazards = [];
 let scanned = 0;
 for (const root of ROOTS) {
   if (!fs.existsSync(root)) continue;
@@ -74,6 +97,13 @@ for (const root of ROOTS) {
       // Only inspect selector-ish text: up to the first '{' of the line.
       const braceIdx = line.indexOf('{');
       const selectorPart = braceIdx === -1 ? line : line.slice(0, braceIdx);
+      const nakedBracket = /(^|[^\\])\[#/.test(selectorPart);
+      const bareHashBeforeDigit = /\\\[#\d/.test(selectorPart);
+      if (nakedBracket) {
+        parseHazards.push(`${file}:${i + 1}  —  crochet NU devant « # » (la règle entière est jetée par le pipeline)  →  ${line.trim().slice(0, 100)}`);
+      } else if (bareHashBeforeDigit) {
+        parseHazards.push(`${file}:${i + 1}  —  « # » NU devant un CHIFFRE après « \\[ » (la règle entière est jetée)  →  ${line.trim().slice(0, 100)}`);
+      }
       for (const seg of segments(selectorPart)) {
         // Exact naked tag: `aside` — but not `aside:hover`, `.x aside`,
         // `aside.app-sidebar` etc.
@@ -84,6 +114,19 @@ for (const root of ROOTS) {
       }
     }
   }
+}
+
+if (parseHazards.length > 0) {
+  console.error(`❌ Selectors the CSS pipeline would DROP whole (${parseHazards.length}):`);
+  for (const v of parseHazards) console.error(`   ${v}`);
+  console.error(
+    '\n   `src/` CSS is PARSED by lightningcss (@tailwindcss/vite) before it ships: one\n' +
+    '   unreadable selector and the ENTIRE rule disappears from the build — silently,\n' +
+    '   because the build still succeeds. Write the bracket escaped (`\\[`) and the\n' +
+    '   `#` escaped too when the hex starts with a digit: `.theme-x .bg-\\[\\#121212\\]`.\n' +
+    '   See scripts/check-css-selectors.mjs (parse hazards) for the two measured cases.'
+  );
+  process.exit(1);
 }
 
 if (violations.length > 0) {
@@ -177,10 +220,22 @@ for (const g of CSS_GUARDS) {
 //      text on light surfaces again (the invisible parent-name family).
 //   3. Every *dark* surface the slate theme remaps (bg-*/card-* with a dark
 //      value) must also appear in the scoped rule with BOTH the heading
-//      group and the text-slate family. Bright accent surfaces
-//      (bg-emerald-500/600, bg-blue-600, …) are excluded by luminance — no
-//      heading ever sits on a CTA button, and whitening one there would
-//      break it.
+//      group and the text-slate family — in BOTH of its two halves: the
+//      DESCENDANT one (`… .bg-white :is(…)`, an ink inside the surface) and
+//      the SELF one (`… .bg-white:is(…)`, an element that IS the surface and
+//      carries its own ink). Bright accent surfaces (bg-emerald-500/600,
+//      bg-blue-600, …) are excluded by luminance — no heading ever sits on a
+//      CTA button, and whitening one there would break it.
+//
+//      Why the SELF half is an invariant and not a detail: it was MISSING, and
+//      only the browser audit could see it. `bg-white text-slate-800` on ONE
+//      element (the payroll “Enregistrer Salaire” pill) is repainted #334155
+//      by the remap layer while the descendant-only rule leaves the ink deep —
+//      measured 1.41:1 (slate) and 1.21:1 (midnight) in Chrome. The static
+//      model whitened that pair anyway (it resolves text against the sibling
+//      bg token, not against the DOM), so every parser-based lock agreed with
+//      a CSS rule that did not exist. This check is what keeps the two halves
+//      together.
 
 // 1. Blanket heading rule absent — in ANY corpus file: the remap layer may
 // move between files, the invariant may not.
@@ -214,7 +269,11 @@ function relativeLuminance(hex) {
 const darkSurfaceTokens = new Set();
 const corpusLines = THEME_CSS.split(/\r?\n/);
 for (let i = 0; i < corpusLines.length; i++) {
-  const sel = corpusLines[i].match(/^\.theme-slate \.([^\s,{]+),?\{?$/);
+  // `\s*` avant l'accolade : les règles écrites `.theme-slate .bg-white {`
+  // (une seule surface, accolade détachée) étaient INVISIBLES à ce lecteur —
+  // `bg-white` manquait donc à la liste des surfaces dérivées, et l'invariant
+  // ci-dessous ne le vérifiait pas. Mesuré : 39 tokens lus, 42 en réalité.
+  const sel = corpusLines[i].match(/^\.theme-slate \.([^\s,{]+),?\s*\{?$/);
   if (!sel) continue;
   const token = sel[1];
   // Only background/card surface rules feed the scope list (text-/border-/
@@ -241,12 +300,18 @@ for (let i = 0; i < corpusLines.length; i++) {
   }
 }
 
+const SCOPE_TAIL = ':is(h1, h2, h3, h4, .text-slate-950';
 const missingFromScope = [];
+const missingSelfScope = [];
 for (const token of darkSurfaceTokens) {
   // One entry per surface must whiten BOTH the heading group and the
-  // slate-neutral text family (they share the same `:is(…)` list).
-  if (!THEME_CSS.includes(`.theme-slate .${token} :is(h1, h2, h3, h4, .text-slate-950`)) {
+  // slate-neutral text family (they share the same `:is(…)` list), in BOTH
+  // halves of the rule: the descendant one and the self one.
+  if (!THEME_CSS.includes(`.theme-slate .${token} ${SCOPE_TAIL}`)) {
     missingFromScope.push(token);
+  }
+  if (!THEME_CSS.includes(`.theme-slate .${token}${SCOPE_TAIL}`)) {
+    missingSelfScope.push(token);
   }
 }
 if (missingFromScope.length > 0) {
@@ -255,6 +320,14 @@ if (missingFromScope.length > 0) {
     missingFromScope.join(', ') +
     ' (add `.theme-slate .' + missingFromScope[0] +
     ' :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600)` to the scoped rule)'
+  );
+}
+if (missingSelfScope.length > 0) {
+  guardViolations.push(
+    `theme CSS corpus (${CORPUS})  —  slate surfaces painted dark without the SELF half of the ink scope: ` +
+    missingSelfScope.join(', ') +
+    ' (add `.theme-slate .' + missingSelfScope[0] +
+    ':is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600)` — an element that carries the surface AND its own slate ink keeps deep ink on a dark fill otherwise: the “Enregistrer Salaire” pill measured 1.41:1 in Chrome)'
   );
 }
 

@@ -1,0 +1,189 @@
+/* ─── Le blanchiment d'encre des deux thèmes sombres ───────────────────────
+   Une surface qu'un thème sombre repeint EN SOMBRE doit lever l'encre de son
+   texte : sans ça, un `text-slate-800` posé sur `bg-white` (que le thème peint
+   #334155 en Ardoise, #111827 en Cyber Minuit) reste profond sur un fond
+   profond. Cette couche est ce lien, et elle a DEUX moitiés :
+
+     · DESCENDANTE — `.theme-slate .bg-white :is(…)` : l'encre est un ENFANT de
+       la surface repeinte (titres, textes de cartes).
+     · SELF — `.theme-slate .bg-white:is(…)` : l'élément porte la surface ET son
+       encre. Cette moitié manquait, et le trou était invisible aux verrous
+       statiques : le modèle de contraste (`tests/tailwind-pairs.ts`) résout
+       l'encre contre la surface SŒUR du même segment, donc il blanchissait
+       déjà cette paire — une règle CSS qui n'existait pas. Mesuré le 2026-10-15
+       par `npm run check:contrast` en Chrome : la pastille « Enregistrer
+       Salaire » (`bg-white text-slate-800`, posée sur l'aplat coloré du bandeau
+       de paie) tombait à 1,41:1 en Ardoise et 1,21:1 en Cyber Minuit.
+
+   ── Deux pièges de PARSEUR, mesurés en production la même semaine ──────────
+   Le CSS de `src/` n'est pas servi tel quel : il est LU par `lightningcss`
+   (via `@tailwindcss/vite`), et UN sélecteur illisible fait jeter la règle
+   ENTIÈRE — sans un mot, puisque le build réussit :
+     · `.bg-[#F8FAFC]` (crochets nus) → « No qualified name in attribute
+       selector » ; c'est ainsi que les quatre surfaces du groupe crème
+       n'étaient repientes dans AUCUN build.
+     · `.bg-\[#121212\]` (crochet échappé, `#` NU devant un CHIFFRE) →
+       « Unexpected token Hash("121212]") » ; cinq sélecteurs suffisaient à tenir
+       les 42 surfaces du blanchiment ARDOISE à l'écart de tous les builds, depuis
+       leur naissance. Le vivant (`bg-[#121212]`, les `<option>` de
+       PaymentEntryModal) s'écrit donc `.bg-\[\#121212\]`.
+   `scripts/check-css-selectors.mjs` refuse désormais ces deux formes ET
+   réclame les deux moitiés pour chaque surface peinte en sombre.
+   `tests/theme-css.test.ts` verrouille l'ordre de cascade de ce fichier. */
+
+/* stylelint-disable declaration-no-important -- couche de blanchiment :
+   chaque `color` doit battre l'utilitaire Tailwind correspondant
+   (`.text-slate-800`), c'est toute la raison d'être de ces règles. */
+
+/* Ardoise — la moitié DESCENDANTE. */
+.theme-slate .bg-white :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-\[#F8FAFC\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-slate-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-slate-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-slate-50\/30 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-rose-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-rose-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-rose-50\/40 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-rose-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-rose-50\/60 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-50\/30 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-amber-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-amber-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-yellow-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-yellow-50\/60 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-yellow-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-teal-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-teal-50\/70 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-purple-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-purple-50\/70 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+/* `\#` échappé UNIQUEMENT ici : `.bg-\[#121212\]` (le `#` nu d'un hexadécimal
+   qui commence par un CHIFFRE) est rejeté par le parseur du pipeline —
+   « Unexpected token Hash(\"121212]\") » — et la règle ENTIÈRE disparaît du
+   construit. Mesuré le 2026-10-15 : ces cinq sélecteurs suffisaient à faire
+   disparaître les 42 surfaces du blanchiment ardoise de TOUS les builds, y
+   compris la production — d'où la pastille « Enregistrer Salaire » en encre
+   profonde sur un fond sombre (1,41:1 relevé par `npm run check:contrast`).
+   Les quatre classes mortes (`#1E1E1E`, `#1A1A1A`, `#2A2A2A`, `#2a2a2a`, plus
+   aucun porteur dans src/) ont été retirées dans le même geste. */
+.theme-slate .bg-\[\#121212\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-500 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-indigo-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-500\/10 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-500\/20 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-500\/10 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-500\/20 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .card-elevated :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .card-stat :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .card-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .surface-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .card-hero :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600) {
+  color: #F8FAFC !important;
+}
+
+/* Ardoise — la moitié SELF. */
+.theme-slate .bg-white:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-\[#F8FAFC\]:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-slate-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-slate-50\/50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-slate-50\/30:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-rose-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-rose-100:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-rose-50\/40:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-rose-50\/50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-rose-50\/60:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-100:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-50\/30:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-50\/50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-100:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-amber-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-amber-50\/50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-yellow-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-yellow-50\/60:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-yellow-100:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-teal-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-teal-50\/70:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-purple-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-purple-50\/70:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-\[\#121212\]:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-500:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-600:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-600:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-indigo-600:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-500\/10:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-emerald-500\/20:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-500\/10:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .bg-blue-500\/20:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .card-elevated:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .card-stat:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .card-inset:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .surface-inset:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-slate .card-hero:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600) {
+  color: #F8FAFC !important;
+}
+
+/* Cyber Minuit — la moitié DESCENDANTE. */
+.theme-midnight .bg-white :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-\[#F8FAFC\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-slate-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-slate-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-slate-50\/30 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-rose-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-rose-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-rose-50\/40 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-blue-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-amber-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-amber-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-yellow-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-teal-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-purple-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-500 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-blue-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-elevated :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-stat :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .surface-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-hero :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600) {
+  color: #F9FAFB !important;
+}
+
+/* Cyber Minuit — la moitié SELF. */
+.theme-midnight .bg-white:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-\[#F8FAFC\]:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-slate-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-slate-50\/50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-slate-50\/30:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-rose-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-rose-100:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-rose-50\/40:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-blue-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-50\/50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-amber-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-amber-50\/50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-yellow-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-teal-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-purple-50:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-500:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-emerald-600:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .bg-blue-600:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-elevated:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-stat:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-inset:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .surface-inset:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
+.theme-midnight .card-hero:is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600) {
+  color: #F9FAFB !important;
+}
+
+/* stylelint-enable declaration-no-important -- fin de la couche de blanchiment */

@@ -48,34 +48,9 @@
   color: #F9FAFB !important;
 }
 
-/* Headings + slate-neutral text inside containers midnight paints dark */
-.theme-midnight .bg-white :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-\[#F8FAFC\] :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-slate-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-slate-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-slate-50\/30 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-rose-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-rose-100 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-rose-50\/40 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-blue-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-emerald-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-emerald-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-amber-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-amber-50\/50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-yellow-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-teal-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-purple-50 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-emerald-500 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-emerald-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .bg-blue-600 :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .card-elevated :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .card-stat :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .card-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .surface-inset :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600),
-.theme-midnight .card-hero :is(h1, h2, h3, h4, .text-slate-950, .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600) {
-  color: #F9FAFB !important;
-}
-
+/* Le blanchiment d'encre (ses deux moitiés) vit dans src/themes/ink-scope.css,
+   importé après overrides.css — le budget de 700 lignes
+   (scripts/check-line-budget.mjs) l'a fait sortir d'ici. */
 .theme-midnight .text-slate-400,
 .theme-midnight .text-slate-500 {
   color: #A9B4C4 !important;
