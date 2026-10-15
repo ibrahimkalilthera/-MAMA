@@ -7,8 +7,18 @@ export function ParentsView() {
   return (
           <div className="space-y-8">
             {/* Header & Search Bar */}
-            <div className={`p-8 rounded-3xl ${currentTheme.card} border ${currentTheme.border} shadow-xl shadow-slate-200/50 flex flex-col md:flex-row md:items-center justify-between gap-6`}>
-              <div className="space-y-1">
+            {/* Mesuré (1024/1280/1536 px) : le champ de recherche a un plancher
+                de 340 px et le bouton « Ajouter Parent/Tuteur » fait 164 px —
+                côte à côte, 520 px. Le bloc de titre, lui, partait de la largeur
+                d'un sous-titre entier et mangeait la rangée : à 1536 px encore
+                (498 px pour les commandes), le bouton tombait SOUS le champ, à
+                toutes les largeurs. Deux corrections, mesurées : la rangée ne
+                passe côte à côte qu'à `xl`, où 520 + le titre tiennent sans
+                écraser personne ; et les commandes ne se laissent plus comprimer
+                sous leur contenu (`xl:shrink-0`), pendant que le titre, lui,
+                accepte de se replier (`min-w-0`). */}
+            <div className={`p-8 rounded-3xl ${currentTheme.card} border ${currentTheme.border} shadow-xl shadow-slate-200/50 flex flex-col xl:flex-row xl:items-center justify-between gap-6`}>
+              <div className="space-y-1 min-w-0">
                 <div className="flex items-center gap-3">
                   <div className={`p-3 rounded-2xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText}`}>
                     <Users size={24} />
@@ -24,7 +34,7 @@ export function ParentsView() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-wrap items-center gap-4 xl:shrink-0">
                 {/* Search Bar */}
                 <div className="relative min-w-[280px] sm:min-w-[340px]">
                   <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={18} />

@@ -157,12 +157,21 @@ export function PayrollView() {
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row flex-wrap justify-between items-start md:items-center gap-6 no-print">
+            {/* Mesuré dans un navigateur (1024/1280/1536 px) : les sept commandes
+                de cette barre — le filtre « Tout le personnel », la recherche, la
+                pastille des membres de l'administration, le bordereau mensuel et
+                trois « Ajouter … » — réclament ~1330 px. Partagée avec le titre,
+                la barre n'en recevait que **385** à 1024 px, c'est-à-dire sept
+                rangées empilées sur **342 px de haut** avec le titre centré
+                contre elles (641 px et quatre rangées à 1280). Le titre garde
+                donc sa propre ligne (comme l'en-tête de l'app), et les commandes
+                se replient EN DESSOUS, en pleine largeur, alignées à gauche. */}
+            <div className="flex flex-col gap-6 no-print">
               <div className="min-w-0">
                 <h3 className={`text-2xl font-bold ${currentTheme.inkStrong}`}>{t.staffDirectory}</h3>
                 <p className={`text-sm ${currentTheme.muted}`}>{t.manageEmployeeProfilesAndPayroll}</p>
               </div>
-              <div className="flex flex-col sm:flex-row flex-wrap items-center justify-end gap-4 w-full md:w-auto md:min-w-0 md:flex-1">
+              <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4 w-full">
                 <div className="relative">
                   <select
                     value={staffPositionFilter}
@@ -284,7 +293,14 @@ export function PayrollView() {
                 />
               </div>
             ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-8">
+              {/* Trois colonnes seulement quand la carte a la place de sa propre
+                  matière : mesuré, une carte (p-8) réclame ~314 px (avatar
+                  56 px, nom, deux pastilles de 32 px). À `lg` (1024 px) elle n'en
+                  avait que 208 — son contenu débordait de 118 px et la PAGE
+                  entière défilait de 70 px de côté ; à `xl` (1280 px, 293 par
+                  carte) un bouton était coupé de 34 px. À `2xl` (1536 px, 379
+                  par carte) tout tient. */}
               {filteredStaff.map(s => {
                 const paymentsThisMonth = salaryPayments.filter(p => p.staffId === s.id && sameYearMonth(p.date, currentYear, currentMonth));
                 const paidThisMonth = paymentsThisMonth.reduce((sum, p) => sum + p.amount, 0);
