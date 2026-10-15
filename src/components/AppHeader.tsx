@@ -81,11 +81,17 @@ export function AppHeader(props: AppHeaderProps) {
     onOpenCalendarDate, onOpenPayroll, onOpenSettings,
   } = props;
 
-  // The action bar is wide: below xl the title used to get squeezed into a
-  // three-line "Gestion / des / Élèves". Stack the two blocks until there is
-  // genuinely room for them side by side.
+  // The action bar is wide: eight controls on the « Élèves » tab (year, promote
+  // class, Excel import, print report, search, class filter, add student, add
+  // CR). Side by side — which is what `xl:flex-row` asked for — it crushed the
+  // title into a 113 px column: « Gestion / des / Élèves » on THREE lines, the
+  // date against the search field, and « Ajouter Crèches » on a third toolbar
+  // row (measured in a browser at 1280 px, content box 928 px). The toolbar
+  // alone needs ~1300 px, so no title ever gets to share a line with it: the
+  // two blocks are stacked at every width, and the toolbar wraps on its own
+  // rows, at full width, where it has room to breathe.
   return (
-    <header data-slot="app-header" className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+    <header data-slot="app-header" className="flex flex-col gap-6 mb-8">
       <div className="min-w-0">
         <h2 className={`text-2xl sm:text-3xl font-bold ${currentTheme.isDark ? currentTheme.accentSoftText : 'text-slate-800'} tracking-tight text-balance`}>
           {activeTab === 'dashboard' ? t.dashboard : 
@@ -126,7 +132,7 @@ export function AppHeader(props: AppHeaderProps) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto xl:min-w-0 no-print">
+      <div className="flex flex-wrap items-center gap-3 w-full min-w-0 no-print">
         <div className="relative min-w-0 flex-1 sm:flex-none sm:min-w-[10rem]">
           {/* `focus:ring-${currentTheme.accent}/5` used to live here: Tailwind
               never sees an interpolated class, so nothing was generated. The
