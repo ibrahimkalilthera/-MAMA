@@ -11,7 +11,7 @@
 // vacuously, and the toast message is also counted to catch double cards.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { act, createElement } from 'react';
+import { act, createElement, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import type { LucideIcon } from 'lucide-react';
@@ -158,6 +158,11 @@ function shellProps(): Record<string, unknown> {
     currentTheme: theme,
     theme: 'emerald',
     ticketStudent: null,
+    // L'état de rapprochement : fermé par défaut (aucun papier monté), et la
+    // fonction de classe sans laquelle le papier ne peut pas s'écrire.
+    reconcileStudent: null,
+    setReconcileStudent: noop,
+    getGradeDisplay: (grade: string | undefined) => (grade ? `Classe ${grade}` : '—'),
     formatDate: (d: string) => d,
     schoolLogo: null,
     currentUser: { name: 'Admin', role: 'admin' },
@@ -248,6 +253,9 @@ function shellProps(): Record<string, unknown> {
       currentUser: { name: 'Admin', role: 'admin' },
       formatCurrency: (n: number) => `${n} XOF`,
       formatDate: (d: string) => d,
+      // Les fenêtres montées par AppModals lisent la classe ici : sans elle, la
+      // fiche élève ne peut pas s'écrire et tombe dans le garde-fou.
+      getGradeDisplay: (grade: string | undefined) => (grade ? `Classe ${grade}` : '—'),
       getDayName: (i: number) => String(i),
       getEventsForDay: () => [],
       getNotesForDay: () => [],
@@ -542,6 +550,140 @@ describe('AppShell — overlays rendus une seule fois', () => {
       assert.equal(empty.badges().length, 0, 'sans reçu muet, aucune des deux navigations n’annonce un chiffre');
     } finally {
       await empty.unmount();
+    }
+  });
+
+  it('l’état de rapprochement s’ouvre depuis la fiche élève — la fenêtre ET son papier', async () => {
+    // Le geste entier, par la vraie chaîne : la fiche (`StudentDetailsModal`,
+    // montée par AppModals dans le shell) → son bouton → l'état ouvert AU-DESSUS
+    // d'elle → le papier hors coquille. Chaque moitié porte sa preuve : le bouton
+    // d'impression n'existe QUE dans la fenêtre, le conteneur papier que dans le
+    // jumeau — un câblage oublié fait tomber la moitié qu'il manque, et l'état
+    // fermé ne doit rien avoir montré.
+    const reconciled = {
+      id: 'st-1', name: 'Ali Diallo', grade: '9A', studentId: 'MT-2026-101',
+      parentName: 'Papa Diallo', parentEmail: '', parentPhone: '',
+      totalDue: 150000, amountPaid: 50000, dueDate: '2026-12-31', notes: '',
+      academicYear: '2026-2027',
+      payments: [{ id: 'p1', date: '2026-09-04', amount: 50000, receiptNumber: 'REC-111111', months: ['2026-09'] }],
+    };
+
+    // La fiche est OUVERTE, l'état FERMÉ : c'est le clic qui doit l'ouvrir.
+    function Host() {
+      const [reconcileStudent, setReconcileStudent] = useState<unknown>(null);
+      const props = shellProps();
+      // L'état est lu aux DEUX niveaux, comme dans l'app (viewsWiring le remet à
+      // chacun) : le shell s'en sert pour monter le papier, AppModals pour savoir
+      // si la fenêtre est ouverte — et le même setter les tient d'accord.
+      return createElement(AppShell, {
+        ...props,
+        reconcileStudent,
+        setReconcileStudent,
+        viewsProps: {
+          ...(props.viewsProps as Record<string, unknown>),
+          selectedStudent: reconciled,
+          reconcileStudent,
+          setReconcileStudent,
+        },
+      } as never);
+    }
+
+    const container = win.document.createElement('div');
+    win.document.body.appendChild(container);
+    const root: Root = createRoot(container as unknown as Element);
+    await act(async () => {
+      root.render(createElement(Host));
+    });
+
+    // `AppModals` est monté à la demande (`lazy`) : le shell l'affiche une fois
+    // son module chargé. On laisse donc l'import se résoudre avant de mesurer —
+    // et on mesure, plutôt que d'attendre un temps fixe et de deviner.
+    let openButton = container.querySelector('[data-slot="student-reconciliation-open"]');
+    for (let i = 0; i < 50 && !openButton; i += 1) {
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2)); });
+      openButton = container.querySelector('[data-slot="student-reconciliation-open"]');
+    }
+
+    const shell = container.querySelector('[data-slot="app-shell"]');
+    assert.ok(shell, 'la coquille est rendue');
+    assert.ok(openButton, 'la fiche élève offre l’état de rapprochement');
+    assert.equal(container.querySelector('.print-reconciliation-container') !== null, false, 'fermé, rien à imprimer');
+    assert.equal(shell.classList.contains('no-print-sheet'), false, 'fermé, la coquille reste imprimable');
+
+    await act(async () => {
+      // Un vrai événement souris qui remonte : React écoute à la racine.
+      openButton.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    assert.ok(container.querySelector('[data-slot="reconciliation-print"]'), 'le clic ouvre la fenêtre de l’état, au-dessus de la fiche');
+    const paper = container.querySelector('.print-reconciliation-container');
+    assert.ok(paper, 'et le papier s’ouvre avec elle');
+    assert.equal(shell.contains(paper), false, 'le papier vit hors de la coquille, sinon il sortirait blanc');
+    assert.ok(shell.classList.contains('no-print-sheet'), 'et la coquille se retire de l’impression');
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('l’état de rapprochement masque la coquille, et son papier vit HORS d’elle', async () => {
+    // Un seul papier s'imprime : la coquille reçoit `no-print-sheet` et
+    // disparaît (règle @media print d'index.css). Un papier monté DEDANS sortirait
+    // donc blanc, masqué avec elle — ce cas mesure les deux moitiés de la règle :
+    // la classe posée sur la coquille, ET un papier qui n'est pas son descendant.
+    // Fermé, l'inverse : aucune classe, aucun papier.
+    const reconciled = {
+      id: 'st-1', name: 'Ali Diallo', grade: '9A', studentId: 'MT-2026-101',
+      parentName: 'Papa Diallo', parentEmail: '', parentPhone: '',
+      totalDue: 150000, amountPaid: 50000, dueDate: '2026-12-31', notes: '',
+      academicYear: '2026-2027',
+      payments: [{ id: 'p1', date: '2026-09-04', amount: 50000, receiptNumber: 'REC-111111', months: ['2026-09'] }],
+    };
+
+    const mount = async (reconcileStudent: unknown) => {
+      const container = win.document.createElement('div');
+      win.document.body.appendChild(container);
+      const root: Root = createRoot(container as unknown as Element);
+      await act(async () => {
+        root.render(createElement(AppShell, { ...shellProps(), reconcileStudent } as never));
+      });
+      return {
+        container,
+        shell: () => container.querySelector('[data-slot="app-shell"]'),
+        paper: () => container.querySelector('.print-reconciliation-container'),
+        unmount: async () => { await act(async () => { root.unmount(); }); container.remove(); },
+      };
+    };
+
+    const closed = await mount(null);
+    try {
+      const shell = closed.shell();
+      assert.ok(shell, 'la coquille est rendue');
+      assert.equal(shell.classList.contains('no-print-sheet'), false, 'fermé, la coquille reste imprimable');
+      // Le nœud est PROJETÉ en booléen avant d'être affirmé : une assertion qui
+      // reçoit un élément happy-dom fait exploser le tas au lieu de dire son verdict.
+      assert.equal(closed.paper() !== null, false, 'fermé, aucun papier n’est monté — rien à imprimer');
+    } finally {
+      await closed.unmount();
+    }
+
+    const open = await mount(reconciled);
+    try {
+      const shell = open.shell();
+      assert.ok(shell, 'la coquille est rendue');
+      assert.ok(shell.classList.contains('no-print-sheet'), 'ouvert, la coquille se retire de l’impression');
+      assert.equal(
+        shell.classList.contains('no-print-ticket'),
+        false,
+        'la classe du ticket de retard reste celle du ticket : les deux papiers partagent la règle, pas la classe',
+      );
+      const paper = open.paper();
+      assert.ok(paper, 'le papier est monté');
+      assert.equal(shell.contains(paper), false, 'il vit HORS de la coquille masquée — dedans, il sortirait blanc');
+      assert.ok(paper.textContent?.includes('REC-111111'), 'et c’est bien l’état de CET élève qui sortirait');
+    } finally {
+      await open.unmount();
     }
   });
 });

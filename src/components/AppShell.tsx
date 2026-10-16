@@ -20,6 +20,7 @@ import { silentReceiptRows, silentReceiptsCatchUp } from '../lib/silentReceipts'
 import { database } from '../lib/sharedDatabase';
 import { UpdateBanner } from './UpdateBanner';
 import { ReceiptPreviewModal } from './ReceiptPreviewModal';
+import { ReconciliationPrint } from './ReconciliationModal';
 import { useDensity } from '../app/densityContext';
 import { useIconGlass } from '../app/iconGlassContext';
 import { flushJournalReports, reportBlockedStation } from '../lib/desktopUpdateReport';
@@ -132,8 +133,8 @@ export interface AppShellExtras {
 export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras) {
   const {
     viewsProps, authLoading, supabaseLoading, supabaseError, appEnv, toast, fetchAll,
-    t, currentUser, auth, lang, toggleLanguage, currentTheme, theme, ticketStudent,
-    formatDate, schoolLogo, schoolName, schoolNameReadFailed, activeTab, setActiveTab,
+    t, currentUser, auth, lang, toggleLanguage, currentTheme, theme, ticketStudent, reconcileStudent,
+    formatDate, getGradeDisplay, schoolLogo, schoolName, schoolNameReadFailed, activeTab, setActiveTab,
     payrollWindowStatus, fetchAuditLogs,
     showTodoSidebar, setShowTodoSidebar, openAddStudentModal, setShowPaymentForm,
     selectedYear, setSelectedYear, academicYears, availableClasses, searchTerm,
@@ -279,7 +280,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
       ) : supabaseLoading ? (
 <AppLoadingScreen title={t.loadingFinanceSuite} subtitle={t.connectingToDatabase} />
       ) : (
-        <div data-slot="app-shell" className={`min-h-screen ${currentTheme.bg} flex font-sans ${currentTheme.text} transition-colors duration-300 theme-${theme} density-${density} icon-glass-${iconGlass} ${currentTheme.isDark ? 'dark ' : ''}${ticketStudent ? 'no-print-ticket' : ''}`}>
+        <div data-slot="app-shell" className={`min-h-screen ${currentTheme.bg} flex font-sans ${currentTheme.text} transition-colors duration-300 theme-${theme} density-${density} icon-glass-${iconGlass} ${currentTheme.isDark ? 'dark ' : ''}${ticketStudent ? 'no-print-ticket' : ''}${reconcileStudent ? ' no-print-sheet' : ''}`}>
           {supabaseError && (
             <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white text-center py-2 text-xs font-semibold flex items-center justify-center gap-3">
               <span className="flex items-center gap-1.5"><AlertTriangle size={14} className="flex-shrink-0" /> {t.databaseConnectionIssue}: {formatSupabaseError(supabaseError, lang).message}</span>
@@ -475,6 +476,27 @@ onOpenSettings={() => setActiveTab('settings')}
         currentTheme={currentTheme}
       />
         </div>
+      )}
+
+      {/* --- Le PAPIER de l'état de rapprochement ---
+          Monté HORS de la coquille, et c'est le point : quand un seul papier
+          s'imprime, la coquille disparaît (règle `@media print` d'index.css :
+          `no-print-sheet` pour cet état, `no-print-ticket` pour le ticket de
+          retard — lequel n'a pas bougé). Le papier qui reste à imprimer doit donc
+          vivre en dehors d'elle, sinon la page sort blanche. C'est pour cela
+          que la fenêtre (`ReconciliationModal`, ouverte depuis la fiche élève)
+          et le papier sont deux composants distincts. */}
+      {reconcileStudent && (
+        <ReconciliationPrint
+          t={t}
+          lang={lang}
+          currentTheme={currentTheme}
+          student={reconcileStudent}
+          selectedYear={selectedYear}
+          getGradeDisplay={getGradeDisplay}
+          formatDate={formatDate}
+          formatCurrency={formatCurrency}
+        />
       )}
 
       {/* Academic Year Promotion Wizard Modal */}

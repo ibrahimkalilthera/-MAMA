@@ -30,6 +30,7 @@ import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 import type { Student, User, Payment } from '../src/app/types';
 import { installDomGlobals, stubAlert, renderHook } from './harness';
+import { formatCurrency, formatDateLang } from '../src/lib/formatters';
 import { mockModule } from './module-mock';
 
 // ── module mock: receipt PDF (registered BEFORE importing the hook) ─────────
@@ -485,6 +486,122 @@ describe('usePayments — les mois payés', () => {
       assert.ok(spies.alerts.includes(t.paidMonthsRequired), 'le guichet dit pourquoi il refuse');
       assert.equal(spies.addPaymentCalls.length, 0, 'aucun paiement sans mois');
       assert.equal(pdfCalls.length, 0, 'aucun reçu sans mois');
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+});
+
+/**
+ * « Ce mois-là est déjà réglé pour cet élève » — la question que le reçu du
+ * guichet ne posait pas : la date dit quand l'argent entre, elle ne dit pas
+ * quelle dette il éteint, donc le même mois pouvait être encaissé deux fois.
+ *
+ * La règle est essayée ICI, dans le domaine, parce que c'est lui qui enregistre:
+ * une pastille non cochable se contourne (état périmé, écran resté ouvert pendant
+ * qu'un autre poste encaissait), un refus non.
+ */
+describe('usePayments — un mois déjà réglé ne se vend pas deux fois', () => {
+  const submit = async (ref: { current: ReturnType<typeof usePayments> | null }) => {
+    await act(async () => { await ref.current!.handlePaymentSubmit({ preventDefault: () => {} } as never); });
+  };
+
+  /** Un élève dont un reçu DÉCLARE les mois `months` (`undefined` = reçu muet). */
+  const paying = (months?: string[], receiptNumber?: string): Student => student({
+    id: 's1', name: 'Ali Diallo', totalDue: 150000, amountPaid: 50000, academicYear: '2026-2027',
+    payments: [{ date: '2026-10-05', amount: 25000, months, receiptNumber }],
+  });
+
+  it('ne propose plus le mois déjà réglé, et laisse encaisser un AUTRE mois', async () => {
+    pdfCalls.length = 0;
+    const { args, spies } = baseDeps({ students: [paying(['2026-10'], 'REC-123456')] });
+    const { ref, root, restoreAlert } = await setup(args, { studentId: 's1', amount: '25000', date: '2026-10-05' }, spies.alerts);
+    try {
+      assert.deepEqual(
+        ref.current!.paidMonthFacts,
+        [{
+          month: '2026-10',
+          receipts: [{ id: undefined, date: '2026-10-05', amount: 25000, receiptNumber: 'REC-123456' }],
+        }],
+        'le domaine rend les mois déjà réglés AVEC le reçu qui les couvre',
+      );
+      assert.deepEqual(
+        ref.current!.paymentMonths,
+        [],
+        'le mois de la date n’est plus proposé d’avance : c’est justement lui qui est déjà réglé',
+      );
+
+      act(() => { ref.current!.togglePaymentMonth('2026-11'); });
+      assert.deepEqual(
+        ref.current!.paymentMonths,
+        ['2026-11'],
+        'un mois libre se coche, et le mois réglé ne revient pas avec lui',
+      );
+
+      await submit(ref);
+      assert.deepEqual(spies.addPaymentCalls[0]?.payment.months, ['2026-11'], 'le second reçu paie un AUTRE mois');
+      assert.deepEqual(pdfCalls[0]?.payment.months, ['2026-11'], 'et le reçu du moment dit le même mois');
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+
+  it('REFUSE l’envoi sur un mois déjà réglé, et le NOMME avec son reçu', async () => {
+    pdfCalls.length = 0;
+    const { args, spies } = baseDeps({ students: [paying(['2026-10'], 'REC-123456')] });
+    const { ref, root, restoreAlert } = await setup(args, { studentId: 's1', amount: '25000', date: '2026-10-05' }, spies.alerts);
+    try {
+      // Le mois réglé est DEMANDÉ malgré sa pastille : c'est l'état qu'un autre
+      // poste laisse derrière lui, et c'est ce refus-là qui protège le second reçu.
+      act(() => { ref.current!.togglePaymentMonth('2026-10'); });
+      assert.deepEqual(ref.current!.paymentMonths, [], 'un mois déjà réglé ne se coche pas');
+
+      await submit(ref);
+      assert.equal(spies.alerts.length, 1, `un seul refus, pas une explication en morceaux : ${spies.alerts.join(' | ')}`);
+      const refus = spies.alerts[0];
+      assert.ok(refus.startsWith(t.paidMonthsAlreadyPaid.split('{months}')[0]), 'le refus dit d’abord de quoi il parle');
+      assert.ok(refus.includes('Octobre'), 'il NOMME le mois réglé');
+      assert.ok(refus.includes('REC-123456'), 'et le NUMÉRO du reçu qui le couvre');
+      assert.ok(refus.includes(formatDateLang('2026-10-05', 'fr')), 'et sa DATE, pour que la famille retrouve son papier');
+      assert.ok(refus.includes(formatCurrency(25000)), 'et son MONTANT');
+      assert.equal(spies.addPaymentCalls.length, 0, 'aucun paiement sur un mois déjà réglé');
+      assert.equal(pdfCalls.length, 0, 'et aucun reçu imprimé pour ce mois');
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+
+  it('ne bloque RIEN sur un reçu muet — et l’annonce au caissier', async () => {
+    pdfCalls.length = 0;
+    const { args, spies } = baseDeps({ students: [paying(undefined)] });
+    const { ref, root, restoreAlert } = await setup(args, { studentId: 's1', amount: '25000', date: '2026-10-05' }, spies.alerts);
+    try {
+      assert.equal(ref.current!.undeclaredPaymentCount, 1, 'un reçu sans mois se COMPTE');
+      assert.deepEqual(ref.current!.paidMonthFacts, [], 'il ne déclare rien : il ne bloque donc rien');
+      assert.deepEqual(ref.current!.paymentMonths, ['2026-10'], 'le mois de la date reste proposé d’avance');
+
+      await submit(ref);
+      assert.deepEqual(spies.addPaymentCalls[0]?.payment.months, ['2026-10'], 'l’encaissement ordinaire passe toujours');
+    } finally {
+      act(() => root.unmount());
+      restoreAlert();
+    }
+  });
+
+  it('ne confond pas un mois d’une AUTRE année scolaire avec celui-ci', async () => {
+    pdfCalls.length = 0;
+    const { args, spies } = baseDeps({ students: [paying(['2025-10'])] });
+    const { ref, root, restoreAlert } = await setup(args, { studentId: 's1', amount: '25000', date: '2026-10-05' }, spies.alerts);
+    try {
+      assert.deepEqual(ref.current!.paidMonthFacts, [], 'octobre 2025 n’est pas octobre 2026');
+      assert.deepEqual(ref.current!.paymentMonths, ['2026-10'], 'le mois de la date reste proposé');
+
+      await submit(ref);
+      assert.deepEqual(spies.addPaymentCalls[0]?.payment.months, ['2026-10']);
+      assert.equal(spies.alerts.length, 0, 'aucun refus pour un mois d’une autre année');
     } finally {
       act(() => root.unmount());
       restoreAlert();

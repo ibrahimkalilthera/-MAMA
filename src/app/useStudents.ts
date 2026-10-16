@@ -162,6 +162,17 @@ export function useStudents(deps: UseStudentsDeps) {
   // State for triggering A4 student file printout
   const [printStudentFile, setPrintStudentFile] = useState<Student | null>(null);
 
+  /**
+   * La fiche dont l'ÉTAT DE RAPPROCHEMENT est ouvert (mois réglés, mois encore
+   * dus, argent dû) — le document remis ou relancé, `ReconciliationModal`.
+   *
+   * L'état vit ICI, à côté de la fiche qu'il concerne, comme `printStudentFile`
+   * et `ticketStudent` : la coquille s'en sert pour masquer l'application
+   * pendant l'impression (`no-print-sheet`) et pour monter le PAPIER hors de la
+   * coquille — un jumeau monté dedans sortirait blanc, masqué avec elle.
+   */
+  const [reconcileStudent, setReconcileStudent] = useState<Student | null>(null);
+
   // Automated effect to trigger print and clean up state
   useEffect(() => {
     if (printStudentFile) {
@@ -371,6 +382,7 @@ export function useStudents(deps: UseStudentsDeps) {
     studentForm, setStudentForm,
     studentDetailTab, setStudentDetailTab,
     printStudentFile, setPrintStudentFile,
+    reconcileStudent, setReconcileStudent,
     reviewStudent, setReviewStudent,
     openDuplicateReview,
     filteredStudents,

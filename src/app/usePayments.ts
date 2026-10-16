@@ -19,7 +19,13 @@ import { generatePaymentReceiptPdf } from '../lib/pdfReceipt';
 import { PAYROLL_WINDOW_LAST_DAY } from '../lib/payrollWindow';
 import { fetchCalendarDayNotes, saveCalendarDayNote, deleteCalendarDayNote } from '../lib/calendarNotes';
 import { useGestureId } from '../lib/gestureId';
-import { academicYearMonths } from '../lib/paymentMonths';
+import {
+  academicYearMonths,
+  formatPaidMonthTerse,
+  monthsNotYetPaid,
+  paymentMonthHistory,
+  paymentMonthLabel,
+} from '../lib/paymentMonths';
 import {
   DEFAULT_PAYMENT_MOTIF,
   paymentMotifMonths,
@@ -181,19 +187,55 @@ export function usePayments(deps: UsePaymentsDeps) {
   // conversion de fuseau ne peut donc décaler le mois d'un reçu.
   const paymentDateMonth = paymentDate.slice(0, 7);
 
+  // ── Les mois DÉJÀ réglés de l'élève choisi ───────────────────────────────
+  // Un reçu DÉCLARE les mois qu'il couvre (`payments.months`, la même forme
+  // `YYYY-MM` que les pastilles) : deux reçus sur le même mois sont donc la même
+  // dette réglée deux fois. `paymentMonthHistory` est la brique qui tranche
+  // « déjà payé » (elle lit `monthsCoverage`, comme la fiche élève) ET qui
+  // accroche à chaque mois le reçu qui le déclare — le caissier peut alors
+  // vérifier le papier de la famille, au lieu d'un refus sans preuve.
+  //
+  // Un reçu MUET (aucun mois déclaré) ne dit rien : sa couverture est INCONNUE,
+  // pas nulle, donc il ne bloque aucun mois. L'écran le DIT au caissier (voir
+  // `monthsUndeclaredNote`) au lieu de lui laisser croire que la liste est
+  // complète.
+  const paidHistory = useMemo(() => {
+    const target = students.find((s) => s.id === paymentStudentId);
+    return paymentMonthHistory(target?.payments ?? [], paymentMonthOptions);
+  }, [students, paymentStudentId, paymentMonthOptions]);
+
+  // Les mois couverts, dans l'ordre du calendrier. La preuve (le reçu) voyage
+  // dans `paidHistory.facts` : une seule lecture décide des deux, donc les
+  // pastilles rouges et les phrases ne peuvent pas nommer des mois différents.
+  const paidPaymentMonths = paidHistory.facts.map((f) => f.month);
+
   // Le choix RÉEL — la règle vit dans le module pur, motif compris : tant que
   // rien n'a été coché, le mois proposé suit la DATE pour la scolarité ; pour
   // une INSCRIPTION il n'y a rien de proposé d'avance, parce qu'un droit
   // d'entrée ne règle aucun mois (voir `paymentMotifMonths`).
-  const shownPaymentMonths = paymentMotifMonths(
+  const chosenPaymentMonths = paymentMotifMonths(
     paymentMotif, paymentMonths, paymentMonthsTouched, paymentDateMonth, paymentMonthOptions,
   );
 
+  // Un mois déjà réglé a été DEMANDÉ : il sort du choix (ci-dessous), mais sa
+  // demande est gardée ICI — le refus de l'envoi doit le NOMMER, pour que le
+  // caissier aille vérifier le reçu existant au lieu de deviner.
+  const alreadyPaidChosen = chosenPaymentMonths.filter((m) => paidPaymentMonths.includes(m));
+
+  // Ce qui reste réellement proposé : un mois déjà couvert par un reçu de
+  // l'élève a DISPARU de la grille des choix (pastille rouge et non cochable).
+  const shownPaymentMonths = monthsNotYetPaid(chosenPaymentMonths, paidPaymentMonths);
+
   // Cocher/décocher un mois. La liste repart TOUJOURS triée dans l'ordre du
   // calendrier scolaire : un reçu n'a pas à dépendre de l'ordre des clics.
+  //
+  // La base du clic est ce qui est RÉELLEMENT coché (`shownPaymentMonths`, les
+  // mois déjà réglés en sont exclus) : sans quoi le mois proposé d'avance sur
+  // une date déjà payée reviendrait hanter le clic suivant, et l'envoi
+  // refuserait un choix que le caissier vient de composer à la main.
   const togglePaymentMonth = (month: string) => {
-    setPaymentMonths(prev => toggledPaymentMonthsForMotif(
-      paymentMotif, prev, paymentMonthsTouched, paymentDateMonth, paymentMonthOptions, month,
+    setPaymentMonths(toggledPaymentMonthsForMotif(
+      paymentMotif, shownPaymentMonths, true, paymentDateMonth, paymentMonthOptions, month,
     ));
     setPaymentMonthsTouched(true);
   };
@@ -213,6 +255,28 @@ export function usePayments(deps: UsePaymentsDeps) {
       return;
     }
     if (!paymentStudentId || !paymentAmount) return;
+    // Un mois DÉJÀ réglé pour cet élève se REFUSE, et le refus le NOMME : le
+    // caissier va vérifier le reçu existant au lieu de chercher pourquoi l'envoi
+    // ne passe pas. La règle vit ici, dans le domaine — une pastille non
+    // cochable se contourne (état périmé, écran resté ouvert pendant qu'un autre
+    // poste encaissait), un refus non. Elle vaut pour TOUS les motifs : un reçu
+    // d'inscription qui déclarerait un mois déjà réglé le compterait deux fois.
+    if (alreadyPaidChosen.length > 0) {
+      // Chaque mois refusé vient avec le REÇU qui le couvre — numéro, date,
+      // montant : le caissier peut ouvrir le bon reçu, ou dire à la famille lequel
+      // elle doit présenter. La forme courte est montée par le module pur, la même
+      // que celle qui sert à la ligne de la fenêtre de saisie.
+      toastError(t.paidMonthsAlreadyPaid.replace(
+        '{months}',
+        alreadyPaidChosen.map((m) => {
+          const fact = paidHistory.facts.find((f) => f.month === m);
+          // Sans fait (impossible : ce mois vient des mois couverts), on nomme au
+          // moins le mois — jamais un trou dans la phrase.
+          return fact ? formatPaidMonthTerse(fact, t, lang) : paymentMonthLabel(m, t);
+        }).join(', '),
+      ));
+      return;
+    }
     // Au moins un mois — mais SEULEMENT quand la liste est proposée (elle ne
     // l'est que si l'année scolaire de la date se lit). Sur une année illisible,
     // exiger un mois rendrait le guichet infranchissable.
@@ -352,6 +416,15 @@ export function usePayments(deps: UsePaymentsDeps) {
     paymentAmount, setPaymentAmount,
     paymentDate, setPaymentDate,
     paymentMonths: shownPaymentMonths,
+    /**
+     * Les mois que les reçus de l'élève déclarent DÉJÀ couvrir, chacun avec le
+     * reçu qui le couvre (numéro, date, montant) : les pastilles rouges ET la
+     * preuve que le refus d'envoi nomme. Une seule liste pour les deux, donc
+     * l'écran ne peut pas montrer une preuve que le refus ne dit pas.
+     */
+    paidMonthFacts: paidHistory.facts,
+    /** Combien de ses reçus ne déclarent aucun mois (couverture inconnue). */
+    undeclaredPaymentCount: paidHistory.undeclared,
     paymentMonthOptions,
     togglePaymentMonth,
     paymentMotif, setPaymentMotif,

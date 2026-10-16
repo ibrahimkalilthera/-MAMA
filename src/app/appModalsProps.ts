@@ -14,6 +14,7 @@ import type { CalendarEvent, CurrentTheme, ExpenseForm, ManagedClass, ParentForm
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import type { PaymentMotif } from '../lib/paymentMotifs';
+import type { PaymentMonthFact } from '../lib/paymentMonths';
 import type { StudentForm } from '../components/StudentFormModal';
 import type { ClassForm } from '../components/AddClassModal';
 export interface AppModalsProps {
@@ -165,8 +166,24 @@ export interface AppModalsProps {
   setPaymentMotif: Dispatch<SetStateAction<PaymentMotif>>;
   /** Mois cochés pour ce paiement. */
   paymentMonths: string[];
+  /**
+   * Les mois de l'année proposée que les reçus de l'élève déclarent DÉJÀ couvrir,
+   * chacun avec le reçu qui le couvre (`paymentMonthHistory`, dans `usePayments`) :
+   * la fenêtre de saisie les montre en rouge, écrit la preuve sous la grille, et
+   * l'envoi de l'un d'eux est refusé en le nommant.
+   */
+  paidMonthFacts: PaymentMonthFact[];
+  /** Combien de reçus de l'élève ne déclarent AUCUN mois (couverture inconnue). */
+  undeclaredPaymentCount: number;
   paymentStudentId: string;
   printStudentFile: Student | null;
+  /**
+   * La fiche dont l'ÉTAT DE RAPPROCHEMENT est OUVERT (mois réglés, mois encore
+   * dus, argent dû) : le document remis ou relancé (`ReconciliationModal`),
+   * ouvert depuis la fiche élève. `null` = aucune.
+   */
+  reconcileStudent: Student | null;
+  setReconcileStudent: Dispatch<SetStateAction<Student | null>>;
   productivitySidebarTab: 'tasks' | 'ai';
   salaryForm: SalaryForm;
   salaryPayments: SalaryPayment[];

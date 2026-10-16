@@ -10,6 +10,11 @@
  *
  *   • **une ligne par reçu**, du plus récent au plus ancien (`reverse`) — c'est
  *     l'ordre de lecture d'un carnet de caisse : ce qui vient d'entrer d'abord ;
+ *   • **le signal d'un mois déclaré DEUX FOIS**, écrit sur la ligne fautive : un
+ *     reçu qui déclare un mois déjà déclaré par un reçu plus ancien le DIT, en
+ *     nommant l'autre reçu (`duplicateDeclarations`, `src/lib/paymentMonths.ts`).
+ *     C'est ce qui rend le doublon nettoyable : la corbeille de la ligne existe
+ *     depuis toujours, mais rien ne disait laquelle ouvrir ;
  *   • **le geste « Renseigner les mois »**, offert sur les seules lignes qui ne
  *     déclarent AUCUN mois (`!p.months || p.months.length === 0`) et seulement
  *     avec le droit (`canEditPaymentMonths`) et une année lisible. C'est le
@@ -42,12 +47,13 @@
  * tombait sur l'onglet du rail « Reçus muets », rendu avant les modales (voir
  * `scripts/lib/e2e-receipt.mjs`).
  */
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Calendar, Receipt, Trash2 } from 'lucide-react';
 import type { Payment, Student } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
+import { duplicateDeclarations, formatPaidMonthTerse } from '../lib/paymentMonths';
 import { PaymentMonthsEditor } from './PaymentMonthsEditor';
 
 export interface PaymentLedgerProps {
@@ -86,6 +92,18 @@ export function PaymentLedger(props: PaymentLedgerProps) {
     editingPaymentId, editorHost, savingMonthsId,
     onOpenMonths, onSaveMonths, onCancelMonths, onDeletePayment,
   } = props;
+
+  // ── LES MOIS DÉCLARÉS DEUX FOIS ────────────────────────────────────────
+  // Un reçu qui déclare un mois DÉJÀ déclaré par un reçu plus ancien est un
+  // doublon enregistré (saisie faite deux fois, ou deux dépôts le même mois) :
+  // le carnet le nomme SUR LA LIGNE CONCERNÉE. Sans ce signal, la corbeille de
+  // la ligne existe mais rien ne dit laquelle ouvrir, et le doublon — invisible
+  // — resterait intact. L'application ne CHOISIT pas lequel est en trop : elle
+  // montre lequel survient en second, et c'est le caissier qui tranche.
+  const duplicates = useMemo(
+    () => duplicateDeclarations(student.payments, yearMonths),
+    [student.payments, yearMonths],
+  );
 
   // Suppression d'un paiement : une confirmation EN LIGNE (pas de dialogue
   // navigateur) puis l'appel. `deletingPaymentId` désactive le bouton pendant
@@ -162,6 +180,19 @@ export function PaymentLedger(props: PaymentLedgerProps) {
                   <div className="flex flex-col">
                     <span className={currentTheme.muted}>{formatDate(p.date)}</span>
                     {p.receiptNumber && <span className="text-2xs text-slate-400 font-mono">{t.receiptNoShort} {p.receiptNumber}</span>}
+                    {/* Le mois de ce reçu se dispute avec un reçu PLUS ANCIEN :
+                        le fait est écrit ici, avec la preuve de l'autre reçu —
+                        et la corbeille de cette même ligne est le geste qui
+                        nettoie l'historique. */}
+                    {p.id && duplicates.filter((d) => d.receiptId === p.id).map((d) => (
+                      <span
+                        key={d.month}
+                        data-duplicate-month={d.month}
+                        className="text-2xs font-bold text-rose-600 dark:text-rose-300"
+                      >
+                        {formatPaidMonthTerse({ month: d.month, receipts: d.earlier }, t, lang)} · {t.paidMonthDoubled}
+                      </span>
+                    ))}
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-emerald-600">+{formatCurrency(p.amount)}</span>

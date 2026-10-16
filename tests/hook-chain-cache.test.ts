@@ -14,13 +14,14 @@
 // killed mid-flight and retried, which is how a healthy commit ended in husky's
 // confusing `command not found (127)`.
 import { strict as assert } from 'node:assert';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import { parseArgs } from '../scripts/git-retry.mjs';
 import { DEFAULT_STEPS, runHookQualityChain } from '../scripts/hook-quality-chain.mjs';
 import {
+  CHAIN_CACHE_FILE,
   CHAIN_CACHE_TTL_MS,
   chainCacheVerdict,
   chainGreenRecord,
@@ -54,6 +55,35 @@ const verdict = (over: Record<string, unknown> = {}) =>
     nowMs: NOW,
     ...over,
   } as Parameters<typeof chainCacheVerdict>[0]);
+
+// ─── Le cache du dépôt, photographié au CHARGEMENT ─── mesuré 2026-10-16
+// La suite tourne dans le dépôt qui la porte, donc le vrai fichier de vert
+// (`node_modules/.cache/chain-green.json`) n'est pas un décor : c'est celui dont
+// le hook se sert au commit suivant. L'instantané est pris au chargement du
+// module, AVANT que le premier cas ne tourne : pris dans un `before` de describe,
+// il arriverait après le cas fautif et ne verrait rien.
+const repoGreenPath = join(root, 'node_modules', '.cache', CHAIN_CACHE_FILE);
+const repoGreen = () => (existsSync(repoGreenPath) ? readFileSync(repoGreenPath, 'utf8') : null);
+const repoGreenAtLoad = repoGreen();
+
+// ─── Le puits de la fixture, et pourquoi il est DANS la fixture ─── mesuré 2026-10-16
+// `runHookQualityChain` a deux coutures de cache — `readCacheFn` et `writeCacheFn` —
+// et cette fixture n'injectait que la première. Le cas `QUALITY_FORCE`, qui relance
+// la chaîne et la voit revenir verte, appelait donc le VRAI écrivain : le vert à
+// l'arbre `aaaa…` (celui de la fixture) partait dans
+// `node_modules/.cache/chain-green.json`, à la place exacte du vert du dépôt, avec le
+// même nom de fichier. Le commit suivant ne retrouvait plus son arbre et rejouait les
+// 75–87 s que ce cache existe pour épargner (mesuré : la chaîne entière rejouée après
+// une tentative de commit avortée par la panique de fork).
+// Le puits est donc dans la fixture, au niveau du FICHIER : un cas qui l'étale ne PEUT
+// plus écrire sur le disque, et ceux qui comptent les verts passent leur propre
+// collecteur. Le cas qui interdit d'écrire (un saut) garde le sien, qui lève : son
+// interdiction reste plus forte qu'un puits.
+const fixtureWrites: Array<Record<string, unknown>> = [];
+const fakeGit = {
+  gitStateFn: () => ({ treeOid: TREE, dirty: false }),
+  writeCacheFn: (record: unknown) => fixtureWrites.push(record as Record<string, unknown>),
+};
 
 describe('sauter la chaîne : seulement quand rien n’a changé', () => {
   it('même arbre, même runtime, arbre propre → sautée', () => {
@@ -128,8 +158,6 @@ describe('sauter la chaîne : seulement quand rien n’a changé', () => {
 });
 
 describe('le hook s’en sert, et n’enregistre que sur un vrai vert', () => {
-  const fakeGit = { gitStateFn: () => ({ treeOid: TREE, dirty: false }) };
-
   it('un arbre déjà vert → sortie 0 immédiate, sans lancer la chaîne', async () => {
     const lines: string[] = [];
     const code = await runHookQualityChain({
@@ -189,6 +217,7 @@ describe('le hook s’en sert, et n’enregistre que sur un vrai vert', () => {
   it('QUALITY_FORCE=1 rejoue même sur un arbre déjà vert', async () => {
     const lines: string[] = [];
     let launched = false;
+    fixtureWrites.length = 0;
     await runHookQualityChain({
       ...fakeGit,
       readCacheFn: () => green(),
@@ -201,6 +230,10 @@ describe('le hook s’en sert, et n’enregistre que sur un vrai vert', () => {
     });
     assert.equal(launched, true, 'QUALITY_FORCE doit relancer la chaîne');
     assert.doesNotMatch(lines.join('\n'), /sautée/);
+    // Le rejeu se termine vert : le hook réenregistre donc. C'est CE cas qui
+    // écrivait dans le cache du dépôt — son vert doit partir dans le puits de la
+    // fixture, et l'assertion reste ici pour que le lien soit visible au lecteur.
+    assert.equal(fixtureWrites.length, 1, 'le vert du rejeu est allé dans le puits de la fixture');
   });
 });
 
@@ -217,5 +250,39 @@ describe('la panne qui a fait échouer le commit ne peut plus se reproduire', ()
     assert.match(hook, /\.\.\.\(opts\.timeoutMsExplicit \? \{ timeoutMs: opts\.timeoutMs \} : \{\}\)/);
     // Le watchdog large doit rester la valeur par défaut de la fonction.
     assert.match(hook, /timeoutMs = 1500000/);
+  });
+});
+
+// ─── L'invariant qu'une couture ne garantit pas ─── mesuré 2026-10-16
+// Injecter une couture protège le cas qui l'injecte ; OUBLIER de l'injecter n'a
+// l'air de rien — et c'est ainsi qu'un vert de fixture s'est retrouvé dans le
+// cache réel, au prix d'une chaîne qualité entière rejouée. La garde ci-dessous ne
+// dépend donc d'aucun cas d'espèce : elle compare le vrai fichier à sa
+// photographie de chargement, si bien que tout cas présent ou FUTUR qui écrirait
+// sur le disque fait rougir ici, avec la raison.
+describe('la suite de tests ne dépose aucun vert dans le cache du dépôt', () => {
+  it('un vert obtenu pendant la suite va dans un puits, jamais sur le disque', async () => {
+    fixtureWrites.length = 0;
+    const code = await runHookQualityChain({
+      ...fakeGit,
+      readCacheFn: () => null,
+      env: {},
+      log: () => {},
+      runWithRetry: async () => 0,
+    });
+    assert.equal(code, 0);
+    assert.equal(fixtureWrites.length, 1, 'le vert est allé dans le puits de la fixture');
+    assert.equal(repoGreen(), repoGreenAtLoad, 'un vert a été écrit dans le cache du dépôt');
+  });
+
+  it('aucun cas de ce fichier n’a touché le cache réel', () => {
+    assert.equal(
+      repoGreen(),
+      repoGreenAtLoad,
+      'le cache de vert du dépôt a changé pendant la suite : un cas a laissé le VRAI écrivain faire ' +
+        'son travail — injecter `writeCacheFn`, et le garder dans la fixture `fakeGit` ' +
+        '(si aucun commit ne tournait dans ce dépôt en même temps : le crochet écrit ce même fichier à la ' +
+        'fin de sa chaîne, et un test lancé pendant un commit verrait légitimement ce vert-là).',
+    );
   });
 });

@@ -68,7 +68,18 @@ const { runHookQualityChain } = await import('../scripts/hook-quality-chain.mjs'
 // `platform: 'win32'` est injecté pour que le sweep (mocké) produise les mêmes
 // spawns que sur les machines de dev Windows : hérité, il serait un no-op sur
 // un runner Linux et les assertions d'ordre sweep/chaîne seraient vides.
-const quiet = { log: () => {}, forwardStderr: false, platform: 'win32' as const };
+// `writeCacheFn` est neutralisé ici pour la même raison qu'il l'est dans la fixture
+// de hook-chain-cache.test.ts : le git de ce fichier est simulé (spawnSync rend une
+// sortie vide, donc aucun oid, donc aucune écriture aujourd'hui), mais le jour où ce
+// mock rendrait un oid, le hook écrirait le VRAI cache du dépôt avec un arbre de test
+// — et le commit suivant rejouerait les 75–87 s que ce cache existe pour épargner.
+// La couture est déjà là : autant la brancher.
+const quiet = {
+  log: () => {},
+  forwardStderr: false,
+  platform: 'win32' as const,
+  writeCacheFn: () => {},
+};
 const isChain = (s: { cmd: string; args: string[] }) =>
   s.cmd === process.execPath &&
   s.args[0] === 'scripts/quality-chain.mjs' &&

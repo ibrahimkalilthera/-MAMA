@@ -651,7 +651,14 @@ textarea:focus-visible {
     overflow: visible !important;
   }
 
-  .no-print-ticket {
+  /* Un SEUL papier sort : la coquille disparaît pour que le document monté
+     hors d'elle (voir `AppShell`) reste seul à l'impression. Deux documents
+     s'en servent — le ticket de retard (`no-print-ticket`) et l'état de
+     rapprochement (`no-print-sheet`) — et ils partagent donc la MÊME règle :
+     deux règles jumelles pour un même geste finiraient par diverger. La classe
+     du ticket, elle, n'a pas bougé. */
+  .no-print-ticket,
+  .no-print-sheet {
     display: none !important;
   }
 

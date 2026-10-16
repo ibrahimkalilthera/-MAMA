@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { AlertTriangle, Calendar, Copy, FileText, Printer, StickyNote, Trash2, Users, X } from 'lucide-react';
+import { AlertTriangle, Calendar, ClipboardList, Copy, FileText, Printer, StickyNote, Trash2, Users, X } from 'lucide-react';
 import type { Student, Payment } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
@@ -50,6 +50,14 @@ export interface StudentDetailsModalProps {
   onClose: () => void;
   onEdit: () => void;
   onPrint: () => void;
+  /**
+   * Ouvre l'ÉTAT DE RAPPROCHEMENT de cet élève (mois réglés, mois encore dus,
+   * argent dû) — le document remis ou relancé, `ReconciliationModal`.
+   * Absent = pas de bouton : une fiche montée ailleurs (tests, impression)
+   * n'affiche pas un geste qui ne mène nulle part (même règle que
+   * `onReviewDuplicates`).
+   */
+  onReconcile?: () => void;
   onDeleteRequest: () => void;
   /** Le rôle peut-il supprimer ? Décidé par la base (`src/lib/deleteRights.ts`). */
   canDelete: boolean;
@@ -113,7 +121,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
     student: selectedStudent, t, lang, currentTheme, formatDate, formatCurrency,
     getGradeDisplay, generatePaymentReceiptPdf, currentUser, copyToClipboard,
     handleSaveNote, studentDetailTab, setStudentDetailTab, selectedYear, overlayRef,
-    onClose, onEdit, onPrint, onDeleteRequest, canDelete, canDeletePayment, onDeletePayment,
+    onClose, onEdit, onPrint, onReconcile, onDeleteRequest, canDelete, canDeletePayment, onDeletePayment,
     canEditPaymentMonths, onUpdatePaymentMonths,
     duplicateGroupSize, onReviewDuplicates, focusPaymentId,
   } = props;
@@ -621,7 +629,12 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
           </div>
 
           {/* --- Bottom Actions Bar --- */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100">
+          {/* Modifier · Imprimer la fiche · État de rapprochement · Supprimer ·
+              Fermer — cinq gestes, donc cinq colonnes dès que l'écran est large :
+              l'état de rapprochement est un DOCUMENT (mois réglés, mois encore
+              dus), pas un onglet de plus, et il doit se lire à côté de
+              l'impression de la fiche, pas s'y substituer. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-4 border-t border-slate-100">
             <button
               onClick={onEdit}
               className={`h-11 px-3 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} rounded-2xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 whitespace-nowrap`}
@@ -637,6 +650,17 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
               <Printer size={16} className="flex-shrink-0" />
               <span className="truncate">{t.printStudentFile}</span>
             </button>
+
+            {onReconcile && (
+              <button
+                data-slot="student-reconciliation-open"
+                onClick={onReconcile}
+                className={`h-11 px-3 ${currentTheme.accentSoft} ${currentTheme.accentSoftText} border ${currentTheme.accentBorder} ${currentTheme.hoverAccent} rounded-2xl font-black text-xs transition-all shadow-sm flex items-center justify-center gap-2 whitespace-nowrap`}
+              >
+                <ClipboardList size={16} className="flex-shrink-0" />
+                <span className="truncate">{t.reconciliationOpen}</span>
+              </button>
+            )}
 
             {/* « Admin delete students » : pas de rôle, pas de bouton. */}
             {canDelete && (

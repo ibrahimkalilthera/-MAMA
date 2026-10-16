@@ -33,19 +33,29 @@
  * ligne sous les pastilles montre le texte EXACT que le reçu imprimera, pour
  * qu'une plage ou une liste se vérifie avant l'impression, pas après.
  *
+ * Un mois DÉJÀ réglé pour l'élève choisi (voir `paidMonthFacts`, calculé par
+ * `paymentMonthHistory` dans le domaine) est ROUGE, barré et NON COCHABLE : un
+ * mois ne se vend pas deux fois, et le mois de la date cesse d'être proposé
+ * d'avance quand c'est justement lui qui est déjà payé. La modale ne recalcule
+ * rien — elle affiche la liste du domaine — mais elle écrit la PREUVE : sous la
+ * grille, chaque mois réglé porte le reçu qui le couvre (numéro, date, montant),
+ * pour que le caissier vérifie le papier de la famille au lieu de subir un refus
+ * anonyme.
+ *
  * L'état du choix vit dans le DOMAINE (`usePayments`), pas ici : c'est lui qui
  * enregistre le paiement et remet le mois par défaut sur la date. Cette modale
  * n'en est que l'affichage.
  */
-import { useMemo, useState } from 'react';
-import { CreditCard, Search, X } from 'lucide-react';
+import { Fragment, useMemo, useRef, useState } from 'react';
+import { CreditCard, Search, Trash2, X } from 'lucide-react';
 import type { Dispatch, SetStateAction, FormEvent } from 'react';
-import type { Student } from '../lib/useSupabaseData';
+import type { Payment, Student } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import { ModalShell } from './ModalShell';
 import { studentMatricule } from '../lib/studentIdentifiers';
-import { formatPaidMonths, paymentMonthLabel } from '../lib/paymentMonths';
+import { formatPaidMonthLine, formatPaidMonths, paidReceiptEvidence, paymentMonthLabel } from '../lib/paymentMonths';
+import type { PaymentMonthFact } from '../lib/paymentMonths';
 import { PAYMENT_MOTIFS, isPaymentMotif, paymentMotifLabel, paymentMotifNeedsMonths } from '../lib/paymentMotifs';
 import type { PaymentMotif } from '../lib/paymentMotifs';
 import { ALL_CLASSES, filterStudents, matchesClass, matchesSearch } from '../lib/paymentStudentFilter';
@@ -71,6 +81,34 @@ export interface PaymentEntryModalProps {
   paymentMonthOptions: string[];
   /** Les mois cochés : le mois de la date tant que le caissier n'a rien touché. */
   paymentMonths: string[];
+  /**
+   * Les mois de l'année proposée que les reçus de l'élève DÉCLARENT déjà couvrir,
+   * chacun avec le reçu qui le couvre (numéro, date, montant). Ces mois
+   * apparaissent en rouge, barrés et non cochables — un mois ne se vend pas deux
+   * fois — et leur PREUVE est écrite sous la grille, pour que le caissier vérifie
+   * le papier de la famille au lieu de subir un refus anonyme. La liste vient du
+   * domaine (`paymentMonthHistory`) : la modale ne la recalcule pas.
+   */
+  paidMonthFacts: PaymentMonthFact[];
+  /**
+   * Combien de reçus de l'élève ne déclarent AUCUN mois. Leur couverture est
+   * INCONNUE : l'écran le dit, pour qu'un mois absent de la liste rouge ne se
+   * lise pas « ce mois n'a jamais été payé ».
+   */
+  undeclaredPaymentCount: number;
+  /**
+   * Le rôle peut-il RETIRER un reçu (« Payment deleters delete payments »,
+   * `src/lib/paymentRights.ts`) ? Sans ce droit, un mois déclaré deux fois se
+   * voit sans se nettoyer : la liste reste informative, sans bouton.
+   */
+  canDeletePayment: boolean;
+  /**
+   * Retire un reçu — le chemin de la fiche élève (`deletePayment`) : le montant
+   * sort du registre et du solde, l'acte est journalisé avec son instantané, et
+   * il reste restaurable depuis le journal d'audit. Rend `false` si la base a
+   * refusé (le toast a dit pourquoi).
+   */
+  onDeletePayment: (studentId: string, payment: Payment) => Promise<boolean>;
   /** Coche/décoche un mois. L'état vit dans le domaine, jamais dans la modale. */
   togglePaymentMonth: (month: string) => void;
   formatCurrency: (amount: number) => string;
@@ -86,15 +124,77 @@ export interface PaymentEntryModalProps {
 }
 
 export function PaymentEntryModal(props: PaymentEntryModalProps) {
-  const { t, currentTheme, students, paymentStudentId, setPaymentStudentId, paymentAmount, setPaymentAmount, paymentDate, setPaymentDate, paymentMotif, setPaymentMotif, paymentMonthOptions, paymentMonths, togglePaymentMonth, formatCurrency, availableClasses, getGradeDisplay, lang, handlePaymentSubmit, overlayRef, onClose } = props;
+  const { t, currentTheme, students, paymentStudentId, setPaymentStudentId, paymentAmount, setPaymentAmount, paymentDate, setPaymentDate, paymentMotif, setPaymentMotif, paymentMonthOptions, paymentMonths, paidMonthFacts, undeclaredPaymentCount, canDeletePayment, onDeletePayment, togglePaymentMonth, formatCurrency, availableClasses, getGradeDisplay, lang, handlePaymentSubmit, overlayRef, onClose } = props;
 
-  // Le texte EXACT de la ligne « Mois » du reçu — le même module, les mêmes
+  // Les mots de la ligne « Mois » — le même module que le reçu, donc les mêmes
   // mots : ce qui se lit ici est ce qui s'imprime.
-  const monthsReceiptLine = formatPaidMonths(paymentMonths, {
-    label: (ym) => paymentMonthLabel(ym, t),
-    count: (n) => t.paidMonthsCount.replace('{count}', String(n)),
+  const monthWords = {
+    label: (ym: string) => paymentMonthLabel(ym, t),
+    count: (n: number) => t.paidMonthsCount.replace('{count}', String(n)),
     rangeTo: t.paidMonthsRangeTo,
-  });
+  };
+
+  // Le texte EXACT de la ligne « Mois » du reçu.
+  const monthsReceiptLine = formatPaidMonths(paymentMonths, monthWords);
+
+  // Les mois déjà réglés, et leur PREUVE : une ligne par mois, avec le reçu qui
+  // le couvre — « Octobre — déjà payé : reçu REC-123 du 05/10/2026, 25 000 FCFA ».
+  // Le caissier vérifie ainsi qu'il parle du même reçu que la famille, et non d'un
+  // refus anonyme. La phrase est montée par le module pur, la même qui sert au
+  // message de refus.
+  const paidPaymentMonths = paidMonthFacts.map((f) => f.month);
+
+  // Ce que la grille a de PLUS à dire : les mois déjà réglés, et les reçus muets
+  // dont la couverture est inconnue. Les deux s'effacent quand il n'y a rien à
+  // dire — sans mois réglé ni reçu muet, l'écran est celui d'avant.
+  const undeclaredNote = undeclaredPaymentCount > 0
+    ? t.monthsUndeclaredNote.replace('{count}', String(undeclaredPaymentCount))
+    : '';
+
+  // ── Le reçu EN TROP ──────────────────────────────────────────────────────
+  // Un mois déclaré par DEUX reçus est un doublon déjà enregistré : l'écran les
+  // nomme tous les deux et laisse retirer celui qui est en trop. Il ne CHOISIT pas
+  // lequel — c'est la seule chose que l'application ne peut pas savoir (saisie
+  // faite deux fois, ou deux versements réellement reçus) : le caissier, lui, a
+  // la famille en face et les papiers sous les yeux.
+  const [pendingDeleteReceiptId, setPendingDeleteReceiptId] = useState<string | null>(null);
+  const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
+  // Ferme la course d'un double clic : le second appel verrait « zéro ligne
+  // supprimée » et crierait à tort « droits insuffisants » (même garde que le
+  // carnet de la fiche élève).
+  const deletingReceiptRef = useRef<string | null>(null);
+
+  // La ligne `payments` d'un reçu, retrouvée dans l'élève choisi : `deletePayment`
+  // a besoin du reçu ENTIER (montant, date, motif et année partent dans la file
+  // hors ligne et dans l'instantané du journal) — un objet reconstruit depuis
+  // l'affichage perdrait ce qui rend le geste annulable. Quand la ligne manque
+  // (élève reçu sans ses reçus), le geste n'est PAS offert : mieux vaut pas de
+  // bouton qu'un bouton qui ne peut rien retirer.
+  const paymentRowOf = (receiptId: string | undefined): Payment | undefined => {
+    if (!receiptId) return undefined;
+    return students.find((s) => s.id === paymentStudentId)?.payments.find((p) => p.id === receiptId);
+  };
+
+  const deleteReceipt = async (receipt: Payment) => {
+    const receiptId = receipt.id;
+    if (!receiptId || deletingReceiptRef.current) return;
+    deletingReceiptRef.current = receiptId;
+    setDeletingReceiptId(receiptId);
+    const ok = await onDeletePayment(paymentStudentId, receipt);
+    deletingReceiptRef.current = null;
+    setDeletingReceiptId(null);
+    // Succès : la ligne a quitté le registre de l'élève — la liste des mois se
+    // recalcule sur les reçus QUI RESTENT (un mois que ce reçu déclarait seul
+    // redevient cochable ; un mois qu'un autre déclare encore reste fermé).
+    // Échec : la confirmation reste ouverte, le toast a déjà dit pourquoi.
+    if (ok) setPendingDeleteReceiptId(null);
+  };
+
+  // Tous les mois de l'année proposée sont réglés : le bouton reste fermé, mais
+  // il dit POURQUOI — « cochez au moins un mois » serait faux, il n'en reste
+  // aucun à cocher.
+  const allMonthsPaid =
+    paymentMonthOptions.length > 0 && paidPaymentMonths.length >= paymentMonthOptions.length;
 
   // Au moins un mois est exigé dès lors que la liste est proposée (elle ne l'est
   // que si l'année scolaire de la date se lit) — SAUF pour l'inscription, qui
@@ -106,11 +206,13 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
     paymentMonthOptions.length > 0 &&
     paymentMonths.length === 0;
 
-  // Ce que la ligne sous les pastilles dit : l'exigence, ou le texte exact du
-  // reçu. Sous une INSCRIPTION sans mois coché les deux sont vides — la ligne
-  // disparaît alors au lieu de laisser un trou (un droit d'entrée n'a rien à
-  // déclarer sur les mois).
-  const monthsFeedback = missingMonth ? t.paidMonthsRequired : monthsReceiptLine;
+  // Ce que la ligne sous les pastilles dit : l'exigence (avec sa vraie raison),
+  // ou le texte exact du reçu. Sous une INSCRIPTION sans mois coché les deux sont
+  // vides — la ligne disparaît alors au lieu de laisser un trou (un droit
+  // d'entrée n'a rien à déclarer sur les mois).
+  const monthsFeedback = missingMonth
+    ? (allMonthsPaid ? t.paidMonthsAllCovered : t.paidMonthsRequired)
+    : monthsReceiptLine;
 
   // Le filtre repart de « toutes les classes » à chaque montage du formulaire.
   const [classFilter, setClassFilter] = useState<string>(ALL_CLASSES);
@@ -316,17 +418,26 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
                     <div role="group" aria-label={t.paidMonths} className="flex flex-wrap gap-2">
                       {paymentMonthOptions.map((month) => {
                         const checked = paymentMonths.includes(month);
+                        // Déjà réglé POUR CET ÉLÈVE : la pastille ne se coche plus.
+                        // Le clic ne fait rien, et l'envoi du mois refuserait de
+                        // toute façon (le domaine nomme le mois) : l'écran et le
+                        // domaine écartent la même liste.
+                        const alreadyPaid = paidPaymentMonths.includes(month);
                         return (
                           <button
                             key={month}
                             type="button"
                             data-month={month}
+                            data-paid={alreadyPaid ? 'true' : undefined}
                             aria-pressed={checked}
+                            disabled={alreadyPaid}
                             onClick={() => togglePaymentMonth(month)}
                             className={`px-4 py-2 rounded-xl border text-xs font-black transition-all ${
-                              checked
-                                ? `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentBorder} ${currentTheme.accentShadow}`
-                                : `${currentTheme.surfaceInset} ${currentTheme.border} ${currentTheme.inkStrong} ${currentTheme.rowHover}`
+                              alreadyPaid
+                                ? `${currentTheme.surfaceInset} ${currentTheme.border} text-rose-600 dark:text-rose-300 line-through opacity-60 cursor-not-allowed`
+                                : checked
+                                  ? `${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentBorder} ${currentTheme.accentShadow}`
+                                  : `${currentTheme.surfaceInset} ${currentTheme.border} ${currentTheme.inkStrong} ${currentTheme.rowHover}`
                             }`}
                           >
                             {paymentMonthLabel(month, t)}
@@ -335,6 +446,68 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
                       })}
                     </div>
                     <p className={`text-2xs font-semibold ${currentTheme.muted}`}>{t.paidMonthsHint}</p>
+                    {paidMonthFacts.map((fact) => (
+                      <Fragment key={fact.month}>
+                        <p className="text-2xs font-black text-rose-600 dark:text-rose-300">
+                          {formatPaidMonthLine(fact, t, lang)}
+                        </p>
+                        {/* Un mois déclaré par PLUSIEURS reçus : chacun se nomme —
+                            numéro, date, montant — et se retire s'il est en trop. */}
+                        {fact.receipts.length > 1 && fact.receipts.map((receipt) => {
+                          const row = paymentRowOf(receipt.id);
+                          const awaiting = pendingDeleteReceiptId !== null && pendingDeleteReceiptId === receipt.id;
+                          return (
+                            <div
+                              key={receipt.id ?? `${receipt.date}:${receipt.amount}`}
+                              data-receipt={receipt.id}
+                              className="flex flex-wrap items-center gap-2 pl-3"
+                            >
+                              <span className="text-2xs font-semibold text-rose-600 dark:text-rose-300">
+                                {paidReceiptEvidence(receipt, t, lang)}
+                              </span>
+                              {canDeletePayment && row && (awaiting ? (
+                                <>
+                                  <span className="text-2xs font-bold text-rose-600 dark:text-rose-300">
+                                    {t.deletePaymentConfirm
+                                      .replace('{amount}', formatCurrency(row.amount))
+                                      .replace('{receipt}', row.receiptNumber || 'N/A')}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    data-slot="payment-receipt-remove"
+                                    disabled={deletingReceiptId === receipt.id}
+                                    onClick={() => { void deleteReceipt(row); }}
+                                    className={`px-2 py-1 bg-rose-600 ${currentTheme.hoverAlertSolid} disabled:opacity-50 text-white rounded text-2xs font-bold transition-all`}
+                                  >
+                                    {t.deletePayment}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPendingDeleteReceiptId(null)}
+                                    className={`px-2 py-1 border ${currentTheme.border} ${currentTheme.muted} hover:text-slate-600 dark:hover:text-slate-200 rounded text-2xs font-bold transition-all`}
+                                  >
+                                    {t.cancel}
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  data-receipt-remove={receipt.id}
+                                  onClick={() => setPendingDeleteReceiptId(receipt.id ?? null)}
+                                  className={`px-2 py-1 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} rounded text-2xs font-bold transition-all flex items-center gap-1`}
+                                  title={t.deletePayment}
+                                >
+                                  <Trash2 size={12} /> {t.deletePayment}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
+                    {undeclaredNote !== '' && (
+                      <p className={`text-2xs font-semibold ${currentTheme.muted}`}>{undeclaredNote}</p>
+                    )}
                     {monthsFeedback !== '' && (
                       <p className={`text-xs font-black ${missingMonth ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-400'}`}>
                         {monthsFeedback}

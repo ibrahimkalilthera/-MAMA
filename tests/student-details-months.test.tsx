@@ -199,6 +199,46 @@ describe('StudentDetailsModal — les mois de scolarité de l’élève', () => 
     }
   });
 
+  it('marque la ligne du reçu qui déclare un mois DÉJÀ déclaré, et y laisse le geste', () => {
+    // Le doublon est DÉJÀ enregistré : deux reçus déclarent novembre. Le carnet
+    // affiche les lignes du plus récent au plus ancien, donc le second papier
+    // (REC-2) est en tête — c'est LUI qui porte le signal, avec la preuve du
+    // reçu antérieur et, sur la même ligne, la corbeille qui nettoie
+    // l'historique. Sans ce signal, la corbeille existe mais rien ne dit
+    // quelle ligne ouvrir, et le doublon resterait intact.
+    const DUP: Payment = { id: 'pay2', date: '2026-12-02', amount: 30000, receiptNumber: 'REC-2', months: ['2026-11'] };
+    const h = mount(student([TICKED, DUP]));
+    try {
+      const badges = h.container.querySelectorAll('[data-duplicate-month="2026-11"]');
+      assert.equal(badges.length, 1, 'un seul reçu surgit en second sur ce mois');
+      const badge = badges[0];
+      assert.ok(badge.textContent?.includes(t.nov), `le mois est nommé (vu : « ${badge.textContent} »)`);
+      assert.ok(badge.textContent?.includes('REC-1'), 'et la preuve du reçu ANTÉRIEUR, pour comparer les deux papiers');
+      assert.ok(badge.textContent?.includes(t.paidMonthDoubled), 'le fait est dit : l’un des deux est en trop');
+
+      // Le signal est posé sur la SECONDE ligne (REC-2), pas sur la première.
+      const column = badge.parentElement?.textContent ?? '';
+      assert.ok(column.includes('REC-2'), `le signal vise le reçu arrivé en second (vu : « ${column} »)`);
+      const row = badge.parentElement?.parentElement;
+      assert.ok(
+        row?.querySelector(`button[title="${t.deletePayment}"]`),
+        'et la corbeille qui annule le reçu en trop est sur CETTE ligne',
+      );
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  it('ne signale RIEN quand chaque mois n’est déclaré qu’une fois', () => {
+    const h = mount(student([TICKED]));
+    try {
+      assert.equal(h.container.querySelectorAll('[data-duplicate-month]').length, 0);
+      assert.ok(!h.container.textContent?.includes(t.paidMonthDoubled), 'aucun reçu en trop à annoncer');
+    } finally {
+      h.cleanup();
+    }
+  });
+
   it('cache la bande — sans inventer de mois — quand aucune année n’est lisible', () => {
     const h = mount(student([TICKED]), 'nope');
     try {

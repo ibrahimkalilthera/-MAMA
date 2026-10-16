@@ -21,15 +21,23 @@ import assert from 'node:assert/strict';
 import {
   academicYearMonths,
   effectivePaymentMonths,
+  formatPaidMonthLine,
+  formatPaidMonthTerse,
   isPaymentMonth,
   monthKeyOf,
   monthsCoverage,
+  monthsNotYetPaid,
+  paymentMonthHistory,
   paymentMonthLabel,
+  duplicateDeclarations,
   paidMonthsShape,
   formatPaidMonths,
   sortPaymentMonths,
   toggledPaymentMonths,
 } from '../src/lib/paymentMonths';
+import type { PaymentLike, PaymentMonthFact } from '../src/lib/paymentMonths';
+import { paidReceiptEvidence } from '../src/lib/paymentMonths';
+import { formatCurrency, formatDateLang } from '../src/lib/formatters';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
 
@@ -261,5 +269,194 @@ describe('monthsCoverage — ce qu’une fiche peut AFFIRMER des mois d’un él
     const c = monthsCoverage([year, ['2026-10']], year);
     assert.deepEqual(c.covered, year);
     assert.deepEqual(c.missing, []);
+  });
+});
+
+describe('monthsNotYetPaid — les mois que le guichet ne peut plus proposer', () => {
+  it('écarte un mois déjà couvert, et garde le reste dans l’ordre du calendrier scolaire', () => {
+    assert.deepEqual(
+      monthsNotYetPaid(['2026-11', '2026-09', '2026-10'], ['2026-10']),
+      ['2026-09', '2026-11'],
+      'le mois réglé disparaît des propositions, sans toucher à l’ordre des autres',
+    );
+  });
+
+  it('ne retire rien sans mois réglé, et ne propose plus rien quand l’année est entièrement réglée', () => {
+    const year = academicYearMonths('2026-2027');
+    assert.deepEqual(monthsNotYetPaid(year, []), year, 'sans reçu qui déclare un mois, tout reste proposé');
+    assert.deepEqual(monthsNotYetPaid(year, year), [], 'une année entièrement réglée ne propose plus aucun mois');
+  });
+
+  it('écarte aussi le mois proposé d’avance quand c’est lui qui est déjà réglé', () => {
+    // La chaîne réelle du guichet : la couverture venue des reçus est d'abord
+    // restreinte à l'année proposée, puis retirée des propositions. Un octobre
+    // 2025 ne doit donc pas retirer octobre 2026 — le mois porte son année
+    // civile — et l'octobre 2026 déclaré, lui, retire bien le mois de la date.
+    const year = academicYearMonths('2026-2027');
+    const autreAnnee = monthsCoverage([['2025-10', '2027-09']], year).covered;
+    assert.deepEqual(monthsNotYetPaid(year, autreAnnee), year, 'aucun de ces deux mois n’appartient à l’année proposée');
+
+    const memeAnnee = monthsCoverage([['2026-10']], year).covered;
+    assert.deepEqual(monthsNotYetPaid(['2026-10'], memeAnnee), [], 'le mois de la date, déjà réglé, n’est plus proposé');
+  });
+});
+
+describe('paymentMonthHistory — la PREUVE qui accompagne un mois déjà réglé', () => {
+  const year = academicYearMonths('2026-2027'); // 2026-09 … 2027-08
+
+  it('attache à chaque mois couvert le reçu qui le déclare — numéro, date, montant', () => {
+    const h = paymentMonthHistory([
+      { id: 'p1', date: '2026-10-05', amount: 25000, receiptNumber: 'REC-123456', months: ['2026-10'] },
+      { id: 'p2', date: '2026-11-04', amount: 30000, receiptNumber: 'REC-123457', months: ['2026-11', '2026-12'] },
+    ], year);
+    assert.deepEqual(h.facts, [
+      { month: '2026-10', receipts: [{ id: 'p1', date: '2026-10-05', amount: 25000, receiptNumber: 'REC-123456' }] },
+      { month: '2026-11', receipts: [{ id: 'p2', date: '2026-11-04', amount: 30000, receiptNumber: 'REC-123457' }] },
+      { month: '2026-12', receipts: [{ id: 'p2', date: '2026-11-04', amount: 30000, receiptNumber: 'REC-123457' }] },
+    ], 'un reçu qui couvre deux mois les couvre tous les deux, avec la même preuve');
+    assert.equal(h.undeclared, 0);
+  });
+
+  it('porte TOUS les reçus d’un mois déclaré deux fois — du plus ancien au plus récent', () => {
+    // Le doublon enregistré avant cette règle existe peut-être déjà : n'en montrer
+    // qu'un le rendrait invisible, donc intact — l'école ne pourrait plus le
+    // rattraper. Chaque reçu est donc nommé, et c'est l'écran qui laisse retirer
+    // celui qui est en trop (l'application ne peut pas savoir lequel).
+    const h = paymentMonthHistory([
+      { id: 'p2', date: '2026-11-02', amount: 30000, receiptNumber: 'REC-200000', months: ['2026-10'] },
+      { id: 'p1', date: '2026-10-05', amount: 25000, receiptNumber: 'REC-123456', months: ['2026-10'] },
+    ], year);
+    assert.equal(h.facts.length, 1, 'toujours UN fait par mois : le mois reste une seule chose');
+    assert.deepEqual(
+      h.facts[0].receipts.map((r) => r.receiptNumber),
+      ['REC-123456', 'REC-200000'],
+      'les DEUX reçus sont nommés, le plus ancien d’abord — et chacun porte son id, sans quoi rien ne se retire',
+    );
+    assert.deepEqual(h.facts[0].receipts.map((r) => r.id), ['p1', 'p2']);
+  });
+
+  it('n’invente aucune preuve pour un reçu MUET, mais le compte', () => {
+    const h = paymentMonthHistory([
+      { id: 'p1', date: '2026-10-05', amount: 25000, months: ['2026-10'] },
+      { date: '2026-10-06', amount: 10000 },
+      { date: '2026-10-07', amount: 10000, months: [] },
+    ], year);
+    assert.deepEqual(h.facts, [
+      { month: '2026-10', receipts: [{ id: 'p1', date: '2026-10-05', amount: 25000, receiptNumber: undefined }] },
+    ], 'le muet n’apparaît dans aucun fait : sa couverture est inconnue, pas nulle');
+    assert.equal(h.undeclared, 2, 'un `undefined` et une liste vide se comptent tous deux');
+  });
+
+  it('écarte un mois d’une AUTRE année scolaire, sans toucher à la même date', () => {
+    const h = paymentMonthHistory([
+      { date: '2025-10-05', amount: 25000, receiptNumber: 'REC-000001', months: ['2025-10'] },
+    ], year);
+    assert.deepEqual(h.facts, [], 'octobre 2025 n’est pas octobre 2026');
+  });
+});
+
+describe('duplicateDeclarations — quel reçu déclare un mois déjà déclaré', () => {
+  const year = academicYearMonths('2026-2027');
+  const older: PaymentLike = { id: 'p1', date: '2026-10-05', amount: 25000, receiptNumber: 'REC-123456', months: ['2026-10'] };
+  const newer: PaymentLike = { id: 'p2', date: '2026-10-20', amount: 25000, receiptNumber: 'REC-999999', months: ['2026-10'] };
+
+  it('désigne le reçu SURVENU EN SECOND, avec le mois et le reçu antérieur', () => {
+    // Le premier reçu d'un mois n'est en trop pour personne : c'est la référence.
+    assert.deepEqual(duplicateDeclarations([older, newer], year), [{
+      receiptId: 'p2',
+      month: '2026-10',
+      earlier: [{ id: 'p1', date: '2026-10-05', amount: 25000, receiptNumber: 'REC-123456' }],
+    }]);
+    // L'ordre de la liste de l'élève ne change rien : c'est la DATE qui fait le
+    // premier, et le carnet affiche les lignes du plus récent au plus ancien.
+    assert.deepEqual(duplicateDeclarations([newer, older], year), [{
+      receiptId: 'p2',
+      month: '2026-10',
+      earlier: [{ id: 'p1', date: '2026-10-05', amount: 25000, receiptNumber: 'REC-123456' }],
+    }]);
+  });
+
+  it('ne dit rien d’un mois déclaré une seule fois, ni d’un reçu muet', () => {
+    assert.deepEqual(duplicateDeclarations([older], year), []);
+    assert.deepEqual(duplicateDeclarations([older, { id: 'p3', date: '2026-10-06', amount: 10000 }], year), [],
+      'un muet ne déclare rien : il ne peut pas déclarer deux fois');
+  });
+
+  it('porte TOUS les reçus antérieurs quand le mois est déclaré trois fois', () => {
+    const third: PaymentLike = { id: 'p4', date: '2026-11-02', amount: 25000, receiptNumber: 'REC-777777', months: ['2026-10'] };
+    assert.deepEqual(
+      duplicateDeclarations([older, newer, third], year).map((d) => [d.receiptId, d.earlier.map((r) => r.id)]),
+      [['p2', ['p1']], ['p4', ['p1', 'p2']]],
+      'chaque reçu en trop nomme ce qui le précède, pour que le caissier voie l’ordre des papiers',
+    );
+  });
+
+  it('écarte un reçu sans id — il ne pourrait pas être retiré, donc rien ne serait proposé', () => {
+    assert.deepEqual(duplicateDeclarations([older, { ...newer, id: undefined }], year), []);
+  });
+});
+
+describe('formatPaidMonthLine / formatPaidMonthTerse — la preuve, dite', () => {
+  const receipt = { id: 'p1', date: '2026-10-05', amount: 25000, receiptNumber: 'REC-123456' };
+  const fact: PaymentMonthFact = { month: '2026-10', receipts: [receipt] };
+  /** Le même mois, déclaré par DEUX reçus : ce que l'écran doit nommer.
+   *
+   *  Le second a été écrit APRÈS le premier — l'expérience d'un dépôt double, ou
+   *  d'une saisie faite deux fois — et il porte son propre numéro : c'est lui
+   *  qu'un caissier reconnaîtra comme « le reçu en trop ».
+   */
+  const double: PaymentMonthFact = {
+    month: '2026-10',
+    receipts: [receipt, { id: 'p2', date: '2026-10-05', amount: 25000, receiptNumber: 'REC-999999' }],
+  };
+  it('écrit le mois, le numéro, la date et le montant — dans la langue de l’écran', () => {
+    assert.equal(
+      formatPaidMonthLine(fact, translations.fr, 'fr'),
+      'Octobre — déjà payé : reçu REC-123456 du 05/10/2026, 25\u00a0000\u00a0FCFA',
+    );
+    assert.equal(
+      formatPaidMonthLine(fact, translations.en, 'en'),
+      `October — already paid: receipt REC-123456 of ${formatDateLang(receipt.date, 'en')}, ${formatCurrency(receipt.amount)}`,
+    );
+  });
+
+  it('nomme le paiement sans numéro de reçu, sans laisser de trou', () => {
+    const sansNumero: PaymentMonthFact = {
+      month: '2026-10', receipts: [{ ...receipt, receiptNumber: undefined }],
+    };
+    assert.equal(
+      formatPaidMonthLine(sansNumero, translations.fr, 'fr'),
+      'Octobre — déjà payé : paiement du 05/10/2026, 25\u00a0000\u00a0FCFA',
+      'une ligne écrite avant la colonne se nomme par sa date et son montant',
+    );
+  });
+
+  it('dit quand plusieurs reçus déclarent le même mois, et laisse l’écran les nommer un par un', () => {
+    assert.equal(
+      formatPaidMonthLine(double, translations.fr, 'fr'),
+      'Octobre — déjà payé : 2 reçus déclarent ce mois',
+    );
+    // La ligne d'UN reçu : c'est celle que l'écran écrit sous la phrase du mois,
+    // une fois par reçu, avec sur chacune de quoi retirer celui qui est en trop.
+    assert.equal(
+      paidReceiptEvidence(double.receipts[1], translations.fr, 'fr'),
+      'reçu REC-999999 du 05/10/2026, 25\u00a0000\u00a0FCFA',
+    );
+  });
+
+  it('rend la forme COURTE du même fait, pour une phrase qui porte déjà son verbe', () => {
+    assert.equal(
+      formatPaidMonthTerse(fact, translations.fr, 'fr'),
+      'Octobre (reçu REC-123456 du 05/10/2026, 25\u00a0000\u00a0FCFA)',
+    );
+    assert.equal(
+      formatPaidMonthTerse(fact, translations.en, 'en'),
+      `October (receipt REC-123456 of ${formatDateLang(receipt.date, 'en')}, ${formatCurrency(receipt.amount)})`,
+    );
+    assert.equal(
+      formatPaidMonthTerse(double, translations.fr, 'fr'),
+      'Octobre (reçu REC-123456 du 05/10/2026, 25\u00a0000\u00a0FCFA — 2 reçus déclarent ce mois)',
+      'un refus ne déroule pas une liste : il dit qu’il y en a plusieurs',
+    );
   });
 });

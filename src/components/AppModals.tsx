@@ -25,6 +25,7 @@ import { SuccessToast } from './SuccessToast';
 import { WelcomeToast } from './WelcomeToast';
 import { LinkStudentModal } from './LinkStudentModal';
 import { LatePaymentTicketModal } from './LatePaymentTicketModal';
+import { ReconciliationModal } from './ReconciliationModal';
 import { useEscapeToClose } from '../lib/useEscapeToClose';
 import { useOverlayTraps } from '../lib/focusStack';
 import { modalTokens } from '../lib/modalTokens';
@@ -56,7 +57,7 @@ interface OverlayEntry {
 
 export function AppModals(props: AppModalsProps) {
   const [confirmDeleteStudent, setConfirmDeleteStudent] = useState<Student | null>(null);
-  const { Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Layers, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentYear, currentTheme, currentUser, mergeStudents, reviewStudent, setReviewStudent, deleteStudent, deletePayment, updatePaymentMonths, deleteTodo, canDelete, canDeletePayment, canEditPaymentMonths, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, canEditScholarship, lang, newClassForm, noteText, savingNoteOnDate, saveNoteOnDate, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentMonthOptions, paymentMonths, paymentMotif, paymentStudentId, setPaymentMotif, printStudentFile, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, studentFileFocus, selectedYear, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setStudentFileFocus, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, staffModalMode, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoDate, setTodoDate, todoInput, todos, togglePaymentMonth, toggleTodo, handleUpdateTodoDate, vendorExpenseForm, welcomeMessage  } = props;
+  const { Briefcase, Calendar, CheckCircle2, CheckSquare, Copy, CreditCard, DollarSign, FileText, Layers, Printer, Receipt, ShieldCheck, Sparkles, StickyNote, Trash2, Users, X, academicYears, activeLinkingParent, aiInput, aiMessages, auditYear, availableClasses, copiedToast, copyToClipboard, currentMonth, currentYear, currentTheme, currentUser, mergeStudents, reviewStudent, setReviewStudent, deleteStudent, deletePayment, updatePaymentMonths, deleteTodo, canDelete, canDeletePayment, canEditPaymentMonths, editClassForm, editingParent, editingStaff, editingStudent, editingVendorExpense, expenseCategoryList, expenseForm, formatCurrency, formatDate, generateInstallmentMemo, generatePaymentReceiptPdf, getDayName, getEventsForDay, getNotesForDay, getGradeDisplay, getParentOutstandingBalance, getYearStats, handleAddTodo, handleAiQuery, handleCopyNotifyMessage, handleCreateClassSubmit, handleEditClassSubmit, handleExpenseSubmit, handleLinkStudentSubmit, handleNotifyTemplateChange, handleParentSubmit, handlePaymentSubmit, handleSalarySubmit, handleSaveNote, handleSendSMS, handleSendWhatsApp, handleStaffSubmit, handleStudentSubmit, handleVendorExpenseSubmit, isPromoter, canEditScholarship, lang, newClassForm, noteText, savingNoteOnDate, saveNoteOnDate, setNoteText, notifyCustomText, notifyParent, notifySelectedPhone, notifyTemplateType, openEditModal, parentForm, paymentAmount, paymentDate, paymentMonthOptions, paymentMonths, paidMonthFacts, undeclaredPaymentCount, paymentMotif, paymentStudentId, setPaymentMotif, printStudentFile, reconcileStudent, setReconcileStudent, productivitySidebarTab, salaryForm, salaryPayments, schoolLogo, selectedCalendarDay, selectedStudent, studentFileFocus, selectedYear, setAiInput, setEditClassForm, setEditingVendorExpense, setExpenseForm, setNewClassForm, setNotifyCustomText, setNotifySelectedPhone, setParentForm, setPaymentAmount, setPaymentDate, setPaymentStudentId, setPrintStudentFile, setProductivitySidebarTab, setSalaryForm, setSelectedStudent, setStudentFileFocus, setShowAddClassModal, setShowAuditModal, setShowCalendarModal, setShowEditClassModal, setShowExpenseModal, setShowLinkStudentModal, setShowNotifyModal, setShowParentModal, setShowPaymentForm, setShowSalaryModal, setShowStaffModal, setShowStudentModal, setShowTodoSidebar, setShowVendorExpenseModal, setStaffForm, setStudentDetailTab, setStudentForm, setStudentToLinkId, setTicketStudent, setTodoInput, setVendorExpenseForm, showAddClassModal, showAuditModal, showCalendarModal, showEditClassModal, showExpenseModal, showLinkStudentModal, showNotifyModal, showParentModal, showPaymentForm, showSalaryModal, showStaffModal, showStudentModal, showSuccessToast, showTodoSidebar, showVendorExpenseModal, staff, staffForm, staffModalMode, studentDetailTab, studentForm, studentToLinkId, students, t, ticketStudent, todoDate, setTodoDate, todoInput, todos, togglePaymentMonth, toggleTodo, handleUpdateTodoDate, vendorExpenseForm, welcomeMessage  } = props;
   const tokens = modalTokens(currentTheme);
   // Le droit d'ÉCRIRE une dépense fournisseur vient de la BASE
   // (`public.is_finance_writer()`, `src/lib/payrollRights.ts`) : le rôle est lu
@@ -102,6 +103,7 @@ export function AppModals(props: AppModalsProps) {
           onClose={onClose}
           onEdit={() => openEditModal(selectedStudent)}
           onPrint={() => setPrintStudentFile(selectedStudent)}
+          onReconcile={() => setReconcileStudent(selectedStudent)}
           onDeleteRequest={() => setConfirmDeleteStudent(selectedStudent)}
           canDelete={canDelete}
           canDeletePayment={canDeletePayment}
@@ -339,6 +341,10 @@ export function AppModals(props: AppModalsProps) {
           setPaymentDate={setPaymentDate}
           paymentMonthOptions={paymentMonthOptions}
           paymentMonths={paymentMonths}
+          paidMonthFacts={paidMonthFacts}
+          undeclaredPaymentCount={undeclaredPaymentCount}
+          canDeletePayment={canDeletePayment}
+          onDeletePayment={deletePayment}
           paymentMotif={paymentMotif}
           setPaymentMotif={setPaymentMotif}
           togglePaymentMonth={togglePaymentMonth}
@@ -367,6 +373,30 @@ export function AppModals(props: AppModalsProps) {
           schoolLogo={schoolLogo}
           students={students}
           getYearStats={getYearStats}
+          formatCurrency={formatCurrency}
+          overlayRef={register}
+          onClose={onClose}
+        />
+      ) : null,
+    },
+    {
+      // L'état de rapprochement s'ouvre AU-DESSUS de la fiche, qui reste derrière
+      // (l'ordre de cette liste EST l'ordre d'empilement), et il est refermé
+      // d'abord par Échap : on revient à la fiche, pas à la liste des élèves.
+      key: 'reconciliation',
+      coordinated: true,
+      presence: true,
+      open: Boolean(reconcileStudent),
+      close: () => setReconcileStudent(null),
+      render: (register, onClose) => reconcileStudent ? (
+        <ReconciliationModal
+          t={t}
+          lang={lang}
+          currentTheme={currentTheme}
+          student={reconcileStudent}
+          selectedYear={selectedYear}
+          getGradeDisplay={getGradeDisplay}
+          formatDate={formatDate}
           formatCurrency={formatCurrency}
           overlayRef={register}
           onClose={onClose}
