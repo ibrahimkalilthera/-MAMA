@@ -201,6 +201,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ── L'outillage que le PUBLIEUR exige pour juger la base ───────────────
+      # Le publieur juge la base qu'il va nourrir AVANT sa première requête, sur
+      # les TROIS familles d'objets (`scripts/lib/db-ready.mjs`) : la question des
+      # colonnes passe par PostgREST (clé anon, aucune dépendance), mais les deux
+      # autres lisent les catalogues par CONNEXION DIRECTE, donc il leur faut
+      # `pg`. Non déclaré dans `package.json` (outillage ponctuel, comme dans le
+      # gate et dans la veille `public-rls-watch`) : `npm ci` ne l'installe pas.
+      #
+      # Pourquoi il le faut ICI et pas seulement dans le gate : mesuré le
+      # 2026-10-16 (run `38925043270`), le gate a jugé la base (vert), le build a
+      # produit ses cinq octets… puis `release:publish` a REFUSÉ — « aucun
+      # verdict sur la base hébergée », `SUPABASE_DB_PASSWORD` absent — trois
+      # minutes de build pour rien. Le gate d'avant-build ne dispense pas de
+      # nourrir le gate du PUBLIEUR : c'est le seul que rien ne contourne, il
+      # s'applique aussi à un `npm run release:publish` lancé à la main.
+      - name: Installer l'outillage Postgres (pg, non déclaré)
+        run: npm i --no-save pg
+
       # La MÊME configuration que celle que les postes recevront : `electron:ui`
       # compile l'app avec ces valeurs, donc `VITE_SUPABASE_ANON_KEY` manquante ne
       # donne pas une app dégradée mais une app qui REFUSE de démarrer (« Configuration
@@ -262,6 +280,14 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           GH_TOKEN: ${{ github.token }}
           SIGNING_ENABLED: ${{ vars.SIGNING_ENABLED }}
+          # Le publieur juge la base AVANT sa première requête : deux des trois
+          # questions (les objets, les politiques) lisent les catalogues par
+          # connexion directe, et REFUSENT quand cette clé manque. Elle n'était
+          # posée que pour le gate d'avant-build — donc le gate qui vit DANS le
+          # publieur ne pouvait pas conclure, et la publication s'arrêtait APRÈS
+          # le build (run `38925043270`). Aucun octet n'avait été téléversé : le
+          # numéro est resté inédit, et la reprise ne peut pas produire de doublon.
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           if [ "$SIGNING_ENABLED" = "true" ] && [ -f "$RUNNER_TEMP/code-sign.pfx" ]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"

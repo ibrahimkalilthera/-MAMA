@@ -326,6 +326,33 @@ describe('les deux chaînes de publication sont arrêtées AVANT leur build', ()
     assert.doesNotMatch(desktop, /exit 78/, 'publier un installeur est irréversible : « je n’ai pas pu regarder » refuse aussi');
   });
 
+  it('le job qui publie DONNE au publieur de quoi juger la base — la clé, et l’outillage', () => {
+    // Mesuré le 2026-10-16 (run `38925043270`) : le gate a jugé la base (vert,
+    // 45 migrations / 51 objets / 54 politiques), le build a produit ses cinq
+    // octets, puis `release:publish` a REFUSÉ — « aucun verdict sur la base
+    // hébergée » — parce que la clé de la base n'était posée que pour le gate.
+    // Le gate d'avant-build ne dispense donc pas de nourrir le gate du PUBLIEUR :
+    // c'est le seul que rien ne contourne (il s'applique aussi à un
+    // `npm run release:publish` lancé à la main), et il juge AVANT sa première
+    // requête. Ce cas verrouille les deux choses que la publication exige LÀ OÙ
+    // elle tourne : la clé de la base, et `pg` — les deux questions de catalogue
+    // se lisent par connexion directe, et `npm ci` n'installe pas un outillage
+    // que le paquet ne déclare pas. Un des deux manquant, la porte refuse après
+    // trois minutes de build au lieu de le dire avant.
+    const buildJob = desktop.slice(desktop.indexOf('\n  build-sign-publish:'));
+    assert.ok(buildJob.length > 0, 'le job de publication est déclaré');
+    assert.match(
+      buildJob,
+      /SUPABASE_DB_PASSWORD/,
+      'la clé de la base doit descendre jusqu’au job qui publie — sinon le publieur refuse faute de preuve',
+    );
+    assert.match(
+      buildJob,
+      /npm i --no-save pg/,
+      'et `pg` doit être posé dans ce job-là : `npm ci` ne l’installe pas, et sans lui les deux catalogues restent illisibles',
+    );
+  });
+
   it('les deux chaînes nomment les MÊMES contrôles que la liste du module', () => {
     // Une liste recopiée dériverait de celle-ci : la veille `public-rls-watch`
     // exécute déjà ces trois scripts, les deux chaînes doivent s’y tenir pareil.
