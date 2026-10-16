@@ -33,8 +33,12 @@ const {
   MIN_ID,
   MAX_ID,
   LAST_CHECK_STATES,
+  INSTALL_MODES,
+  CONVERSION_CODE,
   stationPath,
   randomStationId,
+  installModeOf,
+  conversionFact,
   readStation,
   ensureStationId,
   recordBeat,
@@ -45,12 +49,26 @@ const {
   MIN_ID: number;
   MAX_ID: number;
   LAST_CHECK_STATES: readonly string[];
+  INSTALL_MODES: readonly string[];
+  CONVERSION_CODE: string;
   stationPath: (input: { userDataDir: string }) => string;
   randomStationId: (random?: () => number) => string;
+  installModeOf: (input?: { packaged?: boolean; portable?: boolean }) => string | null;
+  // Le module ne jette jamais : un relevé absent (`null`) ou un appelant qui
+  // n'a rien à donner (`undefined`) rendent `null`, jamais une exception.
+  conversionFact: (
+    previous?: { installMode?: string | null; appVersion?: string | null } | null,
+    next?: { installMode?: string | null; appVersion?: string | null } | null,
+  ) => { code: string; version: string | null; currentVersion: string | null } | null;
   readStation: (
     file: string,
     options?: { fs?: unknown },
-  ) => { stationId: string; appVersion: string | null; lastCheck: string | null } | null;
+  ) => {
+    stationId: string;
+    appVersion: string | null;
+    lastCheck: string | null;
+    installMode: string | null;
+  } | null;
   ensureStationId: (
     file: string,
     options?: { fs?: unknown; random?: () => number; nowMs?: number },
@@ -151,6 +169,91 @@ describe('l’identité d’un poste — aléatoire, écrite une fois, jamais r�
   });
 });
 
+describe('la FORME du poste — mesurée, jamais devinée', () => {
+  it('deux formes connues, et elles seules', () => {
+    assert.deepEqual(INSTALL_MODES, ['portable', 'installed']);
+  });
+
+  it('l’empaquetage d’abord : une session de développement ne déclare AUCUNE forme', () => {
+    // Le cas qui compte : une application non empaquetée n'a pas de forme
+    // d'installation. Écrire « installed » pour un poste de bureau de
+    // développement ferait compter un poste qui n'existe pas dans le parc.
+    assert.equal(installModeOf({ packaged: false, portable: false }), null);
+    assert.equal(
+      installModeOf({ packaged: false, portable: true }),
+      null,
+      'la marque du portable ne remplace pas l’empaquetage : sans empaquetage, rien n’est mesuré',
+    );
+    assert.equal(installModeOf({}), 'installed', 'le défaut est un poste installé empaqueté');
+  });
+
+  it('un poste empaqueté se dit portable ou installé, et la marque vient de l’exécutable', () => {
+    assert.equal(installModeOf({ packaged: true, portable: true }), 'portable');
+    assert.equal(installModeOf({ packaged: true, portable: false }), 'installed');
+  });
+});
+
+describe('la CONVERSION — le seul fait de ce relevé qui parle du passé', () => {
+  // Le relevé de parc DATE la conversion (§7) ; il ne peut pas la NOMMER : son
+  // identité est aléatoire et rangée sur la machine. Le nom remonte donc par le
+  // journal du poste, et c'est ce fait-là que ces cas tiennent : constatable, au
+  // bon sens, et jamais inventé à partir d'une forme qu'on n'a pas mesurée.
+  it('portable → installé : la conversion est constatée, avec la version du PASSAGE', () => {
+    assert.equal(CONVERSION_CODE, 'converted');
+    assert.deepEqual(conversionFact({ installMode: 'portable', appVersion: '1.0.4' }, { installMode: 'installed', appVersion: '1.0.5' }), {
+      code: CONVERSION_CODE,
+      // La version que le poste exécute au battement qui porte la conversion —
+      // la même lecture que `converted_to_version`, et non la version du jour.
+      version: '1.0.5',
+      currentVersion: '1.0.4',
+    });
+  });
+
+  it('le SENS compte : un poste installé relancé en portable n’est pas une conversion', () => {
+    // Relancer l'exe portable sur une machine installée est un retour en arrière,
+    // pas un basculement : il n'inscrit rien, et la base ne datera rien non plus.
+    assert.equal(conversionFact({ installMode: 'installed', appVersion: '1.0.5' }, { installMode: 'portable', appVersion: '1.0.5' }), null);
+  });
+
+  it('aucun autre couple de formes ne produit une conversion', () => {
+    const portable = { installMode: 'portable', appVersion: '1.0.4' };
+    const installed = { installMode: 'installed', appVersion: '1.0.5' };
+    assert.equal(conversionFact(installed, installed), null, 'installé → installé n’est pas un basculement');
+    assert.equal(conversionFact(portable, portable), null, 'portable → portable non plus');
+    // Le cas qui compte dans le parc réel : un poste dont le relevé d'AVANT ne
+    // déclarait aucune forme (version antérieure à ce champ). On ne sait pas ce
+    // qu'il était, donc « il s'est converti » serait une invention — et la base,
+    // elle, ne datera rien pour lui. Le journal dit la même chose que le relevé :
+    // rien.
+    assert.equal(conversionFact({ installMode: null, appVersion: '1.0.38' }, installed), null, 'une forme jamais mesurée n’est pas une conversion');
+    assert.equal(conversionFact(null, installed), null, 'un poste neuf n’a rien converti');
+    assert.equal(conversionFact(portable, null), null);
+    assert.equal(conversionFact(portable, undefined), null);
+  });
+
+  it('une version non lue reste `null`, jamais la chaîne « null »', () => {
+    assert.deepEqual(conversionFact({ installMode: 'portable' }, { installMode: 'installed' }), {
+      code: CONVERSION_CODE,
+      version: null,
+      currentVersion: null,
+    });
+  });
+
+  it('elle se constate en lisant AVANT d’écrire — le battement REMPLACE le relevé', () => {
+    withStation((file) => {
+      recordBeat(file, { appVersion: '1.0.4', lastCheck: 'ok', installMode: 'portable' }, { random: () => 0.5, nowMs: AT });
+      const previous = readStation(file);
+      const written = recordBeat(file, { appVersion: '1.0.5', lastCheck: 'ok', installMode: 'installed' }, { nowMs: AT });
+      assert.ok(previous && written, 'les deux relevés doivent être lisibles');
+      assert.deepEqual(conversionFact(previous, written), { code: CONVERSION_CODE, version: '1.0.5', currentVersion: '1.0.4' });
+      // Et c'est la raison de l'ordre : après l'écriture, la forme d'avant a
+      // disparu du fichier — la constater plus tard serait impossible.
+      assert.equal(readStation(file)?.installMode, 'installed');
+      assert.equal(conversionFact(readStation(file), readStation(file)), null, 'relire après coup ne constate plus rien');
+    });
+  });
+});
+
 describe('les faits inscrits — bornés, et jamais inventés', () => {
   it('sans version installée, rien n’est écrit — un relevé sans version ne relève rien', () => {
     withStation((file) => {
@@ -213,6 +316,51 @@ describe('les faits inscrits — bornés, et jamais inventés', () => {
       assert.deepEqual(LAST_CHECK_STATES, ['ok', 'feed-absent', 'html', 'unreachable']);
     });
   });
+
+  it('la forme du poste est inscrite telle qu’on la lui donne, et relue telle quelle', () => {
+    withStation((file) => {
+      const record = recordBeat(
+        file,
+        { appVersion: '1.0.38', lastCheck: 'ok', installMode: 'portable' },
+        { random: () => 0.5, nowMs: AT },
+      );
+      assert.ok(record);
+      assert.equal(record.installMode, 'portable');
+      assert.equal(readStation(file)?.installMode, 'portable');
+      // Le poste qui s'est converti : le battement suivant porte l'autre forme,
+      // sous la MÊME identité — c'est ce que la base lit pour dater la conversion.
+      recordBeat(file, { appVersion: '1.0.38', lastCheck: 'ok', installMode: 'installed' }, { nowMs: AT });
+      assert.equal(readStation(file)?.installMode, 'installed');
+      assert.equal(readStation(file)?.stationId, DRAWN, 'et l’identité n’a pas bougé');
+    });
+  });
+
+  it('une forme INCONNUE n’est pas recopiée — mais elle ne retient pas le battement', () => {
+    withStation((file) => {
+      const record = recordBeat(
+        file,
+        { appVersion: '1.0.38', lastCheck: 'ok', installMode: 'semi-portable' },
+        { random: () => 0.5, nowMs: AT },
+      );
+      // La base refuserait un mode inventé : le relevé ne peut donc pas le porter.
+      // Ce champ est le moins essentiel du battement — l'absence de forme n'est
+      // pas un fait invalide, donc le battement part quand même.
+      assert.ok(record, 'un mode inconnu ne fait pas perdre le relevé entier');
+      assert.equal(record.installMode, null, '« semi-portable » ne devient pas une forme');
+      assert.equal(readStation(file)?.appVersion, '1.0.38');
+    });
+  });
+
+  it('une forme inconnue LU dans un fichier n’est pas recopiée non plus', () => {
+    withStation((file) => {
+      writeFileSync(
+        file,
+        JSON.stringify({ stationId: ID, appVersion: '1.0.38', lastCheck: 'ok', installMode: 'zombie' }),
+      );
+      assert.equal(readStation(file)?.installMode, null, 'une forme hors des deux n’est pas une forme');
+      assert.equal(readStation(file)?.lastCheck, 'ok', 'et le reste du relevé reste vrai');
+    });
+  });
 });
 
 describe('ce que le pont remet au rendu', () => {
@@ -252,11 +400,16 @@ describe('ce que le pont remet au rendu', () => {
         osVersion: '10',
         lastCheck: 'html',
         lastCheckVersion: '1.0.33',
+        installMode: 'portable',
       };
       const record = recordBeat(file, facts, { random: () => 0.5, nowMs: AT });
       const payload = beatPayload({ userDataDir: dir, env: {} });
       assert.ok(payload);
       assert.deepEqual(payload, record);
+      // Ce qui part du poste porte la forme MESURÉE sur cette machine, telle
+      // quelle : c'est elle que la base compare à la ligne en place pour dater
+      // une conversion.
+      assert.equal(payload?.installMode, 'portable');
     });
   });
 });

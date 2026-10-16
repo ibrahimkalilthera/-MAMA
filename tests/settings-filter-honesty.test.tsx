@@ -241,7 +241,7 @@ describe('Paramètres Système — une liste filtrée ne peut plus passer pour u
     unmount(container, root);
   });
 
-  it('le champ de recherche se déclare pour ce qu’il est — jamais un identifiant', () => {
+  it('le champ de recherche se déclare pour ce qu’il est — et la carte des comptes reste sans champ libre', () => {
     const { container, root } = mount();
     // Ce que le navigateur lit : un type qui n'est pas un champ d'identité (donc
     // aucun couple « identifiant + mot de passe » à remplir) et un `autoComplete`
@@ -249,10 +249,28 @@ describe('Paramètres Système — une liste filtrée ne peut plus passer pour u
     const search = searchField(container);
     assert.equal(search.type, 'search', 'un champ de recherche n’est pas un champ texte libre');
     assert.equal(search.getAttribute('autocomplete'), 'off', 'le gestionnaire de mots de passe n’a rien à y verser');
+    // Depuis le 2026-10-16 cet écran porte UN champ texte libre de plus : le nom
+    // de l'école (une identité d'établissement, pas une recherche — donc pas un
+    // `type="search"`). La règle qui protège du bug n'est donc pas « l'écran ne
+    // contient aucun champ libre » — c'était vrai par accident, et ce serait une
+    // règle qui interdirait tout nouveau champ —, mais « aucun champ libre qui ne
+    // SE DÉCLARE pas » : un champ qui dit `autoComplete="off"` n'est pas
+    // l'identifiant que le gestionnaire cherche à remplir. La carte des comptes,
+    // elle, reste SANS champ libre : c'est là que le bug s'est produit (une
+    // recherche voisine de la fiche « Définir mot de passe »).
+    for (const free of container.querySelectorAll<HTMLInputElement>('input[type="text"]')) {
+      assert.equal(
+        free.getAttribute('autocomplete'),
+        'off',
+        `« ${free.getAttribute('aria-label') || free.getAttribute('name') || 'champ texte'} » doit se déclarer, sinon le gestionnaire de mots de passe le remplit`,
+      );
+    }
+    const usersCard = search.closest('[data-slot]');
+    assert.ok(usersCard, 'la carte des comptes est identifiable dans le DOM');
     assert.equal(
-      container.querySelector('input[type="text"]') !== null,
-      false,
-      'aucun champ texte libre ne reste dans cet écran : c’est lui qui se faisait remplir',
+      usersCard!.querySelector('input[type="text"]'),
+      null,
+      'la carte des comptes reste sans champ texte libre : c’est elle qui voisine la fiche mot de passe',
     );
     unmount(container, root);
   });
