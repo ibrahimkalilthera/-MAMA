@@ -25,6 +25,7 @@ import type { User } from '../app/types';
 import type { CurrentTheme, ManagedClass } from '../app/mainViewsProps';
 import type { AppTab } from './Sidebar';
 import type { DashboardNotification } from '../app/useDashboard';
+import { canUseSection } from '../app/sectionRights';
 import { NotificationsPanel } from './NotificationsPanel';
 
 export interface AppHeaderProps {
@@ -162,7 +163,7 @@ export function AppHeader(props: AppHeaderProps) {
         )}
 
         {/* Import Excel Button — visible on data tabs */}
-        {(activeTab === 'students' || activeTab === 'parents' || activeTab === 'payroll' || activeTab === 'expenses') && (currentUser?.role === 'admin' || currentUser?.role === 'dev' || currentUser?.role === 'general_manager') && (
+        {(activeTab === 'students' || activeTab === 'parents' || activeTab === 'payroll' || activeTab === 'expenses') && canUseSection('header-import', currentUser?.role) && (
           <button 
             onClick={onImportExcel}
             className={`px-4 py-3 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} font-bold text-xs rounded-2xl shadow-lg ${currentTheme.accentShadow} transition-all flex items-center gap-2 active:scale-[0.97]`}

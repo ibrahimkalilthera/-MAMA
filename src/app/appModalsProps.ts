@@ -135,8 +135,14 @@ export interface AppModalsProps {
    * base, pas l'écran, qui tranche.
    */
   canEditPaymentMonths: boolean;
-  /** Gestionnaire Principal — finance admin without user/settings/audit access. */
-  isGeneralManager: boolean;
+  /**
+   * Le rôle peut-il REMETTRE une remise sur frais de scolarité ? — la surface
+   * `scholarship-edit` (`src/app/sectionRights.ts`), décidée par
+   * `public.is_finance_admin()` (`FINANCE_ADMIN_ROLES`, `src/lib/payrollRights.ts`).
+   * La modale d'élève DEMANDE ce booléen : elle composait
+   * `isPromoter || isGeneralManager`, sa propre copie de la liste des rôles.
+   */
+  canEditScholarship: boolean;
   lang: 'en' | 'fr';
   newClassForm: ClassForm;
   notifyCustomText: string;

@@ -481,8 +481,10 @@ export const en = {
     updateDownloadFailed: "Download of version {version} failed: {detail}",
     updateDownloading: "Update downloading ({percent}%)",
     updateReady: "Version {version} is ready: restart to install it.",
-    updateReadyManual: "Version {version} is available: download it to install.",
     updateRestartNow: "Restart",
+    // The gesture of a PORTABLE station, which has nothing to restart: it installs
+    // the installer the channel announces (see `updateAction`).
+    updateInstallNow: "Install",
     updateDownloadNow: "Download",
     updateDismiss: "Dismiss",
     updateForcedTitle: "Update required",

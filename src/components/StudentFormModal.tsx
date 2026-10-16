@@ -75,9 +75,14 @@ export interface StudentFormModalProps {
   canDelete: boolean;
   availableClasses: ManagedClass[];
   academicYears: string[];
-  isPromoter: boolean;
-  /** Gestionnaire Principal — may edit scholarship discounts like the promoter. */
-  isGeneralManager: boolean;
+  /**
+   * Le rôle peut-il REMETTRE une remise sur frais de scolarité ? — la surface
+   * `scholarship-edit` (`src/app/sectionRights.ts`), demandée par `useStudents`
+   * et reçue ici comme `canDelete` l'est. La modale ne compose plus
+   * `isPromoter || isGeneralManager` : elle DEMANDE le droit, et la garde du
+   * champ et celle de l'écriture disent la même chose par construction.
+   */
+  canEditScholarship: boolean;
   /** Theme tokens from the app theme engine. */
   currentTheme: CurrentTheme;
 }
@@ -102,14 +107,14 @@ export function StudentFormModal(props: StudentFormModalProps) {
     canDelete,
     availableClasses,
     academicYears,
-    isPromoter,
-    isGeneralManager,
+    canEditScholarship,
     currentTheme,
   } = props;
 
-  // Scholarship editing is a finance-admin power (promoter/admin + Gestionnaire
-  // Principal) — mirrors the gate in useStudents.handleStudentSubmit.
-  const canEditScholarship = isPromoter || isGeneralManager;
+  // La remise sur frais de scolarité vient du DROIT, pas d'une composition de
+  // booléens de rôle : `useStudents` l'a demandée à la surface `scholarship-edit`
+  // (`canUseSection`) et la garde de l'écriture lit le même booléen. Les deux
+  // copies qui divergeaient vivent maintenant à un seul endroit.
 
   // « Ajouter CR » n'est PAS un autre formulaire : c'est le MÊME, ouvert sur la
   // seule famille de classes CR (cycle Maternelle / Jardin d'Enfants). Tout le

@@ -55,7 +55,7 @@ export interface UpdateState {
   status?: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'current' | 'error' | 'held';
   version?: string | null;
   currentVersion?: string | null;
-  action?: 'restart' | 'open-download';
+  action?: 'restart' | 'install';
   percent?: number;
   detail?: string;
   /** Décidé par le processus principal (`updatePressure`), jamais par l'interface. */
@@ -222,7 +222,11 @@ export function UpdateBanner({
   if (!state) return null;
 
   if (gate) {
-    const isRestart = state.action !== 'open-download';
+    // Le geste se NOMME selon le poste : un poste installé redémarre pour
+    // appliquer l'octet téléchargé, un poste portable INSTALLE l'installeur
+    // annoncé (et devient un poste installé). Le processus principal le décide
+    // (`updateAction`) ; l'interface ne fait que le dire.
+    const applyLabel = state.action === 'install' ? labels.install : labels.restart;
     const canApply = ready;
     // Le remède n'est pas le même selon la cause : une installation qui n'a pas
     // abouti se remède en revérifiant (la version est peut-être déjà là), un
@@ -277,7 +281,7 @@ export function UpdateBanner({
                 onClick={install}
                 className={`px-3 py-1.5 ${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover} shadow-lg ${currentTheme.accentShadow} rounded-lg font-bold uppercase tracking-wider text-2xs disabled:opacity-50`}
               >
-                {isRestart ? labels.restart : labels.download}
+                {applyLabel}
               </button>
             )}
             {!canApply && (
@@ -332,15 +336,13 @@ export function UpdateBanner({
   // pour soi. C'est cohérent avec le fait que la croix n'existe que hors prêt.
   if (dismissed && !ready) return null;
 
-  const isRestart = state.action !== 'open-download';
+  const applyLabel = state.action === 'install' ? labels.install : labels.restart;
   const message = failedAnnounce
     ? labels
         .downloadFailed.replace('{version}', state.version ?? '')
         .replace('{detail}', state.detail ?? '')
     : ready
-      ? isRestart
-        ? labels.ready.replace('{version}', state.version ?? '')
-        : labels.readyManual.replace('{version}', state.version ?? '')
+      ? labels.ready.replace('{version}', state.version ?? '')
       : downloading
         ? labels.downloading.replace('{percent}', String(state.percent ?? 0))
         : labels.available.replace('{version}', state.version ?? '');
@@ -350,7 +352,7 @@ export function UpdateBanner({
       role="status"
       className={`fixed top-11 left-2 z-[9996] flex items-center gap-2 ${currentTheme.accentBg} ${currentTheme.accentText} text-2xs font-bold px-3 py-2 rounded-xl shadow-lg ${currentTheme.accentShadow} max-w-[min(92vw,520px)]`}
     >
-      {isRestart && ready ? <RefreshCw size={14} className="flex-shrink-0" /> : <Download size={14} className="flex-shrink-0" />}
+      {ready ? <RefreshCw size={14} className="flex-shrink-0" /> : <Download size={14} className="flex-shrink-0" />}
       <span>{message}</span>
       {ready && (
         <button
@@ -359,7 +361,7 @@ export function UpdateBanner({
           onClick={install}
           className={`px-2 py-1 ${currentTheme.accentBg} ${currentTheme.accentText} ${currentTheme.accentHover} rounded-md uppercase tracking-wider text-2xs disabled:opacity-50`}
         >
-          {isRestart ? labels.restart : labels.download}
+          {applyLabel}
         </button>
       )}
       {failedAnnounce && (
@@ -397,8 +399,9 @@ export interface UpdateLabels {
   available: string;
   downloading: string;
   ready: string;
-  readyManual: string;
   restart: string;
+  /** Le geste d'un poste PORTABLE : il installe l'installeur annoncé du canal. */
+  install: string;
   download: string;
   dismiss: string;
   /**

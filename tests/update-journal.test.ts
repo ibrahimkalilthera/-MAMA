@@ -180,7 +180,7 @@ describe('le journal d’un poste bloqué', () => {
     const dir = mkdtempSync(join(tmpdir(), 'update-journal-'));
     const file = join(dir, 'profond', 'userData', JOURNAL_FILE);
     try {
-      assert.equal(appendEntry(file, { code: 'manual', detail: 'portable' }), true);
+      assert.equal(appendEntry(file, { code: 'install', detail: 'installation non aboutie' }), true);
       assert.equal(readEntries(file).length, 1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
