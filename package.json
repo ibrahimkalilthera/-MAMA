@@ -2,7 +2,7 @@
   "name": "mama-thera-finance",
   "private": true,
   "license": "MIT",
-  "version": "1.0.36",
+  "version": "1.0.37",
   "type": "module",
   "scripts": {
     "dev": "node scripts/with-pinned-node.mjs --bin vite --port=3000 --host=0.0.0.0",
@@ -39,6 +39,7 @@
     "check:e2e-targets": "node scripts/check-e2e-targets.mjs",
     "check:download-contract": "node scripts/check-download-contract.mjs",
     "check:uninstaller-exit": "node scripts/check-uninstaller-exit.mjs",
+    "check:reserved-tabs": "node scripts/check-reserved-tabs.mjs",
     "check:release": "node scripts/check-release-coherence.mjs",
     "check:release:tag": "node scripts/check-release-coherence.mjs --tag",
     "check:release:draft": "node scripts/check-release-coherence.mjs --draft",
@@ -80,7 +81,7 @@
     "repair:frozen-updater": "node scripts/repair-frozen-updater.mjs",
     "repair:academic-year": "node scripts/repair-academic-year.mjs",
     "lint": "node scripts/with-pinned-node.mjs --npm lint:chain",
-    "lint:chain": "node scripts/check-node-version.mjs && eslint . --max-warnings 0 --cache --cache-location node_modules/.eslintcache && tsc --noEmit --incremental --tsBuildInfoFile node_modules/tsconfig.tsbuildinfo && node scripts/check-component-props.mjs && node scripts/check-settings-composition.mjs && node scripts/check-data-slots.mjs && node scripts/check-forbidden-any.mjs && node scripts/check-test-harness.mjs && node scripts/check-test-integrity.mjs && node scripts/stylelint-tools.mjs \"src/**/*.css\" --cache --cache-location node_modules/.stylelintcache && node scripts/check-css-selectors.mjs && node scripts/check-theme-accents.mjs && node scripts/check-icon-glass-doses.mjs && node scripts/check-dark-green-ink.mjs && node scripts/check-green-surface.mjs && node scripts/check-state-hover.mjs && node scripts/check-no-emoji-icons.mjs && node scripts/check-csp-origins.mjs && node scripts/check-jsx-i18n.mjs && node scripts/check-date-windows.mjs && node scripts/check-line-budget.mjs && node scripts/check-ci-commands.mjs && node scripts/check-workflow-syntax.mjs && node scripts/check-import-effects.mjs && node scripts/check-gate-sentinels.mjs && node scripts/check-guard-immunity.mjs && node scripts/check-write-gates.mjs && node scripts/check-e2e-writes.mjs && node scripts/check-e2e-targets.mjs && node scripts/check-download-contract.mjs && node scripts/check-shared-db.mjs && node supabase/regenerate-full-setup.mjs --check",
+    "lint:chain": "node scripts/check-node-version.mjs && eslint . --max-warnings 0 --cache --cache-location node_modules/.eslintcache && tsc --noEmit --incremental --tsBuildInfoFile node_modules/tsconfig.tsbuildinfo && node scripts/check-component-props.mjs && node scripts/check-settings-composition.mjs && node scripts/check-data-slots.mjs && node scripts/check-forbidden-any.mjs && node scripts/check-test-harness.mjs && node scripts/check-test-integrity.mjs && node scripts/stylelint-tools.mjs \"src/**/*.css\" --cache --cache-location node_modules/.stylelintcache && node scripts/check-css-selectors.mjs && node scripts/check-theme-accents.mjs && node scripts/check-icon-glass-doses.mjs && node scripts/check-dark-green-ink.mjs && node scripts/check-green-surface.mjs && node scripts/check-state-hover.mjs && node scripts/check-no-emoji-icons.mjs && node scripts/check-csp-origins.mjs && node scripts/check-jsx-i18n.mjs && node scripts/check-date-windows.mjs && node scripts/check-line-budget.mjs && node scripts/check-ci-commands.mjs && node scripts/check-workflow-syntax.mjs && node scripts/check-import-effects.mjs && node scripts/check-gate-sentinels.mjs && node scripts/check-guard-immunity.mjs && node scripts/check-reserved-tabs.mjs && node scripts/check-write-gates.mjs && node scripts/check-e2e-writes.mjs && node scripts/check-e2e-targets.mjs && node scripts/check-download-contract.mjs && node scripts/check-shared-db.mjs && node supabase/regenerate-full-setup.mjs --check",
     "test": "node --import tsx --experimental-test-module-mocks --test \"tests/*.test.ts\" \"tests/*.test.tsx\"",
     "prepare": "node scripts/setup-node-runtime.mjs --soft && husky"
   },

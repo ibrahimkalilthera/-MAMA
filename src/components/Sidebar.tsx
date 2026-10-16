@@ -30,7 +30,7 @@ import {
 import type { TranslationDict } from '../i18n/translations';
 import type { User } from '../app/types';
 import type { CurrentTheme, PayrollWindowStatus } from '../app/mainViewsProps';
-import { canViewPaymentHistory } from '../lib/paymentHistoryRights';
+import { beforeOpenTab, canOpenTab } from '../app/tabRights';
 
 export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory';
 
@@ -95,17 +95,21 @@ export function Sidebar(props: SidebarProps) {
   const silentReceiptsBadge = t.silentReceiptsBadge.replace('{count}', String(silentReceiptsCount));
 
   /**
-   * Les deux familles de lignes qui ne s'adressent pas à tout le monde.
+   * Les trois lignes qui ne s'adressent pas à tout le monde — et elles ne se
+   * décident PAS ici. Elles demandent à `canOpenTab` (`src/app/tabRights.ts`),
+   * la seule table qui nomme un onglet réservé et son droit ; les listes de
+   * rôles, elles, sont le miroir d'une policy ou d'une fonction de la base
+   * (`src/lib/*Rights.ts`).
    *
-   * `isAdminDev` garde le JOURNAL d'audit et les Réglages ; `canSeePaymentHistory`
-   * garde l'historique des paiements, et la liste des rôles vient de la base
-   * (`public.is_payment_history_viewer()`, `src/lib/paymentHistoryRights.ts`) :
-   * l'économe y est depuis le 2026-10-15 — c'est lui qui tient la caisse. Les deux
-   * ne se confondent pas : ouvrir l'historique des paiements ne lui ouvre pas le
-   * journal, dont la base ne lui rend que les lignes de caisse.
+   * CE QUI ÉTAIT ÉCRIT ICI, ET CE QUE ÇA A COÛTÉ LE 2026-10-15 : la ligne gardait
+   * sa propre règle locale (`isAdminDev`, `canSeePaymentHistory`) pendant que le
+   * filet du shell gardait la sienne — et les deux ont divergé le jour où la base
+   * a ouvert la lecture de l'historique à l'économe. La ligne du rail s'affichait,
+   * l'onglet était ramené au tableau de bord. Une règle d'onglet se demande
+   * maintenant, elle ne se réécrit pas : `scripts/check-reserved-tabs.mjs` refuse
+   * la seconde (couple « onglet réservé + rôle » sur une même ligne, ou alias de
+   * rôle local qui garde un bloc d'onglet).
    */
-  const isAdminDev = currentUser?.role === 'admin' || currentUser?.role === 'dev';
-  const canSeePaymentHistory = canViewPaymentHistory(currentUser?.role);
 
   /**
    * Une ligne du rail.
@@ -230,11 +234,15 @@ export function Sidebar(props: SidebarProps) {
           )}
         </button>
 
-        {isAdminDev && (
+        {canOpenTab('audit', currentUser?.role) && (
           <button
             onClick={() => {
+              // Le journal se recharge AVANT d'afficher l'onglet : arriver sur une
+              // lecture périmée ferait croire à un geste qui n'y est pas encore.
+              // « Quels onglets lisent le journal » n'est pas écrit ici — c'est un
+              // fait de l'onglet (`readsJournal`, src/app/tabRights.ts).
+              beforeOpenTab('audit', fetchAuditLogs);
               setActiveTab('audit');
-              fetchAuditLogs();
             }}
             className={navBtn('audit')}
           >
@@ -261,11 +269,11 @@ export function Sidebar(props: SidebarProps) {
             qu'il se coupe au pire au lieu de casser la ligne — même règle que la
             barre mobile, qui porte le même libellé. Le libellé entier reste lu au
             survol (`title`). */}
-        {canSeePaymentHistory && (
+        {canOpenTab('paymentHistory', currentUser?.role) && (
           <button
             onClick={() => {
+              beforeOpenTab('paymentHistory', fetchAuditLogs);
               setActiveTab('paymentHistory');
-              fetchAuditLogs();
             }}
             className={navBtn('paymentHistory', 'pr-1.5')}
             title={t.paymentHistory}
@@ -275,7 +283,7 @@ export function Sidebar(props: SidebarProps) {
           </button>
         )}
 
-        {isAdminDev && (
+        {canOpenTab('settings', currentUser?.role) && (
           <button onClick={() => setActiveTab('settings')} className={navBtn('settings')}>
             <Globe size={20} className="flex-shrink-0" />
             <span className="font-semibold text-sm" data-i18n="navSettings">{t.navSettings}</span>
