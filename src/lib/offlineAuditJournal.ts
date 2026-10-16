@@ -9,14 +9,15 @@
  *     précédent) — sans lui, ouvrir le journal sans réseau afficherait un écran
  *     vide, c'est-à-dire « l'école n'a rien fait » ;
  *   • les entrées EN ATTENTE, dérivées de la file hors ligne par
- *     `offlineAuditInfo` — la MÊME fonction pure qui produira l'entrée au rejeu,
- *     donc l'écran ne peut pas montrer autre chose que ce qui sera écrit. Elles
+ *     `offlineAuditInfo` (`src/lib/offlineReplayAudit.ts`) — la MÊME fonction pure
+ *     qui produira l'entrée au rejeu, donc l'écran ne peut pas montrer autre
+ *     chose que ce qui sera écrit. Elles
  *     sont marquées, pour qu'une entrée pas encore dans la base ne se lise jamais
  *     comme une entrée en base.
  */
 import type { AuditLogEntry, LogAuditParams } from './auditLogger';
 import { getOfflineQueue, type QueueItem } from './offlineQueue';
-import { offlineAuditInfo } from './offlineReplay';
+import { offlineAuditInfo } from './offlineReplayAudit';
 
 /** Suffixe des entrées que la file porte et qui ne sont pas encore en base. */
 export const PENDING_AUDIT_TAG = ' [en attente]';

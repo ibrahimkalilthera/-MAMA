@@ -38,6 +38,13 @@ import {
   type DisplayPreferenceName,
   type DisplayPreferences,
 } from '../displayPreferences';
+import {
+  SCHOOL_NAME_KEY,
+  normalizeSchoolName,
+  parseSchoolName,
+  schoolNameRow,
+  type SchoolNameSaveResult,
+} from '../schoolName';
 
 /** Les quatre clés lues d'un coup, dans l'ordre où elles sont déclarées. */
 const DISPLAY_KEYS = Object.values(DISPLAY_PREFERENCE_KEYS);
@@ -107,4 +114,88 @@ export async function publishDisplayPreference(
     details: `${key} = ${value}`,
   });
   return true;
+}
+
+// ─── Le nom de l'école : une ligne, écrite par l'administration ──────────────
+//
+// Le contrat (clé, bornes, forme de la ligne) vit dans `src/lib/schoolName.ts`.
+// Ici, et seulement ici, l'accès à la table — la MÊME couche que les préférences
+// d'affichage, pour la même raison : `app_settings` est la table que la
+// sauvegarde emporte, donc l'écrire c'est faire voyager le nom ; et c'est la
+// couche que `check:write-gates` croise avec la porte d'écran qui l'offre.
+//
+// Deux différences avec les préférences, et elles viennent du sujet : le nom
+// n'est PAS adopté poste par poste (il est le même partout, `parseSchoolName`
+// n'a pas de règle d'adoption à appliquer), et il n'est écrit que par
+// l'administration — c'est la base qui le dit (les politiques d'`app_settings`
+// réservent l'écriture à `is_admin()`, aucune politique nouvelle n'a été créée
+// pour lui).
+
+/**
+ * Lit le nom de l'école.
+ *
+ * `null` veut dire « la base n'a pas répondu » — la lecture a ÉCHOUÉ. C'est
+ * distinct de `{ declared: null }`, qui dit « la lecture a réussi, et aucune
+ * école n'a déclaré son nom » : les confondre ferait afficher « non déclaré »
+ * devant une coupure réseau, c'est-à-dire ferait passer une ignorance pour un
+ * fait. C'est la même asymétrie que `fetchDisplayPreferences`.
+ */
+export async function fetchSchoolName(): Promise<{ declared: string | null } | null> {
+  const { data, error } = await supabase.from('app_settings').select('key, value').eq('key', SCHOOL_NAME_KEY);
+  if (error || !data) return null;
+  // Aucune ligne : l'école n'a jamais écrit son nom. `parseSchoolName` rend
+  // `null` — et cette fois c'est un FAIT, pas une panne.
+  return { declared: parseSchoolName(data) };
+}
+
+/**
+ * Écrit le nom de l'école — le geste de l'administration.
+ *
+ * @returns l'un des TROIS états, jamais un booléen : `saved` (la copie durable
+ *   porte le nom), `queued` (hors ligne, le geste partira au retour de la ligne)
+ *   ou `refused` (nom hors contrat, file pleine, droits, ou base en échec).
+ *   L'écran les dit séparément — « enregistré » qui couvrirait « mis en file »
+ *   annoncerait une écriture en base qui n'a pas eu lieu.
+ */
+export async function publishSchoolName(name: string): Promise<SchoolNameSaveResult> {
+  // Ce que le contrat refuse n'est PAS écrit : ni tronqué, ni « réparé ». Un nom
+  // hors bornes écrit en base serait lu par toutes les remontées de poste.
+  const normalized = normalizeSchoolName(name);
+  if (normalized === null) return 'refused';
+
+  if (isStationOffline()) {
+    try {
+      // Le nom voyage (pas la clé `app_settings`) : la correspondance nom → clé
+      // n'existe qu'au contrat, et une file écrite par une version antérieure ne
+      // peut pas porter une clé qu'elle ne connaît pas.
+      enqueueOfflineAction('setSchoolName', { name: normalized });
+    } catch (err) {
+      console.error('Nom de l’école non mis en file :', (err as Error)?.message ?? err);
+      return 'refused';
+    }
+    return 'queued';
+  }
+
+  // `.select('key')` : une écriture retirée par une politique répond 200 avec un
+  // corps VIDE, et la compter comme enregistrée retirerait de l'école un nom que
+  // la base n'a jamais reçu. C'est ici que la porte d'administration se vérifie
+  // pour de vrai — un compte non administrateur écrit zéro ligne.
+  const { data, error } = await supabase
+    .from('app_settings')
+    .upsert(schoolNameRow(normalized), { onConflict: 'key' })
+    .select('key');
+  if (error || !data || data.length === 0) {
+    console.warn('Nom de l’école non publié :', error?.message ?? 'aucune ligne écrite');
+    return 'refused';
+  }
+  // Le geste est journalisé comme les autres réglages (`UPDATE_SETTING`, libellé
+  // « Réglage modifié ») : la clé et la valeur sont des identifiants stockés, pas
+  // de la prose à traduire.
+  void logAuditEvent({
+    action: 'UPDATE_SETTING',
+    targetType: 'app_settings',
+    targetId: SCHOOL_NAME_KEY,
+    details: `${SCHOOL_NAME_KEY} = ${normalized}`,
+  });
+  return 'saved';
 }

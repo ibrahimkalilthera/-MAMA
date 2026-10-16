@@ -1,19 +1,19 @@
 /**
  * Settings-composition gate — la coquille des Paramètres importe EXACTEMENT ses
- * cinq sections, les rend DANS L'ORDRE, et la pile de sections porte EXACTEMENT
- * les enfants déclarés par la table.
+ * sections, les rend DANS L'ORDRE, et la pile de sections porte EXACTEMENT les
+ * enfants déclarés par la table.
  *
  * `tests/settings-composition.test.tsx` prouve ce que le navigateur VOIT : les
- * sept blocs marqués par `data-slot`, leur ordre, la modale hors pile. Cette
+ * blocs marqués par `data-slot`, leur ordre, la modale hors pile. Cette
  * preuve-là est indispensable — elle mesure le rendu réel — mais elle ne dit pas
  * quel FICHIER compose, ni ce qu'il a le droit d'importer. Elle monterait encore
  * `SettingsView` si la coquille tirait ses sections d'ailleurs, et elle ne
- * distingue pas « les cinq imports du contrat » d'« une liste calculée ».
+ * distingue pas « les imports du contrat » d'« une liste calculée ».
  *
  * Ce contrôle-ci lit la SOURCE et fige le contrat de la découpe :
  *
- *   • IMPORTS — `SettingsView.tsx` importe exactement les cinq composants de
- *     section (aucun de plus, aucun oublié), chacun depuis son propre module ;
+ *   • IMPORTS — `SettingsView.tsx` importe exactement les composants de section
+ *     (aucun de plus, aucun oublié), chacun depuis son propre module ;
  *   • RENDU — il les rend exactement une fois chacun, dans l'ordre du contrat ;
  *   • ENFANTS DE LA PILE — les composants de section déclarent exactement les
  *     `data-slot` de `SETTINGS_STACK_SLOTS`, dans l'ordre. C'est le NOMBRE
@@ -77,7 +77,7 @@ if (rawView === null || !rawView.trim()) {
   process.exit(2);
 }
 
-// ── Imports : les cinq, chacun depuis son propre module ────────────────────
+// ── Imports : ceux du contrat, chacun depuis son propre module ─────────────
 // Commentaires blanchis, littéraux CONSERVÉS : les chefs de module vivent dans
 // des chaînes, et c'est exactement ce qu'on veut lire.
 const commentsBlanked = maskComments(rawView);
@@ -110,7 +110,7 @@ for (const name of importedNames) {
   }
 }
 
-// ── Rendu : les cinq, une fois chacun, dans l’ordre ────────────────────────
+// ── Rendu : chacun une fois, dans l’ordre ─────────────────────────────────
 // Ici les littéraux sont blanchis AUSSI : un rendu est du CODE, jamais le
 // contenu d'une chaîne.
 const codeOnly = maskProse(rawView, { comments: true, literals: true });
@@ -161,7 +161,7 @@ if (problems.length) {
   console.error(`❌ ${VIEW_FILE} ne respecte pas le contrat de composition des Paramètres :`);
   for (const p of problems) console.error(`   • ${p}`);
   console.error(
-    '   → la coquille est un CONTRAT : cinq imports, cinq rendus, et la pile porte exactement les enfants de la table.',
+    '   → la coquille est un CONTRAT : les imports du contrat, chacun rendu une fois, et la pile porte exactement les enfants de la table.',
   );
   process.exit(1);
 }

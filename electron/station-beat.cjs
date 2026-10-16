@@ -48,6 +48,17 @@
  *     d'être recensée sans toucher au canal, parce qu'une écriture refusée ici
  *     n'a aucun effet sur les mises à jour (§7, « le point sensible »).
  *
+ *   • **La forme du poste est MESURÉE, jamais devinée.** Depuis le 2026-10-16 un
+ *     poste portable s'installe lui-même et devient un poste installé — et rien
+ *     ne disait que le passage avait eu lieu : le relevé portait la version,
+ *     jamais la forme, donc « le parc s'est converti » restait une espérance. Le
+ *     battement porte donc `installMode` (`portable` / `installed`), et une
+ *     application NON EMPAQUETÉE n'en déclare aucune (`null`) : elle n'a pas de
+ *     forme d'installation, et écrire « installed » pour une session de
+ *     développement ferait compter un poste qui n'existe pas. C'est la MÊME
+ *     discipline que les quatre états de contrôle : un fait non mesuré reste à
+ *     `null`, il n'est pas comblé par la valeur la plus flatteuse.
+ *
  * ─── Bornes ─────────────────────────────────────────────────────────────────
  * Les mêmes que celles de la table (`supabase/migrations/…_station_versions.sql`)
  * et de la fonction `public.record_station_beat` : bornées ici AUSSI, parce
@@ -88,6 +99,29 @@ const MAX_CHECK_VERSION = 32;
 const LAST_CHECK_STATES = Object.freeze(['ok', 'feed-absent', 'html', 'unreachable']);
 
 /**
+ * Les deux formes d'installation qu'un poste peut DÉCLARER, et elles seules.
+ *
+ * La base les contraint (`station_versions_install_mode_enum`), et le lecteur du
+ * parc (`scripts/fleet-versions.mjs`) les compte : un mode inventé par un poste
+ * rendrait la répartition fausse sans que personne ne s'en aperçoive, et c'est
+ * exactement la question à laquelle ce relevé doit répondre (« combien de postes
+ * encore portables ? »). `null` (absent) veut dire « non mesurée » — jamais
+ * « autre chose ».
+ */
+const INSTALL_MODES = Object.freeze(['portable', 'installed']);
+
+/**
+ * Le code du fait d'une CONVERSION, dans le journal local du poste.
+ *
+ * Le journal (`electron/update-journal.cjs`) est lu par DEUX lecteurs : le
+ * composeur de remontée du rendu (`src/lib/desktopUpdateReport.ts`) et, à la
+ * main, l'administrateur devant la machine. Le code fait donc partie du contrat
+ * entre les deux, et un cas de `tests/gate-report.test.ts` fait échouer un
+ * désaccord entre les deux modules.
+ */
+const CONVERSION_CODE = 'converted';
+
+/**
  * @param {{ userDataDir: string }} input
  * @returns {string} chemin du relevé de ce poste.
  */
@@ -121,6 +155,79 @@ function boundedText(value, max, min = 1) {
 function normalizeId(value) {
   const text = String(value === null || value === undefined ? '' : value).trim();
   return text.length >= MIN_ID && text.length <= MAX_ID ? text : null;
+}
+
+/**
+ * La forme d'installation de CE poste, telle qu'elle se MESURE — ou `null`.
+ *
+ * Deux faits d'entrée, tous deux mesurables et aucun deviné :
+ *   • `packaged` — l'application est-elle EMPAQUETÉE ? Une session de
+ *     développement n'a pas de forme d'installation : elle ne déclare rien
+ *     (`null`), sinon un poste de bureau de développement se ferait recenser
+ *     comme un poste installé de plus — et le parc compterait des machines qui
+ *     n'existent pas ;
+ *   • `portable` — electron-builder ne pose `PORTABLE_EXECUTABLE_FILE` que pour
+ *     la cible portable : c'est la seule marque fiable de cette forme-là.
+ *
+ * C'est le processus principal qui a ces deux faits (il a `app.isPackaged` et
+ * l'environnement du binaire) ; cette fonction les traduit, purement, pour que
+ * la règle soit éprouvable sans lancer l'application.
+ *
+ * @param {{ packaged?: boolean, portable?: boolean }} [input]
+ * @returns {'portable'|'installed'|null}
+ */
+function installModeOf({ packaged = true, portable = false } = {}) {
+  if (!packaged) return null;
+  return portable ? 'portable' : 'installed';
+}
+
+/**
+ * Le fait d'une CONVERSION `portable` → `installed`, tel qu'il s'inscrit au
+ * journal du poste — ou `null` quand il n'y a rien à inscrire.
+ *
+ * Une conversion est le seul fait de ce module qui parle du PASSÉ : la forme
+ * d'aujourd'hui est `installed`, et ce qui vient d'arriver est qu'elle était
+ * `portable` avant. Elle ne se voit donc qu'à l'instant où les deux existent
+ * ensemble — c'est-à-dire avant que le battement ne remplace le fichier — et
+ * c'est pour ça que la comparaison vit ICI, pure, plutôt que dans l'appelant.
+ *
+ * **Le sens compte, et il est recopié de la base à l'identique** : `portable` →
+ * `installed`, et lui seul. L'inverse (relancer l'exe portable sur une machine
+ * installée) n'est pas une conversion mais un retour en arrière, et il n'écrit
+ * rien. La borne est copiée de `record_station_beat` (migration
+ * `20261021000000_station_install_mode.sql`, `converted_at`) *exprès* : le même
+ * événement doit se lire pareil dans les deux canaux, sinon le relevé daterait
+ * une conversion que le journal ne nomme pas — ou l'inverse, et les deux
+ * lectures divergeraient en silence.
+ *
+ * **Une forme JAMAIS MESURÉE n'est pas une conversion.** Un poste dont le
+ * fichier d'avant ne déclarait aucune forme (version antérieure à ce champ, ou
+ * application non empaquetée) est un poste dont on ne sait pas ce qu'il était :
+ * en déduire « il s'est converti » serait inventer, et la base, elle, ne datera
+ * rien pour lui. Le journal dit alors la même chose que le relevé : rien. C'est
+ * la même discipline que le battement — un fait non mesuré reste `null`.
+ *
+ * @param {{ installMode?: string|null, appVersion?: string|null }|null} previous
+ *   le relevé EN PLACE, lu avant que le battement ne le remplace
+ * @param {{ installMode?: string|null, appVersion?: string|null }|null} next
+ *   le relevé qui vient d'être écrit
+ * @returns {{ code: string, version: string|null, currentVersion: string|null }|null}
+ *   le fait à inscrire, ou `null` s'il n'y a pas de conversion mesurée.
+ */
+function conversionFact(previous, next) {
+  const before = previous && typeof previous === 'object' ? previous.installMode : null;
+  const after = next && typeof next === 'object' ? next.installMode : null;
+  if (before !== 'portable' || after !== 'installed') return null;
+  return {
+    code: CONVERSION_CODE,
+    // La version du PASSAGE : celle que le poste exécute au battement qui porte
+    // la conversion (le même choix que `converted_to_version`), et non celle du
+    // jour. `currentVersion` est celle qu'il portait AVANT, lue dans son propre
+    // relevé — un `?` à l'affichage veut dire « pas mesurée », jamais « inconnue
+    // parce qu'on n'a pas regardé ».
+    version: next.appVersion == null ? null : String(next.appVersion),
+    currentVersion: previous.appVersion == null ? null : String(previous.appVersion),
+  };
 }
 
 /**
@@ -161,9 +268,9 @@ function randomStationId(random = Math.random) {
 /**
  * Le relevé de CE poste, tel qu'il est inscrit — ou `null`.
  *
- * Rien n'est recopié d'autre que les six champs du contrat : ce fichier est lu
- * par un humain devant la machine, et un champ libre qui s'y glisserait le
- * rendrait illisible au moment précis où on le lit (une panne).
+ * Rien n'est recopié d'autre que les champs du contrat : ce fichier est lu par
+ * un humain devant la machine, et un champ libre qui s'y glisserait le rendrait
+ * illisible au moment précis où on le lit (une panne).
  *
  * Un champ absent rend `null` plutôt que la chaîne « null » : c'est la même
  * règle que le journal, et elle évite qu'un `"null"` parte en base comme une
@@ -172,7 +279,8 @@ function randomStationId(random = Math.random) {
  * @param {string} file
  * @param {{ fs?: typeof nodeFs }} [options]
  * @returns {{ stationId: string, appVersion: string|null, osVersion: string|null,
- *   lastCheck: string|null, lastCheckVersion: string|null, checkedAt: string|null }|null}
+ *   lastCheck: string|null, lastCheckVersion: string|null, installMode: string|null,
+ *   checkedAt: string|null }|null}
  */
 function readStation(file, { fs = nodeFs } = {}) {
   let text;
@@ -201,6 +309,12 @@ function readStation(file, { fs = nodeFs } = {}) {
     // et le relevé ne doit pas porter un état qu'aucun contrôle n'a produit.
     lastCheck: LAST_CHECK_STATES.includes(lastCheck) ? lastCheck : null,
     lastCheckVersion: boundedText(source.lastCheckVersion, MAX_CHECK_VERSION),
+    // Une forme inconnue est rendue `null` pour la même raison : la base refuse
+    // un mode inventé, et un relevé qui le porterait quand même se lirait comme
+    // une forme qui existe.
+    installMode: INSTALL_MODES.includes(String(source.installMode ?? '').trim())
+      ? String(source.installMode).trim()
+      : null,
     checkedAt: typeof source.checkedAt === 'string' && source.checkedAt ? source.checkedAt : null,
   };
 }
@@ -251,6 +365,9 @@ function ensureStationId(file, { fs = nodeFs, random = Math.random, nowMs = Date
             osVersion: null,
             lastCheck: null,
             lastCheckVersion: null,
+            // La forme n'est pas un fait du jour : un squelette n'en connaît
+            // aucune, et l'inscrire ici serait deviner avant d'avoir mesuré.
+            installMode: null,
             checkedAt: new Date(nowMs).toISOString(),
           },
           null,
@@ -277,7 +394,8 @@ function ensureStationId(file, { fs = nodeFs, random = Math.random, nowMs = Date
  * éteint avant l'envoi ne perd rien : le fichier attend.
  *
  * @param {string} file
- * @param {{ appVersion?: string, osVersion?: string, lastCheck?: string, lastCheckVersion?: string }} facts
+ * @param {{ appVersion?: string, osVersion?: string, lastCheck?: string, lastCheckVersion?: string,
+ *   installMode?: string|null }} facts
  * @param {{ fs?: typeof nodeFs, random?: () => number, nowMs?: number }} [options]
  * @returns {object|null} le relevé écrit, ou null si rien n'a pu être inscrit.
  */
@@ -295,12 +413,20 @@ function recordBeat(file, facts = {}, { fs = nodeFs, random = Math.random, nowMs
   if (!LAST_CHECK_STATES.includes(lastCheck)) return null;
 
   const stationId = ensureStationId(file, { fs, random, nowMs });
+  // Une forme inconnue n'est PAS recopiée : elle devient `null`, exactement
+  // comme un état de contrôle inconnu lu dans un fichier. C'est le champ le moins
+  // essentiel du relevé — il n'empêche donc pas le battement de partir —, mais
+  // il ne part jamais avec une valeur que la base refuserait.
+  const installMode = INSTALL_MODES.includes(String(given.installMode ?? '').trim())
+    ? String(given.installMode).trim()
+    : null;
   const record = {
     stationId,
     appVersion,
     osVersion: boundedText(given.osVersion, MAX_OS_VERSION),
     lastCheck,
     lastCheckVersion: boundedText(given.lastCheckVersion, MAX_CHECK_VERSION),
+    installMode,
     checkedAt: new Date(nowMs).toISOString(),
   };
   try {
@@ -325,7 +451,8 @@ function recordBeat(file, facts = {}, { fs = nodeFs, random = Math.random, nowMs
  *
  * @param {{ userDataDir?: string, fs?: typeof nodeFs, env?: object }} [input]
  * @returns {{ stationId: string, appVersion: string, osVersion: string|null,
- *   lastCheck: string, lastCheckVersion: string|null, checkedAt: string|null }|null}
+ *   lastCheck: string, lastCheckVersion: string|null, installMode: string|null,
+ *   checkedAt: string|null }|null}
  */
 function beatPayload({ userDataDir, fs = nodeFs, env = process.env } = {}) {
   // Pas de date ici : `seen_at` est posé par la BASE, jamais par le poste (§7)
@@ -343,6 +470,7 @@ function beatPayload({ userDataDir, fs = nodeFs, env = process.env } = {}) {
 
 module.exports = {
   STATION_FILE,
+  CONVERSION_CODE,
   STATION_BEAT_ENABLED_ENV,
   BEAT_OFF,
   ID_PREFIX,
@@ -352,11 +480,14 @@ module.exports = {
   MAX_OS_VERSION,
   MAX_CHECK_VERSION,
   LAST_CHECK_STATES,
+  INSTALL_MODES,
   stationPath,
   boundedText,
   normalizeId,
   salvageId,
   randomStationId,
+  installModeOf,
+  conversionFact,
   readStation,
   ensureStationId,
   recordBeat,
