@@ -54,6 +54,7 @@ import type { Student, Payment } from './useSupabaseData';
 import { showReceiptPreview } from './receiptPreview';
 import { downloadBytes } from './browserDownload';
 import { montantEnLettres } from './pdfPayrollBulletin';
+import { loadPdfLib } from './pdfLib';
 import { studentMatricule } from './studentIdentifiers';
 import { formatPaidMonths, paidMonthsShape, paymentMonthLabel, MONTH_KEYS } from './paymentMonths';
 import { paymentMotifLabel, paymentMotifOf } from './paymentMotifs';
@@ -200,7 +201,9 @@ export async function buildParentReceiptPdf({
   lang = 'fr',
   template,
 }: ReceiptDataOptions): Promise<GeneratedReceipt> {
-  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+  // Le chargeur REFUSE de rendre un `undefined` tacite : un morceau non arrivé
+  // est retenté une fois, puis nommé — voir src/lib/pdfLib.ts.
+  const { PDFDocument, StandardFonts, rgb } = await loadPdfLib();
 
   const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const receiptNo = payment.receiptNumber || `REC-${Date.now().toString().slice(-6)}`;

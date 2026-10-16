@@ -80,4 +80,36 @@ describe('chunkLoadRecovery — un import dynamique échoué se récupère par r
     // No-op quand la fenêtre n'expose pas addEventListener (SSR, test).
     assert.doesNotThrow(() => registerChunkLoadRecovery(undefined));
   });
+
+  // LE GARDE QUI REFUSE NE DOIT PAS BLOQUER L'ÉVÉNEMENT — le contraire rendait
+  // `undefined` à la place d'une erreur. Mesuré le 2026-10-16 : un morceau
+  // manqué pendant un encaissement a produit « TypeError: Cannot destructure
+  // property 'PDFDocument' of '(intermediate value)' as it is undefined », parce
+  // que le helper de Vite ne relance l'erreur que si l'événement n'a pas été
+  // bloqué (`if (!event.defaultPrevented) throw error`). Bloquer sans recharger
+  // transforme donc une panne de chargement en un module « undefined ».
+  it('quand le garde refuse le rechargement, l’événement N’EST PAS bloqué (l’erreur continue sa route)', () => {
+    const listeners = new Map<string, (event: { preventDefault(): void }) => void>();
+    let reloads = 0;
+    const storage = fakeStorage();
+    // Un rechargement vient d'avoir lieu : le suivant est supprimé.
+    storage.setItem(RELOAD_GUARD_KEY, '60000');
+    const win = {
+      addEventListener: (type: string, listener: (event: { preventDefault(): void }) => void) => {
+        listeners.set(type, listener);
+      },
+      location: { reload: () => { reloads += 1; } },
+      sessionStorage: storage,
+    };
+
+    registerChunkLoadRecovery(win, () => 61000);
+    const listener = listeners.get('vite:preloadError');
+    assert.ok(listener, 'le gestionnaire est enregistré');
+
+    let prevented = 0;
+    listener!({ preventDefault: () => { prevented += 1; } });
+    assert.equal(reloads, 0, 'le garde a supprimé le rechargement');
+    assert.equal(prevented, 0, 'rien n’a été récupéré : l’erreur doit rester une erreur');
+    assert.equal(storage.getItem(RELOAD_GUARD_KEY), '60000', 'le garde n’est pas réécrit');
+  });
 });

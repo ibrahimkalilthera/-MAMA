@@ -26,6 +26,7 @@ import { translations } from '../i18n/translations';
 import { downloadBytes } from './browserDownload';
 import { splitName } from './pdfPayrollBulletin';
 import { drawSchoolStamp } from './pdfStamp';
+import { loadPdfLib } from './pdfLib';
 import type { Staff } from './useSupabaseData';
 
 export interface TechniqueFicheOptions {
@@ -126,7 +127,7 @@ export async function generateTechniqueFichePdf({
   lang = 'fr',
   template,
 }: TechniqueFicheOptions): Promise<GeneratedTechniqueFiche> {
-  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+  const { PDFDocument, StandardFonts, rgb } = await loadPdfLib();
 
   const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const now = new Date();

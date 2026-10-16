@@ -34,6 +34,7 @@ import type { TranslationDict } from '../i18n/translations';
 import { translations } from '../i18n/translations';
 import { downloadBytes } from './browserDownload';
 import { drawSchoolStamp } from './pdfStamp';
+import { loadPdfLib } from './pdfLib';
 import type { Staff } from './useSupabaseData';
 
 /**
@@ -230,7 +231,7 @@ export async function generateAdminBulletinPdf({
   schoolLogo = null, // accepted for API compatibility — the template carries its own emblem
   template,
 }: AdminBulletinOptions): Promise<GeneratedBulletin> {
-  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+  const { PDFDocument, StandardFonts, rgb } = await loadPdfLib();
 
   const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const now = new Date();

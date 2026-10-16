@@ -25,6 +25,7 @@ import type { TranslationDict } from '../i18n/translations';
 import { translations } from '../i18n/translations';
 import { downloadBytes } from './browserDownload';
 import { splitName } from './pdfPayrollBulletin';
+import { loadPdfLib } from './pdfLib';
 import type { Staff } from './useSupabaseData';
 
 export interface EmployeeFicheOptions {
@@ -111,7 +112,7 @@ export async function generateEmployeeFichePdf({
   lang = 'fr',
   template,
 }: EmployeeFicheOptions): Promise<GeneratedFiche> {
-  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+  const { PDFDocument, StandardFonts, rgb } = await loadPdfLib();
 
   const t: TranslationDict = lang === 'fr' ? translations.fr : translations.en;
   const now = new Date();

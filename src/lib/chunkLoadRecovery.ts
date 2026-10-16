@@ -14,6 +14,27 @@
  * window, tracked in storage the caller supplies (sessionStorage in the app,
  * a fake in tests); when the guard suppresses a reload the caller surfaces the
  * error instead of looping.
+ *
+ * CE QUE `preventDefault()` COÛTE QUAND RIEN NE SE RECHARGE (mesuré 2026-10-16)
+ * ---------------------------------------------------------------------------
+ * Le helper de Vite ne relance l'erreur de chargement QUE si l'événement n'a pas
+ * été bloqué :
+ *
+ *     window.dispatchEvent(event); if (!event.defaultPrevented) throw error;
+ *
+ * Bloquer sans recharger transforme donc une panne de chargement en une promesse
+ * **résolue avec `undefined`**. Le 2026-10-16, un morceau manqué pendant un
+ * encaissement a ainsi fait échouer la génération du reçu sur « TypeError: Cannot
+ * destructure property 'PDFDocument' of '(intermediate value)' as it is
+ * undefined » — un message qui accuse la déstructuration au lieu du réseau, et
+ * que la CI a mis une soirée à relier à sa cause. Le garde anti-boucle n'était
+ * même pas la seule voie : le rechargement est appelé, mais si le garde le
+ * supprime, l'appelant n'apprend RIEN.
+ *
+ * Le contrat est donc : `preventDefault()` SEULEMENT quand un rechargement a
+ * réellement été demandé. Sinon l'erreur continue sa route — un `await` la
+ * reçoit, un ErrorBoundary la montre — ce que le commentaire ci-dessus promettait
+ * déjà (« the caller surfaces the error instead of looping »).
  */
 
 /** Clé de garde anti-boucle : date du dernier rechargement tenté. */
@@ -85,7 +106,10 @@ export const registerChunkLoadRecovery = (
 ): void => {
   if (!win || typeof win.addEventListener !== 'function') return;
   win.addEventListener('vite:preloadError', (event) => {
-    event.preventDefault();
-    recoverFromChunkLoadError(now(), win.sessionStorage, () => win.location.reload());
+    const reloading = recoverFromChunkLoadError(now(), win.sessionStorage, () => win.location.reload());
+    // Bloqué SEULEMENT si un rechargement part : bloquer sans recharger ferait
+    // résoudre la promesse d'import avec `undefined` au lieu de la rejeter, et
+    // l'appelant planterait sur une déstructuration au lieu de voir la panne.
+    if (reloading) event.preventDefault();
   });
 };
