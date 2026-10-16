@@ -399,7 +399,7 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
       // montant, le reçu et l'élève, pour qu'une correction de mois puisse se
       // relire sans ouvrir le registre.
       //
-      // Même forme au rejeu (offlineReplay.ts, `offlineAuditInfo`) — un même
+      // Même forme au rejeu (offlineReplayAudit.ts, `offlineAuditInfo`) — un même
       // fait ne se lit pas de deux façons selon qu'il a attendu la ligne.
       details: `Paiement de ${payment.amount} FCFA (reçu ${payment.receiptNumber || 'N/A'}) du ${payment.date} : mois renseignés — ${clean.join(', ')} — élève ${studentName}`,
     });

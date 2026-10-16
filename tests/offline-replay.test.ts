@@ -11,7 +11,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { describeReplayError, offlineAuditInfo, replayOfflineItem, replayOfflineItemDetailed, rowIdColumn } from '../src/lib/offlineReplay';
+import { describeReplayError, replayOfflineItem, replayOfflineItemDetailed, rowIdColumn } from '../src/lib/offlineReplay';
+import { offlineAuditInfo } from '../src/lib/offlineReplayAudit';
 import type { ReplayDb } from '../src/lib/offlineReplay';
 import { createRowId, isUuid } from '../src/lib/rowMappers';
 import type { OfflineActionType, OfflinePayload, QueueItem } from '../src/lib/offlineQueue';
@@ -112,6 +113,9 @@ const CASES: { type: OfflineActionType; build: () => QueueItem; table?: string; 
   // Un réglage d'affichage (thème, densité, verre, langue) changé sans réseau :
   // la ligne d'`app_settings` que la sauvegarde emporte.
   { type: 'setDisplayPreference', build: () => itemOf('setDisplayPreference', { name: 'theme', value: 'midnight' }), table: 'app_settings' },
+  // Le nom de l'école déclaré sans réseau : la même table que les préférences
+  // d'affichage, mais une donnée d'ÉTABLISSEMENT — une ligne, pour tout le parc.
+  { type: 'setSchoolName', build: () => itemOf('setSchoolName', { name: 'Complexe Scolaire Mama Thera' }), table: 'app_settings' },
 ];
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -129,7 +133,7 @@ describe('offline queue replay (replayOfflineItem)', () => {
       'addTodo', 'updateTodo', 'deleteTodo',
       'addClass', 'updateClass', 'deleteClass',
       'addNote', 'deleteNote', 'setCurrentYear', 'addAuditLog',
-      'updateUserRole', 'setDisplayPreference',
+      'updateUserRole', 'setDisplayPreference', 'setSchoolName',
     ];
     assert.equal(CASES.length, all.length, 'expected one test case per action type');
     assert.deepEqual(
@@ -222,6 +226,72 @@ describe('un réglage d’affichage changé hors ligne', () => {
     assert.equal(info?.targetType, 'app_settings');
     assert.equal(info?.targetId, 'display.density');
     assert.match(String(info?.details), /display\.density = compact/);
+  });
+});
+
+// ─── Le nom de l'école : un fait d'ÉTABLISSEMENT qui peut attendre la ligne ──
+// Ce n'est pas une préférence de poste : c'est le nom que l'école donne à
+// elle-même, écrit une fois pour tout le parc (`school.name`), et il accompagne
+// ensuite chaque remontée de poste. Le geste doit donc pouvoir être fait SANS
+// réseau — sinon il est refusé à l'administration au moment précis où elle le
+// fait —, et le rejeu doit écrire exactement la ligne du chemin en ligne.
+
+describe('un nom d’école déclaré hors ligne', () => {
+  const named = () => itemOf('setSchoolName', { name: 'Complexe Scolaire Mama Thera' });
+
+  it('écrit la ligne du contrat : clé `school.name`, valeur, et pas d’`updated_by`', async () => {
+    const fake = makeFakeDb();
+    assert.equal(await replayOfflineItem(fake.db, named()), true);
+    assert.deepEqual(fake.queries, ['app_settings']);
+    const written = fake.rows.find((row) => row.table === 'app_settings');
+    assert.ok(written, 'le nom doit être écrit, pas seulement visé');
+    assert.equal(written.row.key, 'school.name');
+    assert.equal(written.row.value, 'Complexe Scolaire Mama Thera');
+    // Les comptes `auth.users` ne voyagent pas : un `updated_by` renseigné
+    // rendrait la ligne NON restaurable dans une cible fraîche.
+    assert.equal('updated_by' in written.row, false);
+    assert.match(String(written.row.updated_at), /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('une écriture retirée par une politique (200 sans ligne) n’est PAS un succès', async () => {
+    const { db } = makeFakeDb({ emptyWrites: ['app_settings'] });
+    assert.equal(
+      await replayOfflineItem(db, named()),
+      false,
+      'compter cette écriture comme envoyée retirerait de la file un nom que la base n’a jamais reçu',
+    );
+  });
+
+  it('un nom hors contrat est refusé SANS écrire, et un nom valide part NORMALISÉ', async () => {
+    // La file vit dans le `localStorage` du poste, donc elle est modifiable à la
+    // main : un rejeu plus permissif écrirait en base un nom que l’écran refuse.
+    const refused = makeFakeDb();
+    assert.equal(await replayOfflineItem(refused.db, itemOf('setSchoolName', { name: '   ' })), false);
+    assert.equal(await replayOfflineItem(refused.db, itemOf('setSchoolName', { name: 'X' })), false, 'un caractère n’est pas un nom');
+    assert.equal(
+      await replayOfflineItem(refused.db, itemOf('setSchoolName', { name: 'École A · École B' })),
+      false,
+      'le séparateur d’un rapport de poste est refusé dans un nom (il rendrait la lecture du journal ambiguë)',
+    );
+    assert.equal(await replayOfflineItem(refused.db, itemOf('setSchoolName', { name: 'N'.repeat(121) })), false);
+    assert.deepEqual(refused.queries, [], 'aucune écriture ne doit partir');
+
+    const normalized = makeFakeDb();
+    assert.equal(await replayOfflineItem(normalized.db, itemOf('setSchoolName', { name: '  École   de\nSafo  ' })), true);
+    assert.equal(
+      normalized.rows[0].row.value,
+      'École de Safo',
+      'le rejeu écrit la forme canonique, pas ce que le stockage du poste portait',
+    );
+  });
+
+  it('l’audit du rejeu est celui du chemin en ligne (UPDATE_SETTING sur `school.name`)', () => {
+    const info = offlineAuditInfo(named());
+    assert.equal(info?.action, 'UPDATE_SETTING');
+    assert.equal(info?.targetType, 'app_settings');
+    assert.equal(info?.targetId, 'school.name');
+    assert.match(String(info?.details), /school\.name = Complexe Scolaire Mama Thera/);
+    assert.match(String(info?.details), /\[replay\]$/);
   });
 });
 
@@ -691,6 +761,9 @@ describe('offline replay audit mapping (offlineAuditInfo)', () => {
     // Un réglage d'affichage est audité EN LIGNE aussi (`UPDATE_SETTING`, voir
     // dataOps/settings.ts) : le rejeu doit s'y lire de la même façon.
     'setDisplayPreference',
+    // Le nom de l'école l'est aussi — un fait d'établissement se journalise
+    // quand il change, qu'il ait attendu la ligne ou non.
+    'setSchoolName',
   ];
   // Not audited online → replay stays silent: tâches, classes, notes, année.
   // `addAuditLog` en fait partie pour une autre raison : c'est l'entrée de
