@@ -31,7 +31,7 @@ import type { TranslationDict } from '../i18n/translations';
 import type { AppTab } from './Sidebar';
 import type { User } from '../app/types';
 import type { PayrollWindowStatus } from '../app/mainViewsProps';
-import { canViewPaymentHistory } from '../lib/paymentHistoryRights';
+import { beforeOpenTab, canOpenTab } from '../app/tabRights';
 
 export interface MobileNavProps {
   t: TranslationDict;
@@ -59,11 +59,12 @@ export interface MobileNavProps {
 
 export function MobileNav(props: MobileNavProps) {
   const { t, activeTab, setActiveTab, payrollWindowStatus, onToggleLanguage, currentUser, fetchAuditLogs, auditArchivePending = false, silentReceiptsCount = 0 } = props;
-  const isAdminDev = currentUser?.role === 'admin' || currentUser?.role === 'dev';
-  // L'historique des paiements n'est plus dans le bloc admin/dev : l'économe lit
-  // cet écran depuis le 2026-10-15 (la base lui rend les lignes de la caisse, et
-  // elle seule). Le journal d'audit et les Réglages, eux, gardent leur garde.
-  const canSeePaymentHistory = canViewPaymentHistory(currentUser?.role);
+  // Les trois lignes réservées ne se décident pas ici : elles DEMANDENT à
+  // `canOpenTab` (`src/app/tabRights.ts`), la même table que le rail et que le
+  // filet du shell. Le 2026-10-15, trois règles locales écrivaient la même chose
+  // trois fois et deux d'entre elles ont divergé : l'économe voyait la ligne de
+  // l'historique et l'onglet revenait au tableau de bord. Un onglet neuf ne
+  // s'ajoute donc pas ici — il s'ajoute à la table, et cette barre suit.
   const silentReceiptsBadge = t.silentReceiptsBadge.replace('{count}', String(silentReceiptsCount));
 
   const items: { tab: AppTab; label: string; icon: React.ReactNode }[] = [
@@ -81,21 +82,24 @@ export function MobileNav(props: MobileNavProps) {
     // Trois gates, et pas un seul : l'historique des paiements s'adresse à
     // l'économe (il tient la caisse), le journal d'audit et les Réglages non.
     // L'ordre reste celui du rail — journal, historique, réglages.
-    ...(isAdminDev
+    ...(canOpenTab('audit', currentUser?.role)
       ? [{ tab: 'audit' as const, label: t.auditTrail, icon: <ShieldCheck size={20} /> }]
       : []),
-    ...(canSeePaymentHistory
+    ...(canOpenTab('paymentHistory', currentUser?.role)
       ? [{ tab: 'paymentHistory' as const, label: t.paymentHistory, icon: <History size={20} /> }]
       : []),
-    ...(isAdminDev
+    ...(canOpenTab('settings', currentUser?.role)
       ? [{ tab: 'settings' as const, label: t.navSettings, icon: <SettingsIcon size={20} /> }]
       : []),
   ];
 
   const go = (tab: AppTab) => {
-    // Les deux écrans qui lisent le journal le RECHARGENT en s'ouvrant : arriver
-    // sur une lecture périmée ferait croire à un geste qui n'y est pas encore.
-    if (tab === 'audit' || tab === 'paymentHistory') fetchAuditLogs?.();
+    // Les écrans qui lisent le journal le RECHARGENT en s'ouvrant : arriver sur
+    // une lecture périmée ferait croire à un geste qui n'y est pas encore. Lequel
+    // le lit ne s'écrit pas ici — c'est un fait de l'onglet, déclaré dans
+    // `src/app/tabRights.ts` (`readsJournal`), donc la liste des onglets du
+    // journal n'existe pas en double.
+    beforeOpenTab(tab, fetchAuditLogs);
     setActiveTab(tab);
   };
 
