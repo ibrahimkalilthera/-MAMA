@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// SettingsView est une COQUILLE : cinq sections, dans cet ordre — préférences,
-// sauvegarde, classes, comptes, puis la modale « Définir mot de passe ».
+// SettingsView est une COQUILLE : six sections, dans cet ordre — préférences,
+// nom de l'école, sauvegarde, classes, comptes, puis la modale « Définir mot de
+// passe ».
 //
 // La découpe de l'écran (700 → 39 lignes) a déplacé chaque section dans son
 // propre composant. C'est exactement le genre de refactor qui peut en perdre une
@@ -21,11 +22,12 @@
 // resterait vert même si le composant ne rendait plus rien) :
 //
 //   • le panneau `data-slot="settings-panel"` contient la pile
-//     `data-slot="settings-sections"`, qui porte NEUF enfants marqués, CHACUN
+//     `data-slot="settings-sections"`, qui porte DIX enfants marqués, CHACUN
 //     avec son `data-slot`, DANS L'ORDRE. La première section (préférences) en
 //     occupe six (langue, devise, densité des tableaux, verre des icônes, thème,
-//     logo) : 6 + sauvegarde + classes + comptes ;
-//   • la cinquième section (la modale de mot de passe,
+//     logo), et la deuxième — le nom de l'école — un :
+//     6 + 1 + sauvegarde + classes + comptes ;
+//   • la sixième section (la modale de mot de passe,
 //     `data-slot="settings-password-modal"`) est rendue APRÈS la pile et HORS
 //     d'elle : c'est une section, pas un bloc de plus.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,7 +124,7 @@ const TARGET: UserProfile = {
 };
 
 describe('SettingsView — la composition est verrouillée', () => {
-  it('la pile porte neuf enfants, marqués du data-slot de leur section, dans l’ordre', () => {
+  it('la pile porte dix enfants, marqués du data-slot de leur section, dans l’ordre', () => {
     const { container, root } = mount();
     try {
       const kids = Array.from(compositionRoot(container).children);
@@ -134,7 +136,7 @@ describe('SettingsView — la composition est verrouillée', () => {
       assert.equal(
         kids.length,
         SETTINGS_STACK_SLOTS.length,
-        `la pile doit porter ${SETTINGS_STACK_SLOTS.length} enfants : les six blocs de préférences, puis sauvegarde, classes et comptes`,
+        `la pile doit porter ${SETTINGS_STACK_SLOTS.length} enfants : les six blocs de préférences, le nom de l’école, puis sauvegarde, classes et comptes`,
       );
 
       const slots = kids.map((kid) => kid.getAttribute('data-slot'));
@@ -153,7 +155,7 @@ describe('SettingsView — la composition est verrouillée', () => {
     }
   });
 
-  it('la cinquième section — la modale de mot de passe — est rendue APRÈS la pile, hors d’elle', () => {
+  it('la sixième section — la modale de mot de passe — est rendue APRÈS la pile, hors d’elle', () => {
     const { container, root } = mount({ passwordTarget: TARGET });
     try {
       const roots = Array.from(container.children);

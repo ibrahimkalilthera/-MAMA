@@ -1,13 +1,20 @@
 /**
  * Settings view shell (admin/dev only). The individual sections — localisation
- * & preferences, backup/export, class sections, and user/role management plus
- * the set-password modal — live in their own components under this directory,
- * so this file stays comfortably under the line budget. It reads its own data
- * (theme tokens, the t dict, the auth state) through the MainViewsContext, as
- * each section component does.
+ * & preferences, the school name, backup/export, class sections, and user/role
+ * management plus the set-password modal — live in their own components under
+ * this directory, so this file stays comfortably under the line budget. It reads
+ * its own data (theme tokens, the t dict, the auth state) through the
+ * MainViewsContext, as each section component does.
+ *
+ * L'ordre des sections est un CONTRAT, pas une mise en page :
+ * `scripts/lib/settings-composition.mjs` porte la table que lisent les deux
+ * preuves (`check-settings-composition.mjs` sur la source, et
+ * `tests/settings-composition.test.tsx` sur le DOM monté). Ajouter une section
+ * sans mettre la table à jour fait échouer les deux.
  */
 import { useMainViews } from '../app/mainViewsContext';
 import { SettingsPreferencesCard } from './SettingsPreferencesCard';
+import { SettingsSchoolCard } from './SettingsSchoolCard';
 import { SettingsBackupCard } from './SettingsBackupCard';
 import { SettingsClassesCard } from './SettingsClassesCard';
 import { SettingsUsersCard } from './SettingsUsersCard';
@@ -26,6 +33,10 @@ export function SettingsView() {
           <h3 className={`text-xl font-bold ${currentTheme.inkStrong} mb-8`}>{t.localizationAndPreferences}</h3>
           <div data-slot="settings-sections" className="space-y-6">
             <SettingsPreferencesCard />
+            {/* Le nom de l'école est une identité, pas une préférence : il suit
+                immédiatement les réglages d'affichage, avant les sections
+                d'exploitation (sauvegarde, classes, comptes). */}
+            <SettingsSchoolCard />
             <SettingsBackupCard />
             <SettingsClassesCard />
             <SettingsUsersCard />

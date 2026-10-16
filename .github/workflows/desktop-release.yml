@@ -56,7 +56,10 @@
 # installeur publié avant sa migration aurait équipé TOUT le parc d'une
 # application qui écrit dans une table absente, et une publication ne se reprend
 # pas. Elle vit dans le publieur — donc elle s'applique aussi à un
-# `npm run release:publish` lancé à la main.
+# `npm run release:publish` lancé à la main. Depuis le 2026-10-16 elle est
+# aussi jouée DANS LE GATE, sur les trois familles d'objets (colonnes, objets,
+# politiques) : un push qui oublie une migration n'atteint donc même pas le
+# build — voir le gate n°2 de ce fichier.
 #
 # Secrets à configurer (Settings → Secrets and variables → Actions) :
 #   CSC_PFX_B64       certificat .pfx encodé en base64
@@ -142,6 +145,43 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: npm run check:release:needed
+
+      # ── Gate n°2 — la base peut-elle porter ce build ? AVANT le build ─────────
+      # `release:publish` juge DÉJÀ la base avant sa première requête
+      # (`scripts/lib/db-ready.mjs`) — mais il tourne APRÈS `electron:ui` et
+      # `electron-builder`, donc après le build. Ici, le build n'a pas commencé :
+      # un refus coûte une minute de gate au lieu de trois minutes de build signé,
+      # et surtout aucun octet n'est produit pour un build que la base ne peut pas
+      # porter.
+      #
+      # LES TROIS QUESTIONS, et pas une : les COLONNES (`check:hosted-schema`,
+      # clé anon, aucune donnée lue), puis les INDEX, CONTRAINTES et DÉCLENCHEURS
+      # (`check:db-objects`), puis les POLITIQUES (`check:rls-policies`) — les deux
+      # derniers lisent les catalogues par connexion directe. Mesuré le
+      # 2026-10-16 : la migration du nom d'école n'ajoute AUCUNE colonne, seulement
+      # une contrainte, donc la question des colonnes seule répondait « la base est
+      # prête » pour une base qui n'avait pas la règle du build.
+      #
+      # Le refus est BINAIRE, comme dans le publieur : publier un installeur est
+      # irréversible, donc « je n'ai pas pu regarder » refuse aussi. Un `exit 0`
+      # ici est le seul laissez-passer ; tout le reste arrête le job, et
+      # `build-sign-publish` (needs: gate) ne démarre donc jamais.
+      - name: Installer l'outillage Postgres (pg, non déclaré)
+        if: steps.release-gate.outputs.needed == 'true'
+        run: npm i --no-save pg
+
+      - name: 'Gate — la base hébergée porte-t-elle ce que les migrations déclarent ?'
+        if: steps.release-gate.outputs.needed == 'true'
+        env:
+          # Clé anon PUBLIQUE par conception (embarquée dans le bundle servi à
+          # chaque poste et dans les autres workflows) — ce contrôle ne lit aucune
+          # donnée : il ne fait que nommer des colonnes.
+          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          for script in check:hosted-schema check:db-objects check:rls-policies; do
+            npm run "$script"
+          done
 
   build-sign-publish:
     needs: gate

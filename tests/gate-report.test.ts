@@ -26,6 +26,10 @@
 //     d'installation le dira APRES une tentative, pas à sa place ;
 //   • ce qui part au journal d'audit est COMPOSÉ et testable, et il nomme le
 //     poste : c'est la première question de l'administrateur ;
+//   • le nom de l'ÉCOLE l'accompagne, juste après celui du poste. Il vient du
+//     rendu (une session lit `app_settings`), jamais du journal local — le
+//     processus principal n'a pas de session —, et son absence est SILENCIEUSE :
+//     « école inconnue » se lirait comme un nom d'école parmi d'autres.
 //   • et le câblage est vérifié dans les fichiers, parce qu'une décision juste
 //     que personne n'appelle ne signale rien.
 import { strict as assert } from 'node:assert';
@@ -36,6 +40,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 
 import {
+  CONVERSION_CODE,
   blockId,
   blockedAuditEntry,
   flushJournalReports,
@@ -50,6 +55,10 @@ const require = createRequire(import.meta.url);
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { gateFailure } = require('../electron/updater-policy.cjs') as {
   gateFailure: (input: Record<string, unknown>) => { blocked: boolean; code: string; detail: string };
+};
+// Le poste ÉCRIT le fait de la conversion (`station-beat.cjs`) ; ce module le LIT.
+const { CONVERSION_CODE: STATION_CONVERSION_CODE } = require('../electron/station-beat.cjs') as {
+  CONVERSION_CODE: string;
 };
 const read = (rel: string) => readFileSync(join(root, rel), 'utf8');
 
@@ -136,6 +145,32 @@ describe('ce qui part au journal d’audit', () => {
     assert.match(entry?.details ?? '', /poste PC-BIBLIOTHEQUE/);
   });
 
+  it('le nom de l’école suit celui du poste, et son ABSENCE est silencieuse', () => {
+    // « De quelle école me parle ce poste ? » est la question que le relevé de
+    // parc ne peut PAS trancher : son identité de poste est aléatoire et rangée
+    // sur la machine (voir §7 du canal). Le nom de l'école est donc composé par
+    // le poste, et placé JUSTE APRÈS le sien, avant `version` et `motif` :
+    // `src/lib/blockedIncidents.ts` cherche ces marqueurs par leur préfixe et
+    // borne le motif à leur rencontre, donc un champ ajouté au milieu ne décale
+    // rien — collé après le motif, il se lirait comme la suite du message
+    // d'erreur, et le regroupement des pannes changerait de clé.
+    const entry = blockedAuditEntry(state, { school: 'Complexe Scolaire Mama Thera' });
+    assert.match(
+      entry?.details ?? '',
+      /^poste PC-DIRECTION · école Complexe Scolaire Mama Thera · version 1\.0\.0 → 2\.0\.0/,
+    );
+
+    // Rien de LU (aucune école déclarée, lecture ratée, réseau coupé) : aucun
+    // champ du tout. Un « école inconnue » de remplissage ferait chercher une
+    // école qui n'existe pas, et un nom illisible (trop court, portant le
+    // séparateur des rapports) est traité comme une absence — c'est la règle de
+    // `schoolField`, et elle vaut ici comme partout dans le canal.
+    for (const rien of [null, undefined, '', 'A', 'École · fausse']) {
+      const sans = blockedAuditEntry(state, { school: rien });
+      assert.doesNotMatch(sans?.details ?? '', /école/, `« ${String(rien)} » ne doit produire aucun champ école`);
+    }
+  });
+
   it('un blocage a une IDENTITÉ : même code et même version = même blocage', () => {
     assert.equal(blockId(state), 'download|2.0.0');
     assert.equal(blockId(state), blockId({ ...state }), 'deux lectures du même état ne sont pas deux blocages');
@@ -182,6 +217,28 @@ describe('le câblage du signalement', () => {
       'aucun chemin ne doit plus renvoyer un portable vers le navigateur POUR une mise à jour qu’il peut appliquer',
     );
     assert.match(main, /reportBlocked\(\{ installPending: true/, 'une installation non aboutie se signale dès le démarrage');
+    // La conversion : la forme d'AVANT est lue avant que le battement ne remplace
+    // le relevé — c'est le seul instant où elle existe encore —, et le fait part
+    // au journal du poste, donc au journal d'audit avec son NOM.
+    assert.match(main, /const previous = readStation\(stationBeatFile\)/, 'la forme d’avant se lit avant l’écriture, sinon elle n’existe plus');
+    assert.match(
+      main,
+      /const conversion = conversionFact\(previous, written\)/,
+      'la conversion se constate sur les deux relevés, pas sur une déduction',
+    );
+    assert.match(
+      main,
+      /if \(conversion\) \{[\s\S]{0,200}appendEntry\(journalFile, \{[\s\S]{0,80}\.\.\.conversion,[\s\S]{0,40}station,/,
+      'une conversion s’inscrit au journal du poste, avec le nom de la machine',
+    );
+  });
+
+  it('le code de la conversion est LE MÊME des deux côtés du canal', () => {
+    // Le poste l'écrit (`electron/station-beat.cjs`), le rendu le lit (ici) : deux
+    // modules, un seul fait. Un désaccord ferait lire une conversion comme une
+    // panne — ou l'inverse, et c'est le mauvais sens de l'erreur dans les deux cas.
+    assert.equal(CONVERSION_CODE, STATION_CONVERSION_CODE);
+    assert.equal(CONVERSION_CODE, 'converted');
   });
 
   it('le pont expose le journal sans ouvrir de surface générique', () => {
@@ -194,7 +251,11 @@ describe('le câblage du signalement', () => {
   it('le bandeau signale depuis AppShell, qui seul connaît la session', () => {
     const shell = read('src/components/AppShell.tsx');
     assert.match(shell, /import \{ flushJournalReports, reportBlockedStation \} from '\.\.\/lib\/desktopUpdateReport'/);
-    assert.match(shell, /onReport=\{\(state\) => reportBlockedStation\(state\)\}/);
+    assert.match(
+      shell,
+      /onReport=\{\(state\) => reportBlockedStation\(state, \{ school: schoolName \}\)\}/,
+      'le signalement en direct porte aussi l’école lue par la session',
+    );
   });
 
   it('le bandeau affiche l’état du signalement au lieu de le supposer', () => {
@@ -272,6 +333,81 @@ describe('la file d’attente : un poste bloqué sans session remonte au démarr
     assert.deepEqual(outcome.stillQueued, []);
     assert.deepEqual(marked, [['download|2.0.0|1.0.2', 'install|2.0.0|1.0.2']]);
     assert.match(sent[0].details, /poste POSTE-ECOLE-1/);
+  });
+
+  it('l’école accompagne chaque remontée tardive — un blocage COMME une conversion', async () => {
+    const sent: BlockedReport[] = [];
+    const conversion: QueuedReport = {
+      key: 'converted|1.0.39|1.0.38',
+      code: CONVERSION_CODE,
+      version: '1.0.39',
+      currentVersion: '1.0.38',
+    };
+    const outcome = await flushJournalReports({
+      api: bridge([RAPPORT, conversion]),
+      log: (entry) => {
+        sent.push(entry);
+        return true;
+      },
+      school: 'Complexe Scolaire Mama Thera',
+    });
+    assert.equal(outcome.sent, 2);
+    assert.equal(sent.length, 2, 'les deux formes de fait passent par la même file');
+    for (const entry of sent) {
+      assert.match(
+        entry.details,
+        /poste POSTE-ECOLE-1 · école Complexe Scolaire Mama Thera/,
+        'chaque remontée dit de quelle école parle ce poste, juste après son nom',
+      );
+    }
+
+    // Aucun nom lu (école jamais déclarée, ou lecture ratée) : le champ
+    // disparaît des DEUX formes, sans phrase de remplacement.
+    const sansEcole: BlockedReport[] = [];
+    await flushJournalReports({
+      api: bridge([RAPPORT, conversion]),
+      log: (entry) => {
+        sansEcole.push(entry);
+        return true;
+      },
+    });
+    for (const entry of sansEcole) assert.doesNotMatch(entry.details, /école/);
+  });
+
+  it('une CONVERSION remonte par la même file — nommée par le poste, et pas comme un blocage', async () => {
+    // « Quelle école s'est convertie ? » est la question que la première
+    // conversion pose. Le relevé de parc ne peut pas y répondre (identité
+    // aléatoire, aucun nom) ; le poste, lui, sait comment on l'appelle — et c'est
+    // par cette file, la même que celle des pannes, que le nom remonte.
+    const sent: BlockedReport[] = [];
+    const conversion: QueuedReport = {
+      key: 'converted|1.0.39|1.0.38',
+      code: CONVERSION_CODE,
+      detail: "l'installateur annoncé a été exécuté en silencieux",
+      version: '1.0.39',
+      currentVersion: '1.0.38',
+      at: '2026-10-16T09:12:00.000Z',
+    };
+    const outcome = await flushJournalReports({
+      api: bridge([conversion]),
+      log: (entry) => {
+        sent.push(entry);
+        return true;
+      },
+    });
+    assert.equal(outcome.sent, 1);
+    assert.equal(outcome.marked, 1, 'une conversion remontée se marque comme un blocage remonté');
+    const [entry] = sent;
+    assert.match(entry.action, /converti en poste installé/);
+    assert.doesNotMatch(entry.action, /bloqué/, 'une bonne nouvelle ne se dit pas « poste bloqué » : on chercherait une porte fermée qui n’existe pas');
+    assert.match(entry.details, /poste POSTE-ECOLE-1/, 'le nom du poste est la seule réponse que la machine puisse donner');
+    assert.match(entry.details, /conversion portable → installé/);
+    assert.match(entry.details, /version 1\.0\.38 → 1\.0\.39/);
+    assert.match(entry.details, /constat : /);
+    assert.match(entry.details, /constaté le 2026-10-16T09:12:00\.000Z/, 'une remontée tardive dit QUAND le poste a basculé');
+    assert.equal(entry.targetType, 'update');
+    assert.equal(entry.targetId, '1.0.39', 'la version du PASSAGE, celle que le poste exécute maintenant');
+    assert.equal(outcome.stillQueued.length, 0);
   });
 
   it('un envoi RATÉ reste en file : on ne marque que ce qui est vraiment parti', async () => {
@@ -395,7 +531,17 @@ describe('la file d’attente : un poste bloqué sans session remonte au démarr
   it('la remontée part d’AppShell, qui seul connaît la session — une fois par utilisateur', () => {
     const shell = read('src/components/AppShell.tsx');
     assert.match(shell, /import \{ flushJournalReports, reportBlockedStation \} from '\.\.\/lib\/desktopUpdateReport'/);
-    assert.match(shell, /void flushJournalReports\(\{ api \}\)\.catch\(\(\) => \{\}\)/, 'un échec de remontée ne doit pas casser l’application');
+    assert.match(
+      shell,
+      /void flushJournalReports\(\{ api, school: schoolName \}\)\.catch\(\(\) => \{\}\)/,
+      'un échec de remontée ne doit pas casser l’application, et l’école voyage avec la file',
+    );
+    // La file attend que la LECTURE du nom ait rendu son verdict : une remontée
+    // partie sans l'école ne se rattrape pas (le processus principal marque ce
+    // qui est parti), et un échec de lecture ne bloque pas indéfiniment — il
+    // laisse partir la file sans le champ, ce qui est exact.
+    assert.match(shell, /if \(schoolName === null && !schoolNameReadFailed\) return/);
+    assert.match(shell, /\}, \[currentUser\?\.username, schoolName, schoolNameReadFailed\]\)/);
     assert.match(shell, /flushedQueueFor\.current === username/, 'un passage par session, pas à chaque rendu');
     assert.match(shell, /if \(!username \|\| flushedQueueFor\.current === username\) return/);
   });

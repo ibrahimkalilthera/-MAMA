@@ -469,6 +469,28 @@ export const WRITE_GATE_INVENTORY = [
     shown: /setTheme|setDensity|setIconGlass|toggleLanguage/,
     gate: null,
   },
+  // ── Le nom de l'école : la MÊME table, un tout autre droit. C'est un fait de
+  //    l'ÉTABLISSEMENT (une ligne partagée, portée par chaque remontée de poste),
+  //    donc réservé à l'administration — et pas un réglage de poste comme les
+  //    quatre clés ci-dessus. L'écran le garde en lisant `isAdminRole` (la liste
+  //    `ADMIN_ROLES` de `src/lib/deleteRights.ts`, qui reflète `public.is_admin()`),
+  //    et la politique qui l'autorise est celle d'origine, `app_settings_write`
+  //    (`WITH CHECK (is_admin())`, 20260902000005) : aucune politique nouvelle
+  //    n'a été écrite pour ce nom, c'est le droit qu'un fait d'établissement
+  //    demande. Le contrôle croise par (table, commande) : il voit donc, en face
+  //    de ce geste, l'UNION des deux politiques d'INSERT d'`app_settings`, et
+  //    l'écart se déclare ci-dessous plutôt que d'être tu — il porte sur les
+  //    quatre clés `display.`, jamais sur le nom.
+  {
+    action: 'Nommer l’école',
+    table: 'app_settings',
+    cmd: 'INSERT',
+    screen: 'src/components/SettingsSchoolCard.tsx',
+    shown: /setSchoolName/,
+    gate: { file: 'src/lib/deleteRights.ts', symbol: 'ADMIN_ROLES', reader: /isAdminRole/ },
+    narrower:
+      'la base ouvre l’INSERT d’`app_settings` à tout compte connecté pour les QUATRE clés `display.` (20261019000000) ; le nom d’école, lui, n’est écrit que par `app_settings_write` (`is_admin()`, 20260902000005) — exactement ce que l’écran offre. Le contrôle croise par (table, commande), pas par clé : l’élargissement qu’il voit en face appartient aux réglages d’affichage, et l’écart est donc NOMMÉ ici au lieu d’être confondu avec le nom',
+  },
   {
     action: 'Enregistrer un parent',
     table: 'parents',
