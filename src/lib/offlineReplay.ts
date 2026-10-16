@@ -12,11 +12,9 @@ import type { QueueItem } from './offlineQueue';
 import type { Parent, Student, Staff } from '../app/types';
 import { studentMatricule } from './studentIdentifiers';
 import { isUuid } from './rowMappers';
-import { paymentSnapshotMetadata } from './paymentUndo';
-import { replayAddSalaryPayment, replayDeleteSalaryPayment, salaryAddAuditInfo, salaryDeleteAuditInfo } from './offlineReplayPayroll';
-import { paymentMotifAuditTag } from './paymentMotifs';
-import type { LogAuditParams } from './auditLogger';
-import { replayDisplayPreference, displayPreferenceAuditInfo } from './offlineReplaySettings';
+import { replayAddSalaryPayment, replayDeleteSalaryPayment } from './offlineReplayPayroll';
+import { replayDisplayPreference } from './offlineReplaySettings';
+import { replaySchoolName } from './offlineReplaySchoolName';
 
 /** The surface of the Supabase client that replay touches. */
 export type ReplayDb = Pick<SupabaseClient<Database>, 'from' | 'rpc'>;
@@ -514,6 +512,10 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
   } else if (item.type === 'setDisplayPreference') {
     // Réglage d'affichage changé hors ligne — écriture dans son module.
     success = await replayDisplayPreference(db, item.payload);
+  } else if (item.type === 'setSchoolName') {
+    // Le nom de l'école déclaré hors ligne — un fait d'établissement, écrit dans
+    // son module (même ligne d'`app_settings` que le chemin en ligne).
+    success = await replaySchoolName(db, item.payload);
   }
   return success;
 }
@@ -584,115 +586,4 @@ export async function replayOfflineItemDetailed(
   const sink: { error: unknown } = { error: null };
   const ok = await replayOfflineItem(recordingDb(db, sink), item);
   return { ok, reason: ok ? null : describeReplayError(sink.error) };
-}
-
-// ─── Audit mapping for replayed actions ─────────────────────────────────────
-// Pure mapping from a queued item to the audit entry it should produce once
-// replayed, so it can be unit tested like replayOfflineItem itself. Returns
-// null for actions whose online equivalent is not audited (todos), keeping
-// the replay trail consistent with the online one. Details carry a [replay]
-// tag so AuditView can tell offline materialization from live actions.
-
-export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> | null {
-  const tag = ' [replay]';
-  switch (item.type) {
-    case 'addPayment':
-      // Même forme que le chemin en ligne (dataOps/payments.ts) : un même fait
-      // ne doit pas se lire de deux façons selon qu'il a été rejoué ou non —
-      // instantané STRUCTURÉ compris (l'Historique des paiements y lit un montant
-      // chiffré, jamais une phrase à découper). `localId` porte l'id minté pour ce
-      // geste quand le paiement lui-même ne le porte pas (voir QueueItemBase).
-      return {
-        action: 'RECORD_PAYMENT',
-        targetType: 'payment',
-        targetId: item.payload.studentId,
-        // La mention du motif (clé stockée, rien pour le geste ordinaire) vient
-        // de `paymentMotifs.ts`, comme le chemin en ligne : un même fait ne se
-        // lit pas de deux façons selon qu'il a été rejoué ou non.
-        details: `Paiement de ${item.payload.payment.amount} FCFA (reçu ${item.payload.payment.receiptNumber || 'N/A'})${paymentMotifAuditTag(item.payload.payment.motif)}${tag}`,
-        metadata: paymentSnapshotMetadata({
-          paymentId: item.payload.payment.id ?? item.localId ?? '',
-          studentId: item.payload.studentId,
-          date: item.payload.payment.date,
-          amount: item.payload.payment.amount,
-          academicYear: item.payload.payment.academicYear,
-          receiptNumber: item.payload.payment.receiptNumber,
-          motif: item.payload.payment.motif,
-        }),
-      };
-    case 'deletePayment':
-      // Même forme que le chemin en ligne (dataOps/payments.ts) : montant, reçu,
-      // date, élève, PLUS l'instantané qui rend le geste annulable — un même fait
-      // ne se lit pas de deux façons selon qu'il a été rejoué ou non.
-      return {
-        action: 'DELETE_PAYMENT',
-        targetType: 'payment',
-        targetId: item.payload.paymentId,
-        details: `Paiement de ${item.payload.amount} FCFA (reçu ${item.payload.receiptNumber || 'N/A'}) du ${item.payload.date} supprimé — élève ${item.payload.studentName ?? item.payload.studentId}${tag}`,
-        metadata: paymentSnapshotMetadata({
-          paymentId: item.payload.paymentId,
-          studentId: item.payload.studentId,
-          studentName: item.payload.studentName,
-          date: item.payload.date,
-          amount: item.payload.amount,
-          academicYear: item.payload.academicYear,
-          receiptNumber: item.payload.receiptNumber,
-          motif: item.payload.motif,
-        }),
-      };
-    case 'updatePaymentMonths':
-      // Même forme que le chemin en ligne (dataOps/payments.ts) : les mois sont
-      // écrits tels qu'ils sont STOCKÉS (`2026-09`), donc la ligne reste juste
-      // dans une école qui lit le journal en anglais — le libellé traduit
-      // (« Septembre ») appartient au reçu, pas au journal.
-      return {
-        action: 'UPDATE_PAYMENT_MONTHS',
-        targetType: 'payment',
-        targetId: item.payload.paymentId,
-        details: `Paiement de ${item.payload.amount} FCFA (reçu ${item.payload.receiptNumber || 'N/A'}) du ${item.payload.date} : mois renseignés — ${item.payload.months.join(', ')} — élève ${item.payload.studentName ?? item.payload.studentId}${tag}`,
-      };
-    case 'addExpense':
-      return { action: 'ADD_EXPENSE', targetType: 'expense', targetId: null, details: `${item.payload.description} (${item.payload.category}) — ${item.payload.amount} FCFA${tag}` };
-    case 'updateExpense':
-      return { action: 'UPDATE_EXPENSE', targetType: 'expense', targetId: item.payload.id, details: `mise à jour dépense${tag}` };
-    case 'deleteExpense':
-      return { action: 'DELETE_EXPENSE', targetType: 'expense', targetId: item.payload.id, details: `suppression dépense${tag}` };
-    case 'addVendorExpense':
-      return { action: 'ADD_VENDOR_EXPENSE', targetType: 'vendor_expense', targetId: null, details: `${item.payload.vendorName} — ${item.payload.category} — ${item.payload.amount} FCFA${tag}` };
-    case 'updateVendorExpense':
-      return { action: 'UPDATE_VENDOR_EXPENSE', targetType: 'vendor_expense', targetId: item.payload.id, details: `mise à jour dépense fournisseur${tag}` };
-    case 'deleteVendorExpense':
-      return { action: 'DELETE_VENDOR_EXPENSE', targetType: 'vendor_expense', targetId: item.payload.id, details: `suppression dépense fournisseur${tag}` };
-    case 'addStudent':
-      return { action: 'ADD_STUDENT', targetType: 'student', targetId: null, details: `${item.payload.name}${tag}` };
-    case 'updateStudent':
-      return { action: 'UPDATE_STUDENT', targetType: 'student', targetId: item.payload.id, details: `mise à jour élève${tag}` };
-    case 'deleteStudent':
-      return { action: 'DELETE_STUDENT', targetType: 'student', targetId: item.payload.id, details: `suppression élève${tag}` };
-    case 'addStaff':
-      return { action: 'ADD_STAFF', targetType: 'staff', targetId: null, details: item.payload.position ? `${item.payload.name} (${item.payload.position})${tag}` : `${item.payload.name}${tag}` };
-    case 'updateStaff':
-      return { action: 'UPDATE_STAFF', targetType: 'staff', targetId: item.payload.id, details: `mise à jour membre${tag}` };
-    case 'deleteStaff':
-      return { action: 'DELETE_STAFF', targetType: 'staff', targetId: item.payload.id, details: `suppression membre${tag}` };
-    case 'addSalaryPayment':
-      return salaryAddAuditInfo(item.payload, tag);
-    case 'deleteSalaryPayment':
-      return salaryDeleteAuditInfo(item.payload, tag);
-    case 'addParent':
-      return { action: 'ADD_PARENT', targetType: 'parent', targetId: null, details: `${item.payload.fullName}${tag}` };
-    case 'updateParent':
-      return { action: 'UPDATE_PARENT', targetType: 'parent', targetId: item.payload.id, details: `mise à jour parent${tag}` };
-    case 'deleteParent':
-      return { action: 'DELETE_PARENT', targetType: 'parent', targetId: item.payload.id, details: `suppression parent${tag}` };
-    case 'setDisplayPreference':
-      return displayPreferenceAuditInfo(item.payload, tag);
-    default:
-      // Geste dont l'équivalent EN LIGNE n'est pas audité — tâches, classes
-      // personnalisées, notes du calendrier, déclaration d'année — donc le rejeu
-      // ne l'est pas non plus : un même fait ne doit pas se lire de deux façons
-      // selon qu'il a été rejoué ou non. Les entrées `addAuditLog` sont, elles,
-      // le journal lui-même : les auditer bouclerait.
-      return null;
-  }
 }

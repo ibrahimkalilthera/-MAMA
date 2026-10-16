@@ -55,7 +55,8 @@ name: Deploy (Vercel)
 # blocked until it is applied.
 #
 # Fourth gate — the same database read the other way round: what the MIGRATIONS
-# declare must exist in the hosted base. On 2026-09-14 `staff.category` was
+# declare must exist in the hosted base (the COLUMNS, read through PostgREST).
+# On 2026-09-14 `staff.category` was
 # written in the code before its migration was applied; PostgREST validates the
 # columns it is asked for, so every ADD of a member would have been refused while
 # this workflow deployed green — a correct-looking deploy that broke a feature.
@@ -67,6 +68,16 @@ name: Deploy (Vercel)
 # column) and turns the run RED, because a deployment whose schema is missing
 # breaks an insert rather than a read; « I could not look » (network, 401,
 # unknown status) stays neutral (exit 78). Either way nothing is deployed.
+#
+# Fifth gate — the families of objects that can be BEHIND without a single
+# column missing: INDEXES, CONSTRAINTS, TRIGGERS and RLS POLICIES (direct
+# catalogue connections; `pg` installed without touching package.json). Measured
+# on 2026-10-16: the school-name migration adds no column at all, only a CHECK
+# constraint — gate 4 read it green while the objects control named that
+# constraint ABSENT from the catalogue. Same 0/1/78 mapping as gate 4: behind is
+# RED, "could not look" is NEUTRAL, and nothing is deployed either way. Both
+# gates run BEFORE the build, so a forgotten migration never reaches a
+# `vercel build`.
 #
 # Known trade-off: if the quality workflow itself cannot run (Actions outage,
 # disabled workflow), deploys stop too — by design: no green gate, no deploy.
@@ -291,6 +302,45 @@ jobs:
 
       - name: Install project dependencies (needed by vercel build → npm run build)
         run: npm ci
+
+      # Gate n°5 — les familles d'objets qu'une base peut porter en retard SANS
+      # qu'aucune colonne ne manque : INDEX, CONTRAINTES, DÉCLENCHEURS et
+      # POLITIQUES. Mesuré le 2026-10-16 : la migration du nom d'école
+      # (`20261022000000_school_name.sql`) n'ajoute AUCUNE colonne, seulement une
+      # contrainte `CHECK` — la porte n°4 ci-dessus sortait donc VERTE pendant que
+      # `check:db-objects` nommait `app_settings_school_name_check` ABSENT du
+      # catalogue. Un déploiement dans cet état livre une application dont
+      # l'écriture est refusée par la base, ce que le gate n°4 ne pouvait pas dire.
+      #
+      # `pg` n'est pas une dépendance déclarée du dépôt (outillage ponctuel, comme
+      # dans la veille `public-rls-watch`) : il est installé ici sans toucher
+      # package.json — les deux contrôles lisent les catalogues PostgreSQL par
+      # connexion directe, jamais à travers PostgREST.
+      #
+      # Sémantique alignée sur la porte n°4 : la base EN RETARD est un défaut
+      # NOMMÉ ⇒ ROUGE ; « je n'ai pas pu regarder » (mot de passe absent, réseau,
+      # catalogue vide — sortie 2) ⇒ NEUTRE (exit 78). Dans les deux cas, rien
+      # n'est déployé.
+      - name: Installer l'outillage Postgres (pg, non déclaré)
+        run: npm i --no-save pg
+
+      - name: Gate — index, contraintes, déclencheurs et politiques RLS à jour
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          failed=0
+          unverified=0
+          for script in check:db-objects check:rls-policies; do
+            status=0
+            npm run "$script" || status=$?
+            case "$status" in
+              0) ;;
+              1) failed=1 ;;
+              *) unverified=1 ;;
+            esac
+          done
+          if [ "$failed" = 1 ]; then exit 1; fi
+          if [ "$unverified" = 1 ]; then exit 78; fi
 
       - name: Install deploy tooling (pinned Vercel CLI, watched by Dependabot)
         run: npm ci --prefix tools

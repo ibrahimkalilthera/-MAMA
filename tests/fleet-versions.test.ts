@@ -30,17 +30,28 @@
 // relevé ÉCHOUE, parce que la clé publique peut appeler le geste d'écriture et
 // qu'un relevé vert sur une table qui s'emballe masquerait exactement ce qu'on
 // lui demande de voir.
+//
+// Et les deux lectures ajoutées le 2026-10-21 — la FORME de chaque poste et la
+// trace des conversions portable → installé — sont éprouvées ici pour la même
+// raison : c'est ce qu'un humain lira pour savoir si les postes d'école qu'il
+// faut convertir à la main le sont encore, et une répartition qui fondrait
+// « pas mesurée » dans « installée » lui dirait le contraire de ce qu'elle a lu.
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import {
   DEFAULT_MAX_ROWS,
   DEFAULT_SILENT_DAYS,
+  STATION_INSTALL_MODE_MIGRATION,
   USAGE,
   censusEvidence,
   censusReport,
   checkStateBreakdown,
+  convertedStations,
+  firstConversion,
+  installModeBreakdown,
   parseFlags,
+  readRefusalMessage,
   silentStations,
   versionDistribution,
   volumeVerdict,
@@ -59,6 +70,12 @@ const station = (over: Record<string, unknown> = {}) => ({
   last_check: 'ok',
   last_check_version: '1.0.34',
   seen_at: daysAgo(0),
+  // La forme est un fait distinct de la version : un poste installé et un poste
+  // portable peuvent exécuter la MÊME version, et c'est justement ce que ce
+  // relevé doit savoir dire.
+  install_mode: 'installed',
+  converted_at: null,
+  converted_to_version: null,
   ...over,
 });
 
@@ -267,5 +284,212 @@ describe('fleet:versions — le relevé écrit', () => {
     });
     assert.match(report, /l’origine a répondu du HTML/);
     assert.match(report, /1 poste\(s\) battent mais leur dernier contrôle n’a PAS abouti/);
+  });
+
+  it('nomme les conversions OBSERVÉES dans la preuve, et se tait quand il n’y en a aucune', () => {
+    // Une preuve qui déclarerait « 0 conversion » à chaque exécution ferait du
+    // zéro une information qu'il n'est pas. Ce qui compte est l'autre sens : le
+    // jour où un poste d'école bascule, la veille quotidienne le dit.
+    const none = censusEvidence({ total: 1, conversions: [] });
+    assert.doesNotMatch(none.reason, /conversion/);
+    const some = censusEvidence({
+      total: 2,
+      conversions: [{ stationId: 'st_aaaa000000000000', convertedToVersion: '1.0.38' }],
+    });
+    assert.match(some.reason, /1 conversion\(s\) portable → installé observée\(s\)/);
+    assert.match(some.reason, /st_aaaa000000000000 → 1\.0\.38/);
+  });
+
+  it('ANNONCE la première conversion dans la preuve, avec sa date — pas seulement un compte', () => {
+    // Une liste de conversions dans un journal de CI, personne ne la lit ;
+    // l'annonce, si : c'est le fait que cette veille existe pour publier.
+    const evidence = censusEvidence({
+      total: 2,
+      conversions: [{ stationId: 'st_later', convertedToVersion: '1.0.39' }],
+      first: { stationId: 'st_first', convertedToVersion: '1.0.38', convertedAt: '2026-10-16T05:12:00.000Z' },
+    });
+    assert.match(evidence.reason, /1ʳᵉ conversion portable → installé observée le 2026-10-16T05:12:00\.000Z/);
+    assert.match(evidence.reason, /st_first → 1\.0\.38/);
+  });
+
+  it('ne dit rien d’une « première » quand il n’y en a pas — et jamais un zéro inventé', () => {
+    const none = censusEvidence({ total: 1, conversions: [], first: null });
+    assert.doesNotMatch(none.reason, /1ʳᵉ conversion/);
+  });
+});
+
+describe('fleet:versions — la forme du poste', () => {
+  it('compte chaque forme, et ne fond JAMAIS « non mesurée » dans « installée »', () => {
+    const { modes, unmeasured } = installModeBreakdown([
+      station({ install_mode: 'installed' }),
+      station({ install_mode: 'installed' }),
+      station({ install_mode: 'portable' }),
+      station({ install_mode: null }),
+      station({ install_mode: 'zombie' }),
+    ]);
+    const count = (mode: string) => modes.find((entry: { mode: string }) => entry.mode === mode)!.count;
+    assert.equal(count('installed'), 2);
+    assert.equal(count('portable'), 1);
+    assert.equal(count('zombie'), 1, 'une forme inconnue est comptée, jamais blanchie');
+    assert.equal(unmeasured, 1, 'un poste qui ne dit rien de sa forme n’est pas un poste installé');
+  });
+
+  it('nomme ce qu’un poste PORTABLE implique, au lieu de le laisser deviner', () => {
+    const report = censusReport({
+      rows: [station({ install_mode: 'portable' }), station({ install_mode: null })],
+      total: 2,
+      nowMs: NOW,
+    });
+    assert.match(report, /forme des postes/);
+    assert.match(report, /ENCORE portable/);
+    assert.match(report, /ne se corrige PAS à distance/);
+    assert.match(report, /non mesurée/);
+  });
+});
+
+describe('fleet:versions — les conversions portable → installé', () => {
+  it('ne retient QUE ce que la base a daté : un poste installé depuis toujours n’est pas converti', () => {
+    const converted = convertedStations([
+      station({ station_id: 'st_aaaa000000000000', install_mode: 'installed', converted_at: null }),
+      station({
+        station_id: 'st_bbbb000000000000',
+        install_mode: 'installed',
+        converted_at: '2026-10-16T05:00:00.000Z',
+        converted_to_version: '1.0.38',
+      }),
+    ]);
+    assert.equal(converted.length, 1, 'on ne compte pas comme converti ce qu’on n’a jamais vu portable');
+    assert.equal(converted[0]!.stationId, 'st_bbbb000000000000');
+    assert.equal(converted[0]!.convertedToVersion, '1.0.38');
+    assert.equal(converted[0]!.backToPortable, false);
+  });
+
+  it('trie la plus récente d’abord, et nomme un poste relancé en portable SANS perdre la trace', () => {
+    const converted = convertedStations([
+      station({ station_id: 'st_older', converted_at: '2026-10-02T08:00:00.000Z', converted_to_version: '1.0.36' }),
+      station({ station_id: 'st_newer', converted_at: '2026-10-16T05:00:00.000Z', converted_to_version: '1.0.38' }),
+      station({ station_id: 'st_back', install_mode: 'portable', converted_at: '2026-10-10T08:00:00.000Z' }),
+    ]);
+    assert.deepEqual(
+      converted.map((entry: { stationId: string }) => entry.stationId),
+      ['st_newer', 'st_back', 'st_older'],
+    );
+    assert.equal(converted[1]!.backToPortable, true, 'relancer l’exe portable n’efface pas le fait daté');
+  });
+
+  it('le relevé écrit nomme la date et la version DU PASSAGE, pas celle du jour', () => {
+    const report = censusReport({
+      rows: [
+        station({
+          station_id: 'st_cccc000000000000',
+          app_version: '1.0.39',
+          install_mode: 'installed',
+          converted_at: '2026-10-15T09:00:00.000Z',
+          converted_to_version: '1.0.38',
+        }),
+      ],
+      total: 1,
+      nowMs: NOW,
+    });
+    assert.match(report, /conversions portable → installé OBSERVÉES/);
+    assert.match(report, /st_cccc000000000000/);
+    assert.match(report, /2026-10-15T09:00:00\.000Z/);
+    assert.match(report, /→  1\.0\.38/);
+    assert.match(report, /fait DATÉ par la base/);
+  });
+
+  it('un zéro de conversion DIT ce qu’il ne peut pas couvrir, au lieu de laisser croire à rien', () => {
+    const report = censusReport({ rows: [station()], total: 1, nowMs: NOW });
+    assert.match(report, /aucune conversion observée/);
+    assert.match(report, /AVANT l’arrivée de cette trace/);
+    assert.match(report, /une installation manuelle, une fois/);
+  });
+
+  it('LA PREMIÈRE conversion est celle qui a eu lieu en premier, pas la plus récente', () => {
+    const first = firstConversion([
+      station({ station_id: 'st_recent', converted_at: '2026-10-16T05:00:00.000Z', converted_to_version: '1.0.39' }),
+      station({ station_id: 'st_premier', converted_at: '2026-10-02T08:00:00.000Z', converted_to_version: '1.0.38' }),
+      station({ station_id: 'st_aucune' }),
+    ]);
+    assert.equal(first?.stationId, 'st_premier');
+    assert.equal(first?.convertedToVersion, '1.0.38');
+    assert.equal(firstConversion([station()]), null, 'un poste installé depuis toujours ne fait pas une « première »');
+  });
+
+  it('un horodatage ILLISIBLE ne prend pas le titre de « première », et l’égalité se départage', () => {
+    // Nommer « première » une ligne dont on ignore la date serait annoncer un
+    // fait qu'on n'a pas lu ; à égalité d'instant, le plus petit identifiant
+    // gagne, pour qu'un relevé relu deux fois dise la même chose.
+    const withUnreadable = firstConversion([
+      station({ station_id: 'st_illisible', converted_at: 'pas-une-date' }),
+      station({ station_id: 'st_lisible', converted_at: '2026-10-16T05:00:00.000Z' }),
+    ]);
+    assert.equal(withUnreadable?.stationId, 'st_lisible');
+    const onlyUnreadable = firstConversion([station({ station_id: 'st_illisible', converted_at: 'pas-une-date' })]);
+    assert.equal(onlyUnreadable, null, 'aucune date lisible = aucune « première » à annoncer');
+    const tie = firstConversion([
+      station({ station_id: 'st_zzz', converted_at: '2026-10-16T05:00:00.000Z' }),
+      station({ station_id: 'st_aaa', converted_at: '2026-10-16T05:00:00.000Z' }),
+    ]);
+    assert.equal(tie?.stationId, 'st_aaa');
+  });
+
+  it('le relevé ANNONCE la première conversion en tête, avant toute liste', () => {
+    const report = censusReport({
+      rows: [
+        station({
+          station_id: 'st_premier',
+          install_mode: 'installed',
+          converted_at: '2026-10-02T08:00:00.000Z',
+          converted_to_version: '1.0.38',
+        }),
+        station({ station_id: 'st_recent', converted_at: '2026-10-16T05:00:00.000Z', converted_to_version: '1.0.39' }),
+      ],
+      total: 2,
+      nowMs: NOW,
+    });
+    const announcement = report.split('\n').findIndex((line: string) => line.includes('🔔 PREMIÈRE conversion'));
+    const list = report.split('\n').findIndex((line: string) => line.includes('── conversions portable → installé OBSERVÉES'));
+    assert.ok(announcement >= 0, 'la première conversion est annoncée');
+    assert.ok(list > 0 && announcement < list, 'et elle l’est AVANT la liste : une liste se lit quand on la cherche');
+    assert.match(report, /observée le 2026-10-02T08:00:00\.000Z/);
+    assert.match(report, /poste st_premier — version du passage 1\.0\.38/);
+    assert.match(report, /n’a plus besoin d’une installation manuelle/);
+    assert.match(report, /ne porte AUCUN nom d’école/, 'et l’annonce dit ce qu’elle ne peut PAS nommer');
+  });
+
+  it('l’annonce dit aussi son ABSENCE, et distingue « rien » de « rien de lisible »', () => {
+    const empty = censusReport({ rows: [station({ install_mode: 'portable' })], total: 1, nowMs: NOW });
+    assert.match(empty, /🔔 aucune conversion portable → installé observée à ce jour/);
+    assert.match(empty, /aucun poste ne bat encore|Aucun poste portable n’a encore basculé/);
+    const unreadable = censusReport({
+      rows: [station({ converted_at: 'pas-une-date', converted_to_version: '1.0.38' })],
+      total: 1,
+      nowMs: NOW,
+    });
+    assert.match(unreadable, /des conversions sont inscrites mais AUCUNE n’a de date lisible/);
+  });
+});
+
+describe('fleet:versions — le refus de lecture, et son remède', () => {
+  it('un refus qui ne parle pas d’une colonne manquante reste un refus NU', () => {
+    const message = readRefusalMessage({ status: 401, body: '{"message":"Invalid API key"}' });
+    assert.equal(message, 'la base a répondu HTTP 401 — {"message":"Invalid API key"}');
+    assert.doesNotMatch(message, /EN RETARD/);
+  });
+
+  it('une base en RETARD est nommée AVEC la migration à appliquer', () => {
+    // C'est le cas réel : la forme du poste arrive dans le code avant la base
+    // (les migrations s'appliquent à la main), et PostgREST refuse alors TOUTE la
+    // lecture. Un « HTTP 400 » nu enverrait chercher la panne du côté du lecteur.
+    const message = readRefusalMessage({
+      status: 400,
+      body: '{"code":"42703","message":"column station_versions.install_mode does not exist"}',
+    });
+    assert.match(message, /HTTP 400/);
+    assert.match(message, /EN RETARD/);
+    assert.ok(message.includes(STATION_INSTALL_MODE_MIGRATION), 'la migration est nommée, pas sous-entendue');
+    assert.match(message, /install_mode/);
+    assert.match(message, /npm run db:apply/);
   });
 });

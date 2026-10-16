@@ -28,7 +28,12 @@
  *     sur le canal — c'est la propriété que la spécification exige ;
  *   • **le silence de la page web est normal** : sans pont de bureau, il n'y a
  *     ni identité de poste ni état d'updater, donc rien à dire. C'est un
- *     no-op silencieux, pas une erreur à signaler.
+ *     no-op silencieux, pas une erreur à signaler ;
+ *   • **la forme du poste vient du poste** (`installMode`) : c'est le processus
+ *     principal qui l'a mesurée (`app.isPackaged` + `PORTABLE_EXECUTABLE_FILE`),
+ *     et ce module la transporte telle quelle — il ne la déduit jamais d'une
+ *     version ou d'un nom de fichier, parce qu'une conversion devinée serait
+ *     exactement l'espérance que cette mesure existe pour remplacer.
  *
  * ─── Ce que le module ne fait jamais ────────────────────────────────────────
  * Il n'invente, ne journalise et ne transmet rien d'autre que les cinq champs
@@ -41,6 +46,20 @@
 export const LAST_CHECK_STATES = ['ok', 'feed-absent', 'html', 'unreachable'] as const;
 
 /**
+ * Les deux FORMES d'installation qu'un poste peut déclarer, et elles seules.
+ *
+ * Depuis le 2026-10-16, un poste portable s'installe lui-même et devient un
+ * poste installé (voir `electron/updater-policy.cjs`) — et rien ne disait que le
+ * passage avait eu lieu : le relevé portait la version, jamais la forme. Ce fait
+ * est donc transporté ici, avec la même discipline que les quatre états du
+ * contrôle : une valeur hors de cette liste est refusée AVANT l'appel (la base
+ * la refuserait aussi, mais son refus serait un 400 que personne ne lit), et
+ * `null` veut dire « non mesurée » — jamais « autre chose ». Une application non
+ * empaquetée n'a pas de forme d'installation, donc elle n'en déclare aucune.
+ */
+export const INSTALL_MODES = ['portable', 'installed'] as const;
+
+/**
  * Le nom de la fonction de la base — le SEUL chemin d'écriture de la table.
  *
  * Exporté parce qu'il est vérifié ailleurs : `tests/station-version.test.ts`
@@ -51,6 +70,7 @@ export const LAST_CHECK_STATES = ['ok', 'feed-absent', 'html', 'unreachable'] as
 export const STATION_BEAT_RPC = 'record_station_beat';
 
 export type LastCheckState = (typeof LAST_CHECK_STATES)[number];
+export type InstallMode = (typeof INSTALL_MODES)[number];
 
 /**
  * Les bornes de longueur, écrites AUSSI dans la migration
@@ -75,6 +95,8 @@ export interface StationBeatPayload {
   osVersion?: string | null;
   lastCheck?: string | null;
   lastCheckVersion?: string | null;
+  /** La forme du poste (`portable` / `installed`), ou rien quand elle n'est pas mesurée. */
+  installMode?: string | null;
   /** Quand le contrôle a été fait, tel que le poste l'a horodaté. */
   checkedAt?: string | null;
 }
@@ -90,6 +112,7 @@ export interface StationBeatArgs {
   p_os_version: string | null;
   p_last_check: LastCheckState;
   p_last_check_version: string | null;
+  p_install_mode: InstallMode | null;
 }
 
 /** Le pont, réduit au seul canal qui sert au battement. */
@@ -152,6 +175,14 @@ export function stationBeatProblem(beat: StationBeatPayload | null | undefined):
   if (lastCheckVersion === false) {
     return `version proposée de longueur ${text(beat.lastCheckVersion).length} hors bornes (0..${BOUNDS.lastCheckVersion[1]})`;
   }
+  // La forme du poste n'est pas obligatoire (une application non empaquetée n'en
+  // a pas), mais une forme INCONNUE est un refus nommé : la base la rejetterait
+  // par sa contrainte, et la répartition du parc compterait une forme qui
+  // n'existe pas. Le silence reste permis ; l'invention, non.
+  const installMode = text(beat.installMode);
+  if (installMode && !(INSTALL_MODES as readonly string[]).includes(installMode)) {
+    return `forme du poste inconnue « ${installMode} » (attendu : ${INSTALL_MODES.join(', ')}, ou rien quand elle n’est pas mesurée)`;
+  }
   return null;
 }
 
@@ -176,6 +207,10 @@ export function stationBeatArgs(beat: StationBeatPayload | null | undefined): St
     p_os_version: optionalText(source.osVersion, BOUNDS.osVersion) || null,
     p_last_check: text(source.lastCheck) as LastCheckState,
     p_last_check_version: optionalText(source.lastCheckVersion, BOUNDS.lastCheckVersion) || null,
+    // `null` et non `''` : la colonne accepte l'absence (« pas mesurée »), et une
+    // chaîne vide serait une forme à lire plutôt qu'une absence — la base a
+    // exactement la même règle (`nullif(btrim(…), '')`).
+    p_install_mode: (text(source.installMode) || null) as InstallMode | null,
   };
 }
 
