@@ -5,15 +5,15 @@
  * currentUser derivation, promoter flag and loading state), the first
  * sign-in welcome banner (message state, 5s auto-dismiss, re-arm when the
  * profile changes), the admin-only user-profiles list fetch, and the tab
- * guard that keeps admin-only tabs out of reach for non-admins. App.tsx
- * only consumes the returned API; the Settings user-manager UI state stays
- * in App.tsx.
+ * guard that keeps RESERVED tabs out of reach of a role whose right does not
+ * open them. App.tsx only consumes the returned API; the Settings user-manager
+ * UI state stays in App.tsx.
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { TranslationDict } from '../i18n/translations';
 import { useAuth } from '../lib/useAuth';
 import type { UserProfile } from '../lib/useAuth';
-import { canViewPaymentHistory } from '../lib/paymentHistoryRights';
+import { canOpenTab, isReservedTab } from './tabRights';
 import type { User } from './types';
 
 export type MainTab =
@@ -98,28 +98,32 @@ export function useAuthWelcome(deps: AuthWelcomeDeps) {
     // exhaustive-deps since it arrives as a prop here, not from a local useState.
   }, [authProfile, hasShownWelcome, authIsAdmin, fetchAllProfiles, t.welcomeBackName, setActiveTab]);
 
-  // Safety net: keep admin-only tabs (System Settings / Audit Trail) out of
-  // reach for non-admin, non-dev accounts — and keep the Payment History tab
-  // itself out of reach of a role the BASE would refuse to read it from.
+  // ── Le filet d'onglet : UNE question, et la table y répond ────────────────
   //
-  // L'historique des paiements a QUITTÉ le lot admin/dev le 2026-10-15. Il lit
-  // `audit_logs`, dont la policy RLS n'ouvrait que ces deux rôles : un autre
-  // compte n'y voyait rien, et un écran vide se lisait « rien n'a été
-  // encaissé » sur une caisse pleine. La migration
-  // `20261020000000_econome_payment_history.sql` a ouvert la LECTURE à l'économe
-  // (`public.is_payment_history_viewer()`), donc ce garde suit maintenant CE
-  // droit-là — `canViewPaymentHistory`, la même liste que la base — et non plus
-  // `auth.isAdmin`. Sans ce changement, la ligne du rail s'afficherait pour
-  // l'économe et l'onglet serait ramené au tableau de bord dans la même seconde :
-  // la fonctionnalité serait morte À L'ÉCRAN, tout en paraissant ouverte.
-  const mayReadPaymentHistory = canViewPaymentHistory(auth.profile?.role);
+  // CE QU'IL FAISAIT, ET POURQUOI CE N'EST PLUS ÉCRIT ICI. Il portait sa PROPRE
+  // liste — « `!auth.isAdmin` ⇒ settings, audit ET paymentHistory » — et la
+  // ligne du rail la sienne. Les deux ont divergé le 2026-10-15 : la migration
+  // `20261020000000_econome_payment_history.sql` a ouvert la lecture à l'économe,
+  // le rail a suivi, ce filet non. L'économe voyait la ligne, cliquait, et
+  // l'onglet revenait au tableau de bord dans la même seconde : la
+  // fonctionnalité était morte À L'ÉCRAN tout en paraissant ouverte, et aucun des
+  // cas verts de la veille ne le disait — le rail et l'écran étaient mesurés, ce
+  // filet ne l'était pas.
+  //
+  // Il ne décide donc plus : il DEMANDE aux trois fonctions de
+  // `src/app/tabRights.ts` (la seule table qui nomme un onglet réservé et son
+  // droit, dont les listes de rôles viennent de `src/lib/*Rights.ts`). Un onglet
+  // neuf n'ajoute aucune ligne ici : la boucle le couvre, et les trois surfaces
+  // (rail, barre, filet) suivent ensemble parce qu'elles lisent la même table.
+  //
+  // Un rôle absent (profil pas encore chargé) n'ouvre aucun onglet réservé : le
+  // doute ne s'écrit pas comme un droit.
+  const role = auth.profile?.role;
   useEffect(() => {
-    if (!auth.isAdmin && (activeTab === 'settings' || activeTab === 'audit')) {
-      setActiveTab('dashboard');
-    } else if (activeTab === 'paymentHistory' && !mayReadPaymentHistory) {
+    if (isReservedTab(activeTab) && !canOpenTab(activeTab, role)) {
       setActiveTab('dashboard');
     }
-  }, [activeTab, auth.isAdmin, mayReadPaymentHistory, setActiveTab]);
+  }, [activeTab, role, setActiveTab]);
 
   return {
     auth,
