@@ -1098,7 +1098,15 @@ describe('les actifs publiés hors du flux', () => {
     assert.deepEqual(v.warnings, []);
     assert.equal(v.lines.length, 3, '« attendu hors flux » doit se LIRE : un silence ne se lit pas');
     assert.ok(v.lines.every((l) => l.kind === 'off-feed'));
-    assert.match(v.lines.map((l) => l.detail).join(' '), /télécharge à la main/);
+    // Ce qui est verrouillé ici, c'est que CHAQUE actif hors flux porte SA raison —
+    // pas la phrase d'hier. La raison du portable a changé le 2026-10-16 : un poste
+    // installe l'installeur NSIS (un poste PORTABLE aussi, il se convertit), donc ce
+    // fichier ne se télécharge plus à la main. Les trois motifs restent donc nommés
+    // un par un, plutôt que noyés dans un « hors flux » unique qui ne dirait rien.
+    const reasons = v.lines.map((l) => l.detail).join(' ');
+    assert.match(reasons, /le flux lui-même/);
+    assert.match(reasons, /hors du flux par conception/);
+    assert.match(reasons, /manifeste d’arborescence/);
   });
 
   it('un actif d’une AUTRE version est nommé : c’est le fichier repris à la main', () => {

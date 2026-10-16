@@ -213,20 +213,25 @@ function updatePressure({
  * d'une version et n'en parlait à personne.
  *
  * Ce module rend donc la décision qui manquait : faut-il DEMANDER maintenant,
- * dès qu'une version est annoncée ? Trois réponses, et chacune a sa raison :
- *   • **installé** — la question précède le téléchargement. On ne consomme pas
- *     129 Mo sur un lien d'école sans que quelqu'un l'ait voulu ;
- *   • **portable** — la question mène à la page de téléchargement, parce que
- *     c'est la seule chose que ce poste peut faire ; il est enfin prévenu ;
+ * dès qu'une version est annoncée ? Deux réponses, et chacune a sa raison :
+ *   • **installé ou portable** — la question précède le téléchargement. On ne
+ *     consomme pas 129 Mo sur un lien d'école sans que quelqu'un l'ait voulu ;
  *   • **mode preuve** (`UPDATER_LOG_FILE`) — aucune modale, téléchargement
  *     direct : c'est ce qui permet à l'E2E de jouer les six passes sans
  *     personne devant l'écran, et il lit le journal, pas une fenêtre.
+ *
+ * Le PORTABLE garde un `detail` à lui, mais plus un chemin à lui : mesuré sur le
+ * terrain le 2026-10-16 (poste en 1.0.30, tête 1.0.37), le renvoyer vers la page
+ * des versions laissait une école devant un navigateur — une mise à jour
+ * OBLIGATOIRE qu'aucun poste ne peut satisfaire est une porte fermée, pas une
+ * consigne. Il télécharge donc l'installeur annoncé par le canal, exactement
+ * comme un poste installé (voir `updateAction`).
  *
  * Ce que la fonction ne fait pas : décider si la version est livrable (c'est
  * `updateGate`), ni si le poste est en retard (c'est `updatePressure`).
  *
  * @param {{ announced?: boolean, proofMode?: boolean, portable?: boolean }} input
- * @returns {{ ask: boolean, kind: 'download' | 'open-download' | 'auto' | 'none', detail: string }}
+ * @returns {{ ask: boolean, kind: 'download' | 'auto' | 'none', detail: string }}
  */
 function downloadConsent({ announced = false, proofMode = false, portable = false } = {}) {
   if (!announced) return { ask: false, kind: 'none', detail: 'aucune version annoncée — il n’y a rien à demander' };
@@ -240,29 +245,71 @@ function downloadConsent({ announced = false, proofMode = false, portable = fals
   if (portable) {
     return {
       ask: true,
-      kind: 'open-download',
-      detail: 'version portable : la question mène à la page de téléchargement (l’installation automatique exige l’installeur NSIS)',
+      kind: 'download',
+      detail: 'version portable : l’installeur annoncé par le canal est téléchargé, puis exécuté en silencieux — ce poste devient un poste INSTALLÉ',
     };
   }
   return { ask: true, kind: 'download', detail: 'poste installé : la question précède le téléchargement' };
 }
 
 /**
+ * ─── CE QU'UN POSTE PORTABLE FAIT DE LA MISE À JOUR ─────────────────────────
+ *
+ * Décision PRISE LE 2026-10-16, sur une mesure de terrain : un poste portable en
+ * 1.0.30, tête 1.0.37, sept correctifs de retard — donc la porte fermée. Il
+ * savait tout (le canal répondait, la version était connue) et il ne pouvait rien
+ * appliquer : la politique l'envoyait sur la page des versions, c'est-à-dire
+ * devant un navigateur, pour une mise à jour que rien ne permettait de reporter.
+ * « Ne rien pouvoir faire » n'excuse pas de ne rien faire : l'installeur NSIS que
+ * le canal annonce EST à sa portée, `electron-updater` télécharge et vérifie très
+ * bien sur un portable (il n'exige que `app.isPackaged`), et l'installeur sait
+ * s'installer par UTILISATEUR (aucun droit administrateur — mesuré :
+ * `assistedInstaller.nsh`, `initMultiUser` lit le registre et les drapeaux dans
+ * `.onInit`, qui tourne aussi en silencieux, et retombe sur
+ * `setInstallModePerUser` quand aucune installation n'existe). Ce poste
+ * s'installe donc lui-même et devient un poste installé, qui se met à jour tout
+ * seul ensuite.
+ *
+ * ─── Et pourquoi PAS la ligne d'electron-updater pour ce cas-là ────────────
+ * `quitAndInstall(true, true)` produit `--updated /S --force-run`
+ * (`NsisUpdater.js:107-113`), et ce `--updated` DÉCRIT une mise à jour d'une
+ * installation en place : sur un portable il n'y en a pas, et le gabarit s'en
+ * sert pour ne PAS recréer de raccourci. Mesuré dans
+ * `app-builder-lib/templates/nsis/include/installer.nsh:234-241` : le raccourci du
+ * bureau n'est créé que `${ifNot} ${isUpdated}` quand il n'existe pas déjà — donc
+ * convertir un portable avec cette ligne-là laisserait un poste SANS raccourci
+ * bureau (que `electron-builder.yml` promet : `createDesktopShortcut: true`), et
+ * sans jamais le rattraper, puisque toutes les mises à jour suivantes passeraient
+ * elles aussi par `--updated`. La ligne ci-dessous est donc une INSTALLATION
+ * silencieuse, pas une mise à jour silencieuse.
+ *
+ * `/currentuser` n'est pas ajouté, et ce n'est pas un oubli : `initMultiUser`
+ * déduit déjà le mode du registre, et le seul cas où il choisit le mode machine
+ * est une installation machine PRÉEXISTANTE — que `/currentuser` contredirait en
+ * posant une seconde copie par utilisateur au lieu de la mettre à jour.
+ */
+const PORTABLE_INSTALL_ARGS = ['/S', '--force-run'];
+
+/**
  * Que peut faire une installation pour appliquer la mise à jour ?
  *
- * Le portable ne peut pas s'auto-installer : electron-updater a besoin de
- * l'installeur NSIS. Le laisser muet serait le trahir — il apprend l'existence
- * de la version et reçoit un lien, c'est le mieux qu'il puisse avoir.
+ * Deux postes, deux gestes, un seul résultat : l'application s'en va et la
+ * version arrive. Le poste installé redémarre pour appliquer l'octet qu'il a
+ * téléchargé ; le poste portable installe l'installeur annoncé (voir
+ * `PORTABLE_INSTALL_ARGS`) — et c'est la même chose pour lui, puisque après ce
+ * geste il EST installé.
+ *
  * @param {{ isPortable?: boolean }} input
- * @returns {{ action: 'restart' | 'open-download', detail: string }}
+ * @returns {{ action: 'restart' | 'install', args: string[], detail: string }}
  */
 function updateAction({ isPortable = false } = {}) {
   return isPortable
     ? {
-        action: 'open-download',
-        detail: 'version portable : téléchargement manuel (l’installation automatique exige l’installeur NSIS)',
+        action: 'install',
+        args: [...PORTABLE_INSTALL_ARGS],
+        detail: 'version portable : installation silencieuse de l’installeur annoncé par le canal, puis relance — le poste devient un poste installé',
       }
-    : { action: 'restart', detail: 'version installée : redémarrage pour appliquer' };
+    : { action: 'restart', args: [], detail: 'version installée : redémarrage pour appliquer' };
 }
 
 /**
@@ -367,16 +414,16 @@ function holdDecision({ version = null, holds = null, readOk = true } = {}) {
  * pas : choisir le canal (fichier local, journal d'audit). Un poste bloqué n'a
  * peut-être aucune session — le canal ne peut donc pas être décidé ici.
  *
- * Quatre causes, et il n'y en a pas d'autre :
+ * Trois causes, et il n'y en a pas d'autre :
  *   • **`install`** — une installation a été tentée et le poste est revenu sur
  *     la même version. C'est le pire des trois, parce que c'est un échec
  *     SILENCIEUX : l'utilisateur a cliqué « Redémarrer maintenant », a redémarré,
  *     et rien n'a changé. Signalé même hors obligation — une installation qui
- *     n'aboutit pas est un fait, pas une opinion sur le retard ;
- *   • **`manual`** — la porte est fermée et ce poste ne peut structurellement
- *     pas la satisfaire (version portable : `electron-updater` exige l'installeur
- *     NSIS). Le forcer serait le bloquer pour toujours ; le signaler est la
- *     seule chose honnête à faire, parce qu'il faut une main humaine ;
+ *     n'aboutit pas est un fait, pas une opinion sur le retard. C'est aussi ce
+ *     que devient un poste PORTABLE qui a tout tenté et qui n'a pas pu s'installer
+ *     (machine verrouillée, installeur interdit par une stratégie) : la tentative
+ *     qu'il fait tout seul remplace le blocage par construction qu'on lui
+ *     opposait avant ;
  *   • **`download`** — obligatoire, et le téléchargement a échoué : le poste ne
  *     peut plus avancer seul, et il attend sur une porte fermée ;
  *   • **`checksum`** — les octets reçus ne répondent PAS à ce que `latest.yml`
@@ -392,15 +439,14 @@ function holdDecision({ version = null, holds = null, readOk = true } = {}) {
  * noierait le vrai cas sous le bruit de la progression normale.
  *
  * @param {{ forced?: boolean, status?: string|null, detail?: string|null,
- *   isPortable?: boolean, installPending?: boolean, checksumFault?: string|null }} input
+ *   installPending?: boolean, checksumFault?: string|null }} input
  * @returns {{ blocked: boolean,
- *   code: 'install' | 'manual' | 'download' | 'checksum' | 'none', detail: string }}
+ *   code: 'install' | 'download' | 'checksum' | 'none', detail: string }}
  */
 function gateFailure({
   forced = false,
   status = null,
   detail = null,
-  isPortable = false,
   installPending = false,
   checksumFault = null,
 } = {}) {
@@ -420,13 +466,6 @@ function gateFailure({
   }
   if (!forced) {
     return { blocked: false, code: 'none', detail: 'mise à jour non obligatoire — rien à signaler' };
-  }
-  if (isPortable) {
-    return {
-      blocked: true,
-      code: 'manual',
-      detail: 'version portable : l’installation automatique exige l’installeur NSIS — un poste portable ne peut pas satisfaire la porte tout seul',
-    };
   }
   if (status === 'error') {
     return {
@@ -516,6 +555,7 @@ module.exports = {
   FORCED_MINOR_BEHIND,
   FORCED_PATCH_BEHIND,
   FORCED_RE_PROMPT_MS,
+  PORTABLE_INSTALL_ARGS,
   HOLD_FILE,
   HOLD_BRANCH_DEFAULT,
   parseVersion,
