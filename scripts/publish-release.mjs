@@ -50,7 +50,7 @@ import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
-import { DB_READY_SCRIPT, judgeDbReady } from './lib/db-ready.mjs';
+import { DB_READY_SCRIPTS, judgeDbReady } from './lib/db-ready.mjs';
 import { runGateAttempts } from './lib/gate-runner.mjs';
 import { expectedArtifacts } from './lib/release-compare.mjs';
 import { parseLatestYml } from './lib/latest-yml.mjs';
@@ -308,47 +308,57 @@ function runGate(flag, { label, attempts = 1, delayMs = 4000 } = {}) {
  * contrat de mise à jour, et pour la même raison : une fois un octet promu,
  * aucune correction locale ne rattrape les postes équipés.
  *
- * Ce qu'il interroge est le contrôle qui existe déjà
- * (`scripts/check-hosted-schema.mjs`, `npm run check:hosted-schema`) : jamais
+ * Ce qu'il interroge sont les contrôles qui existent déjà (`DB_READY_SCRIPTS` :
+ * les COLONNES, les INDEX/CONTRAINTES/DÉCLENCHEURS, les POLITIQUES RLS) : jamais
  * une deuxième liste de tables, qui dériverait de la première. Ce que ce gate
- * ajoute, c'est la CONSÉQUENCE — un refus de publier, y compris quand le
+ * ajoute, c'est la CONSÉQUENCE — un refus de publier, y compris quand un
  * contrôle n'a pas pu rendre de verdict : « je n'ai pas pu regarder » ne peut
  * pas autoriser un geste que « la base est en retard » interdit.
+ *
+ * Les TROIS questions, et pas une, depuis le 2026-10-16 : la migration du nom
+ * d'école n'ajoute aucune colonne, seulement une contrainte — le contrôle des
+ * colonnes sortait vert pendant que celui des objets nommait une contrainte
+ * ABSENTE. Un publieur qui n'aurait posé que la première question aurait
+ * autorisé ce build-là.
  */
+function runDbProbe(script) {
+  try {
+    return {
+      script,
+      code: 0,
+      output: String(
+        execFileSync(process.execPath, [script], {
+          cwd: root,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }) ?? '',
+      ),
+    };
+  } catch (error) {
+    // Le refus et son motif sont sur la sortie d’erreur, les vérifications sur
+    // la sortie standard : les deux sont montrées, parce qu'un refus sans son
+    // motif serait un refus qu’on ne peut pas réparer.
+    return {
+      script,
+      code: Number(error?.status ?? NaN),
+      output: `${error?.stdout ?? ''}${error?.stderr ?? ''}`,
+    };
+  }
+}
+
 function assertMigrationsApplied() {
   console.log('\n── la base hébergée porte-t-elle ce que ce build embarque ? ──');
-  // Les deux issues du contrôle, et AUCUNE valeur d'attente : un code et une
-  // sortie sont toujours ceux d'un vrai run, jamais un défaut qui ferait passer
-  // « je n'ai rien exécuté » pour une sortie vide.
-  const probe = (() => {
-    try {
-      return {
-        code: 0,
-        output: String(
-          execFileSync(process.execPath, [DB_READY_SCRIPT], {
-            cwd: root,
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'pipe'],
-          }) ?? '',
-        ),
-      };
-    } catch (error) {
-      // Le refus et son motif sont sur la sortie d’erreur, les vérifications sur
-      // la sortie standard : les deux sont montrées, parce qu’un refus sans son
-      // motif serait un refus qu’on ne peut pas réparer.
-      return {
-        code: Number(error?.status ?? NaN),
-        output: `${error?.stdout ?? ''}${error?.stderr ?? ''}`,
-      };
-    }
-  })();
-  const verdict = judgeDbReady(probe);
+  // Les deux issues de chaque contrôle, et AUCUNE valeur d'attente : un code et
+  // une sortie sont toujours ceux d'un vrai run, jamais un défaut qui ferait
+  // passer « je n'ai rien exécuté » pour une sortie vide.
+  const probes = DB_READY_SCRIPTS.map(({ script }) => runDbProbe(script));
+  const verdict = judgeDbReady({ probes });
   if (verdict.ok) {
-    // Le contrôle montre lui-même ce qu'il a vérifié : le vert est PROUVÉ, pas
-    // annoncé. En cas de refus, c'est le verdict qui porte le motif (les lignes
-    // de succès sortent du rapport cité, elles repousseraient le motif hors de
-    // l’écran).
-    process.stdout.write(probe.output);
+    // Chaque contrôle montre lui-même ce qu'il a vérifié : le vert est PROUVÉ,
+    // pas annoncé. En cas de refus, c'est le verdict qui porte le motif (les
+    // lignes de succès sortent du rapport cité, elles repousseraient le motif
+    // hors de l’écran).
+    for (const probe of probes) process.stdout.write(probe.output);
     return;
   }
   fail(verdict.title, verdict.problems);

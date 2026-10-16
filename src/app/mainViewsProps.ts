@@ -22,6 +22,7 @@ import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import type { ArchivedPayment } from '../lib/paymentUndo';
 import type { ArchivedSalaryPayment } from '../lib/salaryUndo';
 import type { AuthState, UserProfile } from '../lib/useAuth';
+import type { SchoolNameSaveResult } from '../lib/schoolName';
 import type { AuditLogEntry } from '../lib/auditLogger';
 import type { TranslationDict } from '../i18n/translations';
 import type { SchoolClass } from './types';
@@ -519,6 +520,23 @@ export interface MainViewsProps {
   salaryForm: SalaryForm;
   salaryPayments: SalaryPayment[];
   schoolLogo: string | null;
+  /**
+   * Le nom de l'école — un FAIT de l'établissement, écrit une fois pour tout le
+   * parc (`school.name` dans `app_settings`, voir `src/lib/schoolName.ts`).
+   *
+   * Il voyage avec chaque remontée de poste, à côté du nom de la machine : le
+   * relevé de parc ne peut pas nommer l'école — l'identité d'un poste est
+   * aléatoire et rangée sur le disque de ce poste —, donc le nom emprunte le
+   * canal des incidents, celui qui nomme déjà les machines.
+   *
+   * `null` veut dire « rien de lu » : soit aucune école n'a encore déclaré son
+   * nom, soit la lecture a échoué. C'est `schoolNameReadFailed` qui sépare les
+   * deux — sans quoi un champ vide devant une lecture ratée inviterait à
+   * réécrire un nom que l'école avait déjà publié.
+   */
+  schoolName: string | null;
+  /** vrai quand la LECTURE du nom a échoué : `schoolName === null` ne dit alors rien. */
+  schoolNameReadFailed: boolean;
   searchTerm: string;
   selectedYear: string;
   setActiveLinkingParent: Dispatch<SetStateAction<Parent | null>>;
@@ -549,6 +567,12 @@ export interface MainViewsProps {
   setShowPaymentForm: Dispatch<SetStateAction<boolean>>;
   setSalaryForm: Dispatch<SetStateAction<SalaryForm>>;
   setSchoolLogo: Dispatch<SetStateAction<string | null>>;
+  /**
+   * Nommer l'école (l'administration seule — `isAdminRole`). Rend `saved`,
+   * `queued` (le poste est hors ligne : l'écriture attend son tour) ou `refused`
+   * (rien n'a été écrit) : le bloc de réglage le DIT, il ne devine pas.
+   */
+  setSchoolName: (name: string) => Promise<SchoolNameSaveResult>;
   setSelectedCalendarDay: Dispatch<SetStateAction<Date | null>>;
   setSelectedDraftMonth: Dispatch<SetStateAction<number>>;
   setSelectedDraftYear: Dispatch<SetStateAction<number>>;

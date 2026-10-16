@@ -26,6 +26,7 @@ import { describe, it } from 'node:test';
 
 import {
   APPLY_HINT,
+  DB_READY_SCRIPTS,
   DB_READY_SCRIPT,
   STATUS_DELAYED,
   STATUS_UNVERIFIED,
@@ -108,11 +109,23 @@ describe('le verdict du gate — deux refus, et jamais de vert sans preuve', () 
 describe('le câblage : le publieur juge la base AVANT tout accès au canal', () => {
   const source = read('scripts/publish-release.mjs');
 
-  it('le gate interroge le contrôle qui existe déjà, pas une seconde liste de tables', () => {
+  it('le gate interroge les contrôles qui existent déjà, pas une seconde liste de tables', () => {
     assert.equal(DB_READY_SCRIPT, 'scripts/check-hosted-schema.mjs');
-    assert.equal(existsSync(join(root, DB_READY_SCRIPT)), true, 'le contrôle nommé doit exister : un gate qui appelle un script absent refuserait toujours');
-    assert.match(source, /import \{ DB_READY_SCRIPT, judgeDbReady \} from '\.\/lib\/db-ready\.mjs'/);
-    assert.match(source, /execFileSync\(process\.execPath, \[DB_READY_SCRIPT\]/, 'la sonde est le contrôle du dépôt, appelé tel quel');
+    for (const entry of DB_READY_SCRIPTS) {
+      assert.equal(
+        existsSync(join(root, entry.script)),
+        true,
+        `le contrôle « ${entry.script} » doit exister : un gate qui appelle un script absent refuserait toujours`,
+      );
+    }
+    assert.match(source, /import \{ DB_READY_SCRIPTS, judgeDbReady \} from '\.\/lib\/db-ready\.mjs'/);
+    assert.match(source, /execFileSync\(process\.execPath, \[script\]/, 'chaque sonde est un contrôle du dépôt, appelé tel quel');
+    assert.match(
+      source,
+      /DB_READY_SCRIPTS\.map\(\(\{ script \}\) => runDbProbe\(script\)\)/,
+      'le publieur pose TOUTES les questions de la liste — il n’en choisit pas une',
+    );
+    assert.match(source, /const verdict = judgeDbReady\(\{ probes \}\)/);
     assert.doesNotMatch(
       source,
       /readdirSync\(join\(root, 'supabase\/migrations'\)\)/,
@@ -126,7 +139,7 @@ describe('le câblage : le publieur juge la base AVANT tout accès au canal', ()
     // verdict non vert emprunte est un `fail`. Il n'existe donc aucune lecture
     // par laquelle un refus continuerait — c'est la différence entre une porte
     // et un avertissement.
-    assert.match(source, /const verdict = judgeDbReady\(probe\)/);
+    assert.match(source, /const verdict = judgeDbReady\(\{ probes \}\)/);
     assert.match(
       source,
       /code: Number\(error\?\.status \?\? NaN\)/,
@@ -165,5 +178,160 @@ describe('le câblage : le publieur juge la base AVANT tout accès au canal', ()
     const trust = source.indexOf('\nassertUpdaterTrust();');
     assert.ok(trust > 0, 'le contrat de mise à jour reste jugé avant tout accès au canal');
     assert.ok(db > 0 && db < trust, 'un refus qui parle de la base envoie corriger une migration, pas chercher un certificat');
+  });
+});
+
+// ─── LES TROIS QUESTIONS, ET PAS UNE ─────────────────────────────────────────
+//
+// Ce que ce bloc verrouille est un défaut MESURÉ, pas une intuition : le
+// 2026-10-16, la migration du réglage « nom de l'école »
+// (`20261022000000_school_name.sql`) a été appliquée à la base partagée, et elle
+// n'ajoute AUCUNE colonne — seulement une contrainte `CHECK`. Tant qu'elle
+// n'était pas appliquée, le contrôle des COLONNES sortait **vert** pendant que
+// celui des OBJETS sortait **rouge** en nommant
+// `public.app_settings.app_settings_school_name_check` ABSENT du catalogue.
+// Un publieur qui n'aurait posé que la première question aurait donc écrit
+// « la base est prête » sur une base qui n'avait pas la règle du build.
+const GREEN_PROBES = [
+  { script: 'scripts/check-hosted-schema.mjs', code: 0, output: '✅ la base hébergée porte tout ce que les 45 migrations déclarent' },
+  { script: 'scripts/check-db-objects.mjs', code: 0, output: '✅ les 51 index, contraintes et déclencheurs déclarés sont en base' },
+  { script: 'scripts/check-rls-policies.mjs', code: 0, output: '✅ les 54 politiques déclarées sont en base' },
+];
+
+/** La sortie réelle du contrôle des objets quand la contrainte du nom manque. */
+const OBJECTS_DELAYED_OUTPUT = [
+  'Alignés                           : 50',
+  '   ❌ constraint public.app_settings.app_settings_school_name_check — déclaré par 20261022000000_school_name.sql (c), ABSENT du catalogue',
+  '❌ 1 objet(s) divergent entre les migrations et la base hébergée',
+].join('\n');
+
+describe('les trois questions — un seul refus suffit, et il est NOMMÉ', () => {
+  it('les trois vertes : la base peut porter ce build', () => {
+    const verdict = judgeDbReady({ probes: GREEN_PROBES });
+    assert.equal(verdict.ok, true, 'trois verdicts verts autorisent la publication');
+    assert.equal(verdict.verdict, 'ready');
+    assert.equal(verdict.title, '');
+  });
+
+  it('un OBJET manquant refuse MÊME quand les colonnes sont vertes — le cas du nom d’école', () => {
+    const verdict = judgeDbReady({
+      probes: [
+        GREEN_PROBES[0],
+        { ...GREEN_PROBES[1], code: STATUS_DELAYED, output: OBJECTS_DELAYED_OUTPUT },
+        GREEN_PROBES[2],
+      ],
+    });
+    assert.equal(verdict.ok, false, 'les colonnes vertes ne rachètent pas une contrainte absente');
+    assert.equal(verdict.verdict, 'delayed');
+    assert.match(
+      verdict.title,
+      /index, les contraintes et les déclencheurs/,
+      'le refus NOMME le contrôle qui a refusé — sinon il envoie chercher au mauvais endroit',
+    );
+    const problems = verdict.problems.join('\n');
+    assert.match(problems, /app_settings_school_name_check/, 'et il nomme l’objet absent lui-même');
+    assert.ok(verdict.problems.includes(APPLY_HINT), 'le remède reste une migration, jamais un build republié');
+    assert.doesNotMatch(problems, /✅ les 51 index/, 'les lignes de succès sortent du rapport cité');
+    assert.equal(
+      verdict.problems.some((line) => line.includes('scripts/check-db-objects.mjs')),
+      true,
+      'le fichier appelé est cité, comme un lecteur de CI l’attend — pas seulement son libellé',
+    );
+  });
+
+  it('un refus sur les POLITIQUES refuse aussi, et se dit par son nom', () => {
+    const verdict = judgeDbReady({
+      probes: [
+        GREEN_PROBES[0],
+        GREEN_PROBES[1],
+        { ...GREEN_PROBES[2], code: STATUS_DELAYED, output: '❌ politiques absentes : app_settings_display_insert' },
+      ],
+    });
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.title, /politiques RLS/);
+    assert.match(verdict.problems.join('\n'), /app_settings_display_insert/);
+  });
+
+  it('retard ET lecture impossible : le retard porte le verdict, l’autre est dit EN PLUS', () => {
+    const verdict = judgeDbReady({
+      probes: [
+        GREEN_PROBES[0],
+        { ...GREEN_PROBES[1], code: STATUS_DELAYED, output: OBJECTS_DELAYED_OUTPUT },
+        { ...GREEN_PROBES[2], code: STATUS_UNVERIFIED, output: '❌ SUPABASE_DB_PASSWORD absent' },
+      ],
+    });
+    assert.equal(verdict.verdict, 'delayed', 'un retard nommé est plus actionnable qu’une lecture manquée');
+    const problems = verdict.problems.join('\n');
+    assert.match(problems, /app_settings_school_name_check/);
+    assert.match(problems, /politiques RLS/, 'le contrôle muet est NOMMÉ, il n’est pas noyé');
+    assert.match(problems, /pas pu rendre de verdict/);
+  });
+
+  it('trois lectures impossibles : aucun verdict, donc refus — jamais un vert par défaut', () => {
+    const verdict = judgeDbReady({
+      probes: DB_READY_SCRIPTS.map((entry) => ({ script: entry.script, code: STATUS_UNVERIFIED, output: '❌ hors ligne' })),
+    });
+    assert.equal(verdict.ok, false);
+    assert.equal(verdict.verdict, 'unverified');
+    const problems = verdict.problems.join('\n');
+    for (const entry of DB_READY_SCRIPTS) assert.match(problems, new RegExp(entry.label));
+    assert.ok(!verdict.problems.includes(APPLY_HINT), 'une lecture manquée n’envoie pas appliquer une migration');
+  });
+
+  it('un code INCONNU sur un seul contrôle refuse déjà, et il est nommé', () => {
+    const verdict = judgeDbReady({
+      probes: [GREEN_PROBES[0], { ...GREEN_PROBES[1], code: 7, output: 'quelque chose' }, GREEN_PROBES[2]],
+    });
+    assert.equal(verdict.ok, false, 'un gate qui laisse passer ce qu’il ne comprend pas n’existe pas');
+    assert.equal(verdict.verdict, 'unverified');
+    assert.match(verdict.problems.join('\n'), /sorti en 7/);
+  });
+});
+
+// ─── LES DEUX CHAÎNES SONT ARRÊTÉES AVANT LE BUILD ───────────────────────────
+//
+// Le publieur juge la base avant sa PREMIÈRE REQUÊTE, mais il tourne après
+// `electron:ui` et `electron-builder` : un refus y est encore à temps pour le
+// parc, et trop tard pour le runner. Les deux chaînes portent donc la même
+// question AVANT leur build — et ces cas la verrouillent, parce qu'un gate qui
+// n'est lu par personne est un gate dont la suppression ne se remarque pas.
+describe('les deux chaînes de publication sont arrêtées AVANT leur build', () => {
+  const deploy = read('.github/workflows/deploy.yml');
+  const desktop = read('.github/workflows/desktop-release.yml');
+  /** Le nom npm d'un contrôle : `scripts/check-db-objects.mjs` → `check:db-objects`. */
+  const scriptName = (entry: { script: string }) =>
+    entry.script.replace('scripts/check-', 'check:').replace('.mjs', '');
+
+  it('le déploiement du site juge les objets et les politiques AVANT `vercel build`', () => {
+    const objects = deploy.indexOf('check:db-objects');
+    const policies = deploy.indexOf('check:rls-policies');
+    const build = deploy.indexOf('vercel build --prod');
+    assert.ok(objects > 0, 'la porte des objets existe dans le déploiement du site');
+    assert.ok(policies > objects, 'et celle des politiques la suit');
+    assert.ok(build > policies, 'les deux sont jugées AVANT le build du site');
+    assert.match(deploy, /SUPABASE_DB_PASSWORD/, 'les catalogues se lisent avec le mot de passe de la base');
+  });
+
+  it('la chaîne de bureau juge la base DANS LE GATE, donc avant le job de build', () => {
+    const gateStep = desktop.indexOf('Gate — la base hébergée porte-t-elle ce que les migrations déclarent ?');
+    const buildJob = desktop.indexOf('\n  build-sign-publish:');
+    assert.ok(gateStep > 0, 'le gate de bureau juge la base');
+    assert.ok(buildJob > gateStep, 'et il le fait avant que le job de build ne soit déclaré');
+    assert.match(desktop, /build-sign-publish:\s*\r?\n\s*needs: gate/, 'le build dépend du gate : un gate rouge ne construit rien');
+    assert.match(
+      desktop,
+      /npm run "\$script"/,
+      'le refus est binaire ici : aucun code n’est mis de côté comme neutre, contrairement au site',
+    );
+    assert.doesNotMatch(desktop, /exit 78/, 'publier un installeur est irréversible : « je n’ai pas pu regarder » refuse aussi');
+  });
+
+  it('les deux chaînes nomment les MÊMES contrôles que la liste du module', () => {
+    // Une liste recopiée dériverait de celle-ci : la veille `public-rls-watch`
+    // exécute déjà ces trois scripts, les deux chaînes doivent s’y tenir pareil.
+    for (const entry of DB_READY_SCRIPTS) {
+      assert.equal(deploy.includes(scriptName(entry)), true, `le déploiement du site teste « ${scriptName(entry)} »`);
+      assert.equal(desktop.includes(scriptName(entry)), true, `la chaîne de bureau teste « ${scriptName(entry)} »`);
+    }
   });
 });

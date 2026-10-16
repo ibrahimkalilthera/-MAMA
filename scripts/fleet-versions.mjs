@@ -36,6 +36,27 @@
  * (200 par défaut, très au-dessus des quelques dizaines de postes réels), la
  * commande ROUGIT en nommant le compte et le seuil.
  *
+ * ─── Ce que ce relevé doit dire de la FORME d'un poste (2026-10-21) ─────────
+ * Depuis le 2026-10-16, un poste portable s'installe lui-même et devient un
+ * poste INSTALLÉ, qui se met à jour tout seul ensuite : il n'est plus condamné à
+ * rester en arrière. Le geste était décidé, éprouvé, justifié — mais INVISIBLE.
+ * Le relevé portait la version et le dernier contrôle, jamais la forme : « le
+ * parc s'est converti » restait donc une espérance, et un poste encore portable
+ * ne se distinguait pas d'un poste converti — le même défaut que la section 6 a
+ * payé trois jours en septembre, une affirmation que personne ne peut confirmer.
+ *
+ * Deux lectures sont donc ajoutées ici, et elles ne disent PAS la même chose :
+ *   • la forme DÉCLARÉE par chaque poste au dernier battement (`install_mode`) :
+ *     qui se met à jour tout seul, et qui — resté portable — ne se corrigera
+ *     PAS à distance (il lui faut une installation manuelle, une fois) ;
+ *   • la trace `converted_at` / `converted_to_version`, posée par la BASE à la
+ *     PREMIÈRE conversion portable → installé OBSERVÉE sur ce poste : une
+ *     conversion datée, donc un FAIT, au lieu d'une supposition.
+ *
+ * Et la sortie nomme seulement ce qu'elle a vu : un poste converti AVANT
+ * l'arrivée de ce champ n'a laissé aucune trace, et c'est dit — un zéro
+ * silencieux se lirait comme « il ne s'est rien passé ».
+ *
  * ─── Ce que ce relevé ne peut PAS voir, et le dit ──────────────────────────
  * Un poste qui n'a JAMAIS battu est invisible ici : on ne peut pas nommer ce
  * qu'on n'a jamais vu. C'est écrit dans la sortie plutôt que sous-entendu par un
@@ -70,7 +91,32 @@ export const DEFAULT_MAX_ROWS = 200;
 
 const DAY_MS = 86_400_000;
 const CHECK_STATES = ['ok', 'feed-absent', 'html', 'unreachable'];
-const COLUMNS = 'station_id,app_version,os_version,last_check,last_check_version,seen_at';
+
+/** Les deux formes d'installation que la base accepte, et elles seules. */
+const INSTALL_MODES = ['portable', 'installed'];
+
+/**
+ * La migration qui a porté la forme du poste et la trace des conversions.
+ *
+ * Elle est NOMMÉE ici pour une raison précise : le jour où le relevé demande une
+ * colonne que la base n'a pas encore, le refus ne dit pas seulement « HTTP 400 »
+ * — il dit QUELLE migration appliquer. Un lecteur ne se baisse pas au niveau de
+ * la base ; c'est la base qu'on met à niveau (même règle que `db-ready`).
+ */
+export const STATION_INSTALL_MODE_MIGRATION = '20261021000000_station_install_mode.sql';
+
+/** Les colonnes ajoutées par cette migration, nommées pour ce refus-là. */
+export const INSTALL_MODE_COLUMNS = ['install_mode', 'converted_at', 'converted_to_version'];
+
+const COLUMNS = [
+  'station_id',
+  'app_version',
+  'os_version',
+  'last_check',
+  'last_check_version',
+  'seen_at',
+  ...INSTALL_MODE_COLUMNS,
+].join(',');
 
 export const USAGE = [
   'Usage : npm run fleet:versions [--silent-days=N] [--max-rows=N]',
@@ -162,6 +208,102 @@ export function checkStateBreakdown(rows = []) {
 }
 
 /**
+ * La FORME des postes, telle que chacun la déclare — et le nombre de ceux qui ne
+ * la déclarent pas.
+ *
+ * Une forme inconnue est COMPTÉE (jamais fondue dans « installed ») : la base
+ * contraint l'énumération, donc une valeur hors liste ne peut venir que d'une
+ * ligne écrite à la main — et la fondre dans la forme la plus favorable ferait
+ * dire au relevé l'inverse de ce qu'il a lu. Le nombre de postes SANS forme est
+ * rendu à part pour la même raison : « pas mesurée » (poste resté sur une version
+ * qui ne l'envoie pas) n'est pas « installé ».
+ *
+ * @param {object[]} rows
+ * @returns {{ modes: { mode: string, count: number }[], unmeasured: number }}
+ */
+export function installModeBreakdown(rows = []) {
+  const counts = new Map(INSTALL_MODES.map((mode) => [mode, 0]));
+  let unmeasured = 0;
+  for (const row of rows) {
+    const mode = String(row?.install_mode ?? '').trim();
+    if (!mode) {
+      unmeasured += 1;
+      continue;
+    }
+    counts.set(mode, (counts.get(mode) ?? 0) + 1);
+  }
+  return {
+    modes: [...counts.entries()].map(([mode, count]) => ({ mode, count })),
+    unmeasured,
+  };
+}
+
+/**
+ * Les conversions portable → installé OBSERVÉES — nommées, datées, jamais
+ * déduites.
+ *
+ * Une ligne n'entre ici QUE si la base a inscrit `converted_at` : c'est la seule
+ * source de ce fait, et elle ne l'écrit qu'en voyant une ligne `portable`
+ * remplacée par une ligne `installed`. Un poste installé depuis toujours n'y est
+ * donc pas — et c'est voulu : on ne compte pas comme converti ce qu'on n'a jamais
+ * vu portable. La version inscrite est celle du PASSAGE, pas celle du jour.
+ *
+ * Le cas `backToPortable` est une INFORMATION, pas une erreur : la trace reste
+ * (le fait a eu lieu), et la forme du jour dit qu'un exe portable a été relancé
+ * depuis. La nommer évite qu'un relevé le lise comme une conversion ratée.
+ *
+ * @param {object[]} rows
+ * @returns {{ stationId: string, convertedAt: string, convertedToVersion: string|null,
+ *   installMode: string|null, backToPortable: boolean }[]}
+ */
+/**
+ * LA PREMIÈRE conversion observée — celle que ce relevé existe pour annoncer.
+ *
+ * Le fait n'est pas « la plus récente » : c'est l'ÉVÉNEMENT, le jour où un poste
+ * d'école cesse d'être un poste à convertir à la main. Une liste le noie ; cette
+ * fonction l'isole pour qu'il soit annoncé en tête du relevé.
+ *
+ * Un horodatage ILLISIBLE ne peut pas porter ce titre : s'il n'y a que des dates
+ * qu'on ne sait pas lire, la fonction rend `null` (et la sortie le dit
+ * autrement) — nommer « première conversion » une ligne dont on ignore la date
+ * serait annoncer un fait qu'on n'a pas lu. À égalité d'instant (deux postes
+ * convertis dans la même seconde), le plus petit identifiant gagne : un relevé
+ * relu deux fois dit la même chose.
+ *
+ * @param {object[]} rows
+ * @returns {{ stationId: string, convertedAt: string, convertedToVersion: string|null,
+ *   installMode: string|null, backToPortable: boolean, at: number }|null}
+ */
+export function firstConversion(rows = []) {
+  const dated = convertedStations(rows)
+    .map((entry) => ({ ...entry, at: Date.parse(entry.convertedAt) }))
+    .filter((entry) => Number.isFinite(entry.at));
+  if (dated.length === 0) return null;
+  return dated.reduce((best, entry) =>
+    entry.at < best.at || (entry.at === best.at && entry.stationId < best.stationId) ? entry : best,
+  );
+}
+
+export function convertedStations(rows = []) {
+  const out = [];
+  for (const row of rows) {
+    const convertedAt = String(row?.converted_at ?? '').trim();
+    if (!convertedAt) continue;
+    const installMode = String(row?.install_mode ?? '').trim() || null;
+    out.push({
+      stationId: String(row?.station_id ?? '').trim() || '(identifiant illisible)',
+      convertedAt,
+      convertedToVersion: String(row?.converted_to_version ?? '').trim() || null,
+      installMode,
+      backToPortable: installMode === 'portable',
+    });
+  }
+  // La plus récente d'abord, et une date ILLISIBLE passe en dernier sans
+  // disparaître : un horodatage qu'on n'a pas su lire ne retire pas le fait.
+  return out.sort((a, b) => (Date.parse(b.convertedAt) || 0) - (Date.parse(a.convertedAt) || 0));
+}
+
+/**
  * Les postes SILENCIEUX — nommés, jamais supposés à jour.
  *
  * `seen_at` est posé par la BASE (`timezone('utc', now())`), donc un écart
@@ -234,8 +376,41 @@ export function censusReport({
   const lines = [];
   lines.push(
     `📡 relevé du parc — ${total} poste(s) recensé(s) · base partagée ${projectRef ?? 'ref inconnue'}` +
-      ` · version installée et dernier contrôle`,
+      ` · version installée, forme du poste et dernier contrôle`,
   );
+
+  // ── L'ANNONCE, et pourquoi elle passe EN PREMIER ────────────────────────
+  // Les conversions sont listées plus bas, avec le reste du relevé — et c'est
+  // exactement le défaut : une liste se lit quand on la cherche. Or la PREMIÈRE
+  // conversion est l'événement que ce relevé existe pour rendre visible : le
+  // jour où un poste cesse d'être un poste à convertir à la main. Elle est donc
+  // annoncée ici, en tête, et son ABSENCE est annoncée aussi — un silence se
+  // lirait comme un relevé qui n'a pas regardé.
+  const conversions = convertedStations(rows);
+  const first = firstConversion(rows);
+  lines.push('');
+  if (first) {
+    lines.push(`🔔 PREMIÈRE conversion portable → installé observée le ${first.convertedAt}`);
+    lines.push(
+      `   poste ${first.stationId} — version du passage ${first.convertedToVersion ?? '(non inscrite)'}` +
+        (first.backToPortable ? ' — relancé en portable depuis (la trace reste)' : ''),
+    );
+    lines.push('   → ce poste n’a plus besoin d’une installation manuelle : il se met à jour tout seul.');
+    if (conversions.length > 1) {
+      lines.push(`   (${conversions.length - 1} autre(s) conversion(s) plus récente(s), listées plus bas)`);
+    }
+    lines.push(
+      '   ⚠️ le relevé ne porte AUCUN nom d’école (§7 : un recensement, pas une télémétrie — ' +
+        'l’identité du poste est aléatoire et rangée sur la machine).',
+    );
+  } else {
+    lines.push('🔔 aucune conversion portable → installé observée à ce jour.');
+    lines.push(
+      conversions.length > 0
+        ? '   ⚠️ des conversions sont inscrites mais AUCUNE n’a de date lisible — il n’y a donc pas de « première » à annoncer.'
+        : '   Aucun poste portable n’a encore basculé — ou aucun poste ne bat encore (voir ci-dessous) : ces deux lectures ne se distinguent pas ici.',
+    );
+  }
 
   if (total === 0) {
     lines.push('');
@@ -270,6 +445,58 @@ export function censusReport({
     lines.push(`   ⚠️  ${failing} poste(s) battent mais leur dernier contrôle n’a PAS abouti — ils ne sont pas sains.`);
   }
 
+  const { modes, unmeasured } = installModeBreakdown(rows);
+  lines.push('');
+  lines.push('── forme des postes (ce que chaque poste déclare de lui-même) ───');
+  // Une seule largeur de colonne pour les trois étiquettes — y compris
+  // `(non mesurée)`, la plus longue : un relevé dont les comptes ne s'alignent
+  // pas se lit de travers, et c'est un relevé qu'on lit pour décider.
+  const modeColumn = 14;
+  for (const { mode, count } of modes) {
+    const note =
+      mode === 'installed'
+        ? '   ← la forme qui se met à jour toute seule'
+        : mode === 'portable'
+          ? '   ← ENCORE portable : ce poste ne se corrige PAS à distance (installation manuelle, une fois)'
+          : '   ← forme inconnue de cette commande';
+    lines.push(`   ${mode.padEnd(modeColumn)} ${String(count).padStart(4)}${note}`);
+  }
+  if (unmeasured > 0) {
+    lines.push(
+      `   ${'(non mesurée)'.padEnd(modeColumn)} ${String(unmeasured).padStart(4)}` +
+        '   ← le battement ne portait pas la forme (poste pas encore à jour de ce champ)',
+    );
+  }
+
+  lines.push('');
+  lines.push('── conversions portable → installé OBSERVÉES ───────────────────');
+  if (conversions.length === 0) {
+    lines.push('   aucune conversion observée. Deux lectures, et ce relevé ne tranche pas :');
+    lines.push('   · aucun poste portable ne s’est encore converti (ou il n’y en a aucun) ;');
+    lines.push('   · un poste converti AVANT l’arrivée de cette trace n’en a laissé aucune.');
+    lines.push(
+      '   Ce qui est sûr, dans les deux cas : un poste resté portable ne se corrige pas' +
+        ' à distance — une installation manuelle, une fois, et il se met à jour seul ensuite.',
+    );
+  } else {
+    for (const entry of conversions) {
+      const version = entry.convertedToVersion ?? '(version du passage non inscrite)';
+      lines.push(
+        `   ${entry.stationId.padEnd(24)} ${entry.convertedAt}  →  ${version}` +
+          (entry.backToPortable ? '  ⚠️ relancé en portable depuis (la trace reste)' : ''),
+      );
+    }
+    lines.push('');
+    lines.push(
+      `   ${conversions.length} conversion(s) : chacune est un fait DATÉ par la base, pas une espérance.`,
+    );
+    if (first) {
+      lines.push(
+        `   La PREMIÈRE — ${first.stationId}, le ${first.convertedAt} — est annoncée en tête de ce relevé.`,
+      );
+    }
+  }
+
   const silent = silentStations(rows, { silentDays, nowMs });
   lines.push('');
   lines.push(`── postes SILENCIEUX (aucun battement depuis ${silentDays} jour(s)) ─────────`);
@@ -295,6 +522,34 @@ export function censusReport({
   return lines.join('\n');
 }
 
+/**
+ * Le refus de lecture, NOMMÉ — et son REMÈDE quand la base est simplement en
+ * retard sur une migration (pure, donc éprouvable sans base ni réseau).
+ *
+ * Le cas s'est produit et se reproduira : la forme du poste est arrivée dans le
+ * CODE avant d'arriver dans la BASE (les migrations sont appliquées à la main),
+ * et PostgREST refuse alors la lecture entière — `column
+ * station_versions.install_mode does not exist` — parce qu'une colonne inconnue
+ * invalide la requête. Un « HTTP 400 » nu enverrait chercher la panne du côté du
+ * lecteur ; le remède est une MIGRATION, et il est nommé ici, comme `db-ready`
+ * le fait pour le publieur. Un relevé qui baisse les bras devant une base en
+ * retard laisserait le parc sans témoin au moment précis où on le change.
+ *
+ * @param {{ status?: number, body?: string }} [input]
+ * @returns {string}
+ */
+export function readRefusalMessage({ status = 0, body = '' } = {}) {
+  const text = String(body ?? '');
+  const message = `la base a répondu HTTP ${status}${text ? ` — ${text.slice(0, 160)}` : ''}`;
+  const missing = INSTALL_MODE_COLUMNS.filter((column) => text.includes(column));
+  if (missing.length === 0) return message;
+  return (
+    `${message}\n   ⏳ la base est EN RETARD sur la migration « ${STATION_INSTALL_MODE_MIGRATION} » ` +
+    `(colonne(s) absente(s) : ${missing.join(', ')}) — on met la BASE à niveau, jamais le relevé :\n` +
+    `      npm run db:apply -- supabase/migrations/${STATION_INSTALL_MODE_MIGRATION}`
+  );
+}
+
 /** Le relevé lu à la base : une page bornée, et le compte EXACT dans l'en-tête. */
 async function readFleet({ base, key, maxRows, fetchImpl = fetch }) {
   const url =
@@ -310,7 +565,7 @@ async function readFleet({ base, key, maxRows, fetchImpl = fetch }) {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    return { error: `la base a répondu HTTP ${res.status}${body ? ` — ${body.slice(0, 160)}` : ''}` };
+    return { error: readRefusalMessage({ status: res.status, body }) };
   }
   const rows = await res.json().catch(() => null);
   if (!Array.isArray(rows)) return { error: 'la base n’a pas rendu une liste de lignes' };
@@ -330,8 +585,20 @@ async function readFleet({ base, key, maxRows, fetchImpl = fetch }) {
  * dans la RAISON, qui nomme le zéro. Mesuré le jour où cette veille a été
  * branchée — un relevé à 0 poste faisait rougir le script sur son propre contrat.
  *
+ * Les CONVERSIONS sont nommées seulement quand il y en a : une preuve qui
+ * déclarerait « 0 conversion » à chaque exécution d'un parc qui n'en attendait
+ * pas ferait du zéro une information qu'il n'est pas. Ce qui compte est dans
+ * l'autre sens — le jour où un poste passe de portable à installé, la veille
+ * quotidienne le DIT, avec le nombre et la version du passage.
+ *
+ * Et la PREMIÈRE est annoncée à part, avec sa date : c'est l'événement isolé,
+ * celui que l'annotation « Automation evidence » doit porter sans qu'on ait à le
+ * déduire d'une liste — une liste, dans un journal de CI, personne ne la lit.
+ *
  * @param {{ total?: number, silent?: object[], failing?: number, silentDays?: number,
- *   maxRows?: number, projectRef?: string|null, volumeOk?: boolean }} [input]
+ *   maxRows?: number, projectRef?: string|null, volumeOk?: boolean,
+ *   conversions?: { stationId: string, convertedToVersion: string|null }[],
+ *   first?: { stationId: string, convertedToVersion: string|null, convertedAt: string }|null }} [input]
  * @returns {{ acted: boolean, count: number|null, reason: string }}
  */
 export function censusEvidence({
@@ -342,7 +609,22 @@ export function censusEvidence({
   maxRows = DEFAULT_MAX_ROWS,
   projectRef = null,
   volumeOk = true,
+  conversions = [],
+  first = null,
 } = {}) {
+  // L'annonce, en tête de la liste de ce qui a été mesuré : c'est la première
+  // conversion OBSERVÉE, datée par la base — le fait que la veille existe pour
+  // publier.
+  const firstDetail = first
+    ? `, 1ʳᵉ conversion portable → installé observée le ${first.convertedAt} ` +
+      `(poste ${first.stationId} → ${first.convertedToVersion ?? 'version inconnue'})`
+    : '';
+  const convertedDetail = conversions.length
+    ? `, ${conversions.length} conversion(s) portable → installé observée(s) ` +
+      `(${conversions
+        .map((entry) => `${entry.stationId} → ${entry.convertedToVersion ?? 'version inconnue'}`)
+        .join(', ')})`
+    : '';
   return {
     acted: true,
     count: total > 0 ? total : null,
@@ -350,6 +632,8 @@ export function censusEvidence({
       `relevé du parc lu sur la base partagée ${projectRef ?? '(ref inconnue)'} : ` +
       `${total} poste(s) recensé(s), ${silent.length} silencieux depuis ${silentDays} jour(s), ` +
       `${failing} dont le dernier contrôle n’a pas abouti` +
+      firstDetail +
+      convertedDetail +
       (volumeOk ? '' : ` — VOLUME au-delà du seuil de ${maxRows} ligne(s)`),
   };
 }
@@ -435,6 +719,10 @@ async function main() {
   const silent = silentStations(fleet.rows, { silentDays: flags.silentDays, nowMs });
   const failing = fleet.rows.filter((row) => String(row?.last_check ?? '') !== 'ok').length;
   const verdict = volumeVerdict({ total: fleet.total, maxRows: flags.maxRows });
+  // Les conversions OBSERVÉES partent avec la preuve : c'est le fait que cette
+  // veille existe pour publier — un poste d'école qui passe de portable à
+  // installé, daté, avec la version du passage.
+  const conversions = convertedStations(fleet.rows);
   publishEvidence(
     censusEvidence({
       total: fleet.total,
@@ -444,6 +732,11 @@ async function main() {
       maxRows: flags.maxRows,
       projectRef: projectRefOf(base),
       volumeOk: verdict.ok,
+      conversions,
+      // L'annonce : la PREMIÈRE conversion observée, datée, publiée avec la
+      // preuve — c'est elle que lit l'audit des automatisations, et c'est ce
+      // qu'un journal de CI ne laisse pas voir dans une liste.
+      first: firstConversion(fleet.rows),
     }),
   );
   if (!verdict.ok) {

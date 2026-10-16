@@ -133,7 +133,8 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
   const {
     viewsProps, authLoading, supabaseLoading, supabaseError, appEnv, toast, fetchAll,
     t, currentUser, auth, lang, toggleLanguage, currentTheme, theme, ticketStudent,
-    formatDate, schoolLogo, activeTab, setActiveTab, payrollWindowStatus, fetchAuditLogs,
+    formatDate, schoolLogo, schoolName, schoolNameReadFailed, activeTab, setActiveTab,
+    payrollWindowStatus, fetchAuditLogs,
     showTodoSidebar, setShowTodoSidebar, openAddStudentModal, setShowPaymentForm,
     selectedYear, setSelectedYear, academicYears, availableClasses, searchTerm,
     setSearchTerm, studentGradeFilter, setStudentGradeFilter, setIsPromotionWizardOpen,
@@ -199,13 +200,28 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
   useEffect(() => {
     const username = currentUser?.username ?? null;
     if (!username || flushedQueueFor.current === username) return;
+    // ─── On attend que la LECTURE du nom d'école ait RÉPONDU ─────────────────
+    // Le nom est lu après la session, par une requête à `app_settings` : au
+    // premier passage elle peut ne pas être revenue, et une remontée partie sans
+    // l'école ne se rattrape pas — le processus principal marque ce qui est
+    // parti. On attend donc un verdict, succès (`schoolName`) ou échec
+    // (`schoolNameReadFailed`) : dans les deux cas la remontée dit ce que le
+    // poste SAVAIT, et un échec de lecture ne bloque pas indéfiniment la file —
+    // il la laisse partir sans le champ école, ce qui est exact.
+    if (schoolName === null && !schoolNameReadFailed) return;
     flushedQueueFor.current = username;
     const api = (globalThis as { desktop?: { updates?: JournalQueueApi } }).desktop?.updates ?? null;
     // Un pont muet ou une file vide rendent un bilan à zéro sans jeter : rien à
     // dire à l'écran, et surtout rien d'effacé — ce qui n'est pas marqué repart
     // au démarrage suivant.
-    void flushJournalReports({ api }).catch(() => {});
-  }, [currentUser?.username]);
+    //
+    // Le nom de l'école accompagne la remontée, à côté de celui du poste : la
+    // file locale ne peut pas le porter (le processus principal n'a pas de
+    // session), et c'est le montage connecté — donc la lecture qui vient d'avoir
+    // lieu — qui sait de quelle école parle ce poste. Voir
+    // src/lib/desktopUpdateReport.ts.
+    void flushJournalReports({ api, school: schoolName }).catch(() => {});
+  }, [currentUser?.username, schoolName, schoolNameReadFailed]);
 
   // ── Le battement de version du poste (§7 de la spécification du canal) ────
   //
@@ -553,7 +569,7 @@ onOpenSettings={() => setActiveTab('settings')}
         // Le signalement part d'ici, pas du bandeau : c'est ce niveau qui sait
         // qu'un poste bloqué doit être inscrit au journal d'audit quand une
         // session existe. Le bandeau reçoit le résultat et l'affiche.
-        onReport={(state) => reportBlockedStation(state)}
+        onReport={(state) => reportBlockedStation(state, { school: schoolName })}
         labels={{
           available: t.updateAvailable,
           downloadFailed: t.updateDownloadFailed,

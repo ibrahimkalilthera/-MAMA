@@ -23,15 +23,24 @@
 export const SETTINGS_PANEL_SLOT = 'settings-panel';
 /** La pile `.space-y-6` qui ordonne les sections (déclarée par `SettingsView`). */
 export const SETTINGS_STACK_SLOT = 'settings-sections';
-/** La 5e section, la modale « Définir mot de passe », rendue HORS de la pile. */
+/** La 6e section, la modale « Définir mot de passe », rendue HORS de la pile. */
 export const SETTINGS_PASSWORD_MODAL_SLOT = 'settings-password-modal';
 
 /**
  * Les composants de section que la coquille importe et rend, dans l'ordre.
  * La modale en fait partie : c'est une section, pas un bloc de la pile.
+ *
+ * `SettingsSchoolCard` vient JUSTE APRÈS les préférences, et ce n'est pas un
+ * détail d'ordre : le nom de l'école est une identité d'établissement, il se lit
+ * à côté de ce qui nomme l'école (le logo), avant les sections d'exploitation
+ * (sauvegarde, classes, comptes). Il a sa propre section, et non un bloc de plus
+ * dans les préférences, parce qu'il ne se règle pas comme elles : une ligne
+ * partagée, écrite par l'administration, là où un thème se choisit devant un
+ * écran.
  */
 export const SETTINGS_SECTIONS = [
   'SettingsPreferencesCard',
+  'SettingsSchoolCard',
   'SettingsBackupCard',
   'SettingsClassesCard',
   'SettingsUsersCard',
@@ -47,8 +56,8 @@ export const SETTINGS_STACK_SECTIONS = SETTINGS_SECTIONS.filter(
  * Les enfants de la pile, dans l'ordre du DOM. Ce sont les `data-slot` que les
  * composants de `SETTINGS_STACK_SECTIONS` déclarent : `SettingsPreferencesCard`
  * en porte six (langue, devise, densité des tableaux, verre des icônes, thème,
- * logo), les trois autres un chacun. C'est CETTE longueur — 9 — que comptent les
- * deux preuves.
+ * logo), `SettingsSchoolCard` un (le nom de l'école), les trois autres un
+ * chacun. C'est CETTE longueur — 10 — que comptent les deux preuves.
  */
 export const SETTINGS_STACK_SLOTS = [
   'settings-system-language',
@@ -57,6 +66,7 @@ export const SETTINGS_STACK_SLOTS = [
   'settings-icon-glass',
   'settings-theme-settings',
   'settings-upload-logo',
+  'settings-school-name',
   'settings-backup',
   'settings-classes',
   'settings-staff-access',
