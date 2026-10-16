@@ -25,6 +25,7 @@ import { getCalendarDays } from '../lib/classes';
 import { getMonthName as getMonthNameImpl, getDayName as getDayNameImpl } from '../lib/formatters';
 import { localIsoDate, systemClock, type Clock } from '../lib/dateWindows';
 import { canDeleteVendorExpenses, canWriteFinance } from '../lib/payrollRights';
+import { canDeleteRecords } from '../lib/deleteRights';
 import { useGestureId } from '../lib/gestureId';
 
 export interface ExpenseForm {
@@ -40,8 +41,6 @@ export interface UseExpensesDeps {
   selectedYear: string;
   lockedYears: string[];
   isPromoter: boolean;
-  /** Gestionnaire Principal — finance admin without user/settings/audit access. */
-  isGeneralManager: boolean;
   currentUser: User | null;
   addExpense: (exp: Omit<Expense, 'id'> & { id?: string }) => Promise<Expense | null>;
   deleteExpense: (id: string) => Promise<boolean>;
@@ -76,7 +75,7 @@ const emptyVendorExpenseForm = (today: string): VendorExpenseForm => ({
   beneficiaryStudentGrade: '',
 });
 
-export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser, addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast, toastError, now: nowFn = systemClock
+export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedYear, lockedYears, isPromoter, currentUser, addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense, showToast, toastError, now: nowFn = systemClock
   } = deps;
   // Le jour local du repère d'horloge, calculé à l'initialisation une fois.
   const todayIso = localIsoDate(nowFn());
@@ -87,7 +86,12 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
   // `public.is_finance_admin()` LUE SUR LE RÔLE (`canDeleteVendorExpenses`,
   // ci-dessous), qui inclut le Gestionnaire Principal depuis l'application de
   // `20260906000002_vendor_expense_gm_policies.sql` (2026-10-13).
-  const isFinanceAdmin = isPromoter || isGeneralManager;
+  // La garde de la suppression d'une dépense GÉNÉRALE n'est plus une composition
+  // de booléens de rôle (`isPromoter || isGeneralManager`, qui laissait passer le
+  // Gestionnaire Principal alors que la policy « Admin delete expenses » exige
+  // `public.is_admin()`) : elle lit `canDeleteRecords`, la MÊME liste que la
+  // corbeille que l'écran montre (`ExpensesView`), donc ce que l'écran cache et ce
+  // que le geste accepte ne peuvent plus diverger.
   // ÉCRIRE une dépense fournisseur suit la liste de la BASE :
   // `public.is_finance_writer()` (`src/lib/payrollRights.ts`) inclut l'économe
   // depuis le 2026-10-13. Le rôle est lu sur le PROFIL, pas sur un booléen
@@ -226,7 +230,7 @@ export function useExpenses(deps: UseExpensesDeps) {  const { t, lang, selectedY
       toastError(t.thisAcademicYearIsLocked);
       return;
     }
-    if (!isFinanceAdmin) {
+    if (!canDeleteRecords(currentUser?.role)) {
       toastError(t.onlyThePromoterCanDeleteExpenses);
       return;
     }

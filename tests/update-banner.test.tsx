@@ -55,7 +55,7 @@ const LABELS: UpdateLabels = {
   downloadFailed: 'échec du téléchargement de {version} : {detail}',
   downloading: 'téléchargement {percent}%',
   ready: 'prête {version}',
-  readyManual: 'manuelle {version}',
+  install: 'Installer',
   restart: 'Redémarrer',
   download: 'Télécharger',
   dismiss: 'Masquer',

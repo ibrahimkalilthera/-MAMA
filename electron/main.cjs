@@ -20,6 +20,7 @@ const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electro
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const { spawn } = require('node:child_process');
 const { downloadPlan } = require('./download-policy.cjs');
 const { installCsp } = require('./csp-policy.cjs');
 const { appendEntry, readEntries, journalPath, pendingReports, markReported } = require('./update-journal.cjs');
@@ -30,14 +31,19 @@ const { beatPayload, recordBeat, stationPath } = require('./station-beat.cjs');
 // peuvent s'accorder aujourd'hui et diverger le jour où l'une bouge — et c'est
 // l'une des deux qui déciderait ce qu'un poste affiche.
 const { PUBLIC_ORIGIN: FALLBACK_URL } = require('./public-origin.cjs');
-// Où atterrit un poste qui ne peut pas s'auto-installer (portable) : le lien est
-// tenu par l'INVENTAIRE des liens embarqués, pour la même raison que l'origine.
-// Une URL en clair ici partait dans chaque installeur sans que rien ne la relise
-// — un test interdit d'en réécrire une autre en clair dans ce fichier.
+// La porte de sortie d'un poste PORTABLE quand son installation automatique ne
+// peut même pas DÉMARRER (l'installeur téléchargé introuvable ou non exécutable) :
+// le lien est tenu par l'INVENTAIRE des liens embarqués, pour la même raison que
+// l'origine. Une URL en clair ici partait dans chaque installeur sans que rien ne
+// la relise — un test interdit d'en réécrire une autre en clair dans ce fichier.
 const { RELEASES_URL } = require('./embedded-links.cjs');
 const isDev = !app.isPackaged;
-// electron-builder sets PORTABLE_EXECUTABLE_FILE only for the portable target:
-// auto-update installs via the NSIS installer, so it is disabled on portable.
+// electron-builder sets PORTABLE_EXECUTABLE_FILE only for the portable target.
+// Ce drapeau ne DÉSARME plus la mise à jour : mesuré le 2026-10-16 sur un poste
+// portable en 1.0.30 (tête 1.0.37), l'ancienne règle l'envoyait sur la page des
+// versions avec une porte fermée qu'il ne pouvait pas satisfaire — donc un poste
+// définitivement en arrière. Il télécharge l'installeur annoncé, l'exécute en
+// silencieux et devient un poste installé (voir `PORTABLE_INSTALL_ARGS`).
 const isPortable = !!process.env.PORTABLE_EXECUTABLE_FILE;
 
 // ── Updater stale-cache guard ────────────────────────────────────────────────
@@ -135,8 +141,9 @@ function purgeStaleUpdaterCache(log) {
 
 // ── Auto-update (electron-updater, GitHub releases) ─────────────────────────
 // Checked shortly after startup; a downloaded update is installed on user
-// confirmation. Only active in packaged (non-portable) builds — dev and the
-// portable exe never touch the update feed.
+// confirmation. Packaged builds only — dev never touches the update feed. The
+// PORTABLE station checks it too and installs ITSELF: a portable is not a station
+// that is allowed to stay behind, it is a station that has not been installed yet.
 // E2E hooks (same convention as ELECTRON_DL_DIR):
 //   UPDATER_FEED_URL  → override the feed with a local HTTP server (proves
 //                       check + download without a published release)
@@ -226,9 +233,9 @@ function setupAutoUpdater(win) {
   if (process.env.UPDATER_FEED_URL) {
     autoUpdater.setFeedURL({ provider: 'generic', url: process.env.UPDATER_FEED_URL });
   }
-  // Le portable ne peut pas s'auto-installer (electron-updater exige l'installeur
-  // NSIS) : il VÉRIFIE quand même et reçoit un lien. Rester muet serait pire que
-  // ne rien pouvoir faire — l'utilisateur ne saurait jamais qu'une version existe.
+  // Le geste qui appliquera la mise à jour — décidé par la politique, jamais ici :
+  // un poste installé redémarre, un poste portable s'installe lui-même
+  // (`action === 'install'` : installation silencieuse de l'installeur annoncé).
   const action = updateAction({ isPortable });
   // AUCUN téléchargement sans que quelqu'un l'ait voulu — ni sur un poste
   // installé, ni sur le portable.
@@ -334,10 +341,10 @@ function setupAutoUpdater(win) {
   /**
    * Inscrire l'état du poste, s'il est bloqué — décidé par la politique, pas ici.
    * @param {{ forced?: boolean, status?: string|null, detail?: string|null,
-   *   isPortable?: boolean, installPending?: boolean, version?: string|null }} input
+   *   installPending?: boolean, version?: string|null }} input
    */
   function reportBlocked(input) {
-    const verdict = gateFailure({ ...input, isPortable: isPortable || input.isPortable === true });
+    const verdict = gateFailure({ ...input });
     if (!verdict.blocked) return verdict;
     const written = appendEntry(journalFile, {
       code: verdict.code,
@@ -432,11 +439,14 @@ function setupAutoUpdater(win) {
     if (!gate.forced && pressure.forced) log(`obligation écartée — ${gate.detail}`);
     broadcast({ ...patch, forced: gate.forced, status: 'available', version: i.version });
     log(`update-available ${i.version}${gate.forced ? ` — OBLIGATOIRE (${pressure.detail})` : ''}`);
-    // Le portable ne pourra JAMAIS satisfaire la porte (electron-updater exige
-    // l'installeur NSIS) : obligé et portable, c'est un blocage par construction,
-    // et il faut une main humaine — donc on le dit tout de suite.
+    // Bloqué seul un poste qui NE PEUT PAS avancer l'est : une installation tentée
+    // qui n'a pas abouti, des octets qui ne répondent pas au flux, un
+    // téléchargement en échec. Un poste PORTABLE n'est plus dans cette liste — il
+    // s'installe lui-même (voir `updateAction`) ; et s'il n'y arrive pas, c'est la
+    // sentinelle d'installation qui le dira au démarrage suivant (`install`),
+    // c'est-à-dire après une tentative réelle et non sur une supposition.
     reportBlocked({ forced: gate.forced, version: i.version });
-    // La question, MAINTENANT — pas après 129 Mo, et pas jamais sur le portable.
+    // La question, MAINTENANT — pas après 129 Mo.
     void askToDownload({ version: i.version });
   });
   autoUpdater.on('update-not-available', () => {
@@ -536,7 +546,7 @@ function setupAutoUpdater(win) {
   });
 
   /**
-   * Demander, DÈS l'annonce, s'il faut télécharger — et pour le portable, où.
+   * Demander, DÈS l'annonce, s'il faut télécharger.
    *
    * Pendant de `askToInstall`, qui reste la question d'installation. Les deux
    * existent parce que ce sont deux consentements distincts : vouloir 129 Mo sur
@@ -569,9 +579,8 @@ function setupAutoUpdater(win) {
       return;
     }
     // Même règle que pour l'installation : un seul demandeur. L'interface
-    // montre déjà l'état « disponible » avec son bouton (et, pour le portable,
-    // le lien vers la page de téléchargement) ; une modale en plus, c'est deux
-    // questions pour une seule réponse.
+    // montre déjà l'état « disponible » avec son bouton ; une modale en plus,
+    // c'est deux questions pour une seule réponse.
     if (askOwner({ uiReady: rendererReady }).owner === 'interface') {
       log('question de téléchargement portée par l’interface — aucune boîte native');
       return;
@@ -594,22 +603,6 @@ function setupAutoUpdater(win) {
     }
     lastDownloadPromptAt = Date.now();
     log(`question de téléchargement — ${verdict.reason} (${consent.kind})`);
-    if (consent.kind === 'open-download') {
-      const { response } = await dialog.showMessageBox(win, {
-        type: 'info',
-        title: forced ? 'Mise à jour obligatoire' : 'Mise à jour disponible',
-        message: `La version ${info.version} est disponible.`,
-        detail: forced
-          ? `Mise à jour obligatoire : ${pressure.detail}. ${consent.detail}`
-          : consent.detail,
-        buttons: forced ? ['Ouvrir la page de téléchargement'] : ['Ouvrir la page de téléchargement', 'Plus tard'],
-        defaultId: 0,
-        ...(forced ? {} : { cancelId: 1 }),
-      });
-      if (response === 0) shell.openExternal(RELEASES_URL);
-      else setTimeout(() => { void askToDownload(info); }, reinvite).unref?.();
-      return;
-    }
     const { response } = await dialog.showMessageBox(win, {
       type: 'info',
       title: forced ? 'Mise à jour obligatoire' : 'Mise à jour disponible',
@@ -618,7 +611,9 @@ function setupAutoUpdater(win) {
         : `La version ${info.version} est disponible.`,
       detail: forced
         ? `Retard constaté : ${pressure.detail}. Le téléchargement puis l'installation suivent.`
-        : 'Télécharger la mise à jour maintenant ? L’installation sera proposée ensuite.',
+        : isPortable
+          ? `${consent.detail} — télécharger maintenant ?`
+          : 'Télécharger la mise à jour maintenant ? L’installation sera proposée ensuite.',
       buttons: forced ? ['Télécharger maintenant'] : ['Télécharger et installer', 'Plus tard'],
       defaultId: 0,
       ...(forced ? {} : { cancelId: 1 }),
@@ -717,12 +712,67 @@ function setupAutoUpdater(win) {
     // Sentinel: marks an install attempt. If the app comes up again on this
     // version, purgeStaleUpdaterCache() wipes the shared cache on next start.
     try { fs.writeFileSync(installPendingFlag(), `${new Date().toISOString()}\n`); } catch { /* best-effort */ }
+    // Un poste PORTABLE n'a pas d'installation à mettre à jour : il s'installe
+    // (voir `installPortable`), avec la ligne de commande que la politique décide.
+    if (action.action === 'install') return installPortable(origin);
     log(`installation demandée (${origin}) — silencieuse, avec relance`);
     // Les deux `true` sont la réparation (voir l'en-tête) : silencieux, pour que
     // les défauts `/SD` du gabarit s'appliquent au lieu d'attendre un clic ;
     // relance, pour que l'application revienne sans page finale à valider.
     autoUpdater.quitAndInstall(true, true);
     return { ok: true, action: 'restart' };
+  }
+
+  /**
+   * Installer depuis l'installeur DÉJÀ téléchargé, sur un poste PORTABLE.
+   *
+   * Pourquoi `quitAndInstall` n'est pas employé ici : sa ligne de commande porte
+   * `--updated` (`NsisUpdater.js:107-113`), et ce drapeau décrit la mise à jour
+   * d'une installation EN PLACE — le gabarit s'en sert pour ne PAS recréer de
+   * raccourci bureau (`app-builder-lib/templates/nsis/include/installer.nsh:234-241` :
+   * la création n'a lieu que `${ifNot} ${isUpdated}` quand il n'existe pas déjà).
+   * Ce poste-ci n'a rien à mettre à jour, il s'installe : la ligne est donc celle
+   * de `PORTABLE_INSTALL_ARGS` (`/S --force-run`), décidée et justifiée par la
+   * politique.
+   *
+   * Ce qui reste vrai dans les deux cas : les octets exécutés sont ceux que
+   * `electron-updater` a téléchargés ET vérifiés contre la promesse du flux —
+   * jamais un autre fichier.
+   *
+   * Et si l'installeur ne peut pas être lancé (octets absents, refus d'exécution,
+   * stratégie qui interdit une installation), la page des versions reste la seule
+   * porte de sortie d'un poste portable : elle s'ouvre, parce qu'à ce moment-là
+   * une main humaine EST le remède.
+   *
+   * @param {string} origin qui demande (pour le journal du poste)
+   * @returns {{ ok: boolean, action?: string, reason?: string }}
+   */
+  function installPortable(origin) {
+    const setup = autoUpdater.installerPath;
+    if (!setup || !fs.existsSync(setup)) {
+      log(`installation impossible (${origin}) — l’installeur annoncé n’est pas sur le disque`);
+      shell.openExternal(RELEASES_URL);
+      return { ok: false, reason: 'installeur téléchargé introuvable' };
+    }
+    log(`installation demandée (${origin}) — ${action.args.join(' ')}, puis relance`);
+    try {
+      // `detached` + `unref` : l'installeur doit survivre à ce processus, qui s'en
+      // va juste après — il va le remplacer par une installation.
+      const child = spawn(setup, [...action.args], { detached: true, stdio: 'ignore' });
+      child.on('error', (e) => {
+        log(`installation non lancée — ${(e && e.message) || e}`);
+        shell.openExternal(RELEASES_URL);
+      });
+      child.unref();
+    } catch (e) {
+      log(`installation non lancée — ${(e && e.message) || e}`);
+      shell.openExternal(RELEASES_URL);
+      return { ok: false, reason: 'installeur non exécutable' };
+    }
+    // La relance vient de `--force-run` (le gabarit ne relance qu'en silencieux) :
+    // ce processus doit donc libérer la place.
+    setTimeout(() => { app.quit(); }, 200).unref?.();
+    return { ok: true, action: 'install' };
   }
 
   /**
@@ -761,19 +811,15 @@ function setupAutoUpdater(win) {
     }
     lastPromptAt = Date.now();
     log(`prompt ${verdict.reason}`);
-    if (isPortable) {
-      const { response } = await dialog.showMessageBox(win, {
-        type: 'info',
-        title: forced ? 'Mise à jour obligatoire' : 'Mise à jour disponible',
-        message: `La version ${info.version} est disponible.`,
-        detail: forced ? `Mise à jour obligatoire : ${pressure.detail}. ${action.detail}` : action.detail,
-        buttons: forced ? ['Ouvrir la page de téléchargement'] : ['Ouvrir la page de téléchargement', 'Plus tard'],
-        defaultId: 0,
-        ...(forced ? {} : { cancelId: 1 }),
-      });
-      if (response === 0) shell.openExternal(RELEASES_URL);
-      return;
-    }
+    // Le geste se NOMME selon le poste : un poste installé redémarre, un poste
+    // portable installe (et devient installé). Dire « Redémarrer » à un poste
+    // portable serait une promesse que le bouton ne tient pas.
+    const apply = action.action === 'install'
+      ? {
+          label: 'Installer maintenant',
+          detail: 'L’installeur annoncé par le canal sera exécuté en silencieux, puis l’application redémarrera.',
+        }
+      : { label: 'Redémarrer maintenant', detail: 'Redémarrer maintenant pour appliquer la mise à jour ?' };
     const { response } = await dialog.showMessageBox(win, {
       type: 'info',
       title: forced ? 'Mise à jour obligatoire' : 'Mise à jour disponible',
@@ -781,9 +827,9 @@ function setupAutoUpdater(win) {
         ? `Mise à jour obligatoire : vous êtes en ${app.getVersion()}, la version ${info.version} doit être installée.`
         : `La version ${info.version} est prête à être installée.`,
       detail: forced
-        ? `Retard constaté : ${pressure.detail}. Redémarrer maintenant pour l'appliquer.`
-        : 'Redémarrer maintenant pour appliquer la mise à jour ?',
-      buttons: forced ? ['Redémarrer maintenant'] : ['Redémarrer maintenant', 'Plus tard'],
+        ? `Retard constaté : ${pressure.detail}. ${apply.label}.`
+        : apply.detail,
+      buttons: forced ? [apply.label] : [apply.label, 'Plus tard'],
       defaultId: 0,
       ...(forced ? {} : { cancelId: 1 }),
     });
@@ -901,13 +947,6 @@ function setupAutoUpdater(win) {
     ipcMain.handle('updates:install', async () => {
       if (heldVersion && heldVersion === state.version) {
         return { ok: false, reason: `version ${heldVersion} retenue — installation refusée` };
-      }
-      // Le portable n'a jamais « rien de téléchargé » : sa seule action possible
-      // est la page de téléchargement, et l'y renvoyer est le geste attendu —
-      // surtout quand la mise à jour est obligatoire et qu'il n'a rien d'autre.
-      if (isPortable) {
-        shell.openExternal(RELEASES_URL);
-        return { ok: true, action: 'open-download' };
       }
       // Une version ANNONCÉE mais pas encore téléchargée : le bouton doit
       // télécharger, pas répondre « aucune mise à jour prête ». C'est le seul

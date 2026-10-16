@@ -398,7 +398,7 @@ export function comparePublishedOutsideFeed({ announced = null, assets = [], ver
       line.detail = 'le flux lui-même — il ne se liste pas dans son propre `files[]`';
     } else if (/-portable\.exe$/i.test(name)) {
       line.kind = 'off-feed';
-      line.detail = 'portable — hors du flux par conception : l’auto-installation exige l’installeur NSIS, ce fichier se télécharge à la main';
+      line.detail = 'portable — hors du flux par conception : un poste s’installe et se met à jour par l’installeur NSIS (un poste PORTABLE installe celui-là aussi), donc ce fichier ne se télécharge plus à la main';
     } else if (isManifestAsset(name)) {
       line.kind = 'off-feed';
       line.detail = 'manifeste d’arborescence — aucun poste ne le lit, c’est la preuve du dossier de build';

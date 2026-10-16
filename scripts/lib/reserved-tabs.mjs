@@ -47,6 +47,35 @@
  * l'union `AppTab`, aucun appelant de la table : trois refus ÉCRITS (sortie 2,
  * côté `check-reserved-tabs.mjs`). Un scan qui ne lit plus rien n'est pas un scan
  * propre — c'est le motif qui a disparu, et ce dépôt a déjà payé cette leçon.
+ *
+ * ─── Les SECTIONS ET MODALES, depuis le 2026-10-16 ──────────────────────────
+ * Le même défaut vivait hors des onglets, mesuré le 2026-10-16 : la règle des
+ * rôles financiers était écrite à la main en QUATRE endroits — `role === 'admin'
+ * || role === 'dev' || role === 'general_manager'` dans l'en-tête, et
+ * `isPromoter || isGeneralManager` dans le hook des élèves, la modale d'élève et
+ * le hook des dépenses. Une liste recopiée par surface, dont une seule était
+ * mesurée, et la dernière plus LARGE que la politique qu'elle croyait refléter.
+ *
+ * La table qui remplace ces copies est `src/app/sectionRights.ts`
+ * (`RESERVED_SECTIONS`), lue ici comme celle des onglets, avec les mêmes refus :
+ *
+ *   • `role-composition` — une LISTE de rôles écrite à la main : deux tests de
+ *     rôle ou plus (`role === 'x'`, `isPromoter`, `isGeneralManager`,
+ *     `auth.isAdmin`) combinés par `&&` ou `||` sur la même ligne, hors des
+ *     modules `src/lib/*Rights.ts` où les listes VIVENT. C'est la forme exacte du
+ *     défaut : une composition n'est jamais un droit, c'est une copie de liste.
+ *   • `section-ungated` — une surface que la table déclare et qu'AUCUN écran ne
+ *     DEMANDE. Une surface déclarée sans appelant est une surface que personne ne
+ *     garde.
+ *
+ * Ce qu'il ne juge PAS, et c'est délibéré : une comparaison de rôle UNIQUE (une
+ * étiquette, une classe de couleur — « `role === 'dev' ? violet : …` ») n'est pas
+ * une liste, et le refuser accuserait l'affichage ; une liste de rôles dans un
+ * tableau (le vocabulaire des rôles acceptés par la session, `src/lib/useAuth.ts`)
+ * n'ouvre ni ne ferme aucune surface. Les COMPOSITIONS d'affichage pures (un
+ * compteur, une étiquette de personnel dans `SettingsUsersCard`) restent
+ * déclarables par l'allowlist, avec leur raison — c'est fait une fois, ici, et
+ * l'entrée devient PÉRIMÉE si le code disparaît.
  */
 
 /** Le fichier qui PORTE la table — l'unique source des droits d'onglet. */
@@ -57,6 +86,28 @@ export const TAB_VOCABULARY_SOURCE = 'src/components/Sidebar.tsx';
 
 /** L'appel de la source unique : le SEUL geste autorisé sur une ligne d'onglet. */
 export const SINGLE_SOURCE_CALL = 'canOpenTab';
+
+/** Le fichier qui porte la table des SURFACES d'écran (sections, modales). */
+export const RESERVED_SECTIONS_SOURCE = 'src/app/sectionRights.ts';
+
+/** L'appel de la source unique pour une surface : `canUseSection('<section>', role)`. */
+export const SINGLE_SOURCE_SECTION_CALL = 'canUseSection';
+
+/**
+ * Les booléens d'ÉCRAN qui sont des tests de rôle déguisés.
+ *
+ * `isPromoter` = `auth.isAdmin` et `isGeneralManager` = « le rôle est
+ * `general_manager` » (`src/app/useAuthWelcome.ts`) : les combiner est une LISTE
+ * écrite à la main, exactement comme `role === 'a' || role === 'b'` — les deux
+ * formes étaient présentes dans le défaut du 2026-10-16.
+ */
+export const ROLE_BOOLEAN_ALIASES = ['isPromoter', 'isGeneralManager'];
+
+/**
+ * Les modules où les LISTES de rôles vivent — et où une composition de rôles
+ * n'est donc pas une copie : c'est la définition même du droit.
+ */
+export const ROLE_LIST_MODULE = /^src\/lib\/[A-Za-z]*(Rights|rights)\.ts$/;
 
 /** Les rôles de l'application, tels qu'une comparaison écrite à la main les écrit. */
 export const ROLE_LITERALS = ['admin', 'dev', 'general_manager', 'econome', 'staff'];
@@ -95,6 +146,16 @@ export const RULES = {
   'roles-unimported': {
     label: 'un identifiant de rôles qui ne vient pas d’un src/lib/*Rights.ts',
     remedy: 'importez la liste depuis `../lib/…Rights` — une liste locale n’est le miroir d’aucune policy',
+  },
+  'role-composition': {
+    label: 'une liste de rôles écrite à la main (deux tests de rôle combinés)',
+    remedy:
+      'le droit se DEMANDE : la table des surfaces (`RESERVED_SECTIONS`, src/app/sectionRights.ts) ou celle des onglets (`RESERVED_TABS`) ; les listes vivent dans src/lib/*Rights.ts',
+  },
+  'section-ungated': {
+    label: 'une surface réservée que personne ne demande',
+    remedy:
+      'la surface s’ouvre en appelant `canUseSection(\'<section>\', role)` là où elle est montrée (ou gardée) — une surface déclarée sans appelant ne garde rien',
   },
 };
 
