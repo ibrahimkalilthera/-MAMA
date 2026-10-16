@@ -36,6 +36,7 @@ import { useBackgroundRefresh } from './app/useBackgroundRefresh';
 import { DensityContext } from './app/densityContext';
 import { IconGlassContext } from './app/iconGlassContext';
 import { useDisplayPreferences } from './app/useDisplayPreferences';
+import { useSchoolName } from './app/useSchoolName';
 import { getStoredLanguage } from './lib/displayPreferences';
 import { getAppEnv, formatSupabaseError } from './lib/networkUtils';
 import { AppShell } from './components/AppShell';
@@ -604,11 +605,18 @@ const {
     setLang,
   });
 
+  // Le nom de l'école : un fait de l'ÉTABLISSEMENT, pas une préférence de poste.
+  // Lu une fois ici, il descend au shell AUSSI à côté du nom de la machine — les
+  // deux remontées (blocage, conversion) écrivent alors de quelle école parle le
+  // poste, ce que le relevé de parc ne peut pas déduire. Voir useSchoolName.
+  const schoolNameBindings = useSchoolName({ userId: auth.profile?.id ?? null });
+
   const shellProps = buildShellProps({
     ...supabaseData,
     ...authWelcomeData,
     ...usersData,
     ...themeData,
+    ...schoolNameBindings,
     // Le thème du shell passe par le domaine des préférences : il publie le
     // changement en base en plus de le poser sur le poste.
     setTheme: displayPreferences.setTheme,

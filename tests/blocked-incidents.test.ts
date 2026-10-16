@@ -25,28 +25,31 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import type { AuditLogEntry } from '../src/lib/auditLogger';
-import { blockedAuditEntry, journalAuditEntry } from '../src/lib/desktopUpdateReport';
+import { CONVERSION_CODE, blockedAuditEntry, journalAuditEntry } from '../src/lib/desktopUpdateReport';
 import type { QueuedReport } from '../src/lib/desktopUpdateReport';
 import { blockedIncidents, incidentRows, parseBlockedReport } from '../src/lib/blockedIncidents';
 import { en as adminEn } from '../src/i18n/domains/adminEn';
 import { fr as adminFr } from '../src/i18n/domains/adminFr';
 
 /** Un rapport EN DIRECT, composé par le module de remontée lui-même. */
-function live(station: string, at: string, options: { currentVersion?: string; version?: string; detail?: string } = {}): AuditLogEntry {
+function live(station: string, at: string, options: { currentVersion?: string; version?: string; detail?: string; school?: string } = {}): AuditLogEntry {
   const entry = blockedAuditEntry(
     {
       blocked: { code: 'download', detail: options.detail ?? 'Cannot download "MamaTheraFinance-2.0.0-setup.exe", status 404', station, journal: 'C:/Users/x/update-journal.jsonl', recorded: true },
       version: options.version ?? '2.0.0',
       currentVersion: options.currentVersion ?? '1.0.5',
     },
-    { station },
+    // `school` n'est passé que quand le cas s'en sert : un rapport sans nom
+    // d'école reste celui de la majorité des cas (et c'est la forme qu'un poste
+    // dont la lecture a échoué produira).
+    { station, ...(options.school ? { school: options.school } : {}) },
   );
   assert.ok(entry, 'le producteur doit rendre un rapport pour un poste bloqué');
   return { id: `live-${station}-${at}`, action: entry.action, targetType: entry.targetType, targetId: entry.targetId ?? undefined, details: entry.details, createdAt: at };
 }
 
 /** Un rapport REMONTÉ DE LA FILE, composé par le module de remontée lui-même. */
-function queued(station: string, at: string, options: { occurrences?: number; version?: string; currentVersion?: string } = {}): AuditLogEntry {
+function queued(station: string, at: string, options: { occurrences?: number; version?: string; currentVersion?: string; school?: string } = {}): AuditLogEntry {
   const entry: QueuedReport = {
     code: 'download',
     detail: 'Cannot download "MamaTheraFinance-2.0.0-setup.exe", status 404',
@@ -56,7 +59,7 @@ function queued(station: string, at: string, options: { occurrences?: number; ve
     at: '2026-09-12T21:00:00.000Z',
     occurrences: options.occurrences ?? 3,
   };
-  const report = journalAuditEntry(entry, { station });
+  const report = journalAuditEntry(entry, { station, ...(options.school ? { school: options.school } : {}) });
   assert.ok(report);
   return { id: `queued-${station}-${at}`, action: report.action, targetType: report.targetType, targetId: report.targetId ?? undefined, details: report.details, createdAt: at };
 }
@@ -84,6 +87,30 @@ describe('lire un rapport de poste bloqué', () => {
     assert.doesNotMatch(late?.motif ?? '', /bloqué 7 fois/);
   });
 
+  it('le nom de l’école, posé juste après la station, ne décale NI le motif NI les versions', () => {
+    // Le lecteur cherche ses champs par leur PRÉFIXE (`poste `, `version `,
+    // `motif : `) et borne le motif à la rencontre du premier marqueur qui le
+    // suit : un champ ajouté après la station ne décale donc rien. Ce cas le
+    // mesure — c'est la moitié « lecture » de l'ajout du nom d'école, l'autre
+    // moitié étant la composition (`tests/gate-report.test.ts`).
+    const withSchool = parseBlockedReport(live('POSTE-A', '2026-09-13T08:00:00.000Z', { school: 'Complexe Scolaire Mama Thera' }));
+    const without = parseBlockedReport(live('POSTE-A', '2026-09-13T08:00:00.000Z'));
+    assert.ok(withSchool && without);
+    assert.equal(withSchool.station, without.station, 'la station reste la première chose lue');
+    assert.equal(withSchool.currentVersion, without.currentVersion);
+    assert.equal(withSchool.targetVersion, without.targetVersion);
+    assert.equal(withSchool.motif, without.motif, 'le champ école ne doit pas entrer dans le motif');
+    assert.doesNotMatch(withSchool.motif, /école/, 'ni être lu comme la suite du message d’erreur');
+
+    // Le même contrôle sur une remontée TARDIVE (le champ est posé sur les deux
+    // formes du fait) : ni le compte ni l'instant ne doivent en souffrir.
+    const late = parseBlockedReport(queued('POSTE-B', '2026-09-13T09:00:00.000Z', { occurrences: 7, school: 'Complexe Scolaire Mama Thera' }));
+    assert.equal(late?.occurrences, 7);
+    assert.equal(late?.occurredAt, '2026-09-12T21:00:00.000Z');
+    assert.equal(late?.queued, true);
+    assert.equal(late?.station, 'POSTE-B');
+  });
+
   it('une entrée qui n’est pas un rapport de poste, ou qu’on ne sait pas lire, n’en est pas un', () => {
     assert.equal(parseBlockedReport(null), null);
     assert.equal(parseBlockedReport({ id: 'x', action: 'RECORD_PAYMENT', details: 'paiement', createdAt: '2026-09-13T08:00:00.000Z' }), null);
@@ -107,6 +134,24 @@ describe('plusieurs postes, une panne', () => {
     assert.equal(incidents[0].firstAt, '2026-09-13T08:00:00.000Z');
     assert.equal(incidents[0].lastAt, '2026-09-13T08:30:00.000Z');
     assert.deepEqual(incidents[0].reports.map((r) => r.createdAt), ['2026-09-13T08:30:00.000Z', '2026-09-13T08:00:00.000Z']);
+  });
+
+  it('le nom de l’école ne fait PAS une panne à part — deux écoles bloquées par le même 404 restent un incident', () => {
+    // L'école n'entre pas dans la clé de l'incident, et c'est la même décision que
+    // pour la station : une panne est une CAUSE. Un 404 servi par le même canal
+    // frappe les deux écoles pour la même raison, et les séparer referait, à
+    // l'échelle du parc, la faute que ce module existe pour corriger — un motif
+    // noyé dans des répétitions. Ce qui est par école, c'est la LIGNE (chaque
+    // remontée porte la sienne), donc l'administrateur qui déplie lit qui est
+    // touché, et où.
+    const school = 'Complexe Scolaire Mama Thera';
+    const incidents = blockedIncidents([
+      live('POSTE-A', '2026-09-13T08:00:00.000Z', { school }),
+      live('POSTE-B', '2026-09-13T08:30:00.000Z', { school }),
+    ]);
+    assert.equal(incidents.length, 1);
+    assert.deepEqual(incidents[0].stations, ['POSTE-B', 'POSTE-A'], 'les deux machines de l’école sont nommées');
+    assert.match(incidents[0].reports[0].details ?? '', /école Complexe Scolaire Mama Thera/);
   });
 
   it('un signalement en direct et une remontée tardive de la MÊME panne se rejoignent', () => {
@@ -151,6 +196,57 @@ describe('plusieurs postes, une panne', () => {
       live('POSTE-B', '2026-09-13T08:05:00.000Z', { detail: 'cannot download "x-setup.exe", status 404' }),
     ]);
     assert.equal(incidents.length, 1);
+  });
+});
+
+describe('une CONVERSION traverse le même canal sans devenir une panne', () => {
+  /** Une remontée de conversion, composée par le PRODUCTEUR — jamais recopiée. */
+  const converted = (station: string, at: string): AuditLogEntry => {
+    const report = journalAuditEntry(
+      {
+        code: CONVERSION_CODE,
+        detail: "l'installateur annoncé a été exécuté en silencieux",
+        station,
+        version: '1.0.39',
+        currentVersion: '1.0.38',
+        at: '2026-10-16T09:00:00.000Z',
+      },
+      { station },
+    );
+    assert.ok(report);
+    return {
+      id: `converted-${station}`,
+      action: report.action,
+      targetType: report.targetType,
+      targetId: report.targetId ?? undefined,
+      details: report.details,
+      createdAt: at,
+    };
+  };
+
+  it('elle n’entre dans AUCUN incident, et n’en fabrique pas', () => {
+    const conversion = converted('POSTE-A', '2026-10-16T09:00:00.000Z');
+    assert.equal(parseBlockedReport(conversion), null, 'ce n’est pas un rapport de poste bloqué');
+    assert.equal(blockedIncidents([conversion]).length, 0, 'une conversion n’est pas une panne');
+    // Et elle ne rejoint pas l'incident d'un poste VRAIMENT bloqué : la fondre
+    // dans les lignes de panne ferait lire le basculement comme un échec — et
+    // l'agréger à un incident ferait disparaître la panne derrière la bonne
+    // nouvelle, qui est le mauvais sens de l'erreur.
+    const rows = incidentRows([live('POSTE-A', '2026-10-16T09:30:00.000Z'), conversion]);
+    assert.equal(rows.filter((row) => row.kind === 'incident').length, 1);
+    assert.equal(rows.filter((row) => row.kind === 'log').length, 1, 'la conversion reste une ligne à part, lisible telle quelle');
+    const only = rows.find((row) => row.kind === 'log');
+    assert.ok(only && only.kind === 'log' && /converti en poste installé/.test(only.log.action));
+  });
+
+  it('elle NOMME le poste : la seule réponse que la machine puisse donner', () => {
+    const rows = incidentRows([converted('POSTE-DIRECTION', '2026-10-16T09:00:00.000Z')]);
+    assert.equal(rows.length, 1);
+    const [row] = rows;
+    assert.equal(row.kind, 'log');
+    assert.ok(row.kind === 'log');
+    assert.match(row.log.details ?? '', /poste POSTE-DIRECTION/);
+    assert.match(row.log.details ?? '', /version 1\.0\.38 → 1\.0\.39/);
   });
 });
 

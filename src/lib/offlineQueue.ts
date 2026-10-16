@@ -41,7 +41,10 @@ export type OfflineActionType =
   | 'setCurrentYear'
   | 'addAuditLog'
   | 'updateUserRole'
-  | 'setDisplayPreference';
+  | 'setDisplayPreference'
+  // Le nom de l'école déclaré sans réseau (voir OfflinePayload, plus bas) : le
+  // geste attend la ligne comme les autres, et il part au drainage suivant.
+  | 'setSchoolName';
 
 /** Une classe personnalisée, telle que le formulaire la produit (codes compris). */
 export interface QueuedClassFields {
@@ -143,7 +146,18 @@ export type OfflinePayload =
    * endroit, et une file écrite par une version antérieure ne peut pas porter
    * une clé que le contrat ne connaît pas.
    */
-  | { type: 'setDisplayPreference'; payload: { name: DisplayPreferenceName; value: string } };
+  | { type: 'setDisplayPreference'; payload: { name: DisplayPreferenceName; value: string } }
+  /**
+   * Le NOM DE L'ÉCOLE déclaré sans réseau.
+   *
+   * Ce n'est pas une préférence de poste : c'est un fait de l'ÉTABLISSEMENT,
+   * écrit une fois pour tout le parc (`school.name`), et il accompagne ensuite
+   * chaque remontée de poste. Le nom voyage plutôt que la clé `app_settings` —
+   * la correspondance nom → clé n'existe qu'à un endroit
+   * (`src/lib/schoolName.ts`), et une file écrite par une version antérieure ne
+   * peut pas porter une clé que le contrat ne connaît pas.
+   */
+  | { type: 'setSchoolName'; payload: { name: string } };
 
 export interface QueueItemBase {
   id: string;
