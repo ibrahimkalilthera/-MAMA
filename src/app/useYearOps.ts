@@ -11,6 +11,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { User, Student, Expense, VendorExpense, SalaryPayment } from './types';
 import type { TranslationDict } from '../i18n/translations';
+import { canUseSection } from './sectionRights';
 
 export interface UseYearOpsDeps {
   t: TranslationDict;
@@ -66,7 +67,12 @@ export function useYearOps(deps: UseYearOpsDeps) {
   };
 
   const handleCloseCurrentYear = async () => {
-    if (currentUser?.role !== 'admin' && currentUser?.role !== 'dev') {
+    // Le droit de FERMER l'année se DEMANDE à la surface `year-close`
+    // (`src/app/sectionRights.ts`) — la MÊME que la section qui offre le bouton
+    // dans les Archives : l'écran ne peut plus montrer un bouton sans que le
+    // geste l'accepte, ni l'inverse. La liste (`public.is_admin()`) n'est plus
+    // écrite en clair ici.
+    if (!canUseSection('year-close', currentUser?.role)) {
       toastError(t.onlyPromoterOwnerCanCloseAcademicYears);
       return;
     }

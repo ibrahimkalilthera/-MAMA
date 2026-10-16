@@ -485,8 +485,10 @@ export const fr = {
     updateDownloadFailed: "Échec du téléchargement de la version {version} : {detail}",
     updateDownloading: "Mise à jour en cours de téléchargement ({percent} %)",
     updateReady: "Version {version} prête : redémarrer pour l'installer.",
-    updateReadyManual: "Version {version} disponible : la télécharger pour l'installer.",
     updateRestartNow: "Redémarrer",
+    // Le geste d'un poste PORTABLE, qui n'a rien à redémarrer : il installe
+    // l'installeur annoncé par le canal (voir `updateAction`).
+    updateInstallNow: "Installer",
     updateDownloadNow: "Télécharger",
     updateDismiss: "Masquer",
     updateForcedTitle: "Mise à jour obligatoire",

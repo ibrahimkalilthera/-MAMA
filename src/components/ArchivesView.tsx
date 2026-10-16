@@ -5,6 +5,7 @@ import type { MultiYearReportOptions } from '../lib/pdfMultiYearReport';
 import { MultiYearChart } from './MultiYearChart';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EmptyState } from './SharedUi';
+import { canUseSection } from '../app/sectionRights';
 
 export interface ArchivesViewProps {
   lang: 'en' | 'fr';
@@ -166,7 +167,7 @@ export function ArchivesView(props: ArchivesViewProps) {
             </div>
 
             {/* Ibrahim / Admin - Close Out Current Year Section */}
-            {(currentUser?.role === 'admin' || currentUser?.role === 'dev') && (
+            {canUseSection('year-close', currentUser?.role) && (
               <div className={`${currentTheme.card} p-10 rounded-3xl border-2 border-rose-100 dark:border-rose-950/50 bg-rose-50/20 shadow-xl shadow-rose-100/10 no-print`}>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                   <div className="space-y-3 max-w-2xl">
