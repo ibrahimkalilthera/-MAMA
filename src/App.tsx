@@ -72,7 +72,7 @@ export default function App() {
   // extracted to src/app/useAuthWelcome.ts.
   const authWelcomeData = useAuthWelcome({ t, activeTab, setActiveTab });
   const {
-    auth, currentUser, isPromoter, isGeneralManager, authLoading,
+    auth, currentUser, isPromoter, authLoading,
     userProfiles, setUserProfiles,
     welcomeMessage, setWelcomeMessage,
   } = authWelcomeData;
@@ -219,7 +219,7 @@ const {
   // Expenses/vendors domain (modals, filters, calendar, forms, tickets) —
   // extracted to src/app/useExpenses.ts.
   const expensesData = useExpenses({
-    t, lang, selectedYear, lockedYears, isPromoter, isGeneralManager, currentUser,
+    t, lang, selectedYear, lockedYears, isPromoter, currentUser,
     addExpense, deleteExpense, addVendorExpense, updateVendorExpense, deleteVendorExpense,
     showToast,
     toastError: (msg) => toast.error(msg),
@@ -256,7 +256,7 @@ const {
   // Students domain (list, sort, add/edit modal, notes, flags, A4 print) —
   // extracted to src/app/useStudents.ts.
   const studentsData = useStudents({
-    t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager,
+    t, lang, today, selectedYear, lockedYears, currentUser,
     students, addStudent, updateStudent,
     showToast,
     toastError: (msg) => toast.error(msg),

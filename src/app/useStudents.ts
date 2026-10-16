@@ -16,12 +16,13 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import type { Student } from './types';
+import type { Student, User } from './types';
 import type { StudentForm } from '../components/StudentFormModal';
 import type { TranslationDict } from '../i18n/translations';
 import { studentMatricule } from '../lib/studentIdentifiers';
 import { localIsoDate, systemClock, type Clock } from '../lib/dateWindows';
 import { createRowId } from '../lib/rowMappers';
+import { canUseSection } from './sectionRights';
 
 export type StudentSortKey = 'name' | 'parentName' | 'balance' | 'dueDate';
 
@@ -31,9 +32,14 @@ export interface UseStudentsDeps {
   today: string;
   selectedYear: string;
   lockedYears: string[];
-  isPromoter: boolean;
-  /** Gestionnaire Principal — may edit scholarship discounts like the promoter. */
-  isGeneralManager: boolean;
+  /**
+   * La personne connectée. Son RÔLE décide de la remise sur frais de scolarité —
+   * et il le décide par la surface `scholarship-edit` (`src/app/sectionRights.ts`),
+   * lue sur `public.is_finance_admin()`. Le hook ne compose plus
+   * `isPromoter || isGeneralManager` : deux booléens de rôle additionnés ici
+   * étaient une QUATRIÈME copie de la liste, non mesurée.
+   */
+  currentUser: User | null;
   students: Student[];
   addStudent: (s: Omit<Student, 'id' | 'payments'> & { id?: string }) => Promise<Student | null>;
   updateStudent: (id: string, updates: Partial<Student>) => Promise<boolean>;
@@ -73,13 +79,16 @@ const emptyStudentForm = (today: string): StudentForm => ({
 });
 
 export function useStudents(deps: UseStudentsDeps) {
-  const { t, lang, today, selectedYear, lockedYears, isPromoter, isGeneralManager, students, addStudent, updateStudent, showToast, toastError, now: nowFn = systemClock } = deps;
+  const { t, lang, today, selectedYear, lockedYears, currentUser, students, addStudent, updateStudent, showToast, toastError, now: nowFn = systemClock } = deps;
   // Le jour local du repère d'horloge : les défauts de formulaire (dueDate /
   // enrollmentDate) naissent au mois courant de ce repère, pas d'une horloge murale.
   const todayIso = localIsoDate(nowFn());
-  // Scholarship discounts are a finance-admin power: promoter/admin AND the
-  // Gestionnaire Principal.
-  const canEditScholarship = isPromoter || isGeneralManager;
+  // La remise sur frais de scolarité est un acte de gestionnaire financier : la
+  // surface `scholarship-edit` le dit UNE fois (`src/app/sectionRights.ts`), et
+  // la modale reçoit ce booléen au lieu de recomposer la liste (`canEditScholarship`
+  // dans `AppModalsProps`). La garde d'écriture et celle du champ disent donc la
+  // même chose par construction, pas par recopie.
+  const canEditScholarship = canUseSection('scholarship-edit', currentUser?.role);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -369,5 +378,6 @@ export function useStudents(deps: UseStudentsDeps) {
     openEditModal,
     handleSaveNote,
     toggleFlag,
+    canEditScholarship,
   };
 }

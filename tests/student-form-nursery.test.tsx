@@ -170,8 +170,10 @@ function mount(
           canDelete: false,
           availableClasses: DEFAULT_SCHOOL_CLASSES as ManagedClass[],
           academicYears: ['2026-2027'],
-          isPromoter: true,
-          isGeneralManager: false,
+          // La modale ne compose plus de rôle : elle demande le DROIT (surface
+          // `scholarship-edit`, `src/app/sectionRights.ts`). `true` porte exactement
+          // ce que portait `isPromoter: true` — le droit de remettre une remise.
+          canEditScholarship: true,
           currentTheme: theme,
         }),
       ),

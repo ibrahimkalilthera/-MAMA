@@ -141,3 +141,22 @@ export function canDeleteVendorExpenses(role: string | null | undefined): boolea
 export function canDeleteSalaryPayments(role: string | null | undefined): boolean {
   return (SALARY_PAYMENT_DELETER_ROLES as readonly string[]).includes(norm(role));
 }
+
+/**
+ * Ce rôle peut-il exercer les gestes d'ÉCRAN que la base réserve à
+ * `public.is_finance_admin()` sans qu'ils soient une destruction — importer un
+ * classeur, remettre une frais de scolarité ?
+ *
+ * MÊME liste que `canDeleteVendorExpenses` : ce n'est pas une seconde liste,
+ * c'est la même, nommée pour ce qu'elle décide ici (comme
+ * `VENDOR_EXPENSE_DELETER_ROLES` l'est de `FINANCE_ADMIN_ROLES`). Ce que cette
+ * fonction change n'est pas le droit, c'est l'ENDROIT où il s'écrit : l'écran
+ * composait `isPromoter || isGeneralManager` — les deux booléens d'un rôle — en
+ * TROIS exemplaires (`useStudents`, `StudentFormModal`, `useExpenses`) et
+ * écrivait la liste en clair dans l'en-tête. Quatre copies d'une même règle,
+ * dont une seule était mesurée : c'est la classe de défaut du 2026-10-15, celui
+ * des trois surfaces de l'onglet réservé.
+ */
+export function canManageFinanceRecords(role: string | null | undefined): boolean {
+  return (FINANCE_ADMIN_ROLES as readonly string[]).includes(norm(role));
+}
