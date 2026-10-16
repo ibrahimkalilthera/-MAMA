@@ -10,7 +10,7 @@
 -- Régénération :  node supabase/regenerate-full-setup.mjs
 -- Vérification :  node supabase/regenerate-full-setup.mjs --check
 --
--- Ce script est la concaténation des 43 migrations suivantes, dans
+-- Ce script est la concaténation des 45 migrations suivantes, dans
 -- l'ordre chronologique de leur nom de fichier :
 --
 --   20260801000000_init.sql
@@ -56,6 +56,8 @@
 --   20261018000000_station_versions.sql
 --   20261019000000_display_preferences.sql
 --   20261020000000_econome_payment_history.sql
+--   20261021000000_station_install_mode.sql
+--   20261022000000_school_name.sql
 --
 -- Exécuté dans le Supabase SQL Editor, il recrée le schéma complet
 -- (tables, index, fonctions, triggers, politiques RLS, données de
@@ -3212,3 +3214,302 @@ CREATE POLICY "Payment history viewers read payment gestures"
 
 -- ─── PostgREST schema cache reload ──────────────────────────────────────────
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- MIGRATION : 20261021000000_station_install_mode.sql
+-- ============================================================================
+
+-- ============================================================================
+-- MAMA THERA Finance Suite — LA TRACE DES CONVERSIONS PORTABLE → INSTALLÉ
+-- ============================================================================
+-- Spécification : docs/CANAL_MISE_A_JOUR.md §7 (« Battement de version »).
+--
+-- ─── Pourquoi cette migration existe ───────────────────────────────────────
+-- Depuis le 2026-10-16, un poste PORTABLE n'est plus condamné à rester en
+-- arrière : il télécharge l'installeur annoncé, l'exécute en silencieux et
+-- devient un poste INSTALLÉ, qui se met à jour tout seul ensuite (voir
+-- `electron/updater-policy.cjs`, `PORTABLE_INSTALL_ARGS`). Le geste est décidé,
+-- testé, justifié — mais RIEN ne disait qu'il avait eu lieu. Le relevé du parc
+-- (§7) portait la version et l'état du dernier contrôle, jamais la FORME du
+-- poste : une école dont le poste restait portable était indiscernable d'une
+-- école dont le poste s'était converti, et « le parc s'est converti » serait
+-- resté une espérance — exactement ce que la section 7 a été écrite pour
+-- supprimer. C'est la même leçon que la section 6 : un fait qui n'est pas relevé
+-- se prouve poste par poste, c'est-à-dire ne se prouve pas.
+--
+-- ─── Ce que la conversion EST, et ce qu'elle n'est pas ─────────────────────
+-- Deux faits DISTINCTS, et ils sont rangés séparément :
+--   • `install_mode` — ce que le poste DIT de lui-même à son dernier battement :
+--     `portable` ou `installed`, ou NULL quand il ne le MESURE pas (une
+--     application non empaquetée n'a pas de forme à déclarer) ;
+--   • `converted_at` / `converted_to_version` — la PREMIÈRE conversion
+--     portable → installé OBSERVÉE sur cette ligne, horodatée par la BASE et
+--     jamais effacée : c'est la trace, et elle survit à une réinstallation comme
+--     à un poste qui redémarrerait un jour sous sa forme portable (le fait a eu
+--     lieu ; l'effacer serait réécrire l'histoire).
+-- Le mode COURANT et la trace ne disent donc pas la même chose, et les confondre
+-- — lire « install_mode = portable » comme « ne s'est jamais converti » —
+-- perdrait précisément le cas qu'on veut constater.
+--
+-- ─── La transition est reconnue DANS la fonction, et pourquoi ──────────────
+-- Le relevé ne conserve aucune histoire : une ligne par poste, remplacée à
+-- chaque battement (migration du 2026-10-18). Une transition ne peut donc être
+-- vue qu'au moment où elle arrive, en comparant la ligne EN PLACE à ce qui
+-- arrive — le seul instant où l'ancienne et la nouvelle valeur existent
+-- ensemble. C'est pourquoi la reconnaissance vit dans l'instruction d'écriture
+-- elle-même (`ON CONFLICT … DO UPDATE`, dont les expressions lisent la ligne
+-- d'AVANT), et non dans une lecture préalable : aucune course n'est possible
+-- entre ce qui serait lu et ce qui serait écrit.
+--
+-- Le sens compte : `portable` → `installed`, et lui seul. L'inverse (relancer
+-- l'exe portable sur une machine installée) n'est pas une conversion mais un
+-- retour en arrière ; il ne produit aucune trace, et le mode du jour, lui, dit
+-- la vérité.
+--
+-- ─── La signature change, donc l'ancienne fonction est RETIRÉE ─────────────
+-- Postgres identifie une fonction par (nom, liste des types d'arguments) : un
+-- `CREATE OR REPLACE` avec un argument de plus ne remplace RIEN, il AJOUTE une
+-- surcharge. Deux surcharges rendraient ambigu l'appel d'un poste resté sur la
+-- version en service (cinq arguments nommés, que les deux candidates acceptent
+-- grâce à leurs défauts) — et un poste qui n'arrive plus à battre est la panne
+-- silencieuse même que la section 7 existe pour supprimer. L'ancienne signature
+-- est donc retirée explicitement, et la nouvelle porte
+-- `p_install_mode TEXT DEFAULT NULL` pour que les postes déjà équipés
+-- continuent de battre sans rien changer.
+--
+-- Les bornes et les GRANT de la version précédente sont repris À L'IDENTIQUE :
+-- cette migration change la forme du battement, jamais qui peut battre.
+-- ============================================================================
+
+-- ─── Les trois colonnes, et leurs bornes NOMMÉES ───────────────────────────
+-- L'énumération est contrainte ici comme `last_check` l'est : un mode libre
+-- rendrait la répartition fausse sans que personne ne s'en aperçoive, et c'est
+-- exactement la lecture qu'on vient chercher dans ce relevé.
+ALTER TABLE public.station_versions
+    ADD COLUMN IF NOT EXISTS install_mode TEXT;
+
+ALTER TABLE public.station_versions
+    ADD COLUMN IF NOT EXISTS converted_at TIMESTAMPTZ;
+
+ALTER TABLE public.station_versions
+    ADD COLUMN IF NOT EXISTS converted_to_version TEXT;
+
+ALTER TABLE public.station_versions
+    DROP CONSTRAINT IF EXISTS station_versions_install_mode_enum;
+ALTER TABLE public.station_versions
+    ADD CONSTRAINT station_versions_install_mode_enum
+    CHECK (install_mode IS NULL OR install_mode IN ('portable', 'installed'));
+
+-- La version à laquelle la conversion a été observée : bornée comme
+-- `app_version`, parce que c'est la même chose vue au moment du basculement.
+ALTER TABLE public.station_versions
+    DROP CONSTRAINT IF EXISTS station_versions_converted_to_version_bounds;
+ALTER TABLE public.station_versions
+    ADD CONSTRAINT station_versions_converted_to_version_bounds
+    CHECK (converted_to_version IS NULL OR char_length(converted_to_version) BETWEEN 1 AND 32);
+
+COMMENT ON COLUMN public.station_versions.install_mode IS
+    'Forme du poste telle qu''il la DÉCLARE (portable / installed). NULL = pas mesurée (application non empaquetée, ou poste pas encore à jour de ce champ) — jamais devinée.';
+COMMENT ON COLUMN public.station_versions.converted_at IS
+    'Horodatage (posé par la BASE) de la PREMIÈRE conversion portable → installé observée sur ce poste. Jamais effacé : la colonne dit un fait, pas l''état du jour.';
+COMMENT ON COLUMN public.station_versions.converted_to_version IS
+    'La version que le poste exécutait au battement qui a porté la conversion (celle du passage, pas la version du jour).';
+
+-- ─── Le geste, remplacé — et l'ancienne signature retirée ──────────────────
+DROP FUNCTION IF EXISTS public.record_station_beat(TEXT, TEXT, TEXT, TEXT, TEXT);
+
+CREATE OR REPLACE FUNCTION public.record_station_beat(
+    p_station_id TEXT,
+    p_app_version TEXT,
+    p_os_version TEXT DEFAULT NULL,
+    p_last_check TEXT DEFAULT 'ok',
+    p_last_check_version TEXT DEFAULT NULL,
+    p_install_mode TEXT DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_station_id TEXT := btrim(coalesce(p_station_id, ''));
+    v_app_version TEXT := btrim(coalesce(p_app_version, ''));
+    v_os_version TEXT := nullif(btrim(coalesce(p_os_version, '')), '');
+    v_last_check TEXT := btrim(coalesce(p_last_check, 'ok'));
+    v_last_check_version TEXT := nullif(btrim(coalesce(p_last_check_version, '')), '');
+    v_install_mode TEXT := nullif(btrim(coalesce(p_install_mode, '')), '');
+BEGIN
+    -- Le refus est BRUYANT et nommé : une écriture silencieusement tronquée
+    -- ferait croire à un battement reçu alors que la base porte autre chose.
+    IF char_length(v_station_id) < 8 OR char_length(v_station_id) > 64 THEN
+        RAISE EXCEPTION 'station_id invalide : longueur % hors bornes (8..64)', char_length(v_station_id)
+            USING ERRCODE = 'check_violation';
+    END IF;
+    IF char_length(v_app_version) < 1 OR char_length(v_app_version) > 32 THEN
+        RAISE EXCEPTION 'app_version invalide : longueur % hors bornes (1..32)', char_length(v_app_version)
+            USING ERRCODE = 'check_violation';
+    END IF;
+    IF v_os_version IS NOT NULL AND char_length(v_os_version) > 32 THEN
+        RAISE EXCEPTION 'os_version invalide : longueur % hors bornes (0..32)', char_length(v_os_version)
+            USING ERRCODE = 'check_violation';
+    END IF;
+    IF v_last_check NOT IN ('ok', 'feed-absent', 'html', 'unreachable') THEN
+        RAISE EXCEPTION 'last_check invalide : « % » n''est pas un état connu', v_last_check
+            USING ERRCODE = 'check_violation';
+    END IF;
+    IF v_last_check_version IS NOT NULL AND char_length(v_last_check_version) > 32 THEN
+        RAISE EXCEPTION 'last_check_version invalide : longueur % hors bornes (0..32)', char_length(v_last_check_version)
+            USING ERRCODE = 'check_violation';
+    END IF;
+    -- Une forme inventée est refusée par la base, comme les quatre états du
+    -- contrôle : `NULL` veut dire « pas mesurée », jamais « autre chose ».
+    IF v_install_mode IS NOT NULL AND v_install_mode NOT IN ('portable', 'installed') THEN
+        RAISE EXCEPTION 'install_mode invalide : « % » n''est pas une forme connue (portable, installed)', v_install_mode
+            USING ERRCODE = 'check_violation';
+    END IF;
+
+    -- Une ligne par poste, et le battement REMPLACE : `seen_at` avance à chaque
+    -- appel (c'est lui qui décide du silence dans le relevé), et l'historique
+    -- n'est pas conservé — sauf la trace de la conversion ci-dessous, qui est le
+    -- seul fait de ce relevé qui parle du PASSÉ plutôt que du jour.
+    INSERT INTO public.station_versions (
+        station_id, app_version, os_version, last_check, last_check_version,
+        install_mode, seen_at
+    )
+    VALUES (
+        v_station_id, v_app_version, v_os_version, v_last_check, v_last_check_version,
+        v_install_mode, timezone('utc'::text, now())
+    )
+    ON CONFLICT (station_id) DO UPDATE SET
+        app_version = excluded.app_version,
+        os_version = excluded.os_version,
+        last_check = excluded.last_check,
+        last_check_version = excluded.last_check_version,
+        -- Un battement qui ne MESURE pas la forme n'efface pas celle mesurée
+        -- avant : un poste ne cesse pas d'avoir une forme parce qu'il s'est tu
+        -- sur elle (poste resté sur une version qui ne l'envoie pas encore).
+        install_mode = COALESCE(excluded.install_mode, station_versions.install_mode),
+        -- La PREMIÈRE conversion observée, et elle seule : `COALESCE` garde la
+        -- date déjà inscrite, donc une seconde lecture de la même transition
+        -- (et la suivante, si le poste repassait par le portable) ne la déplace
+        -- pas. `excluded.seen_at` est l'horodatage du battement qui a porté la
+        -- transition — posé par la base, jamais par l'horloge du poste.
+        converted_at = CASE
+            WHEN station_versions.install_mode = 'portable'
+             AND excluded.install_mode = 'installed'
+                THEN COALESCE(station_versions.converted_at, excluded.seen_at)
+            ELSE station_versions.converted_at
+        END,
+        converted_to_version = CASE
+            WHEN station_versions.install_mode = 'portable'
+             AND excluded.install_mode = 'installed'
+                THEN COALESCE(station_versions.converted_to_version, excluded.app_version)
+            ELSE station_versions.converted_to_version
+        END,
+        seen_at = excluded.seen_at;
+END;
+$$;
+
+COMMENT ON FUNCTION public.record_station_beat(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) IS
+    'Le battement d''un poste (§7 du canal) : le seul chemin d''écriture de station_versions, ouvert à `anon` et à lui seul. Le privilège UPDATE sur la table n''existe pour personne : c''est cette fonction qui remplace la ligne du poste — et qui y inscrit la première conversion portable → installé observée.';
+
+-- Supabase accorde EXECUTE à `anon` ET `public` par défaut sur une fonction
+-- neuve : on retire les deux, puis on rend le geste au SEUL `anon`. Le `DROP`
+-- ci-dessus a emporté le GRANT de la version précédente avec la fonction, donc
+-- ces trois instructions sont la seule raison pour laquelle le parc continue de
+-- pouvoir battre : les tenir ici, c'est tenir la seule écriture anonyme de
+-- l'application.
+REVOKE ALL ON FUNCTION public.record_station_beat(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM public;
+REVOKE ALL ON FUNCTION public.record_station_beat(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM anon;
+GRANT EXECUTE ON FUNCTION public.record_station_beat(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO anon;
+
+-- ============================================================================
+-- MIGRATION : 20261022000000_school_name.sql
+-- ============================================================================
+
+-- ============================================================================
+-- MAMA THERA Finance Suite — LE NOM DE L'ÉCOLE, écrit une fois pour tout le parc
+-- ============================================================================
+-- Demande du propriétaire (2026-10-16) : « Ajoute un réglage “nom de l'école”
+-- (app_settings, écran, droits, RLS) et fais-le porter par les remontées du poste
+-- à côté du nom de la machine. »
+--
+-- ─── Pourquoi une ligne d'`app_settings`, et pas un réglage d'écran ──────────
+-- Le nom de l'école n'est PAS une préférence de poste : c'est un fait de
+-- l'ÉTABLISSEMENT. La densité d'un tableau se règle devant une tablette de
+-- classe, et chaque poste peut vouloir autre chose ; le nom de l'école, non — il
+-- est le même partout, y compris sur une remontée qui arrive du poste d'une
+-- autre salle. Il vit donc dans `app_settings`, la table que
+-- `scripts/lib/db-tables.mjs` sauvegarde et que `npm run restore:db` restaure :
+-- il voyage avec la sauvegarde de l'école parce qu'il est une donnée de l'école.
+--
+-- ─── Pourquoi AUCUNE politique nouvelle n'est ajoutée ───────────────────────
+-- `app_settings_write` / `app_settings_update` réservent déjà l'écriture à
+-- `public.is_admin()` (`20260902000005_team_inactivity_setting.sql`), et c'est
+-- exactement le droit qu'un nom d'école demande : un fait d'établissement se
+-- déclare à l'administration. La migration
+-- `20261019000000_display_preferences.sql` a ouvert, elle, deux politiques
+-- bornées aux quatre clés `display.` — celles-là sont des réglages d'ÉCRAN, la
+-- personne devant le poste sait mieux que quiconque, et l'écart est assumé. Les
+-- recopier ici aurait ouvert le nom de l'école à tout compte connecté, ce qui
+-- n'est pas la décision : l'écran des Paramètres est déjà réservé à
+-- l'administration (`SettingsView`), donc la base et l'écran disent la même
+-- chose sans qu'une politique soit ajoutée. Ce fichier ne change QUE la FORME de
+-- la valeur.
+--
+-- ─── La forme de la valeur, et pourquoi elle est contrainte ici ─────────────
+-- Une CHAÎNE, de 2 à 120 caractères — les bornes du contrat de l'app
+-- (`src/lib/schoolName.ts`, qui refuse en plus le séparateur des rapports de
+-- poste). La contrainte est posée en base pour la même raison que les quatre
+-- clés d'affichage : une écriture peut arriver par un autre chemin que l'écran
+-- (un script, un `curl` avec un compte d'administration), et une valeur non
+-- textuelle se lirait plus loin comme un nombre ou un objet au lieu d'un nom.
+-- L'app est plus STRICTE que la base, jamais plus large : ce qu'elle accepte est
+-- toujours accepté ici.
+--
+-- ─── Pourquoi la borne est écrite ÉCLATÉE, et non en `BETWEEN` ─────────────
+-- La forme naturelle serait `char_length(value #>> '{}') BETWEEN 2 AND 120`.
+-- Elle a été écrite, appliquée, puis MESURÉE : `npm run check:db-objects` l'a
+-- signalée comme une dérive (« la base dit autre chose ») — non parce que la
+-- règle différait, mais parce que le catalogue rend l'idiome éclaté avec son
+-- opérande RÉPÉTÉ (`(char_length((value #>> '{}'::text[])) >= 2) AND (…) <= 120`),
+-- et que la comparaison ne réduit QUE les bornes SIMPLES (littéral, nombre) : une
+-- borne composée reste intacte, DÉLIBÉRÉMENT, pour qu'une vraie différence soit
+-- signalée plutôt que blanchie (`tests/db-objects.test.ts` verrouille ce refus —
+-- « une borne COMPOSÉE n'est pas blanchie »). Ici l'opérande contient `#>> '{}'`,
+-- donc composé. Le fichier écrit donc la règle telle que le catalogue la rend :
+-- c'est la MÊME règle, dans l'autre écriture, et le contrôle le vérifie sans
+-- qu'aucune tolérance soit ajoutée au contrôle — ce qui aurait été une décision
+-- sur l'équilibre du contrôle, pas sur le nom de l'école.
+--
+-- ─── Ce que la restauration en fait ────────────────────────────────────────
+-- `updated_by` reste NUL quand l'app écrit cette ligne, même raison que les
+-- préférences d'affichage : `restorableRows` (`scripts/lib/db-tables.mjs`) écarte
+-- toute ligne dont le compte n'existe pas dans la cible, et les empreintes de
+-- `auth.users` ne voyagent pas. Nommer un compte ici rendrait le nom de l'école
+-- NON RESTAURABLE dans une cible fraîche — c'est-à-dire exactement le jour où on
+-- en a besoin. Qui l'a changé vit dans `audit_logs`, qui, lui, se restaure.
+--
+-- ─── Ce que cette migration NE fait PAS, et c'est dit ──────────────────────
+-- Aucun ensemencement : une école qui n'a jamais écrit son nom n'en a pas de
+-- ligne, et l'app le dit (`null` = personne ne l'a déclaré) au lieu d'afficher
+-- en dur un nom qui ne serait celui d'aucune école. Inventer un nom par défaut
+-- recopierait dans le SQL une constante de l'application — deux vérités à tenir
+-- d'accord, ce que ce dépôt refuse partout ailleurs.
+-- ============================================================================
+
+ALTER TABLE public.app_settings
+    DROP CONSTRAINT IF EXISTS app_settings_school_name_check;
+
+ALTER TABLE public.app_settings
+    ADD CONSTRAINT app_settings_school_name_check CHECK (
+        key <> 'school.name'
+        OR (
+            jsonb_typeof(value) = 'string'
+            AND char_length(value #>> '{}') >= 2
+            AND char_length(value #>> '{}') <= 120
+        )
+    );
+
+COMMENT ON CONSTRAINT app_settings_school_name_check ON public.app_settings IS
+    'Le nom de l''école (clé school.name) est une CHAÎNE de 2 à 120 caractères. Les bornes sont celles du contrat de l''app (src/lib/schoolName.ts) : une écriture qui passerait à côté de l''écran est refusée ici plutôt que de se lire plus loin comme autre chose qu''un nom.';

@@ -9,7 +9,8 @@
  * React rendering, or a DOM. The hook drives this with the real client.
  */
 import type { ReplayDb } from './offlineReplay';
-import { offlineAuditInfo, replayOfflineItemDetailed } from './offlineReplay';
+import { replayOfflineItemDetailed } from './offlineReplay';
+import { offlineAuditInfo } from './offlineReplayAudit';
 import { getOfflineQueue, markOfflineFailure, removeOfflineAction } from './offlineQueue';
 import type { LogAuditParams } from './auditLogger';
 

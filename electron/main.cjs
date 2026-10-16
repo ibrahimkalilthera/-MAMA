@@ -24,7 +24,7 @@ const { spawn } = require('node:child_process');
 const { downloadPlan } = require('./download-policy.cjs');
 const { installCsp } = require('./csp-policy.cjs');
 const { appendEntry, readEntries, journalPath, pendingReports, markReported } = require('./update-journal.cjs');
-const { beatPayload, recordBeat, stationPath } = require('./station-beat.cjs');
+const { beatPayload, conversionFact, installModeOf, readStation, recordBeat, stationPath } = require('./station-beat.cjs');
 
 // L'origine publique vit dans UN SEUL fichier (`public-origin.cjs`), lu ici par le
 // poste et par `scripts/check-public-origin.mjs` : deux écritures de la même URL
@@ -299,13 +299,49 @@ function setupAutoUpdater(win) {
    * (une mise à jour bloquée par un relevé) serait le pire des deux sens.
    */
   const recordStationBeat = ({ lastCheck, proposedVersion = null } = {}) => {
+    // La forme d'AVANT est lue ici, et c'est le seul instant où elle existe
+    // encore : `recordBeat` REMPLACE le fichier du poste. Une conversion est le
+    // seul fait de ce relevé qui parle du passé, donc le seul qui ne peut pas se
+    // lire après coup.
+    const previous = readStation(stationBeatFile);
     const written = recordBeat(stationBeatFile, {
       appVersion: app.getVersion(),
       osVersion: osMajor(),
       lastCheck,
       lastCheckVersion: proposedVersion,
+      // La forme du poste, MESURÉE ici et pas ailleurs : ce processus est le seul
+      // à savoir si l'application est empaquetée (`app.isPackaged`) et si elle
+      // tourne depuis l'exe portable (`PORTABLE_EXECUTABLE_FILE`). C'est ce fait
+      // qui rend une conversion CONSTABLE — le poste portable s'installe, se
+      // relance en poste installé, et le premier contrôle qui suit porte
+      // `installed` là où la ligne en base disait `portable`.
+      installMode: installModeOf({ packaged: app.isPackaged, portable: isPortable }),
     });
-    if (!written) log(`battement non inscrit (${lastCheck}) — la mise à jour n'en dépend pas`);
+    if (!written) {
+      log(`battement non inscrit (${lastCheck}) — la mise à jour n'en dépend pas`);
+      return written;
+    }
+    // ─── La conversion s'inscrit au journal du POSTE, pas seulement au relevé ──
+    // Le relevé de parc (§7) est anonyme par construction : il date la
+    // conversion, il ne peut pas la NOMMER. Or « quelle école s'est convertie ? »
+    // est LA question que le propriétaire se pose devant la première conversion,
+    // et la seule réponse qu'un poste puisse donner sans qu'on invente est la
+    // sienne : le nom de la machine. Elle part donc par le canal qui nomme déjà
+    // les postes — le journal local, puis le journal d'audit —, et elle y attend
+    // sans session comme un blocage (la file est la même).
+    const conversion = conversionFact(previous, written);
+    if (conversion) {
+      const recorded = appendEntry(journalFile, {
+        ...conversion,
+        station,
+        detail:
+          "l'installateur annoncé a été exécuté en silencieux : le poste démarre en poste installé et se met à jour tout seul désormais",
+      });
+      log(
+        `conversion portable → installé (${conversion.currentVersion ?? '?'} → ${conversion.version ?? '?'})` +
+          `${recorded ? '' : ' — journal NON ÉCRIT'}`,
+      );
+    }
     return written;
   };
 
