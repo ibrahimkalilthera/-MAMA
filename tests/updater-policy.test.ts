@@ -27,6 +27,7 @@ const {
   FORCED_MINOR_BEHIND,
   FORCED_PATCH_BEHIND,
   FORCED_RE_PROMPT_MS,
+  PORTABLE_INSTALL_ARGS,
   parseVersion,
   shouldCheck,
   shouldPrompt,
@@ -47,6 +48,7 @@ const {
   FORCED_MINOR_BEHIND: number;
   FORCED_PATCH_BEHIND: number;
   FORCED_RE_PROMPT_MS: number;
+  PORTABLE_INSTALL_ARGS: string[];
   parseVersion: (v: unknown) => { major: number; minor: number; patch: number } | null;
   shouldCheck: (i?: Record<string, unknown>) => { check: boolean; reason: string };
   shouldPrompt: (i?: Record<string, unknown>) => { prompt: boolean; reason: string };
@@ -58,7 +60,7 @@ const {
     behindPatch: number | null;
     detail: string;
   };
-  updateAction: (i?: Record<string, unknown>) => { action: string; detail: string };
+  updateAction: (i?: Record<string, unknown>) => { action: string; args: string[]; detail: string };
   downloadConsent: (i?: Record<string, unknown>) => { ask: boolean; kind: string; detail: string };
   holdsUrlFrom: (i?: Record<string, unknown>) => string | null;
   gateFailure: (i?: Record<string, unknown>) => { blocked: boolean; code: string; detail: string };
@@ -225,13 +227,27 @@ describe('tout retard rend la mise à jour obligatoire', () => {
 
 });
 
-describe('le portable n’est pas laissé muet', () => {
-  it('installation installée → redémarrage ; portable → téléchargement manuel', () => {
-    assert.equal(updateAction({ isPortable: false }).action, 'restart');
+describe('le portable s’installe lui-même', () => {
+  it('poste installé → redémarrage ; portable → installation silencieuse de l’installeur annoncé', () => {
+    const installed = updateAction({ isPortable: false });
+    assert.equal(installed.action, 'restart');
+    assert.deepEqual(installed.args, [], 'un poste installé n’a rien à lancer : electron-updater porte sa ligne');
+
     const portable = updateAction({ isPortable: true });
-    assert.equal(portable.action, 'open-download');
-    // La raison est écrite : electron-updater ne s'installe que via NSIS.
-    assert.match(portable.detail, /NSIS/);
+    // Ce que la décision a changé, et sur quelle mesure : un poste portable en
+    // 1.0.30 recevait un lien vers la page des versions — donc un navigateur — pour
+    // une mise à jour que rien ne permettait de reporter. Il installe maintenant
+    // l'installeur NSIS que le canal annonce, et devient un poste installé.
+    assert.equal(portable.action, 'install');
+    assert.deepEqual(PORTABLE_INSTALL_ARGS, ['/S', '--force-run']);
+    assert.deepEqual(portable.args, PORTABLE_INSTALL_ARGS);
+    assert.doesNotMatch(
+      portable.args.join(' '),
+      /--updated/,
+      '`--updated` décrit la mise à jour d’une installation EN PLACE : le gabarit ne recrée alors pas le raccourci bureau (include/installer.nsh:234-241), et ce poste-là n’a pas d’installation à mettre à jour',
+    );
+    assert.match(portable.detail, /installé/, 'le poste doit apprendre ce qu’il devient');
+    assert.match(portable.detail, /silencieu/);
   });
 });
 
@@ -272,7 +288,7 @@ describe('le câblage : les trois étages se répondent', () => {
     // Chaque libellé vient du dictionnaire : le bandeau ne parle pas en dur.
     const fr = read('src/i18n/domains/adminFr.ts');
     const en = read('src/i18n/domains/adminEn.ts');
-    for (const key of ['updateAvailable', 'updateDownloading', 'updateReady', 'updateReadyManual', 'updateRestartNow', 'updateDownloadNow']) {
+    for (const key of ['updateAvailable', 'updateDownloading', 'updateReady', 'updateRestartNow', 'updateInstallNow', 'updateDownloadNow']) {
       assert.match(fr, new RegExp(`${key}:`), `${key} manque en français`);
       assert.match(en, new RegExp(`${key}:`), `${key} manque en anglais`);
     }
@@ -288,8 +304,11 @@ describe('le câblage : les trois étages se répondent', () => {
     assert.match(main, /updatePressure\b/);
     assert.match(main, /forced: pressure\.forced/);
     assert.match(main, /updatePressure\(\{\s*currentVersion: app\.getVersion\(\)/);
-    // Obligatoire ⇒ plus de « Plus tard », et pas d'échappement par Échap.
-    assert.match(main, /buttons: forced \? \['Redémarrer maintenant'\]/);
+    // Obligatoire ⇒ plus de « Plus tard », et pas d'échappement par Échap. Le
+    // libellé du bouton vient du GESTE, décidé par la politique (`updateAction`) :
+    // un poste installé redémarre, un poste portable installe.
+    assert.match(main, /buttons: forced \? \[apply\.label\] : \[apply\.label, 'Plus tard'\]/);
+    assert.match(main, /const apply = action\.action === 'install'/, 'le geste se nomme selon le poste');
     assert.match(main, /\.\.\.\(forced \? \{\} : \{ cancelId: 1 \}\)/);
     assert.match(main, /forced \? FORCED_RE_PROMPT_MS : RE_PROMPT_MS/, 'une obligation se rappelle vite');
 
@@ -454,14 +473,14 @@ describe('les octets qui ne répondent pas au flux sont une cause À PART', () =
     assert.equal(nothing.kind, 'none');
   });
 
-  it('le portable reçoit enfin sa question, et elle mène à la page de téléchargement', () => {
+  it('le portable reçoit sa question, et elle mène aux OCTETS — pas à un navigateur', () => {
     // Il ne pouvait PAS la recevoir : `autoDownload = false` chez lui, donc rien
     // ne lançait le téléchargement, donc `update-downloaded` n'arrivait jamais —
     // et la boîte de dialogue qui existait déjà pour lui était inatteignable.
     const portable = downloadConsent({ announced: true, portable: true });
     assert.equal(portable.ask, true, 'un portable doit apprendre qu’une version existe — bruyamment');
-    assert.equal(portable.kind, 'open-download');
-    assert.match(portable.detail, /NSIS/, 'le pourquoi reste écrit : electron-updater s’installe par NSIS');
+    assert.equal(portable.kind, 'download', 'la question mène au téléchargement de l’installeur annoncé');
+    assert.match(portable.detail, /INSTALLÉ/, 'et le poste apprend ce qu’il devient : un poste installé');
   });
 
   it('le mode preuve télécharge sans modale — la séquence de l’E2E est préservée', () => {

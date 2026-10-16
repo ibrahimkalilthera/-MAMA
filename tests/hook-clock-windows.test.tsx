@@ -87,7 +87,6 @@ describe('horloge injectée — fenêtres mensuelles des hooks', () => {
         selectedYear: '2031-2032',
         lockedYears: [],
         isPromoter: true,
-        isGeneralManager: false,
         currentUser: promoter,
         addExpense: asyncNull as never as (e: Omit<Expense, 'id'>) => Promise<Expense | null>,
         deleteExpense: asyncTrue,
@@ -122,8 +121,9 @@ describe('horloge injectée — fenêtres mensuelles des hooks', () => {
         today: '2031-09-02',
         selectedYear: '2031-2032',
         lockedYears: [],
-        isPromoter: true,
-        isGeneralManager: false,
+        // Le rôle du compte porte ce que les deux booléens portaient : ce hook
+        // demande la surface `scholarship-edit` à `currentUser?.role`.
+        currentUser: promoter,
         students: [] as Student[],
         addStudent: asyncNull as never,
         updateStudent: asyncTrue,

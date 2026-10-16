@@ -44,8 +44,11 @@
 
 const { PUBLIC_ORIGIN } = require('./public-origin.cjs');
 
-// Où atterrit un poste qui ne peut pas s'auto-installer (portable) : le lien
-// doit être celui des VERSIONS, pas une page d'accueil où rien ne se télécharge.
+// Où atterrit un poste PORTABLE dont l'installation automatique ne peut même pas
+// démarrer : le lien doit être celui des VERSIONS, pas une page d'accueil où rien
+// ne se télécharge. (Ce n'est plus le chemin NORMAL d'un portable — il installe
+// lui-même l'installeur annoncé par le canal — mais c'est celui qui reste quand
+// l'installeur téléchargé ne peut pas être lancé.)
 const RELEASES_URL = 'https://github.com/ibrahimkalilthera/-MAMA/releases/latest';
 
 // La base des liens de notification d'un parent (`src/app/useParents.ts`) : le
@@ -75,8 +78,8 @@ const EMBEDDED_LINKS = [
     id: 'releases-page',
     url: RELEASES_URL,
     kind: 'release-page',
-    where: 'bouton « Ouvrir la page de téléchargement » d’un poste PORTABLE, et l’action de mise à jour qu’un portable peut exécuter',
-    why: 'un portable ne s’auto-installe pas : cette page est son seul moyen de reprendre une version, donc un lien mort ici laisse des postes sans porte de sortie',
+    where: 'repli d’un poste PORTABLE quand son installation automatique ne peut pas DÉMARRER (installeur annoncé introuvable ou non exécutable — `installPortable`, dans `electron/main.cjs`)',
+    why: 'ce poste-là n’a plus que cette page pour reprendre une version : l’y laisser sur un lien mort lui retirerait sa seule porte de sortie',
   },
   {
     id: 'whatsapp',
