@@ -470,6 +470,27 @@ export const GUARD_INVENTORY = [
     via: 'rls-policies.mjs',
   },
   {
+    check: 'check-reserved-tabs.mjs',
+    input: 'source+table',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // Ce contrôle croise la SOURCE des écrans avec la TABLE des onglets réservés
+    // (`src/app/tabRights.ts`) et le VOCABULAIRE des onglets (`AppTab`, dans
+    // Sidebar.tsx) — trois corpus, donc trois absences refusées, toutes écrites en
+    // **sortie 2** : table introuvable ou sans aucun onglet réservé, vocabulaire
+    // introuvable ou vide, et AUCUN appelant de la table lu sous la racine. C'est
+    // ce dernier qui compte : un scan qui ne lit plus rien n'est pas un scan
+    // propre, c'est le motif qui a disparu (le défaut payé le 2026-10-15 : deux
+    // décisions pour un même onglet, dont une seule était mesurée).
+    //
+    // La classe vit dans un LITTÉRAL — un identifiant d'onglet est une chaîne, et
+    // un identifiant de rôles lu dans la table en est une — donc blanchir les
+    // littéraux effacerait la donnée même que le contrôle lit. Seuls les
+    // commentaires sont masqués (couche partagée, `maskComments`) : l'en-tête de la
+    // table CITE `activeTab === 'settings' && !auth.isAdmin` pour expliquer le
+    // défaut du 2026-10-15, et une explication n'est pas une décision.
+    literals: 'kept',
+  },
+  {
     check: 'check-write-gates.mjs',
     input: 'migrations+source',
     // Ce contrôle croise les POLITIQUES D'ÉCRITURE des migrations avec les PORTES
