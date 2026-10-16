@@ -14,10 +14,16 @@
 //     testée), pas au processus principal — sinon elle serait recopiée, et deux
 //     copies d'une règle divergent toujours ;
 //   • trois causes, et elles ne se valent pas : une installation tentée qui
-//     n'aboutit pas (bloqué MÊME hors obligation : c'est un fait), un portable
-//     qui ne peut structurellement pas satisfaire la porte, un téléchargement
-//     en échec sur un poste obligé. Le bruit de la progression normale, lui, ne
-//     doit PAS être signalé — sinon le vrai cas se noie ;
+//     n'aboutit pas (bloqué MÊME hors obligation : c'est un fait), des octets
+//     qui ne répondent pas à ce que le flux annonce (le remède est sur le canal),
+//     un téléchargement en échec sur un poste obligé. Le bruit de la progression
+//     normale, lui, ne doit PAS être signalé — sinon le vrai cas se noie ;
+//   • et un poste PORTABLE n'est plus un cas bloqué : mesuré le 2026-10-16 sur un
+//     poste en 1.0.30, l'ancienne règle l'enfermait dans une porte qu'il ne
+//     pouvait pas satisfaire (main humaine obligatoire). Il installe maintenant
+//     lui-même l'installeur annoncé (`updateAction`), donc « il ne peut pas
+//     avancer seul » n'est plus vrai — et s'il n'y arrive pas, la sentinelle
+//     d'installation le dira APRES une tentative, pas à sa place ;
 //   • ce qui part au journal d'audit est COMPOSÉ et testable, et il nomme le
 //     poste : c'est la première question de l'administrateur ;
 //   • et le câblage est vérifié dans les fichiers, parce qu'une décision juste
@@ -55,11 +61,17 @@ describe('quand un poste est-il bloqué par la porte', () => {
     assert.match(verdict.detail, /non aboutie/);
   });
 
-  it('un portable obligé est bloqué PAR CONSTRUCTION : il ne peut pas satisfaire la porte seul', () => {
-    const verdict = gateFailure({ forced: true, isPortable: true, status: 'available' });
-    assert.equal(verdict.blocked, true);
-    assert.equal(verdict.code, 'manual');
-    assert.match(verdict.detail, /NSIS/);
+  it('un poste obligé qui peut encore avancer seul n’est PAS bloqué — portable compris', () => {
+    // La décision a changé le 2026-10-16, et c'est une mesure qui l'a changée : un
+    // poste portable en 1.0.30 savait tout et ne pouvait rien appliquer, parce
+    // qu'on l'envoyait sur la page des versions avec une porte fermée. Ce qu'un
+    // poste portable peut faire vit désormais dans `updateAction` (il installe
+    // l'installeur annoncé), donc il ne relève plus des causes de blocage : une
+    // porte fermée n'est plus une impasse, juste une étape obligée.
+    const verdict = gateFailure({ forced: true, status: 'available' });
+    assert.equal(verdict.blocked, false);
+    assert.equal(verdict.code, 'none');
+    assert.match(verdict.detail, /avancer seul/);
   });
 
   it('obligé et téléchargement en échec : bloqué, avec le motif réel', () => {
@@ -118,7 +130,7 @@ describe('ce qui part au journal d’audit', () => {
 
   it('le nom du poste vient du processus principal quand l’entrée ne le porte pas', () => {
     const entry = blockedAuditEntry(
-      { blocked: { code: 'manual', detail: 'portable' }, version: '2.0.0', currentVersion: '1.0.0' },
+      { blocked: { code: 'install', detail: 'installation non aboutie' }, version: '2.0.0', currentVersion: '1.0.0' },
       { station: 'PC-BIBLIOTHEQUE' },
     );
     assert.match(entry?.details ?? '', /poste PC-BIBLIOTHEQUE/);
@@ -154,7 +166,21 @@ describe('le câblage du signalement', () => {
     // d'école inexistante. La classe est donc lue dans le MÊME appel.
     assert.match(main, /reportBlocked\(\{[\s\S]{0,200}status: 'error',[\s\S]{0,120}checksumFault: fault\.fault \? fault\.detail : null/, 'un échec de téléchargement sur un poste obligé doit partir au journal, avec sa cause');
     assert.match(main, /checksumFault: fault\.fault \? fault\.detail : null/, 'la cause classée accompagne le blocage');
-    assert.match(main, /reportBlocked\(\{ forced: gate\.forced, version: i\.version \}\)/, 'un portable obligé ne pourra jamais satisfaire la porte : ça se signale');
+    assert.match(
+      main,
+      /reportBlocked\(\{ forced: gate\.forced, version: i\.version \}\)/,
+      'un poste obligé se signale dès l’annonce : ce qui reste à signaler, ce sont les causes où il ne peut PAS avancer',
+    );
+    assert.match(
+      main,
+      /if \(action\.action === 'install'\) return installPortable\(origin\)/,
+      'un poste portable doit INSTALLER l’installeur annoncé, pas partir sur la page des versions',
+    );
+    assert.doesNotMatch(
+      main,
+      /isPortable\) \{\s*shell\.openExternal\(RELEASES_URL\)/,
+      'aucun chemin ne doit plus renvoyer un portable vers le navigateur POUR une mise à jour qu’il peut appliquer',
+    );
     assert.match(main, /reportBlocked\(\{ installPending: true/, 'une installation non aboutie se signale dès le démarrage');
   });
 

@@ -70,7 +70,6 @@ interface DepsOverrides {
   selectedYear?: string;
   lockedYears?: string[];
   isPromoter?: boolean;
-  isGeneralManager?: boolean;
   currentUser?: User | null;
   deleteResults?: boolean[];
 }
@@ -94,7 +93,6 @@ function baseDeps(overrides: DepsOverrides = {}): {
     selectedYear: overrides.selectedYear ?? '2026-2027',
     lockedYears: overrides.lockedYears ?? [],
     isPromoter: overrides.isPromoter ?? true,
-    isGeneralManager: overrides.isGeneralManager ?? false,
     currentUser: overrides.currentUser !== undefined ? overrides.currentUser : promoter,
     addExpense: async (exp: Omit<Expense, 'id'>) => {
       spies.addExpenseCalls.push(exp);
@@ -199,7 +197,7 @@ describe('useExpenses.handleVendorExpenseSubmit', () => {
   it('gates creation to finance admins: staff is alerted, GM passes', async () => {
     // staff blocked
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false, currentUser: staffUser });
+      const { args, spies } = baseDeps({ isPromoter: false, currentUser: staffUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => {
@@ -215,7 +213,7 @@ describe('useExpenses.handleVendorExpenseSubmit', () => {
     }
     // general manager passes
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: true, currentUser: gmUser });
+      const { args, spies } = baseDeps({ isPromoter: false, currentUser: gmUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => {
@@ -243,7 +241,7 @@ describe('useExpenses.handleVendorExpenseSubmit', () => {
     // tant que la policy d'insertion reste `is_admin()`. Le rôle le plus étroit
     // qui doit passer est donc celui-là : s'il passe, la porte de l'écran et
     // celle de la base citent bien la même liste.
-    const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false, currentUser: economeUser });
+    const { args, spies } = baseDeps({ isPromoter: false, currentUser: economeUser });
     const { ref, root, restoreAlert } = await setup(args, spies.alerts);
     try {
       await act(async () => {
@@ -267,7 +265,7 @@ describe('useExpenses.handleVendorExpenseSubmit', () => {
   });
 
   it('lets the promoter set amount and vendorName on create', async () => {
-    const { args, spies } = baseDeps({ isPromoter: true, isGeneralManager: false });
+    const { args, spies } = baseDeps({ isPromoter: true });
     const { ref, root, restoreAlert } = await setup(args, spies.alerts);
     try {
       await act(async () => {
@@ -341,7 +339,7 @@ describe('useExpenses.handleVendorExpenseSubmit', () => {
   });
 
   it('keeps the existing amount and vendorName when a non-promoter finance admin edits a record', async () => {
-    const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: true, currentUser: gmUser });
+    const { args, spies } = baseDeps({ isPromoter: false, currentUser: gmUser });
     const { ref, root, restoreAlert } = await setup(args, spies.alerts);
     try {
       await act(async () => { ref.current!.handleEditVendorExpense(vendor); });
@@ -386,7 +384,7 @@ describe('useExpenses.handleDeleteVendorExpense', () => {
     }
     // le RÔLE du poste décide — pas les booléens d'écran : `staff` est refusé
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false, currentUser: staffUser });
+      const { args, spies } = baseDeps({ isPromoter: false, currentUser: staffUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => { await ref.current!.handleDeleteVendorExpense('v1'); });
@@ -399,7 +397,7 @@ describe('useExpenses.handleDeleteVendorExpense', () => {
     }
     // GM deletes and toasts — il l'obtient de son RÔLE, quels que soient ses booléens d'écran
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false, currentUser: gmUser });
+      const { args, spies } = baseDeps({ isPromoter: false, currentUser: gmUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => { await ref.current!.handleDeleteVendorExpense('v1'); });
@@ -412,7 +410,7 @@ describe('useExpenses.handleDeleteVendorExpense', () => {
     }
     // et l'économe ÉCRIT la dépense fournisseur sans pouvoir la DÉTRUIRE
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: true, currentUser: economeUser });
+      const { args, spies } = baseDeps({ isPromoter: false, currentUser: economeUser });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => { await ref.current!.handleDeleteVendorExpense('v1'); });

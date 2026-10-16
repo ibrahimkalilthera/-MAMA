@@ -24,7 +24,7 @@ import assert from 'node:assert/strict';
 import { act } from 'react';
 import { translations } from '../src/i18n/translations';
 import type { TranslationDict } from '../src/i18n/translations';
-import type { Student } from '../src/app/types';
+import type { Student, User } from '../src/app/types';
 import { useStudents } from '../src/app/useStudents';
 import { installDomGlobals, stubAlert, renderHook } from './harness';
 
@@ -33,6 +33,17 @@ const t = translations.fr as TranslationDict;
 const win = installDomGlobals();
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
+
+/**
+ * Le compte connecté. C'est son RÔLE qui décide de la remise sur frais de
+ * scolarité — le hook demande la surface `scholarship-edit`
+ * (`canUseSection`, `src/app/sectionRights.ts`) au lieu d'additionner deux
+ * booléens de rôle. Les fixtures qui portaient `isPromoter` / `isGeneralManager`
+ * portent donc un rôle : `'admin'` = l'ancien `isPromoter: true`,
+ * `'general_manager'` = l'ancien `isGeneralManager: true`, `'staff'` = ni l'un ni
+ * l'autre.
+ */
+const user = (role: User['role']): User => ({ username: 'compte-test', name: 'Compte de test', role });
 
 function student(overrides: Partial<Student> & { id: string; name: string; totalDue: number; amountPaid: number }): Student {
   return {
@@ -63,8 +74,8 @@ interface DepsOverrides {
   students?: Student[];
   selectedYear?: string;
   lockedYears?: string[];
-  isPromoter?: boolean;
-  isGeneralManager?: boolean;
+  /** Le rôle du compte connecté — il décide de la remise sur frais (défaut : `admin`). */
+  role?: User['role'];
   addStudentResults?: Array<Student | null>;
   updateResults?: boolean[];
 }
@@ -89,8 +100,7 @@ function baseDeps(overrides: DepsOverrides = {}): {
     today: '2026-09-02',
     selectedYear: overrides.selectedYear ?? '2026-2027',
     lockedYears: overrides.lockedYears ?? [],
-    isPromoter: overrides.isPromoter ?? true,
-    isGeneralManager: overrides.isGeneralManager ?? false,
+    currentUser: user(overrides.role ?? 'admin'),
     students: overrides.students ?? [ali(), binta(), omar()],
     addStudent: async (s: Record<string, unknown>) => {
       spies.addStudentCalls.push(s);
@@ -370,9 +380,12 @@ describe('useStudents.handleStudentSubmit', () => {
   });
 
   it('a non-finance editor cannot sneak a scholarshipDiscount; the promoter can', async () => {
-    // non-finance: the form value is ignored, the existing discount is kept
+    // Le rôle porte ce que les booléens portaient : `'staff'` n'est ni `admin`,
+    // ni `dev`, ni Gestionnaire Principal — il n'ouvre donc pas la surface
+    // `scholarship-edit`. Non-finance : la valeur du formulaire est ignorée, la
+    // remise existante est conservée.
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: false, students: [ali()] });
+      const { args, spies } = baseDeps({ role: 'staff', students: [ali()] });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => {
@@ -389,9 +402,10 @@ describe('useStudents.handleStudentSubmit', () => {
         restoreAlert();
       }
     }
-    // general manager may edit the discount
+    // Le Gestionnaire Principal est dans `FINANCE_ADMIN_ROLES` : il ouvre la MÊME
+    // surface que le promoteur, et sa remise est honorée.
     {
-      const { args, spies } = baseDeps({ isPromoter: false, isGeneralManager: true, students: [ali()] });
+      const { args, spies } = baseDeps({ role: 'general_manager', students: [ali()] });
       const { ref, root, restoreAlert } = await setup(args, spies.alerts);
       try {
         await act(async () => {
