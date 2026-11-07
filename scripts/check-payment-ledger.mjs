@@ -17,8 +17,11 @@
  * registre-là.
  *
  * ─── Ce qui est comparé, et pourquoi par élève ──────────────────────────────
- * Pas deux totaux : une LISTE D'ÉLÈVES. Voir scripts/lib/payment-ledger.mjs —
- * le module porte le classement et la requête, et il se teste sans base.
+ * Pas deux totaux : une LISTE D'ÉLÈVES. Et pas seulement l'argent : la DATE du
+ * dernier paiement est dérivée elle aussi (`max(payments.date)`), donc elle est
+ * balayée par la même réconciliation — un reçu supprimé ou ré-attribué peut
+ * laisser une date qu'aucun reçu ne justifie. Voir scripts/lib/payment-ledger.mjs
+ * — le module porte les classements et les requêtes, et il se teste sans base.
  *
  * ─── Le défaut n'est PAS réparé ici ─────────────────────────────────────────
  * Ce script ne change pas le code qui écrit la copie : il révèle l'écart et
@@ -54,7 +57,11 @@ import { readFileSync } from 'node:fs';
 
 import { EVIDENCE_MANDATE_ENV, publishEvidence } from './lib/evidence-publisher.mjs';
 import {
+  DATE_GAP_LABELS,
   GAP_LABELS,
+  LEDGER_DATE_DIVERGENCE_SQL,
+  LEDGER_DATE_REPAIR_AUDIT_SQL,
+  LEDGER_DATE_REPAIR_SQL,
   LEDGER_DIVERGENCE_SQL,
   LEDGER_REPAIR_AUDIT_SQL,
   LEDGER_REPAIR_SQL,
@@ -69,12 +76,13 @@ const AS_JSON = args.includes('--json');
 const HELP = args.includes('--help') || args.includes('-h');
 
 if (HELP) {
-  console.log(`Reconcilier students.amount_paid et la somme de payments.amount.
+  console.log(`Reconcilier students.amount_paid et last_payment_date avec les reçus.
 
   npm run check:payment-ledger [options]
 
   (aucune option)   mesurer, nommer les écarts, sortir en 1 s'il y en a
-  --repair          corriger les écarts mesurés (amount_paid = somme des reçus)
+  --repair          corriger les écarts mesurés (amount_paid = somme des reçus,
+                    last_payment_date = date du reçu le plus récent)
                     ET écrire une ligne d'audit par élève réparé
   --json            rendre le rapport en JSON sur la sortie standard
   --help
@@ -153,10 +161,13 @@ async function main() {
   try {
     const totals = (await client.query(LEDGER_TOTALS_SQL)).rows[0] ?? {};
     const divergences = (await client.query(LEDGER_DIVERGENCE_SQL)).rows;
-    const summary = summarizeLedger({ divergences, totals });
+    // La DATE est balayée séparément : le montant peut se refermer pendant qu'elle
+    // pointe encore un reçu supprimé, et rien ne le verrait autrement.
+    const dateDivergences = (await client.query(LEDGER_DATE_DIVERGENCE_SQL)).rows;
+    const summary = summarizeLedger({ divergences, dateDivergences, totals });
 
     if (AS_JSON) {
-      process.stdout.write(`${JSON.stringify({ ...summary, repaired: [] }, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify({ ...summary, repaired: [], repairedDates: [] }, null, 2)}\n`);
     } else {
       console.log(`Registre des paiements — base partagée ${SHARED_PROJECT_REF}`);
       console.log(`Élèves lus                        : ${summary.students}`);
@@ -171,18 +182,32 @@ async function main() {
             `(écart ${money(row.gap)}) : ${GAP_LABELS[row.kind]}`,
         );
       }
-      if (summary.diverging === 0) {
-        console.log('✅ Le registre se referme : chaque solde vaut la somme de ses reçus.');
-      } else {
-        const kinds = Object.entries(summary.byKind)
-          .map(([kind, count]) => `${GAP_LABELS[kind]} — ${count}`)
-          .join(' · ');
+      console.log(`Élèves dont la dernière date diverge  : ${summary.datesDiverging}`);
+      for (const row of summary.dateRows) {
         console.log(
-          `\n⚠️  ${summary.diverging} élève(s) portent un solde qui ne vaut pas la somme de ses reçus (${kinds}).`,
+          `   • ${row.id} — dernier paiement affiché ${row.rolled ?? 'aucun'} / ` +
+            `reçu le plus récent ${row.receipts ?? 'aucun'} : ${DATE_GAP_LABELS[row.kind]}`,
         );
+      }
+      if (summary.diverging === 0 && summary.datesDiverging === 0) {
+        console.log('✅ Le registre se referme : chaque solde vaut la somme de ses reçus, et chaque date celle du reçu le plus récent.');
+      } else {
+        if (summary.diverging > 0) {
+          const kinds = Object.entries(summary.byKind)
+            .map(([kind, count]) => `${GAP_LABELS[kind]} — ${count}`)
+            .join(' · ');
+          console.log(
+            `\n⚠️  ${summary.diverging} élève(s) portent un solde qui ne vaut pas la somme de ses reçus (${kinds}).`,
+          );
+        }
+        if (summary.datesDiverging > 0) {
+          console.log(
+            `⚠️  ${summary.datesDiverging} élève(s) portent une dernière date qui ne suit pas leurs reçus.`,
+          );
+        }
         console.log(
-          '   La somme des REÇUS fait foi : c’est elle qui est encaissée. Relancer avec --repair écrit ' +
-            'amount_paid = somme des reçus pour ces élèves, et laisse une ligne au journal d’audit.',
+          '   La somme des REÇUS fait foi : c’est elle qui est encaissée, et `max(date)` qui dit le dernier paiement. ' +
+            'Relancer avec --repair écrit les deux colonnes pour ces élèves, et laisse une ligne au journal d’audit par correction.',
         );
       }
     }
@@ -208,8 +233,29 @@ async function main() {
         console.log('   (aucune ligne écrite : l’état a changé entre la mesure et la correction — rien à faire)');
       }
     }
-    if (REPAIR && summary.diverging === 0) {
-      console.log('   --repair : rien à corriger, le registre se referme déjà.');
+    let repairedDates = [];
+    if (REPAIR && summary.datesDiverging > 0) {
+      const ids = summary.dateRows.map((row) => row.id);
+      const before = new Map(summary.dateRows.map((row) => [row.id, row.rolled]));
+      const changed = (await client.query(LEDGER_DATE_REPAIR_SQL, [ids])).rows;
+      for (const row of changed) {
+        const previous = before.get(row.student_id) ?? null;
+        const next = row.last_payment_date ? String(row.last_payment_date) : null;
+        await client.query(LEDGER_DATE_REPAIR_AUDIT_SQL, [
+          row.student_id,
+          `Réconciliation du registre : dernière date corrigée de ${previous ?? 'aucune'} à ${next ?? 'aucune'} ` +
+            `(le reçu le plus récent de cet élève date du ${next ?? 'jamais'}) — contrôle check:payment-ledger --repair`,
+          JSON.stringify({ before: previous, after: next, source: 'receipts', command: 'check:payment-ledger' }),
+        ]);
+        repairedDates.push({ id: row.student_id, before: previous, after: next });
+        console.log(`🔧 ${row.student_id} — dernière date ${previous ?? 'aucune'} → ${next ?? 'aucune'} (journal d’audit écrit)`);
+      }
+      if (changed.length === 0) {
+        console.log('   (aucune date écrite : l’état a changé entre la mesure et la correction — rien à faire)');
+      }
+    }
+    if (REPAIR && summary.diverging === 0 && summary.datesDiverging === 0) {
+      console.log('   --repair : rien à corriger, le registre se referme déjà (montants et dates).');
     }
 
     // La substance, publiée par le contrôle lui-même : ce qu'il a LU (élèves,
@@ -221,12 +267,15 @@ async function main() {
         count: summary.students > 0 ? summary.students : null,
         reason:
           `registre réconcilié : ${summary.students} élève(s) et ${summary.payments} paiement(s) lus, ` +
-          `${summary.diverging} élève(s) dont le solde ne vaut pas la somme des reçus` +
-          (REPAIR && repaired.length > 0 ? `, ${repaired.length} corrigé(s) et journalisé(s)` : ''),
+          `${summary.diverging} élève(s) dont le solde ne vaut pas la somme des reçus, ` +
+          `${summary.datesDiverging} élève(s) dont la dernière date ne suit pas les reçus` +
+          (REPAIR && (repaired.length > 0 || repairedDates.length > 0)
+            ? `, ${repaired.length + repairedDates.length} correction(s) journalisée(s)`
+            : ''),
       });
     }
 
-    if (summary.diverging > 0 && !REPAIR) process.exitCode = 1;
+    if ((summary.diverging > 0 || summary.datesDiverging > 0) && !REPAIR) process.exitCode = 1;
   } finally {
     await client.end().catch(() => undefined);
   }

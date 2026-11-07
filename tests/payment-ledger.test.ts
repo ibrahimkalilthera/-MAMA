@@ -24,10 +24,14 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  DATE_GAP_LABELS,
   GAP_LABELS,
+  LEDGER_DATE_DIVERGENCE_SQL,
+  LEDGER_DATE_REPAIR_SQL,
   LEDGER_DIVERGENCE_SQL,
   LEDGER_REPAIR_SQL,
   LEDGER_TOTALS_SQL,
+  classifyDateGap,
   classifyGap,
   summarizeLedger,
 } from '../scripts/lib/payment-ledger.mjs';
@@ -61,6 +65,28 @@ describe('payment-ledger — le classement d’un écart dit le geste, pas seule
   });
 });
 
+describe('payment-ledger — la DATE du dernier paiement, balayée comme l’argent', () => {
+  it('une date plus ancienne que le reçu le plus récent est un retard, pas un hasard', () => {
+    assert.equal(classifyDateGap({ rolled: '2026-09-01', receipts: '2026-10-04' }), 'date-behind');
+    assert.equal(classifyDateGap({ rolled: '2026-10-04', receipts: '2026-09-01' }), 'date-ahead');
+    assert.equal(classifyDateGap({ rolled: '2026-10-04', receipts: '2026-10-04' }), 'closed');
+  });
+
+  it('une date sans reçu et des reçus sans date sont deux accidents différents', () => {
+    // Suppression du dernier reçu dont la date restait affichée : plus aucun reçu
+    // ne justifie la date. Et l'inverse : des reçus, mais aucune date posée.
+    assert.equal(classifyDateGap({ rolled: '2026-10-04', receipts: null }), 'date-without-receipt');
+    assert.equal(classifyDateGap({ rolled: null, receipts: '2026-10-04' }), 'date-missing');
+    assert.equal(classifyDateGap({ rolled: null, receipts: null }), 'closed');
+  });
+
+  it('chaque accident a une phrase qui dit le geste', () => {
+    for (const kind of ['date-behind', 'date-ahead', 'date-without-receipt', 'date-missing'] as const) {
+      assert.ok(DATE_GAP_LABELS[kind], `${kind} doit pouvoir se lire dans un rapport`);
+    }
+  });
+});
+
 describe('payment-ledger — le rapport porte sur des ÉLÈVES', () => {
   it('compte les écarts, les classe, et donne l’écart global', () => {
     const summary = summarizeLedger({
@@ -68,6 +94,10 @@ describe('payment-ledger — le rapport porte sur des ÉLÈVES', () => {
         { student_id: 'stu-a', rollup: '4000', lines: '8000' }, // le cas mesuré
         { student_id: 'stu-b', rollup: '2000', lines: '0' },
         { student_id: 'stu-c', rollup: '5000', lines: '4000' },
+      ],
+      dateDivergences: [
+        { student_id: 'stu-a', rolled: '2026-09-01', receipts: '2026-10-04' },
+        { student_id: 'stu-b', rolled: '2026-08-31', receipts: null },
       ],
       totals: { students: '497', payments: '97', rollup_total: '987000', lines_total: '991000' },
     });
@@ -86,6 +116,10 @@ describe('payment-ledger — le rapport porte sur des ÉLÈVES', () => {
       'balance-without-receipt': 1,
       'balance-ahead': 1,
     });
+    // La date est un second registre : elle se compte et se classe à part, sinon
+    // un solde juste masquerait une date fausse.
+    assert.equal(summary.datesDiverging, 2);
+    assert.deepEqual(summary.dateRows.map((row) => row.kind), ['date-behind', 'date-without-receipt']);
   });
 
   it('un écart qui se compense reste visible : ce sont les ÉLÈVES qui comptent', () => {
@@ -105,6 +139,7 @@ describe('payment-ledger — le rapport porte sur des ÉLÈVES', () => {
   it('un registre qui se referme se dit tel quel, sans inventer d’élève', () => {
     const summary = summarizeLedger({ divergences: [], totals: { students: '497', payments: '97' } });
     assert.equal(summary.diverging, 0);
+    assert.equal(summary.datesDiverging, 0, 'aucune date inventée quand rien n’est signalé');
     assert.deepEqual(summary.rows, []);
     assert.deepEqual(summary.byKind, {});
   });
@@ -118,6 +153,16 @@ describe('payment-ledger — la requête ne peut pas manquer les cas muets', () 
     assert.match(LEDGER_DIVERGENCE_SQL, /order by abs\(/i, 'le plus gros écart d’abord, puis l’identifiant');
   });
 
+  it('la date est comparée au reçu le plus récent, sans `inner join` ni comparaison d’objets', () => {
+    assert.match(LEDGER_DATE_DIVERGENCE_SQL, /left join/i, 'un élève sans reçu doit apparaître avec sa date orpheline');
+    assert.match(LEDGER_DATE_DIVERGENCE_SQL, /max\(date\)/i, 'la référence est le reçu le plus récent');
+    assert.match(LEDGER_DATE_DIVERGENCE_SQL, /is distinct from/i, 'NULL (aucun reçu) est une valeur à part entière');
+    // `to_char` : le pilote rend un type `date` en objet Date, et `===` sur deux
+    // objets distincts mentirait ; `toISOString` décalerait le jour d’un fuseau.
+    assert.match(LEDGER_DATE_DIVERGENCE_SQL, /to_char\(s\.last_payment_date, 'YYYY-MM-DD'\)/);
+    assert.match(LEDGER_DATE_DIVERGENCE_SQL, /to_char\(p\.last_date, 'YYYY-MM-DD'\)/);
+  });
+
   it('les totaux disent sur QUOI porte le contrôle', () => {
     for (const column of ['students', 'payments', 'rollup_total', 'lines_total']) {
       assert.match(LEDGER_TOTALS_SQL, new RegExp(`as ${column}`), `${column} est mesuré`);
@@ -128,6 +173,13 @@ describe('payment-ledger — la requête ne peut pas manquer les cas muets', () 
     assert.match(LEDGER_REPAIR_SQL, /where s\.id = any\(\$1::uuid\[\]\)/, 'jamais toute la table');
     assert.match(LEDGER_REPAIR_SQL, /is distinct from/i, 'réécrire une valeur déjà juste n’est pas une réparation');
     assert.match(LEDGER_REPAIR_SQL, /returning s\.id/i, 'la trace porte la valeur RÉELLE, pas l’intention');
+  });
+
+  it('la réparation de la date suit les mêmes bornes, et rend le jour ISO', () => {
+    assert.match(LEDGER_DATE_REPAIR_SQL, /where s\.id = any\(\$1::uuid\[\]\)/);
+    assert.match(LEDGER_DATE_REPAIR_SQL, /max\(p\.date\)/i, 'la date se dérive du reçu le plus récent');
+    assert.match(LEDGER_DATE_REPAIR_SQL, /is distinct from/i);
+    assert.match(LEDGER_DATE_REPAIR_SQL, /returning s\.id as student_id, to_char\(s\.last_payment_date, 'YYYY-MM-DD'\)/);
   });
 });
 
@@ -143,9 +195,12 @@ describe('check:payment-ledger — la commande elle-même, telle qu’elle est �
   it('sans --repair, elle n’écrit RIEN — et le drapeau est explicite', () => {
     assert.match(source, /const REPAIR = args\.includes\('--repair'\)/);
     assert.match(source, /if \(REPAIR && summary\.diverging > 0\)/, 'toute écriture est sous le drapeau');
-    // Les deux seules écritures de la commande : le solde et sa trace.
+    // Les deux seules écritures du solde : la correction et sa trace.
     const writes = source.match(/client\.query\((LEDGER_REPAIR_SQL|LEDGER_REPAIR_AUDIT_SQL)/g) ?? [];
     assert.equal(writes.length, 2, 'une écriture de correction, une écriture de journal — pas une de plus');
+    // Et la date, sous le même régime : deux écritures, jamais une de plus.
+    const dateWrites = source.match(/client\.query\((LEDGER_DATE_REPAIR_SQL|LEDGER_DATE_REPAIR_AUDIT_SQL)/g) ?? [];
+    assert.equal(dateWrites.length, 2, 'une correction de date, une trace de date');
     // Les deux APPELS, pas les deux noms : l'import est alphabétique, donc
     // `…_AUDIT_SQL` y précède `…_REPAIR_SQL` sans rien dire de l'ordre du geste.
     const updateAt = source.indexOf('client.query(LEDGER_REPAIR_SQL');
@@ -153,8 +208,12 @@ describe('check:payment-ledger — la commande elle-même, telle qu’elle est �
     assert.ok(updateAt > 0 && auditAt > updateAt, 'la trace se lit APRÈS coup, sur ce qui a réellement changé');
   });
 
-  it('un écart rend la commande ROUGE (exit 1) sans laisser croire à une réparation', () => {
-    assert.match(source, /if \(summary\.diverging > 0 && !REPAIR\) process\.exitCode = 1;/);
+  it('un écart — argent OU date — rend la commande ROUGE (exit 1)', () => {
+    assert.match(
+      source,
+      /if \(\(summary\.diverging > 0 \|\| summary\.datesDiverging > 0\) && !REPAIR\) process\.exitCode = 1;/,
+      'une date fausse avec un solde juste doit aussi faire échouer la veille',
+    );
   });
 
   it('et elle refuse de verdir sans mot de passe ni lecture', () => {
