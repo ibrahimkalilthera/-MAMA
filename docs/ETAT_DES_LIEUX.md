@@ -80,6 +80,8 @@ Ce document n'est pas une liste de bonnes pratiques : chaque constat porte sa **
 
 **Preuve attendue :** le contrôle rouge aujourd'hui (1 élève, −4 000 FCFA) ; vert après réparation ; et un cas qui simule deux encaissements concurrents pour montrer que la base, elle, ne perd plus rien.
 
+**État au 2026-11-07 — fermé, et mesuré.** Les trois gestes sont faits, dans l'ordre de valeur ci-dessus. ① Le contrôle existe (`npm run check:payment-ledger`, rouge sur l'élève de la mesure, réparé depuis) et tourne en veille quotidienne. ② Le 2026-11-06, cette veille a nommé un second cas (un reçu de 4 000 FCFA que le solde ignorait), réparé le jour même. ③ Le déclencheur qui ferme la CAUSE est en base depuis le 2026-11-07 (`supabase/migrations/20261107000000_students_balance_from_receipts.sql`) : `students_balance_derived` (BEFORE INSERT OR UPDATE sur `students`) **remplace** `amount_paid` et `last_payment_date` par la somme des reçus — une écriture du client sur ces colonnes est neutralisée, pas corrigée après coup — et `payments_sync_student_balance` (AFTER INSERT OR UPDATE OR DELETE sur `payments`) recalcule la fiche touchée, les deux fiches quand un reçu change de propriétaire. Vérifié sur la base partagée, transaction annulée : une écriture client de 999 999 rend **8 000** (la somme des deux reçus de l'élève), un `INSERT` annonçant 5 000 payés rend **0**, un reçu de 7 000 rend **7 000**, sa suppression rend **0**. Ce qui RESTE : le client envoie toujours ces deux colonnes (écritures devenues sans effet), et l'écran garde sa valeur optimiste jusqu'au rechargement — un défaut d'affichage, plus un écart de registre.
+
 ### 3.2 La file hors ligne peut perdre un paiement en silence
 
 **Constat.** `src/lib/offlineQueue.ts` persiste la file dans `localStorage`. `saveQueue` enveloppe l'écriture dans un `try/catch` qui **imprime** l'échec et continue : `console.error('Failed to save offline queue from localStorage:', err)`. L'appelant, lui, a déjà annoncé le succès (`notifySuccess('addPayment')`). Aucun plafond de file, aucun contrôle de quota, aucun repli sur un stockage durable.
@@ -284,7 +286,7 @@ Le dire fait partie de l'état des lieux, parce que la tentation d'une refonte e
 | 4 | Rendre l'échec d'écriture de la file **visible** + plafond nommé | un paiement ne peut plus être « enregistré » et perdu | petit |
 | 5 | Anonymiser les noms d'élèves dans les fichiers suivis | le dépôt public ne porte plus d'identités d'élèves | petit |
 | 6 | Garde de complétude des lectures (total vs reçu) + pagination des tables qui grandissent | une réponse partielle devient un état visible | moyen |
-| 7 | Déclencheur en base pour `amount_paid` (fin de la dérivation client) | la valeur ne dépend plus d'un instantané mémoire | moyen |
+| 7 | ~~Déclencheur en base pour `amount_paid` (fin de la dérivation client)~~ — **fait le 2026-11-07** : deux déclencheurs, une écriture client neutralisée, 0 écart mesuré | la valeur ne dépend plus d'un instantané mémoire | fait |
 | 8 | Sauvegarde vers un stockage durable + alerte d'âge + escrow de la phrase | la copie survit au 31ᵉ jour, et on le sait | moyen |
 | 9 | Journal d'incident local + écran « état du poste » | une panne cesse d'être muette | moyen |
 | 10 | ~~Trancher « Business E2E »~~ — **fait le 2026-10-12** : chaque workflow E2E monte sa propre pile (ni projet hébergé, ni `--allow`) | la recette métier **et** le pixel-check sont exercés à chaque push, et ni l'un ni l'autre n'écrit dans la base de l'école | fait |
