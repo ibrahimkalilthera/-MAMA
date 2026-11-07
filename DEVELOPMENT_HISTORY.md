@@ -32,6 +32,20 @@ Demande du propriétaire : « Fais calculer `amount_paid` et `last_payment_date`
 
 ---
 
+## [2026-11-07] Le pixel-check affirmait un solde de 0 — il vérifiait le défaut que le déclencheur venait de fermer
+
+**Le rouge du commit `2fbdee2`, nommé.** `PDF E2E` run `42399628169` : `❌ le solde de l’élève n’a pas bougé — des mois ne sont pas de l’argent — amount_paid=20000`, **29/30** vérifications OK. Le mode `recu-muet` créait une fiche en déclarant `amount_paid: 0`, y insérait un reçu de **20 000**, puis exigeait `m.amountPaid === 0` après le geste. **Avant** le déclencheur, la base gardait le 0 envoyé par le client : le contrôle était **vert alors qu'un reçu de 20 000 était ignoré du solde** — il mesurait la désynchronisation comme un attendu. Depuis `20261107000000`, la base dérive 20 000 de la ligne de paiement : la même assertion devient rouge sur du code **juste**. C'est la forme la plus utile d'un échec — il dit que le contrôle regardait une constante au lieu d'un fait.
+
+**Le correctif, dans le fixture et dans le jugement.** ① La fiche de démo ne déclare **plus** de solde : elle n'envoie ni `amount_paid` ni `last_payment_date`, et c'est la base qui les écrit — un fixture qui poserait « 0 » ne serait plus faux (le `BEFORE` l'écrase), mais il ferait juger une valeur que personne ne lit. ② Le flux lit le solde d'**AVANT** le geste (`readStudentBalance`, lecture REST directe, jamais l'écran) et le passe à `proveMuteFilled`. Le libellé « le solde n'a pas bougé » garde son sens, mais se mesure désormais entre **deux lectures** (`avant === après`) au lieu d'une constante. ③ Une vérification de plus, qui est la preuve de bout en bout du déclencheur : `amount_paid` doit valoir **20 000**, le montant du reçu muet, sur une fiche créée sans solde — si la dérivation disparaissait, ce cas tomberait avant le premier encaissement réel.
+
+**Le verrou du verrou.** `tests/e2e-mute-months.test.ts` (le juge qui lit la source du pixel-check, commentaires blanchis) gagne la règle **6bis** : le flux doit lire `readStudentBalance` **avant** le geste, et le jugement doit comparer à `m.amountPaidBefore`. La mutation qui remet une constante (`m.amountPaid === 0`) **rougit** en nommant la règle — une règle qu'aucune mutation ne fait rougir ne regarde rien. Les deux motifs de signature suivent la nouvelle arité de `proveMuteFilled` (quatre paramètres) : une signature introuvable aurait fait dire « la moitié retour doit exister » au lieu de juger.
+
+**Mesuré, sans rejouer ce qui n'a pas changé.** `node --test` sur `tests/e2e-mute-months.test.ts` + `tests/students-balance-trigger.test.ts` : **exit 0** ; ESLint sur les deux fichiers touchés : **exit 0** ; `tsc --noEmit` **exit 0** ; `check-test-integrity` **exit 0** (**260 suites**) ; `check-line-budget` **exit 0** (242 fichiers). Sur la base partagée `rpcjdohfxwukbqngbprw`, en lecture : `check:db-objects` **exit 0** — **6 déclencheurs déclarés, 6 en base**, 54 objets alignés ; `check:payment-ledger` **exit 0** — **657 élèves, 253 reçus, 2 284 000 FCFA des deux côtés, 0 écart**. La sonde de catalogue confirme `students_balance_derived` en `BEFORE`/ROW sur `students` et `payments_sync_student_balance` en `AFTER`/ROW sur `payments`.
+
+**Limite dite.** Le pixel-check lui-même n'est **pas** rejoué localement (il demande Chrome, sa propre pile Supabase et les comptes éphémères que le workflow monte) : la preuve de ce correctif est le run `recu-muet` **après** ce push. Ce qui est mesuré ici, c'est que l'assertion qui a rougi a disparu, que la comparaison porte sur deux lectures réelles, et que le juge statique ne peut plus repasser à une constante.
+
+---
+
 ## [2026-11-07] Maintenance du 7 novembre — le registre se referme, une paire de contraste tombe, et une vulnérabilité critique quitte le runtime
 
 Demande du propriétaire : « Fais la maintenance de Mama Thera, puis dresse-moi un bilan. »

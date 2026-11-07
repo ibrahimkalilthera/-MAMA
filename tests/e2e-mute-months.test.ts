@@ -74,7 +74,7 @@ function judgeMuteFlow(source: string): string[] {
   const problems: string[] = [];
   const flow = bodyOf(source, 'async function runMuteFillFlow(page, target) {');
   const fill = bodyOf(source, 'async function fillMuteMonthsFromFile(page) {');
-  const prove = bodyOf(source, 'async function proveMuteFilled(page, target, filled) {');
+  const prove = bodyOf(source, 'async function proveMuteFilled(page, target, filled, amountPaidBefore) {');
   const judge = bodyOf(source, 'async function checkMuteFilledPaper(pdf) {');
 
   if (!flow.found) problems.push('le flux du mode (`runMuteFillFlow`) doit exister');
@@ -146,6 +146,19 @@ function judgeMuteFlow(source: string): string[] {
     ['amountPaid', 'le solde de l’élève (des mois ne sont pas de l’argent)'],
   ] as [string, string][]) {
     if (at(judge.body, needle) < 0) problems.push(`le jugement doit vérifier ${why}`);
+  }
+
+  // 6bis. « Le solde n'a pas bougé » se mesure entre DEUX lectures. Depuis la
+  //    migration `20261107000000_students_balance_from_receipts`, `amount_paid`
+  //    est la SOMME DES REÇUS : ce mode crée un reçu muet de 20 000, donc la
+  //    valeur attendue n'est plus 0. La constante rendait le mode rouge sur du
+  //    code juste ; et une constante future le rendrait vert sur du code faux.
+  const balanceBefore = at(flow.body, 'readStudentBalance(');
+  if (balanceBefore < 0 || (gesture >= 0 && balanceBefore > gesture)) {
+    problems.push('le flux doit lire le solde AVANT le geste (`readStudentBalance`) : sans cette lecture, « il n’a pas bougé » ne se mesure pas');
+  }
+  if (at(judge.body, 'm.amountPaid === m.amountPaidBefore') < 0) {
+    problems.push('le solde se compare à la lecture d’avant (`amountPaidBefore`), jamais à une constante : depuis la migration du solde dérivé, il vaut la somme des reçus');
   }
   const names = checkNames(judge.body);
   const afterReload = names.filter((n) => n.startsWith('APRÈS RECHARGEMENT')).length;
@@ -264,7 +277,7 @@ describe('mode recu-muet — la source du pixel-check', () => {
 
   it('PREUVE PAR MUTATION : chaque règle rougit sur une copie abîmée', () => {
     const real = code(SCRIPT);
-    const start = real.indexOf('async function proveMuteFilled(page, target, filled) {');
+    const start = real.indexOf('async function proveMuteFilled(page, target, filled, amountPaidBefore) {');
     assert.ok(start > 0, 'la moitié retour doit exister');
     const head = real.slice(0, start);
     const tail = real.slice(start);
@@ -299,6 +312,16 @@ describe('mode recu-muet — la source du pixel-check', () => {
     assert.ok(
       judgeMuteFlow(noBefore).some((p) => /état « avant »/.test(p)),
       'sans lecture « avant », un reçu déjà complet passerait pour un rattrapage',
+    );
+
+    // Le solde comparé à une constante plutôt qu'à la lecture d'avant : c'est
+    // exactement la forme qui a rendu ce mode rouge le jour où la BASE a
+    // commencé à calculer le solde (le reçu muet vaut 20 000, pas 0).
+    const constantBalance = real.replace('m.amountPaid === m.amountPaidBefore', 'm.amountPaid === 0');
+    assert.ok(constantBalance !== real, 'la mutation doit s’appliquer');
+    assert.ok(
+      judgeMuteFlow(constantBalance).some((p) => /constante/.test(p)),
+      'comparer le solde à une constante doit rougir : la valeur attendue est la somme des reçus',
     );
 
     // La note des reçus muets n'est plus relue : le mode ne dirait pas qu'elle a
