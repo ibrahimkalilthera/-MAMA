@@ -60,6 +60,37 @@ export const LEDGER_DIVERGENCE_SQL = `
 `;
 
 /**
+ * Les élèves dont la DATE du dernier paiement ne correspond pas à leur reçu le
+ * plus récent.
+ *
+ * `amount_paid` n'est pas la seule grandeur dérivée : `last_payment_date` l'est
+ * aussi (`max(payments.date)`). Le contrôle ne comparait que l'argent, donc une
+ * date fausse — un reçu annulé dont la date restait affichée, une fiche dont le
+ * dernier reçu avait été ré-attribué — ne se voyait nulle part. Ce second
+ * balayage ferme ce trou : même jointure, même `is distinct from`, et la date
+ * NULL est comparée comme une valeur (un élève sans reçu ne doit pas garder de
+ * date).
+ */
+// `to_char` et non la colonne brute : le pilote `pg` rend un type `date` en
+// objet `Date` (minuit LOCAL), et comparer deux objets ne dit rien — deux dates
+// égales seraient « différentes » parce que ce ne sont pas les mêmes objets, et
+// `toISOString` décalerait le jour dans un fuseau positif. Le jour ISO est la
+// seule forme sur laquelle `===` et `>` veulent dire ce qu'ils disent.
+export const LEDGER_DATE_DIVERGENCE_SQL = `
+  select s.id as student_id,
+         to_char(s.last_payment_date, 'YYYY-MM-DD') as rolled,
+         to_char(p.last_date, 'YYYY-MM-DD') as receipts
+    from public.students s
+    left join (
+      select student_id, max(date) as last_date
+        from public.payments
+       group by student_id
+    ) p on p.student_id = s.id
+   where s.last_payment_date is distinct from p.last_date
+   order by s.id
+`;
+
+/**
  * Les totaux, pour dire sur QUOI porte le contrôle.
  *
  * Un contrôle qui ne dit pas combien d'élèves et de paiements il a regardés ne
@@ -93,10 +124,33 @@ export const LEDGER_REPAIR_SQL = `
   returning s.id as student_id, s.amount_paid as amount_paid
 `;
 
+/**
+ * Le geste de réparation de la DATE, borné aux mêmes élèves décidés.
+ *
+ * Même forme que la réparation du montant : une sous-requête scalaire (un élève
+ * sans reçu repart à NULL), un `is distinct from` qui rend l'écriture idempotente,
+ * et un `returning` qui dit ce qui a RÉELLEMENT changé.
+ */
+export const LEDGER_DATE_REPAIR_SQL = `
+  update public.students s
+     set last_payment_date = (
+           select max(p.date) from public.payments p where p.student_id = s.id)
+   where s.id = any($1::uuid[])
+     and s.last_payment_date is distinct from (
+           select max(p.date) from public.payments p where p.student_id = s.id)
+  returning s.id as student_id, to_char(s.last_payment_date, 'YYYY-MM-DD') as last_payment_date
+`;
+
 /** La ligne du journal d'audit qui rend la réparation lisible par l'école. */
 export const LEDGER_REPAIR_AUDIT_SQL = `
   insert into public.audit_logs (action, target_type, target_id, details, metadata, user_role)
   values ('REPAIR_AMOUNT_PAID', 'student', $1, $2, $3::jsonb, 'dev')
+`;
+
+/** La ligne du journal pour la date réparée — une action distincte, un fait distinct. */
+export const LEDGER_DATE_REPAIR_AUDIT_SQL = `
+  insert into public.audit_logs (action, target_type, target_id, details, metadata, user_role)
+  values ('REPAIR_LAST_PAYMENT_DATE', 'student', $1, $2, $3::jsonb, 'dev')
 `;
 
 /**
@@ -123,6 +177,31 @@ export const GAP_LABELS = {
 };
 
 /**
+ * Ce qu'un écart de DATE veut dire — même exigence que pour l'argent : nommer
+ * l'accident, pas seulement un signe.
+ *
+ * @param {{ rolled?: string|null, receipts?: string|null }} input
+ * @returns {'date-behind'|'date-ahead'|'date-without-receipt'|'date-missing'|'closed'}
+ */
+export function classifyDateGap({ rolled = null, receipts = null } = {}) {
+  const shown = rolled || null;
+  const latest = receipts || null;
+  if (shown === latest) return 'closed';
+  if (!latest) return 'date-without-receipt';
+  if (!shown) return 'date-missing';
+  return shown > latest ? 'date-ahead' : 'date-behind';
+}
+
+/** Le libellé d'un écart de date, tel qu'il se lit dans un rapport. */
+export const DATE_GAP_LABELS = {
+  'date-behind': 'une dernière date plus ancienne que le reçu le plus récent',
+  'date-ahead': 'une dernière date qu’aucun reçu actuel ne justifie',
+  'date-without-receipt': 'une dernière date sans aucun reçu',
+  'date-missing': 'des reçus et aucune dernière date',
+  closed: 'la date est celle du reçu le plus récent',
+};
+
+/**
  * Le rapport : les écarts classés, et les totaux sur lesquels ils portent.
  *
  * Les montants sont ramenés en NOMBRES avant d'être comparés : `numeric` arrive
@@ -132,9 +211,10 @@ export const GAP_LABELS = {
  * compte.
  *
  * @param {{ divergences?: { student_id?: string, id?: string, rollup?: unknown, lines?: unknown }[],
+ *   dateDivergences?: { student_id?: string, id?: string, rolled?: string|null, receipts?: string|null }[],
  *   totals?: { students?: unknown, payments?: unknown, rollup_total?: unknown, lines_total?: unknown } }} input
  */
-export function summarizeLedger({ divergences = [], totals = {} } = {}) {
+export function summarizeLedger({ divergences = [], dateDivergences = [], totals = {} } = {}) {
   const rows = divergences.map((row) => {
     const rollup = Number(row.rollup ?? 0);
     const lines = Number(row.lines ?? 0);
@@ -151,6 +231,17 @@ export function summarizeLedger({ divergences = [], totals = {} } = {}) {
   const byKind = {};
   for (const row of rows) byKind[row.kind] = (byKind[row.kind] ?? 0) + 1;
 
+  const dateRows = dateDivergences.map((row) => {
+    const rolled = row.rolled || null;
+    const receipts = row.receipts || null;
+    return {
+      id: row.student_id ?? row.id ?? '',
+      rolled,
+      receipts,
+      kind: classifyDateGap({ rolled, receipts }),
+    };
+  });
+
   const rollupTotal = Number(totals.rollup_total ?? 0);
   const linesTotal = Number(totals.lines_total ?? 0);
 
@@ -163,5 +254,9 @@ export function summarizeLedger({ divergences = [], totals = {} } = {}) {
     diverging: rows.length,
     rows,
     byKind,
+    // La DATE, séparément : un registre peut se refermer en argent et mentir
+    // encore sur « quand le dernier paiement a eu lieu ».
+    datesDiverging: dateRows.length,
+    dateRows,
   };
 }
