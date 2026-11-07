@@ -229,8 +229,11 @@ describe('mergeStudents — les reçus changent de fiche AVANT la suppression', 
 
     // 2. La fiche gardée reçoit le grand livre consolidé.
     const consolidated = calls.find((c) => c.op === 'update' && c.table === 'students');
-    assert.equal(consolidated?.payload?.amount_paid, 36000, 'somme des montants ENREGISTRÉS sur les deux fiches');
-    assert.equal(consolidated?.payload?.last_payment_date, '2026-10-05', 'la date la plus récente de toutes');
+    // Le solde et la date ne sont PLUS recopiés : les reçus viennent de changer
+    // de fiche, donc le déclencheur de la base a déjà recalculé la fiche gardée.
+    // Un payload qui les porterait serait une seconde vérité, remplacée aussitôt.
+    assert.equal('amount_paid' in (consolidated?.payload ?? {}), false, 'le solde est dérivé des reçus');
+    assert.equal('last_payment_date' in (consolidated?.payload ?? {}), false, 'la date aussi');
     assert.match(String(consolidated?.payload?.notes), /Inscrite par la tante/);
     assert.match(String(consolidated?.payload?.notes), /\[fusion \d{4}-\d{2}-\d{2} · MT-2026-415\]/, 'la note de l’autre fiche est recopiée, repère daté compris');
     assert.match(String(consolidated?.payload?.notes), /La mère est passée le 05\/10/);
@@ -354,8 +357,8 @@ describe('mergeStudents — un demi-geste ne survit pas', () => {
     assert.equal(studentUpdates.length, 2, 'la consolidation, puis le retour en arrière');
     assert.deepEqual(
       studentUpdates[1].payload,
-      { amount_paid: 0, last_payment_date: null, notes: 'Inscrite par la tante' },
-      'la fiche gardée retrouve exactement ses valeurs d’avant',
+      { notes: 'Inscrite par la tante' },
+      'la fiche gardée retrouve ses notes d’avant — le solde, lui, est rendu par le retour des reçus (déclencheur)',
     );
     assert.equal(state().find((s) => s.id === 'saf-1')?.amountPaid, 0, 'et l’écran aussi');
     assert.equal(calls.filter((c) => c.op === 'insert' && c.table === 'audit_logs').length, 0, 'rien n’a été fusionné, donc rien n’est annoncé au journal');
