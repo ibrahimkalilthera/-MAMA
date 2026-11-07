@@ -115,7 +115,19 @@ import path from 'node:path';
 import { CACHE_VERSION, cacheFallbackLabel, isAuditReport, usableCache } from './lib/audit-verdict.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 
-const DEV_BASELINE = 8;
+// 15, et non 8 : une SEULE avis explique tout l'écart, et aucun correctif n'est
+// disponible dans la plage acceptée. `GHSA-g3hv-75wg-m249` (déni de service par
+// amplification de `globparts`) couvre **minimatch 7.0.0 – 11.0.0** et n'est
+// corrigé qu'en **11.0.1** — une majeure que la plage d'`eslint@10.14.0` refuse
+// (`^10`). L'avis se propage dans l'arbre de DÉVELOPPEMENT (eslint,
+// typescript-eslint, electron-builder : 15 paquets, tous dev-only) ; il ne
+// touche AUCUNE dépendance d'exécution, et `npm audit --omit=dev` est à **0**.
+// Mesuré le 2026-11-07 après un `npm audit fix` qui a fait tomber le reste :
+// **21 vulnérabilités dont 1 critique et 5 hautes → 15 modérées**, la critique
+// (`dompurify`, runtime) et les cinq hautes (electron, happy-dom, undici, zod,
+// fast-uri) étant corrigées dans la même passe. Quand eslint élargira sa plage,
+// ce nombre redescendra — c'est le signal qui le dit (`total < baseline`).
+const DEV_BASELINE = 15;
 const CACHED = process.env.AUDIT_CACHE === '1';
 const SOFT_OFFLINE = process.env.AUDIT_SOFT_OFFLINE === '1';
 const FORCE_REFRESH = process.env.AUDIT_CACHE_REFRESH === '1';
