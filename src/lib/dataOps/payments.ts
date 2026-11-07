@@ -19,6 +19,46 @@ import { paymentMotifAuditTag } from '../paymentMotifs';
 export function createPaymentOps(ctx: SupabaseDataCtx) {
   const { students, setStudents, setSalaryPayments, notifySuccess, notifyError, isOffline, enqueueOffline, updateQueueCount } = ctx;
 
+  /**
+   * Lire le solde DÉRIVÉ par la base et l'adopter dans l'écran.
+   *
+   * Depuis la migration 20261107000000, `amount_paid` et `last_payment_date`
+   * sont calculés par Postgres à partir des reçus. L'écran les avance
+   * optimistement pour rester vif, mais c'est cette lecture qui fait foi : elle
+   * remplace le chiffre local par celui de la base, sans attendre un
+   * rechargement complet des élèves.
+   *
+   * Un échec de lecture n'est pas une panne du geste : la valeur optimiste reste
+   * affichée, et le prochain rechargement la corrigera. On le dit dans la console
+   * plutôt que d'inventer un solde.
+   */
+  const adoptDerivedBalance = async (studentId: string): Promise<void> => {
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('amount_paid, last_payment_date')
+        .eq('id', studentId);
+      if (error || !data || data.length === 0) {
+        console.error('adoptDerivedBalance: solde non relu —', error?.message ?? 'aucune ligne');
+        return;
+      }
+      const row = data[0];
+      // Une réponse qui ne porte pas la colonne ne dit RIEN du solde : on garde
+      // l'affichage optimiste plutôt que de le remplacer par un zéro inventé.
+      if (!('amount_paid' in row)) {
+        console.error('adoptDerivedBalance: réponse sans solde — affichage optimiste conservé');
+        return;
+      }
+      const amountPaid = Number(row.amount_paid) || 0;
+      const lastPaymentDate = row.last_payment_date ?? undefined;
+      setStudents(prev => prev.map(s => s.id === studentId ? { ...s, amountPaid, lastPaymentDate } : s));
+    } catch (err) {
+      // Une lecture d'affichage qui échoue ne doit pas faire croire que le geste
+      // a échoué : le reçu est écrit, le solde sera relu au prochain chargement.
+      console.error('adoptDerivedBalance: lecture impossible —', err instanceof Error ? err.message : err);
+    }
+  };
+
   const addPayment = async (studentId: string, payment: Omit<Payment, 'receiptNumber'> & { receiptNumber?: string }): Promise<boolean> => {
     // « En ligne » veut dire « un aller-retour serveur est possible » : sans
     // réseau OU sans session utilisable (connexion hors ligne pas encore
@@ -31,17 +71,15 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
     const rowId = payment.id ?? createRowId();
     const paymentWithId: Payment = { ...payment, id: rowId };
 
-    let optimisticAmountPaid: number | null = null;
     setStudents(prev => prev.map(s => {
       if (s.id === studentId) {
         // Idempotent : ce geste est DÉJÀ appliqué localement → on ne l'ajoute
         // pas une seconde fois (ni le paiement, ni le solde).
         if (s.payments.some(p => p.id === rowId)) return s;
-        optimisticAmountPaid = s.amountPaid + payment.amount;
         return {
           ...s,
           payments: [...s.payments, paymentWithId],
-          amountPaid: optimisticAmountPaid,
+          amountPaid: s.amountPaid + payment.amount,
           lastPaymentDate: payment.date,
         };
       }
@@ -108,12 +146,10 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         return true;
       }
 
-      if (optimisticAmountPaid != null) {
-        await supabase.from('students').update({
-          amount_paid: optimisticAmountPaid,
-          last_payment_date: payment.date,
-        }).eq('id', studentId);
-      }
+      // Le solde n'est PAS écrit ici : la base le dérive du reçu qu'on vient
+      // d'insérer. On relit la valeur qu'elle a produite et l'écran l'adopte —
+      // sans quoi il garderait un chiffre optimiste jusqu'au rechargement.
+      await adoptDerivedBalance(studentId);
 
       logAuditEvent({
         action: 'RECORD_PAYMENT',
@@ -157,17 +193,16 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
    *   • la ligne part de `payments` (`.select('id')` : zéro ligne = la policy
    *     « Admin delete payments » a refusé, et l'écran le DIT — la suppression
    *     est réservée aux administrateurs, voir `src/lib/deleteRights.ts`) ;
-   *   • `students.amount_paid` redescend du montant annulé, jamais sous zéro ;
-   *     `last_payment_date` redescend sur le paiement le plus récent QUI RESTE ;
+   *   • la BASE recalcule la fiche : `students.amount_paid` redescend du montant
+   *     annulé et `last_payment_date` repart sur le reçu le plus récent QUI RESTE
+   *     (déclencheur `payments_sync_student_balance`) ; l'écran relit ensuite ce
+   *     résultat (`adoptDerivedBalance`) ;
    *   • une entrée `DELETE_PAYMENT` est écrite dans le journal d'audit, avec le
    *     montant, le reçu et l'élève — c'est la trace que l'école relit.
    *
-   * Hors ligne, le geste est mis en file (aucun octet perdu) et le rejeu
-   * l'audite comme les autres suppressions ET réconcilie le même solde : il
-   * retire le montant de `students.amount_paid` (borné à 0) et recale
-   * `last_payment_date` sur le paiement le plus récent QUI RESTE (voir
-   * `reconcileStudentBalance`, `src/lib/offlineReplay.ts`). Le solde ne dérive
-   * donc plus après un drainage.
+   * Hors ligne, le geste est mis en file (aucun octet perdu) : le rejeu supprime
+   * la même ligne, et le même déclencheur recale la fiche à ce moment-là. Le
+   * client n'écrit donc jamais le solde, ni en ligne ni après un drainage.
    */
   const deletePayment = async (studentId: string, payment: Payment): Promise<boolean> => {
     const paymentId = payment.id;
@@ -236,17 +271,10 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
 
     setStudents(prev => applyLocally(prev));
 
-    // Le solde est réécrit depuis la liste DÉJÀ corrigée (la valeur que l'écran
-    // montre), pas soustrait en aveugle côté serveur.
-    const student = students.find(s => s.id === studentId);
-    if (student) {
-      const remaining = student.payments.filter(p => p.id !== paymentId);
-      const dates = remaining.map(p => p.date).filter(Boolean).sort();
-      await supabase.from('students').update({
-        amount_paid: Math.max(0, student.amountPaid - payment.amount),
-        last_payment_date: dates.length ? dates[dates.length - 1] : null,
-      }).eq('id', studentId);
-    }
+    // La suppression a fait recalculer la fiche par la base : on relit le
+    // résultat plutôt que de recopier la soustraction que l'écran vient de
+    // montrer.
+    await adoptDerivedBalance(studentId);
 
     void logAuditEvent({
       action: 'DELETE_PAYMENT',
@@ -418,8 +446,8 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
    * d'en créer une seconde.
    *
    * Deux choses suivent, comme à la suppression mais à l'envers :
-   *   • `students.amount_paid` REMONTE du montant restauré, et `last_payment_date`
-   *     repart sur le paiement le plus récent ;
+   *   • la BASE recalcule la fiche — `students.amount_paid` REMONTE du montant
+   *     restauré, et `last_payment_date` repart sur le reçu le plus récent ;
    *   • une entrée `RESTORE_PAYMENT` est écrite — le journal garde les DEUX gestes,
    *     la suppression et sa réparation, dans l'ordre.
    *
@@ -480,10 +508,10 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
       setStudents(prev => prev.map(s => s.id === archived.studentId
         ? { ...s, payments, amountPaid, lastPaymentDate: dates.length ? dates[dates.length - 1] : undefined }
         : s));
-      await supabase.from('students').update({
-        amount_paid: amountPaid,
-        last_payment_date: dates.length ? dates[dates.length - 1] : null,
-      }).eq('id', archived.studentId);
+      // La réinsertion a fait recalculer la fiche : la base dit le solde, et
+      // l'écran l'adopte (la valeur optimiste ci-dessus n'est qu'un affichage
+      // immédiat).
+      await adoptDerivedBalance(archived.studentId);
     }
 
     void logAuditEvent({
