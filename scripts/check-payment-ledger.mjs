@@ -26,6 +26,14 @@
  * dérivée réécrite par le client) se répare en base — la faire calculer par
  * Postgres — et c'est un chantier qui a sa place ailleurs qu'ici.
  *
+ * Il est FAIT depuis le 2026-11-07 :
+ * `supabase/migrations/20261107000000_students_balance_from_receipts.sql` fait
+ * dériver `amount_paid` et `last_payment_date` par deux déclencheurs, et une
+ * écriture du client sur ces colonnes est REMPLACÉE, plus « corrigée après
+ * coup ». Ce contrôle garde son rôle : il mesure, sur la base réelle, que le
+ * calcul n'a pas été contourné — un `--repair` ne devrait plus jamais trouver
+ * d'élève à réparer.
+ *
  * ─── --repair, et pourquoi ce n'est pas automatique ────────────────────────
  * Sans le drapeau, la commande n'écrit RIEN : elle mesure et elle sort en 1.
  * Avec lui, chaque élève divergent reçoit `amount_paid = somme de ses reçus`,
