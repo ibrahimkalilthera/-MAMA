@@ -44,6 +44,8 @@ Demande du propriétaire : « Fais calculer `amount_paid` et `last_payment_date`
 
 **Limite dite.** Le pixel-check lui-même n'est **pas** rejoué localement (il demande Chrome, sa propre pile Supabase et les comptes éphémères que le workflow monte) : la preuve de ce correctif est le run `recu-muet` **après** ce push. Ce qui est mesuré ici, c'est que l'assertion qui a rougi a disparu, que la comparaison porte sur deux lectures réelles, et que le juge statique ne peut plus repasser à une constante.
 
+**La CI le redit, sur le commit `723b699`.** `PDF E2E` run `42406693881` — **success**, les quatre modes verts : **9/9** (paie), **12/12** (reçu parent), **25/25** (mois cochés), **31/31** (reçu muet, contre 29/30 avant). Les deux lignes du solde, telles que le run les imprime : `✅ le solde de l’élève n’a pas bougé — avant=20000, après=20000` et `✅ ce solde est celui du reçu, calculé par la base — solde avant=20000, après=20000, reçu=20000`. Ce run tourne sur **sa propre pile**, montée depuis les migrations du dépôt : le déclencheur y est donc présent, et la dérivation est prouvée de bout en bout sur une base **neuve** — pas seulement sur la base de l'école. Sur le même push, `Deploy (Vercel)` run `42406617350` et `Desktop release (Windows)` run `42406617239` : **success**.
+
 ---
 
 ## [2026-11-07] Maintenance du 7 novembre — le registre se referme, une paire de contraste tombe, et une vulnérabilité critique quitte le runtime
