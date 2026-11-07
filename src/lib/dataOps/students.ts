@@ -80,25 +80,47 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
     // traverse donc tel quel, et `studentUpdatesToRow` n'écrit `student_id` que
     // lorsqu'une valeur non vide est fournie.
     const normalizedUpdates = updates;
+    // `amountPaid` / `lastPaymentDate` sont DÉRIVÉS par la base. Un appelant qui
+    // les passe ne doit ni les envoyer (le déclencheur les remplacerait) ni les
+    // appliquer à l'écran : une valeur optimiste qui survit jusqu'au rechargement
+    // est exactement le défaut qu'on ferme. On les retire du patch local, et la
+    // valeur que la base rend est adoptée juste après l'écriture.
+    const localPatch: Partial<Student> = { ...normalizedUpdates };
+    delete localPatch.amountPaid;
+    delete localPatch.lastPaymentDate;
     if (isOffline()) {
-      setStudents(prev => prev.map(s => s.id === id ? { ...s, ...normalizedUpdates } : s));
-      enqueueOffline('updateStudent', { id, updates: normalizedUpdates });
+      setStudents(prev => prev.map(s => s.id === id ? { ...s, ...localPatch } : s));
+      enqueueOffline('updateStudent', { id, updates: localPatch });
       notifySuccess('updateStudent');
       return true;
     }
-    const row = studentUpdatesToRow(normalizedUpdates);
+    const row = studentUpdatesToRow(localPatch);
     // `.select('id')` + the empty check is what makes this write HONEST — the
     // same rule as staff.ts. PostgREST answers 200 with an EMPTY body when the
     // RLS `USING` clause removes every target row (a non-admin editing a pupil,
     // for instance): the request "succeeded", changed nothing, and used to be
     // reported as success — the screen then showed a value the database does
     // not have. Zero rows is a failure and says so.
-    const { data, error } = await supabase.from('students').update(row).eq('id', id).select('id');
+    // Les deux colonnes dérivées sont RELUES dans la même réponse : la base les a
+    // recalculées en exécutant ce même `UPDATE` (déclencheur BEFORE ROW), donc
+    // l'adopter ici est gratuit et évite un second aller-retour.
+    const { data, error } = await supabase
+      .from('students')
+      .update(row)
+      .eq('id', id)
+      .select('id, amount_paid, last_payment_date');
     if (error) { console.error('updateStudent error:', error.message); notifyError('updateStudent', error.message); return false; }
     if (!data || data.length === 0) {
       console.error('updateStudent: aucune ligne modifiée — cible filtrée par la policy RLS');
       notifyError('updateStudent', 'Aucune ligne modifiée — droits insuffisants sur cet élève.');
       return false;
+    }
+    const written = data[0] as { amount_paid?: number | null; last_payment_date?: string | null };
+    // Une réponse qui ne porte pas la colonne ne dit RIEN du solde : on garde
+    // l'affichage existant plutôt que d'inventer un zéro.
+    if ('amount_paid' in written) {
+      localPatch.amountPaid = Number(written.amount_paid) || 0;
+      localPatch.lastPaymentDate = written.last_payment_date ?? undefined;
     }
     const changes: string[] = [];
     if (currentStudent && normalizedUpdates.name !== undefined && normalizedUpdates.name !== currentStudent.name) changes.push(`nom ${currentStudent.name}→${normalizedUpdates.name}`);
@@ -111,7 +133,7 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
       targetId: id,
       details: `${currentStudent?.name || id}${changes.length ? ` — ${changes.join(', ')}` : ''}`,
     });
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...normalizedUpdates } : s));
+    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...localPatch } : s));
     notifySuccess('updateStudent');
     return true;
   };
@@ -194,7 +216,10 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
           // l'élève, pas à sa classe (src/lib/studentIdentifiers.ts).
           if (item.targetGrade) updates.grade = item.targetGrade;
           if (item.newTotalDue !== undefined) updates.totalDue = item.newTotalDue;
-          updates.amountPaid = 0;
+          // Le solde n'est PAS remis à zéro ici : `amount_paid` est la somme des
+          // reçus (déclencheur `students_balance_derived`), et une promotion ne
+          // supprime aucun reçu. L'écrire était un no-op neutralisé par la base —
+          // l'écran, lui, affichait un zéro que le registre ne disait pas.
           updates.status = 'Active';
         } else if (item.action === 'graduate') {
           updates.status = 'Graduated';
@@ -315,13 +340,16 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
         }
       }
     };
-    /** La fiche gardée rendue à ses valeurs d'avant (mêmes colonnes que l'étape 2). */
+    /**
+     * La fiche gardée rendue à ses valeurs d'avant.
+     *
+     * Seules les NOTES sont réécrites : le solde et la dernière date sont
+     * dérivés des reçus par la base, et `putReceiptsBack` vient de les remettre
+     * sous leurs fiches d'origine — donc le déclencheur les a déjà rendus à
+     * leur valeur d'avant, sans qu'on ait à la recopier.
+     */
     const restoreSurvivor = async () => {
-      await supabase.from('students').update({
-        amount_paid: survivor.amountPaid,
-        last_payment_date: survivor.lastPaymentDate ?? null,
-        notes: survivor.notes,
-      }).eq('id', survivorId);
+      await supabase.from('students').update({ notes: survivor.notes }).eq('id', survivorId);
     };    // 1. Les reçus changent de fiche, UN PAR UN — et chacun est vérifié.
     for (const fiche of removed) {
       for (const payment of fiche.payments) {
@@ -347,14 +375,18 @@ export function createStudentOps(ctx: SupabaseDataCtx) {
         notifyError('mergeStudents', 'Reçus non rattachés — droits insuffisants, ou les reçus ont changé. Rien n’a été fusionné.');
         return false;
       }
-    }
+    }
 
-    // 2. Le grand livre consolidé + les notes recopiées, sur la fiche gardée.
+    // 2. Les notes recopiées sur la fiche gardée. Le SOLDE et la dernière date,
+    //    eux, ne s'écrivent plus : les reçus viennent de changer de fiche, donc
+    //    le déclencheur de la base a déjà recalculé la fiche gardée à partir
+    //    d'eux. `ledger` reste l'affichage immédiat de l'écran (et l'instantané du
+    //    journal), jamais une valeur écrite.
     const ledger = mergedLedger(survivor, removed);
     const notes = mergedNotes(survivor, removed, localIsoDate(systemClock()));
     const { data: updated, error: updateError } = await supabase
       .from('students')
-      .update(studentUpdatesToRow({ amountPaid: ledger.amountPaid, lastPaymentDate: ledger.lastPaymentDate, notes }))
+      .update(studentUpdatesToRow({ notes }))
       .eq('id', survivorId)
       .select('id');
     if (updateError || !updated || updated.length === 0) {

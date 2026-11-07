@@ -149,7 +149,7 @@ describe('offline sync (drainOfflineQueue — the full syncOfflineQueue behaviou
     assert.deepEqual(getOfflineQueue(), []);
   });
 
-  it("replays 'addPayment' against both tables (payments, then the student read+write) and drains", async () => {
+  it("replays 'addPayment' against payments SEUL — la base recalcule la fiche", async () => {
     clearOfflineQueue();
     seedPayment();
 
@@ -157,9 +157,10 @@ describe('offline sync (drainOfflineQueue — the full syncOfflineQueue behaviou
     const synced = await drainOfflineQueue(db);
 
     assert.equal(synced, 1);
-    // Le paiement, puis l'élève DEUX fois : le solde est relu avant d'être écrit
-    // (une copie locale ferait dériver le chiffre après un drainage).
-    assert.deepEqual(queries, ['payments', 'students', 'students'], 'a payment reconciles the student too');
+    // Le reçu suffit : le déclencheur `payments_sync_student_balance` recalcule
+    // `amount_paid` et `last_payment_date` côté base (migration 20261107000000).
+    // Une lecture/écriture d'élève ici serait la seconde vérité qu'on a fermée.
+    assert.deepEqual(queries, ['payments'], 'aucune écriture d’élève au rejeu');
     assert.deepEqual(getOfflineQueue(), []);
   });
 

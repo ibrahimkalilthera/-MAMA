@@ -333,13 +333,18 @@ describe('passage de classe HORS LIGNE — et un contrat de retour exact', () =>
     assert.equal(promoted.academicYear, '2026-2027');
     assert.equal(promoted.grade, '1ère');
     assert.equal(promoted.totalDue, 320000);
-    assert.equal(promoted.amountPaid, 0, 'le nouveau total repart de zéro');
+    assert.equal(promoted.amountPaid, 100000, 'le solde suit les reçus : la promotion ne l’efface pas côté client');
     assert.equal(promoted.status, 'Active');
     assert.equal(s.state.students[1].status, 'Graduated');
 
     assert.deepEqual(getOfflineQueue().map((i) => i.type), ['updateStudent', 'updateStudent']);
     const first = getOfflineQueue()[0];
     assert.equal(first.type === 'updateStudent' ? first.payload.id : null, 'st1');
+    // Les colonnes dérivées ne partent PAS dans la file : un rejeu qui les
+    // porterait ferait du client l'auteur d'un solde que Postgres calcule.
+    const queued = first.type === 'updateStudent' ? first.payload.updates : {};
+    assert.equal('amountPaid' in queued, false, 'aucun solde dans la mise à jour du lot');
+    assert.equal('lastPaymentDate' in queued, false, 'aucune dernière date dans la mise à jour du lot');
   });
 
   it('rend false si un élève du lot n’est pas passé — plus jamais « succès » pour zéro', async () => {

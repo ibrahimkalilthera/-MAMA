@@ -221,8 +221,10 @@ deps: BatchImportDeps
                 parentPhone: r.parentPhone ?? existing.parentPhone ?? '',
                 parentEmail: r.parentEmail ?? existing.parentEmail ?? '',
                 totalDue: r.totalDue ?? existing.totalDue,
-                // never decrease the amount already paid
-                amountPaid: Math.max(existing.amountPaid, Number(r.amountPaid) || 0),
+                // La colonne « Montant Payé » du tableur n'est PLUS écrite : le
+                // solde se dérive des reçus (migration 20261107000000), et un
+                // montant importé sans reçu n'existe pas. La feuille « payments »
+                // est le chemin pour faire entrer l'argent encaissé.
                 scholarshipDiscount: r.scholarshipDiscount ?? existing.scholarshipDiscount ?? 0,
                 dueDate: r.dueDate ?? existing.dueDate ?? '',
                 academicYear: options.academicYear || existing.academicYear,
@@ -241,7 +243,10 @@ deps: BatchImportDeps
             parentPhone: r.parentPhone || '',
             parentEmail: r.parentEmail || '',
             totalDue: r.totalDue || 0,
-            amountPaid: r.amountPaid || 0,
+            // La fiche naît à 0, et ses reçus feront son solde (déclencheur
+            // `students_balance_derived`) : le montant du tableur n'est pas
+            // transporté, `studentToRow` ne l'écrit plus.
+            amountPaid: 0,
             scholarshipDiscount: r.scholarshipDiscount || 0,
             dueDate: r.dueDate || '',
             academicYear: options.academicYear || undefined,
@@ -274,9 +279,10 @@ deps: BatchImportDeps
           updated++;
           continue;
         }
-        // La voie du domaine : elle insère le paiement ET met à jour l'élève
-        // (montant payé, date du dernier paiement), et elle sait attendre la
-        // ligne — un import de règlements n'exige plus le réseau.
+        // La voie du domaine : elle insère le paiement, et c'est la BASE qui
+        // recalcule le solde et la date de la fiche (déclencheurs de la
+        // migration 20261107000000). Un import de règlements n'exige plus le
+        // réseau.
         const ok = await deps.write.addPayment(matchedStudent.id, {
           date,
           amount,

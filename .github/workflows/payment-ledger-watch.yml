@@ -1,4 +1,4 @@
-name: Registre des paiements — réconciliation quotidienne
+name: Registre des paiements — réconciliation quotidienne (montants et dates)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # « Chaque solde vaut-il la somme de ses reçus ? »
@@ -13,8 +13,14 @@ name: Registre des paiements — réconciliation quotidienne
 # ni la CI, ni le rapport hebdomadaire des doublons, qui ne regarde pas ce
 # registre-là.
 #
-# FAIL-ON-DRIFT : un seul élève dont les deux montants ne se referment pas rend
-# le job ROUGE (`npm run check:payment-ledger` sort en 1). Les notifications
+# La DATE du dernier paiement est balayée par le même contrôle : elle est dérivée
+# elle aussi (`max(payments.date)`), et un reçu supprimé ou ré-attribué peut
+# laisser une date qu'aucun reçu ne justifie. Un solde juste ne dispense pas de la
+# vérifier — d'où la seconde requête du script, et le même exit 1.
+#
+# FAIL-ON-DRIFT : un seul élève dont les deux montants ne se referment pas — OU
+# dont la dernière date ne suit pas ses reçus — rend le job ROUGE
+# (`npm run check:payment-ledger` sort en 1). Les notifications
 # d'échec d'Actions alertent alors — c'est le seul signal qui existe, et il vaut
 # mieux qu'un écart de caisse découvert en fin d'année.
 #
@@ -54,7 +60,7 @@ permissions:
 
 jobs:
   ledger:
-    name: Réconcilier amount_paid et la somme des reçus
+    name: Réconcilier amount_paid, last_payment_date et les reçus
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
