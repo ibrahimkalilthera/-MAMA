@@ -504,7 +504,13 @@ async function resolveTarget() {
       parent_phone: '+223 70 00 00 00',
       grade: '9eme A',
       total_due: 150000,
-      amount_paid: 0,
+      // PAS de `amount_paid` ici, et c'est une décision : depuis la migration
+      // `20261107000000_students_balance_from_receipts`, le solde est CALCULÉ
+      // par la base (somme des reçus). Poser « 0 » à la main ne serait pas faux
+      // pour autant — le déclencheur BEFORE le remplacerait — mais ce serait une
+      // valeur que plus personne ne lit, et le mode jugerait ensuite une
+      // constante au lieu du calcul. On ne déclare donc rien : la base dérive,
+      // et le jugement vérifie qu'elle a bien dérivé.
       status: 'Active',
     };
     const ins = await insertOnce('students', demo, `name=eq.${encodeURIComponent(demo.name)}`);
@@ -1223,9 +1229,13 @@ async function replayMuteGesture(page, target) {
  * son bouton.
  *
  * Le solde de l'élève est relu en base : des mois ne sont pas de l'argent, donc
- * `amount_paid` ne doit pas bouger d'un franc.
+ * `amount_paid` ne doit pas bouger d'un franc. « Ne pas bouger » se mesure entre
+ * DEUX lectures (celle d'avant le geste, passée ici, et celle d'après), jamais
+ * contre une constante : depuis la migration `20261107000000`, ce solde est la
+ * SOMME DES REÇUS, donc `0` n'est plus la valeur attendue pour une fiche qui
+ * porte un reçu muet de 20 000.
  */
-async function proveMuteFilled(page, target, filled) {
+async function proveMuteFilled(page, target, filled, amountPaidBefore) {
   // Le geste peut être REJOUÉ : le transport peut avoir perdu la première
   // écriture (voir `replayMuteGesture`), et une requête perdue n'est pas un
   // verdict sur l'application. Le rejeu n'est donc pas une tolérance, c'est une
@@ -1245,6 +1255,8 @@ async function proveMuteFilled(page, target, filled) {
     );
   }
   console.log(`  ℹ️ reçu relu en base après ${settled.reads} lecture(s) — months=${JSON.stringify(settled.value.months)}`);
+  // Le solde APRÈS le geste (et avant le rechargement) : la comparaison avec
+  // `amountPaidBefore` est ce qui dit « des mois ne sont pas de l'argent ».
   const student = await api(`/rest/v1/students?select=id,amount_paid&id=eq.${target.student.id}`);
 
   // Le dossier de téléchargement est vidé avant la réimpression : la capture
@@ -1274,11 +1286,19 @@ async function proveMuteFilled(page, target, filled) {
     stored: settled.value.months,
     reads: settled.reads,
     amountPaid: Number(firstRow(student.body)?.amount_paid),
+    amountPaidBefore,
     strip,
     fillButtons,
     backfillAfter,
     reprint,
   };
+}
+
+/** Le solde de la fiche, lu en base — jamais à l'écran. */
+async function readStudentBalance(studentId) {
+  const res = await api(`/rest/v1/students?select=id,amount_paid&id=eq.${studentId}`);
+  if (res.status !== 200) throw new Error(`lecture du solde échouée (${res.status})`);
+  return Number(firstRow(res.body)?.amount_paid);
 }
 
 /**
@@ -1299,8 +1319,11 @@ async function runMuteFillFlow(page, target) {
   // des mois est attendue juste avant, donc la fiche est rendue et une absence
   // de parcours ici serait un vrai constat, pas une course.
   const backfillBefore = await readBackfillPanel(page);
+  // Le solde d'AVANT le geste : sans lui, « il n'a pas bougé » ne se mesure pas.
+  // Et il se lit en base, pas dans la fiche : le reçu muet y a déjà été dérivé.
+  const amountPaidBefore = await readStudentBalance(target.student.id);
   const filled = await fillMuteMonthsFromFile(page);
-  const mute = await proveMuteFilled(page, target, filled);
+  const mute = await proveMuteFilled(page, target, filled, amountPaidBefore);
   return {
     ...mute.reprint,
     months: { ...mute, before, fillOffered, backfillBefore, muteReceiptId: target.muteReceipt.id },
@@ -1902,7 +1925,15 @@ async function checkMuteFilledPaper(pdf) {
     !!strip && strip.header.includes(`${MONTHS_TICKED.length} mois réglés sur ${strip.total}`),
     strip ? strip.header : 'aucune bande de mois');
   check('le solde de l’élève n’a pas bougé — des mois ne sont pas de l’argent',
-    m.amountPaid === 0, `amount_paid=${m.amountPaid}`);
+    m.amountPaid === m.amountPaidBefore, `avant=${m.amountPaidBefore}, après=${m.amountPaid}`);
+  // Et il vaut ce que disent les REÇUS, pas ce qu'un écran a déclaré : c'est la
+  // migration `20261107000000` qui le calcule (déclencheurs sur `students` et
+  // `payments`), et ce mode en est la preuve de bout en bout — la fiche est
+  // créée SANS solde, un reçu de MUTE_RECEIPT_AMOUNT y est inséré, et c'est la
+  // base qui doit écrire le montant.
+  check('ce solde est celui du reçu, calculé par la base',
+    m.amountPaidBefore === MUTE_RECEIPT_AMOUNT && m.amountPaid === MUTE_RECEIPT_AMOUNT,
+    `solde avant=${m.amountPaidBefore}, après=${m.amountPaid}, reçu=${MUTE_RECEIPT_AMOUNT}`);
 
   // ── LE PAPIER : le reçu réimprimé, après le rechargement ─────────────────
   const reprint = monthsOnPaper(await pdfText(m.reprint.bytes.slice()));
