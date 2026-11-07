@@ -188,11 +188,18 @@ export function useTheme() {
         ? 'bg-[#FDFBF7]' 
         : 'bg-[#F8FAFC]',
 
-      card: isMidnight 
-        ? 'bg-[#111827]' 
-        : isSlate 
-        ? 'bg-[#334155]' 
-        : 'bg-white',
+      // `bg-white` DANS LES SIX THÈMES, et pas la teinte de la carte écrite en
+      // dur : c'est la classe que les deux thèmes sombres REPEIGNENT
+      // (`#334155` en Ardoise, `#111827` en Cyber Minuit, src/themes/*.css) et
+      // celle dont `src/themes/ink-scope.css` lève l'encre — ses deux moitiés,
+      // descendante et « self ». Une classe arbitraire (`bg-[#334155]`) tombait
+      // hors de cette liste : la carte de paie était bien sombre, mais son
+      // « Modifier » (`text-slate-600`) gardait son encre de thème clair —
+      // 1,37:1 mesuré par `npm run check:contrast` en Chrome le 2026-11-07,
+      // seule paire sous 3:1 des six thèmes. Le rendu est identique (les deux
+      // thèmes sombres remappent `bg-white` sur la même teinte) ; c'est la
+      // GARDE qui change de camp, et elle existe déjà.
+      card: 'bg-white',
 
       text: isMidnight 
         ? 'text-[#F9FAFB]' 
