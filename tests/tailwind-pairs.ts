@@ -524,7 +524,7 @@ export type DarkTheme = (typeof DARK_THEMES)[number];
 /** Worst-case surface a pair sits on per dark theme (the theme's card). */
 export const DARK_CARD: Record<DarkTheme, string> = {
   slate: '#334155', // --surface-card (bg-white remap target)
-  midnight: '#111827', // currentTheme.card (bg-[#111827])
+  midnight: '#111827', // --surface-card (bg-white remap target, comme Ardoise)
 };
 
 /** tokens repainted by the slate !important layer (key = CSS-unescaped). */
