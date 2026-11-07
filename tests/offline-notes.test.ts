@@ -53,7 +53,10 @@ describe('studentToRow (offline insert)', () => {
 
   it('still maps the other student fields alongside note_entries', () => {
     const row = studentToRow(student({ grade: '9A', studentId: ' MT-2026-001 ', noteEntries: entries, amountPaid: 75000, flagged: true }));
-    assert.equal(row.amount_paid, 75000);
+    // Le solde NE PART PAS : la base le dérive des reçus (migration 20261107000000).
+    // L'envoyer à l'insertion ferait croire que le montant vient du formulaire.
+    assert.equal('amount_paid' in row, false, 'aucun solde déclaré à l’insertion');
+    assert.equal('last_payment_date' in row, false, 'aucune date déclarée à l’insertion');
     assert.equal(row.flagged, true);
     assert.equal(row.name, 'Ali Diallo');
     assert.equal(row.student_id, 'MT-2026-001', 'eligible matricules are trimmed at the DB boundary');
@@ -81,10 +84,14 @@ describe('studentUpdatesToRow (offline update)', () => {
   });
 
   it('sets no note_entries key when the update has no noteEntries', () => {
-    const row = studentUpdatesToRow({ name: 'Ali B. Diallo', amountPaid: 60000 });
+    const row = studentUpdatesToRow({ name: 'Ali B. Diallo', amountPaid: 60000, lastPaymentDate: '2026-10-04' });
     assert.equal('note_entries' in row, false, 'no spurious jsonb write');
     assert.equal(row.name, 'Ali B. Diallo');
-    assert.equal(row.amount_paid, 60000);
+    // Les deux colonnes DÉRIVÉES ne sont jamais nommées dans un `UPDATE` : le
+    // déclencheur les remplacerait de toute façon, et un payload qui les porte
+    // entretient l'idée qu'elles viennent du client.
+    assert.equal('amount_paid' in row, false, 'le solde ne s’écrit pas');
+    assert.equal('last_payment_date' in row, false, 'la dernière date ne s’écrit pas');
   });
 
   it('ignores an explicit undefined noteEntries', () => {
