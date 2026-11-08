@@ -76,6 +76,7 @@
     "electron:release": "npm run electron:build && npm run check:release && npm run release:publish",
     "release:publish": "node scripts/publish-release.mjs",
     "release:promote": "node scripts/publish-release.mjs --promote",
+    "release:pr": "node scripts/release-pr.mjs",
     "manifest:unpacked": "node scripts/write-unpacked-manifest.mjs",
     "release:prune": "node scripts/prune-release-dir.mjs",
     "check:release:workshop": "node scripts/prune-release-dir.mjs --check",

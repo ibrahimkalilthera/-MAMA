@@ -3,20 +3,19 @@ name: Main push provenance
 # ─────────────────────────────────────────────────────────────────────────────
 # « Ce commit est-il arrivé sur main par une PR ? »
 #
-# La protection de branche est active depuis le 2026-11-08 (PR obligatoire, deux
-# checks requis, force-push et suppression refusés) — mais avec
-# `enforce_admins: false`. L'administrateur, qui est aussi le compte qui pousse
-# dans ce dépôt, peut donc encore faire passer un commit sans PR ; un tel commit
-# contourne TOUTES les portes — lint, tests, RLS, cohérence de release — sans
-# que rien ne le dise.
+# La protection de branche est active depuis le 2026-11-08 (PR obligatoire, un
+# check requis, force-push et suppression refusés) et elle vaut désormais AUSSI
+# pour l'administrateur (`enforce_admins: true`) : plus personne ne peut pousser
+# directement sur `main`. Les releases — dernier chemin de contournement — ont
+# leur propre PR (`npm run release:pr`).
 #
 # Ce workflow ne bloque pas le push (seul GitHub pourrait) : il rend le
-# contournement VISIBLE. Un commit sans PR associée, hors commit de release
-# nommé, rend le run rouge avec son SHA.
+# contournement VISIBLE. Un commit sans PR associée rend le run rouge avec son
+# SHA — et il n'exempte plus rien, pas même `chore(release):`.
 #
 # La barrière en amont, celle qui refuse avant le départ, est `pre-push`
-# (scripts/check-push-target.mjs). L'état mesuré et le passage à
-# `enforce_admins: true` sont décrits dans docs/PROTECTION_MAIN.md.
+# (scripts/check-push-target.mjs). L'état mesuré est décrit dans
+# docs/PROTECTION_MAIN.md.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:

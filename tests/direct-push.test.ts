@@ -1,38 +1,45 @@
 /**
- * Le garde du push direct — la protection que l'API refuse.
+ * Le garde du push direct — la ceinture derrière la protection de branche.
  *
- * La protection de branche rend `404` sur ce dépôt (jeton sans administration,
- * ou offre qui ne l'ouvre pas). Ce garde ne la remplace pas — il ne BLOQUE pas
- * le push — mais il rend le contournement visible : le run devient rouge avec
- * le SHA et la raison.
+ * La protection de `main` est active et vaut désormais aussi pour
+ * l'administrateur (`enforce_admins: true`) : GitHub refuse un push direct pour
+ * tous les comptes. Ce garde ne la remplace pas — il ne BLOQUE pas le push — mais
+ * il rend visible le jour où un commit arriverait quand même : run rouge, avec
+ * le SHA et la raison. Et il n'exempte plus rien par le message : depuis que les
+ * releases ont leur PR, `chore(release):` n'est plus un laissez-passer.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { RELEASE_COMMIT_PREFIX, directPushVerdict } from '../scripts/lib/direct-push.mjs';
+import { directPushVerdict } from '../scripts/lib/direct-push.mjs';
 
 const root = join(import.meta.dirname, '..');
 
-describe('directPushVerdict — une PR, ou une exception nommée', () => {
+describe('directPushVerdict — une PR, et rien d’autre', () => {
   it('un commit associé à une PR passe', () => {
     const verdict = directPushVerdict({ associatedPulls: [{ number: 96 }], message: 'Merge pull request #96' });
     assert.equal(verdict.ok, true);
     assert.match(verdict.reason, /1 PR/);
   });
 
-  it('un commit sans PR et sans préfixe de release est refusé, avec la marche à suivre', () => {
+  it('un commit sans PR est refusé, avec la marche à suivre', () => {
     const verdict = directPushVerdict({ associatedPulls: [], message: 'fix: corrige un solde' });
     assert.equal(verdict.ok, false);
     assert.match(verdict.reason, /AUCUNE pull request/);
     assert.match(verdict.reason, /ouvrez une PR/);
   });
 
-  it('un commit de release est exempté — par son préfixe, pas par son auteur', () => {
-    assert.equal(RELEASE_COMMIT_PREFIX, 'chore(release):');
-    const verdict = directPushVerdict({ associatedPulls: [], message: 'chore(release): 1.0.43 — huit bumps' });
-    assert.equal(verdict.ok, true);
-    assert.match(verdict.reason, /exception nommée/);
+  it('un commit de release n’est plus exempté : il passe par une PR comme le reste', () => {
+    const verdict = directPushVerdict({ associatedPulls: [], message: 'chore(release): 1.0.44 — deux correctifs' });
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.reason, /release:pr/);
+  });
+
+  it('le module ne porte plus d’exception par préfixe de message', () => {
+    const source = readFileSync(join(root, 'scripts/lib/direct-push.mjs'), 'utf8');
+    assert.doesNotMatch(source, /RELEASE_COMMIT_PREFIX/, 'aucune constante d’exemption ne doit subsister');
+    assert.doesNotMatch(source, /startsWith\(/, 'le message n’est plus un critère : seule la provenance compte');
   });
 
   it('une réponse illisible ne fabrique pas un rouge', () => {

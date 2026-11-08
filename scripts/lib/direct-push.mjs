@@ -1,26 +1,30 @@
 /**
  * ─── UN COMMIT ARRIVÉ SUR `main` SANS PASSER PAR UNE PR ─────────────────────
  *
- * La protection de branche GitHub est le bon outil, et elle est active depuis
- * le 2026-11-08 — mais avec `enforce_admins: false` : un administrateur peut
- * encore pousser directement sur `main`. Un commit poussé ainsi contourne
- * TOUTES les portes de ce dépôt (lint, tests, RLS, cohérence de release) sans
- * que rien ne le dise. Ce garde est donc la moitié CI de la réponse, et
- * `pre-push` (scripts/lib/push-target.mjs) la moitié locale.
+ * La protection de branche GitHub est la vraie barrière, et depuis le
+ * 2026-11-08 elle vaut AUSSI pour l'administrateur (`enforce_admins: true`) :
+ * plus personne ne peut pousser directement sur `main`, pas même le compte qui
+ * possède le dépôt. C'était la dernière exception — les releases, produites et
+ * poussées par ce compte — et elle a disparu le jour où elles ont eu leur
+ * propre chemin : `npm run release:pr` ouvre une PR, la fusion la fait entrer
+ * (scripts/release-pr.mjs, docs/PROTECTION_MAIN.md).
+ *
+ * Ce garde reste, comme la ceinture d'un pont qui a déjà ses rambardes : il ne
+ * bloque pas un push (seul GitHub pourrait), il rend VISIBLE un commit qui
+ * serait arrivé sans PR — y compris par une modification de la règle, un
+ * contournement d'API ou un `enforce_admins` remis à `false` par mégarde. Un
+ * commit sans PR contourne toutes les portes du dépôt (lint, tests, RLS,
+ * cohérence de release) sans que rien ne le dise ; c'est exactement ce silence
+ * que ce module casse.
  *
  * Ce module est la moitié pure du garde : il reçoit la liste des PR associées au
  * commit (ce que l'API GitHub rend) et le message, et il tranche. Aucun réseau
  * ici — le script `check-direct-push.mjs` fait l'appel, le test fait le reste.
  *
- * Une exception NOMMÉE, et une seule : les commits de release
- * (`chore(release): …`) sont produits par le script de version, ne touchent que
- * `package.json` / `package-lock.json` / l'historique, et sont poussés par la
- * même automatisation qui vient de faire passer la chaîne. Les exempter est un
- * choix visible dans ce commentaire — pas un trou.
+ * Il n'y a plus d'exception de release, et c'est délibéré : un commit
+ * `chore(release): …` poussé directement serait le contournement le plus
+ * commode du dépôt, et il n'a plus aucune raison d'exister.
  */
-
-/** Le préfixe des commits de release, écrit une fois. */
-export const RELEASE_COMMIT_PREFIX = 'chore(release):';
 
 /**
  * Ce commit est-il arrivé par une PR ?
@@ -40,14 +44,10 @@ export function directPushVerdict(input = {}) {
   if (pulls.length > 0) {
     return { ok: true, reason: `commit associé à ${pulls.length} PR` };
   }
-  const message = String(input.message ?? '').trim();
-  if (message.startsWith(RELEASE_COMMIT_PREFIX)) {
-    return { ok: true, reason: 'commit de release (exception nommée)' };
-  }
   return {
     ok: false,
     reason:
       'ce commit n’est associé à AUCUNE pull request : il est arrivé sur main sans passer les portes du dépôt. ' +
-      'Poussez une branche et ouvrez une PR.',
+      'Poussez une branche et ouvrez une PR — une release aussi (`npm run release:pr`).',
   };
 }

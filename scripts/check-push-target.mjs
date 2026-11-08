@@ -3,9 +3,10 @@
  * ─── La porte `pre-push` : refuser un push direct sur `main` ────────────────
  *
  * Lancé par `.husky/pre-push`, git lui tend sur l'entrée standard la liste des
- * références poussées. Ce script lit cette liste, demande le sujet du commit de
- * tête quand c'est `main`, et refuse — en NOMMANT la raison et le chemin de
- * remplacement — un push qui contournerait les portes du dépôt.
+ * références poussées. Ce script lit cette liste et refuse — en NOMMANT la
+ * raison et le chemin de remplacement — un push vers `main`, qui contournerait
+ * les portes du dépôt. Il n'y a plus d'exception de release : elles passent
+ * elles aussi par une PR (`npm run release:pr`).
  *
  * Rien n'est deviné : zéro référence lue n'est pas un vert, c'est un exit 2
  * (« rien de vérifié »). Une API ou un `git` indisponible ne fabrique pas non
@@ -36,10 +37,8 @@ function gitOut(args) {
   }
 }
 
-/** Le sujet du commit de tête — `null` quand git ne peut pas répondre. */
-function tipSubjectOf(sha) {
-  return gitOut(['log', '-1', '--format=%s', String(sha)]);
-}
+/** Le sujet du commit de tête n'est plus jugé : il n'existe plus d'exception
+ *  par message (une release est une PR comme une autre). */
 
 let pushes = parsePushLines(stdin());
 
@@ -64,8 +63,7 @@ const allowMain = process.env.ALLOW_MAIN_PUSH === '1';
 let refused = 0;
 
 for (const push of pushes) {
-  const tipSubject = push.remoteRef === MAIN_REF ? tipSubjectOf(push.localSha) : null;
-  const verdict = pushVerdict({ ...push, tipSubject, allowMain });
+  const verdict = pushVerdict({ ...push, allowMain });
   const label = push.remoteRef === MAIN_REF ? 'main' : push.remoteRef.replace(/^refs\/heads\//, '');
   if (verdict.ok) {
     console.log(`✅ ${label} : ${verdict.reason}`);

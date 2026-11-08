@@ -1,30 +1,29 @@
 /**
  * ─── POUSSER SUR `main` — la porte qui refuse AVANT le départ ───────────────
  *
- * La protection de branche est ACTIVE depuis le 2026-11-08 (règle posée avec le
- * jeton propriétaire ; `enforce_admins: false`, voir docs/PROTECTION_MAIN.md).
- * Pour tout compte non administrateur, GitHub refuse donc déjà un push direct
- * sur `main`. Ce module couvre le chemin qui reste ouvert : l'ADMINISTRATEUR,
- * celui qui pousse réellement dans ce dépôt, peut encore contourner la règle —
- * et un contournement d'administrateur n'est pas plus visible qu'un autre.
+ * La protection de branche est ACTIVE depuis le 2026-11-08, et depuis le même
+ * jour elle vaut aussi pour l'administrateur (`enforce_admins: true`, voir
+ * docs/PROTECTION_MAIN.md) : GitHub refuse déjà un push direct sur `main` pour
+ * TOUS les comptes, y compris le propriétaire. Il n'y a donc plus d'exception,
+ * pas même pour les commits de release — ce sont eux qui ont fait tomber la
+ * dernière, en obtenant leur propre chemin (`npm run release:pr` ouvre une PR).
  *
- * Il reste une porte que le dépôt possède vraiment sur ce poste : `pre-push`.
- * Ce module en est la moitié pure — il reçoit les références que git lui tend et
- * tranche. Aucun réseau, aucun `git` ici : le script lit, le test décide.
+ * Ce module reste la porte que le dépôt possède sur ce poste : `pre-push`
+ * répond AVANT que le commit ne quitte la machine, avec le chemin de
+ * remplacement dans le message. Ce module en est la moitié pure — il reçoit les
+ * références que git lui tend et tranche. Aucun réseau, aucun `git` ici : le
+ * script lit, le test décide.
  *
- * Deux exceptions NOMMÉES, et elles sont visibles plutôt que devinées :
- *   • les commits de release (`chore(release): …`) que produit
- *     `scripts/publish-release.mjs` — la même automatisation qui vient de faire
- *     passer la chaîne ;
- *   • `ALLOW_MAIN_PUSH=1`, qui est une décision humaine assumée : le garde
- *     l'annonce au lieu de la subir.
+ * Une seule exception, et elle est NOMMÉE plutôt que devinée :
+ *   `ALLOW_MAIN_PUSH=1`, qui est une décision humaine assumée. Le garde
+ *   l'annonce au lieu de la subir — GitHub, lui, la refusera de toute façon
+ *   tant que la règle est en place.
  *
  * Ce que ce garde ne peut pas faire : empêcher `git push --no-verify` ou
  * `HUSKY=0`. Il ne remplace pas la protection, il ferme le chemin par lequel
  * tout le monde pousse normalement — et un garde local qui refuse est plus tôt
  * qu'un garde de CI qui constate.
  */
-import { RELEASE_COMMIT_PREFIX } from './direct-push.mjs';
 
 /** La seule référence protégée : la branche de production. */
 export const MAIN_REF = 'refs/heads/main';
@@ -84,7 +83,7 @@ export function fallbackPushLine(branch, sha) {
  * Ce push doit-il passer ?
  *
  * @param {{ remoteRef: string, localSha: string, remoteSha?: string,
- *           tipSubject?: string | null, allowMain?: boolean }} input
+ *           allowMain?: boolean }} input
  * @returns {{ ok: boolean, code: number, reason: string }}
  */
 export function pushVerdict(input) {
@@ -98,23 +97,19 @@ export function pushVerdict(input) {
       code: 1,
       reason: 'suppression de `main` : la branche de production ne se supprime pas. Créez une PR, ou passez par l’interface GitHub.',
     };
-  }
-  if (input?.allowMain) {
+  }  if (input?.allowMain) {
     return {
       ok: true,
       code: 0,
-      reason: 'push direct sur `main` AUTORISÉ explicitement (ALLOW_MAIN_PUSH=1) — décision humaine, pas un oubli',
+      reason: 'push direct sur `main` AUTORISÉ explicitement (ALLOW_MAIN_PUSH=1) — décision humaine, que GitHub refusera de toute façon',
     };
-  }
-  const tip = String(input?.tipSubject ?? '').trim();
-  if (tip.startsWith(RELEASE_COMMIT_PREFIX)) {
-    return { ok: true, code: 0, reason: 'commit de release (exception nommée) — poussé par l’automatisation qui vient de faire passer la chaîne' };
   }
   return {
     ok: false,
-    code: 1,      reason:
+    code: 1,
+    reason:
         'push direct sur main refusé : un commit qui arrive ainsi contourne toutes les portes (lint, tests, RLS, cohérence de release). ' +
         'Poussez une branche et ouvrez une PR (docs/PROTECTION_MAIN.md). ' +
-        'Exception assumée : ALLOW_MAIN_PUSH=1, ou un commit chore(release):.',
+        'Une release suit le même chemin : `npm run release:pr` (aucune exception, pas même `chore(release):`).',
   };
 }

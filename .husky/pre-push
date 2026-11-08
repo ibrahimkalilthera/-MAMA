@@ -21,12 +21,14 @@
 # ~6 s de hachage d'une arborescence de build, et le DIT ; la CI est stricte.
 # D'abord la porte qui refuse AVANT le départ : un push direct sur `main` est
 # refusé ICI, avant de quitter la machine. La protection de branche GitHub est
-# active depuis le 2026-11-08, mais avec `enforce_admins: false` : elle arrête
-# les autres comptes, pas l'administrateur qui pousse dans ce dépôt, et le garde
-# de CI ne constate qu'APRÈS l'arrivée du commit — docs/PROTECTION_MAIN.md.
+# active depuis le 2026-11-08 et vaut désormais AUSSI pour l'administrateur
+# (`enforce_admins: true`) : GitHub refuserait ce push de toute façon, mais le
+# refus arrive ici en une seconde, avec le chemin de remplacement — et le garde
+# de CI ne constate qu'APRÈS l'arrivée d'un éventuel contournement.
 # Le garde lit les références que git lui tend sur stdin ; il laisse passer les
-# branches, les commits `chore(release):`, et ALLOW_MAIN_PUSH=1 (décision
-# annoncée).
+# branches vers origin, et n'exempte plus rien côté message : une release passe
+# elle aussi par une PR (`npm run release:pr`). Seul ALLOW_MAIN_PUSH=1 est une
+# décision annoncée.
 node scripts/with-pinned-node.mjs --node scripts/check-push-target.mjs || exit 1
 
 AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 WORKSHOP_SOFT_OFFLINE=1 WORKSHOP_TREE_PROOF=0 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs lint test audit workshop

@@ -36,6 +36,18 @@
 
 branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null)"
 [ -n "$branch" ] || exit 0
+
+# `main` est protégée depuis le 2026-11-08, administrateurs compris
+# (`enforce_admins: true`) : un commit local sur `main` n'y part plus par push,
+# quoi qu'on fasse. On le DIT, et on ne paie pas la chaîne qualité du `pre-push`
+# pour un push que GitHub refusera de toute façon — c'était le double coût
+# silencieux de ce hook. Une release suit le même chemin qu'un correctif :
+# une branche et une PR (`npm run release:pr`).
+if [ "$branch" = "main" ]; then
+  echo "ℹ️  sauvegarde : commit local sur main — rien n'a été poussé (main exige une PR)."
+  echo "    Poussez une branche et ouvrez une PR ; une release passe par `npm run release:pr`."
+  exit 0
+fi
 git remote get-url origin >/dev/null 2>&1 || exit 0
 
 gitdir="$(git rev-parse --git-dir 2>/dev/null)"
