@@ -1,3 +1,23 @@
+## [2026-11-08] Le refus anon était devenu un 400 : un `RAISE` en BEFORE passe avant la politique RLS
+
+**Le défaut, trouvé par la CI et non par une lecture.** La migration du matin (`20261108000000_vendor_expense_paid_consistency.sql`) a posé la règle statut/montant dans un déclencheur BEFORE. PostgreSQL exécute, pour un INSERT : les déclencheurs BEFORE, **puis** le `WITH CHECK` de la RLS, **puis** les contraintes, **puis** les AFTER. Un `RAISE` en BEFORE passe donc **avant** le refus de la politique. Conséquence mesurée, run `42469503697` : « ✖ insert anon refusé sur vendor_expenses (400) » — le payload `{}` de la sonde recevait le message du déclencheur (`payment_status` nul) au lieu du `401 42501` attendu. Le job `supabase-migrations` est passé au rouge, et la porte de `Deploy (Vercel)` a refusé de déployer (exit 78, « Migrations workflow concluded 'failure' ») : un audit qui casse la livraison n'a pas réparé, il a déplacé.
+
+La sonde avait raison de refuser ce 400. Sur un `{}`, un 400 signifie qu'une **politique** a laissé la ligne franchir l'étage d'autorisation et que ce sont les contraintes qui l'ont arrêtée : un refus obtenu au mauvais étage ne prouve pas que l'étage d'autorisation tient.
+
+**Le remède : ranger en BEFORE, refuser en AFTER** (`20261108000002_vendor_expense_paid_validation_after_rls.sql`). `normalize_vendor_expense_paid` (BEFORE) ne refuse plus rien — elle range `amount_paid` selon le statut et met les NULL à zéro, seul travail qui exige un BEFORE, et ne produit jamais d'erreur. `validate_vendor_expense_paid` (AFTER) porte les trois refus (statut inconnu, montant négatif, partiel hors bornes) et ne s'exécute qu'après la politique et les contraintes : une écriture non autorisée reste un 401, une écriture autorisée mal formée lève toujours `23514` avec la ligne nommée — le comportement vu par l'application ne change pas. Au passage, la normalisation ne remplace plus `amount` NULL par 0 : `amount` est `NOT NULL`, et le coercement silencieux acceptait une ligne que la contrainte refuse — donc masquait une corruption au lieu de la nommer.
+
+**Ce qui est prouvé, et par quoi.**
+
+- **PGlite, même moteur** : `tests/vendor-expense-paid-trigger-db.test.ts`, 10/10. Le cas neuf crée un rôle `anon`, active la RLS sans politique, et vérifie qu'un `insert` refuse bien en **42501** — « aucun refus de forme ne précède la politique » — et qu'aucune ligne n'existe ensuite. Les neuf autres cas (paid sans montant, unpaid qui porte un montant, partiel conservé / refusé, montant négatif, statut inconnu, rattrapage, rejouabilité) passent inchangés sur le nouveau partage.
+- **Base partagée** : `db:apply --again` — 4 objets déclarés, « avant » à 2 déjà en base, « **après** vérifié dans la transaction : 4 ajout(s), tous présents — COMMIT ». Puis la sonde REST réelle : `POST /rest/v1/vendor_expenses` avec la clé publique et `{}` → **401**, `code: 42501`, « new row violates row-level security policy for table "vendor_expenses" ».
+- **Catalogue** : `check:db-objects` exit 0 — **59 objets alignés**, **8 déclencheurs** en base (les deux de cette règle compris).
+
+**Le canal du parc, réparé du même geste.** Le job `fleet-versions-watch` ne passait pas la clé **publique** au relevé : la sonde du battement se taisait donc en CI, et un zéro restait inexpliqué — exactement ce que la sonde existe pour empêcher. La clé est désormais dans le job (elle est livrée dans le bundle et recopiée par trois autres workflows). Mesuré le 2026-11-08 : « canal d'écriture du battement VÉRIFIÉ : appel atteint puis refusé comme prévu (HTTP 400, station_id hors bornes) — aucune ligne écrite ». Le zéro du parc est donc **attribuable** : le canal est ouvert, aucun poste n'a encore parlé.
+
+**Les limites, nommées.** La règle est portée par **deux** déclencheurs, et leurs noms sont opposables : `vendor_expense_paid_consistency` (BEFORE, range) et `vendor_expense_paid_validation` (AFTER, refuse) — la veille, la doc et les en-têtes les nomment tous les deux, et `vendor-expense-watch.yml` se déclenche aussi sur le second fichier. Un futur refus ajouté à ce couple doit aller dans l'AFTER, jamais dans le BEFORE, sinon le 400 revient.
+
+---
+
 ## [2026-11-08] Les trois limites du bilan refermées : `db:apply` compte les index, les dépenses fournisseurs ont leur veille, le zéro du parc dit enfin POURQUOI
 
 Demande du propriétaire : « résous tous ces points, surtout le 2 ». Les quatre limites nommées à la fin de l'audit du jour — le geste sans preuve de `db:apply`, l'historique des dépenses fournisseurs que rien ne mesurait, un relevé de parc à zéro indéchiffrable, et un canal décrit comme un plan mais lu comme le présent — ont chacune reçu une réponse mesurée, pas une promesse.
