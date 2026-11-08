@@ -25,6 +25,15 @@
  * c'est la même division du travail que pour les reçus : le calcul est
  * autoritaire, la veille vérifie qu'il ne se contourne pas.
  *
+ * Depuis `20261108000002_…`, la règle est tenue par DEUX déclencheurs, et le
+ * partage n'est pas cosmétique : `vendor_expense_paid_consistency` (BEFORE) ne
+ * fait que RANGER `amount_paid`, `vendor_expense_paid_validation` (AFTER) porte
+ * les refus. Un `RAISE` en BEFORE passe avant la vérification RLS, et le refus
+ * anon d'un `{}` sur `vendor_expenses` est alors revenu en 400 (message du
+ * déclencheur) au lieu du 401 de la politique — mesuré en CI (run 42469503697).
+ * Ce contrôle mesure la règle, pas l'étage qui la refuse ; mais une ligne
+ * divergente reste un contournement, quel que soit l'étage.
+ *
  * ─── Aucune réparation automatique, et c'est un choix ──────────────────────
  * Le déclencheur neutralise déjà les écritures : une ligne divergente ne peut
  * venir que d'un contournement, donc la « corriger » sans regarder effacerait la
@@ -63,7 +72,8 @@ if (HELP) {
   --help
 
 Cette commande n'écrit RIEN : ni en base, ni ailleurs. La règle statut/montant
-est tenue par le déclencheur vendor_expense_paid_consistency ; ce contrôle
+est tenue par deux déclencheurs — vendor_expense_paid_consistency (BEFORE, range
+amount_paid) et vendor_expense_paid_validation (AFTER, refuse) ; ce contrôle
 mesure qu'elle ne se contourne pas.`);
   process.exit(0);
 }
