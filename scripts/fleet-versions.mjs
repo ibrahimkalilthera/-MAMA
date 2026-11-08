@@ -119,10 +119,14 @@ const COLUMNS = [
 ].join(',');
 
 export const USAGE = [
-  'Usage : npm run fleet:versions [--silent-days=N] [--max-rows=N]',
+  'Usage : npm run fleet:versions [--silent-days=N] [--max-rows=N] [--probe]',
   '',
   `  --silent-days=N   un poste est « silencieux » au-delà de N jours sans battement (défaut ${DEFAULT_SILENT_DAYS})`,
   `  --max-rows=N      seuil de volume : au-delà, la commande échoue (défaut ${DEFAULT_MAX_ROWS})`,
+  '  --probe           vérifie le canal d’écriture du battement même quand le relevé n’est pas vide',
+  '',
+  'Un relevé à zéro poste sonde AUTOMATIQUEMENT ce canal : « aucun poste » et « le canal est',
+  'fermé » sont deux lectures différentes, et un zéro ne doit pas les confondre.',
 ].join('\n');
 
 /**
@@ -134,14 +138,18 @@ export const USAGE = [
  * vert qu'on ne saurait pas expliquer.
  *
  * @param {string[]} argv
- * @returns {{ silentDays: number, maxRows: number, help: boolean, problems: string[] }}
+ * @returns {{ silentDays: number, maxRows: number, probe: boolean, help: boolean, problems: string[] }}
  */
 export function parseFlags(argv = []) {
-  const out = { silentDays: DEFAULT_SILENT_DAYS, maxRows: DEFAULT_MAX_ROWS, help: false, problems: [] };
+  const out = { silentDays: DEFAULT_SILENT_DAYS, maxRows: DEFAULT_MAX_ROWS, probe: false, help: false, problems: [] };
   for (const raw of argv) {
     const arg = String(raw);
     if (arg === '--help' || arg === '-h') {
       out.help = true;
+      continue;
+    }
+    if (arg === '--probe') {
+      out.probe = true;
       continue;
     }
     const match = arg.match(/^--(silent-days|max-rows)=(-?\d+)$/);
@@ -639,6 +647,88 @@ export function censusEvidence({
 }
 
 /**
+ * Le canal d'écriture du battement est-il ouvert ?
+ *
+ * ─── Pourquoi un relevé à zéro ne suffit pas ────────────────────────────────
+ * `fleet:versions` à 0 poste recensé est un fait, et il est dit — mais deux
+ * causes très différentes le produisent : aucun poste n'a encore battu (le
+ * battement vient d'être livré), ou le canal est FERMÉ (fonction absente de la
+ * base, `EXECUTE` retiré à `anon`, origine qui ne répond pas). Le 2026-11-08, la
+ * question s'est posée telle quelle : la réponse était la première — et rien ne
+ * permettait de le distinguer de la seconde sans aller regarder à la main.
+ *
+ * La sonde répond SANS inventer de poste : elle appelle la fonction avec un
+ * `station_id` volontairement HORS BORNES (5 caractères, la borne est 8). Trois
+ * issues, et chacune nomme un état différent :
+ *   • **atteinte puis refusée** — la fonction existe, `anon` a le `EXECUTE`, et
+ *     elle a validé avant d'écrire : le canal est ouvert, et AUCUNE ligne ne
+ *     peut rester (la validation précède l'insertion) ;
+ *   • **401/403/404** — le canal est fermé (GRANT retiré, fonction absente :
+ *     migration non appliquée) : un relevé vide ne dit alors rien du parc ;
+ *   • **2xx** — le battement a ACCEPTÉ un identifiant hors bornes : c'est un
+ *     défaut de la base, et la sonde REFUSE de s'en réjouir (une ligne de sonde
+ *     pourrait être comptée comme un poste).
+ *
+ * C'est la même sonde que `verify-anon-rls` emploie déjà dans la CI ; elle est
+ * ici pour que le relevé puisse DIRE ce que son zéro ne couvre pas.
+ *
+ * @param {{ base: string, anonKey?: string, fetchImpl?: typeof fetch }} input
+ * @returns {Promise<{ checked: boolean, detail?: string, reason?: string }>}
+ */
+export async function probeBeatChannel({ base, anonKey = '', fetchImpl = fetch } = {}) {
+  if (!anonKey) {
+    return { checked: false, reason: 'clé publique absente — la sonde du battement n’a pas été exécutée' };
+  }
+  let response;
+  try {
+    response = await fetchImpl(`${String(base).replace(/\/$/, '')}/rest/v1/rpc/record_station_beat`, {
+      method: 'POST',
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_station_id: 'sonde',
+        p_app_version: '0.0.0',
+        p_os_version: null,
+        p_last_check: 'ok',
+        p_last_check_version: null,
+        p_install_mode: null,
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch (error) {
+    return { checked: false, reason: `sonde interrompue — ${error?.message ?? error}` };
+  }
+  const text = await response.text().catch(() => '');
+  if (response.status === 404) {
+    return {
+      checked: false,
+      reason: 'la base ne connaît pas record_station_beat (HTTP 404) — la migration du battement n’est pas appliquée',
+    };
+  }
+  if (response.status === 401 || response.status === 403) {
+    return {
+      checked: false,
+      reason: `le rôle anon n’a pas le droit d’appeler record_station_beat (HTTP ${response.status}) — le GRANT manque`,
+    };
+  }
+  if (response.status >= 400) {
+    return {
+      checked: true,
+      detail: `appel atteint puis refusé comme prévu (HTTP ${response.status}, station_id hors bornes) — aucune ligne écrite`,
+    };
+  }
+  return {
+    checked: false,
+    reason:
+      `le battement a ACCEPTÉ un station_id hors bornes (HTTP ${response.status}) : ` +
+      'la validation de la fonction ne tient pas, et une ligne de sonde pourrait être comptée comme un poste',
+  };
+}
+
+/**
  * Un refus qui n'a PAS PU REGARDER se dit, puis sort en 2.
  *
  * Le relevé est une automatisation : sans preuve, un run vert ou rouge ne dit
@@ -712,6 +802,31 @@ async function main() {
       projectRef: projectRefOf(base),
     }),
   );
+
+  // ── Un zéro ne dit pas POURQUOI il est zéro ───────────────────────────────
+  // « aucun poste n’a battu » et « le canal du battement est fermé » produisent
+  // le même relevé vide, et le premier est une information pendant que le second
+  // est une panne silencieuse. La sonde les sépare, sans écrire de ligne de
+  // poste (voir `probeBeatChannel`). Elle tourne automatiquement sur un relevé
+  // vide — le cas où la question se pose — et sur demande (`--probe`).
+  if (fleet.total === 0 || flags.probe) {
+    const anonKey = String(env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '').trim();
+    const probe = await probeBeatChannel({ base, anonKey });
+    console.log('');
+    if (probe.checked) {
+      console.log(`🔌 canal d’écriture du battement VÉRIFIÉ : ${probe.detail}.`);
+      console.log(
+        '   → un poste PEUT se déclarer : le zéro ci-dessus veut donc dire qu’aucun ne l’a encore fait, ' +
+          'pas que le canal est fermé.',
+      );
+    } else {
+      console.log(`⚠️  canal d’écriture du battement NON vérifié — ${probe.reason}`);
+      console.log(
+        '   → un relevé vide ne dit alors RIEN du parc : réparez le canal ' +
+          '(migration du battement, GRANT à anon, origine) avant de conclure quoi que ce soit.',
+      );
+    }
+  }
 
   // La SUBSTANCE de la preuve : ce que ce relevé a réellement compté. Un run
   // vert qui ne dit pas combien de postes il a vus ne prouve rien de plus qu'un
