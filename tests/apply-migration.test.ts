@@ -191,6 +191,80 @@ describe('db:apply — ce que la migration déclare, et ce qui le prouve', () =>
   });
 });
 
+describe('db:apply — un fichier qui ne déclare que des INDEX est prouvable (2026-11-08)', () => {
+  // Le cas mesuré : les trois index de clés étrangères (`students.parent_id`,
+  // `salary_payments.staff_id`, `todos.student_id`) ne déclaraient RIEN pour
+  // `db:apply`, qui les refusait donc — ils ont dû être appliqués par une
+  // transaction directe, sans la preuve que la commande existe pour donner.
+  const INDEXES = `${MIGRATIONS_DIR}/20261108000001_indexes_foreign_keys.sql`;
+
+  it('les trois index sont lus, nommés et triés', () => {
+    const objects = declaredObjects(read(INDEXES));
+    assert.deepEqual(objects.indexes, [
+      'idx_salary_payments_staff_id',
+      'idx_students_parent_id',
+      'idx_todos_student_id',
+    ]);
+    assert.deepEqual(objects.tables, [], 'un index ne crée aucune colonne : rien à relire côté PostgREST');
+    assert.deepEqual(objectKeys(objects), [
+      'index:idx_salary_payments_staff_id',
+      'index:idx_students_parent_id',
+      'index:idx_todos_student_id',
+    ]);
+  });
+
+  it('le verdict ne le refuse plus comme « aucun objet observable »', () => {
+    const objects = declaredObjects(read(INDEXES));
+    const keys = objectKeys(objects);
+    assert.ok(keys.length > 0, 'le refus du 2026-11-08 venait de ces clés vides');
+
+    const clean = applyVerdict({ objects, before: new Set(), after: new Set(keys) });
+    assert.equal(clean.ok, true, 'absent avant, présent après : le seul cas vert');
+
+    const missing = applyVerdict({ objects, before: new Set(), after: new Set([keys[0]!]) });
+    assert.equal(missing.ok, false);
+    assert.match(missing.problems.join(' '), /NON vérifié APRÈS/, 'un index que la base ne porte pas est un échec, pas un succès');
+  });
+
+  it('UNIQUE, les guillemets et le retrait se lisent — et le NET décide', () => {
+    const unique = declaredObjects(
+      'CREATE UNIQUE INDEX IF NOT EXISTS "custom_grades_name_lower_unique" ON public.custom_grades (lower(name));\n',
+    );
+    assert.deepEqual(unique.indexes, ['custom_grades_name_lower_unique']);
+
+    const drop = declaredObjects('DROP INDEX IF EXISTS idx_old;\n');
+    assert.deepEqual(drop.indexes, [], 'il n’ajoute rien');
+    assert.deepEqual(removalKeys(drop), ['index:idx_old'], 'et il nomme ce qu’il retire');
+
+    const reset = declaredObjects('DROP INDEX IF EXISTS idx_a;\nCREATE INDEX idx_a ON public.t (a);\n');
+    assert.deepEqual(removalKeys(reset), [], 'retirer puis recréer n’est pas un retrait');
+    assert.deepEqual(reset.indexes, ['idx_a']);
+
+    const gone = declaredObjects('CREATE INDEX idx_a ON public.t (a);\nDROP INDEX IF EXISTS idx_a;\n');
+    assert.deepEqual(removalKeys(gone), ['index:idx_a'], 'créé puis retiré : il part');
+    assert.deepEqual(gone.indexes, []);
+  });
+
+  it('un index raconté dans un commentaire n’est pas un geste', () => {
+    assert.deepEqual(declaredObjects('-- CREATE INDEX idx_x ON public.t (a);\nselect 1;\n').indexes, []);
+  });
+
+  it('la sonde lit pg_indexes DANS la transaction, comme les autres familles', () => {
+    const source = read('scripts/apply-migration.mjs');
+    assert.match(source, /pg_indexes/, 'un index se lit dans pg_indexes, pas dans un cache REST');
+    assert.match(source, /withRemovals\(objects\.indexes, droppedOf\('indexes'\)\)/);
+  });
+
+  it('le corpus existant reste lu — les index des migrations antérieures sont vus', () => {
+    const promo = declaredObjects(read(`${MIGRATIONS_DIR}/20260820000000_academic_year_promotions.sql`));
+    assert.deepEqual(promo.indexes, [
+      'idx_expenses_academic_year',
+      'idx_payments_academic_year',
+      'idx_students_academic_year',
+    ]);
+  });
+});
+
 describe('db:apply — un RETRAIT se prouve aussi (présent avant, absent après)', () => {
   it('la migration de retrait déclare ce qu’elle retire, et rien d’autre', () => {
     const objects = declaredObjects(dropBackupSql);

@@ -318,6 +318,21 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-vendor-expenses.mjs',
+    input: 'database+ledger',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // Même sujet que le registre des reçus, autre table : il lit des LIGNES de
+    // `vendor_expenses`, jamais du code source. Et l'absence de mot de passe est
+    // un REFUS écrit — exit 2, « je n'ai pas pu regarder » — jamais un ✅ : le
+    // défaut qu'il poursuit (un montant payé qui contredit son statut) n'a pas
+    // le droit de passer pour une règle tenue. Il ne répare rien, volontairement :
+    // le déclencheur normalise les écritures, donc une ligne divergente signale
+    // un contournement, et la réécrire effacerait sa trace.
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit un registre Postgres (dépenses fournisseurs), jamais du code source',
+    },
+  },
+  {
     check: 'check-csp-origins.mjs',
     input: 'source+css+svg+policy',
     // Un scan de source, avec les deux pièges connus : il refuse de conclure sur
