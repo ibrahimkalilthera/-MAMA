@@ -45,6 +45,68 @@ export const RELEASE_TAG_PAGE = /\/releases\/tag\/[^/?#]+/;
 const THIRD_PARTY_REFUSALS_ARE_NOT_OURS = (status) => Number(status) >= 400;
 
 /**
+ * ─── Un échec TRANSITOIRE n'est pas un verdict ─────────────────────────────
+ *
+ * MESURÉ le 2026-11-08 à 11:26 : `Deploy (Vercel)` tombe rouge sur UNE ligne —
+ * `releases-page · injoignable (TimeoutError)` — pendant que GitHub rendait des
+ * 500/504, et la même adresse répondait 200 deux minutes plus tard, sans qu'un
+ * octet ait changé (vérifié à la main : `HTTP 200 → /releases/tag/v1.0.42`). Le
+ * contrôle avait raison de nommer la panne ; il avait tort de conclure en une
+ * seule lecture. C'est le même raisonnement que pour le 404 d'un runner
+ * (`releaseApiProof`) : ce que CE client-ci a reçu n'est pas ce que le lien EST.
+ *
+ * Ce qui est transitoire, et rien d'autre : une lecture qui n'aboutit pas du tout
+ * (délai, DNS, TLS, connexion coupée), un 5xx (l'hôte dit « je suis en panne »),
+ * un 429 (on nous demande d'attendre) et l'absence de statut. Ce qui ne l'est
+ * PAS : 2xx/3xx, et tout 4xx hors 429 — un 404, un 403, un 410 disent quelque
+ * chose du LIEN lui-même, et les relire ne changerait que le temps perdu.
+ *
+ * La distinction ne pardonne rien : la lecture répétée rend la DERNIÈRE réponse,
+ * jamais une réponse choisie parmi d'autres, et le verdict reste celui d'avant
+ * une fois le plafond épuisé. Elle borne seulement le nombre de fois où l'on
+ * demande à un hôte en panne de répondre avant de l'accuser.
+ *
+ * @param {{ status?: number|null, error?: string|null }} reading
+ * @returns {boolean}
+ */
+export const isTransientReading = ({ status = null, error = null } = {}) => {
+  if (error) return true;
+  if (status === null || status === undefined) return true;
+  const code = Number(status);
+  if (!Number.isFinite(code) || code === 0) return true;
+  if (code === 429) return true;
+  return code >= 500 && code <= 599;
+};
+
+/**
+ * La lecture, répétée tant que l'échec est TRANSITOIRE — et pas une fois de plus.
+ *
+ * `read` et `wait` sont injectés pour que la boucle se prouve sans réseau ni
+ * attente réelle (`tests/public-origin.test.ts`) : un cas qui vérifie un délai ne
+ * doit pas le payer.
+ *
+ * @template {{ status?: number|null, error?: string|null }} T
+ * @param {{ read: () => Promise<T>, attempts?: number, delayMs?: number,
+ *   wait?: (ms: number) => Promise<unknown>,
+ *   onRetry?: (info: { attempt: number, of: number, reading: T }) => void }} input
+ * @returns {Promise<{ reading: T, tries: { attempt: number, status: number|null, error: string|null }[] }>}
+ *   `reading` est la DERNIÈRE lecture : si toutes échouent, c'est le dernier
+ *   échec qui est rendu — une boucle ne peut pas fabriquer un vert.
+ */
+export async function readUntilFinal({ read, attempts = 3, delayMs = 4000, wait = (ms) => new Promise((r) => setTimeout(r, ms)), onRetry = () => {} } = {}) {
+  const total = Math.max(1, Number(attempts) || 1);
+  let reading = await read();
+  const tries = [{ attempt: 1, status: reading?.status ?? null, error: reading?.error ?? null }];
+  for (let attempt = 2; attempt <= total && isTransientReading(reading ?? {}); attempt += 1) {
+    onRetry({ attempt, of: total, reading });
+    if (delayMs > 0) await wait(delayMs);
+    reading = await read();
+    tries.push({ attempt, status: reading?.status ?? null, error: reading?.error ?? null });
+  }
+  return { reading, tries };
+}
+
+/**
  * @param {{ link: { id: string, url: string, kind: string, where?: string, why?: string },
  *   status?: number|null, finalUrl?: string, error?: string|null, body?: string,
  *   apiProof?: { ok: boolean, tag?: string, error?: string }|null }} input
