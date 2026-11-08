@@ -2,7 +2,7 @@
   "name": "mama-thera-finance",
   "private": true,
   "license": "MIT",
-  "version": "1.0.41",
+  "version": "1.0.42",
   "type": "module",
   "scripts": {
     "dev": "node scripts/with-pinned-node.mjs --bin vite --port=3000 --host=0.0.0.0",
@@ -22,6 +22,7 @@
     "check:csp-origins": "node scripts/check-csp-origins.mjs",
     "verify:electron-csp": "node scripts/verify-electron-csp.mjs",
     "check:payment-ledger": "node scripts/check-payment-ledger.mjs",
+    "check:vendor-expenses": "node scripts/check-vendor-expenses.mjs",
     "check:public-rls": "node scripts/check-public-rls.mjs",
     "check:public-origin": "node scripts/check-public-origin.mjs",
     "check:owners": "node scripts/check-owner-accounts.mjs",
@@ -86,13 +87,13 @@
     "prepare": "node scripts/setup-node-runtime.mjs --soft && husky"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.3",
+    "@supabase/supabase-js": "^2.118.0",
     "electron-updater": "^6.8.9",
     "jspdf": "^4.2.1",
-    "lucide-react": "^1.55.0",
-    "motion": "^14.1.0",
+    "lucide-react": "^1.59.0",
+    "motion": "^14.4.0",
     "pdf-lib": "^1.17.1",
-    "react": "^19.3.0",
+    "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "recharts": "^3.10.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
@@ -124,7 +125,7 @@
     "husky": "^9.1.7",
     "lighthouse": "^13.5.0",
     "pdfjs-dist": "^6.4.299",
-    "puppeteer-core": "^25.13.0",
+    "puppeteer-core": "^25.14.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "~5.8.2",
