@@ -15,6 +15,13 @@ name: Fleet liveness
 #
 # Secrets requis : SUPABASE_SERVICE_ROLE_KEY (la table des battements est
 # illisible par la clé publique — voir `fleet:versions`).
+#
+# La clé PUBLIQUE (`SUPABASE_ANON_KEY`) est aussi passée, et elle n'est pas un
+# secret : c'est celle que le bundle de l'application embarque, et c'est la même
+# que `prod-anon-rls.yml` déclare en clair. Sans elle, la sonde du canal de
+# battement ne peut pas s'exécuter — mesuré le 2026-11-08 — et le job rouge ne
+# sait alors pas dire ce qu'il a constaté : « aucun poste n'a parlé » ou « le
+# canal est fermé ».
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -47,6 +54,8 @@ jobs:
         env:
           SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Clé publique (anon) — livrée dans le bundle, jamais une clé de service.
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
           # Le relevé publie lui-même ses chiffres (postes recensés, silencieux,
           # dernier battement) sous le mandat de cette étape.
           AUTOMATION_EVIDENCE: '1'
