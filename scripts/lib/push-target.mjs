@@ -55,6 +55,32 @@ export function parsePushLines(text) {
 }
 
 /**
+ * La référence à vérifier quand git n'écrit RIEN sur l'entrée standard.
+ *
+ * Mesuré sur ce poste le 2026-11-08 : `git push` (Git for Windows 2.56) lance
+ * bien le hook, mais lui donne 0 octet — le protocole promis n'arrive pas. Un
+ * garde qui refuse alors tout devient un garde qu'on désactive (`--no-verify`),
+ * et un garde qu'on désactive ne protège plus rien.
+ *
+ * Le repli n'est pas un blanc-seing : il nomme la branche COURANTE (`HEAD`), et
+ * c'est la branche que `git push` pousse par défaut quand elle a un upstream.
+ * L'annonce est obligatoire — le script dit qu'il a déduit, jamais qu'il a lu.
+ *
+ * @param {string} branch branche courante (`git rev-parse --abbrev-ref HEAD`)
+ * @param {string} sha commit de tête
+ * @returns {string | null} une ligne au format du protocole, ou `null` si la
+ *   branche n'est pas nommable (HEAD détaché) — l'appelant en fait un refus
+ */
+export function fallbackPushLine(branch, sha) {
+  const name = String(branch ?? '').trim();
+  const id = String(sha ?? '').trim();
+  if (!name || name === 'HEAD' || !id) return null;
+  // Le SHA distant n'est pas connu dans ce repli : il n'est pas lu par le
+  // verdict, qui ne juge que la RÉFÉRENCE distante et le commit de tête.
+  return `${id} refs/heads/${name} ${'0'.repeat(40)} refs/heads/${name}`;
+}
+
+/**
  * Ce push doit-il passer ?
  *
  * @param {{ remoteRef: string, localSha: string, remoteSha?: string,

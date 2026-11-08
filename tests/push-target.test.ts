@@ -1,16 +1,22 @@
 /**
  * La porte `pre-push` — ce que le dépôt peut tenir lui-même sur `main`.
  *
- * La protection de branche GitHub rend `404` pour le compte qui pousse
- * (`viewerPermission: READ`), mesuré le 2026-11-08. Le garde de CI constate donc
- * APRÈS coup. Ce module est la seule vérification qui arrive AVANT que le commit
- * ne quitte la machine — et il doit refuser précisément ce qu'il prétend
- * refuser : `main` par un push direct, sans attraper les branches de travail ni
- * bloquer l'automatisation de release.
+ * La protection de branche GitHub est active depuis le 2026-11-08, mais avec
+ * `enforce_admins: false` : l'administrateur — le compte qui pousse dans ce
+ * dépôt — peut encore passer outre, et le garde de CI constate alors APRÈS
+ * coup. Ce module est la seule vérification qui arrive AVANT que le commit ne
+ * quitte la machine — et il doit refuser précisément ce qu'il prétend refuser :
+ * `main` par un push direct, sans attraper les branches de travail ni bloquer
+ * l'automatisation de release.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAIN_REF, parsePushLines, pushVerdict } from '../scripts/lib/push-target.mjs';
+import {
+  MAIN_REF,
+  fallbackPushLine,
+  parsePushLines,
+  pushVerdict,
+} from '../scripts/lib/push-target.mjs';
 
 const ZERO = '0000000000000000000000000000000000000000';
 const SHA = 'd21e521675f687a337207152c9287cd1d0dee050';
@@ -26,6 +32,30 @@ describe('parsePushLines — le protocole de git, pas une convention à nous', (
   it('ignore une ligne incomplète au lieu d’inventer une référence', () => {
     assert.deepEqual(parsePushLines('sha refs/heads/main\n\n'), []);
     assert.deepEqual(parsePushLines(''), []);
+  });
+});
+
+describe('fallbackPushLine — git ne remplit pas toujours l’entrée standard', () => {
+  it('déduit la branche courante et la vérifie comme une vraie référence', () => {
+    const line = fallbackPushLine('fix/audit', 'a'.repeat(40));
+    assert.ok(line);
+    const [push] = parsePushLines(line);
+    assert.equal(push.remoteRef, 'refs/heads/fix/audit');
+    assert.equal(push.localSha, 'a'.repeat(40));
+    assert.equal(pushVerdict(push).ok, true);
+  });
+
+  it('depuis main, le repli refuse aussi — c’est le cas qui compte', () => {
+    const line = fallbackPushLine('main', 'b'.repeat(40));
+    assert.ok(line);
+    const [push] = parsePushLines(line);
+    assert.equal(pushVerdict(push).ok, false);
+  });
+
+  it('rend null quand la branche n’est pas nommable — HEAD détaché, rien de vérifié', () => {
+    assert.equal(fallbackPushLine('HEAD', 'c'.repeat(40)), null);
+    assert.equal(fallbackPushLine('', 'c'.repeat(40)), null);
+    assert.equal(fallbackPushLine('main', ''), null);
   });
 });
 
