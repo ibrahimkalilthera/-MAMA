@@ -86,14 +86,14 @@
     "prepare": "node scripts/setup-node-runtime.mjs --soft && husky"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.118.0",
+    "@supabase/supabase-js": "^2.117.3",
     "electron-updater": "^6.8.9",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.55.0",
-    "motion": "^14.4.0",
+    "motion": "^14.1.0",
     "pdf-lib": "^1.17.1",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.1",
     "recharts": "^3.10.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
