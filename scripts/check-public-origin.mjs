@@ -27,7 +27,7 @@
  * réseau pour être vérifié.
  */
 import { createRequire } from 'node:module';
-import { embeddedLinkVerdict, KIND_JUDGED_BY } from './lib/embedded-links.mjs';
+import { embeddedLinkVerdict, KIND_JUDGED_BY, readUntilFinal } from './lib/embedded-links.mjs';
 import { releaseApiProof } from './lib/release-page-proof.mjs';
 import { publishEvidence } from './lib/evidence-publisher.mjs';
 import { originVerdict } from './lib/public-origin.mjs';
@@ -68,6 +68,24 @@ const TIMEOUT_MS = 20000;
  */
 const CONVERGE_ATTEMPTS = Math.max(1, Number(process.env.PUBLIC_ORIGIN_ATTEMPTS ?? 6));
 const CONVERGE_DELAY_MS = Math.max(0, Number(process.env.PUBLIC_ORIGIN_DELAY_MS ?? 5000));
+
+/**
+ * Fenêtre de relecture d'un lien qu'on ne sert pas (page de version, tiers).
+ *
+ * MESURÉ le 2026-11-08 : GitHub a rendu des 500/504 à 11:26, `releases-page` a
+ * répondu `TimeoutError` à la seule lecture faite, et `Deploy (Vercel)` est tombé
+ * rouge alors que la page répondait 200 deux minutes plus tard, même adresse, même
+ * code. La convergence ci-dessus ne couvrait que la catégorie `app`, parce que son
+ * défaut mesuré était une bascule ; celui-ci est une PANNE D'HÔTE, et elle peut
+ * frapper n'importe quel lien.
+ *
+ * Ce que la fenêtre ne fait pas : pardonner. Seuls les échecs transitoires
+ * (`isTransientReading`) sont relus, le nombre d'essais est borné, et le verdict
+ * final est celui du module — un 404, un 403 ou un 200 qui atterrit ailleurs
+ * restent rouges à la première lecture.
+ */
+const LINK_ATTEMPTS = Math.max(1, Number(process.env.PUBLIC_ORIGIN_LINK_ATTEMPTS ?? 3));
+const LINK_DELAY_MS = Math.max(0, Number(process.env.PUBLIC_ORIGIN_LINK_DELAY_MS ?? 4000));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -139,7 +157,17 @@ for (const link of EMBEDDED_LINKS) {
 
   const url = link.kind === 'app' && override ? override : link.url;
   if (link.kind !== 'app') {
-    const got = await read(url);
+    const { reading: got, tries } = await readUntilFinal({
+      read: () => read(url),
+      attempts: LINK_ATTEMPTS,
+      delayMs: LINK_DELAY_MS,
+      onRetry: ({ attempt, of, reading }) =>
+        console.log(
+          `   ⏳ ${link.id} · essai ${attempt}/${of} — ` +
+            `${reading?.error ? `injoignable (${reading.error})` : `HTTP ${reading?.status}`} : ` +
+            `un hôte en panne n'est pas un lien mort, nouvelle lecture dans ${LINK_DELAY_MS} ms`,
+        ),
+    });
     // La deuxième question, posée SEULEMENT quand la première a été refusée :
     // « ce refus est-il celui de la page, ou celui de ce client-ci ? ». Elle
     // n'existe que pour une page de version et que si l'environnement porte un
@@ -150,11 +178,28 @@ for (const link of EMBEDDED_LINKS) {
         ? await releaseApiProof(url)
         : null;
     const verdict = embeddedLinkVerdict({ link, status: got.status ?? null, finalUrl: got.finalUrl, error: got.error, body: got.body, apiProof });
+    // Chaque essai est nommé dans le détail : un lien qui n'a répondu qu'à la
+    // troisième lecture ne doit pas se lire comme un lien qui a répondu du premier
+    // coup. Sans ça, la marge ajoutée ici deviendrait invisible — et une marge
+    // invisible est une panne qui n'apprend rien.
+    const transient = tries.slice(0, -1).map((t) => (t.error ? t.error : `HTTP ${t.status}`));
+    const detail = transient.length ? `${verdict.detail} · ${tries.length} lectures (${transient.join(', ')} avant la dernière)` : verdict.detail;
     problems.push(...verdict.problems);
+    if (transient.length && verdict.ok) {
+      warnings.push(
+        `« ${link.id} » n'a répondu qu'à la ${tries.length}ᵉ lecture (${transient.join(', ')}) — l'hôte était en panne, pas le lien`,
+      );
+    }
     warnings.push(...verdict.warnings);
-    read1.push({ id: link.id, url, detail: verdict.detail });
-    console.log(`   ${verdict.ok ? '✅' : '❌'} ${link.id} · ${link.kind} — ${verdict.detail}`);
+    read1.push({ id: link.id, url, detail });
+    console.log(`   ${verdict.ok ? '✅' : '❌'} ${link.id} · ${link.kind} — ${detail}`);
     if (!verdict.ok) console.log(`      utilisé par : ${link.where}`);
+    // Un échec transitoire qui n'a PAS trouvé de réponse est dit comme tel :
+    // « l'hôte est resté en panne » et « le lien n'existe pas » demandent deux
+    // réparations différentes, et le rapport doit permettre de choisir.
+    if (!verdict.ok && tries.length > 1) {
+      console.log(`      ${tries.length} lectures, toutes en échec transitoire — c'est l'hôte qui n'a jamais répondu`);
+    }
     continue;
   }
 
