@@ -10,7 +10,7 @@
 -- Régénération :  node supabase/regenerate-full-setup.mjs
 -- Vérification :  node supabase/regenerate-full-setup.mjs --check
 --
--- Ce script est la concaténation des 46 migrations suivantes, dans
+-- Ce script est la concaténation des 48 migrations suivantes, dans
 -- l'ordre chronologique de leur nom de fichier :
 --
 --   20260801000000_init.sql
@@ -59,6 +59,8 @@
 --   20261021000000_station_install_mode.sql
 --   20261022000000_school_name.sql
 --   20261107000000_students_balance_from_receipts.sql
+--   20261108000000_vendor_expense_paid_consistency.sql
+--   20261108000001_indexes_foreign_keys.sql
 --
 -- Exécuté dans le Supabase SQL Editor, il recrée le schéma complet
 -- (tables, index, fonctions, triggers, politiques RLS, données de
@@ -3681,3 +3683,202 @@ UPDATE public.students s
            (SELECT sum(p.amount) FROM public.payments p WHERE p.student_id = s.id), 0),
        last_payment_date = (
            SELECT max(p.date) FROM public.payments p WHERE p.student_id = s.id);
+
+-- ============================================================================
+-- MIGRATION : 20261108000000_vendor_expense_paid_consistency.sql
+-- ============================================================================
+
+-- Migration: le montant payé d'une dépense fournisseur ne contredit plus son statut.
+--
+-- ─── Le défaut ──────────────────────────────────────────────────────────────
+-- `vendor_expenses` porte DEUX copies du même fait : `payment_status` (« payé »,
+-- « partiel », « impayé ») et `amount_paid` (le montant). Les quatre calculs
+-- d'argent de l'application les lisent ensemble — `src/app/useDashboard.ts`
+-- (`totalExpenses`, `expensesThisMonth`), `src/components/ExpensesView.tsx`,
+-- `src/app/useYearOps.ts`, `src/lib/pdfExpensesReport.ts` :
+--
+--     status === 'paid'    ? amount
+--     status === 'partial' ? amount_paid
+--                         : 0
+--
+-- et rien, en base, ne les empêchait de se contredire. Un `paid` à 0 FCFA, un
+-- `partial` à 500 000 sur une dette de 100 000, un `unpaid` qui porte un montant,
+-- ou un montant négatif : la dépense de l'école est annoncée fausse, et aucun
+-- contrôle ne la compare à quoi que ce soit (contrairement au registre des reçus,
+-- qui a son `check:payment-ledger`).
+--
+-- La règle EXISTAIT déjà, mais seulement dans l'écran : `useExpenses.ts` écrit
+-- `status === 'paid' ? amount : status === 'unpaid' ? 0 : amountPaid`. Toute
+-- autre écriture la contournait — le rejeu hors ligne
+-- (`src/lib/offlineReplay.ts`, branche `addVendorExpense` / `updateVendorExpense`)
+-- envoie le nombre brut, et un client direct encore davantage. Ce fichier ne
+-- change donc pas la convention : il la rend autoritaire, là où elle ne peut plus
+-- être sautée.
+--
+-- ─── La direction retenue : le statut est le fait, le montant en découle ────
+-- C'est l'ordre de l'interface (le champ « montant payé » n'apparaît qu'en
+-- « partiel ») et celui du formulaire. Donc :
+--
+--   • `paid`   → `amount_paid` est REMPLACÉ par `amount` (écriture neutralisée) ;
+--   • `unpaid` → `amount_paid` est REMPLACÉ par 0 ;
+--   • `partial` → le nombre est une VRAIE saisie : il est VALIDÉ (strictement
+--     entre 0 et `amount`), jamais inventé. Un partiel hors bornes est refusé,
+--     pas corrigé en silence — c'est le seul cas où l'opérateur doit trancher.
+--
+-- L'inverse (dériver le statut du nombre) casserait le chemin nominal : à
+-- l'insertion d'un `paid`, le champ montant est masqué et vaut 0 ; le déclarer
+-- « impayé » contredirait la case cochée. Le statut reste donc la déclaration, et
+-- c'est le montant qui s'y range.
+--
+-- ─── L'ordre des déclencheurs, et pourquoi il compte ────────────────────────
+-- `protect_vendor_expense_financial_fields` (20260828000000) refuse à un
+-- non-admin tout changement de `vendor_name` ou `amount`. PostgreSQL exécute les
+-- déclencheurs BEFORE de même événement dans l'ordre ALPHABÉTIQUE de leur nom :
+-- `protect_…` passe donc AVANT `vendor_expense_paid_consistency`, et le garde
+-- admin compare les valeurs BRUTES envoyées par le client. Une normalisation ne
+-- peut pas servir à masquer un changement de montant — l'ordre est une garantie,
+-- pas un hasard, et le renommer un jour le changerait.
+--
+-- ─── Ce que ce fichier ne fait pas ──────────────────────────────────────────
+--   • Il ne vérifie pas les DROITS : c'est le rôle du déclencheur ci-dessus et
+--     des politiques. Ici on ne juge qu'une FORME.
+--   • Il n'est pas `SECURITY DEFINER` : il ne lit ni n'écrit aucune table, donc
+--     il n'a aucun privilège à emprunter (les déclencheurs du solde, eux, lisent
+--     `payments` et doivent l'emprunter).
+--   • Il ne répare pas les lignes à montant NÉGATIF : un dû négatif est une
+--     saisie corrompue, pas une incohérence statut/montant — la réécrire
+--     inventerait une dette. Ces lignes sont laissées telles quelles et
+--     échoueront bruyamment à la première écriture qui les touche, avec leur id.
+--
+-- Idempotent : `CREATE OR REPLACE`, `DROP TRIGGER IF EXISTS`, et le rattrapage
+-- ne touche que les lignes qui divergent vraiment.
+
+-- ─── 1) La règle, en un seul endroit ────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.normalize_vendor_expense_paid()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF NEW.payment_status IS NULL
+       OR NEW.payment_status NOT IN ('unpaid', 'partial', 'paid') THEN
+        RAISE EXCEPTION 'Statut de paiement inconnu sur la dépense % : % (attendu : unpaid, partial, paid)',
+            NEW.id, NEW.payment_status
+            USING ERRCODE = '23514';
+    END IF;
+
+    NEW.amount      := coalesce(NEW.amount, 0);
+    NEW.amount_paid := coalesce(NEW.amount_paid, 0);
+
+    IF NEW.amount < 0 OR NEW.amount_paid < 0 THEN
+        RAISE EXCEPTION 'Montant négatif interdit sur la dépense % : dû %, payé %',
+            NEW.id, NEW.amount, NEW.amount_paid
+            USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.payment_status = 'paid' THEN
+        -- Remplacé, pas corrigé après coup : la valeur envoyée ne survit pas.
+        NEW.amount_paid := NEW.amount;
+    ELSIF NEW.payment_status = 'unpaid' THEN
+        NEW.amount_paid := 0;
+    ELSIF NEW.amount_paid <= 0 OR NEW.amount_paid >= NEW.amount THEN
+        RAISE EXCEPTION 'Sur la dépense %, un paiement partiel doit être strictement entre 0 et % FCFA (reçu : %)',
+            NEW.id, NEW.amount, NEW.amount_paid
+            USING ERRCODE = '23514';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS vendor_expense_paid_consistency ON public.vendor_expenses;
+CREATE TRIGGER vendor_expense_paid_consistency
+    BEFORE INSERT OR UPDATE ON public.vendor_expenses
+    FOR EACH ROW
+    EXECUTE FUNCTION public.normalize_vendor_expense_paid();
+
+-- ─── 2) Le rattrapage des lignes déjà en base ───────────────────────────────
+-- Il passe APRÈS la création du déclencheur, volontairement : les valeurs
+-- écrites ici traversent la même règle que les écritures futures — une seconde
+-- convention de réparation finirait par diverger de la première.
+--
+-- Il est borné aux lignes qui divergent (`WHERE`) : rejouer le fichier ne
+-- réécrit rien, et les lignes déjà justes ne sont pas touchées. Le statut déclaré
+-- (`paid` / `unpaid`) est RESPECTÉ — c'est le montant qui s'y range ; seul un
+-- `partial` hors bornes est reclassé d'après son nombre, puisque c'est la seule
+-- lecture possible d'un état qui n'a pas de sens.
+--
+-- `amount >= 0` : une dette négative est une corruption de saisie, pas une
+-- incohérence statut/montant (voir l'en-tête) — on ne la réécrit pas.
+UPDATE public.vendor_expenses v
+   SET payment_status = CASE
+           WHEN v.payment_status IN ('paid', 'unpaid') THEN v.payment_status
+           WHEN coalesce(v.amount_paid, 0) <= 0 THEN 'unpaid'
+           WHEN coalesce(v.amount_paid, 0) >= v.amount THEN 'paid'
+           ELSE 'partial'
+       END,
+       amount_paid = CASE
+           WHEN v.payment_status = 'paid' THEN v.amount
+           WHEN v.payment_status = 'unpaid' THEN 0
+           ELSE least(greatest(coalesce(v.amount_paid, 0), 0), greatest(v.amount, 0))
+       END
+ WHERE v.amount >= 0
+   AND (
+        v.payment_status IS NULL
+     OR v.payment_status NOT IN ('unpaid', 'partial', 'paid')
+     OR (v.payment_status = 'paid'   AND v.amount_paid IS DISTINCT FROM v.amount)
+     OR (v.payment_status = 'unpaid' AND coalesce(v.amount_paid, 0) <> 0)
+     OR (v.payment_status = 'partial' AND (coalesce(v.amount_paid, 0) <= 0 OR v.amount_paid >= v.amount))
+   );
+
+-- ============================================================================
+-- MIGRATION : 20261108000001_indexes_foreign_keys.sql
+-- ============================================================================
+
+-- Migration: les trois clés étrangères qui grandissent avec l'école reçoivent leur index.
+--
+-- ─── La mesure ──────────────────────────────────────────────────────────────
+-- Le 2026-11-08, le catalogue de la base partagée (`rpcjdohfxwukbqngbprw`) a été
+-- interrogé pour une seule question : quelles clés étrangères n'ont AUCUN index
+-- couvrant leur colonne ? Réponse : **5**.
+--
+--     app_settings.updated_by      (app_settings_updated_by_fkey)
+--     calendar_notes.created_by    (calendar_notes_created_by_fkey)
+--     salary_payments.staff_id     (salary_payments_staff_id_fkey)   ← ici
+--     students.parent_id           (students_parent_id_fkey)         ← ici
+--     todos.student_id             (todos_student_id_fkey)           ← ici
+--
+-- PostgreSQL ne crée PAS d'index derrière une clé étrangère. Sans lui, les deux
+-- gestes que ces clés rendent possibles lisent toute la table :
+--   • la suppression en cascade (`todos.student_id … ON DELETE CASCADE`,
+--     `salary_payments.staff_id … ON DELETE CASCADE`) ;
+--   • la mise à NULL (`students.parent_id … ON DELETE SET NULL`) — supprimer un
+--     parent balaie donc tous les élèves pour trouver ceux à détacher.
+--
+-- ─── Pourquoi ces trois-là, et pas les cinq ────────────────────────────────
+-- Un index se paie à chaque écriture. Les trois tables ci-dessus grandissent avec
+-- l'école (un élève, une fiche de paie, une tâche par geste) : leur coût est
+-- réel et leur absence le deviendra. `app_settings` porte une poignée de lignes
+-- de réglages et `calendar_notes` quelques notes de calendrier — y poser un
+-- index serait de la cérémonie, pas de la performance. Elles restent nues, et
+-- c'est dit ici pour que la prochaine mesure ne les redécouvre pas comme un
+-- oubli.
+--
+-- Rien d'autre ne change : aucune colonne, aucune contrainte, aucune politique.
+-- Idempotent (`IF NOT EXISTS`) — le fichier peut être rejoué.
+--
+-- ─── Appliquée hors de `db:apply`, et pourquoi ──────────────────────────────
+-- `db:apply` compte comme objets observables les tables, colonnes, contraintes,
+-- fonctions, politiques et déclencheurs — pas les index. Il refuse donc ce
+-- fichier (« aucun objet observable »). Il a été appliqué par une transaction
+-- directe avec preuve avant/après (0 des 3, puis 3 des 3), et c'est
+-- `check:db-objects`, qui suit les index, qui le prouve en base.
+
+CREATE INDEX IF NOT EXISTS idx_students_parent_id
+    ON public.students(parent_id);
+
+CREATE INDEX IF NOT EXISTS idx_salary_payments_staff_id
+    ON public.salary_payments(staff_id);
+
+CREATE INDEX IF NOT EXISTS idx_todos_student_id
+    ON public.todos(student_id);
