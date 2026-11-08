@@ -43,10 +43,21 @@
 //
 // ─── Ce qu'il refuse de laisser passer pour une preuve ──────────────────────
 // Un fichier qui ne déclare AUCUN objet observable (table, colonne, contrainte,
-// fonction, politique, déclencheur) ne peut pas être prouvé appliqué : la
+// fonction, politique, déclencheur, index) ne peut pas être prouvé appliqué : la
 // commande le refuse, au lieu de rendre un succès qu'aucune mesure n'appuie.
 // C'est la même règle que `check:hosted-schema` — « je n'ai pas pu regarder »
 // n'est pas « tout va bien ».
+//
+// ─── Les INDEX, et pourquoi ils ont manqué jusqu'au 2026-11-08 ──────────────
+// `check:db-objects` lit les index des migrations depuis le premier jour
+// (`parseCreateIndex`), mais `db:apply` ne les comptait pas : une migration qui
+// n'ajoutait QUE des index ne déclarait donc rien d'observable, et la commande la
+// refusait. Le 2026-11-08, les trois index de clés étrangères ont dû être
+// appliqués par une transaction directe — le geste sans la preuve, exactement ce
+// que cette commande existe pour éviter. Les index sont donc la SIXIÈME famille
+// lue ici, et ils se prouvent comme les autres : ABSENT avant, PRÉSENT après,
+// sondé dans `pg_indexes` DANS la transaction. `CREATE INDEX CONCURRENTLY` reste
+// refusé par la liste des obstacles : il ne peut pas vivre dans une transaction.
 // ─────────────────────────────────────────────────────────────────────────────
 import { blankComments, expectedSchemaFromMigrations } from './schema-expected.mjs';
 
@@ -257,6 +268,12 @@ const OBJECT_STATEMENTS = [
   { kind: 'policy', op: 'drop', re: /DROP\s+POLICY\s+(?:IF\s+EXISTS\s+)?(?:"([^"]+)"|([A-Za-z_]\w*))/gi },
   { kind: 'function', op: 'add', re: /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:[A-Za-z_]\w*\.)?(?:"([^"]+)"|([A-Za-z_]\w*))/gi },
   { kind: 'function', op: 'drop', re: /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(?:[A-Za-z_]\w*\.)?(?:"([^"]+)"|([A-Za-z_]\w*))/gi },
+  // L'index : `CREATE [UNIQUE] INDEX … ON <table>` — le nom est celui qui SUIT
+  // `INDEX`, et le `\s+ON\b` final est ce qui empêche de prendre le mot `ON`
+  // pour le nom d'un index sans nom (erreur de syntaxe, mais une regex qui
+  // l'accepterait mentirait sur ce que le fichier déclare).
+  { kind: 'index', op: 'add', re: /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?(?:[A-Za-z_]\w*\s*\.\s*)?(?:"([^"]+)"|([A-Za-z_]\w*))\s+ON\b/gi },
+  { kind: 'index', op: 'drop', re: /DROP\s+INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+EXISTS\s+)?(?:[A-Za-z_]\w*\s*\.\s*)?(?:"([^"]+)"|([A-Za-z_]\w*))/gi },
 ];
 
 /**
@@ -295,8 +312,8 @@ function objectMatches(sql) {
  * @returns {{ kept: Record<string, Set<string>>, gone: Record<string, string[]> }}
  */
 function netObjects(sql) {
-  const kept = { constraint: new Set(), trigger: new Set(), policy: new Set(), function: new Set() };
-  const dropped = { constraint: new Set(), trigger: new Set(), policy: new Set(), function: new Set() };
+  const kept = { constraint: new Set(), trigger: new Set(), policy: new Set(), function: new Set(), index: new Set() };
+  const dropped = { constraint: new Set(), trigger: new Set(), policy: new Set(), function: new Set(), index: new Set() };
   for (const { kind, op, name } of objectMatches(sql)) {
     if (op === 'add') kept[kind].add(name);
     else {
@@ -342,7 +359,8 @@ const REMOVAL_STATEMENTS = [
  *
  * @param {string} sql
  * @returns {{ tables: string[], columns: { table: string, column: string }[],
- *   policies: string[], functions: string[], triggers: string[], constraints: string[] }}
+ *   policies: string[], functions: string[], triggers: string[], constraints: string[],
+ *   indexes: string[] }}
  */
 export function removedObjects(sql) {
   const tables = new Set();
@@ -371,6 +389,7 @@ export function removedObjects(sql) {
     functions: gone.function,
     triggers: gone.trigger,
     constraints: gone.constraint,
+    indexes: gone.index,
   };
 }
 
@@ -379,9 +398,10 @@ export function removedObjects(sql) {
  *
  * @param {string} sql
  * @returns {{ tables: { name: string, columns: string[] }[], constraints: string[],
- *   functions: string[], policies: string[], triggers: string[],
+ *   functions: string[], policies: string[], triggers: string[], indexes: string[],
  *   removed: { tables: string[], columns: { table: string, column: string }[],
- *     policies: string[], functions: string[], triggers: string[], constraints: string[] } }}
+ *     policies: string[], functions: string[], triggers: string[], constraints: string[],
+ *     indexes: string[] } }}
  */
 export function declaredObjects(sql) {
   const schema = expectedSchemaFromMigrations([{ name: 'fichier', sql: String(sql ?? '') }]);
@@ -406,6 +426,7 @@ export function declaredObjects(sql) {
     functions: [...kept.function].sort(),
     policies: [...kept.policy].sort(),
     triggers: [...kept.trigger].sort(),
+    indexes: [...kept.index].sort(),
     removed: {
       tables: removed.tables.filter((name) => !declaredTables.has(name)),
       columns: removed.columns.filter(({ table, column }) => !declaredColumns.has(`${table}.${column}`)),
@@ -413,6 +434,7 @@ export function declaredObjects(sql) {
       functions: gone.function,
       triggers: gone.trigger,
       constraints: gone.constraint,
+      indexes: gone.index,
     },
   };
 }
@@ -437,6 +459,7 @@ export function objectKeys(objects) {
   for (const name of objects?.functions ?? []) keys.push(`function:${name}`);
   for (const name of objects?.policies ?? []) keys.push(`policy:${name}`);
   for (const name of objects?.triggers ?? []) keys.push(`trigger:${name}`);
+  for (const name of objects?.indexes ?? []) keys.push(`index:${name}`);
   return keys.sort();
 }
 
@@ -458,6 +481,7 @@ export function removalKeys(objects) {
   for (const name of objects?.removed?.functions ?? []) keys.push(`function:${name}`);
   for (const name of objects?.removed?.policies ?? []) keys.push(`policy:${name}`);
   for (const name of objects?.removed?.triggers ?? []) keys.push(`trigger:${name}`);
+  for (const name of objects?.removed?.indexes ?? []) keys.push(`index:${name}`);
   return keys.sort();
 }
 
@@ -490,7 +514,7 @@ export function applyVerdict({ objects, before, after, again = false, preflight 
 
   if (keys.length === 0 && removals.length === 0) {
     problems.push(
-      'ce fichier ne déclare AUCUN objet observable (table, colonne, contrainte, fonction, politique, déclencheur) : ' +
+      'ce fichier ne déclare AUCUN objet observable (table, colonne, contrainte, fonction, politique, déclencheur, index) : ' +
         'la commande ne pourrait pas prouver son application — appliquez-le autrement, ou déclarez ce qu’il fait',
     );
     return {
