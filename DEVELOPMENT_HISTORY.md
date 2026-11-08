@@ -20,6 +20,20 @@ La sonde avait raison de refuser ce 400. Sur un `{}`, un 400 signifie qu'une **p
 
 ---
 
+## [2026-11-08] Les huit PR dependabot fusionnées, et les deux défauts qu'elles cachaient
+
+Les huit PR ouvertes (react/react-dom 19.3.1, motion 14.4.0, lucide-react 1.59.0, `@supabase/supabase-js` 2.118.0, puppeteer-core 25.14.0, electron 45.2.2, vercel 65.11.0 côté outils) sont fusionnées sur `main`. L'API refusait `MergePullRequest` (`kontagafamakan98-rgb` n'a pas les droits de merge) : les fusions ont donc été faites localement en `--no-ff` sur les **têtes réelles** des branches, ce qui laisse les commits de chaque PR atteignables depuis `main` — GitHub les marque `MERGED`. Premier essai raté : les têtes avaient été rebasées après mon `fetch`, et GitHub ne reconnaissait pas les commits fusionnés (`MERGED` absent, PR toujours ouvertes) ; l'arbre, lui, était déjà juste.
+
+Deux défauts sont sortis de la fusion, tous deux mesurés par la chaîne et non devinés :
+
+**① react et react-dom doivent monter ensemble.** Les PR séparées donnaient une application qui ne peint rien — `NO_FCP` au Lighthouse, « ni écran de login ni coquille applicative » au contrôle de contraste — et cette moitié d'état venait de `react` 19.3.1 avec `react-dom` 19.3.0. Les deux sont à 19.3.1.
+
+**② La résolution du conflit de `package-lock.json` avait emporté le `package.json` du jour.** Le `--theirs` d'un conflit a restauré le fichier d'une branche antérieure à `check:vendor-expenses` : la ceinture l'a vu (`la commande existe sous son nom`), et le fichier a été repris depuis le commit du jour avec seulement les bumps réappliqués.
+
+**③ motion 14.10.1 rejette une promesse que personne n'attend.** Au démontage, motion annule les animations de l'élément ; happy-dom rejette `Animation.finished` (`AbortError: The animation was canceled.`) et `node:test` impute ce rejet au test en cours — « PayrollView — retirer un salaire » rougissait sur une assertion qui passait. Le harnais attache désormais le `catch` qu'un appelant qui n'attend pas laisserait au navigateur : aucune assertion touchée, et un rejet applicatif d'un autre nom continue de faire échouer la suite.
+
+Preuve : chaîne locale complète verte sur l'arbre fusionné (3 717 cas), `Quality & performance guard`, `Business E2E`, `Deploy (Vercel)` et `Desktop release` verts sur `main`.
+
 ## [2026-11-08] `Deploy (Vercel)` rouge : une panne d'hôte n'est pas un lien mort
 
 Le run `42475674431` est rouge sur **une** ligne : `releases-page · injoignable (TimeoutError)` à 11:26, pendant que GitHub rendait des 500/504 — la même adresse répondait `HTTP 200 → /releases/tag/v1.0.42` deux minutes plus tard, sans qu'un octet ait changé. Le contrôle voyait juste et concluait trop vite : la convergence bornée (`CONVERGE_ATTEMPTS`) ne couvrait que la catégorie `app`, parce que son défaut mesuré était une bascule de déploiement, tandis qu'un lien qu'on ne sert pas — page de version, domaine d'un tiers — était lu **une seule fois**, et une panne de cinq secondes y devenait un verdict sur le lien.
