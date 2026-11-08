@@ -24,6 +24,9 @@
 //     survit pas ;
 //   • un `partial` hors bornes (0, négatif, ≥ dû) est REFUSÉ, pas corrigé ;
 //   • un montant négatif et un statut inconnu sont refusés, en nommant la ligne ;
+//   • l'ordre des étages : une écriture refusée par la POLITIQUE RLS lève 42501 et
+//     pas un refus de forme — un RAISE en BEFORE passait avant l'autorisation et
+//     rendait 400 (insert `{}` d'anon) au lieu de 401 ;
 //   • le rattrapage range les lignes existantes sans toucher à celles qui sont
 //     déjà justes, et sans changer un statut déclaré `paid` / `unpaid` ;
 //   • le fichier est rejouable sans empiler deux fois le déclencheur.
@@ -36,7 +39,17 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const MIGRATION = 'supabase/migrations/20261108000000_vendor_expense_paid_consistency.sql';
+
+/**
+ * Les deux fichiers, DANS L'ORDRE : le premier pose la règle et rattrape
+ * l'histoire, le second déplace les refus d'un BEFORE vers un AFTER — voir
+ * l'en-tête de `20261108000002_…` : un RAISE en BEFORE passe avant le contrôle
+ * RLS, et le refus anon devenait un 400.
+ */
+const MIGRATIONS = [
+  'supabase/migrations/20261108000000_vendor_expense_paid_consistency.sql',
+  'supabase/migrations/20261108000002_vendor_expense_paid_validation_after_rls.sql',
+];
 
 /**
  * Le strict nécessaire pour que la migration s'applique. Aucune colonne de
@@ -61,7 +74,7 @@ const ID_C = '00000000-0000-4000-8000-0000000000c3';
 const ID_D = '00000000-0000-4000-8000-0000000000d4';
 
 function migrationText(): string {
-  return readFileSync(join(ROOT, MIGRATION), 'utf8');
+  return MIGRATIONS.map((relative) => readFileSync(join(ROOT, relative), 'utf8')).join('\n');
 }
 
 async function schemaOnly(): Promise<PGlite> {
@@ -215,7 +228,43 @@ describe("le montant payé d'une dépense fournisseur, tenu par PostgreSQL (déc
     }
   });
 
-  it('la migration est rejouable sans empiler les déclencheurs', async () => {
+  it("une écriture refusée par la POLITIQUE ne parle pas du déclencheur", async () => {
+    // Le défaut mesuré en CI : un RAISE en BEFORE précède le `WITH CHECK` de la
+    // RLS, donc l'insert `{}` d'anon revenait en 400 (message du déclencheur) au
+    // lieu du 401. Ici la preuve est locale : la même RLS, le même payload, et
+    // l'erreur attendue est celle de la politique (42501), jamais `23514`.
+    const db = await freshDb();
+    try {
+      await db.exec(`
+        create role anon nologin;
+        alter table public.vendor_expenses enable row level security;
+        grant insert on public.vendor_expenses to anon;
+      `);
+      await db.exec('set role anon');
+      try {
+        await assert.rejects(
+          db.query('insert into public.vendor_expenses (id) values ($1)', [ID_A]),
+          (error: { code?: string }) => {
+            assert.notEqual(error.code, '23514', 'aucun refus de forme ne précède la politique');
+            assert.equal(error.code, '42501', 'le refus vient de la RLS (401 côté PostgREST)');
+            return true;
+          },
+        );
+      } finally {
+        await db.exec('reset role');
+      }
+      // Et la ligne n'existe pas : un refus RLS n'écrit rien.
+      const rows = await db.query<{ count: string }>(
+        `select count(*)::text as count from public.vendor_expenses where id = $1`,
+        [ID_A],
+      );
+      assert.equal(rows.rows[0]?.count, '0');
+    } finally {
+      await db.close();
+    }
+  });
+
+  it('les déclencheurs sont rejouables sans s’empiler', async () => {
     const db = await freshDb();
     try {
       await db.exec(migrationText());
@@ -227,8 +276,8 @@ describe("le montant payé d'une dépense fournisseur, tenu par PostgreSQL (déc
       );
       assert.deepEqual(
         triggers.rows.map((row) => row.tgname),
-        ['vendor_expense_paid_consistency'],
-        'un déclencheur, une fois',
+        ['vendor_expense_paid_consistency', 'vendor_expense_paid_validation'],
+        'deux déclencheurs, une fois : un BEFORE qui range, un AFTER qui refuse',
       );
       // Et il agit encore après le second passage.
       await addVendorRow(db, ID_A, 90000, 'unpaid', 42000);

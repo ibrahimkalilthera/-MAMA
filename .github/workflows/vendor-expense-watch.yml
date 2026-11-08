@@ -16,9 +16,12 @@ name: Dépenses fournisseurs — règle statut/montant payé (quotidienne)
 # total des dépenses annoncé à l'école est alors faux, et rien ne le voyait — le
 # registre des reçus avait sa veille (`payment-ledger-watch`), pas les dépenses.
 #
-# Le déclencheur `vendor_expense_paid_consistency`
-# (supabase/migrations/20261108000000_…sql) ferme les écritures FUTURES et a
-# rattrapé l'histoire. Il ne garantit rien de ce qui viendrait APRÈS lui : un
+# Les deux déclencheurs (`vendor_expense_paid_consistency` en BEFORE, qui RANGE,
+# et `vendor_expense_paid_validation` en AFTER, qui REFUSE — migrations
+# 20261108000000_… et 20261108000002_…, ce dernier pour que le refus d'une
+# politique RLS reste un 401 et ne devienne pas un 400 du déclencheur) ferment
+# les écritures FUTURES et ont rattrapé l'histoire. Ils ne garantissent rien de
+# ce qui viendrait APRÈS eux : un
 # `DISABLE TRIGGER` (restauration de sauvegarde, intervention en base), une
 # migration qui le remplace, un `COPY` fait sans lui. C'est cette faille-là que
 # le cron mesure : la règle sur les lignes réelles, chaque jour.
@@ -45,6 +48,7 @@ on:
       - 'scripts/check-vendor-expenses.mjs'
       - 'scripts/lib/vendor-expense-ledger.mjs'
       - 'supabase/migrations/20261108000000_vendor_expense_paid_consistency.sql'
+      - 'supabase/migrations/20261108000002_vendor_expense_paid_validation_after_rls.sql'
       - '.github/workflows/vendor-expense-watch.yml'
 
   schedule:
