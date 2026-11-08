@@ -40,6 +40,7 @@ import {
   INSTALL_MODES,
   LAST_CHECK_STATES,
   STATION_BEAT_RPC,
+  callStationBeatRpc,
   readStationBeat,
   sendStationBeat,
   stationBeatArgs,
@@ -299,6 +300,49 @@ describe('un envoi raté est DIT, et n’interrompt rien', () => {
     assert.equal(outcome.sent, true);
     assert.match(outcome.detail, /1\.0\.32/);
     assert.deepEqual(received, [stationBeatArgs(beat())]);
+  });
+});
+
+describe('le geste est appelé LIÉ à son client — un `this` détaché ne bat plus', () => {
+  // Le 2026-11-08, l'application EMPAQUETÉE 1.0.44 battait localement et
+  // n'écrivait jamais en base : `const call = supabase.rpc; call(…)` détachait
+  // la méthode, et le client de `@supabase/supabase-js` levait « Cannot read
+  // properties of undefined (reading 'rest') ». `fleet:versions` lisait donc
+  // 0 poste sous un canal vert. Ce cas-ci attrape ce défaut : le faux client lit
+  // `this`, exactement comme le vrai.
+  class ClientWithThis {
+    rest = { ok: true };
+    calls: Array<{ fn: string; params: Record<string, unknown> }> = [];
+    async rpc(fn: string, params: Record<string, unknown>) {
+      if (!this.rest) throw new Error("Cannot read properties of undefined (reading 'rest')");
+      this.calls.push({ fn, params });
+      return { error: null as { message?: string } | null };
+    }
+  }
+
+  it('un client dont `rpc` lit `this.rest` accepte l’appel, et rien n’est détaché', async () => {
+    const client = new ClientWithThis();
+    const args = stationBeatArgs(beat()) as StationBeatArgs;
+    assert.equal(await callStationBeatRpc(client, args), true);
+    assert.deepEqual(client.calls, [{ fn: STATION_BEAT_RPC, params: args }]);
+  });
+
+  it('la méthode SORTIE de son objet échoue — c’est le défaut mesuré sur la 1.0.44', async () => {
+    const detached = new ClientWithThis().rpc as unknown as (
+      ...args: unknown[]
+    ) => Promise<{ error: unknown }>;
+    await assert.rejects(() => detached(STATION_BEAT_RPC, {}), /reading 'rest'/);
+  });
+
+  it('une erreur rendue par le client devient un refus nommé, jamais un succès', async () => {
+    await assert.rejects(
+      () =>
+        callStationBeatRpc(
+          { rpc: async () => ({ error: { message: 'permission denied for function record_station_beat' } }) },
+          stationBeatArgs(beat()) as StationBeatArgs,
+        ),
+      /permission denied/,
+    );
   });
 });
 

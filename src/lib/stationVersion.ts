@@ -247,15 +247,46 @@ export async function readStationBeat(api?: StationBeatApi | null): Promise<Stat
  * est DIT : `database.types.ts` est régénéré avec la migration, donc le jour où
  * les deux divergent, c'est la compilation qui le dit.
  */
-const supabaseRpc: StationBeatRpc = async (args) => {
-  const { supabase } = await import('./supabaseClient');
-  const call = supabase.rpc as unknown as (
+/**
+ * Le client réduit au seul geste qui sert ici — un client RÉEL, pas un sac de
+ * fonctions : `rpc` est une MÉTHODE, et elle lit `this.rest`.
+ */
+export interface StationBeatClient {
+  rpc: (
     fn: string,
     params: Record<string, unknown>,
   ) => Promise<{ error: { message?: string } | null }>;
-  const { error } = await call(STATION_BEAT_RPC, args as unknown as Record<string, unknown>);
+}
+
+/**
+ * Appeler le geste du battement, LIÉ à son client.
+ *
+ * ─── Le défaut que cette fonction existe pour rendre impossible ─────────────
+ * Sortir la méthode de son objet (`const call = supabase.rpc; call(…)`) détache
+ * `this` : le client de `@supabase/supabase-js` lit `this.rest` et lève
+ * « Cannot read properties of undefined (reading 'rest') ». Mesuré sur
+ * l'application EMPAQUETÉE 1.0.44, le 2026-11-08 : chaque poste battait
+ * localement, chaque envoi échouait, et `fleet:versions` lisait 0 poste — un
+ * parc entier muet sous un canal vert, exactement ce que le relevé existe pour
+ * empêcher. La composition était testée, l'APPEL réel n'y était pas : c'est
+ * pourquoi l'appel prend maintenant un client et se laisse éprouver.
+ *
+ * @param client le client (le vrai, ou un faux qui dépend de `this` comme lui)
+ * @param args les arguments composés par `stationBeatArgs`
+ * @returns `true` quand la base a accepté.
+ */
+export async function callStationBeatRpc(
+  client: StationBeatClient,
+  args: StationBeatArgs,
+): Promise<true> {
+  const { error } = await client.rpc(STATION_BEAT_RPC, args as unknown as Record<string, unknown>);
   if (error) throw new Error(error.message ?? 'appel refusé');
   return true;
+}
+
+const supabaseRpc: StationBeatRpc = async (args) => {
+  const { supabase } = await import('./supabaseClient');
+  return callStationBeatRpc(supabase as unknown as StationBeatClient, args);
 };
 
 /**
