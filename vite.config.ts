@@ -60,9 +60,6 @@ export default defineConfig(({mode}) => {
     // l'installeur porte son verrou même si le câblage d'exécution disparaissait.
     // Le site servi garde la sienne, en en-tête (`vercel.json`).
     plugins: [react(), tailwindcss(), devRuntimeBanner(), buildStamp(), serviceWorkerPlugin(), electronCspMetaPlugin()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
