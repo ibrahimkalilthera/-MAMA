@@ -5,9 +5,8 @@
 ```
 GET repos/ibrahimkalilthera/-MAMA/branches/main/protection   → 200
 required_pull_request_reviews.required_approving_review_count = 0   (une PR suffit)
-required_status_checks.strict                                  = true
-required_status_checks.contexts = ["Lint + tests + audit",
-                                   "Migrations + RLS anon refusé (métier + auth)"]
+required_status_checks.strict                                   = true
+required_status_checks.contexts = ["Lint + tests + audit"]
 enforce_admins   = false
 allow_force_pushes = false
 allow_deletions    = false
@@ -24,8 +23,8 @@ règle, ni fusionner, ni relancer un job. Ce sont deux comptes distincts.
 Ce que la règle refuse maintenant, pour tout compte non administrateur :
 
 - un `git push origin main` direct (il faut une branche et une PR) ;
-- une fusion dont les deux checks requis ne sont pas verts, ni à jour avec
-  `main` (`strict: true`) ;
+- une fusion dont le check requis n'est pas vert, ni à jour avec `main`
+  (`strict: true`) ;
 - une réécriture d'historique (`force-push`) et la suppression de la branche.
 
 ## Ce que la règle ne refuse PAS — et qui reste couvert
@@ -61,7 +60,17 @@ gh api repos/ibrahimkalilthera/-MAMA/branches/main/protection --jq \
     admins: .enforce_admins.enabled}'
 ```
 
-Doit rendre `pr: 0`, `strict: true`, les deux contextes ci-dessus, `admins: false`.
+Doit rendre `pr: 0`, `strict: true`, le contexte ci-dessus, `admins: false`.
+
+### Pourquoi un seul check requis, et pas quatre
+
+`Lint + tests + audit` est le **seul** job qui tourne à chaque pull request,
+sans filtre de chemins. Les autres gardes du dépôt (migrations, RLS publique,
+registre des paiements, dépenses fournisseur, parc) sont filtrés par chemins ou
+ne se déclenchent que sur `main` : les exiger bloquerait pour toujours une PR
+qui ne touche pas `supabase/**`, parce qu'un check attendu qui ne rapporte
+jamais laisse la fusion en attente. `deploy.yml`, lui, attend le verdict de ces
+gardes avant de publier — c'est là que leur poids compte.
 
 ## Passer à `enforce_admins: true` (plus tard, pas maintenant)
 
