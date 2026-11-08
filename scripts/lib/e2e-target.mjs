@@ -187,6 +187,11 @@ export const PRODUCTION_PROBES = [
       'garde-fou anon : en `--remote` il sonde la base RÉELLE en anon pur (aucune clé service, le script refuse de tourner si elle est présente) et n’écrit rien ; sa version semée tourne dans la pile locale de `supabase-migrations.yml`',
   },
   {
+    script: 'scripts/fleet-versions.mjs',
+    because:
+      'relevé du parc : il LIT `station_versions` à la clé de service (la table est illisible par `anon`, c’est le prix d’une écriture anonyme), et depuis le 2026-11-08 il SONDE le canal du battement sur la base réelle quand le relevé est vide — un POST sur `record_station_beat` avec un `station_id` volontairement HORS BORNES, donc la fonction est atteinte puis refuse AVANT d’écrire : aucune ligne, aucun poste inventé, et c’est précisément ce qui distingue « aucun poste n’a parlé » de « le canal est fermé »',
+  },
+  {
     script: 'scripts/restore-db.mjs',
     because:
       'restaure une sauvegarde dans une cible désignée — la chaîne d’essai l’applique à une pile locale NEUVE, et `--empty-first` REFUSE la base partagée',
