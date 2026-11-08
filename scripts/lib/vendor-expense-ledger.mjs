@@ -27,6 +27,12 @@
 // rôle du contrôle du registre des reçus : le calcul est autoritaire, et la
 // veille mesure qu'il ne se contourne pas.
 //
+// Depuis `20261108000002_…`, deux déclencheurs portent la règle :
+// `vendor_expense_paid_consistency` (BEFORE) RANGE `amount_paid` selon le
+// statut, `vendor_expense_paid_validation` (AFTER) REFUSE. L'ordre est une
+// garantie, pas un détail : un refus en BEFORE passe avant la vérification RLS,
+// et transformait un refus d'autorisation (401) en erreur de forme (400).
+//
 // Ce module porte la RÈGLE et les requêtes ; il se teste sans base. Le script
 // (scripts/check-vendor-expenses.mjs) ne fait que lire et imprimer.
 // ─────────────────────────────────────────────────────────────────────────────
