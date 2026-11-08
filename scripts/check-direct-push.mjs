@@ -2,15 +2,18 @@
 /**
  * « Ce commit est-il arrivé sur `main` par une PR ? »
  *
- * La protection de branche GitHub est refusée à ce dépôt (l'API rend 404 :
- * jeton sans droit d'administration, ou offre qui ne l'ouvre pas). Ce garde ne
- * BLOQUE rien — seul GitHub peut refuser un push — mais il rend le
- * contournement VISIBLE : un commit sans PR associée rend le run rouge, avec
- * son SHA et la marche à suivre. C'est la différence entre une règle écrite
- * dans un document et une règle mesurée.
+ * La protection de branche GitHub est active, et depuis le 2026-11-08 elle
+ * vaut aussi pour l'administrateur (`enforce_admins: true`) : un push direct
+ * sur `main` est refusé par GitHub pour tous les comptes. Ce garde ne BLOQUE
+ * rien — seul GitHub peut refuser un push — mais il rend le contournement
+ * VISIBLE : un commit sans PR associée rend le run rouge, avec son SHA et la
+ * marche à suivre. C'est ce qui distingue une règle écrite dans un document
+ * d'une règle mesurée : le jour où la règle est retirée par mégarde, ce garde
+ * le dit avant qu'un commit n'ait traversé les portes.
  *
- * La règle elle-même (et son exception de release) vit dans
- * scripts/lib/direct-push.mjs, où elle est testée sans réseau.
+ * Il n'y a plus d'exception de release : elles passent par une PR
+ * (`npm run release:pr`). La règle vit dans scripts/lib/direct-push.mjs, où
+ * elle est testée sans réseau.
  *
  * Variables du workflow : GITHUB_REPOSITORY, GITHUB_SHA, GITHUB_TOKEN.
  */
@@ -59,7 +62,7 @@ const subject = message.split('\n')[0].slice(0, 100) || '(message illisible)';
 if (!verdict.ok) {
   console.error(`❌ ${sha.slice(0, 12)} — ${verdict.reason}`);
   console.error(`   Commit : ${subject}`);
-  console.error('   La protection de branche GitHub est refusée (404) : ce garde est le seul contrôle disponible.');
+  console.error('   La protection de branche GitHub exige une PR : ce commit est donc arrivé par un contournement.');
   process.exit(1);
 }
 

@@ -1,16 +1,18 @@
 /**
  * La porte `pre-push` — ce que le dépôt peut tenir lui-même sur `main`.
  *
- * La protection de branche GitHub est active depuis le 2026-11-08, mais avec
- * `enforce_admins: false` : l'administrateur — le compte qui pousse dans ce
- * dépôt — peut encore passer outre, et le garde de CI constate alors APRÈS
- * coup. Ce module est la seule vérification qui arrive AVANT que le commit ne
- * quitte la machine — et il doit refuser précisément ce qu'il prétend refuser :
- * `main` par un push direct, sans attraper les branches de travail ni bloquer
- * l'automatisation de release.
+ * La protection de branche GitHub est active depuis le 2026-11-08, et depuis le
+ * même jour elle vaut aussi pour l'administrateur (`enforce_admins: true`) :
+ * GitHub refuse un push direct sur `main` pour tous les comptes. Ce module est
+ * la vérification qui arrive AVANT que le commit ne quitte la machine — et il
+ * doit refuser précisément ce qu'il prétend refuser : `main` par un push
+ * direct, sans attraper les branches de travail ni les releases (qui passent
+ * désormais par une PR).
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   MAIN_REF,
   fallbackPushLine,
@@ -66,33 +68,40 @@ describe('pushVerdict — refuser main, laisser passer le reste', () => {
   });
 
   it('un push direct sur main est refusé, avec le chemin de remplacement', () => {
-    const verdict = pushVerdict({ remoteRef: MAIN_REF, localSha: SHA, tipSubject: 'fix: corrige un solde' });
+    const verdict = pushVerdict({ remoteRef: MAIN_REF, localSha: SHA });
     assert.equal(verdict.ok, false);
     assert.match(verdict.reason, /refusé/);
     assert.match(verdict.reason, /ouvrez une PR/);
   });
 
-  it('un commit de release passe — exception nommée, pas un trou', () => {
-    const verdict = pushVerdict({ remoteRef: MAIN_REF, localSha: SHA, tipSubject: 'chore(release): 1.0.44' });
-    assert.equal(verdict.ok, true);
-    assert.match(verdict.reason, /exception nommée/);
+  it('un commit de release ne passe plus : il n’y a plus d’exception par message', () => {
+    const source = readFileSync(join(import.meta.dirname, '../scripts/lib/push-target.mjs'), 'utf8');
+    assert.doesNotMatch(source, /tipSubject|chore\\(release\\)/, 'le sujet n’est plus lu : ce qui n’est pas lu ne peut pas exempter');
+    const verdict = pushVerdict({ remoteRef: MAIN_REF, localSha: SHA });
+    assert.equal(verdict.ok, false);
+    assert.match(verdict.reason, /release:pr/, 'le refus nomme le chemin de la release');
   });
 
   it('ALLOW_MAIN_PUSH=1 est une décision annoncée, jamais un silence', () => {
-    const verdict = pushVerdict({ remoteRef: MAIN_REF, localSha: SHA, tipSubject: 'fix: x', allowMain: true });
+    const verdict = pushVerdict({ remoteRef: MAIN_REF, localSha: SHA, allowMain: true });
     assert.equal(verdict.ok, true);
     assert.match(verdict.reason, /ALLOW_MAIN_PUSH=1/);
     assert.match(verdict.reason, /décision humaine/);
   });
 
   it('supprimer main est refusé', () => {
-    const verdict = pushVerdict({ remoteRef: MAIN_REF, localSha: ZERO, tipSubject: null });
+    const verdict = pushVerdict({ remoteRef: MAIN_REF, localSha: ZERO });
     assert.equal(verdict.ok, false);
     assert.match(verdict.reason, /ne se supprime pas/);
   });
 
-  it('un sujet illisible ne fabrique pas un passe-droit', () => {
-    const verdict = pushVerdict({ remoteRef: MAIN_REF, localSha: SHA, tipSubject: null });
+  it('un commit inconnu ne fabrique pas un passe-droit', () => {
+    const verdict = pushVerdict({ remoteRef: MAIN_REF, localSha: SHA });
     assert.equal(verdict.ok, false);
+    assert.equal(
+      pushVerdict({ remoteRef: 'refs/heads/fix/z', localSha: SHA }).ok,
+      true,
+      'une branche reste libre : la release n’est pas la seule à devoir passer',
+    );
   });
 });

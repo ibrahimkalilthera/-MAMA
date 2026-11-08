@@ -7,48 +7,83 @@ GET repos/ibrahimkalilthera/-MAMA/branches/main/protection   → 200
 required_pull_request_reviews.required_approving_review_count = 0   (une PR suffit)
 required_status_checks.strict                                   = true
 required_status_checks.contexts = ["Lint + tests + audit"]
-enforce_admins   = false
+enforce_admins   = true
 allow_force_pushes = false
 allow_deletions    = false
 ```
 
 La règle a été posée par l'API avec le **jeton propriétaire** — celui que le
-dépôt utilise déjà pour pousser (`.git/github-credentials`, `admin: true` sur ce
-dépôt). Le `404` qui avait été lu auparavant n'était pas un refus de
-permission : la réponse du point d'accès est « Branch not protected », c'est-à-
-dire *aucune règle posée*. Le compte `gh` de la machine, lui, est en lecture
-seule (`viewerPermission: READ`) : c'est ce jeton-là qui ne peut ni poser la
-règle, ni fusionner, ni relancer un job. Ce sont deux comptes distincts.
+dépôt utilise pour pousser (`.git/github-credentials`, `admin: true` sur ce
+dépôt). Le `404` lu auparavant n'était pas un refus de permission : la réponse du
+point d'accès est « Branch not protected », c'est-à-dire *aucune règle posée*.
+Le compte `gh` de la machine, lui, est en lecture seule
+(`viewerPermission: READ`) : ce sont deux comptes distincts.
 
-Ce que la règle refuse maintenant, pour tout compte non administrateur :
+Ce que la règle refuse maintenant, **pour tous les comptes**, propriétaire
+compris :
 
 - un `git push origin main` direct (il faut une branche et une PR) ;
 - une fusion dont le check requis n'est pas vert, ni à jour avec `main`
   (`strict: true`) ;
 - une réécriture d'historique (`force-push`) et la suppression de la branche.
 
-## Ce que la règle ne refuse PAS — et qui reste couvert
+## La release passe par une PR, elle aussi
 
-`enforce_admins: false`. Un administrateur — le propriétaire, c'est-à-dire le
-compte qui pousse réellement dans ce dépôt — peut encore pousser directement sur
-`main`. C'est un choix assumé : les commits `chore(release):` sont produits et
-poussés par cette même personne, et les bloquer casserait le canal de release
-sans qu'un autre compte puisse fusionner à sa place (0 approbation requise, mais
-GitHub interdit d'approuver sa propre PR).
+`enforce_admins: true` a fait tomber la dernière exception : les commits
+`chore(release):`, produits et poussés par le propriétaire, étaient le seul
+chemin qui contournait encore les portes. Ils ont désormais le leur.
 
-Trois gardes couvrent donc ce chemin d'administrateur, du plus tôt au plus tard :
+```bash
+npm run release:pr -- --version 1.0.44 --summary "ce que ce numéro embarque"
+npm run release:pr -- --dry-run          # décide tout, n'écrit rien
+```
 
-1. **`.husky/pre-push` → `scripts/check-push-target.mjs`** — refuse le push
-   *avant qu'il parte*. Exception nommée : un commit de tête
-   `chore(release):`, ou `ALLOW_MAIN_PUSH=1` (décision annoncée, pas un oubli).
-   Zéro référence lue sur l'entrée standard → exit 2, jamais un vert sur du vide.
-   Ne survit pas à `git push --no-verify` ni à `HUSKY=0`.
+Ce que la commande fait :
+
+1. vérifie que `main` local **est** `origin/main` (sinon la PR embarquerait des
+   commits qui ne sont pas sur `main`), et que les deux fichiers de version sont
+   propres ;
+2. refuse un numéro qui n'est pas strictement supérieur à `package.json`, un tag
+   `vX.Y.Z` déjà présent sur `origin`, une branche `release/vX.Y.Z` déjà
+   existante ;
+3. crée `release/vX.Y.Z`, n'y réécrit **que** la ligne de version de
+   `package.json` et les deux lignes de `package-lock.json` (CRLF et indentation
+   conservés : une release dont le diff fait 10 000 lignes ne se relit pas) ;
+4. commite `chore(release): X.Y.Z — …`, pousse la branche, ouvre la PR.
+
+Puis : le check requis passe, la PR est fusionnée — c'est le geste humain qui
+reste, et c'est celui qui publie — et **`Desktop release (Windows)` fait le
+reste** : `check:release:needed` voit un numéro inédit, construit, signe si
+`SIGNING_ENABLED`, téléverse en brouillon, vérifie les octets, promeut, relit le
+canal. Aucune autre étape n'existe.
+
+Le jeton utilisé pour ouvrir la PR vient de `GH_TOKEN` / `GITHUB_TOKEN`, sinon du
+credential helper de git — le même compte que le push, donc les mêmes droits. Il
+n'est jamais imprimé.
+
+## Les gardes restent — ce sont des ceintures, plus des barrières
+
+La règle GitHub est la barrière ; les trois gardes ci-dessous restent parce
+qu'une règle peut être retirée, et qu'un retrait silencieux est exactement ce que
+ce dépôt refuse.
+
+1. **`.husky/pre-push` → `scripts/check-push-target.mjs`** — refuse le push vers
+   `main` *avant qu'il parte*, en nommant le chemin de remplacement. Plus
+   d'exception par message : `chore(release):` n'est plus un laissez-passer
+   (c'était le dernier). Seul `ALLOW_MAIN_PUSH=1` est une décision annoncée —
+   que GitHub refusera de toute façon. Zéro référence lue sur l'entrée standard
+   → exit 2, jamais un vert sur du vide.
 2. **`.github/workflows/main-direct-push-guard.yml`** — sur chaque push vers
-   `main`, demande à l'API les PR associées au commit. Aucune PR et pas un
-   `chore(release):` → run rouge avec le SHA. Réponse illisible → exit 2.
-   La règle est dans `scripts/lib/direct-push.mjs`, testée sans réseau.
+   `main`, demande à l'API les PR associées au commit. Aucune PR → run rouge avec
+   le SHA et le message. Réponse illisible → exit 2. La règle est dans
+   `scripts/lib/direct-push.mjs`, testée sans réseau, et **n'exempte plus rien**.
 3. **`deploy.yml`** — ne déploie que si le workflow de qualité s'est terminé en
    `success` sur `main`, et déploie exactement le commit validé (`head_sha`).
+
+`.husky/post-commit` (la sauvegarde automatique) **saute le push sur `main`** et
+le dit : la branche est protégée, le push serait refusé, et payer la chaîne
+qualité du `pre-push` pour un refus certain n'apprend rien. Un commit local sur
+`main` reste local — il faut le déplacer sur une branche.
 
 ## Vérifier que la règle tient
 
@@ -60,7 +95,22 @@ gh api repos/ibrahimkalilthera/-MAMA/branches/main/protection --jq \
     admins: .enforce_admins.enabled}'
 ```
 
-Doit rendre `pr: 0`, `strict: true`, le contexte ci-dessus, `admins: false`.
+Doit rendre `pr: 0`, `strict: true`, `checks: ["Lint + tests + audit"]`,
+`admins: true`.
+
+### Comment la règle se pose — mesuré le 2026-11-08
+
+`PATCH …/protection` avec `{"enforce_admins": true}` rend **404** sur ce dépôt,
+alors que `GET` rend **200** : la mise à jour partielle n'existe pas ici. C'est
+`PUT …/protection` avec la règle **entière** qui passe (200), et la relecture qui
+suit le confirme (`admins: true`). Une commande `PATCH` qui « ne fait rien » sans
+le dire est exactement le genre de faux geste que ce document existe pour
+éviter : la règle se pose en entier, et se relit.
+
+Clés envoyées : `required_status_checks` (`strict`, un contexte),
+`enforce_admins`, `required_pull_request_reviews` (0 approbation, pas de
+revue de propriétaire de code), `restrictions: null` (obligatoire),
+`allow_force_pushes`, `allow_deletions`, `required_conversation_resolution`.
 
 ### Pourquoi un seul check requis, et pas quatre
 
@@ -72,16 +122,11 @@ qui ne touche pas `supabase/**`, parce qu'un check attendu qui ne rapporte
 jamais laisse la fusion en attente. `deploy.yml`, lui, attend le verdict de ces
 gardes avant de publier — c'est là que leur poids compte.
 
-## Passer à `enforce_admins: true` (plus tard, pas maintenant)
+## Ce qu'un administrateur peut encore faire
 
-Le jour où les releases passent elles aussi par une PR, la règle peut être
-durcie sans casser personne :
-
-```bash
-gh api -X PATCH repos/ibrahimkalilthera/-MAMA/branches/main/protection \
-  -F enforce_admins=true
-```
-
-Ce jour-là, le `pre-push` et le garde de CI deviennent des ceintures de plus
-plutôt que la seule barrière — et l'exception `chore(release):` du garde de CI
-devient sans objet.
+`enforce_admins: true` s'applique aux administrateurs du dépôt, pas au droit de
+**modifier la règle** : le propriétaire peut toujours l'assouplir, la retirer, ou
+fusionner une PR qu'il trouve gênante. Aucun réglage GitHub ne l'en empêche —
+c'est le modèle. Ce que le dépôt peut faire, et fait : le garde de CI rougit le
+jour où un commit arrive sur `main` sans PR, avec son SHA. Une règle retirée
+laisse une trace mesurable au lieu d'un silence.
