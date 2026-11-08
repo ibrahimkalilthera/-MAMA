@@ -51,6 +51,7 @@ import {
   firstConversion,
   installModeBreakdown,
   parseFlags,
+  probeBeatChannel,
   readRefusalMessage,
   silentStations,
   versionDistribution,
@@ -77,6 +78,69 @@ const station = (over: Record<string, unknown> = {}) => ({
   converted_at: null,
   converted_to_version: null,
   ...over,
+});
+
+describe('fleet:versions — un zéro poste ne dit pas POURQUOI il est zéro', () => {
+  // Mesuré le 2026-11-08 : le relevé rendait 0 poste, et deux causes très
+  // différentes produisaient ce même vide — « aucun poste n’a encore battu » et
+  // « le canal du battement est fermé ». La sonde les sépare sans inventer de
+  // poste : `station_id` volontairement HORS BORNES, donc la fonction est
+  // atteinte (le GRANT tient), puis refuse, et aucune ligne ne peut rester.
+  const reply = (status: number, body = '') =>
+    (async () => ({ status, text: async () => body })) as unknown as typeof fetch;
+
+  it('un refus nommé prouve le canal OUVERT — et n’écrit rien', async () => {
+    const probe = await probeBeatChannel({
+      base: 'https://exemple.test',
+      anonKey: 'anon',
+      fetchImpl: reply(400, '{"code":"P0001","message":"station_id invalide : longueur 5 hors bornes (8..64)"}'),
+    });
+    assert.equal(probe.checked, true);
+    assert.match(String(probe.detail), /HTTP 400/);
+    assert.match(String(probe.detail), /aucune ligne écrite/);
+  });
+
+  it('un GRANT retiré est nommé comme tel, pas comme un parc vide', async () => {
+    const probe = await probeBeatChannel({ base: 'https://exemple.test', anonKey: 'anon', fetchImpl: reply(401) });
+    assert.equal(probe.checked, false);
+    assert.match(String(probe.reason), /GRANT manque/);
+  });
+
+  it('une fonction absente nomme la migration, pas « HTTP 404 »', async () => {
+    const probe = await probeBeatChannel({ base: 'https://exemple.test', anonKey: 'anon', fetchImpl: reply(404) });
+    assert.equal(probe.checked, false);
+    assert.match(String(probe.reason), /migration du battement n’est pas appliquée/);
+  });
+
+  it('un 2xx sur un identifiant hors bornes est un DÉFAUT, pas un succès', async () => {
+    const probe = await probeBeatChannel({ base: 'https://exemple.test', anonKey: 'anon', fetchImpl: reply(201) });
+    assert.equal(probe.checked, false, 'une ligne de sonde pourrait être comptée comme un poste');
+    assert.match(String(probe.reason), /ACCEPTÉ un station_id hors bornes/);
+  });
+
+  it('sans clé publique, la sonde se tait au lieu de conclure', async () => {
+    const probe = await probeBeatChannel({ base: 'https://exemple.test', anonKey: '' });
+    assert.equal(probe.checked, false);
+    assert.match(String(probe.reason), /n’a pas été exécutée/);
+  });
+
+  it('une origine muette n’est pas un canal ouvert', async () => {
+    const probe = await probeBeatChannel({
+      base: 'https://exemple.test',
+      anonKey: 'anon',
+      fetchImpl: (async () => {
+        throw new Error('ECONNREFUSED');
+      }) as unknown as typeof fetch,
+    });
+    assert.equal(probe.checked, false);
+    assert.match(String(probe.reason), /sonde interrompue/);
+  });
+
+  it('le drapeau existe, et la sortie dit ce qu’un zéro ne couvre pas', () => {
+    assert.equal(parseFlags(['--probe']).probe, true);
+    assert.equal(parseFlags([]).probe, false, 'la sonde reste demandée explicitement sur un relevé non vide');
+    assert.match(USAGE, /--probe/);
+  });
 });
 
 describe('fleet:versions — les drapeaux', () => {
