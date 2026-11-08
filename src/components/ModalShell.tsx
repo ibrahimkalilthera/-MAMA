@@ -17,11 +17,13 @@
  *  - nonstandard layouts (two-line titles, custom close affordances) render
  *    a full `header` override; `rootClassName` covers things like `no-print`.
  */
+import { useEffect, useRef } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { X } from 'lucide-react';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import { modalTokens } from '../lib/modalTokens';
+import { trapFocus } from '../lib/focusTrap';
 
 export interface ModalShellProps {
   /** The dialog root — registered in the host overlay registry (focus trap). */
@@ -75,9 +77,20 @@ export function ModalShell({
   children,
 }: ModalShellProps) {
   const tokens = modalTokens(currentTheme);
+  // Le dialogue PIÈGE le focus : sans cela, `Tab` sortait de la fenêtre de
+  // saisie et parcourait la page derrière elle — un écran qu'un lecteur d'écran
+  // annonce comme modal mais qui ne l'est pas au clavier. Le piège se pose sur
+  // la RACINE (le ✕ est dedans) et se retire au démontage, en rendant le focus
+  // à l'élément qui avait ouvert la fenêtre. Voir src/lib/focusTrap.ts.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    return trapFocus(root);
+  }, []);
   return (
     <div
-      ref={overlayRef}
+      ref={(el) => { rootRef.current = el; overlayRef(el); }}
       role="dialog"
       aria-modal="true"
       aria-label={ariaLabel}

@@ -16,6 +16,7 @@ import { useMainViews } from '../app/mainViewsContext';
 import { SettingsPreferencesCard } from './SettingsPreferencesCard';
 import { SettingsSchoolCard } from './SettingsSchoolCard';
 import { SettingsBackupCard } from './SettingsBackupCard';
+import { SettingsDiagnosticsCard } from './SettingsDiagnosticsCard';
 import { SettingsClassesCard } from './SettingsClassesCard';
 import { SettingsUsersCard } from './SettingsUsersCard';
 import { SettingsPasswordModal } from './SettingsPasswordModal';
@@ -38,6 +39,7 @@ export function SettingsView() {
                 d'exploitation (sauvegarde, classes, comptes). */}
             <SettingsSchoolCard />
             <SettingsBackupCard />
+            <SettingsDiagnosticsCard />
             <SettingsClassesCard />
             <SettingsUsersCard />
           </div>

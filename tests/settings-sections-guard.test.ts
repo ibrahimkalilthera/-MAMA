@@ -82,6 +82,7 @@ const STACK_FIXTURE = (preferenceSlots: string[]): Record<string, string> => ({
   'SettingsPreferencesCard.tsx': sectionSource(preferenceSlots),
   'SettingsSchoolCard.tsx': sectionSource(['settings-school-name']),
   'SettingsBackupCard.tsx': sectionSource(['settings-backup']),
+  'SettingsDiagnosticsCard.tsx': sectionSource(['settings-diagnostics']),
   'SettingsClassesCard.tsx': sectionSource(['settings-classes']),
   'SettingsUsersCard.tsx': sectionSource(['settings-staff-access']),
 });
@@ -104,6 +105,7 @@ const IMPORTS = [
   "import { SettingsPreferencesCard } from './SettingsPreferencesCard';",
   "import { SettingsSchoolCard } from './SettingsSchoolCard';",
   "import { SettingsBackupCard } from './SettingsBackupCard';",
+  "import { SettingsDiagnosticsCard } from './SettingsDiagnosticsCard';",
   "import { SettingsClassesCard } from './SettingsClassesCard';",
   "import { SettingsUsersCard } from './SettingsUsersCard';",
   "import { SettingsPasswordModal } from './SettingsPasswordModal';",
@@ -113,6 +115,7 @@ const RENDERS = [
   '        <SettingsPreferencesCard />',
   '        <SettingsSchoolCard />',
   '        <SettingsBackupCard />',
+  '        <SettingsDiagnosticsCard />',
   '        <SettingsClassesCard />',
   '        <SettingsUsersCard />',
 ]
@@ -125,7 +128,7 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
   it('le fichier réel est conforme', () => {
     const result = runGuard(join(root, 'src/components/SettingsView.tsx'));
     assert.equal(result.status, 0, `le garde doit passer sur la vraie coquille : ${result.stderr}`);
-    assert.match(result.stdout, /importe et rend les 6 sections dans l’ordre/);
+    assert.match(result.stdout, /importe et rend les 7 sections dans l’ordre/);
   });
 
   it('une fixture conforme passe (la règle est bien celle-là)', () => {
@@ -161,15 +164,20 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
   });
 
   it('deux sections INVERSÉES au rendu tombent, avec l’ordre observé', () => {
+    // La paire échangée est VOISINE dans la pile : sinon le `replace` ne trouve
+    // rien, la source reste conforme, et le test se contenterait de mesurer que
+    // sa propre substitution a échoué. L'ajout de la carte « état du poste »
+    // entre la sauvegarde et les classes a déjà rendu ce piège une fois.
     const swapped = CORRECT.replace(
-      '        <SettingsBackupCard />\n        <SettingsClassesCard />',
-      '        <SettingsClassesCard />\n        <SettingsBackupCard />',
+      '        <SettingsClassesCard />\n        <SettingsUsersCard />',
+      '        <SettingsUsersCard />\n        <SettingsClassesCard />',
     );
+    assert.notEqual(swapped, CORRECT, 'l’échange doit réellement modifier la source');
     withSource(swapped, (file) => {
       const result = runGuard(file);
       assert.equal(result.status, 1);
       assert.match(result.stderr, /rendu observé/);
-      assert.match(result.stderr, /SettingsClassesCard → SettingsBackupCard/);
+      assert.match(result.stderr, /SettingsUsersCard → SettingsClassesCard/);
     });
   });
 
@@ -186,11 +194,11 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
     assert.match(result.stderr, /Rien à vérifier/);
   });
 
-  it('la pile conforme (six blocs de préférences, le nom de l’école, puis trois sections) passe', () => {
+  it('la pile conforme (six blocs de préférences, le nom de l’école, puis quatre sections) passe', () => {
     withFixture(STACK_FIXTURE(PREFERENCE_SLOTS), (dir) => {
       const result = runGuard(join(dir, 'SettingsView.tsx'), dir);
       assert.equal(result.status, 0, `une pile conforme doit être verte : ${result.stderr}`);
-      assert.match(result.stdout, /la pile porte ses 10 enfants/);
+      assert.match(result.stdout, /la pile porte ses 11 enfants/);
     });
   });
 
@@ -199,7 +207,7 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
     withFixture(withExtra, (dir) => {
       const result = runGuard(join(dir, 'SettingsView.tsx'), dir);
       assert.equal(result.status, 1, 'changer la structure sans la table doit échouer');
-      assert.match(result.stderr, /la pile doit porter 10 enfants/);
+      assert.match(result.stderr, /la pile doit porter 11 enfants/);
       assert.match(result.stderr, /SANS que la table/);
       assert.match(result.stderr, /settings-extra-block/);
     });
@@ -210,7 +218,7 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
     withFixture(withFewer, (dir) => {
       const result = runGuard(join(dir, 'SettingsView.tsx'), dir);
       assert.equal(result.status, 1);
-      assert.match(result.stderr, /la pile doit porter 10 enfants/);
+      assert.match(result.stderr, /la pile doit porter 11 enfants/);
     });
   });
 

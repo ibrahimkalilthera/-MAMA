@@ -1,0 +1,67 @@
+name: Backup age
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « La copie hors GitHub a-t-elle moins de 48 heures ? »
+#
+# Une sauvegarde qui cesse de tourner ne fait aucun bruit : un secret retiré, un
+# seau supprimé, un workflow désactivé — et le silence du job quotidien ressemble
+# au succès. Ce contrôle LIT le seau `db-backups` et refuse quand l'objet le plus
+# récent est absent, illisible, dans le futur, ou vieux de plus de 48 h.
+#
+# Il est SÉPARÉ du backup : une alerte ne doit pas empêcher la sauvegarde du jour
+# de se faire. Et il est rouge, pas « informatif » : une copie expirée est
+# exactement l'incident que ce dépôt refuse de découvrir le jour où il en a
+# besoin.
+#
+# Secrets requis : SUPABASE_SERVICE_ROLE_KEY (déjà utilisé par la sauvegarde).
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    # 06:30 UTC — après la sauvegarde de 02:20, avant la journée de bureau.
+    - cron: '30 6 * * *'
+
+  workflow_dispatch:
+
+concurrency:
+  group: backup-age-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  age:
+    name: Dater la dernière copie hors GitHub
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Refuser de conclure sans credentials
+        run: |
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY}" ]; then
+            echo "::error title=Âge non mesurable::SUPABASE_SERVICE_ROLE_KEY est absent — impossible de dater la copie hors GitHub."
+            exit 1
+          fi
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: La copie la plus récente a-t-elle moins de 48 h ?
+        env:
+          SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_MAX_AGE_HOURS: '48'
+        run: npm run check:backup-age
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — âge de la copie hors GitHub
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "l'âge de la copie hors GitHub a été mesuré sur le seau db-backups ; le nombre d'objets lus et l'écart horaire sont publiés par scripts/check-backup-age.mjs"

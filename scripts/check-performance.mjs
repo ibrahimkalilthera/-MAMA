@@ -21,11 +21,18 @@ import lighthouse from 'lighthouse';
 import { launch } from 'chrome-launcher';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PERF_TARGET, perfVerdict } from './lib/perf-target.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 
 const THRESHOLD = Number(process.env.PERF_THRESHOLD ?? 0.7);
+// La CIBLE (0,90 sur l'écran d'entrée) n'est pas le seuil : elle se lit à chaque
+// run et ne bloque que sur demande explicite (`PERF_STRICT_TARGET=1`). Un runner
+// partagé ne peut pas la tenir, et un garde toujours rouge ne garde rien — voir
+// scripts/lib/perf-target.mjs.
+const TARGET = Number(process.env.PERF_TARGET ?? PERF_TARGET);
+const STRICT_TARGET = process.env.PERF_STRICT_TARGET === '1';
 const PORT = Number(process.env.PREVIEW_PORT ?? 4173);
 const URL = `http://localhost:${PORT}/`;
 const CHROME_PATH = process.env.CHROME_PATH;
@@ -111,12 +118,22 @@ async function main() {
 
     const ordered = [...scores].sort((a, b) => a - b);
     const score = ordered[Math.floor((ordered.length - 1) / 2)];
-    const pct = Math.round(score * 100);
-    console.log(`📊 Score de performance (médiane de ${scores.length} run${scores.length > 1 ? 's' : ''}) : ${pct}/100 (seuil requis : ${Math.round(THRESHOLD * 100)})`);
+    const verdict = perfVerdict(score, { threshold: THRESHOLD, target: TARGET });
+    console.log(`📊 Score de performance (médiane de ${scores.length} run${scores.length > 1 ? 's' : ''}) : ${verdict.pct}/100 — seuil ${verdict.thresholdPct}, cible ${verdict.targetPct}`);
+    console.log(`   ${verdict.message}`);
 
-    if (score < THRESHOLD) {
-      console.error(`❌ Déploiement BLOQUÉ : performance ${pct}/100 < seuil ${Math.round(THRESHOLD * 100)}.`);
+    if (!verdict.meetsTarget) {
+      // Information, pas permission : la cible dit l'écart à combler, et elle ne
+      // fait rougir que si on l'a demandé explicitement.
+      console.log(`   Cible de ${verdict.targetPct} non atteinte : ${verdict.gapPct} point(s) à gagner sur l'écran d'entrée.`);
+    }
+
+    if (!verdict.ok) {
+      console.error(`❌ Déploiement BLOQUÉ : ${verdict.message}.`);
       console.error('   Améliorez la performance avant de redéployer, ou relancez avec PERF_THRESHOLD plus bas.');
+      process.exitCode = 1;
+    } else if (!verdict.meetsTarget && STRICT_TARGET) {
+      console.error(`❌ Cible stricte non atteinte : ${verdict.message} (PERF_STRICT_TARGET=1).`);
       process.exitCode = 1;
     } else {
       console.log('✅ Performance au-dessus du seuil — déploiement autorisé.');

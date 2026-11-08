@@ -9,6 +9,7 @@ import type { DbUpdate } from '../database.types';
 import { mapExpenseRow, mapVendorExpenseRow, createRowId } from '../rowMappers';
 import { rowIdColumn } from '../offlineReplay';
 import { logAuditEvent } from '../auditLogger';
+import { clientWritesAmountPaid } from '../vendorExpensePaid';
 
 export function createExpenseOps(ctx: SupabaseDataCtx) {
   const { vendorExpenses, expenses, setExpenses, setVendorExpenses, notifySuccess, notifyError, isOffline, enqueueOffline } = ctx;
@@ -81,7 +82,10 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
         amount: ve.amount,
         due_date: ve.dueDate,
         payment_status: ve.paymentStatus,
-        amount_paid: ve.amountPaid,
+        // Le montant n'est joint que pour un PARTIEL : « payé » et « impayé »
+        // le dérivent du dû, et la base remplace de toute façon la valeur
+        // envoyée. Voir src/lib/vendorExpensePaid.ts.
+        ...(clientWritesAmountPaid(ve.paymentStatus) ? { amount_paid: ve.amountPaid } : {}),
         description: ve.description || null,
         academic_year: ve.academicYear || null,
         aid_type: ve.aidType || null,
@@ -121,12 +125,19 @@ export function createExpenseOps(ctx: SupabaseDataCtx) {
       return true;
     }
     const row: DbUpdate<'vendor_expenses'> = {};
+    // Le statut EFFECTIF de la ligne après ce geste : sans lui, un `paid`
+    // modifierait le montant payé dans le vide, et un `partial` sans montant
+    // serait refusé par la base au lieu d'être expliqué.
+    const effectiveStatus = updates.paymentStatus
+      ?? vendorExpenses.find(v => v.id === id)?.paymentStatus;
     if (updates.vendorName !== undefined) row.vendor_name = updates.vendorName;
     if (updates.category !== undefined) row.category = updates.category;
     if (updates.amount !== undefined) row.amount = updates.amount;
     if (updates.dueDate !== undefined) row.due_date = updates.dueDate;
     if (updates.paymentStatus !== undefined) row.payment_status = updates.paymentStatus;
-    if (updates.amountPaid !== undefined) row.amount_paid = updates.amountPaid;
+    if (updates.amountPaid !== undefined && clientWritesAmountPaid(effectiveStatus)) {
+      row.amount_paid = updates.amountPaid;
+    }
     if (updates.description !== undefined) row.description = updates.description;
     if (updates.aidType !== undefined) row.aid_type = updates.aidType;
     if (updates.beneficiaryStudentName !== undefined) row.beneficiary_student_name = updates.beneficiaryStudentName;

@@ -48,8 +48,10 @@ interface FakeBuilder extends Promise<WriteResult> {
   neq(): FakeBuilder;
   select(): FakeBuilder;
   single(): Promise<{ data: Record<string, unknown> | null; error: null }>;
-  order(): Promise<WriteResult>;
+  order(): FakeBuilder;
   limit(): Promise<WriteResult>;
+  /** Le chargement paginé (src/lib/pagedRead.ts) : la forme réelle de la requête. */
+  range(from: number, to: number): Promise<WriteResult>;
 }
 
 function builder(table: string, result: WriteResult): FakeBuilder {
@@ -66,8 +68,13 @@ function builder(table: string, result: WriteResult): FakeBuilder {
     neq: () => builder(table, result),
     select: () => builder(table, result),
     single: async () => ({ data: (result.data ?? [])[0] ?? null, error: null }),
-    order: async () => read,
+    order: () => builder(table, result),
     limit: async () => read,
+    range: async (from: number, to: number) => ({
+      data: (read.data ?? []).slice(from, to + 1),
+      count: (read.data ?? []).length,
+      error: null,
+    }),
   }) as FakeBuilder;
 }
 

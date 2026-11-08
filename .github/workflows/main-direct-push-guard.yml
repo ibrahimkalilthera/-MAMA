@@ -1,0 +1,53 @@
+name: Main push provenance
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « Ce commit est-il arrivé sur main par une PR ? »
+#
+# La protection de branche de GitHub est refusée à ce dépôt : l'API rend 404
+# (jeton sans droit d'administration, ou offre qui ne l'ouvre pas), et un push
+# direct contourne alors TOUTES les portes — lint, tests, RLS, cohérence de
+# release — sans que rien ne le dise.
+#
+# Ce workflow ne bloque pas le push (seul GitHub pourrait) : il rend le
+# contournement VISIBLE. Un commit sans PR associée, hors commit de release
+# nommé, rend le run rouge avec son SHA.
+#
+# Ce qu'il ne remplace pas : la protection elle-même. La procédure pour
+# l'activer côté propriétaire est dans docs/PROTECTION_MAIN.md.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  provenance:
+    name: Le commit vient-il d’une PR ?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Vérifier la provenance du commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run check:direct-push
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME). Un garde qui
+      # n'agit sur rien (pas de PR trouvée, par exemple) publie son INACTION.
+      - name: Publier la preuve d’action — provenance des commits
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "provenance du commit confrontée aux PR fusionnées ; le nombre de commits examinés et les SHA sans PR sont publiés par scripts/check-direct-push.mjs"

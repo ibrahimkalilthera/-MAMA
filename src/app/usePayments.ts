@@ -34,6 +34,7 @@ import {
 } from '../lib/paymentMotifs';
 import type { PaymentMotif } from '../lib/paymentMotifs';
 import { academicYearOf } from '../lib/dateWindows';
+import { receiptNumberFor } from '../lib/receiptNumber';
 import type { Student, Staff, Expense, Payment, User, Todo } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import type { CalendarEvent } from './mainViewsProps';
@@ -287,15 +288,20 @@ export function usePayments(deps: UsePaymentsDeps) {
 
     const amount = parseFloat(paymentAmount);
     const targetStudent = students.find(s => s.id === paymentStudentId);
-    const receiptNo = `REC-${Date.now().toString().slice(-6)}`;
+    // L'id du GESTE : le même si l'envoi est répété → un seul reçu. Il est
+    // minté AVANT le numéro, parce que le numéro en dérive — un reçu ne porte
+    // donc plus un numéro tiré de l'horloge (dont les six chiffres se répétaient
+    // toutes les 16 minutes 40). Voir src/lib/receiptNumber.ts.
+    const gestureId = paymentGestureId();
+    const academicYear = targetStudent?.academicYear || selectedYear;
+    const receiptNo = receiptNumberFor({ paymentId: gestureId, academicYear, date: paymentDate });
 
     const newPayment = {
       date: paymentDate,
       amount,
-      academicYear: targetStudent?.academicYear || selectedYear,
+      academicYear,
       receiptNumber: receiptNo,
-      // L'id du GESTE : le même si l'envoi est répété → un seul reçu.
-      id: paymentGestureId(),
+      id: gestureId,
       // Les mois couverts — ils partent EN BASE avec le paiement (reçus réimprimés)
       // et sur le reçu du moment.
       months: shownPaymentMonths.length > 0 ? shownPaymentMonths : undefined,

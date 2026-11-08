@@ -5,10 +5,12 @@
  * save success/failure feedback to staff in Bamako.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, AlertCircle, RefreshCw, X, WifiOff } from 'lucide-react';
 import type { Toast, ToastType } from '../lib/useToast';
 import { getLastOfflineFailureReason } from '../lib/offlineQueue';
+import { announcementFor } from '../lib/offlineAnnouncement';
+import type { OfflineAnnouncementState } from '../lib/offlineAnnouncement';
 
 // ─── Component: ToastContainer ───────────────────────────────────────────────
 
@@ -230,6 +232,56 @@ export function OfflineBanner({
           {failureReason && ` · ${t.offlineFailureReason.replace('{reason}', failureReason)}`}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Component: OfflineAnnouncer ─────────────────────────────────────────────
+
+interface OfflineAnnouncerProps {
+  pendingCount?: number;
+  /** Queued items the database already refused at least once (still queued). */
+  pendingFailures?: number;
+  t?: Record<string, string>;
+}
+
+/**
+ * La voix du bandeau hors ligne — une région live TOUJOURS montée.
+ *
+ * Elle vit à côté du bandeau, pas dedans : `OfflineBanner` retourne `null` quand
+ * tout va bien, et une région live qui apparaît avec son texte n'est annoncée
+ * par aucun lecteur d'écran (le changement doit arriver DANS une région déjà
+ * présente). Le texte est donc vide au repos, et c'est `announcementFor` qui
+ * décide de la phrase et du moment (voir src/lib/offlineAnnouncement.ts).
+ */
+export function OfflineAnnouncer({ pendingCount = 0, pendingFailures = 0, t = {} }: OfflineAnnouncerProps) {
+  const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
+  const [message, setMessage] = useState('');
+  const previous = useRef<OfflineAnnouncementState | null>(null);
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const next: OfflineAnnouncementState = { online, pendingCount, pendingFailures };
+    const sentence = announcementFor(previous.current, next, t, getLastOfflineFailureReason());
+    previous.current = next;
+    // On ne VIDE pas la région : un texte retiré n'est pas annoncé, et le
+    // dernier fait utile reste lisible à la relecture de l'arbre.
+    if (sentence) setMessage(sentence);
+  }, [online, pendingCount, pendingFailures, t]);
+
+  return (
+    <div data-slot="offline-announcer" role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+      {message}
     </div>
   );
 }

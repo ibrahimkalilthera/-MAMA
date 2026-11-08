@@ -548,6 +548,45 @@ export const GUARD_INVENTORY = [
       [IMMUNITY.PROSE_BLIND]: 'il lit des champs d’API JSON (auth.users, user_profiles), jamais du code source',
     },
   },
+  {
+    check: 'check-backup-age.mjs',
+    input: 'network+manifest',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // Il lit la LISTE des objets d'un seau et l'âge du dernier manifeste relu,
+    // pas un corpus de fichiers : la prose n'existe pas dans son entrée. Sa
+    // vacuité est écrite deux fois — aucun objet lisible, ou aucun manifeste
+    // trouvé — et sort en 2 : « rien de vérifié » n'est jamais « sauvegarde
+    // fraîche », c'est exactement la confusion qui a rendu l'ancienne copie
+    // périssable.
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit des noms d’objets Storage et des horodatages, jamais du code source',
+    },
+  },
+  {
+    check: 'check-bundle-budget.mjs',
+    input: 'build-output',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // Son corpus est `dist/assets` — des TAILLES de fichiers produits, pas du
+    // texte : il n'y a rien à blanchir. Deux refus sortent en 2, avec le chemin
+    // nommé : aucun dossier lisible (build absent) et un dossier qui ne contient
+    // aucun `.js`/`.css`. Un budget mesuré sur zéro morceau serait un ✅ sur du
+    // vide, et c'est précisément le vert qu'il existe pour empêcher.
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit la taille des morceaux produits par Vite, jamais du code source',
+    },
+  },
+  {
+    check: 'check-direct-push.mjs',
+    input: 'git-api',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // Il compare un commit à la liste des PR fusionnées que GitHub rend : pas de
+    // fichier lu, donc pas de prose à masquer. Ses absences sont des refus
+    // nommés (pas de dépôt, pas de réponse) et non des verts : une protection
+    // illisible ne vaut pas une protection respectée.
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit des métadonnées de commits et de PR (API GitHub), jamais du code source',
+    },
+  },
 ];
 
 /**

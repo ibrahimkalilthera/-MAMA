@@ -32,6 +32,8 @@ import {
   OfflineQueueWriteError,
 } from './offlineQueue';
 import { drainOfflineQueue } from './offlineSync';
+import { readAllPages } from './pagedRead';
+import { formatShortfall } from './readCompleteness';
 import { loadOfflineSnapshot, saveOfflineSnapshot } from './offlineSnapshot';
 import type { AuditLogEntry, LogAuditParams } from './auditLogger';
 import { logAuditEvent } from './auditLogger';
@@ -358,7 +360,10 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
     try {
       // Wrap in retry for network resilience (Bamako connectivity)
       await retryWithBackoff(async () => {
-        // Fetch all tables in parallel
+        // Les tables qui grandissent se lisent par PAGES (src/lib/pagedRead.ts) :
+        // PostgREST rend au plus 1 000 lignes sans le dire, et l'ordre croissant
+        // par date faisait disparaître les reçus les plus RÉCENTS. `todos` et
+        // `custom_classes` restent d'une requête : bornés par l'école, pas par le temps.
         const [
           parentsRes,
           studentsRes,
@@ -370,30 +375,37 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
           todosRes,
           customClassesRes,
         ] = await Promise.all([
-          supabase.from('parents').select('*').order('created_at', { ascending: true }),
-          supabase.from('students').select('*').order('created_at', { ascending: true }),
-          supabase.from('payments').select('*').order('date', { ascending: true }),
-          supabase.from('staff').select('*').order('created_at', { ascending: true }),
-          supabase.from('salary_payments').select('*').order('date', { ascending: true }),
-          supabase.from('expenses').select('*').order('date', { ascending: true }),
-          supabase.from('vendor_expenses').select('*').order('created_at', { ascending: true }),
+          readAllPages<DbRow<'parents'>>('parents', (from, to) => supabase.from('parents').select('*', { count: 'exact' }).order('created_at', { ascending: true }).range(from, to)),
+          readAllPages<DbRow<'students'>>('students', (from, to) => supabase.from('students').select('*', { count: 'exact' }).order('created_at', { ascending: true }).range(from, to)),
+          readAllPages<DbRow<'payments'>>('payments', (from, to) => supabase.from('payments').select('*', { count: 'exact' }).order('date', { ascending: true }).range(from, to)),
+          readAllPages<DbRow<'staff'>>('staff', (from, to) => supabase.from('staff').select('*', { count: 'exact' }).order('created_at', { ascending: true }).range(from, to)),
+          readAllPages<DbRow<'salary_payments'>>('salary_payments', (from, to) => supabase.from('salary_payments').select('*', { count: 'exact' }).order('date', { ascending: true }).range(from, to)),
+          readAllPages<DbRow<'expenses'>>('expenses', (from, to) => supabase.from('expenses').select('*', { count: 'exact' }).order('date', { ascending: true }).range(from, to)),
+          readAllPages<DbRow<'vendor_expenses'>>('vendor_expenses', (from, to) => supabase.from('vendor_expenses').select('*', { count: 'exact' }).order('created_at', { ascending: true }).range(from, to)),
           supabase.from('todos').select('*').order('created_at', { ascending: true }),
           supabase.from('custom_classes').select('*').order('created_at', { ascending: true }),
         ]);
 
-        // Check for errors
-        const errors = [parentsRes, studentsRes, paymentsRes, staffRes, salaryRes, expensesRes, vendorRes, todosRes, customClassesRes]
-          .filter(r => r.error)
-          .map(r => r.error?.message);
+        // `readAllPages` relance une erreur de page avec sa table, que la reprise
+        // ci-dessus traite comme les autres : seules les deux lectures d'une
+        // requête rendent encore un `error` à vérifier.
+        const singleErrors = [todosRes, customClassesRes].filter(r => r.error).map(r => r.error?.message);
+        if (singleErrors.length > 0) {
+          throw new Error(`Database errors: ${singleErrors.join(', ')}`);
+        }
 
-        if (errors.length > 0) {
-          // Throw so retry logic can catch network-related errors
-          throw new Error(`Database errors: ${errors.join(', ')}`);
+        // Une lecture PAGINÉE peut rendre moins que le total déclaré (plafond de
+        // pages, page perdue) : le manque est NOMMÉ à l'écran, jamais tu.
+        const shortfalls = [studentsRes, paymentsRes, salaryRes, expensesRes, vendorRes]
+          .map(r => r.shortfall)
+          .filter((s): s is NonNullable<typeof s> => s !== null);
+        if (shortfalls.length > 0) {
+          setError(shortfalls.map(s => formatShortfall(s, { readAscendingByDate: s.table !== 'students' && s.table !== 'vendor_expenses' })).join(' · '));
         }
 
         // Group payments by student_id
         const paymentsByStudent: Record<string, Payment[]> = {};
-        (paymentsRes.data || []).forEach((p: DbRow<'payments'>) => {
+        paymentsRes.rows.forEach((p: DbRow<'payments'>) => {
           const sid = p.student_id;
           if (!sid) return;
           if (!paymentsByStudent[sid]) paymentsByStudent[sid] = [];
@@ -404,14 +416,14 @@ export function useSupabaseData(callbacks?: SupabaseDataCallbacks, options?: Sup
         });
 
         // Map rows to app types
-        setParents((parentsRes.data || []).map(mapParentRow));
-        setStudents((studentsRes.data || []).map((row: DbRow<'students'>) =>
+        setParents(parentsRes.rows.map(mapParentRow));
+        setStudents(studentsRes.rows.map((row: DbRow<'students'>) =>
           mapStudentRow(row, paymentsByStudent[row.id] || [])
         ));
-        setStaff((staffRes.data || []).map(mapStaffRow));
-        setSalaryPayments((salaryRes.data || []).map(mapSalaryPaymentRow));
-        setExpenses((expensesRes.data || []).map(mapExpenseRow));
-        setVendorExpenses((vendorRes.data || []).map(mapVendorExpenseRow));
+        setStaff(staffRes.rows.map(mapStaffRow));
+        setSalaryPayments(salaryRes.rows.map(mapSalaryPaymentRow));
+        setExpenses(expensesRes.rows.map(mapExpenseRow));
+        setVendorExpenses(vendorRes.rows.map(mapVendorExpenseRow));
         setTodos((todosRes.data || []).map(mapTodoRow));
         setCustomClasses((customClassesRes.data || []).map((row: DbRow<'custom_classes'>) => ({
           id: row.code,

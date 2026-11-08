@@ -42,6 +42,10 @@ export const SETTINGS_SECTIONS = [
   'SettingsPreferencesCard',
   'SettingsSchoolCard',
   'SettingsBackupCard',
+  // « État du poste » suit la sauvegarde : les deux parlent de ce qui protège
+  // les données (la copie, puis la mémoire des pannes de CE poste), avant les
+  // sections qui règlent l'école (classes, comptes).
+  'SettingsDiagnosticsCard',
   'SettingsClassesCard',
   'SettingsUsersCard',
   'SettingsPasswordModal',
@@ -56,8 +60,8 @@ export const SETTINGS_STACK_SECTIONS = SETTINGS_SECTIONS.filter(
  * Les enfants de la pile, dans l'ordre du DOM. Ce sont les `data-slot` que les
  * composants de `SETTINGS_STACK_SECTIONS` déclarent : `SettingsPreferencesCard`
  * en porte six (langue, devise, densité des tableaux, verre des icônes, thème,
- * logo), `SettingsSchoolCard` un (le nom de l'école), les trois autres un
- * chacun. C'est CETTE longueur — 10 — que comptent les deux preuves.
+ * logo), `SettingsSchoolCard` un (le nom de l'école), et les quatre autres un
+ * chacun. C'est CETTE longueur — 11 — que comptent les deux preuves.
  */
 export const SETTINGS_STACK_SLOTS = [
   'settings-system-language',
@@ -68,6 +72,7 @@ export const SETTINGS_STACK_SLOTS = [
   'settings-upload-logo',
   'settings-school-name',
   'settings-backup',
+  'settings-diagnostics',
   'settings-classes',
   'settings-staff-access',
 ];

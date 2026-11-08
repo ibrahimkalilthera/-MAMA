@@ -12,6 +12,7 @@ import type { QueueItem } from './offlineQueue';
 import type { Parent, Student, Staff } from '../app/types';
 import { studentMatricule } from './studentIdentifiers';
 import { isUuid } from './rowMappers';
+import { clientWritesAmountPaid } from './vendorExpensePaid';
 import { replayAddSalaryPayment, replayDeleteSalaryPayment } from './offlineReplayPayroll';
 import { replayDisplayPreference } from './offlineReplaySettings';
 import { replaySchoolName } from './offlineReplaySchoolName';
@@ -214,7 +215,10 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       amount: item.payload.amount,
       due_date: item.payload.dueDate,
       payment_status: item.payload.paymentStatus,
-      amount_paid: item.payload.amountPaid,
+      // Même règle qu'en ligne (src/lib/vendorExpensePaid.ts) : la colonne
+      // n'est écrite que pour un partiel. Un rejeu qui l'écrirait pour un
+      // « payé » ferait diverger le chemin hors ligne du chemin direct.
+      ...(clientWritesAmountPaid(item.payload.paymentStatus) ? { amount_paid: item.payload.amountPaid } : {}),
       description: item.payload.description || null,
       academic_year: item.payload.academicYear || null,
       aid_type: item.payload.aidType || null,
@@ -342,7 +346,11 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     if (u.amount !== undefined) row.amount = u.amount;
     if (u.dueDate !== undefined) row.due_date = u.dueDate;
     if (u.paymentStatus !== undefined) row.payment_status = u.paymentStatus;
-    if (u.amountPaid !== undefined) row.amount_paid = u.amountPaid;
+    // Le statut effectif vient de CE geste — le rejeu ne relit pas la ligne
+    // (il peut avoir été mis en file hors ligne, sans lecture préalable).
+    if (u.amountPaid !== undefined && clientWritesAmountPaid(u.paymentStatus)) {
+      row.amount_paid = u.amountPaid;
+    }
     if (u.description !== undefined) row.description = u.description;
     if (u.aidType !== undefined) row.aid_type = u.aidType;
     if (u.beneficiaryStudentName !== undefined) row.beneficiary_student_name = u.beneficiaryStudentName;

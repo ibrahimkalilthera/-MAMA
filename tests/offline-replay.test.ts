@@ -471,10 +471,25 @@ describe('les mises à jour en file transmettent tous leurs champs', () => {
       expected: { category: 'c', description: 'd', amount: 12, date: '2026-01-01', academic_year: '2026-2027' },
     },
     {
+      // `amount_paid` est ABSENT de la charge écrite, et c'est le correctif :
+      // « payé » veut dire `amount`, la base le remplace de toute façon, et un
+      // client qui l'envoie laisse croire dans son propre code que ce nombre
+      // compte (voir src/lib/vendorExpensePaid.ts et la migration du
+      // 2026-11-08). Ce que ce cas mesure reste le reste : aucun AUTRE champ
+      // perdu au passage par la file.
       type: 'updateVendorExpense',
       build: () => itemOf('updateVendorExpense', { id: 'v1', updates: { vendorName: 'V', category: 'c', amount: 60, dueDate: '2026-02-01', paymentStatus: 'paid', amountPaid: 60, description: 'd', aidType: 'aide_urgence', beneficiaryStudentName: 'Ada', beneficiaryStudentGrade: '9A' } }),
       table: 'vendor_expenses',
-      expected: { vendor_name: 'V', category: 'c', amount: 60, due_date: '2026-02-01', payment_status: 'paid', amount_paid: 60, description: 'd', aid_type: 'aide_urgence', beneficiary_student_name: 'Ada', beneficiary_student_grade: '9A' },
+      expected: { vendor_name: 'V', category: 'c', amount: 60, due_date: '2026-02-01', payment_status: 'paid', description: 'd', aid_type: 'aide_urgence', beneficiary_student_name: 'Ada', beneficiary_student_grade: '9A' },
+    },
+    {
+      // Le SEUL cas où la colonne est une vraie SAISIE : un partiel. La base le
+      // valide (strictement entre 0 et le dû) au lieu de l'inventer ; sans lui,
+      // un partiel rejoué arriverait à 0 et le déclencheur le refuserait.
+      type: 'updateVendorExpense',
+      build: () => itemOf('updateVendorExpense', { id: 'v2', updates: { paymentStatus: 'partial', amountPaid: 20 } }),
+      table: 'vendor_expenses',
+      expected: { payment_status: 'partial', amount_paid: 20 },
     },
     {
       type: 'updateStaff',

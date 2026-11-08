@@ -217,6 +217,14 @@ jobs:
           LH_RUNS: '3'
         run: npm run check:perf
 
+      # Le budget d'octets par MORCEAU, sur le `dist/` que l'étape précédente
+      # vient de produire : un score Lighthouse est une moyenne, et il peut
+      # rester vert pendant qu'un morceau chargé à la demande double. Le contrôle
+      # sort en 2, avec le chemin nommé, si `dist/assets` n'est pas lisible —
+      # « rien de mesuré » ne doit jamais se lire comme « tout tient ».
+      - name: Budget d’octets par morceau livré
+        run: npm run check:bundle
+
   # Gate contraste : construit l'app (clés publiques client Supabase — anon,
   # non secrètes), démarre vite preview et pilote un Chrome headless sur les
   # 6 thèmes × 8 overlays (dashboard, modales Ajout Élève / Saisie de Paiement,
