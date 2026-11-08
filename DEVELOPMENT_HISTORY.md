@@ -20,6 +20,14 @@ La sonde avait raison de refuser ce 400. Sur un `{}`, un 400 signifie qu'une **p
 
 ---
 
+## [2026-11-08] `Deploy (Vercel)` rouge : une panne d'hôte n'est pas un lien mort
+
+Le run `42475674431` est rouge sur **une** ligne : `releases-page · injoignable (TimeoutError)` à 11:26, pendant que GitHub rendait des 500/504 — la même adresse répondait `HTTP 200 → /releases/tag/v1.0.42` deux minutes plus tard, sans qu'un octet ait changé. Le contrôle voyait juste et concluait trop vite : la convergence bornée (`CONVERGE_ATTEMPTS`) ne couvrait que la catégorie `app`, parce que son défaut mesuré était une bascule de déploiement, tandis qu'un lien qu'on ne sert pas — page de version, domaine d'un tiers — était lu **une seule fois**, et une panne de cinq secondes y devenait un verdict sur le lien.
+
+La relecture est maintenant bornée et **nommée** (`readUntilFinal`, `isTransientReading`, dans `scripts/lib/embedded-links.mjs`) : trois lectures au plus, 4 s d'écart, et seules les pannes d'hôte sont relues — délai, DNS, TLS, connexion coupée, `5xx`, `429`, absence de statut. Un `404`, un `403`, un `410` ou un `200` qui atterrit ailleurs restent rouges **à la première lecture** : ce sont des verdicts sur le lien, et les relire ne changerait que le temps perdu. Après épuisement, le verdict est celui d'avant, mot pour mot — la boucle rend la DERNIÈRE lecture, jamais une réponse choisie parmi d'autres. Le rapport dit combien de lectures ont été payées (`· 2 lectures (TimeoutError avant la dernière)`) et, quand un lien ne répond qu'à la troisième, l'avertissement le nomme : « l'hôte était en panne, pas le lien ».
+
+Preuve : `tests/public-origin.test.ts` (31 cas verts) tient les deux côtés — ce qui se réessaie, ce qui ne se réessaie pas, l'épuisement qui reste rouge, et le transitoire suivi d'une réponse qui coûte **une** relecture, pas le plafond. Sur le canal réel, `npm run check:public-origin` rend les trois liens verts sans payer de relecture.
+
 ## [2026-11-08] Les trois limites du bilan refermées : `db:apply` compte les index, les dépenses fournisseurs ont leur veille, le zéro du parc dit enfin POURQUOI
 
 Demande du propriétaire : « résous tous ces points, surtout le 2 ». Les quatre limites nommées à la fin de l'audit du jour — le geste sans preuve de `db:apply`, l'historique des dépenses fournisseurs que rien ne mesurait, un relevé de parc à zéro indéchiffrable, et un canal décrit comme un plan mais lu comme le présent — ont chacune reçu une réponse mesurée, pas une promesse.

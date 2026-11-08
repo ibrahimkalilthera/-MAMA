@@ -24,7 +24,7 @@ import { describe, it } from 'node:test';
 
 import { createRequire } from 'node:module';
 
-import { KIND_JUDGED_BY, embeddedLinkVerdict } from '../scripts/lib/embedded-links.mjs';
+import { KIND_JUDGED_BY, embeddedLinkVerdict, isTransientReading, readUntilFinal } from '../scripts/lib/embedded-links.mjs';
 import { releaseApiProof } from '../scripts/lib/release-page-proof.mjs';
 import { MAX_PROBED_MODULES, moduleUrlsIn, originVerdict } from '../scripts/lib/public-origin.mjs';
 
@@ -330,6 +330,102 @@ describe('les autres liens embarqués : chacun jugé par SA catégorie', () => {
       read('src/app/useParents.ts').includes(WHATSAPP_URL),
       `les deux écritures de ${WHATSAPP_URL} doivent s’accorder (inventaire ↔ application)`,
     );
+  });
+});
+
+describe('une panne d’hôte n’est pas un lien mort — mais elle n’est pas pardonnée', () => {
+  // Cas mesuré le 2026-11-08 à 11:26 : `Deploy (Vercel)` rouge sur
+  // `releases-page · injoignable (TimeoutError)` alors que GitHub rendait des
+  // 500/504 et que la même adresse répondait 200 deux minutes plus tard. Le
+  // contrôle ne lisait qu'UNE fois un lien qu'il ne sert pas : la panne d'un hôte
+  // y devenait un verdict sur le lien.
+  type Reading = { status?: number | null; error?: string | null; finalUrl?: string; body?: string };
+
+  it('ce qui se réessaie, et ce qui ne se réessaie pas', () => {
+    for (const cause of ['TimeoutError', 'ENOTFOUND', 'ECONNRESET', 'ETIMEDOUT']) {
+      assert.equal(isTransientReading({ status: null, error: cause }), true, `${cause} est une panne d’hôte`);
+    }
+    for (const status of [500, 502, 503, 504, 429]) {
+      assert.equal(isTransientReading({ status }), true, `HTTP ${status} est une panne d’hôte`);
+    }
+    assert.equal(isTransientReading({}), true, 'aucun statut du tout : rien n’a été lu');
+    // Ce qui parle du LIEN, et qu'il serait malhonnête de relire en espérant
+    // autre chose : un 404 est le cas mesuré d'un dépôt supprimé ou renommé.
+    for (const status of [200, 302, 403, 404, 410, 451]) {
+      assert.equal(isTransientReading({ status }), false, `HTTP ${status} est un verdict sur le lien`);
+    }
+  });
+
+  it('un hôte qui reste en panne : la boucle s’arrête au plafond et rend le DERNIER échec', async () => {
+    let calls = 0;
+    const waits: number[] = [];
+    const { reading, tries } = await readUntilFinal({
+      read: async (): Promise<Reading> => {
+        calls += 1;
+        return { error: 'TimeoutError' };
+      },
+      attempts: 3,
+      delayMs: 4000,
+      wait: async (ms: number) => {
+        waits.push(ms);
+      },
+    });
+    assert.equal(calls, 3, 'trois lectures, pas une de plus');
+    assert.equal(tries.length, 3, 'chaque essai est consigné, donc racontable');
+    assert.deepEqual(waits, [4000, 4000], 'et les deux relectures attendent le délai annoncé');
+    assert.equal(reading.error, 'TimeoutError', 'la lecture rendue est le dernier échec, pas un succès fabriqué');
+    // Le verdict, lui, reste celui de l'échec : la marge ne rachète rien.
+    const verdict = embeddedLinkVerdict({
+      link: { id: 'releases-page', url: 'https://exemple.test/releases/latest', kind: 'release-page', where: 'bouton de téléchargement' },
+      error: reading.error,
+    });
+    assert.equal(verdict.ok, false, 'trois échecs restent un refus');
+    assert.match(verdict.problems[0], /ne répond pas du tout/);
+  });
+
+  it('un transitoire suivi d’une réponse : deux lectures, et c’est la réponse qui est jugée', async () => {
+    const answers: Reading[] = [{ status: null, error: 'TimeoutError' }, { status: 200, finalUrl: 'https://exemple.test/releases/tag/v1.0.42' }];
+    let calls = 0;
+    const { reading, tries } = await readUntilFinal({
+      read: async (): Promise<Reading> => answers[calls++] ?? answers[answers.length - 1],
+      attempts: 3,
+      delayMs: 0,
+      wait: async () => {},
+    });
+    assert.equal(calls, 2, 'la panne coûte UNE relecture, pas le plafond entier');
+    assert.equal(tries.length, 2);
+    assert.equal(tries[0].error, 'TimeoutError', 'le premier échec reste dans la trace');
+    const verdict = embeddedLinkVerdict({
+      link: { id: 'releases-page', url: 'https://exemple.test/releases/latest', kind: 'release-page', where: 'bouton de téléchargement' },
+      status: reading.status,
+      finalUrl: reading.finalUrl,
+    });
+    assert.equal(verdict.ok, true, verdict.problems.join('\n'));
+  });
+
+  it('un refus ferme n’est PAS relu : relire un 404 ne changerait que le temps perdu', async () => {
+    let calls = 0;
+    const { tries } = await readUntilFinal({
+      read: async (): Promise<Reading> => {
+        calls += 1;
+        return { status: 404, body: 'Not Found' };
+      },
+      attempts: 3,
+      delayMs: 0,
+      wait: async () => {},
+    });
+    assert.equal(calls, 1);
+    assert.equal(tries.length, 1);
+  });
+
+  it('le contrôle relit par CETTE boucle, et son plafond est nommé et surchargeable', () => {
+    const script = read('scripts/check-public-origin.mjs');
+    assert.match(script, /readUntilFinal\(/, 'la relecture passe par la boucle prouvée ci-dessus');
+    assert.match(script, /PUBLIC_ORIGIN_LINK_ATTEMPTS/, 'le plafond est un nom, pas un littéral perdu dans la boucle');
+    // Le détail doit dire combien de lectures ont été payées : un lien qui n'a
+    // répondu qu'à la troisième ne se lit pas comme un lien qui a répondu du
+    // premier coup.
+    assert.match(script, /lectures \(/, 'et le rapport nomme les lectures qui ont échoué avant la dernière');
   });
 });
 
