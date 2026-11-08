@@ -78,9 +78,16 @@ function incidentsPath({ userDataDir }) {
 /**
  * Ramener une entrée à sa forme stockée — et rien de plus.
  *
+ * `code` est un NOMBRE, pas du texte, et c'est mesuré : un rendu qui meurt rend
+ * un code de sortie négatif à neuf chiffres (`-1073741819`), que l'expurgation
+ * des suites de chiffres transformait en « -# » — soit l'information la plus
+ * utile à la réparation, effacée par la règle censée protéger les données des
+ * élèves. Un code de sortie n'est pas une donnée d'école : il est donc porté par
+ * un champ à part, jamais passé au texte libre.
+ *
  * @param {object} raw
  * @param {number} [nowMs]
- * @returns {{at: string, kind: string, message: string}|null}
+ * @returns {{at: string, kind: string, message: string, code: number|null}|null}
  */
 function normalizeEntry(raw, nowMs = Date.now()) {
   if (!raw || typeof raw !== 'object') return null;
@@ -88,7 +95,8 @@ function normalizeEntry(raw, nowMs = Date.now()) {
   const message = redact(raw.message);
   if (!kind || !message) return null;
   const at = typeof raw.at === 'string' && raw.at ? raw.at : new Date(nowMs).toISOString();
-  return { at, kind, message };
+  const code = Number.isInteger(raw.code) ? raw.code : null;
+  return { at, kind, message, code };
 }
 
 /**
@@ -100,7 +108,9 @@ function normalizeEntry(raw, nowMs = Date.now()) {
  * lire est une panne de plus.
  *
  * @param {{ userDataDir: string, limit?: number, fs?: typeof nodeFs }} input
- * @returns {Array<{at: string, kind: string, message: string}>}
+ * @returns {Array<{at: string, kind: string, message: string, code: number|null}>}
+ *   `code` est présent même quand la panne n'en porte pas (`null`) : une entrée
+ *   sans code ne doit pas se distinguer d'une entrée dont le code est zéro.
  */
 function readIncidents({ userDataDir, limit = MAX_ENTRIES, fs = nodeFs }) {
   let raw;
@@ -130,13 +140,13 @@ function readIncidents({ userDataDir, limit = MAX_ENTRIES, fs = nodeFs }) {
  * temps à une écriture asynchrone d'aboutir, et une panne non écrite est
  * exactement le silence que ce module existe pour supprimer.
  *
- * @param {{ userDataDir: string, kind: string, message: unknown, at?: string,
+ * @param {{ userDataDir: string, kind: string, message: unknown, at?: string, code?: number|null,
  *           fs?: typeof nodeFs, now?: () => number }} input
  * @returns {boolean}
  */
-function appendIncident({ userDataDir, kind, message, at, fs = nodeFs, now = Date.now }) {
+function appendIncident({ userDataDir, kind, message, at, code = null, fs = nodeFs, now = Date.now }) {
   try {
-    const entry = normalizeEntry({ at, kind, message }, now());
+    const entry = normalizeEntry({ at, kind, message, code }, now());
     if (!entry) return false;
     const file = incidentsPath({ userDataDir });
     fs.mkdirSync(userDataDir, { recursive: true });
@@ -183,7 +193,7 @@ function messageOf(error) {
 function installProcessCapture({ userDataDir, proc = process, app, write }) {
   const record =
     write ??
-    (({ kind, message }) => appendIncident({ userDataDir, kind, message }));
+    (({ kind, message, code }) => appendIncident({ userDataDir, kind, message, code }));
   const listeners = [];
 
   const on = (emitter, event, handler) => {
@@ -208,13 +218,21 @@ function installProcessCapture({ userDataDir, proc = process, app, write }) {
   // événement, la seule trace était un utilisateur qui dit « c'est figé ».
   on(app, 'render-process-gone', (_event, _contents, details) => {
     const reason = details && details.reason ? details.reason : 'inconnue';
-    const code = details && details.exitCode != null ? ` (code ${details.exitCode})` : '';
-    record({ kind: 'renderer-gone', message: `le rendu s’est arrêté : ${reason}${code}` });
+    record({
+      kind: 'renderer-gone',
+      message: `le rendu s’est arrêté : ${reason}`,
+      // Le code part à part : dans le texte, l'expurgation le réduirait à « -# ».
+      code: details && Number.isInteger(details.exitCode) ? details.exitCode : null,
+    });
   });
   on(app, 'child-process-gone', (_event, details) => {
     const type = details && details.type ? details.type : 'processus';
     const reason = details && details.reason ? details.reason : 'inconnue';
-    record({ kind: 'child-gone', message: `${type} arrêté : ${reason}` });
+    record({
+      kind: 'child-gone',
+      message: `${type} arrêté : ${reason}`,
+      code: details && Number.isInteger(details.exitCode) ? details.exitCode : null,
+    });
   });
 
   return () => {

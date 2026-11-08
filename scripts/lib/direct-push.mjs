@@ -1,11 +1,12 @@
 /**
  * ─── UN COMMIT ARRIVÉ SUR `main` SANS PASSER PAR UNE PR ─────────────────────
  *
- * La protection de branche GitHub est le bon outil, et ce dépôt ne peut pas
- * l'activer : l'API rend `404` (jeton sans droit d'administration, ou offre qui
- * ne l'ouvre pas). « On ne peut pas » n'est pas « on ne vérifie pas » : un
- * commit poussé directement sur `main` contourne TOUTES les portes de ce dépôt
- * (lint, tests, RLS, cohérence de release) sans que rien ne le dise.
+ * La protection de branche GitHub est le bon outil, et elle est active depuis
+ * le 2026-11-08 — mais avec `enforce_admins: false` : un administrateur peut
+ * encore pousser directement sur `main`. Un commit poussé ainsi contourne
+ * TOUTES les portes de ce dépôt (lint, tests, RLS, cohérence de release) sans
+ * que rien ne le dise. Ce garde est donc la moitié CI de la réponse, et
+ * `pre-push` (scripts/lib/push-target.mjs) la moitié locale.
  *
  * Ce module est la moitié pure du garde : il reçoit la liste des PR associées au
  * commit (ce que l'API GitHub rend) et le message, et il tranche. Aucun réseau

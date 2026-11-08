@@ -217,6 +217,26 @@ export function ageVerdict(lastVerifiedAt, now = new Date(), maxHours = OFFSITE_
  * préfixe lisible rend `null` : ce n'est pas une copie de ce dépôt, et la
  * dater serait une invention.
  */
+/**
+ * Le préfixe daté d'un nom déposé — `20261108T184829Z`, avec ou sans `/`.
+ *
+ * Les deux formes existent réellement dans une liste Storage : au premier
+ * niveau, l'API rend le DOSSIER (`20261108T184829Z`, sans barre oblique) ; à
+ * l'intérieur, elle rend les fichiers (`20261108T184829Z/db-backup-…`). Un
+ * contrôle d'âge qui ne reconnaît que la seconde forme lit zéro copie dans un
+ * seau plein — c'est le défaut qui a rendu ce contrôle rouge sur une copie
+ * fraîche, le 2026-11-08.
+ */
+export function copyStampOf(name) {
+  const match = /^(\d{8}T\d{6}Z)(?:\/|$)/.exec(String(name ?? ''));
+  return match ? match[1] : null;
+}
+
+/** Un manifeste de copie : la marque d'une sauvegarde RELUE, pas d'un dépôt nu. */
+export function isCopyManifest(name) {
+  return /-manifest\.json$/.test(String(name ?? ''));
+}
+
 export function instantOfObjectName(name) {
   const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z\//.exec(String(name ?? ''));
   if (!match) return null;

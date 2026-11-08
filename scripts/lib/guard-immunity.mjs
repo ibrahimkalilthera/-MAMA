@@ -563,6 +563,18 @@ export const GUARD_INVENTORY = [
     },
   },
   {
+    check: 'check-push-target.mjs',
+    input: 'git-refs',
+    needs: [IMMUNITY.NON_VACUOUS],
+    // Son entrée est le protocole de `pre-push` — des SHA et des noms de
+    // références —, jamais du code source. La vacuité est écrite : zéro
+    // référence lue sort en 2 (« rien de vérifié »), et c'est important, parce
+    // qu'un hook qui ne reçoit rien et dit ✅ ne garde rien du tout.
+    exempt: {
+      [IMMUNITY.PROSE_BLIND]: 'il lit les références que git tend sur stdin, jamais du code source',
+    },
+  },
+  {
     check: 'check-bundle-budget.mjs',
     input: 'build-output',
     needs: [IMMUNITY.NON_VACUOUS],

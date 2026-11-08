@@ -58,6 +58,7 @@ describe('appendIncident / readIncidents — le journal du poste', () => {
     const entries = readIncidents({ userDataDir });
     assert.equal(entries.length, 2);
     assert.equal(entries[0].kind, 'renderer-gone', 'la plus récente passe devant');
+    assert.equal(entries[0].code, null, 'une panne sans code n’invente pas un zéro');
     assert.equal(entries[1].message, 'TypeError: x');
   });
 
@@ -149,7 +150,7 @@ describe('installProcessCapture — observer, jamais avaler', () => {
   });
 
   it('inscrit un rendu qui disparaît et un processus enfant mort', () => {
-    const written: Array<{ kind: string; message: unknown }> = [];
+    const written: Array<{ kind: string; message: unknown; code?: number | null }> = [];
     const app = new EventEmitter();
     const off = installProcessCapture({
       userDataDir: freshDir(),
@@ -164,9 +165,25 @@ describe('installProcessCapture — observer, jamais avaler', () => {
     app.emit('child-process-gone', {}, { type: 'GPU', reason: 'crashed' });
     assert.equal(written[0].kind, 'renderer-gone');
     assert.match(String(written[0].message), /crashed/);
-    assert.match(String(written[0].message), /133/, 'le code de sortie aide à réparer');
+    assert.equal(written[0].code, 133, 'le code de sortie aide à réparer');
     assert.equal(written[1].kind, 'child-gone');
     off();
+  });
+
+  it('un code de sortie NÉGATIF à neuf chiffres survit tel quel', () => {
+    // Trouvé par l'exercice réel du 2026-11-08 : `Page.crash` sur l'app
+    // empaquetée rendait `code -#`, parce que la règle qui masque les suites de
+    // chiffres (identifiants, montants) avalait aussi le code de sortie. Sur un
+    // poste qui plante, c'est justement le seul chiffre qui distingue un déficit
+    // mémoire d'une violation CSP.
+    const userDataDir = freshDir();
+    assert.equal(
+      appendIncident({ userDataDir, kind: 'renderer-gone', message: 'le rendu s’est arrêté : crashed', code: -1073741819 }),
+      true,
+    );
+    const [entry] = readIncidents({ userDataDir });
+    assert.equal(entry.code, -1073741819);
+    assert.doesNotMatch(entry.message, /#/, 'le code ne doit pas être recopié dans le texte expurgé');
   });
 
   it('le débranchement retire les écouteurs : pas de capture fantôme', () => {

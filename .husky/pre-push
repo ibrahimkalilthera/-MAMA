@@ -19,4 +19,14 @@
 # par .nvmrc, provisionné par le projet au besoin (aucun gestionnaire requis).
 # WORKSHOP_TREE_PROOF=0 : même partage que pre-commit — le hook ne paie pas les
 # ~6 s de hachage d'une arborescence de build, et le DIT ; la CI est stricte.
+# D'abord la porte qui refuse AVANT le départ : un push direct sur `main` est
+# refusé ICI, avant de quitter la machine. La protection de branche GitHub est
+# active depuis le 2026-11-08, mais avec `enforce_admins: false` : elle arrête
+# les autres comptes, pas l'administrateur qui pousse dans ce dépôt, et le garde
+# de CI ne constate qu'APRÈS l'arrivée du commit — docs/PROTECTION_MAIN.md.
+# Le garde lit les références que git lui tend sur stdin ; il laisse passer les
+# branches, les commits `chore(release):`, et ALLOW_MAIN_PUSH=1 (décision
+# annoncée).
+node scripts/with-pinned-node.mjs --node scripts/check-push-target.mjs || exit 1
+
 AUDIT_CACHE=1 AUDIT_SOFT_OFFLINE=1 WORKSHOP_SOFT_OFFLINE=1 WORKSHOP_TREE_PROOF=0 node scripts/with-pinned-node.mjs --node scripts/hook-quality-chain.mjs lint test audit workshop

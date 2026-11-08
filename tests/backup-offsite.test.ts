@@ -12,6 +12,9 @@ import {
   OFFSITE_BUCKET,
   OFFSITE_MAX_AGE_HOURS,
   ageVerdict,
+  copyStampOf,
+  instantOfObjectName,
+  isCopyManifest,
   offsiteManifestKey,
   offsiteObjectKey,
   parseLastVerified,
@@ -152,6 +155,46 @@ describe('l’âge de la dernière copie relue', () => {
     const verdict = ageVerdict('2026-11-01T12:00:00Z', now, Number.NaN);
     assert.equal(verdict.ok, false);
     assert.match(verdict.message, /48 h/);
+  });
+});
+
+describe('la lecture d’un seau, tel que l’API le rend vraiment', () => {
+  // Le défaut constaté le 2026-11-08 : la liste au premier niveau rend le
+  // DOSSIER daté, sans barre oblique. Un contrôle qui n’acceptait que la forme
+  // « dossier/… » lisait zéro copie dans un seau qui en contenait une, et
+  // annonçait « aucune sauvegarde vérifiée connue » sur une copie de 3 minutes.
+  it('reconnaît le dossier daté du premier niveau, sans barre oblique', () => {
+    assert.equal(copyStampOf('20261108T184829Z'), '20261108T184829Z');
+  });
+
+  it('reconnaît aussi les fichiers datés de l’intérieur du dossier', () => {
+    assert.equal(
+      copyStampOf('20261108T184829Z/db-backup-2068l-14t-payload.json.enc'),
+      '20261108T184829Z',
+    );
+    assert.equal(copyStampOf('20261108T184829Z/db-backup-2068l-14t-manifest.json'), '20261108T184829Z');
+  });
+
+  it('ne date pas ce qui n’est pas une copie de ce dépôt', () => {
+    for (const name of ['notes.txt', 'db-backup-1l-1t-payload.json.enc', '', null]) {
+      assert.equal(copyStampOf(name), null);
+    }
+  });
+
+  it('distingue un manifeste d’un contenu : seul le manifeste dit « relue »', () => {
+    assert.equal(isCopyManifest('20261108T184829Z/db-backup-2068l-14t-manifest.json'), true);
+    assert.equal(isCopyManifest('20261108T184829Z/db-backup-2068l-14t-payload.json.enc'), false);
+    assert.equal(isCopyManifest(null), false);
+  });
+
+  it('un seau plein ne rend donc plus « aucune sauvegarde connue »', () => {
+    const root = [
+      { name: '20261108T184829Z' },
+      { name: '20261107T020000Z' },
+    ];
+    const stamps = [...new Set(root.map((o) => copyStampOf(o.name)).filter(Boolean))].sort().reverse();
+    assert.deepEqual(stamps, ['20261108T184829Z', '20261107T020000Z']);
+    assert.equal(instantOfObjectName(`${stamps[0]}/`), '2026-11-08T18:48:29Z');
   });
 });
 

@@ -209,6 +209,8 @@ export interface StationIncidentEntry {
   at: string;
   kind: string;
   message: string;
+  /** Le code de sortie d'un processus mort — un nombre, jamais du texte expurgé. */
+  code?: number | null;
 }
 
 /**
@@ -223,10 +225,10 @@ export function stationIncidentLines(entries: StationIncidentEntry[]): string[] 
   if (entries.length === 0) return [];
   return [
     `poste (processus principal) — ${entries.length} panne${entries.length > 1 ? 's' : ''} retenue${entries.length > 1 ? 's' : ''}`,
-    ...entries.map(
-      (entry) =>
-        `${redactIncidentText(entry.at, 40)} · ${redactIncidentText(entry.kind, 40)} · ${redactIncidentText(entry.message)}`,
-    ),
+    ...entries.map((entry) => {
+      const code = Number.isInteger(entry.code) ? ` (code ${entry.code})` : '';
+      return `${redactIncidentText(entry.at, 40)} · ${redactIncidentText(entry.kind, 40)} · ${redactIncidentText(entry.message)}${code}`;
+    }),
   ];
 }
 

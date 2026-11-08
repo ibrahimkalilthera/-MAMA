@@ -1,51 +1,78 @@
 # Protéger `main` — ce qui est refusé, ce qui est mesuré
 
-## Le fait, mesuré le 2026-11-08
+## L'état, mesuré le 2026-11-08
 
 ```
-gh api repos/ibrahimkalilthera/-MAMA/branches/main/protection      → 404
-gh api -X PUT …/branches/main/protection --input prot.json          → 404
+GET repos/ibrahimkalilthera/-MAMA/branches/main/protection   → 200
+required_pull_request_reviews.required_approving_review_count = 0   (une PR suffit)
+required_status_checks.strict                                  = true
+required_status_checks.contexts = ["Lint + tests + audit",
+                                   "Migrations + RLS anon refusé (métier + auth)"]
+enforce_admins   = false
+allow_force_pushes = false
+allow_deletions    = false
 ```
 
-Les deux appels sont refusés **avant** toute question de contenu : le jeton
-utilisé (compte d'automatisation) n'a pas le droit d'administration sur le
-dépôt, ou l'offre GitHub ne l'ouvre pas. Ce n'est pas un réglage à corriger dans
-le code : seul un propriétaire du dépôt peut l'activer.
+La règle a été posée par l'API avec le **jeton propriétaire** — celui que le
+dépôt utilise déjà pour pousser (`.git/github-credentials`, `admin: true` sur ce
+dépôt). Le `404` qui avait été lu auparavant n'était pas un refus de
+permission : la réponse du point d'accès est « Branch not protected », c'est-à-
+dire *aucune règle posée*. Le compte `gh` de la machine, lui, est en lecture
+seule (`viewerPermission: READ`) : c'est ce jeton-là qui ne peut ni poser la
+règle, ni fusionner, ni relancer un job. Ce sont deux comptes distincts.
 
-Conséquence concrète : un `git push origin main` contourne **toutes** les portes
-de ce dépôt — `lint`, `npm test`, les contrôles RLS, la cohérence de release —
-sans qu'aucune ne soit exécutée avant l'arrivée du commit.
+Ce que la règle refuse maintenant, pour tout compte non administrateur :
 
-## Ce qui a été mis en place à la place
+- un `git push origin main` direct (il faut une branche et une PR) ;
+- une fusion dont les deux checks requis ne sont pas verts, ni à jour avec
+  `main` (`strict: true`) ;
+- une réécriture d'historique (`force-push`) et la suppression de la branche.
 
-`.github/workflows/main-direct-push-guard.yml` s'exécute sur **chaque push vers
-`main`**. Il demande à l'API GitHub les pull requests associées au commit :
+## Ce que la règle ne refuse PAS — et qui reste couvert
 
-- au moins une PR → vert, avec le SHA et le numéro ;
-- aucune PR, et un message qui ne commence pas par `chore(release):` → **rouge**,
-  avec le SHA et la marche à suivre ;
-- réponse illisible (API indisponible, jeton absent) → **exit 2**, pas un vert
-  fabriqué.
+`enforce_admins: false`. Un administrateur — le propriétaire, c'est-à-dire le
+compte qui pousse réellement dans ce dépôt — peut encore pousser directement sur
+`main`. C'est un choix assumé : les commits `chore(release):` sont produits et
+poussés par cette même personne, et les bloquer casserait le canal de release
+sans qu'un autre compte puisse fusionner à sa place (0 approbation requise, mais
+GitHub interdit d'approuver sa propre PR).
 
-La règle est dans `scripts/lib/direct-push.mjs` (testée sans réseau dans
-`tests/direct-push.test.ts`).
+Trois gardes couvrent donc ce chemin d'administrateur, du plus tôt au plus tard :
 
-Ce garde **ne bloque pas** le push : il le rend visible après coup. C'est la
-différence entre une règle écrite et une règle mesurée, mais ce n'est pas la
-protection elle-même.
+1. **`.husky/pre-push` → `scripts/check-push-target.mjs`** — refuse le push
+   *avant qu'il parte*. Exception nommée : un commit de tête
+   `chore(release):`, ou `ALLOW_MAIN_PUSH=1` (décision annoncée, pas un oubli).
+   Zéro référence lue sur l'entrée standard → exit 2, jamais un vert sur du vide.
+   Ne survit pas à `git push --no-verify` ni à `HUSKY=0`.
+2. **`.github/workflows/main-direct-push-guard.yml`** — sur chaque push vers
+   `main`, demande à l'API les PR associées au commit. Aucune PR et pas un
+   `chore(release):` → run rouge avec le SHA. Réponse illisible → exit 2.
+   La règle est dans `scripts/lib/direct-push.mjs`, testée sans réseau.
+3. **`deploy.yml`** — ne déploie que si le workflow de qualité s'est terminé en
+   `success` sur `main`, et déploie exactement le commit validé (`head_sha`).
 
-## Ce que le propriétaire doit faire (5 minutes, une fois)
+## Vérifier que la règle tient
 
-1. Settings → Branches → **Add branch protection rule** pour `main`.
-2. Cocher **Require a pull request before merging** (0 approbation suffit pour
-   une équipe d'une personne).
-3. Cocher **Require status checks to pass before merging** et sélectionner les
-   jobs qui portent déjà les portes : `quality` (Quality guards), `lighthouse`
-   (perf-guard), `provenance` (ce garde), et le job de déploiement Vercel.
-4. Cocher **Require conversation resolution** et décocher **Allow force pushes**
-   / **Allow deletions**.
-5. Vérifier : `gh api repos/ibrahimkalilthera/-MAMA/branches/main/protection`
-   doit rendre `200` avec `required_pull_request_reviews` non nul.
+```bash
+gh api repos/ibrahimkalilthera/-MAMA/branches/main/protection --jq \
+  '{pr: .required_pull_request_reviews.required_approving_review_count,
+    strict: .required_status_checks.strict,
+    checks: .required_status_checks.contexts,
+    admins: .enforce_admins.enabled}'
+```
 
-Si l'offre GitHub refuse la règle (dépôt privé sans plan payant), la seule
-protection restante est ce garde — et la discipline de ne pas pousser sur `main`.
+Doit rendre `pr: 0`, `strict: true`, les deux contextes ci-dessus, `admins: false`.
+
+## Passer à `enforce_admins: true` (plus tard, pas maintenant)
+
+Le jour où les releases passent elles aussi par une PR, la règle peut être
+durcie sans casser personne :
+
+```bash
+gh api -X PATCH repos/ibrahimkalilthera/-MAMA/branches/main/protection \
+  -F enforce_admins=true
+```
+
+Ce jour-là, le `pre-push` et le garde de CI deviennent des ceintures de plus
+plutôt que la seule barrière — et l'exception `chore(release):` du garde de CI
+devient sans objet.
