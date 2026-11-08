@@ -1,7 +1,26 @@
 # Canal de mise à jour indépendant de la visibilité du dépôt
 
 **Spécification de conception — 2026-10-11**
-**Statut : approuvée en design, à relire avant implémentation.**
+**Statut au 2026-11-08 : §7 (le battement) est implémenté et vérifié en base ; les sections 2 à 5 (le flux servi par le site) sont un PLAN, non implémentées.** Le canal vivant reste GitHub Releases — voir « État réel » ci-dessous avant de lire ce document comme une description du présent.
+
+---
+
+## 0. État réel au 2026-11-08 — ce qui est vrai, mesuré
+
+Ce document décrit une cible. Ce tableau dit où en est le dépôt, pour qu'aucune section ne se lise comme déjà faite.
+
+| objet | état | mesure |
+|---|---|---|
+| flux, octets et frein | **GitHub Releases** (plan actuel) | `electron-builder.yml` : `publish: { provider: github, owner: ibrahimkalilthera, repo: "-MAMA" }` — un poste lit `releases/latest` du dépôt source |
+| flux servi par le site | **ABSENT** | `public/` ne porte ni `latest.yml` ni `updates/holds.json` ; `PUBLIC_ORIGIN` (`https://mama-thera-finance.vercel.app/`) existe, mais aucune de ces deux URLs n'y est servie |
+| version en tête | **1.0.41**, publiée le 2026-11-08 | 39 versions desservies, installeur rehaché depuis les octets publics, frein lu sans jeton, 0 version retenue |
+| battement (§7) | **implémenté**, canal **ouvert et vérifié** | sonde du 2026-11-08 sur la base partagée : `record_station_beat` atteinte puis refusée sur un `station_id` hors bornes (HTTP 400) — le `GRANT` à `anon` tient, aucune ligne écrite |
+| parc recensé | **0 poste** | aucun poste n'a encore appelé le battement : il attend qu'un poste empaqueté d'une version qui l'envoie démarre |
+| conversions portable → installé | 0 observée | suit le battement : rien à observer tant qu'aucun poste ne bat |
+
+**Ce qui manque pour passer aux sections 2 à 5, et qui n'est pas du code :** un **dépôt d'octets public dédié** et un **jeton à périmètre minimal** (`contents: write` sur ce seul dépôt). Sans eux, la section 4 ne peut ni téléverser ni réécrire le flux. Et la dépendance de la section 6 reste entière : **le dépôt source doit rester public** tant qu'un poste en 1.0.27 ne lit que `provider: github`.
+
+**Ce que le zéro du parc ne dit pas — et que la commande dit maintenant.** `npm run fleet:versions` sonde le canal d'écriture quand le relevé est vide : un zéro passe donc de « on ne sait pas si quelqu'un écoute » à « le canal est ouvert, aucun poste n'a encore parlé ». La sonde n'écrit rien (identifiant volontairement hors bornes), et elle nomme les trois pannes qu'un zéro confondait : migration absente, `GRANT` retiré, origine muette.
 
 Demande du propriétaire : « Rends le canal de mise à jour indépendant de la visibilité du dépôt, en servant le flux et le frein d'urgence depuis une origine publique, avec le chemin de bascule pour les postes déjà installés. »
 
@@ -36,6 +55,8 @@ Le diagnostic (commit `5965a8e`) a rendu la panne **lisible** ; cette spécifica
 ---
 
 ## 2. Anatomie cible
+
+> **Plan, non implémenté au 2026-11-08** — voir « État réel » (§0). Les chemins ci-dessous sont ceux que la bascule emploiera, pas ceux qui servent aujourd'hui un poste.
 
 | objet | source de vérité | diffusion | URL lue par un poste |
 |---|---|---|---|
