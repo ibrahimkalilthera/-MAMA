@@ -44,6 +44,32 @@ export interface DomGlobalsOptions {
 /** Install happy-dom's window/document (and friends) on globalThis. */
 export function installDomGlobals(options: DomGlobalsOptions = {}): Window {
   const win = new Window({ url: 'http://localhost/' });
+  // ─── Une animation ANNULÉE ne fait pas rougir un test ──────────────────────
+  //
+  // happy-dom rejette `Animation.finished` avec un `AbortError` (« The animation
+  // was canceled. ») quand une animation est annulée : c'est la spec, un
+  // navigateur fait pareil. Mais `motion` (mesuré en 14.10.1, depuis le bump
+  // 14.1 → 14.4) annule les animations d'un élément DÉMONTÉ sans attendre cette
+  // promesse — le rejet part donc sans preneur, et `node:test` l'attribue au
+  // test en cours (`unhandledRejection`), ce qui a fait rougir « PayrollView —
+  // retirer un salaire » sur une assertion qui, elle, passait.
+  //
+  // On attache donc le `catch` qu'un appelant qui n'attend pas laisserait au
+  // navigateur : la promesse est consommée, aucune assertion n'est touchée, et
+  // un rejet applicatif (autre nom, autre message) continue de faire échouer la
+  // suite. C'est de l'environnement, pas du test.
+  type Animatabled = {
+    animate?: (this: unknown, ...args: unknown[]) => { finished?: Promise<unknown> } | null;
+  };
+  const proto = win.Element.prototype as unknown as Animatabled;
+  const originalAnimate = proto.animate;
+  if (typeof originalAnimate === 'function') {
+    proto.animate = function patchedAnimate(this: unknown, ...args: unknown[]) {
+      const animation = originalAnimate.apply(this, args);
+      animation?.finished?.catch(() => undefined);
+      return animation;
+    };
+  }
   const define = (key: string, value: unknown): void => {
     Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
   };
