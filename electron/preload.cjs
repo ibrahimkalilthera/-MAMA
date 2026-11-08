@@ -116,4 +116,17 @@ contextBridge.exposeInMainWorld('desktop', {
      */
     stationBeat: () => ipcRenderer.invoke('updates:station-beat'),
   },
+
+  // ── Journal de pannes du poste ────────────────────────────────────────────
+  // Le processus principal inscrit (exception non attrapée, rendu disparu,
+  // processus enfant mort) ; l'écran des Réglages LIT, pour recopier le rapport
+  // quand l'école le décide. Lecture seule et bornée : une panne ne se réécrit
+  // pas depuis la page, sinon le journal ne prouverait plus ce qu'il raconte.
+  incidents: {
+    /**
+     * Les pannes retenues sur CETTE machine, la plus récente d'abord.
+     * @returns {Promise<{path?: string, entries?: Array<{at: string, kind: string, message: string}>}>}
+     */
+    list: () => ipcRenderer.invoke('incidents:list'),
+  },
 });

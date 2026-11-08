@@ -119,10 +119,11 @@ const COLUMNS = [
 ].join(',');
 
 export const USAGE = [
-  'Usage : npm run fleet:versions [--silent-days=N] [--max-rows=N] [--probe]',
+  'Usage : npm run fleet:versions [--silent-days=N] [--max-rows=N] [--require-live=N] [--probe]',
   '',
   `  --silent-days=N   un poste est « silencieux » au-delà de N jours sans battement (défaut ${DEFAULT_SILENT_DAYS})`,
   `  --max-rows=N      seuil de volume : au-delà, la commande échoue (défaut ${DEFAULT_MAX_ROWS})`,
+  '  --require-live=N  échoue si AUCUN poste n’a battu depuis N jours (veille hebdomadaire)',
   '  --probe           vérifie le canal d’écriture du battement même quand le relevé n’est pas vide',
   '',
   'Un relevé à zéro poste sonde AUTOMATIQUEMENT ce canal : « aucun poste » et « le canal est',
@@ -138,10 +139,10 @@ export const USAGE = [
  * vert qu'on ne saurait pas expliquer.
  *
  * @param {string[]} argv
- * @returns {{ silentDays: number, maxRows: number, probe: boolean, help: boolean, problems: string[] }}
+ * @returns {{ silentDays: number, maxRows: number, requireLive: number, probe: boolean, help: boolean, problems: string[] }}
  */
 export function parseFlags(argv = []) {
-  const out = { silentDays: DEFAULT_SILENT_DAYS, maxRows: DEFAULT_MAX_ROWS, probe: false, help: false, problems: [] };
+  const out = { silentDays: DEFAULT_SILENT_DAYS, maxRows: DEFAULT_MAX_ROWS, requireLive: 0, probe: false, help: false, problems: [] };
   for (const raw of argv) {
     const arg = String(raw);
     if (arg === '--help' || arg === '-h') {
@@ -152,7 +153,7 @@ export function parseFlags(argv = []) {
       out.probe = true;
       continue;
     }
-    const match = arg.match(/^--(silent-days|max-rows)=(-?\d+)$/);
+    const match = arg.match(/^--(silent-days|max-rows|require-live)=(-?\d+)$/);
     if (!match) {
       out.problems.push(`drapeau inconnu « ${arg} »`);
       continue;
@@ -163,6 +164,7 @@ export function parseFlags(argv = []) {
       continue;
     }
     if (match[1] === 'silent-days') out.silentDays = value;
+    else if (match[1] === 'require-live') out.requireLive = value;
     else out.maxRows = value;
   }
   return out;
@@ -857,6 +859,26 @@ async function main() {
   if (!verdict.ok) {
     console.error(`\n❌ ${verdict.problem}`);
     process.exit(1);
+  }
+  // ── Le parc a-t-il bougé récemment ? ───────────────────────────────────────
+  // « 0 poste » et « des postes, mais aucun depuis N jours » sont deux silences
+  // différents ; celui-ci est le pire des deux, parce qu'un parc qui battait
+  // puis s'est tu ressemble à un parc à jour. La veille hebdomadaire
+  // (fleet-stale-watch.yml) demande donc au relevé de REFUSER cet état-là.
+  if (flags.requireLive > 0) {
+    const horizon = nowMs - flags.requireLive * 86_400_000;
+    const live = fleet.rows.filter((row) => {
+      const ms = Date.parse(String(row?.seen_at ?? ''));
+      return Number.isFinite(ms) && ms >= horizon;
+    });
+    if (live.length === 0) {
+      console.error(
+        `\n❌ aucun poste n’a battu depuis ${flags.requireLive} jour(s) ` +
+          `(${fleet.total} poste(s) recensé(s) au total) — le parc n’est pas mesurable aujourd’hui.`,
+      );
+      process.exit(1);
+    }
+    console.log(`\n✅ ${live.length} poste(s) ont battu dans les ${flags.requireLive} dernier(s) jour(s).`);
   }
   process.exit(0);
 }

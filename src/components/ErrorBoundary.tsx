@@ -21,6 +21,7 @@ import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RotateCcw, RefreshCw } from 'lucide-react';
 import { isChunkLoadError, recoverFromChunkLoadError } from '../lib/chunkLoadRecovery';
+import { recordIncident } from '../lib/incidentJournal';
 
 interface ErrorBoundaryProps {
   /** Theme tokens from the app theme engine (card, border, muted, isDark, accents). */
@@ -54,6 +55,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   componentDidCatch(error: Error, info: ErrorInfo): void {
     // The error is ALWAYS logged — the UI fallback never hides the console.
     console.error('[ErrorBoundary]', this.props.label ?? '', error, info.componentStack);
+    // Et il est RETENU : une zone qui plante laissait une trace dans une console
+    // que personne n'ouvre. Le journal local (40 entrées, sans donnée
+    // personnelle) permet de raconter la panne le lendemain, depuis les
+    // Réglages. Voir src/lib/incidentJournal.ts.
+    recordIncident({ kind: 'boundary', error, where: this.props.label ?? 'zone inconnue' });
   }
 
   private handleRetry = (): void => {

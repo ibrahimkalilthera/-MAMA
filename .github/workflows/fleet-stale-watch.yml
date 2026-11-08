@@ -1,0 +1,61 @@
+name: Fleet liveness
+
+# ─────────────────────────────────────────────────────────────────────────────
+# « Un poste a-t-il battu cette semaine ? »
+#
+# `fleet:versions` sait dire combien de postes sont recensés, et depuis quand
+# chacun s'est tu. Ce qu'aucune veille ne demandait, c'est la question la plus
+# simple : le parc est-il ENCORE mesurable ? Un parc qui battait puis s'est tu
+# produit le même relevé qu'un parc à jour — des versions, des dates — et
+# personne ne s'en apercevait.
+#
+# Le job est donc ROUGE quand aucun poste n'a battu depuis 7 jours, et il nomme
+# les deux nombres (postes recensés, fenêtre). Une alerte qui ne dit pas ce
+# qu'elle a compté ne se répare pas.
+#
+# Secrets requis : SUPABASE_SERVICE_ROLE_KEY (la table des battements est
+# illisible par la clé publique — voir `fleet:versions`).
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    # Lundi 07:10 UTC — une fois par semaine, après la sauvegarde du matin.
+    - cron: '10 7 * * 1'
+
+  workflow_dispatch:
+
+concurrency:
+  group: fleet-stale-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  liveness:
+    name: Le parc a-t-il battu cette semaine ?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Relevé du parc — refus si aucun poste depuis 7 jours
+        env:
+          SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Le relevé publie lui-même ses chiffres (postes recensés, silencieux,
+          # dernier battement) sous le mandat de cette étape.
+          AUTOMATION_EVIDENCE: '1'
+        run: npm run fleet:versions -- --require-live=7
+
+      # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
+      # étapes du run pour savoir si une preuve était attendue (voir
+      # scripts/lib/automation-evidence.mjs, EVIDENCE_STEP_NAME).
+      - name: Publier la preuve d’action — vivacité du parc
+        run: >-
+          node scripts/publish-automation-evidence.mjs --acted
+          --reason "le battement du parc a été relevé ; les postes recensés, le nombre de postes silencieux et le dernier battement sont publiés par scripts/fleet-versions.mjs"

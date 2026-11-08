@@ -27,10 +27,12 @@ name: Database backup
 # déchiffre l'archive (`npm run restore:db -- --from <dossier>`, en local).
 #
 # ─── CE QUE CE WORKFLOW NE FERME PAS (dit ici, pas ailleurs) ────────────────
-#   1. La copie hors GitHub : l'artefact EST la seule copie hors de la base, et
-#      GitHub le supprime 30 jours après. Le run en publie la date limite (étape
-#      « Dire la date limite de la SEULE copie ») ; le classement lui-même est un
-#      geste de l'école, décrit dans docs/BACKUP.md.
+#   1. (fermé le 2026-11-08) La copie hors GitHub : elle n'existait pas, et
+#      l'artefact — supprimé 30 jours après — en tenait lieu. L'étape « Déposer
+#      la copie HORS GitHub » dépose désormais l'archive CHIFFRÉE dans le seau
+#      `db-backups` et la RELIT ; `backup-age-watch.yml` refuse une copie de plus
+#      de 48 h. L'artefact reste en plus (rapatriement commode), il n'est plus
+#      la seule copie.
 #   2. L'escrow de la phrase : `BACKUP_PASSPHRASE` ne vit que dans les secrets de
 #      ce dépôt. Si elle est perdue, chaque archive est illisible — même
 #      téléchargée, même sur un autre support. La procédure (deux copies, deux
@@ -109,24 +111,36 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      # L'archive ci-dessus est la SEULE copie qui existe hors de la base, et
-      # elle PÉRIME : 30 jours après ce run, GitHub la supprime, et il ne reste
-      # rien. Cette étape ne copie rien — elle ne peut pas : aucun stockage hors
-      # GitHub n'est configuré ici, et en inventer un serait une décision qui
-      # n'appartient pas à ce workflow. Elle rend donc l'échéance DATÉE dans le
-      # résumé du run (et donne l'URL de téléchargement), pour que la copie hors
-      # GitHub soit une date dans l'agenda de l'école, pas une bonne intention.
-      # Deux faits que la phrase de chiffrement rend vitaux : sans elle, l'archive
-      # est illisible MÊME téléchargée — l'escrow est décrit dans docs/BACKUP.md.
+      # La copie DURABLE. Le même contenu chiffré part dans le seau du projet
+      # Supabase, qui ne meurt pas au bout de 30 jours ; le script relit l'objet
+      # déposé et échoue s'il n'y est pas. Sans les secrets, l'étape est rouge :
+      # une durabilité qu'on croit acquise est pire que pas de durabilité.
+      - name: Déposer la copie HORS GitHub (seau chiffré, relue)
+        env:
+          SUPABASE_URL: https://rpcjdohfxwukbqngbprw.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run backup:offsite -- --from .backup/current
+
+      # L'artefact GitHub PÉRIME (30 jours) : il reste le téléchargement
+      # commode, pas la copie durable — celle-ci est l'objet du seau, déposé et
+      # relu à l'étape précédente. L'échéance est quand même DATÉE dans le résumé,
+      # parce qu'un téléchargement commode qu'on croit durable est le piège qui a
+      # rendu la copie périssable. Et l'âge de la copie DURABLE n'est pas supposé :
+      # `.github/workflows/backup-age-watch.yml` devient rouge si le dernier objet
+      # vérifié du seau a plus de 48 h — un fichier de sauvegarde qu'on ne date
+      # jamais finit par être une intention.
+      # Un fait que la phrase de chiffrement rend vital : sans elle, l'archive est
+      # illisible MÊME téléchargée — l'escrow est décrit dans docs/BACKUP.md.
       - name: Dire la date limite de la SEULE copie
         run: |
           limite=$(date -u -d '+30 days' +%F 2>/dev/null || date -u -v+30d +%F)
           {
-            echo "## L’unique copie de la base périmpte le $limite"
+            echo "## L’artefact GitHub périmpte le $limite — la copie durable, non"
             echo
             echo "L’artefact chiffré \`db-backup-encrypted\` de ce run est supprimé par GitHub 30 jours"
-            echo "après son dépôt : **téléchargez-le et rangez-le ailleurs avant cette date**, sinon il ne"
-            echo "reste aucune sauvegarde. Il n’est relisible qu’avec la phrase `BACKUP_PASSPHRASE`, qui doit"
+            echo "après son dépôt. Ce n’est plus la seule copie : la même archive chiffrée a été déposée"
+            echo "dans le seau \`db-backups\` et relue. Télécharger l’artefact reste commode, mais n’est"
+            echo "plus une course contre la date. Tout reste illisible sans `BACKUP_PASSPHRASE`, qui doit"
             echo "donc être disponible hors de ce dépôt et connue de plus d’une personne (escrow :"
             echo "docs/BACKUP.md, section « l’escrow de la phrase »)."
             echo

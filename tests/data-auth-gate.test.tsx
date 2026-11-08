@@ -41,9 +41,20 @@ const fakeSupabase = {
   from: (table: string) => {
     fromCalls[table] = (fromCalls[table] ?? 0) + 1;
     const rows = rowsByTable[table as TableName] ?? [];
+    // La forme RÉELLE de la requête : le chargement lit par pages
+    // (`select('*', { count: 'exact' }).order(...).range(from, to)`) — voir
+    // src/lib/pagedRead.ts. Un faux client qui s'arrête à `order()` ne modélise
+    // pas la requête que l'application envoie : le test mesurerait alors sa
+    // propre simplification, pas le comportement du hook.
     return {
       select: () => ({
-        order: async () => ({ data: rows, error: null }),
+        order: () => ({
+          range: async (from: number, to: number) => ({
+            data: rows.slice(from, to + 1),
+            count: rows.length,
+            error: null,
+          }),
+        }),
       }),
     };
   },

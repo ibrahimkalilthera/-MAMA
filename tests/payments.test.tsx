@@ -212,7 +212,10 @@ describe('usePayments.handlePaymentSubmit', () => {
       assert.equal(call.payment.amount, 25000, 'the string amount is parsed to a number');
       assert.equal(call.payment.date, '2026-05-12');
       assert.equal(call.payment.academicYear, '2026-2027', "the student's own academic year wins");
-      assert.match(call.payment.receiptNumber ?? '', /^REC-\d{6}$/, 'a REC-###### receipt number is generated');
+      // La forme COURANTE (`REC-26-1A2B3C4D`) : le numéro se dérive de l'id du
+      // geste, plus de l'horloge — six chiffres d'horloge se répétaient toutes
+      // les 16 min 40 (voir src/lib/receiptNumber.ts).
+      assert.match(call.payment.receiptNumber ?? '', /^REC-\d{2}-[0-9A-F]{8}$/, 'un numéro dérivé du geste est généré');
       assert.ok(
         typeof call.payment.id === 'string' && call.payment.id.length > 0,
         'the payment carries the gesture id (idempotence: a double submit reuses it)',

@@ -35,7 +35,7 @@ import type { useDashboard } from '../app/useDashboard';
 import type { useInactivityLogout } from '../app/useInactivityLogout';
 import type { generateMultiYearReportPdf } from '../lib/pdfMultiYearReport';
 import type { generateFinancialReportPdf } from '../lib/pdfFinancialReport';
-import { ToastContainer, OfflineBanner, EnvBadge } from './ToastNotification';
+import { ToastContainer, OfflineBanner, OfflineAnnouncer, EnvBadge } from './ToastNotification';
 import { FloatingChat } from './FloatingChat';
 import { InactivityWarning } from './InactivityWarning';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -581,6 +581,14 @@ onOpenSettings={() => setActiveTab('settings')}
         offlineSession={auth.isOfflineSession}
         reauthFailed={auth.reauthFailed}
         cacheSavedAt={cacheSavedAt}
+        t={t}
+      />
+      {/* La même nouvelle, dite à voix haute : une région live toujours montée
+          (voir OfflineAnnouncer) — le bandeau, lui, se tait visuellement quand
+          tout va bien, donc il ne peut pas être la région live. */}
+      <OfflineAnnouncer
+        pendingCount={pendingQueueCount}
+        pendingFailures={pendingFailures}
         t={t}
       />
       <EnvBadge env={appEnv} database={database} />

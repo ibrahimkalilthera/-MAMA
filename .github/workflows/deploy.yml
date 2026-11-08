@@ -359,6 +359,14 @@ jobs:
           BUILD_SHA: ${{ needs.gate.outputs.deploy_sha || github.sha }}
         run: tools/node_modules/.bin/vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
+      # Le budget d'octets par morceau, mesuré sur le `dist/` que `vercel build`
+      # vient de produire : le seuil Lighthouse du job de qualité est une
+      # MOYENNE, il peut rester vert pendant qu'un morceau double. Le contrôle
+      # nomme le fichier et les deux nombres, et sort en 2 si le build n'a rien
+      # produit — un déploiement ne part pas sur une mesure absente.
+      - name: Gate — budget d’octets par morceau livré
+        run: npm run check:bundle
+
       - name: Deploy to production (prebuilt)
         run: tools/node_modules/.bin/vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
 

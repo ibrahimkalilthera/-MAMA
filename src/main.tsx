@@ -4,7 +4,15 @@ import { createRoot } from 'react-dom/client';
 import { RootBoundary } from './app/rootBoundary';
 import { registerServiceWorker } from './lib/serviceWorker';
 import { registerChunkLoadRecovery } from './lib/chunkLoadRecovery';
+import { installIncidentCapture } from './lib/incidentJournal';
 import './index.css';
+
+// Le poste n'avait AUCUNE mémoire de ses pannes : une exception non attrapée
+// laissait une console que personne n'ouvre, et le lendemain l'école disait
+// seulement « ça a planté ». Le journal local garde les 40 dernières, masquées
+// de toute donnée personnelle, et l'écran des Réglages sait les copier pour les
+// envoyer au support (src/lib/incidentJournal.ts).
+installIncidentCapture(window);
 
 // Vite émet `vite:preloadError` quand un import dynamique échoue (chunk périmé
 // après un redémarrage du serveur de dev ou un déploiement). Sans cela, la vue

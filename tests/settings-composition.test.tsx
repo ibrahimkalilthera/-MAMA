@@ -124,7 +124,7 @@ const TARGET: UserProfile = {
 };
 
 describe('SettingsView — la composition est verrouillée', () => {
-  it('la pile porte dix enfants, marqués du data-slot de leur section, dans l’ordre', () => {
+  it('la pile porte onze enfants, marqués du data-slot de leur section, dans l’ordre', () => {
     const { container, root } = mount();
     try {
       const kids = Array.from(compositionRoot(container).children);
@@ -136,7 +136,7 @@ describe('SettingsView — la composition est verrouillée', () => {
       assert.equal(
         kids.length,
         SETTINGS_STACK_SLOTS.length,
-        `la pile doit porter ${SETTINGS_STACK_SLOTS.length} enfants : les six blocs de préférences, le nom de l’école, puis sauvegarde, classes et comptes`,
+        `la pile doit porter ${SETTINGS_STACK_SLOTS.length} enfants : les six blocs de préférences, le nom de l’école, puis sauvegarde, état du poste, classes et comptes`,
       );
 
       const slots = kids.map((kid) => kid.getAttribute('data-slot'));

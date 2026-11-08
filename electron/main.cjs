@@ -25,6 +25,7 @@ const { downloadPlan } = require('./download-policy.cjs');
 const { installCsp } = require('./csp-policy.cjs');
 const { appendEntry, readEntries, journalPath, pendingReports, markReported } = require('./update-journal.cjs');
 const { beatPayload, conversionFact, installModeOf, readStation, recordBeat, stationPath } = require('./station-beat.cjs');
+const { incidentsPath, installProcessCapture, readIncidents } = require('./incident-journal.cjs');
 
 // L'origine publique vit dans UN SEUL fichier (`public-origin.cjs`), lu ici par le
 // poste et par `scripts/check-public-origin.mjs` : deux écritures de la même URL
@@ -79,6 +80,18 @@ if (!hasSingleInstanceLock) {
     if (existing.isMinimized()) existing.restore();
     existing.focus();
   });
+}
+
+// ─── Un poste qui casse n'est plus muet ─────────────────────────────────────
+// Branché ICI, avant toute fenêtre : un plantage du processus principal pendant
+// le démarrage laisse une trace dans `<userData>/incidents.jsonl`. On n'avale
+// rien — Electron garde son propre comportement (dialogue d'erreur fatale) —, on
+// AJOUTE la mémoire qui manquait. Voir electron/incident-journal.cjs.
+try {
+  installProcessCapture({ userDataDir: app.getPath('userData'), app });
+} catch (error) {
+  // Ne jamais empêcher le poste de démarrer pour installer un journal.
+  console.warn('[electron] journal d’incidents non installé :', (error && error.message) || error);
 }
 
 // L'interface a-t-elle annoncé qu'elle montre la question de mise à jour ?
@@ -1103,6 +1116,17 @@ app.whenReady().then(() => {
   // appliquer la nôtre fermerait `worker-src` — donc son service worker, la
   // réserve hors ligne du site. Raisons mesurées : electron/csp-policy.cjs.
   installCsp(session.defaultSession);
+  // Lecture SEULE du journal de pannes du poste, pour l'écran des Réglages : le
+  // rendu ne peut ni écrire ni effacer une panne — un journal qu'un écran peut
+  // réécrire ne prouverait plus rien le jour où on le lit.
+  try {
+    ipcMain.handle('incidents:list', () => ({
+      path: incidentsPath({ userDataDir: app.getPath('userData') }),
+      entries: readIncidents({ userDataDir: app.getPath('userData') }),
+    }));
+  } catch (error) {
+    console.warn('[electron] incidents:list indisponible :', (error && error.message) || error);
+  }
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
