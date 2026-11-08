@@ -107,6 +107,12 @@ jobs:
         env:
           AUTOMATION_EVIDENCE: '1'
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # La clé PUBLIQUE, et elle est publique par construction : livrée dans le
+          # bundle, recopiée par `deploy.yml`, `desktop-release.yml` et
+          # `owner-accounts-watch.yml`. Sans elle, la sonde du canal du battement se
+          # tait en CI — et un relevé à zéro resterait inexpliqué, ce que la sonde
+          # existe précisément pour empêcher.
+          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwY2pkb2hmeHd1a2JxbmdicHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2MjQxNTEsImV4cCI6MjEwMTIwMDE1MX0.kbRyapKoWueAOneDlTF73fxv88RloJNsygT8acIkycQ
         run: npm run fleet:versions
 
       # Preuve publiée par l'étape NOMMÉE : c'est ce nom que l'audit lit dans les
