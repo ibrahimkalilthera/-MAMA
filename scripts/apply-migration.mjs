@@ -163,8 +163,8 @@ if (empty.length > 0) {
   console.error('❌ un fichier qui ne déclare aucun objet observable et ne retire rien ne peut pas être prouvé appliqué :');
   for (const plan of empty) {
     console.error(
-      `   • ${plan.name} — aucun ajout (table, colonne, contrainte, fonction, politique, déclencheur) ` +
-        'et aucun retrait lu (DROP TABLE, ALTER TABLE … DROP COLUMN, DROP POLICY/FUNCTION/TRIGGER/CONSTRAINT)',
+      `   • ${plan.name} — aucun ajout (table, colonne, contrainte, fonction, politique, déclencheur, index) ` +
+        'et aucun retrait lu (DROP TABLE, ALTER TABLE … DROP COLUMN, DROP POLICY/FUNCTION/TRIGGER/CONSTRAINT/INDEX)',
     );
   }
   process.exit(2);
@@ -280,6 +280,11 @@ async function probeObjects(client, objects) {
     ['function', 'select proname as name from pg_proc where proname = any($1::text[])', withRemovals(objects.functions, droppedOf('functions'))],
     ['policy', 'select policyname as name from pg_policies where policyname = any($1::text[])', withRemovals(objects.policies, droppedOf('policies'))],
     ['trigger', 'select tgname as name from pg_trigger where tgname = any($1::text[]) and not tgisinternal', withRemovals(objects.triggers, droppedOf('triggers'))],
+    // Un index n'est ni une table, ni une contrainte : il se lit dans `pg_indexes`,
+    // qui porte le schéma. Un index de clé primaire y figure AUSSI, mais il n'est
+    // compté que si le fichier le déclare par son nom — la sonde ne s'excuse donc
+    // pas des index implicites de PostgreSQL.
+    ['index', "select indexname as name from pg_indexes where schemaname = 'public' and indexname = any($1::text[])", withRemovals(objects.indexes, droppedOf('indexes'))],
   ];
 
   for (const [kind, query, names] of families) {
@@ -324,7 +329,9 @@ async function probeObjects(client, objects) {
 async function appChannelConfirmation(objects) {
   if (!anonKey) return { checked: false, reason: 'VITE_SUPABASE_ANON_KEY absente — le poste n’a pas été relu' };
   const tables = objects.tables;
-  if (tables.length === 0) return { checked: false, reason: 'le fichier ne déclare aucune table : rien à relire côté poste' };
+  if (tables.length === 0) {
+    return { checked: false, skipped: true, reason: 'aucune table déclarée : rien à relire côté poste (un index n’a pas de cache de schéma)' };
+  }
   let last = '';
   for (let attempt = 1; attempt <= 6; attempt += 1) {
     let ok = true;
@@ -442,7 +449,10 @@ try {
     if (plan.keys.length > 0) {
       const presentBefore = plan.keys.filter((key) => before.has(key)).length;
       console.log(
-        `\n✅ ${plan.name} — « avant » vérifié : ${plan.keys.length - presentBefore} ajout(s) absent(s) sur ${plan.keys.length}, aucun déjà en base`,
+        `\n✅ ${plan.name} — « avant » vérifié : ${plan.keys.length - presentBefore} ajout(s) absent(s) sur ${plan.keys.length}, ` +
+          (AGAIN && presentBefore > 0
+            ? `${presentBefore} déjà en base — --again : la preuve de PRODUCTION est levée, seule la vérification « après » reste exigée`
+            : 'aucun déjà en base'),
       );
     }
     if (plan.removals.length > 0) {
@@ -510,6 +520,11 @@ try {
             (confirmation.attempts > 1 ? ` après ${confirmation.attempts} lectures (cache de schéma)` : '') +
             ' : le poste lira la nouvelle colonne.',
         );
+      } else if (confirmation.skipped) {
+        // Un fichier sans table (index, contrainte seule) n'a rien à faire relire
+        // dans PostgREST : le dire sans ⚠️, pour qu'une absence de mesure ne
+        // ressemble pas à un échec.
+        console.log(`   ${plan.name} — ${confirmation.reason}`);
       } else {
         console.log(`   ⚠️  ${plan.name} — ${confirmation.reason}`);
         console.log('      La migration EST appliquée (catalogues PostgreSQL) — mais c’est ce canal que le bureau utilise : relancez `npm run check:hosted-schema`.');
