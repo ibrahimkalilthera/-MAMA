@@ -30,12 +30,15 @@
 -- Rien d'autre ne change : aucune colonne, aucune contrainte, aucune politique.
 -- Idempotent (`IF NOT EXISTS`) — le fichier peut être rejoué.
 --
--- ─── Appliquée hors de `db:apply`, et pourquoi ──────────────────────────────
--- `db:apply` compte comme objets observables les tables, colonnes, contraintes,
--- fonctions, politiques et déclencheurs — pas les index. Il refuse donc ce
--- fichier (« aucun objet observable »). Il a été appliqué par une transaction
--- directe avec preuve avant/après (0 des 3, puis 3 des 3), et c'est
--- `check:db-objects`, qui suit les index, qui le prouve en base.
+-- ─── Appliquée par `db:apply`, désormais capable de compter les INDEX ───────
+-- Jusqu'au 2026-11-08, `db:apply` comptait les tables, colonnes, contraintes,
+-- fonctions, politiques et déclencheurs — pas les index : il refusait ce fichier
+-- (« aucun objet observable »), et le geste a dû se faire par une transaction
+-- directe, sans la preuve que la commande existe pour donner. Les index sont
+-- maintenant la sixième famille lue, sondée dans `pg_indexes` DANS la
+-- transaction. Preuve du même jour, rejouée par la commande elle-même :
+-- « avant » 3 déjà en base (`--again`), « après » 3 présents, COMMIT.
+-- `check:db-objects` continue de suivre les index des migrations, de son côté.
 
 CREATE INDEX IF NOT EXISTS idx_students_parent_id
     ON public.students(parent_id);

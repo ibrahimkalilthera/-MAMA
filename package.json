@@ -22,6 +22,7 @@
     "check:csp-origins": "node scripts/check-csp-origins.mjs",
     "verify:electron-csp": "node scripts/verify-electron-csp.mjs",
     "check:payment-ledger": "node scripts/check-payment-ledger.mjs",
+    "check:vendor-expenses": "node scripts/check-vendor-expenses.mjs",
     "check:public-rls": "node scripts/check-public-rls.mjs",
     "check:public-origin": "node scripts/check-public-origin.mjs",
     "check:owners": "node scripts/check-owner-accounts.mjs",
