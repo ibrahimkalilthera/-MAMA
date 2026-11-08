@@ -32,7 +32,7 @@ const expected = Object.assign(parse(bak['.env']), parse(bak['.env.production'])
 expected.VITE_APP_ENV = 'production';
 
 // Vercel injects these as real environment variables (config + secret types)
-for (const k of ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_APP_ENV', 'APP_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'GEMINI_API_KEY']) {
+for (const k of ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_APP_ENV', 'APP_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
   if (expected[k] !== undefined) process.env[k] = expected[k];
 }
 
