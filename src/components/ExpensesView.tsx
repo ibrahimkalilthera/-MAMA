@@ -18,7 +18,11 @@ const GENERAL_EXPENSE_CATEGORIES = ['Supplies', 'Utilities', 'Maintenance', 'bnd
 export function ExpensesView() {
   const [confirmDeleteVendor, setConfirmDeleteVendor] = useState<VendorExpense | null>(null);
   const [confirmDeleteExpense, setConfirmDeleteExpense] = useState<Expense | null>(null);
-  const { expenses, AlertCircle, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, canDelete, currentMonth, currentYear, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, generalExpenseCategoryFilter, generalExpenseSearch, auth, getGradeDisplay, handleDeleteExpense, handleDeleteVendorExpense, handlePrint, lang, selectedYear, setEditingVendorExpense, setExpenseForm, setGeneralExpenseCategoryFilter, setGeneralExpenseSearch, setShowExpenseModal, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorExpensesTab, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorExpensesTab, vendorSearch, vendorStatusFilter } = useMainViews();
+  // Tri par colonne, au CLAVIER : les deux tables se triaient à la souris seule,
+  // et le registre des salaires de la Paie pas du tout (voir `sortTh` plus bas).
+  const [generalSort, setGeneralSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' });
+  const [vendorSort, setVendorSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
+  const { expenses, AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Award, BookOpen, Cpu, Droplet, FileText, GraduationCap, Hammer, Heart, Landmark, Plus, Printer, Receipt, Search, Shield, ShieldCheck, Sparkles, Sprout, Sun, Trash2, Utensils, Wifi, Zap, canDelete, currentMonth, currentYear, currentTheme, expenseCategoryList, formatCurrency, generateExpensesReportPdf, generalExpenseCategoryFilter, generalExpenseSearch, auth, getGradeDisplay, handleDeleteExpense, handleDeleteVendorExpense, handlePrint, lang, selectedYear, setEditingVendorExpense, setExpenseForm, setGeneralExpenseCategoryFilter, setGeneralExpenseSearch, setShowExpenseModal, setShowVendorExpenseModal, setVendorCategoryFilter, setVendorExpenseForm, setVendorExpensesTab, setVendorSearch, setVendorStatusFilter, t, today, vendorCategoryFilter, vendorExpenses, vendorExpensesTab, vendorSearch, vendorStatusFilter } = useMainViews();
   // Le droit d'ÉCRIRE une dépense (générale ou fournisseur) vient de la BASE :
   // la même liste de rôles que `public.is_finance_writer()`
   // (`src/lib/payrollRights.ts`, migration 20261014000000). Un compte `econome`
@@ -34,6 +38,43 @@ export function ExpensesView() {
   // policy lit, donc c'est lui qui décide.
   const canWriteExpenses = canWriteFinance(auth.profile?.role);
   const canDeleteVendorExpense = canDeleteVendorExpenses(auth.profile?.role);
+
+  /**
+   * Un en-tête triable est un BOUTON DANS le `<th>`, jamais un `<th>` cliquable :
+   * le clic seul excluait le clavier, et un lecteur d'écran n'annonçait pas
+   * l'ordre (`aria-sort`). Le motif est celui du registre des élèves.
+   */
+  const sortTh = (label: string, key: string, sort: { key: string; dir: 'asc' | 'desc' } | null, setSort: (next: { key: string; dir: 'asc' | 'desc' }) => void, align = '') => {
+    const active = sort?.key === key;
+    const dir = sort?.dir ?? 'asc';
+    return (
+      <th aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={`px-4 py-2 select-none ${align}`}>
+        <button
+          type="button"
+          onClick={() => setSort({ key, dir: active && dir === 'asc' ? 'desc' : 'asc' })}
+          className={`w-full flex items-center gap-2 px-4 py-4 rounded-lg text-left ${align.includes('text-right') ? 'justify-end' : ''} ${currentTheme.rowHover} transition-all group/sort`}
+        >
+          <span>{label}</span>
+          {active ? (
+            dir === 'asc' ? <ArrowUp size={12} className="text-blue-500 flex-shrink-0" /> : <ArrowDown size={12} className="text-blue-500 flex-shrink-0" />
+          ) : (
+            <ArrowUpDown size={12} className="opacity-35 group-hover/sort:opacity-100 transition-opacity flex-shrink-0" />
+          )}
+        </button>
+      </th>
+    );
+  };
+  /** Copie triée : nombres par différence, le reste par `localeCompare` numérique. */
+  function sortRows<T>(rows: readonly T[], key: keyof T, dir: 'asc' | 'desc'): T[] {
+    const sign = dir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const x = a[key];
+      const y = b[key];
+      if (typeof x === 'number' && typeof y === 'number') return (x - y) * sign;
+      return String(x ?? '').localeCompare(String(y ?? ''), undefined, { numeric: true }) * sign;
+    });
+  }
+
   return (
     <>
           <div className="space-y-8">
@@ -90,8 +131,8 @@ export function ExpensesView() {
                         if (!matchesSearch) return false;
                         if (generalExpenseCategoryFilter !== 'all' && e.category !== generalExpenseCategoryFilter) return false;
                         return true;
-                      })
-                      .sort((a, b) => (a.date < b.date ? 1 : -1));
+                      });
+                    const sortedGeneral = sortRows(filteredGeneral, generalSort.key as keyof Expense, generalSort.dir);
 
                     return (
                       <>
@@ -179,15 +220,15 @@ export function ExpensesView() {
                             <table className="w-full text-left border-collapse">
                               <thead className="sticky top-0 z-10">
                                 <tr className={`${currentTheme.tableHeader} text-2xs font-black uppercase tracking-[0.2em]`}>
-                                  <th className="px-8 py-6">{t.date}</th>
-                                  <th className="px-8 py-6">{t.category}</th>
-                                  <th className="px-8 py-6">{t.description}</th>
-                                  <th className="px-8 py-6 text-right">{t.amount}</th>
+                                  {sortTh(t.date, 'date', generalSort, setGeneralSort)}
+                                  {sortTh(t.category, 'category', generalSort, setGeneralSort)}
+                                  {sortTh(t.description, 'description', generalSort, setGeneralSort)}
+                                  {sortTh(t.amount, 'amount', generalSort, setGeneralSort, 'text-right')}
                                   {canDelete && <th className="px-4 py-6 no-print" aria-label={t.deleteExpense} />}
                                 </tr>
                               </thead>
                               <tbody className={`divide-y ${currentTheme.border}`}>
-                                {filteredGeneral.length === 0 ? (
+                                {sortedGeneral.length === 0 ? (
                                   <tr>
                                     <td colSpan={canDelete ? 5 : 4}>
                                       <EmptyState
@@ -210,7 +251,7 @@ export function ExpensesView() {
                                       />
                                     </td>
                                   </tr>
-                                ) : filteredGeneral.map(e => (
+                                ) : sortedGeneral.map(e => (
                                   <tr key={e.id} className={`${currentTheme.rowHover} transition-all`}>
                                     <td className="px-8 py-6">
                                       <span className={`text-sm font-bold ${currentTheme.isDark ? 'text-[#CBD5E1]' : 'text-slate-600'}`}>{e.date}</span>
@@ -417,18 +458,18 @@ export function ExpensesView() {
                         <table className="w-full text-left border-collapse">
                           <thead className="sticky top-0 z-10">
                             <tr className={`${currentTheme.tableHeader} text-2xs font-black uppercase tracking-[0.2em]`}>
-                              <th className="px-8 py-6">{t.category}</th>
-                              <th className="px-8 py-6">{t.vendorName}</th>
-                              <th className="px-8 py-6 text-right">{t.amount}</th>
-                              <th className="px-8 py-6 text-right">{t.amountPaid}</th>
-                              <th className="px-8 py-6">{t.dueDate2}</th>
-                              <th className="px-8 py-6">{t.paymentStatus}</th>
+                              {sortTh(t.category, 'category', vendorSort, setVendorSort)}
+                              {sortTh(t.vendorName, 'vendorName', vendorSort, setVendorSort)}
+                              {sortTh(t.amount, 'amount', vendorSort, setVendorSort, 'text-right')}
+                              {sortTh(t.amountPaid, 'amountPaid', vendorSort, setVendorSort, 'text-right')}
+                              {sortTh(t.dueDate2, 'dueDate', vendorSort, setVendorSort)}
+                              {sortTh(t.paymentStatus, 'paymentStatus', vendorSort, setVendorSort)}
                               <th className="px-8 py-6 text-right no-print">{t.actions}</th>
                             </tr>
                           </thead>
                           <tbody className={`divide-y ${currentTheme.border}`}>
                             {(() => {
-                              const list = filteredVendorExpensesList;
+                              const list = vendorSort ? sortRows(filteredVendorExpensesList, vendorSort.key as keyof VendorExpense, vendorSort.dir) : filteredVendorExpensesList;
                               if (list.length === 0) {
                                 return (
                                   <tr>

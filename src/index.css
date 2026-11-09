@@ -649,7 +649,9 @@ textarea:focus-visible {
 
   th, td {
     border: 1px solid #e2e8f0 !important;
-    font-size: 10px !important;
+    /* La marche déclarée, jamais un 10 px : sur le papier aussi le plancher
+       vaut plancher, et un `!important` ne dispense pas de le respecter. */
+    font-size: var(--text-2xs) !important;
     padding: 8px !important;
   }
 
