@@ -134,6 +134,7 @@ export function ExcelImportModal({
       currentTheme={currentTheme}
       titleId="modal-title-excel-import"
       ariaLabel={t.title}
+      closeLabel={t.close}
       maxWidth="max-w-3xl"
       panelRadius="rounded-3xl"
       panelClassName="max-h-[90vh] flex flex-col"
@@ -152,6 +153,8 @@ export function ExcelImportModal({
           </div>
           <button
             onClick={() => { resetWizard(); onClose(); }}
+            data-modal-close
+            aria-label={t.close}
             className={`p-2 rounded-xl text-white/60 hover:text-white ${currentTheme.hoverSurfaceDark} transition-all`}
           >
             <X size={18} />

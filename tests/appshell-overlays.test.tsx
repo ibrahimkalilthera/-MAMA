@@ -390,9 +390,18 @@ describe('AppShell — overlays rendus une seule fois', () => {
     assert.ok(offlineBanners[0].textContent?.includes(String(2)), 'OfflineBanner doit afficher le nombre de lignes en attente');
     assert.ok(toastContainers[0].textContent?.includes(TOAST_MESSAGE), 'ToastContainer doit afficher le message du toast');
 
-    // Un double ToastContainer produirait DEUX cartes avec le même message :
-    const messageCount = container.textContent?.split(TOAST_MESSAGE).length ?? 1;
-    assert.equal(messageCount, 2, `le message du toast apparaît ${messageCount - 1} fois (attendu 1)`);
+    // Un double ToastContainer produirait DEUX cartes avec le même message : on
+    // compte donc les CARTES, jamais les occurrences du texte — le message vit
+    // aussi dans la région `aria-live` du conteneur (une copie sr-only, annoncée
+    // une seule fois), ce qui fait une deuxième occurrence LÉGITIME.
+    const cards = Array.from(toastContainers[0].querySelectorAll('p'))
+      .filter((p) => p.textContent === TOAST_MESSAGE);
+    assert.equal(cards.length, 1, `le message du toast est affiché ${cards.length} fois (attendu 1)`);
+    assert.equal(
+      toastContainers[0].querySelectorAll('[data-slot="toast-announcer-status"]').length,
+      1,
+      'la région polie est montée une seule fois',
+    );
 
     await act(async () => {
       root.unmount();

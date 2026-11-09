@@ -45,6 +45,7 @@ export function LatePaymentTicketModal(props: LatePaymentTicketModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-late-payment-ticket"
       ariaLabel={t.latePaymentTicket}
+      closeLabel={t.close}
       rootClassName="no-print"
       icon={<Printer size={24} className="text-rose-400" />}
       title={t.latePaymentTicket}

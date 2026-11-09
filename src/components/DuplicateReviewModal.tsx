@@ -152,6 +152,7 @@ export function DuplicateReviewModal(props: DuplicateReviewModalProps) {
         currentTheme={currentTheme}
         titleId="modal-title-duplicate-review"
         ariaLabel={t.duplicateReviewTitle}
+        closeLabel={t.close}
         maxWidth="max-w-5xl"
         icon={<Users size={20} />}
         title={t.duplicateReviewTitle}

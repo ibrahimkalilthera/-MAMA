@@ -121,7 +121,7 @@ export function NotificationsPanel({ notifications, currentTheme, onOpenStudent,
       >
         <Bell size={16} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-2xs font-black flex items-center justify-center shadow">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-700 text-white text-2xs font-black flex items-center justify-center shadow">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}

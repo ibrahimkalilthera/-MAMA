@@ -48,6 +48,16 @@ export function EditClassModal(props: EditClassModalProps) {
   useFocusTrap(open, () => rootRef.current);
   useEscapeToClose(open, onClose);
 
+  // Une fiche ÊDITÉE n'a pas de « vide » auquel se comparer : le formulaire
+  // arrive déjà rempli. La référence est donc l'état d'OUVERTURE, capturé une
+  // fois au montage (la fenêtre est montée par ouverture, voir AppModals).
+  const openedWith = useRef(editClassForm);
+  const isDirty =
+    editClassForm.cycle !== openedWith.current.cycle ||
+    editClassForm.year !== openedWith.current.year ||
+    editClassForm.section !== openedWith.current.section ||
+    editClassForm.customName !== openedWith.current.customName;
+
   return (
     <ModalShell
       overlayRef={(el) => { rootRef.current = el as HTMLDivElement | null; }}
@@ -55,6 +65,12 @@ export function EditClassModal(props: EditClassModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-edit-class"
       ariaLabel={t.editClassSection}
+      closeLabel={t.close}
+      isDirty={isDirty}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       headerClassName="p-6 border-b border-white/10 flex justify-between items-center text-white"
       headerStyle={{ backgroundColor: currentTheme.header }}
       titleClassName="text-lg font-bold flex items-center gap-2.5"

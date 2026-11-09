@@ -48,6 +48,33 @@ export function StudentsView() {
   // celui du contrôle de clôture (même nom replié + même classe), partagé avec le
   // script — voir `src/lib/duplicateStudents.ts`.
   const duplicateGroups = useMemo(() => duplicateStudentGroupsById(students), [students]);
+  /**
+   * Un en-tête triable est un BOUTON DANS le `<th>`, jamais un `<th>` cliquable.
+   *
+   * Le clic seul excluait le clavier : quatre colonnes triables, aucun
+   * `tabIndex`, aucun `aria-sort` — un utilisateur sans souris ne pouvait pas
+   * trier, et un lecteur d'écran n'annonçait pas l'ordre de la liste.
+   */
+  const sortHeader = (key: 'name' | 'parentName' | 'balance' | 'dueDate', label: string) => {
+    const active = studentSortKey === key;
+    const ariaSort = active ? (studentSortOrder === 'asc' ? 'ascending' : 'descending') : 'none';
+    return (
+      <th aria-sort={ariaSort} className="px-4 py-2 select-none">
+        <button
+          type="button"
+          onClick={() => handleSort(key)}
+          className={`w-full flex items-center gap-2 px-4 py-4 rounded-lg text-left ${currentTheme.rowHover} transition-all group/sort`}
+        >
+          <span>{label}</span>
+          {active ? (
+            studentSortOrder === 'asc' ? <ArrowUp size={12} className="text-blue-500 flex-shrink-0" /> : <ArrowDown size={12} className="text-blue-500 flex-shrink-0" />
+          ) : (
+            <ArrowUpDown size={12} className="opacity-35 group-hover/sort:opacity-100 transition-opacity flex-shrink-0" />
+          )}
+        </button>
+      </th>
+    );
+  };
   return (
     <>
           <div className="space-y-8">
@@ -67,63 +94,100 @@ export function StudentsView() {
             </div>
 
             <div className={`${currentTheme.card} rounded-3xl border ${currentTheme.border} shadow-2xl shadow-slate-200/50 overflow-hidden`}>
-            <div className="max-h-[70vh] overflow-auto">
+            {/* Sous 640 px, six colonnes ne se lisent pas : on fait défiler
+                horizontalement pour lire une ligne, et l'encaissement se fait
+                debout, une main prise. Chaque élève devient donc une CARTE à
+                cette largeur ; le tableau reprend au-dessus. */}
+            <ul data-slot="students-mobile-cards" className={`sm:hidden divide-y ${currentTheme.border}`}>
+              {filteredStudents.length === 0 ? (
+                <li>
+                  <EmptyState
+                    icon={searchTerm.trim() ? <Search size={22} /> : <Users size={22} />}
+                    title={searchTerm.trim() ? t.noStudentsMatchingFilters : t.noStudentsInSystemTitle}
+                    hint={searchTerm.trim() ? undefined : t.noStudentsInSystemHint}
+                    isDark={currentTheme.isDark}
+                  />
+                </li>
+              ) : filteredStudents.map((student) => {
+                const discount = student.scholarshipDiscount || 0;
+                const balance = student.totalDue * (1 - discount / 100) - student.amountPaid;
+                const status = getStatus(student);
+                const duplicateGroup = duplicateGroups.get(student.id);
+                return (
+                  <li
+                    key={student.id}
+                    className={`p-5 space-y-3 ${student.flagged ? (currentTheme.isDark ? 'bg-amber-900/10' : 'bg-amber-50/60') : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStudent(student)}
+                        className="min-w-0 text-left"
+                      >
+                        <span className={`block font-bold ${currentTheme.inkStrong} text-sm truncate`}>{student.name}</span>
+                        <span className={`block text-xs ${currentTheme.muted} truncate`}>{student.parentName}</span>
+                      </button>
+                      <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-2xs font-black uppercase tracking-widest border ${status.color}`}>
+                        {status.icon}
+                        {status.label}
+                      </div>
+                    </div>
+                    <div className="flex items-end justify-between gap-3">
+                      <div>
+                        <p className={`text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.balance}</p>
+                        <p className={`text-lg font-black ${currentTheme.inkStrong}`}>{formatCurrency(balance)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {duplicateGroup && (
+                          <DuplicateBadge
+                            label={t.duplicateStudentBadge}
+                            title={`${t.duplicateStudentWarning.replace('{n}', String(duplicateGroup))} — ${t.duplicateReviewOpen}`}
+                            onOpen={() => openDuplicateReview(student)}
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(student)}
+                          aria-label={t.editStudent2}
+                          className={`p-2 ${currentTheme.muted} ${currentTheme.hoverAccent} rounded-xl transition-all`}
+                        >
+                          <FileText size={16} />
+                        </button>
+                        {canDelete && (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteStudent(student)}
+                            aria-label={t.deleteStudent}
+                            className={`p-2 text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} rounded-xl transition-all`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {student.grade && (
+                        <span className="inline-block px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 rounded-md text-3xs font-extrabold uppercase tracking-wider">
+                          {getGradeDisplay(student.grade, lang)}
+                        </span>
+                      )}
+                      <span className={`text-2xs ${currentTheme.muted} font-bold uppercase tracking-wider`}>
+                        {t.dueDate}: {formatDate(student.dueDate)}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="hidden sm:block max-h-[70vh] overflow-auto">
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 z-10">
                   <tr className={`${currentTheme.surfaceInset} ${currentTheme.muted} text-2xs font-black uppercase tracking-[0.2em]`}>
-                    <th 
-                      onClick={() => handleSort('name')}
-                      className={`px-8 py-6 cursor-pointer ${currentTheme.rowHover} transition-all group/sort select-none`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{t.studentName}</span>
-                        {studentSortKey === 'name' ? (
-                          studentSortOrder === 'asc' ? <ArrowUp size={12} className="text-blue-500 flex-shrink-0" /> : <ArrowDown size={12} className="text-blue-500 flex-shrink-0" />
-                        ) : (
-                          <ArrowUpDown size={12} className="opacity-35 group-hover/sort:opacity-100 transition-opacity flex-shrink-0" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      onClick={() => handleSort('parentName')}
-                      className={`px-8 py-6 cursor-pointer ${currentTheme.rowHover} transition-all group/sort select-none`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{t.parentName}</span>
-                        {studentSortKey === 'parentName' ? (
-                          studentSortOrder === 'asc' ? <ArrowUp size={12} className="text-blue-500 flex-shrink-0" /> : <ArrowDown size={12} className="text-blue-500 flex-shrink-0" />
-                        ) : (
-                          <ArrowUpDown size={12} className="opacity-35 group-hover/sort:opacity-100 transition-opacity flex-shrink-0" />
-                        )}
-                      </div>
-                    </th>
+                    {sortHeader('name', t.studentName)}
+                    {sortHeader('parentName', t.parentName)}
                     <th className="px-8 py-6 select-none">{t.totalDue}</th>
-                    <th 
-                      onClick={() => handleSort('balance')}
-                      className={`px-8 py-6 cursor-pointer ${currentTheme.rowHover} transition-all group/sort select-none`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{t.balance}</span>
-                        {studentSortKey === 'balance' ? (
-                          studentSortOrder === 'asc' ? <ArrowUp size={12} className="text-blue-500 flex-shrink-0" /> : <ArrowDown size={12} className="text-blue-500 flex-shrink-0" />
-                        ) : (
-                          <ArrowUpDown size={12} className="opacity-35 group-hover/sort:opacity-100 transition-opacity flex-shrink-0" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      onClick={() => handleSort('dueDate')}
-                      className={`px-8 py-6 cursor-pointer ${currentTheme.rowHover} transition-all group/sort select-none`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{t.status} / {t.dueDate}</span>
-                        {studentSortKey === 'dueDate' ? (
-                          studentSortOrder === 'asc' ? <ArrowUp size={12} className="text-blue-500 flex-shrink-0" /> : <ArrowDown size={12} className="text-blue-500 flex-shrink-0" />
-                        ) : (
-                          <ArrowUpDown size={12} className="opacity-35 group-hover/sort:opacity-100 transition-opacity flex-shrink-0" />
-                        )}
-                      </div>
-                    </th>
+                    {sortHeader('balance', t.balance)}
+                    {sortHeader('dueDate', `${t.status} / ${t.dueDate}`)}
                     <th className="px-8 py-6 text-right select-none">{t.actions}</th>
                   </tr>
                 </thead>

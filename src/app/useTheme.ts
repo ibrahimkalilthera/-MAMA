@@ -21,9 +21,9 @@ import { buildAccentVars, darken, parseColor } from '../lib/brandAccent';
  */
 const THEME_ACCENT: Record<ThemeId, { base: string; deep: string }> = {
   navy: { base: '#2563EB', deep: '#1D4ED8' },
-  slate: { base: '#0284C7', deep: '#075985' },
+  slate: { base: '#0369A1', deep: '#075985' },
   midnight: { base: '#F59E0B', deep: '#B45309' },
-  emerald: { base: '#059669', deep: '#047857' },
+  emerald: { base: '#047857', deep: '#065F46' },
   bordeaux: { base: '#E11D48', deep: '#BE123C' },
   cream: { base: '#1E5E3A', deep: '#15462B' },
 };

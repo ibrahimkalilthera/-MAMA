@@ -1,4 +1,5 @@
 import { StrictMode } from 'react';
+import { MotionConfig } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import { RootBoundary } from './app/rootBoundary';
@@ -30,7 +31,13 @@ import('./App.tsx')
   .then(({ default: App }) => {
     root.render(
       <StrictMode>
-        <RootBoundary App={App} />
+        {/* `reducedMotion="user"` : motion/react lit lui-même le réglage système
+            et supprime translations/échelles, au lieu de dépendre d'une règle
+            CSS qu'il n'utilise pas. Le CSS global (src/index.css) couvre les
+            transitions et animations d'utilitaires, qui ne passent pas par lui. */}
+        <MotionConfig reducedMotion="user">
+          <RootBoundary App={App} />
+        </MotionConfig>
       </StrictMode>,
     );
     // APRÈS le rendu : garder le build en réserve ne doit pas retarder

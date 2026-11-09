@@ -8,7 +8,7 @@
  * Props: `viewsProps` (the MainViewsProps & AppModalsProps wiring built by
  * App) plus the shell-only values (auth gate, toast, confirm dialog, chat).
  */
-import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
@@ -36,6 +36,7 @@ import type { useInactivityLogout } from '../app/useInactivityLogout';
 import type { generateMultiYearReportPdf } from '../lib/pdfMultiYearReport';
 import type { generateFinancialReportPdf } from '../lib/pdfFinancialReport';
 import { ToastContainer, OfflineBanner, OfflineAnnouncer, EnvBadge } from './ToastNotification';
+import { CommandPalette } from './CommandPalette';
 import { FloatingChat } from './FloatingChat';
 import { InactivityWarning } from './InactivityWarning';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -168,6 +169,22 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
   // provider (un test qui monte le shell seul), la valeur par défaut — animé —
   // laisse la couche telle qu'elle a été livrée.
   const { iconGlass } = useIconGlass();
+
+  // Palette de commandes (`Ctrl+K` / `⌘K`) — état LOCAL au shell : elle ne
+  // survit pas à la session et n'a rien à apprendre aux autres écrans. Le
+  // raccourci est le seul geste global de l'app, et il ne modifie rien : il
+  // change d'écran.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      if (event.key.toLowerCase() !== 'k') return;
+      event.preventDefault();
+      setPaletteOpen((open) => !open);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // ── « La semaine précédente attend son archive » ───────────────────────────
   // Le rappel est une notification de cloche (voir `useAuditArchiveReminder`),
@@ -349,6 +366,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
           currentTheme={currentTheme}
           activeTab={activeTab}
           currentUser={currentUser}
+          onOpenPalette={() => setPaletteOpen(true)}
           selectedYear={selectedYear}
           setSelectedYear={setSelectedYear}
           academicYears={academicYears}
@@ -626,7 +644,19 @@ onOpenSettings={() => setActiveTab('settings')}
         }}
       />
       <ReceiptPreviewModal currentTheme={currentTheme} />
-      <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
+      <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} dismissLabel={t.close} />
+
+      {/* `Ctrl+K` / `⌘K` : le seul raccourci global. Il n'ouvre rien de
+          destructif — il change d'écran, et il demande ses droits à
+          `canOpenTab` via la palette. */}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        t={t}
+        currentTheme={currentTheme}
+        role={currentUser?.role}
+        onSelect={(tab) => setActiveTab(tab)}
+      />
 
       {/* --- Global Confirmation Dialog --- */}
       <ConfirmDialog

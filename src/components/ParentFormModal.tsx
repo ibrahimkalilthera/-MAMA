@@ -55,6 +55,27 @@ export function ParentFormModal(props: ParentFormModalProps) {
   const [parentStudentSearch, setParentStudentSearch] = useState('');
   const [parentClassFilter, setParentClassFilter] = useState('all');
 
+  /**
+   * La garde d'abandon : y a-t-il de la saisie à perdre ?
+   *
+   * En CRÉATION la référence est le formulaire vierge : un champ rempli ou un
+   * élève coché suffit. En ÉDITION, la fenêtre ne reçoit que l'identifiant du
+   * parent (`editingParent: { id }`) — pas la fiche d'origine — donc aucune
+   * comparaison champ à champ n'est possible ici : on ne signale que le cas
+   * certain (un nom requis vidé). Passer la fiche d'origine en prop fermerait
+   * ce trou ; c'est dit ici plutôt que masqué.
+   */
+  const isDirty = editingParent
+    ? parentForm.fullName.trim() === ''
+    : parentForm.fullName.trim() !== ''
+      || parentForm.primaryPhone.trim() !== ''
+      || parentForm.secondaryPhone.trim() !== ''
+      || parentForm.email.trim() !== ''
+      || parentForm.occupation.trim() !== ''
+      || parentForm.address.trim() !== ''
+      || parentForm.notes.trim() !== ''
+      || parentForm.linkedStudentIds.length > 0;
+
   return (
     <ModalShell
       overlayRef={overlayRef}
@@ -62,6 +83,12 @@ export function ParentFormModal(props: ParentFormModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-parent-form"
       ariaLabel={editingParent ? t.editParent : t.addParent}
+      closeLabel={t.close}
+      isDirty={isDirty}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       maxWidth="max-w-xl"
       panelRadius="rounded-3xl"
       rootClassName="no-print"
@@ -72,6 +99,9 @@ export function ParentFormModal(props: ParentFormModalProps) {
           </h3>
           <button
             onClick={onClose}
+            data-modal-close
+            aria-label={t.close}
+            title={t.close}
             className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
           >
             <X size={20} />

@@ -53,6 +53,10 @@ export function LinkStudentModal(props: LinkStudentModalProps) {
     if (selected && !matchesStudentQuery(selected, nextSearch)) setStudentToLinkId('');
   };
 
+  // Rattachement : une recherche tapée ou un élève déjà choisi se perdrait si
+  // la fenêtre se fermait sur un clic à côté.
+  const isDirty = search.trim() !== '' || studentToLinkId.trim() !== '';
+
   return (
     <ModalShell
       overlayRef={overlayRef}
@@ -60,6 +64,12 @@ export function LinkStudentModal(props: LinkStudentModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-link-student"
       ariaLabel={t.linkStudent}
+      closeLabel={t.close}
+      isDirty={isDirty}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       maxWidth="max-w-md"
       panelRadius="rounded-3xl"
       rootClassName="animate-fade-in no-print"
@@ -75,6 +85,9 @@ export function LinkStudentModal(props: LinkStudentModalProps) {
           </div>
           <button
             onClick={() => onClose()}
+            data-modal-close
+            aria-label={t.close}
+            title={t.close}
             className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
           >
             <X size={20} />
@@ -105,6 +118,7 @@ export function LinkStudentModal(props: LinkStudentModalProps) {
                   {search && (
                     <button
                       type="button"
+                      data-slot="link-student-clear"
                       onClick={() => setSearch('')}
                       title={t.clearSearch}
                       aria-label={t.clearSearch}

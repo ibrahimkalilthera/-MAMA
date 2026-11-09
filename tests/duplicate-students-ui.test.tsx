@@ -122,12 +122,25 @@ describe('le registre signale chaque fiche à regarder', () => {
   const badge = t.duplicateStudentBadge;
   /** La pastille d'une ligne porte le nombre de fiches du groupe. */
   const warningFor = (n: number) => t.duplicateStudentWarning.replace('{n}', String(n));
+  /**
+   * Le registre se rend DEUX fois : le tableau (au-dessus de 640 px) et les
+   * cartes (en dessous). Un compte global mêlerait les deux surfaces et
+   * doublerait chaque pastille ; on compte donc par ligne (`<tr>`) et par
+   * carte (`<li>`), et la légende à part.
+   */
+  const perRow = (html: string, needle: string) =>
+    (html.match(/<tr[\s\S]*?<\/tr>/g) ?? []).reduce((n, row) => n + countOccurrences(row, needle), 0);
+  const perCard = (html: string, needle: string) =>
+    (html.match(/<li[\s\S]*?<\/li>/g) ?? []).reduce((n, card) => n + countOccurrences(card, needle), 0);
 
   it('pose la pastille sur les DEUX fiches de chaque groupe, et sur aucune autre', () => {
     const html = renderWithContext(createElement(StudentsView), { students: register, filteredStudents: register });
-    // 4 fiches signalées + la pastille de la légende (qui montre le même dessin).
-    assert.equal(countOccurrences(html, badge), 5, '4 lignes + la légende');
-    assert.equal(countOccurrences(html, warningFor(2)), 4, 'chaque ligne dit combien de fiches partagent le nom');
+    // 4 fiches signalées, sur les DEUX surfaces, + la pastille de la légende
+    // (qui montre le même dessin).
+    assert.equal(perRow(html, badge), 4, '4 lignes du tableau');
+    assert.equal(perCard(html, badge), 4, '4 cartes mobiles — le signal suit sur le téléphone');
+    assert.equal(perRow(html, warningFor(2)), 4, 'chaque ligne dit combien de fiches partagent le nom');
+    assert.equal(perCard(html, warningFor(2)), 4, 'et chaque carte le dit aussi');
     assert.match(html, new RegExp(t.duplicateStudentLegend), 'la légende nomme le critère');
   });
 
@@ -139,13 +152,16 @@ describe('le registre signale chaque fiche à regarder', () => {
       students: [safiatou1, safiatou2],
       filteredStudents: [safiatou1],
     });
-    assert.equal(countOccurrences(html, warningFor(2)), 1, 'la fiche visible est signalée');
-    assert.equal(countOccurrences(html, badge), 2, 'une ligne + la légende');
+    assert.equal(perRow(html, warningFor(2)), 1, 'la fiche visible est signalée');
+    assert.equal(perCard(html, warningFor(2)), 1, 'la carte visible aussi');
+    assert.equal(countOccurrences(html, badge), 3, 'une ligne + une carte + la légende');
   });
 
   it('ne signale rien quand le registre n’a aucun homonyme', () => {
     const unique = [fatoumata1, fatoumata8b];
     const html = renderWithContext(createElement(StudentsView), { students: unique, filteredStudents: unique });
+    assert.equal(perRow(html, badge), 0, 'aucune ligne signalée');
+    assert.equal(perCard(html, badge), 0, 'aucune carte signalée');
     assert.equal(countOccurrences(html, badge), 1, 'seule la légende porte la pastille');
     assert.equal(countOccurrences(html, warningFor(2)), 0);
   });

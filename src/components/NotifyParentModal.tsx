@@ -49,6 +49,11 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-reminder"
       ariaLabel={t.reminderModalTitle}
+      closeLabel={t.close}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       maxWidth="max-w-xl"
       panelRadius="rounded-3xl"
       rootClassName="animate-fade-in no-print"
@@ -69,6 +74,9 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
           </div>
           <button
             onClick={onClose}
+            data-modal-close
+            aria-label={t.close}
+            title={t.close}
             className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
           >
             <X size={20} />
@@ -83,7 +91,7 @@ export function NotifyParentModal(props: NotifyParentModalProps) {
               <div>
                 <span className="text-2xs font-black uppercase tracking-widest text-slate-400 block">{t.parentName}</span>
                 <span className="text-sm font-black text-slate-900 dark:text-white">{notifyParent.fullName}</span>
-                <span className="text-xs text-slate-500 block">({t[notifyParent.relationship.toLowerCase() as keyof typeof t] || notifyParent.relationship})</span>
+                <span className="text-xs text-slate-600 block">({t[notifyParent.relationship.toLowerCase() as keyof typeof t] || notifyParent.relationship})</span>
               </div>
               <div className="text-left sm:text-right">
                 <span className="text-2xs font-black uppercase tracking-widest text-rose-500 dark:text-rose-300 block">{t.totalOutstandingBalance}</span>

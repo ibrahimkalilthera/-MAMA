@@ -67,6 +67,8 @@ export interface AppHeaderProps {
   onOpenPayroll: () => void;
   /** Le rappel d'archive mène aux Réglages → Sauvegarde. */
   onOpenSettings: () => void;
+  /** Ouvre la palette de commandes (`Ctrl+K`) — bouton visible, pas seulement un raccourci. */
+  onOpenPalette: () => void;
 }
 
 export function AppHeader(props: AppHeaderProps) {
@@ -79,7 +81,7 @@ export function AppHeader(props: AppHeaderProps) {
     notifications, onOpenStudent, readNotificationIds, deletedNotificationIds,
     onMarkNotificationRead, onMarkAllNotificationsRead, onMarkNotificationUnread,
     onDeleteNotification, onClearAllNotifications, onRestoreDeletedNotifications,
-    onOpenCalendarDate, onOpenPayroll, onOpenSettings,
+    onOpenCalendarDate, onOpenPayroll, onOpenSettings, onOpenPalette,
   } = props;
 
   // The action bar is wide: eight controls on the « Élèves » tab (year, promote
@@ -288,6 +290,19 @@ export function AppHeader(props: AppHeaderProps) {
             <span>{t.addCrStudent}</span>
           </button>
         )}
+        {/* L'entrée de la palette : un raccourci qu'on ne peut pas découvrir
+            n'existe que pour celui qui l'a écrit. Le bouton porte le libellé
+            en `aria-label`/`title` et rappelle la combinaison à partir de `lg`. */}
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          aria-label={t.commandPaletteOpen}
+          title={t.commandPaletteOpen}
+          className={`${currentTheme.card} border ${currentTheme.border} ${currentTheme.muted} px-3 py-3 rounded-2xl ${currentTheme.hoverSurface} transition-all flex items-center gap-2 shadow-sm`}
+        >
+          <Search size={18} />
+          <kbd className="hidden lg:inline text-3xs font-black tracking-wider">{t.shortcutCtrlK}</kbd>
+        </button>
       </div>
     </header>
   );

@@ -102,7 +102,7 @@ function mount(): { header: HTMLElement; titleBlock: HTMLElement; bar: HTMLEleme
         onMarkNotificationRead: noop, onMarkAllNotificationsRead: noop,
         onMarkNotificationUnread: noop, onDeleteNotification: noop,
         onClearAllNotifications: noop, onRestoreDeletedNotifications: noop,
-        onOpenCalendarDate: noop, onOpenPayroll: noop, onOpenSettings: noop,
+        onOpenCalendarDate: noop, onOpenPayroll: noop, onOpenSettings: noop, onOpenPalette: noop,
       }),
     );
   });

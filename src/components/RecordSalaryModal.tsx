@@ -4,6 +4,7 @@
  * payment and offers the installment memo. Presentational; overlayRef injected.
  */
 import { DollarSign, Copy } from 'lucide-react';
+import { useRef } from 'react';
 import type { Dispatch, SetStateAction, FormEvent } from 'react';
 import type { Staff, SalaryPayment } from '../lib/useSupabaseData';
 import type { SalaryForm, CurrentTheme } from '../app/mainViewsProps';
@@ -47,6 +48,15 @@ export function RecordSalaryModal(props: RecordSalaryModalProps) {
       .reduce((sum, p) => sum + p.amount, 0);
     return member.salary - paidThisMonth;
   };
+  // L'état d'ouverture du formulaire, retenu une fois (la modale est montée à
+  // l'ouverture et démontée à la fermeture) : un membre choisi, un montant tapé
+  // ou une date changée est du travail qu'un clic à côté ne doit pas jeter.
+  const opening = useRef({ ...salaryForm });
+  const isDirty =
+    salaryForm.staffId !== opening.current.staffId ||
+    salaryForm.amount !== opening.current.amount ||
+    salaryForm.date !== opening.current.date;
+
   return (
     <ModalShell
       overlayRef={overlayRef}
@@ -54,6 +64,12 @@ export function RecordSalaryModal(props: RecordSalaryModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-record-salary"
       ariaLabel={t.recordSalary}
+      closeLabel={t.close}
+      isDirty={isDirty}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       icon={<DollarSign size={24} className="text-emerald-400" />}
       title={t.recordSalaryPayment}
     >

@@ -200,6 +200,7 @@ export function ReconciliationModal(props: ReconciliationModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-reconciliation"
       ariaLabel={t.reconciliationOpen}
+      closeLabel={t.close}
       // Le papier ne s'imprime pas DANS la fenêtre : le jumeau s'en charge.
       rootClassName="no-print"
       maxWidth="max-w-xl"

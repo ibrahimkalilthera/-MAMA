@@ -149,6 +149,7 @@ export function MonthlyPayrollDraftModal({
         currentTheme={currentTheme}
         titleId="modal-title-payroll-draft"
         ariaLabel={t.monthlyPayrollDisbursementDraft}
+        closeLabel={t.close}
         maxWidth="max-w-5xl"
         panelRadius="rounded-3xl"
         panelClassName="flex flex-col max-h-[90vh]"
@@ -193,6 +194,8 @@ export function MonthlyPayrollDraftModal({
 
               <button
                 onClick={onClose}
+                data-modal-close
+                aria-label={t.close}
                 className={`p-2 text-white/60 hover:text-white ${currentTheme.hoverSurfaceDark} rounded-xl transition-all ml-1`}
               >
                 <X size={20} />

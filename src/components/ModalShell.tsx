@@ -17,7 +17,7 @@
  *  - nonstandard layouts (two-line titles, custom close affordances) render
  *    a full `header` override; `rootClassName` covers things like `no-print`.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { X } from 'lucide-react';
@@ -55,6 +55,23 @@ export interface ModalShellProps {
   headerStyle?: CSSProperties;
   /** Standard header bar: title element classes (two-line layouts etc.). */
   titleClassName?: string;
+  /**
+   * `aria-label` du ✕. Sans lui, le bouton n'avait AUCUN nom : un lecteur
+   * d'écran annonçait « bouton », et c'est le chrome de ~24 fenêtres. Les
+   * appelants passent `t.close`.
+   */
+  closeLabel?: string;
+  /**
+   * La saisie en cours diffère de l'état d'ouverture. Quand c'est vrai, le
+   * fond cliquable, le ✕ et `Échap` DEMANDENT avant d'abandonner au lieu de
+   * jeter le travail commencé (audit : 0 garde de formulaire dans tout `src/`).
+   */
+  isDirty?: boolean;
+  /** Textes de la demande d'abandon (traduits par l'appelant). */
+  discardTitle?: string;
+  discardMessage?: string;
+  discardConfirmLabel?: string;
+  discardCancelLabel?: string;
   children?: ReactNode;
 }
 
@@ -74,9 +91,19 @@ export function ModalShell({
   headerClassName,
   headerStyle,
   titleClassName = 'text-xl font-bold flex items-center gap-3',
+  closeLabel = 'Close',
+  isDirty = false,
+  discardTitle = 'Discard this entry?',
+  discardMessage = 'What you have typed will be lost.',
+  discardConfirmLabel = 'Discard',
+  discardCancelLabel = 'Keep editing',
   children,
 }: ModalShellProps) {
   const tokens = modalTokens(currentTheme);
+  const [asking, setAsking] = useState(false);
+  const askingRef = useRef(asking);
+  askingRef.current = asking;
+  const keepRef = useRef<HTMLButtonElement>(null);
   // Le dialogue PIÈGE le focus : sans cela, `Tab` sortait de la fenêtre de
   // saisie et parcourait la page derrière elle — un écran qu'un lecteur d'écran
   // annonce comme modal mais qui ne l'est pas au clavier. Le piège se pose sur
@@ -88,6 +115,63 @@ export function ModalShell({
     if (!root) return;
     return trapFocus(root);
   }, []);
+
+  // Une saisie modifiée ne se jette pas sur un clic à côté.
+  const requestClose = (): void => {
+    if (isDirty) setAsking(true);
+    else onClose();
+  };
+
+  // `Échap` est capté SUR LA RACINE, en phase de capture : la pile Échap de
+  // l'app (`useEscapeToClose`) écoute en bulle sur `window`, donc elle décide
+  // après nous — sans ça, `Échap` fermait la fenêtre en contournant la
+  // demande. Un dialogue posé AU-DESSUS (confirmation de suppression) rend
+  // hors de cette racine : son propre `Échap` ne passe pas par ici et continue
+  // de fermer le dialogue du dessus, pas la saisie en dessous.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !isDirty) return undefined;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.repeat) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (askingRef.current) {
+        setAsking(false);
+        return;
+      }
+      setAsking(true);
+    };
+    root.addEventListener('keydown', onKeyDown, true);
+    return () => root.removeEventListener('keydown', onKeyDown, true);
+  }, [isDirty]);
+
+  // Les en-têtes PERSONNALISÉS (huit fenêtres) portent leur propre ✕, rendu par
+  // l'appelant : il appelait `onClose` en direct et court-circuitait la
+  // demande. On ne leur impose pas une signature : ils marquent leur bouton
+  // `data-modal-close`, et ce capture-ci le renvoie vers la même demande — un
+  // seul geste de fermeture pour tout le chrome de l'app.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !isDirty) return undefined;
+    const onClickCapture = (event: MouseEvent): void => {
+      const target = event.target as HTMLElement | null;
+      const trigger = target?.closest('[data-modal-close]');
+      if (!trigger || !root.contains(trigger)) return;
+      if (askingRef.current) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setAsking(true);
+    };
+    root.addEventListener('click', onClickCapture, true);
+    return () => root.removeEventListener('click', onClickCapture, true);
+  }, [isDirty]);
+
+  // La demande d'abandon donne le focus à « Continuer la saisie » : une touche
+  // `Entrée` réflexe ne doit pas confirmer la perte.
+  useEffect(() => {
+    if (asking) keepRef.current?.focus();
+  }, [asking]);
+
   return (
     <div
       ref={(el) => { rootRef.current = el; overlayRef(el); }}
@@ -101,7 +185,7 @@ export function ModalShell({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={onClose}
+        onClick={requestClose}
         className={tokens.backdrop}
       />
       <motion.div
@@ -119,12 +203,42 @@ export function ModalShell({
               {icon}
               {title}
             </h2>
-            <button onClick={onClose} className={tokens.headerClose}>
+            <button onClick={requestClose} data-modal-close className={tokens.headerClose} aria-label={closeLabel} title={closeLabel}>
               <X size={20} />
             </button>
           </div>
         )}
         {children}
+        {asking && (
+          <div
+            data-slot="modal-discard-confirm"
+            role="alertdialog"
+            aria-label={discardTitle}
+            className="border-t border-slate-200 dark:border-slate-800 p-4 bg-amber-50 dark:bg-amber-950/40 flex flex-col gap-3"
+          >
+            <div>
+              <p className="text-sm font-black text-amber-900 dark:text-amber-200">{discardTitle}</p>
+              <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mt-0.5">{discardMessage}</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                ref={keepRef}
+                type="button"
+                onClick={() => setAsking(false)}
+                className={`px-4 py-2 rounded-xl border ${currentTheme.border} text-xs font-bold ${currentTheme.inkStrong} ${currentTheme.hoverSurface}`}
+              >
+                {discardCancelLabel}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className={`px-4 py-2 rounded-xl bg-rose-700 ${currentTheme.hoverAlertSolid} text-white text-xs font-bold`}
+              >
+                {discardConfirmLabel}
+              </button>
+            </div>
+          </div>
+        )}
       </motion.div>
     </div>
   );

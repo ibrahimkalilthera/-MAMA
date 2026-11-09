@@ -254,6 +254,27 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
     }
   };
 
+  // La saisie en cours vaut d'être défendue : tout l'état du formulaire vit dans
+  // le domaine (`App`/`usePayments`), donc la modale ne peut pas distinguer
+  // « rien de saisi » de « revenu à l'identique » sans retenir l'état
+  // d'OUVERTURE. Elle est montée à l'ouverture et démontée à la fermeture
+  // (AnimatePresence, AppModals) : une référence initialisée au premier rendu
+  // EST cet état, et ce qui en diffère ensuite est du travail commencé — un
+  // élève choisi, un montant tapé, une date ou un motif changé, un mois coché.
+  const opening = useRef({
+    studentId: paymentStudentId,
+    amount: paymentAmount,
+    date: paymentDate,
+    motif: paymentMotif,
+    months: paymentMonths.join(','),
+  });
+  const isDirty =
+    paymentStudentId !== opening.current.studentId ||
+    paymentAmount !== opening.current.amount ||
+    paymentDate !== opening.current.date ||
+    paymentMotif !== opening.current.motif ||
+    paymentMonths.join(',') !== opening.current.months;
+
   return (
     <ModalShell
       overlayRef={overlayRef}
@@ -261,6 +282,12 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-payment-entry"
       ariaLabel={t.paymentEntry}
+      closeLabel={t.close}
+      isDirty={isDirty}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       maxWidth="max-w-md"
       icon={<CreditCard size={24} className="text-blue-400" />}
       title={t.paymentEntry}

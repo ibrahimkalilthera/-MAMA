@@ -41,7 +41,6 @@ export const Login = ({
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    setIsLoading(true);
 
     // ── La source de vérité est le CHAMP, pas l'état React seul ────────────
     //
@@ -66,6 +65,16 @@ export const Login = ({
     if (submittedEmail !== email) setEmail(submittedEmail);
     if (submittedPassword !== password) setPassword(submittedPassword);
 
+    // Le formulaire est en `noValidate` : la bulle du navigateur arrive dans la
+    // langue du SYSTÈME et hors du thème, et elle s'affiche sur le premier
+    // champ vide au lieu de dire ce qui manque. La règle vit donc ici, avec une
+    // phrase de l'app, dans la langue de l'écran.
+    if (!submittedEmail || !submittedPassword) {
+      setError(t.loginMissingFields);
+      return;
+    }
+
+    setIsLoading(true);
     const result = await onLogin(submittedEmail, submittedPassword);
     
     if (!result.success) {
@@ -140,12 +149,14 @@ export const Login = ({
           </div>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-10 space-y-6">
+        <form onSubmit={handleSubmit} noValidate aria-busy={isLoading} className="p-10 space-y-6">
           {/* Alerte en rose-700 et non rose-600 : sur ce lavis rose-50,
               rose-600 ne donnait que 4.28:1 — sous le seuil AA — et un message
               d'erreur qu'on ne lit pas ne sert à rien. */}
           {error && (
             <motion.div 
+              id="login-error"
+              role="alert"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3 text-rose-700"
@@ -156,12 +167,15 @@ export const Login = ({
           )}
 
           <div className="space-y-2">
-            <label className="text-2xs font-black text-slate-400 uppercase tracking-widest ml-1">{t.email2}</label>
+            <label htmlFor="login-username" className="text-2xs font-black text-slate-400 uppercase tracking-widest ml-1">{t.email2}</label>
             <div className="relative">
               <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
+                id="login-username"
                 type="email"
                 name="username"
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? 'login-error' : undefined}
                 autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -174,12 +188,15 @@ export const Login = ({
           </div>
           
           <div className="space-y-2">
-            <label className="text-2xs font-black text-slate-400 uppercase tracking-widest ml-1">{t.password}</label>
+            <label htmlFor="login-password" className="text-2xs font-black text-slate-400 uppercase tracking-widest ml-1">{t.password}</label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
+                id="login-password"
                 type="password"
                 name="password"
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? 'login-error' : undefined}
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
