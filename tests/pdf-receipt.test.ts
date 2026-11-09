@@ -562,3 +562,78 @@ describe('ligne « Motif » — scolarité ou inscription', () => {
     }
   });
 });
+/**
+ * La ligne « Motif » porte AUSSI la mention du versement partiel : c'est le
+ * seul endroit du formulaire papier qui reste libre, et c'est là que la famille
+ * lit ce qu'il lui reste à payer. Ces cas tiennent les deux promesses :
+ *
+ *   • un reçu ordinaire (aucun `due_amount`) ne gagne AUCUNE mention — un papier
+ *     déjà imprimé reste identique, caractère pour caractère ;
+ *   • un versement partiel dit son reste, et le reçu qui solde dit le total réglé
+ *     (versements partiels antérieurs compris), dans la langue du reçu.
+ */
+describe('ligne « Motif » — versement partiel et solde', () => {
+  async function textsOf(bytes: Uint8Array): Promise<string[]> {
+    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes) });
+    const doc = await loadingTask.promise;
+    try {
+      const content = await (await doc.getPage(1)).getTextContent();
+      return content.items
+        .filter((item): item is Extract<typeof item, { str: string }> => 'str' in item)
+        .map((item) => item.str);
+    } finally {
+      await loadingTask.destroy();
+    }
+  }
+
+  /** Le reçu d'un versement, avec les versements antérieurs de l'élève. */
+  const receiptFor = (payment: Payment, earlier: Payment[] = [], lang: 'fr' | 'en' = 'fr') => options({
+    lang,
+    payment,
+    student: { ...baseStudent, payments: [...earlier, payment] },
+  });
+
+  it('un reçu sans montant attendu n’écrit ni « versement partiel » ni « solde »', async () => {
+    const strs = await textsOf((await buildParentReceiptPdf(options())).bytes);
+    assert.equal(strs.some((s) => s.includes('versement partiel')), false, `aucune mention (${strs.join(' | ')})`);
+    assert.equal(strs.some((s) => s.includes('solde')), false, 'ni de solde');
+  });
+
+  it('un versement partiel écrit le reste à payer, sur la ligne du motif', async () => {
+    const strs = await textsOf((await buildParentReceiptPdf(receiptFor({
+      date: '2026-10-04', amount: 4000, dueAmount: 10000,
+      academicYear: '2026-2027', receiptNumber: 'REC-777010', months: ['2026-09'],
+    }))).bytes);
+    const line = strs.find((s) => s.includes('versement partiel'));
+    assert.ok(line, `la mention est imprimée (${strs.join(' | ')})`);
+    assert.ok(line!.includes('Frais de scolarité'), 'elle suit le motif, sans le remplacer');
+    assert.ok(line!.includes('reste à payer'), `le reste est nommé (${line})`);
+    assert.ok(line!.includes('6'), `le montant restant est écrit (${line})`);
+  });
+
+  it('le complément qui solde écrit le total réglé, versements partiels compris', async () => {
+    const earlier: Payment = {
+      id: 'p-earlier', date: '2026-09-20', amount: 4000, dueAmount: 10000,
+      academicYear: '2026-2027', receiptNumber: 'REC-777009', months: ['2026-09'],
+    };
+    const settling: Payment = {
+      id: 'p-settling', date: '2026-10-04', amount: 6000, dueAmount: 6000,
+      academicYear: '2026-2027', receiptNumber: 'REC-777011', months: ['2026-09'],
+    };
+    const strs = await textsOf((await buildParentReceiptPdf(receiptFor(settling, [earlier]))).bytes);
+    const line = strs.find((s) => s.includes('solde'));
+    assert.ok(line, `la mention de solde est imprimée (${strs.join(' | ')})`);
+    assert.ok(line!.includes('total réglé'), `le total est nommé (${line})`);
+    assert.ok(line!.includes('10'), `10 000 FCFA : 4 000 + 6 000 (${line})`);
+  });
+
+  it('la mention se dit dans la langue du reçu', async () => {
+    const strs = await textsOf((await buildParentReceiptPdf(receiptFor({
+      date: '2026-10-04', amount: 4000, dueAmount: 10000,
+      academicYear: '2026-2027', receiptNumber: 'REC-777012', months: ['2026-09'],
+    }, [], 'en'))).bytes);
+    const line = strs.find((s) => s.includes('partial payment'));
+    assert.ok(line, `mention anglaise absente de [${strs.join(' | ')}]`);
+    assert.ok(!strs.some((s) => s.includes('versement partiel')), 'pas de français sur un reçu anglais');
+  });
+});

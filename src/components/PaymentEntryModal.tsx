@@ -59,6 +59,7 @@ import type { PaymentMonthFact } from '../lib/paymentMonths';
 import { PAYMENT_MOTIFS, isPaymentMotif, paymentMotifLabel, paymentMotifNeedsMonths } from '../lib/paymentMotifs';
 import type { PaymentMotif } from '../lib/paymentMotifs';
 import { ALL_CLASSES, filterStudents, matchesClass, matchesSearch } from '../lib/paymentStudentFilter';
+import { installmentTarget } from '../lib/paymentInstallments';
 
 export interface PaymentEntryModalProps {
   t: TranslationDict;
@@ -244,6 +245,30 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
     [students, classFilter, search],
   );
 
+  // ── Le RESTE DÛ des mois cochés ─────────────────────────────────────────
+  // Les frais des mois choisis, moins les versements PARTIELS déjà reçus
+  // dessus (voir `src/lib/paymentInstallments.ts`). C'est le nombre qui rend
+  // l'encaissement d'un complément possible sans calcul à la main : le bouton
+  // « Solde » le pose dans le champ, et le caissier peut toujours taper moins —
+  // ce sera un nouveau versement partiel, et le reçu le dira.
+  //
+  // Rien ne s'affiche sans mois choisi ni pour un élève sans frais : pas de
+  // reste à calculer, donc pas de ligne — l'écran reste celui d'avant.
+  const selectedStudent = students.find((s) => s.id === paymentStudentId);
+  const installment = useMemo(
+    () => (selectedStudent && paymentMonths.length > 0
+      ? installmentTarget(selectedStudent, paymentMonths)
+      : null),
+    [selectedStudent, paymentMonths],
+  );
+  const typedAmount = Number(paymentAmount);
+  const partialNow =
+    installment !== null &&
+    installment.remaining > 0 &&
+    Number.isFinite(typedAmount) &&
+    typedAmount > 0 &&
+    Math.round(typedAmount) < installment.remaining;
+
   // Après un changement de filtre (classe ou recherche), efface la sélection si
   // l'élève choisi n'est plus proposé : aucun paiement ne doit être envoyé à un
   // élève absent de la liste affichée.
@@ -412,6 +437,42 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
                     />
                   </div>
                 </div>
+
+                {/* Le RESTE DÛ des mois cochés — et de quoi l'encaisser en un
+                    clic. Le bouton pose le montant restant dans le champ
+                    au-dessus ; il ne soumet rien. Un montant inférieur reste
+                    permis : c'est un nouveau versement partiel, et le reçu
+                    l'écrira. */}
+                {installment && installment.due > 0 && (
+                  <div className="space-y-2" data-slot="payment-installment">
+                    <p className={`text-xs font-bold ${currentTheme.inkStrong}`}>
+                      {installment.months.length === 1
+                        ? t.paymentDueForOneMonth.replace('{amount}', formatCurrency(installment.due))
+                        : t.paymentDueForMonths
+                          .replace('{count}', String(installment.months.length))
+                          .replace('{amount}', formatCurrency(installment.due))}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        data-slot="payment-settle-remaining"
+                        disabled={installment.remaining <= 0}
+                        onClick={() => setPaymentAmount(String(installment.remaining))}
+                        className={`px-4 py-2 rounded-xl border text-xs font-black transition-all ${currentTheme.surfaceInset} ${currentTheme.border} ${currentTheme.inkStrong} ${currentTheme.rowHover} disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {t.paymentFillRemaining} · {formatCurrency(installment.remaining)}
+                      </button>
+                      {partialNow && (
+                        <span className="text-xs font-black text-amber-600 dark:text-amber-400">
+                          {t.paymentPartialRemaining.replace(
+                            '{amount}',
+                            formatCurrency(installment.remaining - Math.round(typedAmount)),
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Le MOTIF — AU-DESSUS des mois, dans l'ordre où le reçu les
                     porte : la famille lit « Motif » avant de vérifier les mois

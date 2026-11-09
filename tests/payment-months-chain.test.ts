@@ -300,6 +300,9 @@ function rowFromBase(sent: Record<string, unknown>): DbRow<'payments'> {
     // Le motif suit la même règle : ce que la base stocke est ce qu'on lui a
     // donné, et `null` quand le geste n'en déclarait pas.
     motif: (sent.motif ?? null) as string | null,
+    // Le montant ATTENDU aussi (`payments.due_amount`) : `null` quand le geste
+    // n'en déclarait pas — c'est lui qui décide du « versement partiel ».
+    due_amount: sent.due_amount === undefined ? null : (sent.due_amount as number | null),
     created_at: '2026-10-12T00:00:00.000Z',
   };
 }

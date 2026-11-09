@@ -68,6 +68,17 @@ export interface Payment {
    * colonne ne change pas.
    */
   motif?: PaymentMotif;
+  /**
+   * Le montant que ce geste était censé régler — les frais des mois qu'il
+   * déclare, au moment de la saisie (`payments.due_amount`, migration
+   * 20261109000000). `amount < dueAmount` est un VERSEMENT PARTIEL : le reçu le
+   * dit et le mois reste ouvert ; le complément saisi plus tard le soldera.
+   *
+   * Absent = « non déclaré » — ligne d'avant la colonne, import, ou geste sans
+   * notion de reste (inscription). Le reçu et la fiche retombent alors sur le
+   * comportement d'avant. Voir `src/lib/paymentInstallments.ts`.
+   */
+  dueAmount?: number;
 }
 
 export interface Student {

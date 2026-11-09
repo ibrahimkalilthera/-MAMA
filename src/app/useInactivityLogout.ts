@@ -1,12 +1,15 @@
 /**
- * ─── Déconnexion après 45 minutes d'INACTIVITÉ ───────────────────────────────
+ * ─── Déconnexion après 2 heures d'INACTIVITÉ ─────────────────────────────────
  *
  * Demande du 2026-09-14 : « fais en sorte qu'après 45 mn d'inactivité chez
  * n'importe quel utilisateur, l'utilisateur en question se voie déconnecté — je
- * répète : inactivité ».
+ * répète : inactivité ». La fenêtre a été portée à 2 heures le 2026-11-09 : une
+ * saisie de caisse (un élève, ses mois, son motif, le reçu) peut durer, et une
+ * coupure de 45 minutes au milieu d'un encaissement imprimait un reçu pour une
+ * session fermée. Le préavis de 60 secondes, lui, ne bouge pas.
  *
  * Ce que le mot « inactivité » veut dire ici, précisément : **aucun geste de
- * l'utilisateur** pendant 45 minutes. Les gestes qui comptent sont ceux qui
+ * l'utilisateur** pendant la fenêtre entière. Les gestes qui comptent sont ceux qui
  * prouvent une présence — appui (souris, doigt, stylet), touche au clavier,
  * défilement, molette, et déplacement de la souris (au plus une fois toutes les
  * 30 secondes, pour ne pas recalculer un minuteur à chaque pixel). Rester
@@ -38,7 +41,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /** La fenêtre d'inactivité, en minutes — la même pour tous les comptes. */
-export const INACTIVITY_MINUTES = 45;
+export const INACTIVITY_MINUTES = 120;
 /** Le préavis affiché avant la coupure. */
 export const INACTIVITY_WARN_SECONDS = 60;
 

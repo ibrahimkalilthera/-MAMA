@@ -35,6 +35,7 @@ import {
 import type { PaymentMotif } from '../lib/paymentMotifs';
 import { academicYearOf } from '../lib/dateWindows';
 import { receiptNumberFor } from '../lib/receiptNumber';
+import { installmentTarget } from '../lib/paymentInstallments';
 import type { Student, Staff, Expense, Payment, User, Todo } from '../app/types';
 import type { TranslationDict } from '../i18n/translations';
 import type { CalendarEvent } from './mainViewsProps';
@@ -288,6 +289,19 @@ export function usePayments(deps: UsePaymentsDeps) {
 
     const amount = parseFloat(paymentAmount);
     const targetStudent = students.find(s => s.id === paymentStudentId);
+    // ── Le montant ATTENDU de ce geste ──────────────────────────────────
+    // Ce que les mois choisis représentent, moins les versements PARTIELS déjà
+    // reçus dessus (voir `src/lib/paymentInstallments.ts`). C'est ce nombre qui
+    // part en base : si le caissier encaisse moins, le reçu dira « versement
+    // partiel — reste X » et le mois restera OUVERT ; s'il encaisse ce reste, le
+    // mois se ferme et le reçu dit « solde — total réglé Y ».
+    //
+    // Rien n'est écrit quand le geste n'a pas de reste (inscription, mois non
+    // déclarés, élève sans frais) : `NULL` en base = comportement d'avant.
+    const installment = targetStudent && shownPaymentMonths.length > 0
+      ? installmentTarget(targetStudent, shownPaymentMonths)
+      : null;
+    const dueAmount = installment && installment.remaining > 0 ? installment.remaining : undefined;
     // L'id du GESTE : le même si l'envoi est répété → un seul reçu. Il est
     // minté AVANT le numéro, parce que le numéro en dérive — un reçu ne porte
     // donc plus un numéro tiré de l'horloge (dont les six chiffres se répétaient
@@ -308,6 +322,10 @@ export function usePayments(deps: UsePaymentsDeps) {
       // Le MOTIF part aussi : c'est lui que la ligne « Motif » du reçu imprime,
       // ici et dans six mois (`payments.motif`, migration 20261016000000).
       motif: paymentMotif,
+      // Le montant attendu du geste (`payments.due_amount`, migration
+      // 20261109000000) : c'est lui qui rend le versement partiel relisible —
+      // reçu réimprimé, et mois rouvert tant qu'il n'est pas soldé.
+      dueAmount,
     };
 
     paymentSubmittingRef.current = true;

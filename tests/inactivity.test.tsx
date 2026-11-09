@@ -1,9 +1,9 @@
 /**
- * Suite for `src/app/useInactivityLogout.ts` — la déconnexion après **45 minutes
+ * Suite for `src/app/useInactivityLogout.ts` — la déconnexion après **2 heures
  * d'inactivité**, la même fenêtre pour tous les comptes.
  *
  * Trois choses sont verrouillées ici, et chacune a été payée par une décision :
- *   1. **la durée est exactement 45 minutes**, et c'est l'INACTIVITÉ qui la
+ *   1. **la durée est exactement 2 heures** (120 minutes), et c'est l'INACTIVITÉ qui la
  *      remplit : n'importe quel geste (appui, touche, défilement, molette,
  *      souris) la relance ;
  *   2. **un rechargement (F5) n'est PAS un départ** : au déchargement, rien
@@ -39,9 +39,9 @@ function mount(signOut: () => Promise<void>, enabled = true) {
   return { ...render, ref };
 }
 
-describe('la fenêtre est de 45 minutes, la même pour tous les comptes', () => {
-  it('la constante est 45 — pas 30, pas un réglage lu quelque part', () => {
-    assert.equal(INACTIVITY_MINUTES, 45);
+describe('la fenêtre est de 2 heures, la même pour tous les comptes', () => {
+  it('la constante est 120 — pas 45, pas un réglage lu quelque part', () => {
+    assert.equal(INACTIVITY_MINUTES, 120);
     assert.equal(INACTIVITY_WARN_SECONDS, 60, 'le préavis laisse le temps de réagir');
   });
 });
@@ -49,7 +49,7 @@ describe('la fenêtre est de 45 minutes, la même pour tous les comptes', () => 
 describe('useInactivityLogout — l’inactivité ferme la session', () => {
   beforeEach(() => mock.timers.reset());
 
-  it('45 minutes sans le moindre geste → déconnecté, une fois', () => {
+  it('2 heures sans le moindre geste → déconnecté, une fois', () => {
     mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
     let calls = 0;
     const { ref, unmount } = mount(async () => {
@@ -131,22 +131,22 @@ describe('useInactivityLogout — l’inactivité ferme la session', () => {
       calls += 1;
     });
 
-    // 44 minutes d'immobilité, puis un geste de souris.
+    // 2 heures moins une minute d'immobilité, puis un geste de souris.
     act(() => {
-      mock.timers.tick(44 * MINUTE);
+      mock.timers.tick((INACTIVITY_MINUTES - 1) * MINUTE);
     });
     act(() => {
       win.dispatchEvent(new win.Event('mousemove'));
     });
-    // 44 minutes plus tard : sans la relance, la coupure serait tombée depuis
-    // longtemps (l'échéance d'origine était à 45 minutes du montage).
+    // 2 heures moins une minute plus tard : sans la relance, la coupure serait
+    // tombée depuis longtemps (l'échéance d'origine était à 2 heures du montage).
     act(() => {
-      mock.timers.tick(44 * MINUTE);
+      mock.timers.tick((INACTIVITY_MINUTES - 1) * MINUTE);
     });
     assert.equal(calls, 0, 'la souris a repoussé l’échéance');
     assert.equal(ref.current!.warningOpen, false, 'et aucun préavis n’est ouvert');
 
-    // Et sans nouveau geste, la fenêtre tient sa promesse : 45 minutes depuis
+    // Et sans nouveau geste, la fenêtre tient sa promesse : 2 heures depuis
     // le geste, plus le préavis écoulé.
     act(() => {
       mock.timers.tick(MINUTE);
@@ -154,7 +154,7 @@ describe('useInactivityLogout — l’inactivité ferme la session', () => {
     act(() => {
       mock.timers.tick(INACTIVITY_WARN_SECONDS * 1000);
     });
-    assert.equal(calls, 1, 'un geste ne vaut pas pour les 45 minutes suivantes');
+    assert.equal(calls, 1, 'un geste ne vaut pas pour les 2 heures suivantes');
     unmount();
   });
 

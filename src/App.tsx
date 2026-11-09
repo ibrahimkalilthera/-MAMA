@@ -156,7 +156,7 @@ const {
   };
   const [copied, setCopied] = useState(false);
 
-  // Déconnexion après 45 minutes d'inactivité — la même fenêtre pour tous les
+  // Déconnexion après 2 heures d'inactivité — la même fenêtre pour tous les
   // comptes (voir src/app/useInactivityLogout.ts). Rien n'est révoqué au
   // déchargement : un rechargement (F5) n'est donc pas un départ. Fermer
   // l'onglet ou l'application ferme toujours la session, parce que le stockage

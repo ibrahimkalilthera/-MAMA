@@ -6,6 +6,7 @@ import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
 import { academicYearMonths, monthsCoverage, paymentMonthLabel } from '../lib/paymentMonths';
+import { settledMonthDeclarations } from '../lib/paymentInstallments';
 import { PaymentLedger } from './PaymentLedger';
 import { PaymentMonthsBackfill } from './PaymentMonthsBackfill';
 import { studentMatricule } from '../lib/studentIdentifiers';
@@ -134,7 +135,11 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
   // `??`, parce qu'une chaîne VIDE est le cas courant des fiches anciennes, pas
   // une année. Aucune des deux : la bande disparaît, au lieu d'inventer.
   const yearMonths = academicYearMonths(selectedStudent.academicYear || selectedYear);
-  const coverage = monthsCoverage(selectedStudent.payments.map((p) => p.months), yearMonths);
+  // Les mois ne se ferment que sur un reçu SOLDÉ : un versement partiel les
+  // déclare sans les régler (voir `paymentInstallments`), donc il n'entre pas
+  // dans la couverture — sinon la bande afficherait « payé » sur un mois encore
+  // dû, et la famille entendrait qu'elle a fini de payer.
+  const coverage = monthsCoverage(settledMonthDeclarations(selectedStudent.payments), yearMonths);
   const coverageCount = t.monthsCoveredCount
     .replace('{covered}', String(coverage.covered.length))
     .replace('{total}', String(yearMonths.length));

@@ -79,6 +79,10 @@ export function mapPaymentRow(row: DbRow<'payments'>): Payment {
     receiptNumber: row.receipt_number ?? undefined,
     months: Array.isArray(row.months) && row.months.length > 0 ? row.months : undefined,
     motif: isPaymentMotif(row.motif) ? row.motif : undefined,
+    // Le montant ATTENDU du geste — `undefined` quand la colonne est NULL
+    // (« non déclaré »), ce qui rend au reçu son comportement d'avant. Un zéro
+    // est une valeur, pas une absence : il se relit tel quel.
+    dueAmount: row.due_amount === null || row.due_amount === undefined ? undefined : Number(row.due_amount),
   };
 }
 

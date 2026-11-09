@@ -176,6 +176,10 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
       // Le motif aussi — `null` quand il n'est pas déclaré (le CHECK de
       // `payments.motif` l'accepte, et le reçu lit « non renseigné »).
       motif: payment.motif ?? null,
+      // Le montant ATTENDU du geste voyage avec lui : un versement partiel
+      // rejoué sans lui reviendrait « soldé » et fermerait le mois que la
+      // famille n'a pas fini de payer. `null` = non déclaré.
+      due_amount: payment.dueAmount ?? null,
     });
     // `23505` : ce geste est DÉJÀ en base — la ligne existe, donc le déclencheur
     // a déjà recalculé la fiche. Rien d'autre à écrire : c'est ce qui rend le
