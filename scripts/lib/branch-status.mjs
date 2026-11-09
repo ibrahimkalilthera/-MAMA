@@ -103,7 +103,7 @@ export function classifyBranch({ tipInBase = false, pr = null, prUnknown = false
  * les porte mot pour mot. Les lignes trop courtes sont ignorées : `}`, un import
  * ou un `it(` se retrouvent partout et feraient un 100 % qui ne prouve rien.
  *
- * @param {{ git: (args: string[]) => string, base: string, ref: string }} input
+ * @param {{ git: (args: string[], options?: { quiet?: boolean }) => string, base: string, ref: string }} input
  * @returns {{ commits: number, sampled: number, present: number, ratio: number|null, missingFiles: string[] }}
  */
 export function contentCoverage({ git, base, ref }) {
@@ -117,7 +117,9 @@ export function contentCoverage({ git, base, ref }) {
   const baseFiles = new Map();
   const readFromBase = (path) => {
     try {
-      return git(['show', `${base}:${path}`]);
+      // `quiet` : git écrit « exists on disk, but not in <base> » sur stderr pour
+      // un fichier absent de la base. C'est la réponse cherchée, pas une panne.
+      return git(['show', `${base}:${path}`], { quiet: true });
     } catch {
       return null; // absent de la base : ce fichier n'a pas encore voyagé
     }

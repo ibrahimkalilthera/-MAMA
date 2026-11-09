@@ -56,8 +56,17 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
 }
 
 /** git, en échec BRUYANT : un `show` manqué ne doit pas devenir un fichier vide. */
-function git(args, { input } = {}) {
-  return execFileSync('git', args, { encoding: 'utf8', input, maxBuffer: 64 * 1024 * 1024 });
+function git(args, { input, quiet = false } = {}) {
+  return execFileSync('git', args, {
+    encoding: 'utf8',
+    input,
+    maxBuffer: 64 * 1024 * 1024,
+    // `show <base>:<chemin>` sur un fichier que la base n'a pas encore écrit
+    // un `fatal:` sur stderr. C'est une RÉPONSE (le fichier n'a pas voyagé),
+    // pas une panne : sans ça, le rapport s'ouvrait sur trois lignes d'alarme
+    // avant un tableau vert — exactement le bruit qui apprend à ignorer stderr.
+    stdio: ['pipe', 'pipe', quiet ? 'ignore' : 'inherit'],
+  });
 }
 
 const isAncestor = (ref) => {
