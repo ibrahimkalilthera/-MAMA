@@ -323,14 +323,14 @@ describe('PaymentEntryModal — les mois payés', () => {
     rangeTo: translations[lang].paidMonthsRangeTo,
   });
 
-  it('propose les douze mois de l’année scolaire, le mois de la date coché d’avance', () => {
+  it('propose les mois réglés de l’année scolaire, le mois de la date coché d’avance', () => {
     const h = mount('fr');
     try {
       assert.ok(h.container.querySelector('[data-slot="payment-months"]'), 'le champ des mois doit être présent');
       const chips = Array.from(h.container.querySelectorAll<HTMLButtonElement>('[data-month]'));
-      assert.equal(chips.length, 12, 'les douze mois de l’année scolaire');
+      assert.equal(chips.length, 10, 'les mois de la plage par défaut : septembre → juin');
       assert.equal(chips[0].textContent, 'Septembre', 'l’année scolaire commence en septembre');
-      assert.equal(chips[11].textContent, 'Août', 'et finit en août');
+      assert.equal(chips[9].textContent, 'Juin', 'et finit en juin, la plage de l’école');
       assert.equal(h.chip('2026-10').getAttribute('aria-pressed'), 'true', 'le mois de la date est coché');
       assert.equal(h.chip('2026-11').getAttribute('aria-pressed'), 'false');
       assert.equal(h.monthsLine()?.textContent, 'Octobre', 'la ligne annonce exactement ce que le reçu écrira');

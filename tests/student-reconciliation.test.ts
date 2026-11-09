@@ -58,7 +58,7 @@ describe('studentReconciliation — les mois réglés et les mois restants', () 
       ['REC-p1'],
       'le mois porte le reçu qui le déclare : la famille et l’école parlent du même papier',
     );
-    assert.equal(rec.due.length, 11, 'onze mois restent — aucun n’est déclaré par un reçu');
+    assert.equal(rec.due.length, 9, 'neuf mois restent sur dix — aucun n’est déclaré par un reçu');
     assert.equal(rec.undeclared, 0);
   });
 
@@ -74,7 +74,7 @@ describe('studentReconciliation — les mois réglés et les mois restants', () 
   it('ignore un mois d’une AUTRE année scolaire — il n’est ni réglé, ni dû ici', () => {
     const rec = studentReconciliation(student([receipt('p1', '2025-10-04', 50000, ['2025-10'])]), year);
     assert.deepEqual(rec.covered, [], 'octobre 2025 n’est pas octobre 2026');
-    assert.equal(rec.due.length, 12, 'et il ne retire aucun mois de l’année jugée');
+    assert.equal(rec.due.length, 10, 'et il ne retire aucun mois de l’année jugée (septembre → juin)');
   });
 });
 
@@ -83,7 +83,7 @@ describe('reconciliationDue — la phrase des mois dus, et sa réserve', () => {
     const rec = studentReconciliation(student([receipt('p1', '2026-09-04', 50000, ['2026-09', '2026-10'])]), year);
     const due = reconciliationDue(rec, words('fr'));
     assert.equal(due.reserved, false, 'aucun reçu muet : rien à réserver');
-    assert.equal(due.line, 'Encore dus : Novembre, Décembre, Janvier, Février, Mars, Avril, Mai, Juin, Juillet, Août.');
+    assert.equal(due.line, 'Encore dus : Novembre, Décembre, Janvier, Février, Mars, Avril, Mai, Juin.');
   });
 
   it('REFUSE la formule sèche dès qu’un reçu est muet — sa couverture est inconnue', () => {
@@ -101,7 +101,7 @@ describe('reconciliationDue — la phrase des mois dus, et sa réserve', () => {
     // c'est peut-être exactement le mois que le reçu muet a payé.
     assert.equal(
       due.line,
-      'Octobre, Novembre, Décembre, Janvier, Février, Mars, Avril, Mai, Juin, Juillet, Août — sous réserve : 1 reçu(s) ne déclarent aucun mois. Vérifiez les reçus de la famille avant toute relance.',
+      'Octobre, Novembre, Décembre, Janvier, Février, Mars, Avril, Mai, Juin — sous réserve : 1 reçu(s) ne déclarent aucun mois. Vérifiez les reçus de la famille avant toute relance.',
       'la phrase porte la réserve, ET le nombre de reçus à vérifier',
     );
     assert.notEqual(

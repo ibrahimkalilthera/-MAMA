@@ -115,6 +115,9 @@ const CASES: { type: OfflineActionType; build: () => QueueItem; table?: string; 
   // Le nom de l'école déclaré sans réseau : la même table que les préférences
   // d'affichage, mais une donnée d'ÉTABLISSEMENT — une ligne, pour tout le parc.
   { type: 'setSchoolName', build: () => itemOf('setSchoolName', { name: 'Complexe Scolaire Mama Thera' }), table: 'app_settings' },
+  // La PLAGE de scolarité réglée sans réseau : les deux bornes de la ligne
+  // d'année, écrites comme le formulaire des Paramètres les écrit en ligne.
+  { type: 'setYearMonths', build: () => itemOf('setYearMonths', { year: '2026-2027', startMonth: 10, endMonth: 6 }), table: 'academic_years' },
 ];
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -132,7 +135,7 @@ describe('offline queue replay (replayOfflineItem)', () => {
       'addTodo', 'updateTodo', 'deleteTodo',
       'addClass', 'updateClass', 'deleteClass',
       'addNote', 'deleteNote', 'setCurrentYear', 'addAuditLog',
-      'updateUserRole', 'setDisplayPreference', 'setSchoolName',
+      'updateUserRole', 'setDisplayPreference', 'setSchoolName', 'setYearMonths',
     ];
     assert.equal(CASES.length, all.length, 'expected one test case per action type');
     assert.deepEqual(
@@ -725,6 +728,9 @@ describe('offline replay audit mapping (offlineAuditInfo)', () => {
     // Le nom de l'école l'est aussi — un fait d'établissement se journalise
     // quand il change, qu'il ait attendu la ligne ou non.
     'setSchoolName',
+    // La plage de scolarité change ce que les reçus réclament : elle est auditée
+    // en ligne (`UPDATE_SETTING`, voir dataOps/academicYears.ts).
+    'setYearMonths',
   ];
   // Not audited online → replay stays silent: tâches, classes, notes, année.
   // `addAuditLog` en fait partie pour une autre raison : c'est l'entrée de

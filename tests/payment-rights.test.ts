@@ -45,6 +45,7 @@ import { listFiles, maskComments } from '../scripts/lib/source-text.mjs';
 import { blankComments } from '../scripts/lib/schema-expected.mjs';
 import type { Payment, Student } from '../src/lib/useSupabaseData';
 import type { CurrentTheme } from '../src/app/mainViewsProps';
+import { academicYearMonths } from '../src/lib/paymentMonths';
 import { installDomGlobals } from './harness';
 
 const t = translations.fr;
@@ -369,7 +370,10 @@ function mount(opts: { canDelete: boolean; canDeletePayment: boolean; canEditPay
     formatDate: (d: string) => d, formatCurrency: (n: number) => `${n} FCFA`,
     getGradeDisplay: (g: string | undefined) => g ?? '', generatePaymentReceiptPdf: async () => {},
     currentUser: { name: 'Admin', role: 'admin' }, copyToClipboard: () => {}, handleSaveNote: async () => {},
-    studentDetailTab: 'general', setStudentDetailTab: () => {}, selectedYear: '2026-2027', overlayRef: () => {},
+    studentDetailTab: 'general', setStudentDetailTab: () => {}, selectedYear: '2026-2027',
+    // La plage par défaut de l'app (septembre → juin) : ces cas mesurent les
+    // DROITS, pas les mois, et la fiche doit simplement trouver sa bande.
+    yearMonths: academicYearMonths, overlayRef: () => {},
     onClose: () => {}, onEdit: () => {}, onPrint: () => {}, onDeleteRequest: () => {},
     canDelete: opts.canDelete, canDeletePayment: opts.canDeletePayment,
     onDeletePayment: async () => true,

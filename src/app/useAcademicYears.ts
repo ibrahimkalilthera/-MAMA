@@ -37,7 +37,7 @@ export function useAcademicYears({ isAdmin = false }: { isAdmin?: boolean } = {}
   /** Le setter reste exposé : fermer une année ajoute la suivante à la liste. */
   setAcademicYears: Dispatch<SetStateAction<string[]>>;
 } {
-  const { setSelectedYear } = useYear();
+  const { setSelectedYear, setYearRows } = useYear();
   const [academicYears, setAcademicYears] = useState<string[]>(FALLBACK_ACADEMIC_YEARS);
   const [workingYear, setWorkingYear] = useState('');
 
@@ -46,6 +46,10 @@ export function useAcademicYears({ isAdmin = false }: { isAdmin?: boolean } = {}
     void (async () => {
       const rows = await fetchAcademicYears();
       if (cancelled) return;
+      // Les BORNES de scolarité de chaque année partent avec la liste : la
+      // lecture qui fixe l'année de travail est la même qui décide des mois
+      // qu'un reçu réclame (voir `yearMonths`, `src/app/yearContext.ts`).
+      setYearRows(rows ?? []);
       // `rows ?? []` : une base injoignable et une base sans années se lisent
       // pareil pour la règle (« on ne sait pas »), et c'est voulu — un échec
       // réseau ne doit pas valoir « l'école n'a aucune année ».
@@ -57,7 +61,7 @@ export function useAcademicYears({ isAdmin = false }: { isAdmin?: boolean } = {}
     return () => {
       cancelled = true;
     };
-  }, [setSelectedYear]);
+  }, [setSelectedYear, setYearRows]);
 
   useEffect(() => {
     if (!workingYear || !isAdmin) return;

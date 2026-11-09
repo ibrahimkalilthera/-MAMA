@@ -82,6 +82,7 @@ const STACK_FIXTURE = (preferenceSlots: string[]): Record<string, string> => ({
   'SettingsHelpCard.tsx': sectionSource(['settings-first-steps']),
   'SettingsPreferencesCard.tsx': sectionSource(preferenceSlots),
   'SettingsSchoolCard.tsx': sectionSource(['settings-school-name']),
+  'SettingsYearMonthsCard.tsx': sectionSource(['settings-year-months']),
   'SettingsBackupCard.tsx': sectionSource(['settings-backup']),
   'SettingsDiagnosticsCard.tsx': sectionSource(['settings-diagnostics']),
   'SettingsClassesCard.tsx': sectionSource(['settings-classes']),
@@ -106,6 +107,7 @@ const IMPORTS = [
   "import { SettingsHelpCard } from './SettingsHelpCard';",
   "import { SettingsPreferencesCard } from './SettingsPreferencesCard';",
   "import { SettingsSchoolCard } from './SettingsSchoolCard';",
+  "import { SettingsYearMonthsCard } from './SettingsYearMonthsCard';",
   "import { SettingsBackupCard } from './SettingsBackupCard';",
   "import { SettingsDiagnosticsCard } from './SettingsDiagnosticsCard';",
   "import { SettingsClassesCard } from './SettingsClassesCard';",
@@ -117,6 +119,7 @@ const RENDERS = [
   '        <SettingsHelpCard />',
   '        <SettingsPreferencesCard />',
   '        <SettingsSchoolCard />',
+  '        <SettingsYearMonthsCard />',
   '        <SettingsBackupCard />',
   '        <SettingsDiagnosticsCard />',
   '        <SettingsClassesCard />',
@@ -131,7 +134,7 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
   it('le fichier réel est conforme', () => {
     const result = runGuard(join(root, 'src/components/SettingsView.tsx'));
     assert.equal(result.status, 0, `le garde doit passer sur la vraie coquille : ${result.stderr}`);
-    assert.match(result.stdout, /importe et rend les 8 sections dans l’ordre/);
+    assert.match(result.stdout, /importe et rend les 9 sections dans l’ordre/);
   });
 
   it('une fixture conforme passe (la règle est bien celle-là)', () => {
@@ -197,11 +200,11 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
     assert.match(result.stderr, /Rien à vérifier/);
   });
 
-  it('la pile conforme (six blocs de préférences, le nom de l’école, puis quatre sections) passe', () => {
+  it('la pile conforme (six blocs de préférences, le nom de l’école, les mois, puis quatre sections) passe', () => {
     withFixture(STACK_FIXTURE(PREFERENCE_SLOTS), (dir) => {
       const result = runGuard(join(dir, 'SettingsView.tsx'), dir);
       assert.equal(result.status, 0, `une pile conforme doit être verte : ${result.stderr}`);
-      assert.match(result.stdout, /la pile porte ses 12 enfants/);
+      assert.match(result.stdout, /la pile porte ses 13 enfants/);
     });
   });
 
@@ -210,7 +213,7 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
     withFixture(withExtra, (dir) => {
       const result = runGuard(join(dir, 'SettingsView.tsx'), dir);
       assert.equal(result.status, 1, 'changer la structure sans la table doit échouer');
-      assert.match(result.stderr, /la pile doit porter 12 enfants/);
+      assert.match(result.stderr, /la pile doit porter 13 enfants/);
       assert.match(result.stderr, /SANS que la table/);
       assert.match(result.stderr, /settings-extra-block/);
     });
@@ -221,7 +224,7 @@ describe('settings-composition gate — la coquille importe et rend les cinq sec
     withFixture(withFewer, (dir) => {
       const result = runGuard(join(dir, 'SettingsView.tsx'), dir);
       assert.equal(result.status, 1);
-      assert.match(result.stderr, /la pile doit porter 12 enfants/);
+      assert.match(result.stderr, /la pile doit porter 13 enfants/);
     });
   });
 

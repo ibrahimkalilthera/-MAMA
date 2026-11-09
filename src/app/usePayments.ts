@@ -44,6 +44,13 @@ interface UsePaymentsDeps {
   t: TranslationDict;
   lang: 'en' | 'fr';
   selectedYear: string;
+  /**
+   * Les mois d'une année scolaire selon les bornes réglées par l'école. Le
+   * formulaire de saisie les demande pour l'année de la DATE du reçu (une
+   * correction d'octobre se fait dans l'année d'octobre), jamais pour l'année
+   * simplement affichée à l'écran.
+   */
+  yearMonths: (year?: string) => string[];
   lockedYears: string[];
   students: Student[];
   staff: Staff[];
@@ -57,7 +64,7 @@ interface UsePaymentsDeps {
 }
 
 export function usePayments(deps: UsePaymentsDeps) {
-  const { t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser, addPayment, toastError } = deps;
+  const { t, lang, selectedYear, yearMonths, lockedYears, students, staff, expenses, todos, currentUser, addPayment, toastError } = deps;
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<Date | null>(null);
@@ -180,9 +187,12 @@ export function usePayments(deps: UsePaymentsDeps) {
     return true;
   };
 
+  // Les mois proposés sont ceux de l'année de la DATE du reçu, avec les bornes
+  // que l'école a réglées pour cette année-là (`yearMonths`) : proposer douze
+  // mois à une école qui s'arrête en juin faisait réclamer juillet et août.
   const paymentMonthOptions = useMemo(
-    () => academicYearMonths(academicYearOf(paymentDate)),
-    [paymentDate],
+    () => yearMonths(academicYearOf(paymentDate)),
+    [paymentDate, yearMonths],
   );
 
   // Le mois de la date, lu DANS LA CHAÎNE : `2026-10-04` → `2026-10`. Aucune

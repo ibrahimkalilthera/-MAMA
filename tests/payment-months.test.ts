@@ -50,14 +50,45 @@ function deps(t: TranslationDict) {
   };
 }
 
-describe('academicYearMonths — les douze mois d’une année scolaire', () => {
-  it('part de septembre et finit en août, sur deux années civiles', () => {
+describe('academicYearMonths — les mois d’une année scolaire, de son début à sa fin', () => {
+  it('sans plage réglée, va de septembre à juin — le défaut de l’école', () => {
+    // Le défaut n'est plus « douze mois » : une année malienne s'arrête le plus
+    // souvent en juin, et réclamer juillet et août à une famille était un faux
+    // impayé. La base porte le MÊME défaut (9 → 6).
     const months = academicYearMonths('2026-2027');
-    assert.equal(months.length, 12, 'douze mois, pas onze');
+    assert.equal(months.length, 10, 'dix mois, pas douze');
     assert.equal(months[0], '2026-09', 'l’année scolaire commence en septembre');
-    assert.equal(months[11], '2027-08', 'et finit en août de l’année suivante');
+    assert.equal(months[months.length - 1], '2027-06', 'et finit en juin de l’année suivante');
     assert.ok(months.includes('2027-01'), 'janvier porte l’année civile suivante');
-    assert.equal(new Set(months).size, 12, 'aucun mois en double');
+    assert.equal(new Set(months).size, 10, 'aucun mois en double');
+  });
+
+  it('une année qui va jusqu’en AOÛT le DIT, et retrouve ses douze mois', () => {
+    const months = academicYearMonths('2026-2027', { startMonth: 9, endMonth: 8 });
+    assert.equal(months.length, 12, 'douze mois seulement sur demande expresse');
+    assert.equal(months[months.length - 1], '2027-08');
+  });
+
+  it('accepte une rentrée en OCTOBRE (octobre → juin, huit mois)', () => {
+    const months = academicYearMonths('2026-2027', { startMonth: 10, endMonth: 6 });
+    assert.deepEqual(
+      months,
+      ['2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03', '2027-04', '2027-05', '2027-06'],
+      'la plage traverse décembre → janvier sans perdre un mois',
+    );
+  });
+
+  it('accepte une année jusqu’en JUILLET (septembre → juillet, onze mois)', () => {
+    const months = academicYearMonths('2026-2027', { startMonth: 9, endMonth: 7 });
+    assert.equal(months.length, 11);
+    assert.equal(months[months.length - 1], '2027-07');
+  });
+
+  it('ne dépasse jamais douze mois, même sur une plage aberrante', () => {
+    // Même mois des deux côtés : un seul mois nommé, jamais une boucle infinie.
+    assert.deepEqual(academicYearMonths('2026-2027', { startMonth: 9, endMonth: 9 }), ['2026-09']);
+    // Un mois hors 1..12 est ignoré au profit du défaut, comme le fait la base.
+    assert.equal(academicYearMonths('2026-2027', { startMonth: 0, endMonth: 13 }).length, 10);
   });
 
   it('accepte un séparateur « / » comme `academicYearWindow`', () => {
@@ -226,15 +257,15 @@ describe('monthKeyOf / paymentMonthLabel — le libellé vient du dictionnaire',
 });
 
 describe('monthsCoverage — ce qu’une fiche peut AFFIRMER des mois d’un élève', () => {
-  const year = academicYearMonths('2026-2027'); // 2026-09 … 2027-08
+  const year = academicYearMonths('2026-2027'); // 2026-09 … 2027-06 (défaut)
 
   it('sépare les mois déclarés des mois qui restent, dans l’ordre du calendrier', () => {
     const c = monthsCoverage([['2026-12', '2026-09', '2026-11']], year);
     assert.deepEqual(c.covered, ['2026-09', '2026-11', '2026-12'], 'l’ordre des clics ne se voit pas sur la fiche');
-    assert.equal(c.missing.length, 9, 'douze mois moins les trois réglés');
+    assert.equal(c.missing.length, 7, 'dix mois moins les trois réglés');
     assert.ok(c.missing.includes('2026-10'), 'le mois absent du geste est bien celui qui reste');
     assert.equal(c.missing[0], '2026-10', 'et les restants gardent aussi l’ordre de l’année');
-    assert.equal(c.missing[c.missing.length - 1], '2027-08', 'la liste va jusqu’à août');
+    assert.equal(c.missing[c.missing.length - 1], '2027-06', 'la liste va jusqu’à juin — le dernier mois réglé');
     assert.equal(c.undeclared, 0);
   });
 
@@ -265,7 +296,7 @@ describe('monthsCoverage — ce qu’une fiche peut AFFIRMER des mois d’un él
     assert.equal(c.undeclared, 0, 'un paiement qui déclare ses mois n’est pas muet, même sans année');
   });
 
-  it('rend une année ENTIÈREMENT couverte quand les douze mois sont déclarés', () => {
+  it('rend une année ENTIÈREMENT couverte quand tous ses mois sont déclarés', () => {
     const c = monthsCoverage([year, ['2026-10']], year);
     assert.deepEqual(c.covered, year);
     assert.deepEqual(c.missing, []);
@@ -302,7 +333,7 @@ describe('monthsNotYetPaid — les mois que le guichet ne peut plus proposer', (
 });
 
 describe('paymentMonthHistory — la PREUVE qui accompagne un mois déjà réglé', () => {
-  const year = academicYearMonths('2026-2027'); // 2026-09 … 2027-08
+  const year = academicYearMonths('2026-2027'); // 2026-09 … 2027-06
 
   it('attache à chaque mois couvert le reçu qui le déclare — numéro, date, montant', () => {
     const h = paymentMonthHistory([

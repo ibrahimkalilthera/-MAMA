@@ -411,7 +411,7 @@ describe('mode recu-muet — ce que le geste juge à l’écran', () => {
     assert.match(backfill, /<PaymentMonthsEditor/, 'le parcours réutilise l’éditeur, il n’en invente pas un second');
     // Et la fiche le monte SOUS le même droit que le geste direct : sans droit
     // d'écriture, il n'y a pas de parcours à offrir (la phrase, elle, reste).
-    assert.match(modal, /canEditPaymentMonths && yearMonths\.length > 0 && silentPayments\.length > 0/,
+    assert.match(modal, /canEditPaymentMonths && yearMonthsOfStudent\.length > 0 && silentPayments\.length > 0/,
       'le parcours est monté sous le droit d’écriture et seulement s’il reste des muets');
     assert.match(modal, /editorHost === 'backfill' \? editingMonthsPaymentId : null/,
       'et il n’héberge l’éditeur que quand c’est lui qui l’a ouvert');

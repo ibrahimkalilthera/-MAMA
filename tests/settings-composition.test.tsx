@@ -136,7 +136,7 @@ describe('SettingsView — la composition est verrouillée', () => {
       assert.equal(
         kids.length,
         SETTINGS_STACK_SLOTS.length,
-        `la pile doit porter ${SETTINGS_STACK_SLOTS.length} enfants : les six blocs de préférences, le nom de l’école, puis sauvegarde, état du poste, classes et comptes`,
+        `la pile doit porter ${SETTINGS_STACK_SLOTS.length} enfants : les six blocs de préférences, le nom de l’école, les mois de l’année, puis sauvegarde, état du poste, classes et comptes`,
       );
 
       const slots = kids.map((kid) => kid.getAttribute('data-slot'));

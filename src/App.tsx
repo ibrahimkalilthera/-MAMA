@@ -29,6 +29,7 @@ import { useYear } from './app/yearContext';
 import { useNotificationDismissal } from './app/useNotificationDismissal';
 import { useAuditArchiveReminder } from './app/useAuditArchiveReminder';
 import { useYearOps } from './app/useYearOps';
+import { useYearMonthsSave } from './app/useYearMonthsSave';
 import { buildShellProps } from './app/viewsWiring';
 import { OPERATION_LABELS } from './app/operationLabels';
 import { useNotificationAlerts } from './app/useNotificationAlerts';
@@ -191,6 +192,7 @@ const {
   // Academic-year state (selected/locked) — owned by the YearProvider, read
   // here through the context and passed down to the domain hooks as deps.
   const yearData = useYear();
+  const yearMonthsSave = useYearMonthsSave();
 const { selectedYear, setSelectedYear, lockedYears, setLockedYears } = yearData;
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditYear, setAuditYear] = useState<string | null>(null);
@@ -481,7 +483,7 @@ const {
   } = parentsData;
 
 const paymentsData = usePayments({
-  t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser,
+  t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser, yearMonths: yearData.yearMonths,
   addPayment,
   toastError: (msg) => toast.error(msg),
 });
@@ -632,6 +634,7 @@ const {
     ...payrollData,
     ...classesData,
     ...yearData,
+    ...yearMonthsSave,
     // La cloche lit la liste FUSIONNÉE (tableau de bord + rappel d'archive) : `...dashboardData` n'apporte que la première, et sans cette ligne le rappel n'atteignait que le marquage lu et le carillon — jamais l'écran.
     notifications: allNotifications,
     supabaseLoading: supabaseData.loading,

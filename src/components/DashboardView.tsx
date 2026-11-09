@@ -3,11 +3,10 @@ import { AnimatePresence, motion } from 'motion/react';
 import { CalendarClock } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
 import type { TranslationDict } from '../i18n/translations';
-import { academicYearMonths } from '../lib/paymentMonths';
 import { silentReceiptRows, silentReceiptsCatchUp } from '../lib/silentReceipts';
 
 export function DashboardView() {
-  const { AlertCircle, Calendar, ChartsFallback, CheckCircle2, ChevronRight, Clock, Coins, DashboardCharts, GraduationCap, PieChart, Suspense, TrendingDown, TrendingUp, Wallet, chartData, currentTheme, formatCurrency, formatDate, lateStudents, payrollWindowStatus, pieData, selectedYear, setActiveTab, setSelectedStudent, stats, students, t, theme, today } = useMainViews();
+  const { AlertCircle, Calendar, ChartsFallback, CheckCircle2, ChevronRight, Clock, Coins, DashboardCharts, GraduationCap, PieChart, Suspense, TrendingDown, TrendingUp, Wallet, chartData, currentTheme, formatCurrency, formatDate, lateStudents, payrollWindowStatus, pieData, selectedYear, setActiveTab, setSelectedStudent, stats, students, t, theme, today, yearMonths } = useMainViews();
   /**
    * Le rattrapage des reçus muets, publié sur le tableau de bord.
    *
@@ -18,10 +17,13 @@ export function DashboardView() {
    * dans ce cas la carte disparaît, plutôt que d'annoncer « aucun reçu muet » là
    * où l'application ne sait pas de quelle année elle parle.
    */
-  const yearMonths = academicYearMonths(selectedYear);
+  // Les mois de l'année AFFICHÉE, avec les bornes réglées par l'école : c'est
+  // cette plage que la carte des reçus muets annonce et que les lignes comptent
+  // (`yearMonths` vient du contexte d'année, voir `src/app/yearContext.ts`).
+  const yearMonthsOfYear = useMemo(() => yearMonths(selectedYear), [yearMonths, selectedYear]);
   const catchUp = useMemo(
-    () => silentReceiptsCatchUp(silentReceiptRows(students, selectedYear), today),
-    [students, selectedYear, today],
+    () => silentReceiptsCatchUp(silentReceiptRows(students, selectedYear, yearMonthsOfYear), today),
+    [students, selectedYear, today, yearMonthsOfYear],
   );
   return (
           <div className="space-y-12">
@@ -67,7 +69,7 @@ export function DashboardView() {
             })()}
 
             {/* --- Rattrapage des reçus muets : le chiffre de l'école, et depuis quand --- */}
-            {yearMonths.length > 0 && (
+            {yearMonthsOfYear.length > 0 && (
               <div
                 data-slot="dashboard-silent-receipts"
                 data-receipts={catchUp.receipts}
