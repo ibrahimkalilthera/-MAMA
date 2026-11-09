@@ -100,6 +100,96 @@ describe('le plancher typographique — ce que le garde refuse', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('un `!important` ne cache plus la taille : 10 px derrière lui rougit (le trou mesuré dans index.css)', () => {
+    // Mesuré le 2026-11-09 : `th, td { font-size: 10px !important; }` (bloc
+    // `@media print`) passait sous le garde, parce que le motif s'arrêtait au
+    // nombre et laissait ` !important` derrière lui — `toPx` ne savait pas le
+    // lire et rendait `null`, c'est-à-dire « pas une taille ».
+    const dir = fixture({
+      'index.css': CSS_CLEAN + '@media print {\n  th, td { font-size: 10px !important; }\n}\n',
+      'A.tsx': TSX_CLEAN,
+    });
+    try {
+      const run = runGuard(dir);
+      assert.equal(run.status, 1, `attendu un échec, obtenu ${run.status}`);
+      assert.match(run.stderr, /font-size: 10px/);
+      // CSS_CLEAN fait 7 lignes ; le bloc imprimé commence donc ligne 8 et la
+      // déclaration fautive est ligne 9 — la ligne est nommée, pas approchée.
+      assert.match(run.stderr, /index\.css:9/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('une taille RELATIVE (em, %) rougit : sa base est calculée, donc invisible ici', () => {
+    // Ce n'est pas une valeur « trop petite » : c'est une valeur que le plancher
+    // ne SAIT pas mesurer. On refuse au lieu de supposer un parent à 16 px —
+    // la même asymétrie que partout ailleurs dans ce dépôt.
+    const dir = fixture({
+      'index.css': CSS_CLEAN + '.a { font-size: 0.8em; }\n.b { font-size: 80%; }\n',
+      'A.tsx': 'export const A = () => <span style={{ fontSize: \'0.7em\' }}>a</span>;\n',
+    });
+    try {
+      const run = runGuard(dir);
+      assert.equal(run.status, 1, `attendu un échec, obtenu ${run.status}`);
+      assert.match(run.stderr, /font-size: 0\.8em/);
+      assert.match(run.stderr, /font-size: 80%/);
+      assert.match(run.stderr, /fontSize: '0\.7em'/);
+      assert.match(run.stderr, /RELATIVE/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('un `var()` est RÉSOLU et jugé, au lieu d’être laissé de côté', () => {
+    const dir = fixture({
+      // Deux jetons : `--text-2xs` est une MARCHE (12 px, saint), `--space` vaut
+      // 10 px et n'est pas une taille de texte — il peut être une gouttière. Un
+      // jeton n'est donc jugé qu'à l'endroit où il sert de `font-size`, et c'est
+      // cette consommation-là qui rougit.
+      'index.css': ':root {\n  --text-2xs: 0.75rem;\n  --space: 10px;\n}\n.ok { font-size: var(--text-2xs); }\n.bad { font-size: var(--space); }\n',
+      'A.tsx': TSX_CLEAN,
+    });
+    try {
+      const run = runGuard(dir);
+      assert.equal(run.status, 1, `attendu un échec, obtenu ${run.status}`);
+      assert.match(run.stderr, /font-size: var\(--space\)/);
+      assert.match(run.stderr, /10 px sous le plancher/);
+      assert.equal(/font-size: var\(--text-2xs\)/.test(run.stderr), false, 'la marche saine ne doit pas être accusée');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('un `var()` qui ne se résout nulle part rougit — un plancher qui n’a rien mesuré n’est pas un vert', () => {
+    const dir = fixture({
+      'index.css': CSS_CLEAN + '.x { font-size: var(--absente); }\n',
+      'A.tsx': TSX_CLEAN,
+    });
+    try {
+      const run = runGuard(dir);
+      assert.equal(run.status, 1);
+      assert.match(run.stderr, /var\(--absente\)/);
+      assert.match(run.stderr, /ne se résout nulle part/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('le MINIMUM d’un `clamp()` est jugé : c’est la valeur que la taille ne franchira jamais par le bas', () => {
+    const dir = fixture({
+      'index.css': CSS_CLEAN + '.a { font-size: clamp(10px, 1.5vw, 1.5rem); }\n',
+      'A.tsx': TSX_CLEAN,
+    });
+    try {
+      const run = runGuard(dir);
+      assert.equal(run.status, 1);
+      assert.match(run.stderr, /clamp\(10px/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('le plancher typographique — ce qu’il laisse passer', () => {
@@ -107,6 +197,19 @@ describe('le plancher typographique — ce qu’il laisse passer', () => {
     const dir = fixture({
       'index.css': ':root {\n  --text-3xs: 0.75rem;\n  --text-sm: 0.875rem;\n  --text-lg: 14px;\n}\n.t { font-size: 9pt; }\n',
       'A.tsx': 'export const A = () => <span className="text-2xs text-[13px]" style={{ fontSize: 12 }}>ok</span>;\n',
+    });
+    try {
+      const run = runGuard(dir);
+      assert.equal(run.status, 0, run.stderr);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('ce qui reste jugeable passe : `var()` résolu, `clamp()` dont le minimum tient, `!important` au-dessus du plancher', () => {
+    const dir = fixture({
+      'index.css': ':root {\n  --text-2xs: 0.75rem;\n  --copy: var(--text-2xs);\n}\n.ok { font-size: var(--copy); }\n.clamp { font-size: clamp(1.125rem, 1.5vw, 1.5rem); }\n.force { font-size: 12px !important; }\n',
+      'A.tsx': TSX_CLEAN,
     });
     try {
       const run = runGuard(dir);

@@ -133,13 +133,15 @@ export const GUARD_INVENTORY = [
     check: 'check-min-type-size.mjs',
     input: 'source',
     needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
-    // La taille vit dans un LITTÉRAL (`text-[10px]`, `fontSize: 9`) ou dans la
-    // valeur d'un jeton : blanchir les littéraux effacerait la donnée même que
-    // le contrôle mesure. Seuls les commentaires sont masqués, pour qu'un
-    // en-tête qui CITE « 11px » ne soit pas accusé. Sa vacuité est DOUBLE et
-    // écrite : `assertScanned` quand aucun fichier n'est lu, ET une sortie 2
-    // quand plus aucun jeton `--text-*` n'est lu — un motif disparu n'est pas
-    // un vert.
+    // La taille vit dans un LITTÉRAL (`text-[10px]`, `fontSize: 9`, `10px
+    // !important`) ou dans la valeur d'un jeton : blanchir les littéraux
+    // effacerait la donnée même que le contrôle mesure. Seuls les commentaires
+    // sont masqués, pour qu'un en-tête qui CITE « 11px » ne soit pas accusé.
+    // Sa vacuité est DOUBLE et écrite : `assertScanned` quand aucun fichier
+    // n'est lu, ET une sortie 2 quand plus aucun jeton `--text-*` n'est lu — un
+    // motif disparu n'est pas un vert. Deux cas sont refusés faute d'être
+    // MESURABLES plutôt que mesurés trop petits (`em`, `%`, `var()` qui ne se
+    // résout pas) : c'est un refus nommé, pas une supposition sur le parent.
     literals: 'kept',
   },
   { check: 'check-test-harness.mjs', input: 'tests', needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND] },

@@ -266,6 +266,53 @@ describe('ce que l’app ANNONCE', () => {
     container.remove();
   });
 
+  it('le tri de la Paie suit le NOM affiché, jamais l’identifiant', () => {
+    // Le registre n'affiche que le nom : trier sur `staffId` rangerait
+    // l'historique dans un ordre qu'aucune colonne ne montre, et l'en-tête
+    // « Nom » mentirait. Les identifiants sont donc l'INVERSE des noms, et
+    // l'ordre reçu aussi : un tri par identifiant rendrait exactement l'ordre
+    // de départ, ce que ce cas refuse.
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const props = makeProps({
+      staff: [
+        { id: 'z', name: 'Awa', position: 'Teacher', salary: 1000, email: '', phone: '', bankDetails: '', emergencyContact: '' },
+        { id: 'a', name: 'Zara', position: 'Teacher', salary: 1000, email: '', phone: '', bankDetails: '', emergencyContact: '' },
+      ] as never,
+      salaryPayments: [
+        { id: 'p2', staffId: 'a', amount: 200, date: '2026-01-11' },
+        { id: 'p1', staffId: 'z', amount: 100, date: '2026-01-10' },
+      ] as never,
+    });
+    act(() => {
+      root.render(h(MainViewsContext.Provider, { value: props }, h(PayrollView)));
+    });
+
+    const table = Array.from(container.querySelectorAll('table')).find((tb) => tb.querySelector('th[aria-sort]'));
+    assert.ok(table, 'le registre triable est rendu');
+    const firstRow = () => table!.querySelectorAll('tbody tr')[0]?.textContent ?? '';
+    assert.match(firstRow(), /Zara/, 'ordre reçu : rien n’est trié tant que personne n’a cliqué');
+
+    const nameHeader = Array.from(table!.querySelectorAll('th[aria-sort]')).find((th) =>
+      (th.textContent ?? '').includes(en.staffName)
+    );
+    assert.ok(nameHeader, 'l’en-tête du nom est rendu');
+    const nameButton = nameHeader!.querySelector('button');
+    assert.ok(nameButton, 'et il porte un bouton');
+
+    act(() => { nameButton!.click(); });
+    assert.equal(nameHeader!.getAttribute('aria-sort'), 'ascending');
+    assert.match(firstRow(), /Awa/, 'le nom le plus petit d’abord — donc Awa (id « z »), pas Zara (id « a »)');
+
+    act(() => { nameButton!.click(); });
+    assert.equal(nameHeader!.getAttribute('aria-sort'), 'descending');
+    assert.match(firstRow(), /Zara/, 'et l’inverse suit les noms, pas les identifiants');
+
+    act(() => { root.unmount(); });
+    container.remove();
+  });
+
   it('le sélecteur de tri des Parents dit son état ACTIF, pas seulement par la couleur', () => {
     const parent = {
       id: 'p1', fullName: 'Awa Diop', phones: ['+221770000000'], address: 'Dakar',
