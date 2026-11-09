@@ -26,6 +26,7 @@ import { NotesView } from '../src/components/NotesView';
 import { AuditView } from '../src/components/AuditView';
 import { PaymentHistoryView } from '../src/components/PaymentHistoryView';
 import { SilentReceiptsView } from '../src/components/SilentReceiptsView';
+import { InstallmentsView } from '../src/components/InstallmentsView';
 import { blockedAuditEntry } from '../src/lib/desktopUpdateReport';
 import { SettingsView } from '../src/components/SettingsView';
 
@@ -65,6 +66,7 @@ describe('views render inside MainViewsContext', () => {
     { name: 'NotesView', node: createElement(NotesView), expectedText: 'notes' },
     { name: 'AuditView', node: createElement(AuditView), expectedText: 'refreshLogs' },
     { name: 'PaymentHistoryView', node: createElement(PaymentHistoryView), expectedText: 'paymentHistory', props: { auth: authWithRole('admin') } },
+    { name: 'InstallmentsView', node: createElement(InstallmentsView), expectedText: 'installmentsTitle' },
     { name: 'SilentReceiptsView', node: createElement(SilentReceiptsView), expectedText: 'silentReceiptsTitle' },
     { name: 'SettingsView', node: createElement(SettingsView), expectedText: 'systemLanguage' },
   ];

@@ -59,7 +59,7 @@ const MainViews = lazy(() => import('./MainViews').then(m => ({ default: m.MainV
 
 export type ActiveTab =
   | 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses'
-  | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory';
+  | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'installments' | 'audit' | 'paymentHistory';
 
 type ConfirmAction = { title: string; message: string; confirmLabel: string; onConfirm: () => void };
 
