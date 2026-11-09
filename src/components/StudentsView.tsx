@@ -251,12 +251,17 @@ export function StudentsView() {
                                 que la carte mobile portait déjà un `<button>`. Le nom
                                 et l'avatar sont donc UN bouton, et les pastilles
                                 restent à côté — hors du bouton, parce qu'elles en
-                                contiennent un (la revue des doublons). */}
+                                contiennent un (la revue des doublons).
+                                Le marqueur `data-slot` est ce que l'audit de
+                                contraste clique : il cherchait `div.cursor-pointer`
+                                et a perdu le déclencheur le jour où le div est
+                                devenu un bouton. */}
                             <div className="flex min-w-0 flex-col">
                               <button
                                 type="button"
                                 onClick={() => setSelectedStudent(student)}
                                 className="flex items-center gap-4 text-left"
+                                data-slot="student-fiche-trigger"
                               >
                                 <span className={`w-10 h-10 rounded-xl ${currentTheme.surfaceInset} ${currentTheme.inkStrong} font-bold text-xs ${currentTheme.accentGroupHover} transition-all flex items-center justify-center`}>
                                   {student.name.split(' ').map(n => n[0]).join('')}

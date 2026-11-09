@@ -176,7 +176,14 @@ describe('audit-fixtures — année scolaire', () => {
       /catch\s*\{[\s\S]{0,120}return null/,
       'cette surface est une couverture requise : plus de sortie silencieuse quand les données manquent',
     );
-    assert.match(step, /div\.cursor-pointer/, 'le déclencheur (cellule nom/avatar) doit rester explicite');
+    // Le déclencheur est nommé par son `data-slot`, pas par une classe de style :
+    // il était `div.cursor-pointer` et l'audit a perdu l'étape dans les six
+    // thèmes le jour où ce div est devenu un `<button>` (accès clavier).
+    assert.match(
+      step,
+      /\[data-slot="student-fiche-trigger"\]/,
+      'le déclencheur (bouton nom/avatar) doit rester explicite',
+    );
   });
 });
 
