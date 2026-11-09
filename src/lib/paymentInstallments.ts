@@ -11,8 +11,14 @@
  * Trois faits, et un seul endroit pour les décider :
  *
  *   • **`due` (le montant attendu)** — les frais des mois que ce geste déclare,
- *     au moment de la saisie : `total_due × (1 − bourse) ÷ 12` par mois. C'est
- *     ce nombre qui part en base (`payments.due_amount`, migration
+ *     au moment de la saisie : `total_due × (1 − bourse)` divisés par les MOIS
+ *     DE L'ANNÉE scolaire. L'année n'en compte pas douze partout : l'école règle
+ *     sa plage (`academic_years.start_month`/`end_month`), septembre→juin le
+ *     plus souvent, octobre→juin parfois, jusqu'en juillet ailleurs. Diviser par
+ *     douze réclamait donc au guichet un dixième de trop à une école de dix
+ *     mois. Le nombre arrive en PARAMÈTRE (`monthsInYear`) : ce module reste pur,
+ *     et le repli à douze vaut pour une année dont la plage n'est pas lisible.
+ *     C'est ce nombre qui part en base (`payments.due_amount`, migration
  *     20261109000000) et qui rend un reçu réimprimable six mois plus tard, même
  *     si les frais de l'élève ont changé depuis ;
  *   • **`remaining` (le reste dû)** — `due` moins la somme des versements
@@ -39,8 +45,15 @@
  */
 import type { TranslationDict } from '../i18n/translations';
 
-/** Les mois d'une année scolaire — le diviseur des frais annuels. */
-export const MONTHS_PER_SCHOOL_YEAR = 12;
+/**
+ * Le diviseur de REPLI des frais annuels : douze mois.
+ *
+ * Ce n'est plus la règle — la règle est la plage réglée par l'école, passée en
+ * `monthsInYear`. C'est ce que vaut une année dont la plage ne se lit pas
+ * (ligne d'avant les colonnes `start_month`/`end_month`, année inconnue) : le
+ * comportement d'avant, plutôt qu'un refus de calculer un reste dû.
+ */
+export const DEFAULT_MONTHS_IN_YEAR = 12;
 
 /** La forme minimale d'un paiement dont ce module a besoin. */
 export interface InstallmentPaymentLike {
@@ -80,16 +93,26 @@ export function isPartialPayment(payment: InstallmentPaymentLike): boolean {
 }
 
 /**
- * Les frais d'UN mois : les frais annuels nets de bourse, divisés par les douze
- * mois de l'année scolaire. Zéro quand l'élève n'a pas de frais déclarés — et
- * zéro n'est pas une erreur : un élève importé sans `total_due` ne doit pas
- * produire des versements partiels imaginaires.
+ * Les frais d'UN mois : les frais annuels nets de bourse, divisés par les mois
+ * de l'ANNÉE SCOLAIRE de l'école (`monthsInYear`) — dix pour septembre→juin,
+ * onze pour octobre→juin, douze seulement si l'année va jusqu'en août.
+ *
+ * Zéro quand l'élève n'a pas de frais déclarés — et zéro n'est pas une erreur :
+ * un élève importé sans `total_due` ne doit pas produire des versements partiels
+ * imaginaires. Un `monthsInYear` absurde (0, négatif, illisible) retombe sur le
+ * repli plutôt que de rendre `Infinity` : un reste dû infini serait pire qu'un
+ * reste dû à l'ancienne.
  */
-export function monthlyFee(student: InstallmentStudentLike): number {
+export function monthlyFee(
+  student: InstallmentStudentLike,
+  monthsInYear: number = DEFAULT_MONTHS_IN_YEAR,
+): number {
   const total = Number(student.totalDue) || 0;
   const discountPct = Number(student.scholarshipDiscount) || 0;
   const net = total * (1 - discountPct / 100);
-  return net > 0 ? net / MONTHS_PER_SCHOOL_YEAR : 0;
+  const count = Number(monthsInYear);
+  const divisor = Number.isFinite(count) && count >= 1 ? Math.trunc(count) : DEFAULT_MONTHS_IN_YEAR;
+  return net > 0 ? net / divisor : 0;
 }
 
 /**
@@ -114,9 +137,10 @@ export interface InstallmentTarget {
 export function installmentTarget(
   student: InstallmentStudentLike,
   months: readonly string[],
+  monthsInYear: number = DEFAULT_MONTHS_IN_YEAR,
 ): InstallmentTarget {
   const chosen = [...months];
-  const due = Math.round(monthlyFee(student) * chosen.length);
+  const due = Math.round(monthlyFee(student, monthsInYear) * chosen.length);
   const partialPaid = (student.payments ?? [])
     .filter(isPartialPayment)
     .filter((p) => (p.months ?? []).some((m) => chosen.includes(m)))

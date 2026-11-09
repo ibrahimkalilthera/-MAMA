@@ -167,14 +167,26 @@ const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Applic
 // dehors : il ne doit donc PAS apparaître sur la ligne, ce qui est exactement ce
 // qu'un reçu qui aurait perdu les mois cochés écrirait à la place.
 const MONTHS_DATE = '2026-10-04';
-// Les frais des TROIS mois cochés, et non un chiffre rond : 3 × (150 000 / 12),
-// c'est-à-dire ce que la grille du guichet réclame pour ces mois (l'élève de
-// démo porte `total_due = 150000`, et `monthlyFee` divise par les douze mois de
-// l'année — voir src/lib/paymentInstallments.ts). Depuis les versements
+// Les frais des TROIS mois cochés, et non un chiffre rond : `total_due` de
+// l'élève de démo (150 000) divisé par les mois de l'année scolaire, fois trois
+// — c'est-à-dire ce que la grille du guichet réclame pour ces mois (voir
+// `monthlyFee` dans src/lib/paymentInstallments.ts). Depuis les versements
 // partiels, un montant INFÉRIEUR au dû ne ferme plus les mois : il les déclare
 // sans les régler. Payer 30 000 laissait donc les trois mois À RÉGLER, et la
 // fiche disait vrai — c'était le montant du contrôle qui était périmé.
-const MONTHS_AMOUNT = 37500;
+//
+// Le DIVISEUR n'est plus douze en dur : l'école règle sa plage, et une année
+// septembre→juin vaut dix mois (donc 15 000 le mois). Ce montant se calcule
+// donc APRÈS la lecture de `SCHOOL_MONTHS_COUNT`, juste avant le geste ; la
+// valeur d'ici n'est qu'un repli si le flux part sans avoir lu la base.
+const DEMO_STUDENT_DUE = 150000;
+let MONTHS_AMOUNT = Math.round((DEMO_STUDENT_DUE / 12) * 3);
+
+/** Ce que le guichet réclame pour `months` mois d'une année de `monthsInYear`. */
+function monthsAmountFor(months, monthsInYear) {
+  const divisor = Number.isInteger(monthsInYear) && monthsInYear >= 1 ? monthsInYear : 12;
+  return Math.round((DEMO_STUDENT_DUE / divisor) * months);
+}
 const MONTHS_TICKED = ['2026-09', '2026-11', '2026-12'];
 
 /**
@@ -2009,6 +2021,12 @@ try {
   // La plage de l'année se lit AVANT le geste : c'est le nombre de pastilles que
   // la fiche offrira, et donc l'attendu des contrôles qui la jugent.
   SCHOOL_MONTHS_COUNT = await readSchoolMonthsCount();
+  // Le montant du geste suit CE diviseur-là : sur une année de dix mois, trois
+  // mois valent 45 000 — et c'est ce que la grille réclame, donc ce qui solde
+  // réellement les mois cochés. Un montant figé sur douze laisserait la fiche
+  // « à régler » et le contrôle accuserait l'application à tort.
+  MONTHS_AMOUNT = monthsAmountFor(MONTHS_TICKED.length, SCHOOL_MONTHS_COUNT);
+  console.log(`  ℹ️ montant du geste : ${MONTHS_TICKED.length} mois → ${MONTHS_AMOUNT}`);
   const target = await resolveTarget();
   const { member, student, mode } = target;
   const label = member ? `${member.name} (${member.position})`
