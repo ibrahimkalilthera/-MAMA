@@ -53,4 +53,4 @@ DROP POLICY IF EXISTS "Authenticated delete calendar_notes" ON public.calendar_n
 CREATE POLICY "Owner delete calendar_notes"
     ON public.calendar_notes
     FOR DELETE
-    USING (auth.role() = 'authenticated' AND created_by = auth.uid());
+    USING (auth.role() = 'authenticated' AND created_by = auth.uid());
