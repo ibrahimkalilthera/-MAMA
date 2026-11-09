@@ -56,7 +56,10 @@ export interface SilentReceiptRow {
   amount: number;
   /** Combien de mois de l'année ses reçus (muets ou non) déclarent couvrir. */
   covered: number;
-  /** Combien de mois compte l'année jugée (12 sur une année lisible). */
+  /**
+   * Combien de mois compte l'année jugée — les mois de SA plage (9 pour une
+   * année septembre→juin, 8 pour octobre→juin), et 0 pour une année illisible.
+   */
   total: number;
 }
 
@@ -70,11 +73,18 @@ export interface SilentReceiptRow {
 export function silentReceiptRows(
   students: readonly Student[],
   academicYear: string,
+  /**
+   * Les mois de l'année, quand l'appelant les a déjà — c'est le cas des écrans,
+   * qui les tiennent du contexte d'année (`yearMonths`, bornes réglées par
+   * l'école). Omis, la plage par défaut s'applique : la couverture reste
+   * comptée sur des mois qui existent, jamais sur douze mois supposés.
+   */
+  yearMonths?: readonly string[],
 ): SilentReceiptRow[] {
-  const yearMonths = academicYearMonths(academicYear);
+  const months = yearMonths ?? academicYearMonths(academicYear);
   // Année illisible : ni fenêtre, ni mois. L'école ne doit pas lire « aucun reçu
   // muet » là où l'application ne sait simplement pas de quelle année on parle.
-  if (yearMonths.length === 0) return [];
+  if (months.length === 0) return [];
 
   const rows: SilentReceiptRow[] = [];
   for (const student of students) {
@@ -85,13 +95,13 @@ export function silentReceiptRows(
     if (receipts.length === 0) continue;
     // La couverture se lit sur TOUS les reçus de l'année, pas seulement sur les
     // muets : ce qui est déjà déclaré est déjà réglé, et la ligne le dit.
-    const coverage = monthsCoverage(inYear.map((p) => p.months), yearMonths);
+    const coverage = monthsCoverage(inYear.map((p) => p.months), months);
     rows.push({
       student,
       receipts,
       amount: receipts.reduce((sum, p) => sum + p.amount, 0),
       covered: coverage.covered.length,
-      total: yearMonths.length,
+      total: months.length,
     });
   }
 

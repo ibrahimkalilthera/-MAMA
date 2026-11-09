@@ -24,6 +24,7 @@ import type { TranslationDict } from '../src/i18n/translations';
 import type { CurrentTheme, ManagedClass } from '../src/app/mainViewsProps';
 import { DEFAULT_SCHOOL_CLASSES } from '../src/app/types';
 import { YearContext } from '../src/app/yearContext';
+import { academicYearMonths } from '../src/lib/paymentMonths';
 import { StudentFormModal } from '../src/components/StudentFormModal';
 import type { StudentForm } from '../src/components/StudentFormModal';
 import type { Student } from '../src/lib/useSupabaseData';
@@ -154,6 +155,11 @@ function mount(
             setSelectedYear: () => {},
             lockedYears: [],
             setLockedYears: () => {},
+            // Ce cas mesure le formulaire élève : aucune ligne d'année lue, donc
+            // la plage par défaut (septembre → juin).
+            yearRows: [],
+            setYearRows: () => {},
+            yearMonths: academicYearMonths,
           },
         },
         createElement(StudentFormModal, {

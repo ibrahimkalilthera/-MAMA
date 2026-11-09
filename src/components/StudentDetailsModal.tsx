@@ -5,7 +5,7 @@ import type { Student, Payment } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
 import type { ReceiptDataOptions } from '../lib/pdfReceipt';
-import { academicYearMonths, monthsCoverage, paymentMonthLabel } from '../lib/paymentMonths';
+import { monthsCoverage, paymentMonthLabel } from '../lib/paymentMonths';
 import { settledMonthDeclarations } from '../lib/paymentInstallments';
 import { PaymentLedger } from './PaymentLedger';
 import { PaymentMonthsBackfill } from './PaymentMonthsBackfill';
@@ -46,6 +46,9 @@ export interface StudentDetailsModalProps {
    * année illisible (cf. src/lib/paymentMonths.ts).
    */
   selectedYear: string;
+  /** Les mois de l'année selon les bornes réglées par l'école (`academic_years`) :
+   *  la fiche DEMANDE la plage, elle ne la recompose jamais. */
+  yearMonths: (year?: string) => string[];
   /** The dialog root — registered in AppModals' overlay refs for the focus trap. */
   overlayRef: (el: HTMLElement | null) => void;
   onClose: () => void;
@@ -121,7 +124,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
   const {
     student: selectedStudent, t, lang, currentTheme, formatDate, formatCurrency,
     getGradeDisplay, generatePaymentReceiptPdf, currentUser, copyToClipboard,
-    handleSaveNote, studentDetailTab, setStudentDetailTab, selectedYear, overlayRef,
+    handleSaveNote, studentDetailTab, setStudentDetailTab, selectedYear, yearMonths, overlayRef,
     onClose, onEdit, onPrint, onReconcile, onDeleteRequest, canDelete, canDeletePayment, onDeletePayment,
     canEditPaymentMonths, onUpdatePaymentMonths,
     duplicateGroupSize, onReviewDuplicates, focusPaymentId,
@@ -134,15 +137,15 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
   // L'année de la FICHE d'abord, celle de l'application ensuite : `||` et non
   // `??`, parce qu'une chaîne VIDE est le cas courant des fiches anciennes, pas
   // une année. Aucune des deux : la bande disparaît, au lieu d'inventer.
-  const yearMonths = academicYearMonths(selectedStudent.academicYear || selectedYear);
+  const yearMonthsOfStudent = yearMonths(selectedStudent.academicYear || selectedYear);
   // Les mois ne se ferment que sur un reçu SOLDÉ : un versement partiel les
   // déclare sans les régler (voir `paymentInstallments`), donc il n'entre pas
   // dans la couverture — sinon la bande afficherait « payé » sur un mois encore
   // dû, et la famille entendrait qu'elle a fini de payer.
-  const coverage = monthsCoverage(settledMonthDeclarations(selectedStudent.payments), yearMonths);
+  const coverage = monthsCoverage(settledMonthDeclarations(selectedStudent.payments), yearMonthsOfStudent);
   const coverageCount = t.monthsCoveredCount
     .replace('{covered}', String(coverage.covered.length))
-    .replace('{total}', String(yearMonths.length));
+    .replace('{total}', String(yearMonthsOfStudent.length));
   // ── Le PARCOURS DE RATTRAPAGE : les reçus MUETS, du plus ancien au plus récent
   // Le critère est celui de `coverage.undeclared` — un reçu sans mois DÉCLARÉ ne
   // dit pas ce qu'il couvre, il ne déclare pas « rien » pour autant. La liste est
@@ -209,12 +212,12 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
   const consumedFocusRef = useRef<string | null>(null);
   useEffect(() => {
     if (!focusPaymentId || consumedFocusRef.current === focusPaymentId) return;
-    if (!canEditPaymentMonths || yearMonths.length === 0) return;
+    if (!canEditPaymentMonths || yearMonthsOfStudent.length === 0) return;
     const target = silentPayments.find((p) => p.id === focusPaymentId);
     if (!target) return;
     consumedFocusRef.current = focusPaymentId;
     openMonthsEditor(target, 'backfill');
-  }, [focusPaymentId, canEditPaymentMonths, yearMonths.length, silentPayments, openMonthsEditor]);
+  }, [focusPaymentId, canEditPaymentMonths, yearMonthsOfStudent, silentPayments, openMonthsEditor]);
   const handleSaveMonths = async (payment: Payment, months: string[]) => {
     if (!payment.id || savingMonthsIdRef.current || months.length === 0) return;
     savingMonthsIdRef.current = payment.id;
@@ -423,14 +426,14 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                     ou envoyé sans cocher), la couverture est INCONNUE. Sans
                     cette phrase, un mois réglé avant la colonne s'afficherait
                     « à régler » : la fiche accuserait une famille qui a payé. */}
-                {yearMonths.length > 0 && (
+                {yearMonthsOfStudent.length > 0 && (
                   <div className="space-y-2" data-slot="student-months">
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <span className={`text-2xs font-black uppercase tracking-widest ${currentTheme.muted}`}>{t.monthsCoverageTitle}</span>
                       <span className={`text-2xs font-black ${currentTheme.inkStrong}`}>{coverageCount}</span>
                     </div>
                     <div role="group" aria-label={t.monthsCoverageTitle} className="flex flex-wrap gap-1.5">
-                      {yearMonths.map((month) => {
+                      {yearMonthsOfStudent.map((month) => {
                         const paid = coverage.covered.includes(month);
                         return (
                           <span
@@ -471,10 +474,10 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                     carnet — les deux ouvrent le MÊME éditeur, et un seul à la
                     fois (`editorHost`). Sans droit d'écriture (`admin`/`dev`),
                     il n'y a pas de parcours : la phrase compte, et s'arrête là. */}
-                {canEditPaymentMonths && yearMonths.length > 0 && silentPayments.length > 0 && (
+                {canEditPaymentMonths && yearMonthsOfStudent.length > 0 && silentPayments.length > 0 && (
                   <PaymentMonthsBackfill
                     silentPayments={silentPayments}
-                    yearMonths={yearMonths}
+                    yearMonths={yearMonthsOfStudent}
                     editingPaymentId={editorHost === 'backfill' ? editingMonthsPaymentId : null}
                     saving={savingMonthsId !== null}
                     t={t}
@@ -495,7 +498,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                     supprimer, et QUI héberge l'éditeur déjà ouvert. */}
                 <PaymentLedger
                   student={selectedStudent}
-                  yearMonths={yearMonths}
+                  yearMonths={yearMonthsOfStudent}
                   t={t}
                   lang={lang}
                   currentTheme={currentTheme}

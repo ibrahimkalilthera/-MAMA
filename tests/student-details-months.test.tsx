@@ -13,6 +13,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentDetailsModal } from '../src/components/StudentDetailsModal';
 import { translations } from '../src/i18n/translations';
+import { academicYearMonths } from '../src/lib/paymentMonths';
 import type { Student, Payment } from '../src/lib/useSupabaseData';
 import type { CurrentTheme } from '../src/app/mainViewsProps';
 import { installDomGlobals } from './harness';
@@ -99,6 +100,9 @@ function mount(target: Student, selectedYear = YEAR) {
     studentDetailTab: 'general' as const,
     setStudentDetailTab: () => {},
     selectedYear,
+    // Une école qui court jusqu'en août : la bande des mois suit la PLAGE réglée
+    // (`start_month`/`end_month`) et non un douze codé en dur.
+    yearMonths: (year?: string) => academicYearMonths(year, { startMonth: 9, endMonth: 8 }),
     overlayRef: () => {},
     onClose: () => {},
     onEdit: () => {},

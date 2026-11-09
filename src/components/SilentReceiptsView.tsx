@@ -52,10 +52,9 @@
  * Tout se lit par ces marqueurs, jamais par les mots : une phrase traduite change,
  * un marqueur non. Les marqueurs des deux panneaux appartiennent à leurs fichiers.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CalendarClock, ChevronRight } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
-import { academicYearMonths } from '../lib/paymentMonths';
 import { silentReceiptClasses, silentReceiptRows, silentReceiptsTotal } from '../lib/silentReceipts';
 import type { Student } from '../lib/domainTypes';
 import { SilentReceiptsPass } from './SilentReceiptsPass';
@@ -65,7 +64,7 @@ export function SilentReceiptsView() {
   const {
     t, currentTheme, students, selectedYear, canEditPaymentMonths,
     formatCurrency, formatDate, getGradeDisplay, updatePaymentMonths,
-    setSelectedStudent, setStudentFileFocus,
+    setSelectedStudent, setStudentFileFocus, yearMonths,
   } = useMainViews();
 
   /**
@@ -78,13 +77,14 @@ export function SilentReceiptsView() {
    */
   const [editorHost, setEditorHost] = useState<'pass' | 'walk' | null>(null);
 
-  const rows = silentReceiptRows(students, selectedYear);
+  // Les mois de l'année JUGÉE — celle de la liste, avec les bornes réglées par
+  // l'école : une année illisible ne descend jamais plus bas, puisqu'elle ne
+  // produit aucune ligne.
+  const yearMonthsOfYear = useMemo(() => yearMonths(selectedYear), [yearMonths, selectedYear]);
+  const rows = silentReceiptRows(students, selectedYear, yearMonthsOfYear);
   // Les classes qui portent du travail : la matière de la passe groupée, calculée
   // par la même brique pure que la liste (elle ne redécide rien).
   const classes = silentReceiptClasses(rows);
-  // Les douze mois de l'année JUGÉE — celle de la liste, donc la même pour tout
-  // le monde : une année illisible ne descend jamais ici, puisqu'elle ne produit
-  // aucune ligne.
   const total = silentReceiptsTotal(rows);
   const summary = t.silentReceiptsSummary
     .replace('{students}', String(rows.length))
@@ -156,7 +156,7 @@ export function SilentReceiptsView() {
       {canEditPaymentMonths && rows.length > 0 && (
         <SilentReceiptsPass
           classes={classes}
-          yearMonths={academicYearMonths(selectedYear)}
+          yearMonths={yearMonthsOfYear}
           t={t}
           currentTheme={currentTheme}
           formatCurrency={formatCurrency}
@@ -171,7 +171,7 @@ export function SilentReceiptsView() {
       {canEditPaymentMonths && (
         <SilentReceiptsWalk
           rows={rows}
-          yearMonths={academicYearMonths(selectedYear)}
+          yearMonths={yearMonthsOfYear}
           t={t}
           currentTheme={currentTheme}
           formatCurrency={formatCurrency}

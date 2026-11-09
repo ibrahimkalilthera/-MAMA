@@ -31,6 +31,7 @@ import type { TranslationDict } from '../src/i18n/translations';
 import type { Student, User, Payment } from '../src/app/types';
 import { installDomGlobals, stubAlert, renderHook } from './harness';
 import { formatCurrency, formatDateLang } from '../src/lib/formatters';
+import { academicYearMonths } from '../src/lib/paymentMonths';
 import { mockModule } from './module-mock';
 
 // ── module mock: receipt PDF (registered BEFORE importing the hook) ─────────
@@ -126,6 +127,9 @@ function baseDeps(overrides: DepsOverrides = {}): {
       return spies.updateResults[spies.updateCalls.length - 1] ?? true;
     },
     toastError: (msg: string) => { spies.alerts.push(msg); },
+    // La plage de scolarité par défaut (septembre → juin) : ces cas mesurent le
+    // GESTE de paiement, pas le réglage de l'année.
+    yearMonths: academicYearMonths,
   };
   return { args: args as Parameters<typeof usePayments>[0], spies };
 }
@@ -428,9 +432,9 @@ describe('usePayments — les mois payés', () => {
     const { ref, root, restoreAlert } = await setup(args, { studentId: 's1', amount: '25000', date: '2026-10-05' }, spies.alerts);
     try {
       assert.deepEqual(ref.current!.paymentMonths, ['2026-10'], 'le mois de la date est proposé d’avance');
-      assert.equal(ref.current!.paymentMonthOptions.length, 12, 'les douze mois de l’année scolaire de la date');
+      assert.equal(ref.current!.paymentMonthOptions.length, 10, 'les mois réglés de l’année de la date : septembre → juin');
       assert.equal(ref.current!.paymentMonthOptions[0], '2026-09', 'l’année scolaire commence en septembre');
-      assert.equal(ref.current!.paymentMonthOptions[11], '2027-08', 'et finit en août');
+      assert.equal(ref.current!.paymentMonthOptions[9], '2027-06', 'et finit en juin, la plage par défaut de l’école');
 
       await submit(ref);
 

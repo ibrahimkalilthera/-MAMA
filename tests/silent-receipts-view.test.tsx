@@ -361,7 +361,7 @@ describe('SilentReceiptsView — l’écran École des reçus muets', () => {
       assert.ok(h.lines()[0]!.text.includes('Awa Traoré'), 'la ligne nomme l’élève');
       assert.ok(h.lines()[0]!.text.includes('40000 XOF'),
         'et affiche le montant non documenté (la somme de ses reçus muets)');
-      assert.ok(h.lines()[1]!.text.includes(t.monthsCoveredCount.replace('{covered}', '1').replace('{total}', '12')),
+      assert.ok(h.lines()[1]!.text.includes(t.monthsCoveredCount.replace('{covered}', '1').replace('{total}', '10')),
         'la couverture déjà déclarée se lit sur la ligne');
       assert.ok(h.text().includes(t.silentReceiptsHint.replace('{year}', '2026-2027')),
         'l’en-tête NOMME l’année jugée : un reçu absent pour cause d’année doit pouvoir se comprendre');

@@ -28,6 +28,7 @@ import { StudentsView } from '../src/components/StudentsView';
 import { StudentDetailsModal } from '../src/components/StudentDetailsModal';
 import type { Student } from '../src/lib/useSupabaseData';
 import type { CurrentTheme } from '../src/app/mainViewsProps';
+import { academicYearMonths } from '../src/lib/paymentMonths';
 import { translations } from '../src/i18n/translations';
 import {
   CONTROL_STUDENT_NAME_GRADE,
@@ -276,6 +277,7 @@ function renderDetails(duplicateGroupSize?: number): string {
     onDeletePayment: async () => true,
     canEditPaymentMonths: true,
     onUpdatePaymentMonths: async () => true,
+    yearMonths: academicYearMonths,
     duplicateGroupSize,
   };
   try {

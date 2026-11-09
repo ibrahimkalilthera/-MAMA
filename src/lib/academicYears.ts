@@ -33,10 +33,20 @@
  */
 import { academicYearOf } from './dateWindows';
 
-/** Ce qu'une ligne d'`academic_years` porte et que l'app utilise. */
+/**
+ * Ce qu'une ligne d'`academic_years` porte et que l'app utilise.
+ *
+ * `start_month` / `end_month` sont les BORNES DE SCOLARITÉ de l'année (1..12),
+ * choisies par l'école : septembre→juin par défaut, octobre→juin ou
+ * septembre→juillet si l'établissement le dit. Elles manquent sur une ligne
+ * écrite par une version antérieure, et c'est `DEFAULT_SCHOOL_MONTHS`
+ * (`paymentMonths`) qui prend le relais, une seule fois pour tout le code.
+ */
 export interface AcademicYearRow {
   year_name: string;
   is_current?: boolean | null;
+  start_month?: number | null;
+  end_month?: number | null;
 }
 
 /** La clé sous laquelle le choix de l'utilisateur survit à un rechargement. */
@@ -49,10 +59,13 @@ export const YEAR_STORAGE_KEY = 'mama_thera_selected_year';
 export const FALLBACK_ACADEMIC_YEARS = ['2024-2025', '2025-2026', '2026-2027', '2027-2028'];
 
 /**
- * Le mois (0-indexé) où une année scolaire commence : septembre.
+ * Le mois (0-indexé) où la FENÊTRE d'une année scolaire commence : septembre.
  *
- * C'est la seule règle de calendrier de ce module, et elle est ici pour être
- * citée plutôt que recopiée : 2026-2027 va du 1er septembre 2026 au 31 août 2027.
+ * C'est la règle de PARTITION des données (une date de juillet appartient
+ * encore à l'année qui s'est ouverte en septembre), et elle reste distincte de
+ * la plage de SCOLARITÉ choisie par l'école (`start_month`/`end_month`) :
+ * l'année peut se régler jusqu'en juin sans qu'un paiement de juillet change
+ * d'archive. C'est ici pour être citée plutôt que recopiée.
  */
 export const SCHOOL_YEAR_START_MONTH = 8;
 

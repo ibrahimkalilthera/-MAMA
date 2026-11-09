@@ -525,6 +525,10 @@ export interface Database {
           start_date: string | null;
           end_date: string | null;
           is_current: boolean | null;
+          /** Premier mois de scolarité (1..12) — 9 = septembre par défaut. */
+          start_month: number;
+          /** Dernier mois de scolarité (1..12) — 6 = juin par défaut. */
+          end_month: number;
           created_at: string;
         };
         Insert: {
@@ -533,6 +537,8 @@ export interface Database {
           start_date?: string | null;
           end_date?: string | null;
           is_current?: boolean | null;
+          start_month?: number;
+          end_month?: number;
           created_at?: string;
         };
         Update: {
@@ -541,6 +547,8 @@ export interface Database {
           start_date?: string | null;
           end_date?: string | null;
           is_current?: boolean | null;
+          start_month?: number;
+          end_month?: number;
           created_at?: string;
         };
         Relationships: [];

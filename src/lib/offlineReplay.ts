@@ -16,6 +16,7 @@ import { clientWritesAmountPaid } from './vendorExpensePaid';
 import { replayAddSalaryPayment, replayDeleteSalaryPayment } from './offlineReplayPayroll';
 import { replayDisplayPreference } from './offlineReplaySettings';
 import { replaySchoolName } from './offlineReplaySchoolName';
+import { replayYearMonths } from './offlineReplayAcademicYear';
 
 /** The surface of the Supabase client that replay touches. */
 export type ReplayDb = Pick<SupabaseClient<Database>, 'from' | 'rpc'>;
@@ -460,6 +461,10 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     // Le nom de l'école déclaré hors ligne — un fait d'établissement, écrit dans
     // son module (même ligne d'`app_settings` que le chemin en ligne).
     success = await replaySchoolName(db, item.payload);
+  } else if (item.type === 'setYearMonths') {
+    // Les bornes de l'année scolaire réglées hors ligne — la même ligne
+    // `academic_years` et les mêmes colonnes que le chemin en ligne.
+    success = await replayYearMonths(db, item.payload);
   }
   return success;
 }

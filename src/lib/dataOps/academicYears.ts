@@ -26,6 +26,8 @@ import type { AcademicYearRow } from '../academicYears';
 import { currentYearName } from '../academicYears';
 import { enqueueOfflineAction, isActionQueued } from '../offlineQueue';
 import { isStationOffline } from '../networkUtils';
+import { isSchoolMonth } from '../paymentMonths';
+import { logAuditEvent } from '../auditLogger';
 
 /** Les années lues sur ce poste, pour que le sélecteur survive à une coupure. */
 const YEARS_CACHE_KEY = 'mama_thera_academic_years_cache_v1';
@@ -61,13 +63,81 @@ function writeCachedAcademicYears(rows: AcademicYearRow[]): void {
  * L'appelant garde alors sa liste de repli au lieu d'afficher un sélecteur vide.
  */
 export async function fetchAcademicYears(): Promise<AcademicYearRow[] | null> {
-  const { data, error } = await supabase.from('academic_years').select('year_name, is_current').order('year_name');
+  const { data, error } = await supabase
+    .from('academic_years')
+    .select('year_name, is_current, start_month, end_month')
+    .order('year_name');
   if (error || !data) return readCachedAcademicYears();
-  const rows = data.map((row) => ({ year_name: row.year_name, is_current: row.is_current }));
+  const rows = data.map((row) => ({
+    year_name: row.year_name,
+    is_current: row.is_current,
+    start_month: row.start_month,
+    end_month: row.end_month,
+  }));
   // Écrit APRÈS un vrai chargement : le cache ne peut donc jamais contenir autre
   // chose que ce que la base a réellement répondu.
   writeCachedAcademicYears(rows);
   return rows;
+}
+
+/**
+ * Ce qu'un enregistrement de la plage de mois peut rendre — jamais un booléen.
+ * « enregistré », « mis en file hors ligne » et « refusé » ne veulent pas dire la
+ * même chose pour l'école : le premier a changé les reçus de tout le parc, le
+ * second attend la ligne, le troisième n'a rien changé.
+ */
+export type AcademicYearMonthsSaveResult = 'saved' | 'queued' | 'refused';
+
+/**
+ * Enregistre la plage de scolarité d'une année : son premier et son dernier mois.
+ *
+ * Le geste appartient à l'ADMINISTRATION, et la base le dit déjà (la politique
+ * d'écriture d'`academic_years` est `is_admin()`), donc aucune politique
+ * nouvelle n'est créée pour lui — comme le nom de l'école.
+ *
+ * Trois refus, et chacun évite d'écrire une plage qui n'existe pas : un mois hors
+ * 1..12, un mois vide, une année vide. La plage aberrante (fin avant début dans
+ * le même cycle) n'est PAS refusée : une année d'octobre à juin est normale, et
+ * `academicYearMonths` la déroule correctement.
+ *
+ * `.select('year_name')` : une écriture retirée par une politique revient en 200
+ * avec un corps VIDE. La compter comme enregistrée ferait croire à l'école que
+ * toutes les familles ont été relues sur une plage que la base n'a jamais reçue.
+ */
+export async function saveAcademicYearMonths(
+  year: string,
+  startMonth: number,
+  endMonth: number,
+): Promise<AcademicYearMonthsSaveResult> {
+  const name = String(year ?? '').trim();
+  if (!name || !isSchoolMonth(startMonth) || !isSchoolMonth(endMonth)) return 'refused';
+
+  if (isStationOffline()) {
+    try {
+      enqueueOfflineAction('setYearMonths', { year: name, startMonth, endMonth });
+    } catch (err) {
+      console.error('Plage de scolarité non mise en file :', (err as Error)?.message ?? err);
+      return 'refused';
+    }
+    return 'queued';
+  }
+
+  const { data, error } = await supabase
+    .from('academic_years')
+    .update({ start_month: startMonth, end_month: endMonth })
+    .eq('year_name', name)
+    .select('year_name');
+  if (error || !data || data.length === 0) {
+    console.warn('Plage de scolarité non enregistrée :', error?.message ?? 'aucune ligne écrite');
+    return 'refused';
+  }
+  void logAuditEvent({
+    action: 'UPDATE_SETTING',
+    targetType: 'academic_years',
+    targetId: name,
+    details: `academic_years ${name} = ${startMonth}→${endMonth}`,
+  });
+  return 'saved';
 }
 
 /**

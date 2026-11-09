@@ -138,7 +138,7 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
     formatDate, getGradeDisplay, schoolLogo, schoolName, schoolNameReadFailed, activeTab, setActiveTab,
     payrollWindowStatus, fetchAuditLogs,
     showTodoSidebar, setShowTodoSidebar, openAddStudentModal, setShowPaymentForm,
-    selectedYear, setSelectedYear, academicYears, availableClasses, searchTerm,
+    selectedYear, setSelectedYear, yearMonths, academicYears, availableClasses, searchTerm,
     setSearchTerm, studentGradeFilter, setStudentGradeFilter, setIsPromotionWizardOpen,
     setShowExcelImport, setSelectedDraftMonth, setSelectedDraftYear,
     setShowMonthlyDraftModal, generateMultiYearReportPdf, lockedYears, students,
@@ -202,9 +202,13 @@ export function AppShell(props: MainViewsProps & AppModalsProps & AppShellExtras
   // ILLISIBLE rend une liste vide, donc aucune pastille : on n'annonce pas
   // « aucun reçu muet » là où l'application ne sait pas de quelle année elle
   // parle.
+  // La plage de l'année affichée, avec les bornes réglées par l'école : c'est
+  // elle que la pastille compte, comme la carte du tableau de bord et la liste
+  // de l'écran École — une seule plage, donc un seul nombre.
+  const yearMonthsOfYear = useMemo(() => yearMonths(selectedYear), [yearMonths, selectedYear]);
   const silentReceiptsCount = useMemo(
-    () => silentReceiptsCatchUp(silentReceiptRows(students, selectedYear), today).receipts,
-    [students, selectedYear, today],
+    () => silentReceiptsCatchUp(silentReceiptRows(students, selectedYear, yearMonthsOfYear), today).receipts,
+    [students, selectedYear, yearMonthsOfYear, today],
   );
 
   // ─── La file d'attente du poste, vidée au premier démarrage CONNECTÉ ───────
@@ -511,6 +515,7 @@ onOpenSettings={() => setActiveTab('settings')}
           currentTheme={currentTheme}
           student={reconcileStudent}
           selectedYear={selectedYear}
+          yearMonths={yearMonths}
           getGradeDisplay={getGradeDisplay}
           formatDate={formatDate}
           formatCurrency={formatCurrency}

@@ -44,7 +44,11 @@ export type OfflineActionType =
   | 'setDisplayPreference'
   // Le nom de l'école déclaré sans réseau (voir OfflinePayload, plus bas) : le
   // geste attend la ligne comme les autres, et il part au drainage suivant.
-  | 'setSchoolName';
+  | 'setSchoolName'
+  // La plage de scolarité d'une année (premier et dernier mois) réglée sans
+  // réseau : les reçus du parc ne peuvent pas changer avant que la base la
+  // reçoive, donc le geste attend au lieu d'être perdu.
+  | 'setYearMonths';
 
 /** Une classe personnalisée, telle que le formulaire la produit (codes compris). */
 export interface QueuedClassFields {
@@ -159,7 +163,14 @@ export type OfflinePayload =
    * (`src/lib/schoolName.ts`), et une file écrite par une version antérieure ne
    * peut pas porter une clé que le contrat ne connaît pas.
    */
-  | { type: 'setSchoolName'; payload: { name: string } };
+  | { type: 'setSchoolName'; payload: { name: string } }
+  /**
+   * La plage de scolarité d'une année : ses bornes en numéro de mois civil. Les
+   * mots ne voyagent pas (un mois n'est pas un libellé), et la forme est celle
+   * de la colonne, pas celle de l'écran : un rejeu écrit exactement ce que
+   * `saveAcademicYearMonths` aurait écrit en ligne.
+   */
+  | { type: 'setYearMonths'; payload: { year: string; startMonth: number; endMonth: number } };
 
 export interface QueueItemBase {
   id: string;
