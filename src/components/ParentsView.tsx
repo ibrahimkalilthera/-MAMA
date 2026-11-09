@@ -429,6 +429,7 @@ export function ParentsView() {
                                         <span className="text-2xs font-bold text-slate-400 pl-1 hidden sm:inline">{t.sortByLabel}</span>
                                         <button
                                           type="button"
+                                          aria-pressed={parentChildrenSortBy === 'highest_balance'}
                                           onClick={() => setParentChildrenSortBy('highest_balance')}
                                           className={`px-2.5 py-1 rounded-lg font-bold text-2xs transition-all flex items-center gap-1 ${
                                             parentChildrenSortBy === 'highest_balance'
@@ -442,6 +443,7 @@ export function ParentsView() {
                                         </button>
                                         <button
                                           type="button"
+                                          aria-pressed={parentChildrenSortBy === 'alphabetical'}
                                           onClick={() => setParentChildrenSortBy('alphabetical')}
                                           className={`px-2.5 py-1 rounded-lg font-bold text-2xs transition-all flex items-center gap-1 ${
                                             parentChildrenSortBy === 'alphabetical'

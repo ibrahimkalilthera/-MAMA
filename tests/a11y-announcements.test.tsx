@@ -18,6 +18,12 @@
  *
  * Le tri clavier (`aria-sort`, bouton DANS le `<th>`) est mesuré sur le HTML
  * rendu d'`StudentsView`, parce que c'est là que le `<th>` cliquable vivait.
+ * Il l'est aussi sur les DEUX tables de Dépenses et sur le registre de la Paie,
+ * qui n'avaient aucun tri (ni souris ni clavier) ; et le clic est exercé une
+ * fois pour de vrai, parce qu'un `aria-sort` qui change sans que les lignes
+ * bougent annoncerait un ordre que l'écran n'applique pas. Le sélecteur de tri
+ * des Parents, lui, est fait de vrais boutons : son état ACTIF doit être dit
+ * autrement que par la couleur (`aria-pressed`).
  */
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,10 +39,17 @@ const { ToastContainer } = await import('../src/components/ToastNotification');
 const { ModalShell } = await import('../src/components/ModalShell');
 const { StudentsView } = await import('../src/components/StudentsView');
 const { translations } = await import('../src/i18n/translations');
-const { renderWithContext } = await import('./views-harness');
+const { makeProps, renderWithContext } = await import('./views-harness');
+const { MainViewsContext } = await import('../src/app/mainViewsContext');
+const { ExpensesView } = await import('../src/components/ExpensesView');
+const { PayrollView } = await import('../src/components/PayrollView');
+const { ParentsView } = await import('../src/components/ParentsView');
 const { createElement: h } = await import('react');
 
 const t = translations.fr as unknown as Record<string, string>;
+// Le harnais des vues déclare le dictionnaire ANGLAIS : les cas qui cherchent un
+// libellé dans le HTML rendu par `renderWithContext` doivent le chercher là.
+const en = translations.en as unknown as Record<string, string>;
 
 const theme = {
   bg: 'bg-slate-100', card: 'bg-white', text: 'text-slate-900', muted: 'text-slate-500',
@@ -57,6 +70,26 @@ const theme = {
 
 function toast(id: string, type: 'success' | 'error', message: string) {
   return { id, type, message, title: message };
+}
+
+/**
+ * Un en-tête triable se lit SANS souris : `<th aria-sort>` + `<button>`.
+ *
+ * `total` est le nombre d'en-têtes triables ATTENDUS dans la table — le dire
+ * évite qu'un tableau qui n'en rendrait plus qu'un seul (une régression qui
+ * laisserait passer le cas) compte comme triable.
+ */
+function assertSortableTable(html: string, what: string, total: number) {
+  const headers = [...html.matchAll(/<th aria-sort="([^"]+)"[^>]*>([\s\S]*?)<\/th>/g)];
+  assert.equal(headers.length, total, `${what} : ${total} en-tête(s) triable(s)`);
+  for (const [, sort, inner] of headers) {
+    assert.ok(
+      sort === 'ascending' || sort === 'descending' || sort === 'none',
+      `${what} : aria-sort porte une valeur valide (reçu « ${sort} »)`
+    );
+    assert.ok(inner.includes('<button'), `${what} : chaque en-tête triable est un BOUTON — donc il se clique au clavier`);
+  }
+  assert.ok(!/<th[^>]*onClick/.test(html), `${what} : aucun en-tête cliquable à la souris seule`);
 }
 
 describe('ce que l’app ANNONCE', () => {
@@ -169,6 +202,91 @@ describe('ce que l’app ANNONCE', () => {
     assert.ok(th, 'un <th> triable est rendu');
     assert.ok(th[0].includes('<button'), 'il contient un bouton — donc il se clique au clavier');
     assert.ok(!/<th[^>]*onClick/.test(html), 'aucun en-tête cliquable à la souris seule');
+  });
+
+  it('les DEUX tables de Dépenses se trient au clavier et annoncent leur ordre', () => {
+    // Dépenses n'avait AUCUN tri : ni `<th onClick>` à convertir, ni bouton. Les
+    // quatre colonnes du registre général et les six du registre fournisseur en
+    // portent un maintenant, et la colonne d'actions reste un `<th>` simple.
+    const general = renderWithContext(h(ExpensesView), { vendorExpensesTab: 'general' });
+    assertSortableTable(general, 'dépenses générales', 4);
+
+    const vendors = renderWithContext(h(ExpensesView), { vendorExpensesTab: 'vendors' });
+    assertSortableTable(vendors, 'dépenses fournisseurs', 6);
+  });
+
+  it('le registre de la PAIE se trie au clavier, sur le NOM et non sur l’identifiant', () => {
+    const html = renderWithContext(h(PayrollView));
+    assertSortableTable(html, 'registre de la paie', 3);
+  });
+
+  it('cliquer un en-tête TRIE réellement les lignes, et le second clic inverse', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const props = makeProps({
+      vendorExpensesTab: 'general',
+      generalExpenseCategoryFilter: 'all',
+      generalExpenseSearch: '',
+      selectedYear: '',
+      // Dates volontairement INVERSE de l'ordre alphabétique : le tri par défaut
+      // (date décroissante) met « Gros achat » d'abord, le clic sur « Montant »
+      // en croissant doit mettre « Petit achat » d'abord. Si les deux ordres
+      // coïncidaient, le cas passerait sans que rien ne trie.
+      expenses: [
+        { id: 'e1', category: 'Other', description: 'Petit achat', amount: 100, date: '2026-02-01' },
+        { id: 'e2', category: 'Other', description: 'Gros achat', amount: 900, date: '2026-02-02' },
+      ] as never,
+    });
+    act(() => {
+      root.render(h(MainViewsContext.Provider, { value: props }, h(ExpensesView)));
+    });
+
+    const table = Array.from(container.querySelectorAll('table')).find((tb) => tb.querySelector('th[aria-sort]'));
+    assert.ok(table, 'une table triable est rendue');
+    const firstRow = () => table!.querySelectorAll('tbody tr')[0]?.textContent ?? '';
+    assert.match(firstRow(), /Gros achat/, 'ordre par défaut : la date la plus récente d’abord');
+
+    const amountHeader = Array.from(table!.querySelectorAll('th[aria-sort]')).find((th) =>
+      (th.textContent ?? '').includes(en.amount)
+    );
+    assert.ok(amountHeader, 'l’en-tête « Montant » est rendu');
+    const amountButton = amountHeader!.querySelector('button');
+    assert.ok(amountButton, 'et il porte un bouton');
+
+    act(() => { amountButton!.click(); });
+    assert.equal(amountHeader!.getAttribute('aria-sort'), 'ascending', 'le premier clic annonce l’ordre croissant');
+    assert.match(firstRow(), /Petit achat/, 'et les lignes suivent : 100 avant 900');
+
+    act(() => { amountButton!.click(); });
+    assert.equal(amountHeader!.getAttribute('aria-sort'), 'descending', 'le second clic inverse');
+    assert.match(firstRow(), /Gros achat/, 'et les lignes suivent : 900 avant 100');
+
+    act(() => { root.unmount(); });
+    container.remove();
+  });
+
+  it('le sélecteur de tri des Parents dit son état ACTIF, pas seulement par la couleur', () => {
+    const parent = {
+      id: 'p1', fullName: 'Awa Diop', phones: ['+221770000000'], address: 'Dakar',
+      occupation: 'Commerçante', relationship: 'Mother', linkedStudentIds: ['s1', 's2'],
+    };
+    const child = (id: string, name: string, totalDue: number, amountPaid: number) => ({
+      id, studentId: id, name, grade: 'CP', totalDue, amountPaid,
+    });
+    const html = renderWithContext(h(ParentsView), {
+      parents: [parent] as never,
+      expandedParentId: 'p1',
+      parentChildrenSortBy: 'alphabetical',
+      getChildrenForParent: (() => [child('s1', 'Bineta', 500, 0), child('s2', 'Cheikh', 500, 500)]) as never,
+      getParentOutstandingBalance: (() => 500) as never,
+      getParentPaymentHistory: (() => []) as never,
+    });
+
+    const pressed = [...html.matchAll(/<button[^>]*aria-pressed="(true|false)"/g)].map((m) => m[1]);
+    assert.equal(pressed.length, 2, 'les deux choix de tri disent leur état');
+    assert.equal(pressed.filter((p) => p === 'true').length, 1, 'un seul est ACTIF');
+    assert.equal(pressed.filter((p) => p === 'false').length, 1, 'l’autre est explicitement inactif');
   });
 });
 

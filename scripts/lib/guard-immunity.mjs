@@ -129,6 +129,19 @@ export const GUARD_INVENTORY = [
     needs: [IMMUNITY.NON_VACUOUS],
     exempt: { [IMMUNITY.PROSE_BLIND]: 'ce contrôle COMPTE des lignes : retirer la prose fausserait le budget mesuré' },
   },
+  {
+    check: 'check-min-type-size.mjs',
+    input: 'source',
+    needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND],
+    // La taille vit dans un LITTÉRAL (`text-[10px]`, `fontSize: 9`) ou dans la
+    // valeur d'un jeton : blanchir les littéraux effacerait la donnée même que
+    // le contrôle mesure. Seuls les commentaires sont masqués, pour qu'un
+    // en-tête qui CITE « 11px » ne soit pas accusé. Sa vacuité est DOUBLE et
+    // écrite : `assertScanned` quand aucun fichier n'est lu, ET une sortie 2
+    // quand plus aucun jeton `--text-*` n'est lu — un motif disparu n'est pas
+    // un vert.
+    literals: 'kept',
+  },
   { check: 'check-test-harness.mjs', input: 'tests', needs: [IMMUNITY.NON_VACUOUS, IMMUNITY.PROSE_BLIND] },
   {
     check: 'check-test-integrity.mjs',

@@ -1,0 +1,36 @@
+# ─── Fins de ligne : une seule réponse, quel que soit le poste ───────────────
+#
+# Des tests lisent les SOURCES et ancrent sur « \n » — par exemple
+# tests/months-editor-hosts.test.ts mute « <PaymentLedger\n » dans
+# src/components/StudentDetailsModal.tsx. Sur un poste Windows dont
+# `core.autocrlf=true`, git matérialisait le fichier en CRLF et l'ancre ne
+# matchait plus : mesuré le 2026-11-09, 54 fichiers réécrits en CRLF, 2 tests
+# rouges, alors que le code livré était identique. La casse n'était donc pas
+# dans le code mais dans la façon dont git remplit la copie de travail.
+#
+# `text=auto eol=lf` rend le checkout identique partout : un blob LF reste LF
+# sur macOS, Linux ET Windows, sans dépendre d'un réglage local par machine.
+# Les blobs du dépôt sont déjà en LF (une seule migration SQL faisait exception,
+# normalisée avec ce fichier) — la règle ne fait donc que verrouiller l'existant.
+* text=auto eol=lf
+
+# `text` explicite, pas `auto`, pour les formats dont on CONNAÎT la nature :
+# `auto` laisse git décider seul, et git s'est trompé ici — la migration
+# 20260908000000_calendar_notes_author_only.sql était classée binaire (`i/-text`),
+# donc jamais normalisée, donc servie en CRLF. Un format nommé ne se devine pas.
+*.sql text eol=lf
+*.nsh text eol=lf
+
+# Binaires : jamais convertis, jamais comparés comme du texte.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary
+*.woff2 binary
+*.exe binary
+*.dll binary
+
+# Scripts Windows : cmd.exe veut CRLF (un `goto` sur un fichier en LF se perd).
+*.bat text eol=crlf
+*.cmd text eol=crlf

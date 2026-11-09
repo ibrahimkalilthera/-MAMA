@@ -15,13 +15,16 @@ import { canWritePayroll as canWritePayrollRights, canWriteFinance as canWriteFi
 const SCHOOL_YEAR_MONTH_KEYS = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'];
 const SCHOOL_YEAR_MONTH_INDEXES = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7];
 
+/** Les colonnes triables de l'historique des salaires — rien d'autre ne se trie. */
+type SalarySortKey = 'staffName' | 'date' | 'amount';
+
 
 export function PayrollView() {
   const [confirmDeleteStaff, setConfirmDeleteStaff] = useState<Staff | null>(null);
   // Le salaire dont la suppression attend sa confirmation. La confirmation dit
   // le MEMBRE, le MONTANT et la DATE qui partent — jamais « êtes-vous sûr ? ».
   const [confirmDeleteSalary, setConfirmDeleteSalary] = useState<SalaryPayment | null>(null);
-  const { AlertCircle, ChevronDown, Download, FileText, Globe, GraduationCap, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, auth, canDelete, canDeleteSalaryPayment, currentMonth, currentYear, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleDeleteSalaryPayment, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails  } = useMainViews();
+  const { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, Download, FileText, Globe, GraduationCap, HighlightText, Mail, Phone, Plus, Receipt, Search, ShieldCheck, Trash2, adminStaffCount, auth, canDelete, canDeleteSalaryPayment, currentMonth, currentYear, currentTheme, deleteStaff, filteredStaff, formatCurrency, generateStaffPayslipPdf, getMonthName, handleDeleteSalaryPayment, handleExportStaffReceiptPdf, lang, openEditStaffModal, salaryForm, salaryPayments, selectedYear, setEditingStaff, setSalaryForm, setSelectedDraftMonth, setSelectedDraftYear, setShowMonthlyDraftModal, setShowSalaryModal, setShowStaffModal, setStaffForm, setStaffModalMode, setStaffPositionFilter, setStaffSearchTerm, setVisibleBankDetails, staff, staffPositionFilter, staffSearchTerm, t, visibleBankDetails  } = useMainViews();
   // Le droit d'ÉCRIRE la paie et le personnel vient de la BASE, pas de l'écran :
   // les mêmes listes de rôles que `public.is_payroll_writer()` et
   // `public.is_finance_writer()` (`src/lib/payrollRights.ts`). Un compte `econome`
@@ -32,6 +35,53 @@ export function PayrollView() {
   // l'écriture que la base refuserait (42501) n'est plus mise en file.
   const canWritePayroll = canWritePayrollRights(auth.profile?.role);
   const canManageStaff = canWriteFinanceRights(auth.profile?.role);
+
+  /**
+   * ─── Tri de l'historique des salaires ──────────────────────────────────────
+   *
+   * Un en-tête triable est un BOUTON DANS le `<th>`, jamais un `<th>` cliquable :
+   * le clic seul excluait le clavier et n'annonçait pas l'ordre de la liste. La
+   * forme est celle du registre des élèves (`StudentsView`), pour qu'un tableau
+   * se trie de la même façon dans toute l'application.
+   *
+   * Aucun tri par défaut : tant que personne n'a cliqué, l'ordre reste celui que
+   * la page a reçu (`salaryPayments`) — un tri silencieux au chargement
+   * réordonnerait l'historique sans que personne l'ait demandé.
+   */
+  const [salarySort, setSalarySort] = useState<{ key: SalarySortKey; dir: 'asc' | 'desc' } | null>(null);
+  const salaryRows = (() => {
+    const sort = salarySort;
+    if (!sort) return salaryPayments;
+    const nameOf = (p: SalaryPayment) => staff.find(s => s.id === p.staffId)?.name || '';
+    const factor = sort.dir === 'asc' ? 1 : -1;
+    return [...salaryPayments].sort((a, b) => {
+      if (sort.key === 'amount') return (a.amount - b.amount) * factor;
+      if (sort.key === 'date') return a.date.localeCompare(b.date) * factor;
+      // Le NOM résolu, jamais l'identifiant : trier sur `staffId` rangerait
+      // l'historique dans un ordre qu'aucune colonne n'affiche.
+      return nameOf(a).localeCompare(nameOf(b), 'fr', { sensitivity: 'base' }) * factor;
+    });
+  })();
+  const salarySortHeader = (key: SalarySortKey, label: string) => {
+    const active = salarySort?.key === key;
+    const ariaSort = active ? (salarySort?.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+    return (
+      <th aria-sort={ariaSort} className="px-8 py-6 select-none">
+        <button
+          type="button"
+          onClick={() => setSalarySort(prev => (prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))}
+          className="w-full flex items-center gap-2 text-left group/sort"
+        >
+          <span>{label}</span>
+          {active ? (
+            salarySort?.dir === 'asc' ? <ArrowUp size={12} className="text-blue-500 flex-shrink-0" /> : <ArrowDown size={12} className="text-blue-500 flex-shrink-0" />
+          ) : (
+            <ArrowUpDown size={12} className="opacity-35 group-hover/sort:opacity-100 transition-opacity flex-shrink-0" />
+          )}
+        </button>
+      </th>
+    );
+  };
   return (
     <>
           <div className="space-y-8">
@@ -510,14 +560,14 @@ export function PayrollView() {
                 <table className="w-full text-left border-collapse">
                   <thead className="sticky top-0 z-10">
                     <tr className={`${currentTheme.surfaceInset} ${currentTheme.muted} text-2xs font-black uppercase tracking-[0.2em]`}>
-                      <th className="px-8 py-6">{t.staffName}</th>
-                      <th className="px-8 py-6">{t.date}</th>
-                      <th className="px-8 py-6">{t.amount}</th>
+                      {salarySortHeader('staffName', t.staffName)}
+                      {salarySortHeader('date', t.date)}
+                      {salarySortHeader('amount', t.amount)}
                       <th className="px-8 py-6 text-right">{t.actions}</th>
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${currentTheme.border}`}>
-                    {salaryPayments.length > 0 ? salaryPayments.map(p => {
+                    {salaryRows.length > 0 ? salaryRows.map(p => {
                       const staffMember = staff.find(s => s.id === p.staffId);
                       return (
                         <tr key={p.id} className={`${currentTheme.rowHover} transition-all`}>
