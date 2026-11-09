@@ -539,6 +539,25 @@ export interface MainViewsProps {
   schoolNameReadFailed: boolean;
   searchTerm: string;
   selectedYear: string;
+  /**
+   * Les mois d'une année scolaire, de son début à sa fin RÉGLÉS PAR L'ÉCOLE
+   * (`academic_years.start_month`/`end_month` : septembre→juin, parfois
+   * octobre→juin, parfois jusqu'en juillet — voir `src/lib/paymentMonths.ts`).
+   *
+   * Les vues ne recomposent jamais cette plage : le tableau de bord, la fiche
+   * élève, le rapprochement et l'écran École demandent la même fonction, donc
+   * publient les mêmes mois. Sans argument, elle répond pour l'année de travail ;
+   * une fiche qui juge l'année d'un élève la nomme explicitement.
+   */
+  yearMonths: (year?: string) => string[];
+  /**
+   * Enregistre les bornes de scolarité de l'année DE TRAVAIL — `saved` (en base,
+   * publié tout de suite sur ce poste), `queued` (hors ligne : le geste attend la
+   * ligne, mais l'école vient de choisir et l'écran le montre) ou `refused` (la
+   * base n'a rien pris). Les mois sont validés 1..12 des deux côtés, écran et
+   * rejeu ; voir `src/app/useYearMonthsSave.ts` et la migration du 2026-11-09.
+   */
+  saveYearMonths: (startMonth: number, endMonth: number) => Promise<'saved' | 'queued' | 'refused'>;
   setActiveLinkingParent: Dispatch<SetStateAction<Parent | null>>;
   /**
    * L'onglet actif — le shell le porte déjà (`AppShell`, via `AppShellExtras`),

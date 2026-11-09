@@ -44,7 +44,7 @@ import type { TranslationDict } from '../src/i18n/translations';
 import type { Payment, Student, User } from '../src/app/types';
 import type { DbRow } from '../src/lib/database.types';
 import { buildParentReceiptPdf } from '../src/lib/pdfReceipt';
-import { formatPaidMonths, paymentMonthLabel } from '../src/lib/paymentMonths';
+import { academicYearMonths, formatPaidMonths, paymentMonthLabel } from '../src/lib/paymentMonths';
 import { mapPaymentRow } from '../src/lib/rowMappers';
 import { installDomGlobals, stubAlert, renderHook } from './harness';
 import { mockModule } from './module-mock';
@@ -199,6 +199,7 @@ function baseDeps(spies: Spies) {
     t,
     lang: 'fr' as const,
     selectedYear: '2026-2027',
+    yearMonths: (year?: string) => academicYearMonths(year),
     lockedYears: [],
     students: [ali],
     staff: [],

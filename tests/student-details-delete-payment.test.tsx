@@ -9,6 +9,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentDetailsModal } from '../src/components/StudentDetailsModal';
 import { translations } from '../src/i18n/translations';
+import { academicYearMonths } from '../src/lib/paymentMonths';
 import type { Student, Payment } from '../src/lib/useSupabaseData';
 import type { CurrentTheme } from '../src/app/mainViewsProps';
 import { installDomGlobals } from './harness';
@@ -91,6 +92,7 @@ function mount(opts: { canDeletePayment: boolean; result: boolean }) {
     studentDetailTab: 'general' as const,
     setStudentDetailTab: () => {},
     selectedYear: '2026-2027',
+    yearMonths: academicYearMonths,
     overlayRef: () => {},
     onClose: () => {},
     onEdit: () => {},

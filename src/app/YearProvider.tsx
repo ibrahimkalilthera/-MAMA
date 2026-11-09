@@ -19,10 +19,12 @@
  * `useAcademicYears` qui fixe l'année de travail, à partir du calendrier, du
  * choix stocké et de la déclaration de la base.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { readStoredYear, storeYear } from '../lib/academicYears';
+import type { AcademicYearRow } from '../lib/academicYears';
+import { academicYearMonthsOf } from '../lib/paymentMonths';
 import { YearContext } from './yearContext';
 
 export function YearProvider({ children }: { children: ReactNode }) {
@@ -32,13 +34,30 @@ export function YearProvider({ children }: { children: ReactNode }) {
 
   const [selectedYear, setSelectedYear] = useState<string>(() => readStoredYear(storage())?.year ?? '');
   const [lockedYears, setLockedYears] = useState<string[]>([]);
+  // Les bornes de scolarité de chaque année, publiées par `useAcademicYears` dès
+  // que la base a répondu : c'est la MÊME lecture qui fixe l'année de travail.
+  const [yearRows, setYearRows] = useState<AcademicYearRow[]>([]);
 
   useEffect(() => {
     storeYear(selectedYear, storage());
   }, [selectedYear]);
 
+  // La plage d'une année, résolue UNE fois pour tous les écrans. `yearMonths()`
+  // sans argument suit l'année de travail ; un écran qui juge l'année d'une
+  // FICHE (`student.academicYear`) la nomme explicitement et obtient les mois de
+  // cette année-là, pas ceux de l'année affichée.
+  const yearMonths = useCallback(
+    (year?: string) => academicYearMonthsOf(yearRows, year || selectedYear),
+    [yearRows, selectedYear],
+  );
+
+  const value = useMemo(
+    () => ({ selectedYear, setSelectedYear, lockedYears, setLockedYears, yearRows, setYearRows, yearMonths }),
+    [selectedYear, lockedYears, yearRows, yearMonths],
+  );
+
   return (
-    <YearContext.Provider value={{ selectedYear, setSelectedYear, lockedYears, setLockedYears }}>
+    <YearContext.Provider value={value}>
       {children}
     </YearContext.Provider>
   );

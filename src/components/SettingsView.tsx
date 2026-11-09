@@ -16,6 +16,7 @@ import { useMainViews } from '../app/mainViewsContext';
 import { SettingsHelpCard } from './SettingsHelpCard';
 import { SettingsPreferencesCard } from './SettingsPreferencesCard';
 import { SettingsSchoolCard } from './SettingsSchoolCard';
+import { SettingsYearMonthsCard } from './SettingsYearMonthsCard';
 import { SettingsBackupCard } from './SettingsBackupCard';
 import { SettingsDiagnosticsCard } from './SettingsDiagnosticsCard';
 import { SettingsClassesCard } from './SettingsClassesCard';
@@ -40,6 +41,10 @@ export function SettingsView() {
                 immédiatement les réglages d'affichage, avant les sections
                 d'exploitation (sauvegarde, classes, comptes). */}
             <SettingsSchoolCard />
+            {/* Les mois de l'année suivent le nom : le nom dit QUI est l'école,
+                la plage dit CE QUE ses reçus réclament — deux faits de
+                l'établissement, écrits une fois, avant l'exploitation. */}
+            <SettingsYearMonthsCard />
             <SettingsBackupCard />
             <SettingsDiagnosticsCard />
             <SettingsClassesCard />

@@ -9,7 +9,7 @@
  *
  * Ce module est le seul endroit qui décide de la forme de ce choix :
  *
- *   • `academicYearMonths` — les douze mois d'une année scolaire ;
+ *   • `academicYearMonths` — les mois d'une année scolaire, de son début à sa fin ;
  *   • `sortPaymentMonths` — l'ordre du calendrier, sans doublon ;
  *   • `paidMonthsShape` — « aucun », « un seul », « plage », « liste » ;
  *   • `formatPaidMonths` — ce que la ligne « Mois » du reçu écrit.
@@ -20,11 +20,15 @@
  *      en base deviendrait faux dans un reçu anglais, et « sep » ne dirait pas
  *      de quelle année. `2026-09` se trie, se compare et se traduit à
  *      l'impression — c'est `paymentMonthLabel` qui rend le mot.
- *   2. **L'année scolaire commence en SEPTEMBRE.** Un `getMonth()` nu rangerait
- *      septembre en neuvième position d'une année civile qui n'existe pas ici,
- *      et une liste triée par mois civil mettrait octobre AVANT septembre :
- *      d'où le rang absolu (`année × 12 + mois`), qui traverse aussi le passage
- *      décembre → janvier sans se tromper.
+ *   2. **L'année scolaire n'a pas un nombre fixe de mois.** Elle va de son mois
+ *      de début à son mois de fin — septembre→juin le plus souvent, parfois
+ *      octobre→juin, parfois jusqu'en juillet — et ce choix appartient à
+ *      l'école, pas au code : il vit sur la ligne `academic_years`
+ *      (`start_month`, `end_month`). Écrire « 12 » en dur faisait réclamer
+ *      août à une famille dont l'année s'arrête en juin. Un `getMonth()` nu
+ *      rangerait par ailleurs septembre en neuvième position d'une année civile
+ *      qui n'existe pas ici : d'où le rang absolu (`année × 12 + mois`), qui
+ *      traverse aussi le passage décembre → janvier sans se tromper.
  *
  * Le module est PUR : aucune date système, aucun React, aucun accès réseau. La
  * langue arrive en paramètre (`PaymentMonthLabel` / `PaidMonthsWords`), ce qui
@@ -34,8 +38,46 @@ import type { Language, TranslationDict } from '../i18n/translations';
 import { formatCurrency, formatDateLang } from './formatters';
 import { isPartialPayment } from './paymentInstallments';
 
-/** Septembre — le premier mois de l'année scolaire malienne (0 = janvier). */
-const SCHOOL_FIRST_MONTH = 8;
+/**
+ * La plage par DÉFAUT : septembre → juin. C'est la rentrée malienne la plus
+ * courante, et c'est le repli d'une année dont la base ne dit rien (année créée
+ * par une version antérieure, lecture partielle). Une année qui va jusqu'en
+ * août le dit (`end_month = 8`), elle ne l'obtient plus par défaut.
+ */
+export const DEFAULT_SCHOOL_MONTHS = { startMonth: 9, endMonth: 6 } as const;
+
+/** Un mois de l'année scolaire, en numéro civil (1 = janvier … 12 = décembre). */
+export interface SchoolMonthsSpan {
+  /** Le premier mois réglé de l'année (1..12). */
+  startMonth?: number | null;
+  /** Le dernier mois réglé de l'année (1..12). */
+  endMonth?: number | null;
+}
+
+/** Une ligne d'`academic_years`, lue pour sa plage de mois seulement. */
+export interface AcademicYearSpanRow {
+  year_name: string;
+  start_month?: number | null;
+  end_month?: number | null;
+}
+
+/** Un numéro de mois lisible (1..12), ou `null` — jamais un mois inventé. */
+function validMonth(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isInteger(n) && n >= 1 && n <= 12 ? n : null;
+}
+
+/**
+ * Vrai pour un mois d'année scolaire (1..12) — le contrat de la colonne.
+ *
+ * Exporté pour que l'écran qui écrit la plage et la file hors ligne REFUSENT la
+ * même chose : un rejeu plus permissif que le formulaire écrirait en base un
+ * mois que la base elle-même rejette (`CHECK (1..12)`), c'est-à-dire une
+ * déclaration perdue en silence.
+ */
+export function isSchoolMonth(value: unknown): boolean {
+  return validMonth(value) !== null;
+}
 
 /**
  * Les douze clés i18n des mois, dans l'ordre du calendrier civil : l'INDEX du
@@ -74,25 +116,75 @@ function rank(ym: string): number | null {
 }
 
 /**
- * Les douze mois d'une année scolaire : « 2026-2027 » → septembre 2026 …
- * août 2027, en `YYYY-MM`.
+ * Les mois d'une année scolaire, de `startMonth` à `endMonth` inclus, en
+ * `YYYY-MM` : « 2026-2027 » avec 9→6 rend septembre 2026 … juin 2027.
  *
- * Une valeur illisible rend une liste VIDE, et c'est voulu : proposer des mois
- * inventés ferait cocher une famille sur une année qui n'existe pas. Le
- * formulaire cache alors son champ, et le reçu retombe sur le mois de la date
- * (comportement d'avant ce module). Le séparateur `-` ou `/` est accepté, comme
- * dans `academicYearWindow`.
+ * La plage vient de l'école (`academic_years.start_month` / `end_month`) ; sans
+ * elle, `DEFAULT_SCHOOL_MONTHS` s'applique (septembre → juin). Une valeur
+ * illisible rend une liste VIDE, et c'est voulu : proposer des mois inventés
+ * ferait cocher une famille sur une année qui n'existe pas. Le formulaire cache
+ * alors son champ, et le reçu retombe sur le mois de la date (comportement
+ * d'avant ce module). Le séparateur `-` ou `/` est accepté, comme dans
+ * `academicYearWindow`.
+ *
+ * La boucle s'arrête au mois de fin et ne dépasse JAMAIS douze mois : une plage
+ * aberrante (même mois des deux côtés, fin avant début) rend ce qu'elle peut
+ * nommer, jamais une liste infinie.
  */
-export function academicYearMonths(academicYear: string | undefined): string[] {
+export function academicYearMonths(
+  academicYear: string | undefined,
+  span?: SchoolMonthsSpan,
+): string[] {
   if (!academicYear) return [];
   const m = academicYear.match(/(\d{4})[-/](\d{4})/);
   if (!m) return [];
   const startYear = Number(m[1]);
-  return Array.from({ length: 12 }, (_, i) => {
-    const month = (SCHOOL_FIRST_MONTH + i) % 12;
-    const year = startYear + Math.floor((SCHOOL_FIRST_MONTH + i) / 12);
-    return `${year}-${String(month + 1).padStart(2, '0')}`;
-  });
+  const startMonth = validMonth(span?.startMonth) ?? DEFAULT_SCHOOL_MONTHS.startMonth;
+  const endMonth = validMonth(span?.endMonth) ?? DEFAULT_SCHOOL_MONTHS.endMonth;
+
+  const months: string[] = [];
+  let year = startYear;
+  let month = startMonth;
+  for (let i = 0; i < 12; i += 1) {
+    months.push(`${year}-${String(month).padStart(2, '0')}`);
+    if (month === endMonth) break;
+    month += 1;
+    if (month === 13) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return months;
+}
+
+/**
+ * La plage de mois déclarée par une année, ou le défaut de l'école.
+ *
+ * Ne devine rien : une ligne absente (année créée par un poste hors ligne, base
+ * lue partiellement) reçoit `DEFAULT_SCHOOL_MONTHS`, la même valeur que la
+ * colonne de la base — la correction de la base et le repli du code ne peuvent
+ * donc pas diverger d'un mois.
+ */
+export function yearMonthsSpan(
+  rows: readonly AcademicYearSpanRow[],
+  academicYear: string | undefined,
+): SchoolMonthsSpan {
+  const row = (rows ?? []).find((entry) => entry.year_name === academicYear);
+  return {
+    startMonth: validMonth(row?.start_month) ?? DEFAULT_SCHOOL_MONTHS.startMonth,
+    endMonth: validMonth(row?.end_month) ?? DEFAULT_SCHOOL_MONTHS.endMonth,
+  };
+}
+
+/**
+ * Les mois d'une année, lus sur les lignes de la base — le raccourci que les
+ * écrans utilisent, pour qu'aucun d'eux ne recompose la plage à sa façon.
+ */
+export function academicYearMonthsOf(
+  rows: readonly AcademicYearSpanRow[],
+  academicYear: string | undefined,
+): string[] {
+  return academicYearMonths(academicYear, yearMonthsSpan(rows, academicYear));
 }
 
 /**

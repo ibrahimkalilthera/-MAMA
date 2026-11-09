@@ -36,6 +36,7 @@ import { paymentMotifAuditTag } from './paymentMotifs';
 import { salaryAddAuditInfo, salaryDeleteAuditInfo } from './offlineReplayPayroll';
 import { displayPreferenceAuditInfo } from './offlineReplaySettings';
 import { schoolNameAuditInfo } from './offlineReplaySchoolName';
+import { yearMonthsAuditInfo } from './offlineReplayAcademicYear';
 
 export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> | null {
   const tag = ' [replay]';
@@ -142,6 +143,10 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
       // Le nom de l'école est audité EN LIGNE aussi (`UPDATE_SETTING`, voir
       // dataOps/settings.ts) : le rejeu doit s'y lire de la même façon.
       return schoolNameAuditInfo(item.payload, tag);
+    case 'setYearMonths':
+      // La plage de scolarité change ce que les reçus réclament : auditée EN
+      // LIGNE (`UPDATE_SETTING`, voir dataOps/academicYears.ts), donc ici aussi.
+      return yearMonthsAuditInfo(item.payload, tag);
     default:
       // Geste dont l'équivalent EN LIGNE n'est pas audité — tâches, classes
       // personnalisées, notes du calendrier, déclaration d'année — donc le rejeu

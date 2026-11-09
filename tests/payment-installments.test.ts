@@ -12,6 +12,11 @@
  *   • un paiement d'AVANT la colonne (`dueAmount` absent) ne change pas d'un
  *     caractère : ni mention, ni mois rouvert. C'est le contrat de `months` et
  *     `motif` avant lui.
+ *
+ * Le DIVISEUR des frais annuels est le nombre de mois de l'année scolaire, pas
+ * douze en dur : une année septembre→juin facture dix mois, une année
+ * octobre→juin onze, une année qui irait jusqu'en août douze. Sans plage
+ * lisible on retombe sur douze (le comportement d'avant), jamais sur zéro.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,9 +36,33 @@ const fmt = (amount: number) => `${amount} FCFA`;
 const student = { totalDue: 120000, scholarshipDiscount: 0, payments: [] };
 
 describe('paymentInstallments — les frais d’un mois', () => {
-  it('divise les frais annuels nets de bourse par douze', () => {
+  it('divise les frais annuels nets de bourse par douze, sans plage connue', () => {
+    // Le repli : une année dont la plage ne se lit pas garde le comportement
+    // d'avant, plutôt que de refuser de calculer un reste dû.
     assert.equal(monthlyFee({ totalDue: 120000 }), 10000);
     assert.equal(monthlyFee({ totalDue: 120000, scholarshipDiscount: 25 }), 7500);
+  });
+
+  it('suit le nombre de mois RÉEL de l’année scolaire', () => {
+    // Septembre→juin : dix mois de scolarité, donc un dixième de l'année par
+    // mois. La division par douze réclamait 10 000 pour un mois qui en vaut
+    // 12 000 — un dixième de la dette annuelle restait hors des reçus.
+    assert.equal(monthlyFee({ totalDue: 120000 }, 10), 12000);
+    // Octobre→juin : onze mois.
+    assert.equal(monthlyFee({ totalDue: 110000 }, 11), 10000);
+    // Une année qui irait jusqu'en août reste à douze.
+    assert.equal(monthlyFee({ totalDue: 120000 }, 12), 10000);
+    // La bourse s'applique AVANT la division, quel que soit le diviseur.
+    assert.equal(monthlyFee({ totalDue: 120000, scholarshipDiscount: 25 }, 10), 9000);
+  });
+
+  it('retombe sur douze plutôt que sur l’infini quand la plage est absurde', () => {
+    // Un nombre de mois illisible ne doit pas rendre un reste dû infini : le
+    // guichet préfère l'ancien calcul à un montant incalculable.
+    assert.equal(monthlyFee({ totalDue: 120000 }, 0), 10000);
+    assert.equal(monthlyFee({ totalDue: 120000 }, -3), 10000);
+    assert.equal(monthlyFee({ totalDue: 120000 }, Number.NaN), 10000);
+    assert.equal(monthlyFee({ totalDue: 120000 }, Number.POSITIVE_INFINITY), 10000);
   });
 
   it('rend zéro, et non une erreur, pour un élève sans frais déclarés', () => {
@@ -54,6 +83,23 @@ describe('paymentInstallments — le reste dû des mois choisis', () => {
       partialPaid: 0,
       remaining: 20000,
     });
+  });
+
+  it('compte chaque mois au prix de l’année : une année de dix mois', () => {
+    // Septembre→juin sur 120 000 FCFA : 12 000 le mois, donc trois mois valent
+    // 36 000 — et non les 30 000 que donnerait une division par douze. C'est
+    // le montant que la famille doit réellement, et celui qui part en base.
+    const target = installmentTarget(student, ['2026-09', '2026-10', '2026-11'], 10);
+    assert.equal(target.due, 36000);
+    assert.equal(target.remaining, 36000);
+  });
+
+  it('arrondit au franc le reste d’une année dont le mois ne tombe pas rond', () => {
+    // 100 000 FCFA sur onze mois : 9 090,909… le mois, donc deux mois ne font
+    // pas un nombre entier de francs — le reste dû se lit en francs entiers.
+    const target = installmentTarget({ totalDue: 100000 }, ['2026-10', '2026-11'], 11);
+    assert.equal(target.due, Math.round((100000 / 11) * 2));
+    assert.equal(Number.isInteger(target.due), true);
   });
 
   it('retire les versements PARTIELS déjà reçus sur ces mois', () => {

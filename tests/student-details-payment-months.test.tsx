@@ -17,7 +17,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentDetailsModal } from '../src/components/StudentDetailsModal';
 import { translations } from '../src/i18n/translations';
-import { formatPaidMonths, paymentMonthLabel } from '../src/lib/paymentMonths';
+import { academicYearMonths, formatPaidMonths, paymentMonthLabel } from '../src/lib/paymentMonths';
 import type { Student, Payment } from '../src/lib/useSupabaseData';
 import type { CurrentTheme } from '../src/app/mainViewsProps';
 import { installDomGlobals } from './harness';
@@ -83,6 +83,8 @@ function mount(opts: { canEditPaymentMonths?: boolean; result?: boolean; onCall?
     studentDetailTab: 'general' as const,
     setStudentDetailTab: () => {},
     selectedYear: '2026-2027',
+    // Une école qui court jusqu'en août : la plage réglée se lit sur la bande.
+    yearMonths: (year?: string) => academicYearMonths(year, { startMonth: 9, endMonth: 8 }),
     overlayRef: () => {},
     onClose: () => {},
     onEdit: () => {},

@@ -37,6 +37,12 @@ export const SETTINGS_PASSWORD_MODAL_SLOT = 'settings-password-modal';
  * dans les préférences, parce qu'il ne se règle pas comme elles : une ligne
  * partagée, écrite par l'administration, là où un thème se choisit devant un
  * écran.
+ *
+ * `SettingsYearMonthsCard` vient IMMÉDIATEMENT APRÈS, et pour la même raison :
+ * le nom dit QUI est l'école, la plage de mois dit CE QUE ses reçus réclament
+ * (`academic_years.start_month`/`end_month`). Les deux sont des faits de
+ * l'établissement, écrits une fois pour tout le parc — pas des préférences de
+ * poste — et ils se relisent ensemble, avant la sauvegarde et les comptes.
  */
 export const SETTINGS_SECTIONS = [
   // « Premiers pas » ouvre la pile : c'est la seule section qui s'adresse à
@@ -45,6 +51,7 @@ export const SETTINGS_SECTIONS = [
   'SettingsHelpCard',
   'SettingsPreferencesCard',
   'SettingsSchoolCard',
+  'SettingsYearMonthsCard',
   'SettingsBackupCard',
   // « État du poste » suit la sauvegarde : les deux parlent de ce qui protège
   // les données (la copie, puis la mémoire des pannes de CE poste), avant les
@@ -65,8 +72,8 @@ export const SETTINGS_STACK_SECTIONS = SETTINGS_SECTIONS.filter(
  * composants de `SETTINGS_STACK_SECTIONS` déclarent : `SettingsHelpCard` un
  * (premiers pas), `SettingsPreferencesCard` six (langue, devise, densité des
  * tableaux, verre des icônes, thème, logo), `SettingsSchoolCard` un (le nom de
- * l'école), et les trois autres un chacun. C'est CETTE longueur — 12 — que
- * comptent les deux preuves.
+ * l'école), `SettingsYearMonthsCard` un (les mois de l'année), et les trois
+ * autres un chacun. C'est CETTE longueur — 13 — que comptent les deux preuves.
  */
 export const SETTINGS_STACK_SLOTS = [
   'settings-first-steps',
@@ -77,6 +84,7 @@ export const SETTINGS_STACK_SLOTS = [
   'settings-theme-settings',
   'settings-upload-logo',
   'settings-school-name',
+  'settings-year-months',
   'settings-backup',
   'settings-diagnostics',
   'settings-classes',

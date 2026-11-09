@@ -82,7 +82,7 @@ describe('silentReceipts — qui apparaît, et à quel rang', () => {
     assert.equal(rows[1]!.amount, 25000,
       'et seulement les muets : le reçu qui déclare ses mois n’entre pas dans la somme');
     assert.equal(rows[1]!.covered, 1, 'ce qui est déjà déclaré est compté comme couvert');
-    assert.equal(rows[1]!.total, 12, 'l’année scolaire compte douze mois');
+    assert.equal(rows[1]!.total, 10, 'l’année scolaire va de septembre à juin : dix mois, pas douze');
     assert.equal(silentReceiptsTotal(rows), 65000, 'le pied de liste additionne les lignes');
   });
 

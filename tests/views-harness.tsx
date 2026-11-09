@@ -31,6 +31,7 @@ import { MainViewsContext } from '../src/app/mainViewsContext';
 import type { MainViewsProps } from '../src/app/mainViewsProps';
 import type { AuthState } from '../src/lib/useAuth';
 import { translations } from '../src/i18n/translations';
+import { academicYearMonths } from '../src/lib/paymentMonths';
 import { assembleProps, deriveContractDefaults } from './views-contract';
 
 // ─── Ce que la dérivation ne peut pas deviner ────────────────────────────────
@@ -90,6 +91,10 @@ export const declaredDefaults: Partial<MainViewsProps> = {
   // cas qui croit mesurer une liste mesurerait en réalité une liste dont les
   // actions de suppression ont disparu (les vues les masquent aux autres rôles).
   canDelete: true,
+  // La plage de scolarité d'une année : un CAS rend `academicYearMonths` lui-même,
+  // parce qu'un stub rendrait une liste qui n'est pas celle des reçus — et les
+  // vues comparent le nombre de mois réglés au total de l'année.
+  yearMonths: (year?: string) => academicYearMonths(year),
   // `Suspense` enveloppe du contenu : le composant stub de la dérivation rend
   // `null`, donc ce qu'elle enveloppe disparaîtrait du HTML mesuré.
   Suspense: Suspense as never,

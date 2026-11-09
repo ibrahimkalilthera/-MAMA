@@ -34,6 +34,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StudentDetailsModal } from '../src/components/StudentDetailsModal';
 import { translations } from '../src/i18n/translations';
+import { academicYearMonths } from '../src/lib/paymentMonths';
 import type { Student, Payment } from '../src/lib/useSupabaseData';
 import type { CurrentTheme } from '../src/app/mainViewsProps';
 import { installDomGlobals } from './harness';
@@ -126,6 +127,8 @@ function mount(opts: {
     studentDetailTab: 'general' as const,
     setStudentDetailTab: () => {},
     selectedYear: '2026-2027',
+    // Une école qui court jusqu'en août : l'éditeur offre les mois de la PLAGE.
+    yearMonths: (year?: string) => academicYearMonths(year, { startMonth: 9, endMonth: 8 }),
     overlayRef: () => {},
     onClose: () => {},
     onEdit: () => {},

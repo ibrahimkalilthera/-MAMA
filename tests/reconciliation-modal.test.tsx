@@ -30,6 +30,7 @@ import { StudentDetailsModal } from '../src/components/StudentDetailsModal';
 import { translations } from '../src/i18n/translations';
 import type { Payment, Student } from '../src/lib/useSupabaseData';
 import type { CurrentTheme } from '../src/app/mainViewsProps';
+import { academicYearMonths } from '../src/lib/paymentMonths';
 import { installDomGlobals } from './harness';
 
 const t = translations.fr;
@@ -63,8 +64,13 @@ function student(payments: Payment[]): Student {
   };
 }
 
+// L'année de ces fixtures va jusqu'en AOÛT (`endMonth: 8`) : c'est la forme que
+// les assertions dessous mesurent depuis le début (douze mois, septembre → août),
+// et elle reste une plage LÉGALE — une école peut la régler. Le défaut de l'app
+// est septembre → juin, et `tests/year-months-span.test.ts` couvre ce cas-là.
 const sheetProps = (target: Student) => ({
   t, lang: 'fr' as const, currentTheme: theme, student: target, selectedYear: '2026-2027',
+  yearMonths: (year?: string) => academicYearMonths(year, { startMonth: 9, endMonth: 8 }),
   getGradeDisplay: (g: string | undefined) => g ?? '',
   formatDate: (d: string) => d,
   formatCurrency: (n: number) => `${n} FCFA`,
@@ -162,6 +168,7 @@ describe('état de rapprochement — le geste depuis la fiche élève', () => {
       getGradeDisplay: (g: string | undefined) => g ?? '', generatePaymentReceiptPdf: async () => {},
       currentUser: { name: 'Admin', role: 'admin' }, copyToClipboard: () => {}, handleSaveNote: async () => {},
       studentDetailTab: 'general' as const, setStudentDetailTab: () => {}, selectedYear: '2026-2027',
+      yearMonths: academicYearMonths,
       overlayRef: () => {}, onClose: () => {}, onEdit: () => {}, onPrint: () => {}, onDeleteRequest: () => {},
       canDelete: false, canDeletePayment: false, onDeletePayment: async () => true,
       canEditPaymentMonths: false, onUpdatePaymentMonths: async () => true,

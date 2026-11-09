@@ -16,6 +16,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import type { LucideIcon } from 'lucide-react';
 import { translations } from '../src/i18n/translations';
+import { academicYearMonths } from '../src/lib/paymentMonths';
 import { AppShell } from '../src/components/AppShell';
 import { DensityContext } from '../src/app/densityContext';
 import { IconGlassContext } from '../src/app/iconGlassContext';
@@ -174,6 +175,7 @@ function shellProps(): Record<string, unknown> {
     setShowTodoSidebar: noop,
     setShowPaymentForm: noop,
     selectedYear: '2026-2027',
+    yearMonths: (year?: string) => academicYearMonths(year),
     academicYears: ['2026-2027'],
     availableClasses: [],
     searchTerm: '',
@@ -213,6 +215,7 @@ function shellProps(): Record<string, unknown> {
       lang: 'fr' as const,
       currentMonth: 0,
       currentYear: 2026,
+      yearMonths: (year?: string) => academicYearMonths(year),
       academicYears: ['2026-2027'],
       availableClasses: [],
       students: [],

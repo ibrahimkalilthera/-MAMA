@@ -78,7 +78,11 @@ export interface PaymentEntryModalProps {
    */
   paymentMotif: PaymentMotif;
   setPaymentMotif: Dispatch<SetStateAction<PaymentMotif>>;
-  /** Les mois proposés — ceux de l'année scolaire de la date — en `YYYY-MM`. */
+  /**
+   * Les mois proposés — ceux de l'année scolaire de la date, dans la plage
+   * réglée par l'école — en `YYYY-MM`. Leur NOMBRE est aussi le diviseur des
+   * frais annuels : une année de dix mois vaut dix mois de scolarité, pas douze.
+   */
   paymentMonthOptions: string[];
   /** Les mois cochés : le mois de la date tant que le caissier n'a rien touché. */
   paymentMonths: string[];
@@ -254,12 +258,18 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
   //
   // Rien ne s'affiche sans mois choisi ni pour un élève sans frais : pas de
   // reste à calculer, donc pas de ligne — l'écran reste celui d'avant.
+  //
+  // Le DIVISEUR est le nombre de mois que CETTE année propose
+  // (`paymentMonthOptions`) : une école septembre→juin facture son année en dix
+  // mois, donc chaque mois vaut un dixième — pas un douzième. Diviser par douze
+  // aurait réclamé un reste dû supérieur au prix réel d'un mois.
   const selectedStudent = students.find((s) => s.id === paymentStudentId);
+  const monthsInYear = paymentMonthOptions.length;
   const installment = useMemo(
     () => (selectedStudent && paymentMonths.length > 0
-      ? installmentTarget(selectedStudent, paymentMonths)
+      ? installmentTarget(selectedStudent, paymentMonths, monthsInYear)
       : null),
-    [selectedStudent, paymentMonths],
+    [selectedStudent, paymentMonths, monthsInYear],
   );
   const typedAmount = Number(paymentAmount);
   const partialNow =

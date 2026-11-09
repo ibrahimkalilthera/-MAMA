@@ -44,6 +44,13 @@ interface UsePaymentsDeps {
   t: TranslationDict;
   lang: 'en' | 'fr';
   selectedYear: string;
+  /**
+   * Les mois d'une année scolaire selon les bornes réglées par l'école. Le
+   * formulaire de saisie les demande pour l'année de la DATE du reçu (une
+   * correction d'octobre se fait dans l'année d'octobre), jamais pour l'année
+   * simplement affichée à l'écran.
+   */
+  yearMonths: (year?: string) => string[];
   lockedYears: string[];
   students: Student[];
   staff: Staff[];
@@ -57,7 +64,7 @@ interface UsePaymentsDeps {
 }
 
 export function usePayments(deps: UsePaymentsDeps) {
-  const { t, lang, selectedYear, lockedYears, students, staff, expenses, todos, currentUser, addPayment, toastError } = deps;
+  const { t, lang, selectedYear, yearMonths, lockedYears, students, staff, expenses, todos, currentUser, addPayment, toastError } = deps;
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<Date | null>(null);
@@ -180,9 +187,12 @@ export function usePayments(deps: UsePaymentsDeps) {
     return true;
   };
 
+  // Les mois proposés sont ceux de l'année de la DATE du reçu, avec les bornes
+  // que l'école a réglées pour cette année-là (`yearMonths`) : proposer douze
+  // mois à une école qui s'arrête en juin faisait réclamer juillet et août.
   const paymentMonthOptions = useMemo(
-    () => academicYearMonths(academicYearOf(paymentDate)),
-    [paymentDate],
+    () => yearMonths(academicYearOf(paymentDate)),
+    [paymentDate, yearMonths],
   );
 
   // Le mois de la date, lu DANS LA CHAÎNE : `2026-10-04` → `2026-10`. Aucune
@@ -298,8 +308,14 @@ export function usePayments(deps: UsePaymentsDeps) {
     //
     // Rien n'est écrit quand le geste n'a pas de reste (inscription, mois non
     // déclarés, élève sans frais) : `NULL` en base = comportement d'avant.
+    //
+    // Le DIVISEUR des frais annuels est le nombre de mois de CETTE année
+    // (`paymentMonthOptions`, déjà borné à la plage réglée par l'école) : dix
+    // mois septembre→juin, onze octobre→juin. Douze en dur réclamait un dixième
+    // de trop à une école qui ne scolarise pas en juillet et août — et c'est ce
+    // nombre-là qui part en base, donc le reçu réimprimé ne mentira pas.
     const installment = targetStudent && shownPaymentMonths.length > 0
-      ? installmentTarget(targetStudent, shownPaymentMonths)
+      ? installmentTarget(targetStudent, shownPaymentMonths, paymentMonthOptions.length)
       : null;
     const dueAmount = installment && installment.remaining > 0 ? installment.remaining : undefined;
     // L'id du GESTE : le même si l'envoi est répété → un seul reçu. Il est

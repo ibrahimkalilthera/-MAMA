@@ -33,7 +33,7 @@ import { ClipboardList, Printer } from 'lucide-react';
 import type { Student } from '../lib/useSupabaseData';
 import type { CurrentTheme } from '../app/mainViewsProps';
 import type { TranslationDict } from '../i18n/translations';
-import { academicYearMonths, paidReceiptEvidence, paymentMonthLabel } from '../lib/paymentMonths';
+import { paidReceiptEvidence, paymentMonthLabel } from '../lib/paymentMonths';
 import { reconciliationDue, studentReconciliation } from '../lib/studentReconciliation';
 import { studentMatricule } from '../lib/studentIdentifiers';
 import { modalTokens } from '../lib/modalTokens';
@@ -47,6 +47,14 @@ interface ReconciliationSheetProps {
   student: Student;
   /** L'année scolaire ACTIVE de l'application — recours quand la fiche n'en porte pas. */
   selectedYear: string;
+  /**
+   * Les mois de l'année jugée, avec les bornes réglées par l'école. L'état de
+   * rapprochement ne compose pas sa plage : il demande celle de la fiche
+   * (`student.academicYear || selectedYear`), la même que la bande de la fiche —
+   * sans quoi le papier remis à la famille réclamerait des mois que l'école
+   * n'ouvre pas.
+   */
+  yearMonths: (year?: string) => string[];
   getGradeDisplay: (grade: string | undefined, currentLang?: 'en' | 'fr') => string;
   formatDate: (dateStr: string) => string;
   formatCurrency: (amount: number) => string;
@@ -62,11 +70,11 @@ interface ReconciliationSheetProps {
  * inventés, et la phrase le dit (voir `reconciliationDue`).
  */
 function ReconciliationSheet({
-  t, lang, currentTheme, student, selectedYear, getGradeDisplay, formatDate, formatCurrency,
+  t, lang, currentTheme, student, selectedYear, yearMonths, getGradeDisplay, formatDate, formatCurrency,
 }: ReconciliationSheetProps) {
   const tokens = modalTokens(currentTheme);
-  const yearMonths = academicYearMonths(student.academicYear || selectedYear);
-  const rec = studentReconciliation(student, yearMonths);
+  const yearMonthsOfYear = yearMonths(student.academicYear || selectedYear);
+  const rec = studentReconciliation(student, yearMonthsOfYear);
   const due = reconciliationDue(rec, {
     label: (ym) => paymentMonthLabel(ym, t),
     dueLine: t.reconciliationDueLine,
@@ -77,7 +85,7 @@ function ReconciliationSheet({
   const matricule = studentMatricule(student.studentId);
   const coveredCount = t.monthsCoveredCount
     .replace('{covered}', String(rec.covered.length))
-    .replace('{total}', String(yearMonths.length));
+    .replace('{total}', String(yearMonthsOfYear.length));
   const rows: { label: string; value: string }[] = [
     { label: t.student, value: student.name },
     ...(matricule ? [{ label: t.studentId, value: matricule }] : []),

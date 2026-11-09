@@ -196,6 +196,14 @@ export interface AppModalsProps {
    * finiraient par diverger.
    */
   selectedYear: string;
+  /**
+   * Les mois d'une année scolaire selon les bornes réglées par l'école — la
+   * fiche élève et son état de rapprochement en ont besoin pour la MÊME raison :
+   * réclamer juillet à une famille dont l'année s'arrête en juin serait un faux
+   * impayé. La fonction vient de l'année (`src/app/yearContext.ts`), elle n'est
+   * pas recalculée ici.
+   */
+  yearMonths: (year?: string) => string[];
   selectedStudent: Student | null;
   /**
    * Le reçu MUET sur lequel la fiche ouverte doit s'ouvrir, ou `null`. Posé par

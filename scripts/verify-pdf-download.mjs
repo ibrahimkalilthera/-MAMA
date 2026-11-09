@@ -167,8 +167,66 @@ const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Applic
 // dehors : il ne doit donc PAS apparaître sur la ligne, ce qui est exactement ce
 // qu'un reçu qui aurait perdu les mois cochés écrirait à la place.
 const MONTHS_DATE = '2026-10-04';
-const MONTHS_AMOUNT = 30000;
+// Les frais des TROIS mois cochés, et non un chiffre rond : `total_due` de
+// l'élève de démo (150 000) divisé par les mois de l'année scolaire, fois trois
+// — c'est-à-dire ce que la grille du guichet réclame pour ces mois (voir
+// `monthlyFee` dans src/lib/paymentInstallments.ts). Depuis les versements
+// partiels, un montant INFÉRIEUR au dû ne ferme plus les mois : il les déclare
+// sans les régler. Payer 30 000 laissait donc les trois mois À RÉGLER, et la
+// fiche disait vrai — c'était le montant du contrôle qui était périmé.
+//
+// Le DIVISEUR n'est plus douze en dur : l'école règle sa plage, et une année
+// septembre→juin vaut dix mois (donc 15 000 le mois). Ce montant se calcule
+// donc APRÈS la lecture de `SCHOOL_MONTHS_COUNT`, juste avant le geste ; la
+// valeur d'ici n'est qu'un repli si le flux part sans avoir lu la base.
+const DEMO_STUDENT_DUE = 150000;
+let MONTHS_AMOUNT = Math.round((DEMO_STUDENT_DUE / 12) * 3);
+
+/** Ce que le guichet réclame pour `months` mois d'une année de `monthsInYear`. */
+function monthsAmountFor(months, monthsInYear) {
+  const divisor = Number.isInteger(monthsInYear) && monthsInYear >= 1 ? monthsInYear : 12;
+  return Math.round((DEMO_STUDENT_DUE / divisor) * months);
+}
 const MONTHS_TICKED = ['2026-09', '2026-11', '2026-12'];
+
+/**
+ * Combien de mois compte l'année scolaire — lu en BASE, jamais écrit en dur.
+ *
+ * L'école règle ses bornes (`academic_years.start_month` / `end_month`) :
+ * septembre→juin le plus souvent, octobre→juin parfois, jusqu'en juillet
+ * ailleurs. Un contrôle qui attendrait « douze pastilles » accuserait
+ * l'application d'un mois d'août qu'elle n'a plus à réclamer.
+ *
+ * Le repli à 12 vaut pour une base d'AVANT la migration (colonnes absentes) :
+ * c'est alors la réalité de cette base-là, et le run le dit au lieu de le taire.
+ */
+let SCHOOL_MONTHS_COUNT = 12;
+
+/** Le nombre de mois d'une plage `start_month` → `end_month`, bornes comprises. */
+function spanMonthCount(startMonth, endMonth) {
+  const start = Number(startMonth);
+  const end = Number(endMonth);
+  const valid = (n) => Number.isInteger(n) && n >= 1 && n <= 12;
+  if (!valid(start) || !valid(end)) return 0;
+  return ((end - start + 12) % 12) + 1;
+}
+
+/** Lit la plage de l'année ACTIVE (celle que l'application affiche). */
+async function readSchoolMonthsCount() {
+  const res = await api('/rest/v1/academic_years?select=year_name,start_month,end_month,is_current');
+  if (res.status !== 200 || !Array.isArray(res.body) || res.body.length === 0) {
+    console.log(`  ⚠️ plage de l’année illisible (${res.status}) — ${SCHOOL_MONTHS_COUNT} mois supposés`);
+    return 12;
+  }
+  const current = res.body.find((row) => row.is_current) ?? res.body[0];
+  const count = spanMonthCount(current.start_month, current.end_month);
+  if (!count) {
+    console.log(`  ⚠️ bornes inconnues pour ${current.year_name} — 12 mois supposés`);
+    return 12;
+  }
+  console.log(`  ℹ️ année ${current.year_name} : ${current.start_month}→${current.end_month} (${count} mois)`);
+  return count;
+}
 // Les mots du reçu, en français : ils viennent de la règle du module pur
 // (src/lib/paymentMonths.ts), que tests/payment-months.test.ts verrouille de son
 // côté. Ici, l'attendu est écrit en toutes lettres — un contrôle qui calculerait
@@ -821,9 +879,9 @@ async function openStudentFile(page, studentName) {
  * lecture passe par `data-month` / `data-state`, jamais par les libellés — un
  * mois réglé se dit « Réglé » en français et « Paid » en anglais, `2026-09` non.
  *
- * Elle ATTEND la bande : les douze mois viennent de l'année scolaire active, que
- * l'application lit en base, donc parfois après le premier rendu de la fiche. Un
- * `null` est un CONSTAT, pas une exception — c'est au contrôle de le dire.
+ * Elle ATTEND la bande : ses mois viennent de l'année scolaire active (les bornes
+ * réglées par l'école, lues en base), donc parfois après le premier rendu de la
+ * fiche. Un `null` est un CONSTAT, pas une exception — c'est au contrôle de le dire.
  */
 async function readMonthsStrip(page) {
   const ready = await page.waitForFunction(
@@ -1098,7 +1156,7 @@ async function proveMonthsChain(page, screenLine, studentName) {
  * Trois gestes, et aucun n'est décoratif :
  *
  *   • l'ÉDITEUR est ouvert depuis la ligne du reçu, et jugé AVANT d'écrire :
- *     douze mois offerts, AUCUN coché, l'enregistrement FERMÉ. Écrire un tableau
+ *     les mois de l'année offerts, AUCUN coché, l'enregistrement FERMÉ. Écrire un tableau
  *     vide ne déclarerait pas plus que le silence d'avant — la règle est celle de
  *     l'écran, et un contrôle qui la sauterait laisserait l'application décider à
  *     sa place ;
@@ -1129,7 +1187,9 @@ async function fillMuteMonthsFromFile(page) {
 
   const chips = await page.$$eval('[data-slot="payment-months-editor"] button[data-month]', (els) =>
     els.map((b) => ({ month: b.getAttribute('data-month'), pressed: b.getAttribute('aria-pressed') === 'true' })));
-  if (chips.length !== 12) throw new Error(`l’éditeur offre ${chips.length} mois — attendu 12 (les douze de l’année scolaire)`);
+  if (chips.length !== SCHOOL_MONTHS_COUNT) {
+    throw new Error(`l’éditeur offre ${chips.length} mois — attendu ${SCHOOL_MONTHS_COUNT} (les mois de l’année scolaire réglée)`);
+  }
   if (chips.some((c) => c.pressed)) throw new Error('l’éditeur pré-coche un mois : le reçu est muet, rien ne doit l’être');
   const saveClosed = await page.$eval('[data-slot="payment-months-save"]', (b) => b.disabled);
   if (!saveClosed) throw new Error('« Enregistrer » est ouvert alors qu’aucun mois n’est coché');
@@ -1826,9 +1886,9 @@ async function checkMonthsPaper(pdf) {
   const dueOnStrip = strip ? strip.months.filter((m) => m.state === 'due') : [];
   const heldInYear = (months.stored ?? []).filter((m) => offered.includes(m));
 
-  check('la fiche offre les douze mois de l’année scolaire',
-    !!strip && strip.total === 12,
-    strip ? `${strip.total} pastille(s)` : 'aucune bande de mois sur la fiche');
+  check('la fiche offre les mois de l’année scolaire réglée',
+    !!strip && strip.total === SCHOOL_MONTHS_COUNT,
+    strip ? `${strip.total} pastille(s), attendu ${SCHOOL_MONTHS_COUNT}` : 'aucune bande de mois sur la fiche');
 
   check('les mois du geste tombent dans l’année affichée par la fiche',
     heldInYear.length === MONTHS_TICKED.length,
@@ -1839,7 +1899,7 @@ async function checkMonthsPaper(pdf) {
     `réglés : ${paidOnStrip.join(', ') || 'aucun'} | base : ${heldInYear.join(', ') || 'aucun'}`);
 
   check('la fiche laisse À RÉGLER tout le reste de l’année',
-    !!strip && dueOnStrip.length === 12 - heldInYear.length
+    !!strip && dueOnStrip.length === SCHOOL_MONTHS_COUNT - heldInYear.length
       && strip.months.every((m) => m.state === 'paid' || m.state === 'due'),
     `${dueOnStrip.length} mois à régler sur ${strip?.total ?? 0}`);
 
@@ -1875,7 +1935,7 @@ async function checkMuteFilledPaper(pdf) {
 
   // ── AVANT : la fiche disait VRAIMENT qu'elle ne savait rien de ce reçu ────
   check('AVANT : la fiche n’accordait aucun mois réglé à cet élève',
-    !!before && before.total === 12 && before.months.every((c) => c.state === 'due'),
+    !!before && before.total === SCHOOL_MONTHS_COUNT && before.months.every((c) => c.state === 'due'),
     before ? `${before.months.filter((c) => c.state === 'paid').length} réglé(s) sur ${before.total}` : 'aucune bande de mois avant le geste');
   check('AVANT : la fiche comptait ce reçu comme « sans mois déclaré »',
     !!before && before.undeclaredNote.length > 0,
@@ -1889,8 +1949,8 @@ async function checkMuteFilledPaper(pdf) {
       : 'aucun parcours de rattrapage sur la fiche');
 
   // ── LE GESTE ─────────────────────────────────────────────────────────────
-  check('l’éditeur s’est ouvert sur les douze mois, l’enregistrement FERMÉ',
-    m.editorMonths === 12 && m.saveClosed === true,
+  check('l’éditeur s’est ouvert sur les mois de l’année, l’enregistrement FERMÉ',
+    m.editorMonths === SCHOOL_MONTHS_COUNT && m.saveClosed === true,
     `${m.editorMonths} mois, enregistrement ${m.saveClosed ? 'fermé' : 'OUVERT'}`);
   check('l’éditeur annonce la ligne que le reçu imprimera', m.screenLine === MONTHS_EXPECTED,
     `« ${m.screenLine} »`);
@@ -1958,6 +2018,15 @@ if (CLEANUP_ONLY) {
 
 try {
   await createAccount();
+  // La plage de l'année se lit AVANT le geste : c'est le nombre de pastilles que
+  // la fiche offrira, et donc l'attendu des contrôles qui la jugent.
+  SCHOOL_MONTHS_COUNT = await readSchoolMonthsCount();
+  // Le montant du geste suit CE diviseur-là : sur une année de dix mois, trois
+  // mois valent 45 000 — et c'est ce que la grille réclame, donc ce qui solde
+  // réellement les mois cochés. Un montant figé sur douze laisserait la fiche
+  // « à régler » et le contrôle accuserait l'application à tort.
+  MONTHS_AMOUNT = monthsAmountFor(MONTHS_TICKED.length, SCHOOL_MONTHS_COUNT);
+  console.log(`  ℹ️ montant du geste : ${MONTHS_TICKED.length} mois → ${MONTHS_AMOUNT}`);
   const target = await resolveTarget();
   const { member, student, mode } = target;
   const label = member ? `${member.name} (${member.position})`
