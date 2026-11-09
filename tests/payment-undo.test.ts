@@ -48,7 +48,23 @@ describe('paymentUndo — l’instantané fait l’aller-retour', () => {
       // Ce paiement ne déclare pas de motif : l'instantané n'en invente aucun,
       // et le reçu retombe alors sur « Frais de scolarité ».
       motif: undefined,
+      // Et pas de montant attendu non plus : le reçu ne gagne aucune mention de
+      // versement partiel — il ne déclare pas de dette, il n'en invente pas.
+      dueAmount: undefined,
     });
+  });
+
+  // Un VERSEMENT PARTIEL supprimé puis restauré doit retrouver son montant
+  // attendu : sans lui, la ligne reviendrait SOLDÉE et le reçu perdrait sa
+  // mention « reste à payer ». C'est le même contrat que les mois et le motif.
+  it('un versement partiel retrouve son reste dû, à l’identique', () => {
+    const archived = archivedPaymentFrom('st1', 'Ali Diallo', {
+      id: 'pay2', date: '2026-10-02', amount: 4000, dueAmount: 10000,
+      months: ['2026-09'], receiptNumber: 'REC-2',
+    });
+    const back = archivedPaymentOf(log({ metadata: paymentSnapshotMetadata(archived) }));
+    assert.equal(back?.dueAmount, 10000);
+    assert.equal(back?.amount, 4000);
   });
 
   it('un paiement sans reçu ni année se relit quand même', () => {
@@ -103,6 +119,7 @@ describe('paymentUndo — ce qui est encore annulable', () => {
       date: '2026-10-01', amount: 25000, academicYear: '2026-2027', receiptNumber: 'REC-1',
       months: ['2026-09', '2026-10'],
       motif: undefined,
+      dueAmount: undefined,
     });
   });
 

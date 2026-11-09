@@ -5,7 +5,7 @@
  *
  * Il existe pour une raison précise : sans lui, une saisie longue (un montant,
  * une note) serait coupée au milieu sans que rien n'ait prévenu — la fenêtre de
- * 45 minutes juge l'INACTIVITÉ, donc elle est atteignable en travaillant sur
+ * 2 heures juge l'INACTIVITÉ, donc elle est atteignable en travaillant sur
  * une seule ligne sans y toucher.
  */
 import { AnimatePresence, motion } from 'motion/react';

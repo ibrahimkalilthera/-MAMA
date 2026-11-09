@@ -85,9 +85,11 @@ export type OfflinePayload =
    * avoir à relire une ligne qui n'existe plus. Le MOTIF voyage aussi
    * (`scolarite` / `inscription`, voir `src/lib/paymentMotifs.ts`) : l'instantané
    * du rejeu doit être aussi complet que celui du chemin en ligne, sinon une
-   * restauration rendrait un reçu d'inscription muet sur son motif.
+   * restauration rendrait un reçu d'inscription muet sur son motif. Le MONTANT
+   * ATTENDU (`dueAmount`) voyage pour la même raison : un versement partiel
+   * restauré sans lui reviendrait « soldé » et fermerait son mois.
    */
-  | { type: 'deletePayment'; payload: { studentId: string; paymentId: string; amount: number; receiptNumber?: string; date: string; academicYear?: string; studentName?: string; motif?: PaymentMotif } }
+  | { type: 'deletePayment'; payload: { studentId: string; paymentId: string; amount: number; receiptNumber?: string; date: string; academicYear?: string; studentName?: string; motif?: PaymentMotif; dueAmount?: number } }
   /**
    * Renseigner les mois couverts d'un reçu ANTÉRIEUR à la colonne `months`, ou
    * saisi sans cocher. Le montant, le reçu, la date et l'élève voyagent avec le

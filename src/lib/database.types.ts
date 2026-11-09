@@ -221,6 +221,8 @@ export interface Database {
           receipt_number: string | null;
           months: string[];
           motif: string | null;
+          /** Montant attendu du geste (frais des mois déclarés) — NULL = non déclaré. */
+          due_amount: number | null;
           created_at: string;
         };
         Insert: {
@@ -232,6 +234,7 @@ export interface Database {
           receipt_number?: string | null;
           months?: string[];
           motif?: string | null;
+          due_amount?: number | null;
           created_at?: string;
         };
         Update: {
@@ -243,6 +246,7 @@ export interface Database {
           receipt_number?: string | null;
           months?: string[];
           motif?: string | null;
+          due_amount?: number | null;
           created_at?: string;
         };
         Relationships: [];

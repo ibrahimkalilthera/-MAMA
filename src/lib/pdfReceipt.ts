@@ -58,6 +58,7 @@ import { loadPdfLib } from './pdfLib';
 import { studentMatricule } from './studentIdentifiers';
 import { formatPaidMonths, paidMonthsShape, paymentMonthLabel, MONTH_KEYS } from './paymentMonths';
 import { paymentMotifLabel, paymentMotifOf } from './paymentMotifs';
+import { installmentReceiptNote } from './paymentInstallments';
 import { translations } from '../i18n/translations';
 import type { TranslationDict } from '../i18n/translations';
 
@@ -367,12 +368,21 @@ export async function buildParentReceiptPdf({
   // tiennent largement, mais la MESURE est là : le jour où un motif plus long
   // entre dans la liste fermée, il se réduit au lieu de dépasser sur le papier.
   const motifText = paymentMotifLabel(paymentMotifOf(payment.motif), t);
+  // ── Versement partiel / solde ─────────────────────────────────────────
+  // Le formulaire papier n'a pas d'autre ligne libre : la mention vit donc sur
+  // la ligne « Motif », juste après lui — « Frais de scolarité — versement
+  // partiel — reste à payer 12 500 FCFA ». Elle est VIDE pour tout reçu
+  // ordinaire (aucun `due_amount` déclaré), donc un papier déjà imprimé ne
+  // change pas d'un caractère. Le montant vient de la LIGNE, pas du solde du
+  // jour : une réimpression dans six mois dit ce qu'elle disait alors.
+  const installmentNote = installmentReceiptNote(payment, student.payments ?? [], t, fmtFcfa);
+  const motifLine = installmentNote ? `${motifText} — ${installmentNote}` : motifText;
   const MOTIF_MAX_W = 190 - MOTIF.x;
-  const motifWAtFull = helv.widthOfTextAtSize(motifText, DATA_SIZE) / PT_PER_MM;
+  const motifWAtFull = helv.widthOfTextAtSize(motifLine, DATA_SIZE) / PT_PER_MM;
   const motifSize = motifWAtFull > MOTIF_MAX_W
     ? Math.max(MOTIF_MIN_SIZE, (MOTIF_MAX_W / motifWAtFull) * DATA_SIZE)
     : DATA_SIZE;
-  text(motifText, MOTIF.x, baseline(MOTIF.y, motifSize), { font: { font: helv, size: motifSize } });
+  text(motifLine, MOTIF.x, baseline(MOTIF.y, motifSize), { font: { font: helv, size: motifSize } });
 
   // 7. « Date, le … 20 … » — dd/mm/ centered on the dotted line before the
   //    pre-printed « 20 » (no drawn box), then the last two year digits

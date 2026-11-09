@@ -130,6 +130,11 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         // d'avant la colonne). La clé stockée est courte et stable :
         // `scolarite` / `inscription` (src/lib/paymentMotifs.ts).
         motif: payment.motif ?? null,
+        // Le montant ATTENDU du geste — ce que ce reçu était censé régler. Il
+        // est ce qui rend le versement partiel relisible (reçu réimprimé, fiche
+        // qui rouvre le mois) : recalculé à l'impression, il changerait dès que
+        // les frais de l'élève bougent. `null` = non déclaré.
+        due_amount: payment.dueAmount ?? null,
       });
 
       if (error) {
@@ -248,6 +253,9 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
           // n'aurait pas de quoi écrire un instantané complet, et la
           // restauration rendrait un reçu qui ne dit plus ce qui a été réglé.
           motif: payment.motif,
+          // Et le montant attendu : sans lui, la ligne restaurée ne saurait
+          // plus qu'elle était un versement partiel, et son mois se fermerait.
+          dueAmount: payment.dueAmount,
         });
       } catch {
         // Le refus est DÉJÀ annoncé par `enqueueOffline` : on ne rend que l'échec.
@@ -481,6 +489,10 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
       // Le motif aussi : `null` quand l'instantané n'en portait pas — on ne
       // devine pas ce qui n'a jamais été écrit.
       motif: archived.motif ?? null,
+      // Et le montant attendu : sans lui, un versement partiel restauré
+      // reviendrait « soldé » et fermerait le mois que la famille n'a pas fini
+      // de payer. `null` quand l'instantané n'en portait pas.
+      due_amount: archived.dueAmount ?? null,
     });
     if (error && error.code !== '23505') {
       console.error('restorePayment error:', error.message);
@@ -501,6 +513,7 @@ export function createPaymentOps(ctx: SupabaseDataCtx) {
         receiptNumber: archived.receiptNumber,
         months: archived.months,
         motif: archived.motif,
+        dueAmount: archived.dueAmount,
       };
       const payments = already ? student.payments : [...student.payments, restored];
       const dates = payments.map(p => p.date).filter(Boolean).sort();

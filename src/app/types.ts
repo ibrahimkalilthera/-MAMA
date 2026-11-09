@@ -39,6 +39,13 @@ export interface Payment {
    * reçu retombe alors sur le motif ordinaire.
    */
   motif?: PaymentMotif;
+  /**
+   * Le montant que ce geste était censé régler (frais des mois déclarés, au
+   * moment de la saisie) — la même colonne que `lib/domainTypes.ts`
+   * (`payments.due_amount`). `amount < dueAmount` = versement partiel : le reçu
+   * l'écrit et le mois reste ouvert. Absent = non déclaré : comportement d'avant.
+   */
+  dueAmount?: number;
 }
 
 export interface Parent {

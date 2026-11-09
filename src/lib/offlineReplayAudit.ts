@@ -62,6 +62,9 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
           academicYear: item.payload.payment.academicYear,
           receiptNumber: item.payload.payment.receiptNumber,
           motif: item.payload.payment.motif,
+          // Le montant attendu entre dans l'instantané comme dans le chemin en
+          // ligne : un geste rejoué ne se relit pas autrement qu'un geste direct.
+          dueAmount: item.payload.payment.dueAmount,
         }),
       };
     case 'deletePayment':
@@ -82,6 +85,10 @@ export function offlineAuditInfo(item: QueueItem): Omit<LogAuditParams, 'user'> 
           academicYear: item.payload.academicYear,
           receiptNumber: item.payload.receiptNumber,
           motif: item.payload.motif,
+          // L'instantané du rejeu est aussi complet que celui du chemin en
+          // ligne : sans ce montant, restaurer une suppression rejouée rendrait
+          // un versement partiel « soldé ».
+          dueAmount: item.payload.dueAmount,
         }),
       };
     case 'updatePaymentMonths':

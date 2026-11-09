@@ -29,6 +29,7 @@
  * paramètre (`ReconciliationWords`), comme pour les mots du reçu.
  */
 import { monthsCoverage, paymentMonthHistory } from './paymentMonths';
+import { settledMonthDeclarations } from './paymentInstallments';
 import type { PaymentLike, PaymentMonthFact } from './paymentMonths';
 
 /**
@@ -76,7 +77,10 @@ export function studentReconciliation(
   yearMonths: readonly string[],
 ): StudentReconciliation {
   const history = paymentMonthHistory(student.payments, yearMonths);
-  const coverage = monthsCoverage(student.payments.map((p) => p.months), yearMonths);
+  // Même règle que la fiche : un versement PARTIEL déclare un mois sans le
+  // régler, donc il ne compte pas comme couvert — sinon l'état de rapprochement
+  // dirait « payé » à une famille qui doit encore le complément.
+  const coverage = monthsCoverage(settledMonthDeclarations(student.payments), yearMonths);
   const discount = student.scholarshipDiscount || 0;
   // Le dû NET est celui que la fiche affiche déjà (remise déduite) : deux
   // formules d'argent pour le même élève finiraient par diverger d'un centime,

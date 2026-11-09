@@ -52,6 +52,13 @@ export interface ArchivedPayment {
    * et l'erreur survivrait à la réparation du geste.
    */
   motif?: PaymentMotif;
+  /**
+   * Le montant ATTENDU du geste (`payments.due_amount`). Il voyage avec
+   * l'instantané comme les mois et le motif : une suppression puis une
+   * restauration d'un VERSEMENT PARTIEL doivent rendre un versement partiel —
+   * revenu « soldé », il fermerait le mois que la famille n'a pas fini de payer.
+   */
+  dueAmount?: number;
 }
 
 /** Le marqueur de forme : un `metadata` d'un autre genre n'est pas un instantané de paiement. */
@@ -73,6 +80,7 @@ export function archivedPaymentFrom(
     receiptNumber: payment.receiptNumber,
     months: payment.months,
     motif: payment.motif,
+    dueAmount: payment.dueAmount,
   };
 }
 
@@ -101,6 +109,9 @@ export function paymentSnapshotMetadata(archived: ArchivedPayment): Record<strin
     // Le motif aussi, et pour la même raison : `null` (et non une clé devinée)
     // quand la ligne n'en déclarait pas — c'est l'absence qu'il faut rendre.
     motif: archived.motif ?? null,
+    // Le montant attendu suit la même règle : `null` quand le geste n'en
+    // déclarait pas, jamais un zéro inventé (qui vaudrait « soldé »).
+    due_amount: archived.dueAmount ?? null,
   };
 }
 
@@ -117,6 +128,17 @@ const asMotif = (v: unknown): PaymentMotif | undefined => (isPaymentMotif(v) ? v
  * Relit une liste de mois d'un `metadata` : seules les chaînes passent, et une
  * liste vide vaut « non renseigné » — jamais un tableau inventé.
  */
+/**
+ * Relit un montant d'un `metadata` : un nombre fini passe, tout le reste vaut
+ * « non déclaré » (`undefined`). Un `null` explicite — la forme écrite quand le
+ * geste ne déclarait rien — rend bien `undefined`.
+ */
+const asAmount = (v: unknown): number | undefined => {
+  if (v === null || v === undefined) return undefined;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
 const asMonthList = (v: unknown): string[] | undefined => {
   if (!Array.isArray(v)) return undefined;
   const months = v.filter((m): m is string => typeof m === 'string' && m.length > 0);
@@ -150,6 +172,7 @@ export function paymentSnapshotOf(
     receiptNumber: asText(m.receipt_number),
     months: asMonthList(m.months),
     motif: asMotif(m.motif),
+    dueAmount: asAmount(m.due_amount),
   };
 }
 

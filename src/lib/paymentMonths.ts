@@ -32,6 +32,7 @@
  */
 import type { Language, TranslationDict } from '../i18n/translations';
 import { formatCurrency, formatDateLang } from './formatters';
+import { isPartialPayment } from './paymentInstallments';
 
 /** Septembre — le premier mois de l'année scolaire malienne (0 = janvier). */
 const SCHOOL_FIRST_MONTH = 8;
@@ -318,6 +319,8 @@ export interface PaymentLike {
   date: string;
   amount: number;
   receiptNumber?: string;
+  /** Le montant attendu du geste — `amount < dueAmount` = versement partiel. */
+  dueAmount?: number;
 }
 
 /** Un reçu qui déclare un mois — de quoi l'identifier, le montrer, le retirer. */
@@ -360,10 +363,20 @@ export function paymentMonthHistory(
 ): PaymentMonthHistory {
   // « Couvert » se lit ICI, et nulle part ailleurs : la liste des mois reste celle
   // de `monthsCoverage`, à laquelle on accroche seulement la preuve.
-  const { covered, undeclared } = monthsCoverage(payments.map((p) => p.months), yearMonths);
+  //
+  // Un VERSEMENT PARTIEL ne ferme pas ses mois (voir
+  // `src/lib/paymentInstallments.ts`) : il les déclare, mais la dette n'est pas
+  // réglée. Seuls les reçus SOLDÉS comptent donc pour la couverture — sans quoi
+  // le complément que la famille apporte serait refusé comme « mois déjà payé ».
+  // Le compte des reçus muets, lui, se lit sur TOUS les paiements : un versement
+  // partiel qui ne déclare aucun mois reste une couverture inconnue, et le taire
+  // ferait afficher « à régler » en face d'un mois déjà entamé.
+  const settled = payments.filter((p) => !isPartialPayment(p));
+  const { covered } = monthsCoverage(settled.map((p) => p.months), yearMonths);
+  const undeclared = payments.filter((p) => isSilentReceipt(p.months)).length;
   const facts = covered.map((month) => ({
     month,
-    receipts: payments
+    receipts: settled
       .filter((p) => (p.months ?? []).includes(month))
       .map((p) => ({ id: p.id, date: p.date, amount: p.amount, receiptNumber: p.receiptNumber }))
       // Du plus ancien au plus récent : l'ordre d'un carnet de caisse, et donc
