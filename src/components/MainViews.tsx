@@ -12,6 +12,7 @@
 import { lazy, Suspense } from 'react';
 import type { MainViewsProps } from '../app/mainViewsProps';
 import { MainViewsContext } from '../app/mainViewsContext';
+import { ViewSkeleton } from './SharedUi';
 
 const DashboardView = lazy(() => import('./DashboardView').then(m => ({ default: m.DashboardView })));
 const StudentsView = lazy(() => import('./StudentsView').then(m => ({ default: m.StudentsView })));
@@ -28,11 +29,12 @@ const SettingsView = lazy(() => import('./SettingsView').then(m => ({ default: m
 export function MainViews(props: MainViewsProps) {
   const { activeTab, currentTheme } = props;
 
+  // Le repli était réécrit ici (`animate-pulse`, deux `bg-slate-*`) alors que
+  // `ViewSkeleton` est l'unique langage de chargement des vues (il remplaçait
+  // déjà les deux copies d'AppShell). Deux façons de dire « ça arrive » sur deux
+  // écrans voisins, c'est une de trop.
   const fallback = (
-    <div className={`${currentTheme.card} p-6 rounded-2xl border ${currentTheme.border} animate-pulse`}>
-      <div className="h-6 w-56 bg-slate-200 dark:bg-slate-700 rounded-lg mb-6" />
-      <div className="h-[240px] w-full bg-slate-100 dark:bg-slate-800 rounded-xl" />
-    </div>
+    <ViewSkeleton card={currentTheme.card} border={currentTheme.border} bodyClassName="h-[240px]" />
   );
 
   return (

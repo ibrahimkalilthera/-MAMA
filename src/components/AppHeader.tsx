@@ -18,6 +18,7 @@ import {
   Download,
   Plus,
   Baby,
+  X,
 } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import { NURSERY_CYCLE } from '../app/types';
@@ -154,9 +155,13 @@ export function AppHeader(props: AppHeaderProps) {
           <Calendar className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={16} />
         </div>
 
+        {/* Sous `sm`, le libellé est masqué (`hidden sm:inline`) : `display:none`
+            sort du nom accessible, donc ces boutons n'avaient plus de nom du tout
+            sur un téléphone. `aria-label` le leur rend, en suivant le même `t.*`. */}
         {activeTab === 'students' && (
           <button 
             onClick={onPromoteClass}
+            aria-label={t.promoteClass}
             className={`px-4 py-3 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} font-bold text-xs rounded-2xl shadow-lg ${currentTheme.accentShadow} transition-all flex items-center gap-2`}
           >
             <GraduationCap size={18} />
@@ -168,6 +173,7 @@ export function AppHeader(props: AppHeaderProps) {
         {(activeTab === 'students' || activeTab === 'parents' || activeTab === 'payroll' || activeTab === 'expenses') && canUseSection('header-import', currentUser?.role) && (
           <button 
             onClick={onImportExcel}
+            aria-label={t.importExcel}
             className={`px-4 py-3 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} font-bold text-xs rounded-2xl shadow-lg ${currentTheme.accentShadow} transition-all flex items-center gap-2 active:scale-[0.97]`}
           >
             <FileSpreadsheet size={18} />
@@ -180,6 +186,7 @@ export function AppHeader(props: AppHeaderProps) {
             onClick={onOpenMonthlyDraft}
             className={`px-4 py-3 ${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} font-bold text-xs rounded-2xl shadow-lg ${currentTheme.accentShadow} transition-all flex items-center gap-2 active:scale-[0.97]`}
             title={t.monthlyPayrollDraft}
+            aria-label={t.monthlyPayrollDraft}
           >
             <FileText size={18} />
             <span className="hidden sm:inline uppercase tracking-widest">{t.monthlyDraft}</span>
@@ -191,6 +198,7 @@ export function AppHeader(props: AppHeaderProps) {
             onClick={onPrintReport}
             className={`p-3 rounded-2xl ${currentTheme.accentSoft} ${currentTheme.accentSoftText} ${currentTheme.accentSoftHover} transition-all shadow-sm flex items-center gap-2`}
             title={activeTab === 'archives' ? (t.downloadMultiYearPdf) : activeTab === 'expenses' ? (t.downloadExpensesPdf) : t.printReport}
+            aria-label={activeTab === 'archives' ? (t.downloadMultiYearPdf) : activeTab === 'expenses' ? (t.downloadExpensesPdf) : t.printReport}
           >
             {(activeTab === 'archives' || activeTab === 'expenses') ? <FileText size={20} /> : <Printer size={20} />}
             <span className="hidden sm:inline font-bold text-xs uppercase tracking-widest">
@@ -201,13 +209,30 @@ export function AppHeader(props: AppHeaderProps) {
         {(activeTab === 'students' || activeTab === 'parents') && (
           <div className="relative min-w-0 w-full flex-1 sm:w-auto sm:basis-64">
             <Search className={`absolute left-4 top-1/2 -translate-y-1/2 ${currentTheme.muted}`} size={18} />
+            {/* Un `placeholder` n'est pas une étiquette : il disparaît à la
+                première frappe. Le champ porte donc un `<label>` réel (lisible
+                seulement par les technologies d'assistance), et un bouton pour
+                effacer sans sélectionner le texte à la main. */}
+            <label htmlFor="app-header-search" className="sr-only">{t.searchPlaceholder}</label>
             <input 
+              id="app-header-search"
               type="text"
               placeholder={t.searchPlaceholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full min-w-0 pl-12 pr-4 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm transition-all text-sm ${currentTheme.text}`}
+              className={`w-full min-w-0 pl-12 pr-11 py-3 ${currentTheme.card} ${currentTheme.border} border rounded-2xl shadow-sm transition-all text-sm ${currentTheme.text}`}
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                aria-label={t.clearSearch}
+                title={t.clearSearch}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg ${currentTheme.muted} ${currentTheme.hoverSurface} transition-all`}
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
+            )}
           </div>
         )}
         {activeTab === 'students' && (
@@ -252,12 +277,14 @@ export function AppHeader(props: AppHeaderProps) {
               onClick={onFinancialReportPdf}
               className={`${currentTheme.accentBg} ${currentTheme.accentHover} ${currentTheme.accentText} px-5 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow} active:scale-[0.98]`}
               title={t.exportFinancialReportPdf}
+              aria-label={t.exportFinancialReportPdf}
             >
               <FileText size={18} />
               <span className="hidden sm:inline">{t.financialReportPdf}</span>
             </button>
             <button 
               onClick={onExportLate}
+              aria-label={t.exportLate}
               className={`${currentTheme.card} border ${currentTheme.border} ${currentTheme.text} px-5 py-3 rounded-2xl text-sm font-bold ${currentTheme.hoverSurface} transition-all flex items-center gap-2 shadow-sm`}
             >
               <Download size={18} />
@@ -268,6 +295,7 @@ export function AppHeader(props: AppHeaderProps) {
         {activeTab === 'students' && (
           <button 
             onClick={onAddStudent}
+            aria-label={t.addStudent}
             className={`${currentTheme.accentBg} ${currentTheme.accentText} px-5 py-3 rounded-2xl text-sm font-bold ${currentTheme.accentHover} transition-all flex items-center gap-2 shadow-lg ${currentTheme.accentShadow}`}
           >
             <Plus size={18} />

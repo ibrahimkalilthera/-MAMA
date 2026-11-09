@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { CheckCircle2, Plus, StickyNote, Trash2 } from 'lucide-react';
 import { useMainViews } from '../app/mainViewsContext';
+import { EmptyState } from './SharedUi';
 
 export function NotesView() {
   // Task whose date chip is being edited inline.
@@ -53,6 +54,17 @@ export function NotesView() {
                   </button>
                 </form>
 
+                {todos.length === 0 ? (
+                  /* Une liste vide laissait la carte se terminer sur son
+                     formulaire : rien ne disait si la page avait chargé, si les
+                     tâches étaient ailleurs, ou s'il fallait en créer une. */
+                  <EmptyState
+                    icon={<StickyNote size={22} />}
+                    title={t.noTodoYet}
+                    hint={t.noTodoHint}
+                    isDark={currentTheme.isDark}
+                  />
+                ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {todos.map(todo => (
                     <motion.div
@@ -95,11 +107,16 @@ export function NotesView() {
                         )}
                       </div>
                       {/* La corbeille porte son libellé : révélée au survol et
-                          seule sur la ligne, l'icône se lisait comme un ornement. */}
+                          seule sur la ligne, l'icône se lisait comme un ornement.
+
+                          Mais `group-hover` ne dit rien à un doigt : sur un
+                          écran tactile la corbeille restait invisible, donc
+                          inatteignable. Elle est donc VISIBLE par défaut, et ne
+                          s'efface que là où un pointeur fin sait survoler. */}
                       <button
                         onClick={() => deleteTodo(todo.id)}
                         title={t.deleteTask}
-                        className={`px-2.5 py-1.5 rounded-lg text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} transition-all flex shrink-0 items-center gap-1 text-2xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100`}
+                        className={`px-2.5 py-1.5 rounded-lg text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 ${currentTheme.hoverAlert} transition-all flex shrink-0 items-center gap-1 text-2xs font-bold whitespace-nowrap opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100`}
                       >
                         <Trash2 size={14} />
                         {t.deleteTask}
@@ -107,6 +124,7 @@ export function NotesView() {
                     </motion.div>
                   ))}
                 </div>
+                )}
               </div>
             </div>
           </div>

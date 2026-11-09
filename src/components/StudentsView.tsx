@@ -246,34 +246,41 @@ export function StudentsView() {
                             >
                               <Flag size={16} fill={student.flagged ? 'currentColor' : 'none'} />
                             </button>
-                            <div 
-                              className="flex items-center gap-4 cursor-pointer"
-                              onClick={() => setSelectedStudent(student)}
-                            >
-                              <div className={`w-10 h-10 rounded-xl ${currentTheme.surfaceInset} ${currentTheme.inkStrong} font-bold text-xs ${currentTheme.accentGroupHover} transition-all flex items-center justify-center`}>
-                                {student.name.split(' ').map(n => n[0]).join('')}
-                              </div>
-                              <div>
+                            {/* La fiche s'ouvrait par un `<div onClick>` : au
+                                bureau, le clavier ne pouvait pas l'atteindre, alors
+                                que la carte mobile portait déjà un `<button>`. Le nom
+                                et l'avatar sont donc UN bouton, et les pastilles
+                                restent à côté — hors du bouton, parce qu'elles en
+                                contiennent un (la revue des doublons). */}
+                            <div className="flex min-w-0 flex-col">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedStudent(student)}
+                                className="flex items-center gap-4 text-left"
+                              >
+                                <span className={`w-10 h-10 rounded-xl ${currentTheme.surfaceInset} ${currentTheme.inkStrong} font-bold text-xs ${currentTheme.accentGroupHover} transition-all flex items-center justify-center`}>
+                                  {student.name.split(' ').map(n => n[0]).join('')}
+                                </span>
                                 <span className={`block font-bold ${currentTheme.inkStrong} text-sm`}>
                                   <HighlightText text={student.name} highlight={searchTerm} />
                                 </span>
-                                {/* The raw UUID used to live here; it is an internal
-                                    identifier with no meaning for the user, so the row
-                                    now shows the class badge only. */}
-                                <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                                  {student.grade && (
-                                    <span className="inline-block px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 rounded-md text-3xs font-extrabold uppercase tracking-wider">
-                                      {getGradeDisplay(student.grade, lang)}
-                                    </span>
-                                  )}
-                                  {duplicateGroup && (
-                                    <DuplicateBadge
-                                      label={t.duplicateStudentBadge}
-                                      title={`${t.duplicateStudentWarning.replace('{n}', String(duplicateGroup))} — ${t.duplicateReviewOpen}`}
-                                      onOpen={() => openDuplicateReview(student)}
-                                    />
-                                  )}
-                                </div>
+                              </button>
+                              {/* The raw UUID used to live here; it is an internal
+                                  identifier with no meaning for the user, so the row
+                                  now shows the class badge only. */}
+                              <div className="flex flex-wrap items-center gap-2 mt-0.5 pl-14">
+                                {student.grade && (
+                                  <span className="inline-block px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 rounded-md text-3xs font-extrabold uppercase tracking-wider">
+                                    {getGradeDisplay(student.grade, lang)}
+                                  </span>
+                                )}
+                                {duplicateGroup && (
+                                  <DuplicateBadge
+                                    label={t.duplicateStudentBadge}
+                                    title={`${t.duplicateStudentWarning.replace('{n}', String(duplicateGroup))} — ${t.duplicateReviewOpen}`}
+                                    onOpen={() => openDuplicateReview(student)}
+                                  />
+                                )}
                               </div>
                             </div>
                           </div>

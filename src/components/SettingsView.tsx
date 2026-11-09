@@ -29,9 +29,45 @@ export function SettingsView() {
   // The settings tab is admin/dev-only (sidebar hides it for other roles too).
   if (!auth?.isAdmin) return null;
 
+  /**
+   * Le sommaire des sections, et il ne recopie pas la liste : chaque entrée
+   * pointe un `data-slot` que la section déclare DÉJÀ pour le contrat de
+   * composition. Un bloc ajouté sans entrée de sommaire ne casse rien — il manque
+   * simplement ici — tandis qu'un doublon de liste aurait pu désigner un bloc qui
+   * n'existe plus. Huit sections, ~3 écrans de défilement : un sommaire valait
+   * mieux qu'un ordre à mémoriser.
+   */
+  const sections: { slot: string; label: string }[] = [
+    { slot: 'settings-first-steps', label: t.firstStepsTitle },
+    { slot: 'settings-system-language', label: t.localizationAndPreferences },
+    { slot: 'settings-school-name', label: t.schoolNameTitle },
+    { slot: 'settings-year-months', label: t.schoolMonthsTitle },
+    { slot: 'settings-backup', label: t.backupSettings },
+    { slot: 'settings-diagnostics', label: t.stationHealth },
+    { slot: 'settings-classes', label: t.classesGradeLevelsManagement },
+    { slot: 'settings-staff-access', label: t.staffAccessRoleManagement },
+  ];
+
+  const goTo = (slot: string): void => {
+    const target = document.querySelector<HTMLElement>(`[data-slot="${slot}"]`);
+    target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <>
       <div data-slot="settings-panel" className="max-w-2xl space-y-8">
+        <nav aria-label={t.settingsIndexNav} className="flex flex-wrap gap-2">
+          {sections.map((section) => (
+            <button
+              key={section.slot}
+              type="button"
+              onClick={() => goTo(section.slot)}
+              className={`px-3 py-1.5 rounded-lg border ${currentTheme.border} ${currentTheme.surfaceInset} text-2xs font-bold ${currentTheme.muted} ${currentTheme.hoverSurface} transition-all`}
+            >
+              {section.label}
+            </button>
+          ))}
+        </nav>
         <div className={`${currentTheme.card} p-10 rounded-3xl border ${currentTheme.border} shadow-xl shadow-slate-200/50`}>
           <h3 className={`text-xl font-bold ${currentTheme.inkStrong} mb-8`}>{t.localizationAndPreferences}</h3>
           <div data-slot="settings-sections" className="space-y-6">
