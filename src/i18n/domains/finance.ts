@@ -156,6 +156,23 @@ export const en = {
     carriedOver: "Debt Carried Over",
     openingBalance: "Opening Balance",
 
+    // Versements partiels — l'écran du reste dû (2026-11-09).
+    navInstallments: "Partial payments",
+    installmentsTitle: "Partial payments in progress",
+    installmentsHint: "What families still owe on the months they have started to pay. A month leaves this list as soon as a receipt settles it.",
+    installmentsTotal: "{students} student(s) · {amount} still owed",
+    installmentsEmpty: "No partial payment in progress.",
+    installmentsEmptyHint: "Every month a family has started to pay has been settled.",
+    installmentsSearch: "Search a student or a class...",
+    installmentsNoMatch: "No student matches this search.",
+    installmentsDue: "Due {amount}",
+    installmentsPaid: "Paid {amount}",
+    installmentsRemaining: "Still {amount}",
+    installmentsLast: "last payment on {date}",
+    installmentsStudentTotal: "{amount} still owed",
+    installmentsMonths: "{count} month(s) open",
+    installmentsUndeclared: "{count} partial payment(s) declare no month: they weigh on the cash but cannot be tied to a month.",
+
     // Profile & Student File specific fields
 };
 
@@ -310,6 +327,23 @@ export const fr = {
     printAudit: "Imprimer le Bilan",
     carriedOver: "Arriérés reportés",
     openingBalance: "Solde d'Ouverture",
+
+    // Versements partiels — l'écran du reste dû (2026-11-09).
+    navInstallments: "Versements partiels",
+    installmentsTitle: "Versements partiels en cours",
+    installmentsHint: "Ce que les familles doivent encore sur les mois qu'elles ont commencé à régler. Un mois quitte cette liste dès qu'un reçu le solde.",
+    installmentsTotal: "{students} élève(s) · {amount} restant",
+    installmentsEmpty: "Aucun versement partiel en cours.",
+    installmentsEmptyHint: "Tous les mois entamés par une famille sont réglés.",
+    installmentsSearch: "Rechercher un élève ou une classe...",
+    installmentsNoMatch: "Aucun élève ne correspond à cette recherche.",
+    installmentsDue: "Dû {amount}",
+    installmentsPaid: "Versé {amount}",
+    installmentsRemaining: "Reste {amount}",
+    installmentsLast: "dernier versement le {date}",
+    installmentsStudentTotal: "{amount} restant",
+    installmentsMonths: "{count} mois ouvert(s)",
+    installmentsUndeclared: "{count} versement(s) partiel(s) ne déclarent aucun mois : ils pèsent sur la caisse mais ne peuvent pas être rattachés à un mois.",
 
     // Profile & Student File specific fields
 };

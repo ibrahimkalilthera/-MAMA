@@ -26,13 +26,14 @@ import {
   Baby,
   DollarSign,
   Lock,
+  HandCoins,
 } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import type { User } from '../app/types';
 import type { CurrentTheme, PayrollWindowStatus } from '../app/mainViewsProps';
 import { beforeOpenTab, canOpenTab } from '../app/tabRights';
 
-export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory';
+export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'installments' | 'audit' | 'paymentHistory';
 
 export interface SidebarProps {
   t: TranslationDict;
@@ -232,6 +233,17 @@ export function Sidebar(props: SidebarProps) {
               {silentReceiptsCount}
             </span>
           )}
+        </button>
+
+        {/* Versements partiels — le RESTE DÛ de l'école, élève par élève et mois
+            par mois. La ligne vit hors du bloc admin/dev pour la même raison que
+            celle des reçus muets : l'écran ne lit que les élèves et les reçus
+            déjà chargés (`students`, `payments`), il n'ouvre donc aucun accès en
+            base. Ce qui reste fermé est l'ÉCRITURE — le complément se saisit
+            dans la fiche de l'élève, avec les droits du guichet. */}
+        <button onClick={() => setActiveTab('installments')} className={navBtn('installments')}>
+          <HandCoins size={20} className="flex-shrink-0" />
+          <span className="font-semibold text-sm" data-i18n="navInstallments">{t.navInstallments}</span>
         </button>
 
         {canOpenTab('audit', currentUser?.role) && (

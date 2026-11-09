@@ -23,6 +23,7 @@ const NotesView = lazy(() => import('./NotesView').then(m => ({ default: m.Notes
 const AuditView = lazy(() => import('./AuditView').then(m => ({ default: m.AuditView })));
 const PaymentHistoryView = lazy(() => import('./PaymentHistoryView').then(m => ({ default: m.PaymentHistoryView })));
 const SilentReceiptsView = lazy(() => import('./SilentReceiptsView').then(m => ({ default: m.SilentReceiptsView })));
+const InstallmentsView = lazy(() => import('./InstallmentsView').then(m => ({ default: m.InstallmentsView })));
 const SettingsView = lazy(() => import('./SettingsView').then(m => ({ default: m.SettingsView })));
 
 export function MainViews(props: MainViewsProps) {
@@ -47,6 +48,7 @@ export function MainViews(props: MainViewsProps) {
         {activeTab === 'notes' && <NotesView />}
         {activeTab === 'audit' && <AuditView />}
         {activeTab === 'silentReceipts' && <SilentReceiptsView />}
+        {activeTab === 'installments' && <InstallmentsView />}
         {activeTab === 'paymentHistory' && <PaymentHistoryView />}
         {activeTab === 'settings' && <SettingsView />}
       </Suspense>

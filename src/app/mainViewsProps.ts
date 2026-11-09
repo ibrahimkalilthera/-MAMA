@@ -352,7 +352,7 @@ export interface MainViewsProps {
   Wifi: LucideIcon;
   X: LucideIcon;
   Zap: LucideIcon;
-  activeTab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory';
+  activeTab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'installments' | 'audit' | 'paymentHistory';
   auditLogs: AuditLogEntry[];
   auth: AuthState;
   availableClasses: ManagedClass[];
@@ -548,7 +548,7 @@ export interface MainViewsProps {
    * fonction d'onglet, pas un `Dispatch<SetStateAction<…>>`) : la valeur vient de
    * `ShellDeps`, où le setter est déjà réduit à `(tab) => void`.
    */
-  setActiveTab: (tab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory') => void;
+  setActiveTab: (tab: 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'installments' | 'audit' | 'paymentHistory') => void;
   setCalendarDate: Dispatch<SetStateAction<Date>>;
   setEditingParent: Dispatch<SetStateAction<Parent | null>>;
   setEditingStaff: Dispatch<SetStateAction<Staff | null>>;

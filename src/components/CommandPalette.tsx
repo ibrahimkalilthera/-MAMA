@@ -52,6 +52,7 @@ const SCREENS: ReadonlyArray<{ tab: AppTab; label: keyof TranslationDict }> = [
   { tab: 'notes', label: 'notes' },
   { tab: 'archives', label: 'navArchives' },
   { tab: 'silentReceipts', label: 'navSilentReceipts' },
+  { tab: 'installments', label: 'navInstallments' },
   { tab: 'audit', label: 'auditTrail' },
   { tab: 'paymentHistory', label: 'paymentHistory' },
   { tab: 'settings', label: 'navSettings' },

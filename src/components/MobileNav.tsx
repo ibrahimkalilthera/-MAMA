@@ -26,6 +26,7 @@ import {
   History,
   Settings as SettingsIcon,
   Globe,
+  HandCoins,
 } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import type { AppTab } from './Sidebar';
@@ -79,6 +80,9 @@ export function MobileNav(props: MobileNavProps) {
     // Reçus muets : hors du bloc admin/dev — l'écran ne lit que les élèves déjà
     // chargés, donc tout compte connecté peut voir ce qui reste à documenter.
     { tab: 'silentReceipts', label: t.navSilentReceipts, icon: <CalendarClock size={20} /> },
+    // Versements partiels : même raison que les reçus muets — l'écran ne lit que
+    // les élèves déjà chargés, donc tout compte connecté peut voir le reste dû.
+    { tab: 'installments', label: t.navInstallments, icon: <HandCoins size={20} /> },
     // Trois gates, et pas un seul : l'historique des paiements s'adresse à
     // l'économe (il tient la caisse), le journal d'audit et les Réglages non.
     // L'ordre reste celui du rail — journal, historique, réglages.
