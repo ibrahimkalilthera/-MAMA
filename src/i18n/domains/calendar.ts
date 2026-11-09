@@ -20,6 +20,11 @@ export const en = {
     mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun",
     jan: "January", feb: "February", mar: "March", apr: "April", may: "May", jun: "June",
     jul: "July", aug: "August", sep: "September", oct: "October", nov: "November", dec: "December",
+    previousMonth: "Previous month",
+    nextMonth: "Next month",
+    calendarAgenda: "This month's events",
+    calendarNoEvent: "No event this month",
+    calendarEventCount: "{count} event(s)",
 };
 
 export const fr = {
@@ -38,4 +43,9 @@ export const fr = {
     mon: "Lun", tue: "Mar", wed: "Mer", thu: "Jeu", fri: "Ven", sat: "Sam", sun: "Dim",
     jan: "Janvier", feb: "Février", mar: "Mars", apr: "Avril", may: "Mai", jun: "Juin",
     jul: "Juillet", aug: "Août", sep: "Septembre", oct: "Octobre", nov: "Novembre", dec: "Décembre",
+    previousMonth: "Mois précédent",
+    nextMonth: "Mois suivant",
+    calendarAgenda: "Les événements du mois",
+    calendarNoEvent: "Aucun événement ce mois-ci",
+    calendarEventCount: "{count} événement(s)",
 };

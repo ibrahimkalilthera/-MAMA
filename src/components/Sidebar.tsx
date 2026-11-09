@@ -9,16 +9,6 @@
  */
 import {
   ShieldCheck,
-  History,
-  LayoutDashboard,
-  Users,
-  MessageSquare,
-  Briefcase,
-  Receipt,
-  Calendar,
-  CalendarClock,
-  StickyNote,
-  TrendingUp,
   Globe,
   CheckSquare,
   LogOut,
@@ -32,6 +22,7 @@ import type { TranslationDict } from '../i18n/translations';
 import type { User } from '../app/types';
 import type { CurrentTheme, PayrollWindowStatus } from '../app/mainViewsProps';
 import { beforeOpenTab, canOpenTab } from '../app/tabRights';
+import { SCREENS } from '../app/screens';
 
 export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'installments' | 'audit' | 'paymentHistory';
 
@@ -96,6 +87,23 @@ export function Sidebar(props: SidebarProps) {
   const silentReceiptsBadge = t.silentReceiptsBadge.replace('{count}', String(silentReceiptsCount));
 
   /**
+   * Les trois onglets réservés, et EUX SEULS, demandent leur droit.
+   *
+   * La liste des écrans ne dit pas qui peut les ouvrir (`src/app/screens.ts`),
+   * et c'est voulu : les trois lignes réservées passent par `canOpenTab`, la
+   * même table que le filet du shell. Elles sont nommées ici — littéralement —
+   * pour que `scripts/check-reserved-tabs.mjs` puisse vérifier que le rail ET la
+   * barre du bas les gardent toutes les deux : un onglet gardé d'un seul côté
+   * est un onglet à moitié ouvert.
+   */
+  const isScreenVisible = (tab: AppTab): boolean => {
+    if (tab === 'audit') return canOpenTab('audit', currentUser?.role);
+    if (tab === 'paymentHistory') return canOpenTab('paymentHistory', currentUser?.role);
+    if (tab === 'settings') return canOpenTab('settings', currentUser?.role);
+    return true;
+  };
+
+  /**
    * Les trois lignes qui ne s'adressent pas à tout le monde — et elles ne se
    * décident PAS ici. Elles demandent à `canOpenTab` (`src/app/tabRights.ts`),
    * la seule table qui nomme un onglet réservé et son droit ; les listes de
@@ -151,164 +159,62 @@ export function Sidebar(props: SidebarProps) {
       <div className="mx-4 mb-3 border-t border-white/[0.06]"></div>
 
       <nav className="flex-1 px-3 space-y-0.5 mt-1 custom-scrollbar overflow-y-auto">
-        <button onClick={() => setActiveTab('dashboard')} className={navBtn('dashboard')}>
-          <LayoutDashboard size={20} />
-          <span className="font-semibold text-sm" data-i18n="navDashboard">{t.navDashboard}</span>
-        </button>
-
-        <button onClick={() => setActiveTab('students')} className={navBtn('students')}>
-          <Users size={20} />
-          <span className="font-semibold text-sm" data-i18n="navStudents">{t.navStudents}</span>
-        </button>
-
-        <button onClick={() => setActiveTab('parents')} className={navBtn('parents')}>
-          <MessageSquare size={20} />
-          <span className="font-semibold text-sm" data-i18n="navParents">{t.navParents}</span>
-        </button>
-
-        <button onClick={() => setActiveTab('payroll')} className={navBtn('payroll')}>
-          <div className="flex items-center justify-between w-full gap-2">
-            <div className="flex items-center gap-3 min-w-0">
-              <Briefcase size={20} className="flex-shrink-0" />
-              <span className="font-semibold text-sm truncate" data-i18n="payroll">{t.payroll}</span>
-            </div>
-            {payrollWindowStatus.isOverdue ? (
-              <span className="bg-rose-700 text-white text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0" data-i18n="overdue">
-                {t.overdue}
-              </span>
-            ) : payrollWindowStatus.isOpen ? (
-              <span className={`${currentTheme.accentBg} ${currentTheme.accentText} text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm flex-shrink-0`}>
-                {t.open}
-              </span>
-            ) : (
-              <Lock size={14} className="text-white/40 flex-shrink-0" />
-            )}
-          </div>
-        </button>
-
-        <button onClick={() => setActiveTab('expenses')} className={navBtn('expenses')}>
-          <Receipt size={20} />
-          <span className="font-semibold text-sm" data-i18n="expenses">{t.expenses}</span>
-        </button>
-
-        <button onClick={() => setActiveTab('calendar')} className={navBtn('calendar')}>
-          <Calendar size={20} />
-          <span className="font-semibold text-sm" data-i18n="navCalendar">{t.navCalendar}</span>
-        </button>
-
-        <button onClick={() => setActiveTab('notes')} className={navBtn('notes')}>
-          <StickyNote size={20} />
-          <span className="font-semibold text-sm" data-i18n="notes">{t.notes}</span>
-        </button>
-
-        <button onClick={() => setActiveTab('archives')} className={navBtn('archives')}>
-          <TrendingUp size={20} />
-          <span className="font-semibold text-sm" data-i18n="navArchives">{t.navArchives}</span>
-        </button>
-
-        {/* Reçus muets — le travail de l'école sur les reçus qui ne déclarent
-            aucun mois. La ligne vit HORS du bloc admin/dev ci-dessous, et c'est
-            voulu : cet écran ne lit que les élèves déjà chargés (`students`),
-            donc il n'ouvre aucun accès en base — n'importe quel compte connecté
-            peut voir ce qui reste à documenter. Ce qui n'est pas ouvert pour
-            autant, c'est l'ÉCRITURE : renseigner les mois reste décidé par la
-            base (`canEditPaymentMonths`, src/lib/paymentRights.ts), et l'écran
-            le dit au lieu de le promettre. */}
-        <button onClick={() => setActiveTab('silentReceipts')} className={navBtn('silentReceipts')}>
-          <CalendarClock size={20} className="flex-shrink-0" />
-          <span className="font-semibold text-sm" data-i18n="navSilentReceipts">{t.navSilentReceipts}</span>
-          {/* Le NOMBRE qui reste, dans la même forme que la pastille de retard de
-              la Paie (pilule du rail, poussée à droite, cadence de pulsation) —
-              mais dans la famille ambre du sujet : le dépôt peint le rattrapage
-              des reçus muets en ambre partout ailleurs (la carte du tableau de
-              bord, le pied de liste de l'écran École), et le rose y dit une
-              échéance qui bloque. Un chiffre ne se met pas en majuscules pour
-              autant : la pastille de la Paie porte un MOT. */}
-          {silentReceiptsCount > 0 && (
-            <span
-              className="ml-auto bg-amber-500 text-amber-950 text-3xs font-black px-1.5 py-0.5 rounded whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0"
-              aria-label={silentReceiptsBadge}
-              title={silentReceiptsBadge}
+        {SCREENS.filter((screen) => isScreenVisible(screen.tab)).map((screen) => {
+          const { tab, label, Icon } = screen;
+          const text = String(t[label]);
+          // Le rembourrage droit resserré n'appartient qu'à la ligne du libellé
+          // le plus long (« Historique des Paiements ») : c'est la place rendue
+          // après le texte, jamais une marge négociée ligne par ligne.
+          const tailPadding = tab === 'paymentHistory' ? 'pr-1.5' : 'pr-4';
+          return (
+            <button
+              key={tab}
+              onClick={() => {
+                // Le journal se recharge AVANT d'afficher l'écran : « quels
+                // onglets lisent le journal » est un fait de l'onglet
+                // (`readsJournal`, src/app/tabRights.ts), pas une liste ici.
+                beforeOpenTab(tab, fetchAuditLogs);
+                setActiveTab(tab);
+              }}
+              aria-current={activeTab === tab ? 'page' : undefined}
+              className={navBtn(tab, tailPadding)}
+              title={tab === 'paymentHistory' ? text : undefined}
             >
-              {silentReceiptsCount}
-            </span>
-          )}
-        </button>
-
-        {/* Versements partiels — le RESTE DÛ de l'école, élève par élève et mois
-            par mois. La ligne vit hors du bloc admin/dev pour la même raison que
-            celle des reçus muets : l'écran ne lit que les élèves et les reçus
-            déjà chargés (`students`, `payments`), il n'ouvre donc aucun accès en
-            base. Ce qui reste fermé est l'ÉCRITURE — le complément se saisit
-            dans la fiche de l'élève, avec les droits du guichet. */}
-        <button onClick={() => setActiveTab('installments')} className={navBtn('installments')}>
-          <HandCoins size={20} className="flex-shrink-0" />
-          <span className="font-semibold text-sm" data-i18n="navInstallments">{t.navInstallments}</span>
-        </button>
-
-        {canOpenTab('audit', currentUser?.role) && (
-          <button
-            onClick={() => {
-              // Le journal se recharge AVANT d'afficher l'onglet : arriver sur une
-              // lecture périmée ferait croire à un geste qui n'y est pas encore.
-              // « Quels onglets lisent le journal » n'est pas écrit ici — c'est un
-              // fait de l'onglet (`readsJournal`, src/app/tabRights.ts).
-              beforeOpenTab('audit', fetchAuditLogs);
-              setActiveTab('audit');
-            }}
-            className={navBtn('audit')}
-          >
-            <ShieldCheck size={20} />
-            <span className="font-semibold text-sm">{t.auditTrail}</span>
-          </button>
-        )}
-
-        {/* L'historique des paiements se lit DANS le journal (c'est le seul endroit
-            qui nomme l'encaisseur) : il vit donc ici, à côté de lui, et ouvre la
-            même lecture (`fetchAuditLogs`).
-
-            Sa garde est la seule de ce rail à ne pas être « admin/dev » : le
-            2026-10-15, l'économe y est entré (demande du propriétaire : « il doit
-            avoir accès à l'historique des paiements »), parce que la base lui rend
-            désormais les lignes de cet écran et rien d'autre du journal. La ligne
-            est donc sortie du bloc admin/dev pour son propre gate — l'y laisser
-            l'aurait cachée, et l'en sortir SANS gate l'aurait montrée à tout le
-            monde, y compris au personnel pour qui la base refuse ces lignes.
-
-            C'est aussi la seule ligne dont le libellé ne tient pas dans le rail
-            tel quel : il prend le rembourrage droit resserré (voir `navBtn`), son
-            icône ne se laisse pas comprimer par le texte, et `truncate` garantit
-            qu'il se coupe au pire au lieu de casser la ligne — même règle que la
-            barre mobile, qui porte le même libellé. Le libellé entier reste lu au
-            survol (`title`). */}
-        {canOpenTab('paymentHistory', currentUser?.role) && (
-          <button
-            onClick={() => {
-              beforeOpenTab('paymentHistory', fetchAuditLogs);
-              setActiveTab('paymentHistory');
-            }}
-            className={navBtn('paymentHistory', 'pr-1.5')}
-            title={t.paymentHistory}
-          >
-            <History size={20} className="flex-shrink-0" />
-            <span className="font-semibold text-sm truncate">{t.paymentHistory}</span>
-          </button>
-        )}
-
-        {canOpenTab('settings', currentUser?.role) && (
-          <button onClick={() => setActiveTab('settings')} className={navBtn('settings')}>
-            <Globe size={20} className="flex-shrink-0" />
-            <span className="font-semibold text-sm" data-i18n="navSettings">{t.navSettings}</span>
-            {auditArchivePending && (
-              <span
-                className={`ml-auto ${currentTheme.accentBg} ${currentTheme.accentText} text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0`}
-                data-i18n="auditArchiveBadge"
-              >
-                {t.auditArchiveBadge}
-              </span>
-            )}
-          </button>
-        )}
+              <Icon size={20} className="flex-shrink-0" />
+              <span className="font-semibold text-sm truncate" data-i18n={label}>{text}</span>
+              {tab === 'payroll' && payrollWindowStatus.isOverdue && (
+                <span className="ml-auto bg-rose-700 text-white text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0" data-i18n="overdue">
+                  {t.overdue}
+                </span>
+              )}
+              {tab === 'payroll' && !payrollWindowStatus.isOverdue && payrollWindowStatus.isOpen && (
+                <span className={`ml-auto ${currentTheme.accentBg} ${currentTheme.accentText} text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm flex-shrink-0`}>
+                  {t.open}
+                </span>
+              )}
+              {tab === 'payroll' && !payrollWindowStatus.isOverdue && !payrollWindowStatus.isOpen && (
+                <Lock size={14} className="ml-auto text-white/40 flex-shrink-0" />
+              )}
+              {tab === 'silentReceipts' && silentReceiptsCount > 0 && (
+                <span
+                  className="ml-auto bg-amber-500 text-amber-950 text-3xs font-black px-1.5 py-0.5 rounded whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0"
+                  aria-label={silentReceiptsBadge}
+                  title={silentReceiptsBadge}
+                >
+                  {silentReceiptsCount}
+                </span>
+              )}
+              {tab === 'settings' && auditArchivePending && (
+                <span
+                  className={`ml-auto ${currentTheme.accentBg} ${currentTheme.accentText} text-3xs font-black px-1.5 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shadow-sm animate-badge-pulse flex-shrink-0`}
+                  data-i18n="auditArchiveBadge"
+                >
+                  {t.auditArchiveBadge}
+                </span>
+              )}
+            </button>
+          );
+        })}
 
         <button
           onClick={() => setShowTodoSidebar(!showTodoSidebar)}

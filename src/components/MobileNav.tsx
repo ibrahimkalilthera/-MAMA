@@ -12,27 +12,13 @@
  * the payment history, which reads the same journal) also refreshes the audit log
  * first (fetchAuditLogs).
  */
-import {
-  LayoutDashboard,
-  Users,
-  MessageSquare,
-  Briefcase,
-  Receipt,
-  Calendar,
-  CalendarClock,
-  StickyNote,
-  TrendingUp,
-  ShieldCheck,
-  History,
-  Settings as SettingsIcon,
-  Globe,
-  HandCoins,
-} from 'lucide-react';
+import { Globe } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import type { AppTab } from './Sidebar';
 import type { User } from '../app/types';
 import type { PayrollWindowStatus } from '../app/mainViewsProps';
 import { beforeOpenTab, canOpenTab } from '../app/tabRights';
+import { SCREENS } from '../app/screens';
 
 export interface MobileNavProps {
   t: TranslationDict;
@@ -68,34 +54,26 @@ export function MobileNav(props: MobileNavProps) {
   // s'ajoute donc pas ici — il s'ajoute à la table, et cette barre suit.
   const silentReceiptsBadge = t.silentReceiptsBadge.replace('{count}', String(silentReceiptsCount));
 
-  const items: { tab: AppTab; label: string; icon: React.ReactNode }[] = [
-    { tab: 'dashboard', label: t.navDashboard, icon: <LayoutDashboard size={20} /> },
-    { tab: 'students', label: t.navStudents, icon: <Users size={20} /> },
-    { tab: 'parents', label: t.navParents, icon: <MessageSquare size={20} /> },
-    { tab: 'payroll', label: t.payroll, icon: <Briefcase size={20} /> },
-    { tab: 'expenses', label: t.expenses, icon: <Receipt size={20} /> },
-    { tab: 'calendar', label: t.navCalendar, icon: <Calendar size={20} /> },
-    { tab: 'notes', label: t.notes, icon: <StickyNote size={20} /> },
-    { tab: 'archives', label: t.navArchives, icon: <TrendingUp size={20} /> },
-    // Reçus muets : hors du bloc admin/dev — l'écran ne lit que les élèves déjà
-    // chargés, donc tout compte connecté peut voir ce qui reste à documenter.
-    { tab: 'silentReceipts', label: t.navSilentReceipts, icon: <CalendarClock size={20} /> },
-    // Versements partiels : même raison que les reçus muets — l'écran ne lit que
-    // les élèves déjà chargés, donc tout compte connecté peut voir le reste dû.
-    { tab: 'installments', label: t.navInstallments, icon: <HandCoins size={20} /> },
-    // Trois gates, et pas un seul : l'historique des paiements s'adresse à
-    // l'économe (il tient la caisse), le journal d'audit et les Réglages non.
-    // L'ordre reste celui du rail — journal, historique, réglages.
-    ...(canOpenTab('audit', currentUser?.role)
-      ? [{ tab: 'audit' as const, label: t.auditTrail, icon: <ShieldCheck size={20} /> }]
-      : []),
-    ...(canOpenTab('paymentHistory', currentUser?.role)
-      ? [{ tab: 'paymentHistory' as const, label: t.paymentHistory, icon: <History size={20} /> }]
-      : []),
-    ...(canOpenTab('settings', currentUser?.role)
-      ? [{ tab: 'settings' as const, label: t.navSettings, icon: <SettingsIcon size={20} /> }]
-      : []),
-  ];
+  /**
+   * Les trois onglets réservés, et eux seuls : la table des écrans décrit ce qui
+   * existe, pas qui y a droit. `canOpenTab` décide, et les trois noms sont écrits
+   * ici pour que `check-reserved-tabs` voie que cette barre garde exactement les
+   * mêmes lignes que le rail.
+   */
+  const isScreenVisible = (tab: AppTab): boolean => {
+    if (tab === 'audit') return canOpenTab('audit', currentUser?.role);
+    if (tab === 'paymentHistory') return canOpenTab('paymentHistory', currentUser?.role);
+    if (tab === 'settings') return canOpenTab('settings', currentUser?.role);
+    return true;
+  };
+
+  // La liste vient de `src/app/screens.ts`, la même que le rail et la palette :
+  // l'ordre et les libellés ne s'écrivent plus ici. Ce qui reste local, c'est la
+  // grille du bas et ses pastilles. Les trois portes réservées ne se décident pas
+  // ici non plus — `canOpenTab` les refuse, exactement comme pour le rail.
+  const items = SCREENS
+    .filter((screen) => isScreenVisible(screen.tab))
+    .map(({ tab, label, Icon }) => ({ tab, label: String(t[label]), icon: <Icon size={20} /> }));
 
   const go = (tab: AppTab) => {
     // Les écrans qui lisent le journal le RECHARGENT en s'ouvrant : arriver sur

@@ -659,8 +659,12 @@ async function main() {
               '(voir FIXTURE_ACADEMIC_YEAR dans scripts/lib/audit-fixtures.mjs)',
           );
         }
-        // Open the fiche via the student name/avatar cell (setSelectedStudent)
-        // — NOT the row's first <button>, which is the flag toggle.
+        // Open the fiche via the student name/avatar button (setSelectedStudent)
+        // — NOT the row's first <button>, which is the flag toggle. The trigger
+        // is addressed by its `data-slot`, not by a style class: it was a
+        // `div.cursor-pointer` until that div became a real `<button>` (keyboard
+        // access), and a class-based selector silently lost the step in all six
+        // themes.
         const picked = await page.evaluate(() => {
           const rows = [...document.querySelectorAll('tbody tr, table tr')];
           const dataRow = rows.find((r) => {
@@ -675,7 +679,7 @@ async function main() {
             return [...r.querySelectorAll('button')].length > 0;
           });
           if (!dataRow) return 'aucune ligne de données (que des en-têtes ?)';
-          const open = dataRow.querySelector('div.cursor-pointer');
+          const open = dataRow.querySelector('[data-slot="student-fiche-trigger"]');
           if (!open) return `ligne « ${(dataRow.textContent || '').trim().slice(0, 40)} » sans déclencheur cliquable`;
           open.click();
           return null;

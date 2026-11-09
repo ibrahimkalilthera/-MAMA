@@ -661,6 +661,13 @@ onOpenSettings={() => setActiveTab('settings')}
         currentTheme={currentTheme}
         role={currentUser?.role}
         onSelect={(tab) => setActiveTab(tab)}
+        // Les deux gestes du guichet, avec les MÊMES actions que le rail : la
+        // palette ne crée pas un second chemin d'écriture, elle raccourcit celui
+        // qui existe.
+        actions={[
+          { id: 'add-student', label: t.addStudent, run: () => openAddStudentModal() },
+          { id: 'record-payment', label: t.recordPayment, run: () => setShowPaymentForm(true) },
+        ]}
       />
 
       {/* --- Global Confirmation Dialog --- */}
