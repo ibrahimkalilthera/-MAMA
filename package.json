@@ -60,6 +60,7 @@
     "orphans:report": "node scripts/sweep-report.mjs",
     "orphans:doctor": "node scripts/panic-doctor.mjs",
     "report:duplicates": "node scripts/report-duplicates.mjs",
+    "branches:status": "node scripts/branch-status.mjs",
     "check:contrast": "node scripts/theme-contrast-audit.mjs",
     "check:min-type": "node scripts/check-min-type-size.mjs",
     "deploy:prod": "node scripts/deploy-notice.mjs",
