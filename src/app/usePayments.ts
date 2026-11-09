@@ -308,8 +308,14 @@ export function usePayments(deps: UsePaymentsDeps) {
     //
     // Rien n'est écrit quand le geste n'a pas de reste (inscription, mois non
     // déclarés, élève sans frais) : `NULL` en base = comportement d'avant.
+    //
+    // Le DIVISEUR des frais annuels est le nombre de mois de CETTE année
+    // (`paymentMonthOptions`, déjà borné à la plage réglée par l'école) : dix
+    // mois septembre→juin, onze octobre→juin. Douze en dur réclamait un dixième
+    // de trop à une école qui ne scolarise pas en juillet et août — et c'est ce
+    // nombre-là qui part en base, donc le reçu réimprimé ne mentira pas.
     const installment = targetStudent && shownPaymentMonths.length > 0
-      ? installmentTarget(targetStudent, shownPaymentMonths)
+      ? installmentTarget(targetStudent, shownPaymentMonths, paymentMonthOptions.length)
       : null;
     const dueAmount = installment && installment.remaining > 0 ? installment.remaining : undefined;
     // L'id du GESTE : le même si l'envoi est répété → un seul reçu. Il est
