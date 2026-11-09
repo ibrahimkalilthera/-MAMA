@@ -16,6 +16,7 @@ import {
   Baby,
   DollarSign,
   Lock,
+  HandCoins,
 } from 'lucide-react';
 import type { TranslationDict } from '../i18n/translations';
 import type { User } from '../app/types';
@@ -23,7 +24,7 @@ import type { CurrentTheme, PayrollWindowStatus } from '../app/mainViewsProps';
 import { beforeOpenTab, canOpenTab } from '../app/tabRights';
 import { SCREENS } from '../app/screens';
 
-export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'audit' | 'paymentHistory';
+export type AppTab = 'dashboard' | 'students' | 'parents' | 'payroll' | 'expenses' | 'settings' | 'calendar' | 'notes' | 'archives' | 'silentReceipts' | 'installments' | 'audit' | 'paymentHistory';
 
 export interface SidebarProps {
   t: TranslationDict;
