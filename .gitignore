@@ -22,6 +22,14 @@ coverage/
 .freebuff/
 lh-vercel.json
 *.out.txt
+# Fichiers de travail jetables posés à la RACINE pendant un diagnostic : sondes
+# (`tmp-scan.mjs`), sorties de test (`tmp-full-tests.log`), mesures
+# (`tmp-views-measure/`). Ils sont ancrés à la racine pour ne jamais masquer un
+# fichier légitime du même nom dans `src/` ou `tests/`.
+/tmp-*
+# Rapports Lighthouse locaux, quelle que soit la cible mesurée (`lh-vercel.json`
+# est nommé plus haut ; `lh-*.json` couvre les prochains).
+/lh-*.json
 
 # État local de la CLI Supabase
 supabase/.temp/
