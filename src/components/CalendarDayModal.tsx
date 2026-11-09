@@ -27,6 +27,9 @@ export interface CalendarDayModalProps {
 
 export function CalendarDayModal(props: CalendarDayModalProps) {
   const { t, lang, currentTheme, selectedCalendarDay, getDayName, getEventsForDay, getNotesForDay, noteText, setNoteText, savingNoteOnDate, saveNoteOnDate, formatCurrency, overlayRef, onClose } = props;
+  // Le seul champ éditable de cette fenêtre est le brouillon de note : une note
+  // tapée et non enregistrée est du travail, et le fond cliquable la jetait
+  // sans un mot.
   return (
     <ModalShell
       overlayRef={overlayRef}
@@ -34,6 +37,12 @@ export function CalendarDayModal(props: CalendarDayModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-payment-history"
       ariaLabel={t.paymentHistory}
+      closeLabel={t.close}
+      isDirty={noteText.trim() !== ''}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       titleClassName="text-xl font-bold flex flex-col"
       title={
         <>

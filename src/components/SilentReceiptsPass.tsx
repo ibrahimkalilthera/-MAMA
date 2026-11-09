@@ -370,7 +370,7 @@ export function SilentReceiptsPass(props: SilentReceiptsPassProps) {
             </span>
           </div>
           {outcomes.some((outcome) => outcome.queued) && (
-            <p data-slot="silent-receipts-pass-offline" className="text-2xs font-semibold text-amber-600 dark:text-amber-400">
+            <p data-slot="silent-receipts-pass-offline" className="text-2xs font-semibold text-amber-800 dark:text-amber-300">
               {t.silentReceiptsPassOffline}
             </p>
           )}

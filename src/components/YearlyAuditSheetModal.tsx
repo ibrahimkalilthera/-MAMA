@@ -57,6 +57,7 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-audit-sheet"
       ariaLabel={t.auditSheet}
+      closeLabel={t.close}
       maxWidth="max-w-4xl"
       panelRadius="rounded-3xl"
       panelClassName="max-h-[85vh] overflow-y-auto p-8 md:p-12 custom-scrollbar"
@@ -78,6 +79,8 @@ export function YearlyAuditSheetModal(props: YearlyAuditSheetModalProps) {
           </div>
           <button 
             onClick={onClose}
+            data-modal-close
+            aria-label={t.close}
             className={`p-2 ${currentTheme.hoverSurface} rounded-xl transition-all ${currentTheme.muted}`}
           >
             <X size={20} />

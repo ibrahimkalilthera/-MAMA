@@ -241,7 +241,7 @@ jobs:
   # comme sur une PR Dependabot ou une PR de fork, avec exactement les mêmes
   # données à chaque run.
   theme-contrast:
-    name: Contraste thèmes (WCAG >= 3:1)
+    name: Contraste thèmes (WCAG >= 4.5:1)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -267,7 +267,7 @@ jobs:
       # tout fichier .env) — il n'y a donc rien à préparer ni à cacher, et aucun
       # bundle audité ne peut viser la vraie base.
 
-      - name: Theme contrast audit (6 thèmes x 8 overlays, échoue < 3:1)
+      - name: Theme contrast audit (6 thèmes x 8 overlays, échoue < 4,5:1)
         env:
           AUDIT_URL: http://127.0.0.1:4173/
           CHROME_PATH: /usr/bin/google-chrome

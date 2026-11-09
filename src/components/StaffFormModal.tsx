@@ -36,6 +36,27 @@ export function StaffFormModal(props: StaffFormModalProps) {
    *  small violet shield to flag it. Read from the row's category, so the flag
    *  survives a position the curated list does not know. */
   const isEditingAdmin = Boolean(editingStaff && staffCategory(editingStaff) === 'admin');
+  // Une fiche en cours de saisie ne se jette pas : en CRÉATION, dès que l'un
+  // des champs obligatoires est rempli ; en ÉDITION, dès qu'un champ diffère de
+  // la fiche ouverte. Le doute penche vers la confirmation — une demande de
+  // trop coûte un clic, une saisie perdue coûte la ressaisie complète.
+  const isDirty = editingStaff
+    ? staffForm.name !== editingStaff.name ||
+      staffForm.position !== editingStaff.position ||
+      staffForm.phone !== editingStaff.phone ||
+      staffForm.email !== editingStaff.email ||
+      staffForm.salary !== String(editingStaff.salary ?? '') ||
+      staffForm.bankDetails !== (editingStaff.bankDetails ?? '') ||
+      staffForm.emergencyContact !== (editingStaff.emergencyContact ?? '') ||
+      staffForm.inpsNumber !== (editingStaff.inpsNumber ?? '') ||
+      staffForm.hireDate !== (editingStaff.hireDate ?? '') ||
+      staffForm.familyStatus !== (editingStaff.familyStatus ?? '') ||
+      staffForm.childrenCount !== String(editingStaff.childrenCount ?? '') ||
+      staffForm.travelAllowance !== String(editingStaff.travelAllowance ?? '') ||
+      staffForm.communicationAllowance !== String(editingStaff.communicationAllowance ?? '') ||
+      staffForm.housingAllowance !== String(editingStaff.housingAllowance ?? '')
+    : [staffForm.name, staffForm.position, staffForm.phone, staffForm.email, staffForm.salary]
+        .some((value) => value.trim() !== '');
   return (
     <ModalShell
       overlayRef={overlayRef}
@@ -43,6 +64,12 @@ export function StaffFormModal(props: StaffFormModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-staff-form"
       ariaLabel={title}
+      closeLabel={t.close}
+      isDirty={isDirty}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       icon={adminMode ? <ShieldCheck size={24} className="text-violet-400" /> : <Briefcase size={24} className="text-blue-400" />}
       title={isEditingAdmin ? (
         <span className="inline-flex items-center gap-2">

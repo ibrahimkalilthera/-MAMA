@@ -238,11 +238,14 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-student-details"
       ariaLabel={t.studentDetails}
+      closeLabel={t.close}
       maxWidth="max-w-xl"
       header={
         <div className="h-24 relative" style={{ backgroundColor: currentTheme.header }}>
           <button
             onClick={onClose}
+            data-modal-close
+            aria-label={t.close}
             className={`absolute top-6 right-6 p-2 bg-white/10 ${currentTheme.hoverSurfaceDark} text-white rounded-2xl transition-all`}
           >
             <X size={20} />
@@ -399,7 +402,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                     </p>
                   </div>
                   <div className={`p-4 bg-rose-50 dark:bg-rose-950/30 rounded-2xl text-center`}>
-                    <span className="text-3xs font-black uppercase tracking-widest text-rose-500">{t.balance}</span>
+                    <span className="text-3xs font-black uppercase tracking-widest text-rose-700 dark:text-rose-300">{t.balance}</span>
                     <p className="text-xs font-black text-rose-600 mt-1">
                       {formatCurrency(selectedStudent.totalDue * (1 - (selectedStudent.scholarshipDiscount || 0) / 100) - selectedStudent.amountPaid)}
                     </p>
@@ -449,7 +452,7 @@ export function StudentDetailsModal(props: StudentDetailsModalProps) {
                       <p className="text-2xs font-semibold text-emerald-600 dark:text-emerald-400">{t.monthsCoverageComplete}</p>
                     )}
                     {coverage.undeclared > 0 && (
-                      <p data-slot="student-months-undeclared" className="text-2xs font-semibold text-amber-600 dark:text-amber-400">
+                      <p data-slot="student-months-undeclared" className="text-2xs font-semibold text-amber-800 dark:text-amber-300">
                         {t.monthsUndeclaredNote.replace('{count}', String(coverage.undeclared))}
                       </p>
                     )}

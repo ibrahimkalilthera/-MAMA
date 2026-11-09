@@ -70,6 +70,31 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
   // sont figés, c'est-à-dire une écriture qui ne peut pas aboutir.
   const financialFieldsLocked = editingVendorExpense ? !isPromoter : !canWriteExpenses;
 
+  // La saisie en cours ne se jette pas : sur une fiche EXISTANTE on compare
+  // champ à champ à la dépense reçue ; à la CRÉATION, la catégorie, le statut
+  // et l'échéance ont une valeur par défaut posée par l'appelant, donc
+  // « modifié » = un champ que l'utilisateur a réellement tapé ou choisi.
+  // Un faux positif (parent qui normalise une valeur) coûte une confirmation ;
+  // un faux négatif coûterait la saisie — le doute penche donc de ce côté.
+  const isDirty = editingVendorExpense
+    ? vendorExpenseForm.vendorName !== editingVendorExpense.vendorName ||
+      vendorExpenseForm.amount !== String(editingVendorExpense.amount ?? '') ||
+      vendorExpenseForm.category !== editingVendorExpense.category ||
+      vendorExpenseForm.paymentStatus !== editingVendorExpense.paymentStatus ||
+      vendorExpenseForm.dueDate !== (editingVendorExpense.dueDate ?? '') ||
+      vendorExpenseForm.amountPaid !== String(editingVendorExpense.amountPaid ?? '') ||
+      vendorExpenseForm.description !== (editingVendorExpense.description ?? '') ||
+      vendorExpenseForm.aidType !== (editingVendorExpense.aidType ?? '') ||
+      vendorExpenseForm.beneficiaryStudentName !== (editingVendorExpense.beneficiaryStudentName ?? '') ||
+      vendorExpenseForm.beneficiaryStudentGrade !== (editingVendorExpense.beneficiaryStudentGrade ?? '')
+    : vendorExpenseForm.vendorName.trim() !== '' ||
+      vendorExpenseForm.amount.trim() !== '' ||
+      vendorExpenseForm.amountPaid.trim() !== '' ||
+      vendorExpenseForm.description.trim() !== '' ||
+      vendorExpenseForm.aidType !== '' ||
+      vendorExpenseForm.beneficiaryStudentName.trim() !== '' ||
+      vendorExpenseForm.beneficiaryStudentGrade !== '';
+
   return (
           <ModalShell
             overlayRef={overlayRef}
@@ -77,6 +102,12 @@ export function VendorExpenseModal(props: VendorExpenseModalProps) {
             currentTheme={currentTheme}
             titleId="modal-title-vendor-expense-form"
             ariaLabel={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense}
+            closeLabel={t.close}
+            isDirty={isDirty}
+            discardTitle={t.discardChangesTitle}
+            discardMessage={t.discardChangesMessage}
+            discardConfirmLabel={t.discardChangesConfirm}
+            discardCancelLabel={t.keepEditing}
             headerClassName={`p-8 border-b ${currentTheme.border} flex justify-between items-center ${currentTheme.accentBg} ${currentTheme.accentText}`}
             icon={<Receipt size={24} />}
             title={editingVendorExpense ? t.editVendorExpense : t.addVendorExpense}

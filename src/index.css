@@ -17,6 +17,10 @@
    après les remaps de thème — les blocs `.theme-*` du fichier doivent gagner
    sur son propre `:root`, à spécificité égale, par le seul ordre. */
 @import './themes/state-hover.css';
+/* Le réglage système du mouvement est GLOBAL et `!important` : il passe après
+   les utilitaires de transition que Tailwind pose sur les éléments.
+   (Extrait de la section 6 d’index.css — voir le fichier pour le pourquoi.) */
+@import './themes/reduced-motion.css';
 
 /* The app theme is class-based (theme-slate / theme-midnight = dark, the rest
    light) but Tailwind v4 defaults `dark:` to the OS `prefers-color-scheme`.
@@ -69,7 +73,7 @@
      The steps below are the only sizes the app is allowed to name, and the
      utilities that carry them (`.text-2xs`…`.text-3xl`) live further down.
      Sizes in between (13px, 15px, 17px) are deliberately absent: pick a step. */
-  --text-3xs: 0.6875rem;  /* 11px — dense meta: table sub-lines, badges */
+  --text-3xs: 0.75rem;    /* 12px — 11 SAUTAIT le plancher (voir plus bas) */
   --text-2xs: 0.75rem;    /* 12px — the real-content floor below */
   --text-xs: 0.75rem;     /* 12px — secondary body */
   --text-sm: 0.875rem;    /* 14px — body */
@@ -159,7 +163,7 @@ h1, h2, h3,
 
 /* Labels: slightly wider tracking */
 .tracking-label {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -172,12 +176,14 @@ h1, h2, h3,
    resize every stock utility in the app — a redesign disguised as a token.
 
    These exist so the 355 `text-[Npx]` call sites can name a step instead of a
-   pixel value. They deliberately preserve the LEGIBILITY FLOOR the previous
-   session established: that clamp raised every 8-11px class to 11px, and to
-   12px when the element was not an uppercase label, because 8-10px is unreadable
-   on a field tablet. A migration that swapped `text-[8px]` for a 10px step would
-   have quietly undone it — so the floor lives on, now as the two steps’ VALUES:
-   11px is the smallest thing the app can say, 12px is everything else. */
+   pixel value. They carry the LEGIBILITY FLOOR: 12px, and nothing below it —
+   8-10px is unreadable on a field tablet.
+
+   `--text-3xs` valait 11px et se présentait comme la marche « méta ». À l'usage
+   il portait aussi du SENS (badges de classe, pastille de doublon), et 11px
+   n'est pas un cran sous le plancher : c'est le plancher qu'on croyait
+   respecter. Les deux marches valent donc 12px, et
+   `scripts/check-min-type-size.mjs` refuse toute règle qui redescendrait. */
 .text-3xs {
   font-size: var(--text-3xs);
   line-height: 1rem;
@@ -600,12 +606,13 @@ textarea:focus-visible {
   animation: fade-in-up 0.3s ease-out forwards;
 }
 
+/* ─── 7. Print Styles ──────────────────────────────────────────────────────── */
+
 /* stylelint-disable declaration-no-important -- print zone: !important is
    required to beat screen/inline styles. Every zone is re-checked by
    reportNeedlessDisables — if a zone ends up violation-free, the disable
    comment itself becomes the lint error (the theme-token zone lives in
    ./themes/overrides.css). */
-/* ─── 7. Print Styles ──────────────────────────────────────────────────────── */
 
 @media print {
   .no-print {

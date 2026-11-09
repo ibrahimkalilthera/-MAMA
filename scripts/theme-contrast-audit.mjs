@@ -59,7 +59,13 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // ── Configuration ──────────────────────────────────────────────────────────
 const AUDIT_URL = process.env.AUDIT_URL || 'http://127.0.0.1:4173/';
 const AUDIT_PORT = Number(process.env.AUDIT_PORT ?? 4173);
-const MIN_RATIO = Number(process.env.AUDIT_MIN_RATIO ?? 3.0);
+// Deux seuils, comme WCAG 2.1 AA les définit : 4,5:1 pour le texte courant,
+// 3:1 pour le GRAND texte (>= 24 px, ou >= 18,66 px en gras). Le gate ne
+// mesurait qu'UN plancher de 3:1 pour tout : du texte de 12 px pouvait donc
+// passer à 3,1:1 sans que rien ne le dise — les encres de survol, elles,
+// étaient déjà tenues à 4,5:1.
+const MIN_RATIO = Number(process.env.AUDIT_MIN_RATIO ?? 4.5);
+const LARGE_MIN_RATIO = Number(process.env.AUDIT_MIN_RATIO_LARGE ?? 3.0);
 const isLocalTarget = AUDIT_URL.includes('127.0.0.1') || AUDIT_URL.includes('localhost');
 const doBuild = !process.env.AUDIT_NO_BUILD;
 // Fixtures by default: the audit must not need a secret to run (a Dependabot or
@@ -142,7 +148,7 @@ function resolveChrome() {
 // Returns failures [{ text, fg, bg, ratio, el }] for all visible text in
 // `root` (default document) with contrast < MIN_RATIO. Self-contained: it is
 // serialized into the page, so every constant it reads must live inside it.
-const SCANNER = (minRatio) => {
+const SCANNER = (minRatio, minRatioLarge) => {
   // Text ignored as non-user-facing chrome (reported, never fails the gate).
   const IGNORED_TEXTS = new Set(['DEV']);
   // Resolve ANY CSS color to sRGB by rasterizing it (Tailwind v4 emits
@@ -239,8 +245,14 @@ const SCANNER = (minRatio) => {
       const a = fgP.length > 3 ? fgP[3] : 1;
       const fg = a >= 0.999 ? [fgP[0], fgP[1], fgP[2]] : [a * fgP[0] + (1 - a) * bg[0], a * fgP[1] + (1 - a) * bg[1], a * fgP[2] + (1 - a) * bg[2]];
       const rt = ratio(fg, bg);
+      // Le seuil dépend de la TAILLE du texte, pas du goût : un titre de 28 px
+      // tient à 3:1, une ligne de 12 px doit tenir à 4,5:1.
+      const fontPx = Number.parseFloat(cs.fontSize) || 16;
+      const fontBold = (Number.parseInt(cs.fontWeight, 10) || 400) >= 700;
+      const isLargeText = fontPx >= 24 || (fontPx >= 18.66 && fontBold);
+      const required = isLargeText ? minRatioLarge : minRatio;
       checked += 1;
-      if (rt < minRatio) {
+      if (rt < required) {
         const key = t.slice(0, 24) + '|' + fg.map((v) => Math.round(v)).join() + '|' + bg.map((v) => Math.round(v)).join();
         if (seen.has(key)) continue;
         seen.add(key);
@@ -251,7 +263,7 @@ const SCANNER = (minRatio) => {
           chain.push((ac.tagName || '').toLowerCase() + (ac.className && ac.className.toString ? '.' + ac.className.toString().slice(0, 34) : '') + '{op:' + s.opacity + ',bg:' + s.backgroundColor + '}');
           ac = ac.parentElement;
         }
-        const rec = { text: t.slice(0, 90), fg: fg.map((v) => Math.round(v)).join(','), bg: bg.map((v) => Math.round(v)).join(','), ratio: +rt.toFixed(2), cls: (el.className && el.className.toString ? el.className.toString() : '').slice(0, 70), chain };
+        const rec = { text: t.slice(0, 90), fg: fg.map((v) => Math.round(v)).join(','), bg: bg.map((v) => Math.round(v)).join(','), ratio: +rt.toFixed(2), required, cls: (el.className && el.className.toString ? el.className.toString() : '').slice(0, 70), chain };
         (IGNORED_TEXTS.has(t) ? ignored : failures).push(rec);
       }
     }
@@ -327,7 +339,7 @@ async function main() {
       }
     }
 
-    console.log(`🌐 Audit sur ${AUDIT_URL} — seuil ${MIN_RATIO}:1, thèmes : ${THEMES.join(', ')}`);
+    console.log(`🌐 Audit sur ${AUDIT_URL} — seuils ${MIN_RATIO}:1 (texte) / ${LARGE_MIN_RATIO}:1 (grand texte), thèmes : ${THEMES.join(', ')}`);
     const browser = await launchChrome(chromePath);
     const page = await browser.newPage();
     await page.setViewport({ width: 1440, height: 1000 });
@@ -387,11 +399,14 @@ async function main() {
         // the visible-text count is stable and > 0 (entrance animation over)
         // before recording; an overlay that still yields 0 texts after the
         // settle window is an UNCOVERED step → KO, never a pass.
+        // SCANNER est CURRYIFIÉ : `(seuils) → (sélecteur) → résultat`. Les deux
+        // seuils passent donc dans le MÊME appel — les glisser en arguments
+        // successifs faisait de `3` le sélecteur (et de `null` un seuil).
         let res = null;
         let prev = -1;
         const settleStart = Date.now();
         for (;;) {
-          res = await page.evaluate(`(${SCANNER})(${MIN_RATIO})(${JSON.stringify(rootSel || null)})`);
+          res = await page.evaluate(`(${SCANNER})(${MIN_RATIO}, ${LARGE_MIN_RATIO})(${JSON.stringify(rootSel || null)})`);
           if (res.checked > 0 && res.checked === prev) break; // settled at a real content count
           if (Date.now() - settleStart > 8000) break; // hard cap: never settled
           prev = res.checked;
@@ -404,7 +419,7 @@ async function main() {
         const note = !verified
           ? '0 texte scanné — couverture non vérifiée'
           : failuresStep.length
-            ? `${failuresStep.length} paire(s) < ${MIN_RATIO}:1`
+            ? `${failuresStep.length} paire(s) sous le seuil (${MIN_RATIO}:1 texte)`
             : `${res.checked} textes scannés`;
         recordCheck(theme, step, verified && failuresStep.length === 0, note);
         return failuresStep.length;
@@ -651,9 +666,12 @@ async function main() {
           const dataRow = rows.find((r) => {
             const t = r.textContent || '';
             if (!t.trim()) return false;
-            // skip column-header rows (the header's sort cells are clickable
-            // but open nothing)
-            if (/NOM DE L'ÉLÈVE|SOLDE|ACTIONS|STATUT|ÉLÈVES/.test(t) && !/[a-zà-ÿ]/.test(t)) return false;
+            // Les lignes d'EN-TÊTE sont écartées par leur STRUCTURE, plus par
+            // leur texte : depuis que le tri est un bouton DANS le `<th>` (nom
+            // accessible, `aria-sort`), l'en-tête porte des boutons et son
+            // libellé contient des minuscules — il passait donc pour une ligne
+            // de données, et l'audit cherchait un déclencheur de fiche dedans.
+            if (r.closest('thead') || r.querySelector('th')) return false;
             return [...r.querySelectorAll('button')].length > 0;
           });
           if (!dataRow) return 'aucune ligne de données (que des en-têtes ?)';
@@ -715,7 +733,7 @@ async function main() {
     }
     const counts = checks.reduce((a, c) => (a[c.ok ? 'ok' : 'ko'] += 1, a), { ok: 0, ko: 0 });
     console.log(`Couvertures : ${checks.length} (${counts.ok} ok, ${counts.ko} KO)`);
-    console.log(`Paires sous ${MIN_RATIO}:1 : ${failures.length}`);
+    console.log(`Paires sous le seuil texte ${MIN_RATIO}:1 : ${failures.length}`);
     // Coverage assertion: every configured theme must have produced at least
     // one scanned check. Without this, a future partial audit (e.g. the theme
     // switcher silently breaking after theme N, or AUDIT_THEMES accidentally
@@ -754,7 +772,7 @@ async function main() {
       writeFileSync(process.env.AUDIT_OUT, JSON.stringify({ checks, failures, ignored: ignoredSeen, unrouted: [...unrouted] }, null, 2));
     }
     process.exitCode = failures.length > 0 || counts.ko > 0 || missingThemes.length > 0 || unrouted.size > 0 ? 1 : 0;
-    if (failures.length > 0) console.log(`\n❌ ${failures.length} paire(s) sous ${MIN_RATIO}:1 — audit KO.`);
+    if (failures.length > 0) console.log(`\n❌ ${failures.length} paire(s) sous le seuil — audit KO.`);
     else if (counts.ko > 0) console.log(`\n❌ ${counts.ko} étape(s) non couvertes (ouverture impossible, 0 texte scanné, ou déclencheur perdu sous fixtures) — audit KO.`);
     else if (missingThemes.length > 0) console.log(`\n❌ Audit partiel : ${missingThemes.join(', ')} sans couverture — audit KO.`);
     else if (unrouted.size > 0) console.log(`\n❌ Backend fixtures incomplet (${[...unrouted].join(', ')}) — audit KO.`);

@@ -108,7 +108,7 @@ export function PaymentMonthsBackfill(props: PaymentMonthsBackfillProps) {
           {progress}
         </span>
       </div>
-      <p className="text-2xs font-semibold text-amber-700/80 dark:text-amber-300/80">
+      <p className="text-2xs font-semibold text-amber-800 dark:text-amber-300">
         {t.paymentMonthsBackfillHint}
       </p>
 

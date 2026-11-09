@@ -229,7 +229,7 @@ export function SilentReceiptsView() {
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="font-bold text-amber-600 dark:text-amber-400">
+                <span className="font-bold text-amber-800 dark:text-amber-300">
                   {formatCurrency(amount)}
                 </span>
                 <ChevronRight size={18} className={currentTheme.muted} />

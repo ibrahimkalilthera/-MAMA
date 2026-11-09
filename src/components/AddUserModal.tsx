@@ -101,6 +101,14 @@ export const AddUserModal = ({
     }
   };
 
+  // Création de compte : tout ce qui n'est pas la valeur d'ouverture (le rôle
+  // par défaut compris) est une saisie à protéger.
+  const isDirty =
+    newUserForm.fullName.trim() !== '' ||
+    newUserForm.email.trim() !== '' ||
+    newUserForm.password !== '' ||
+    newUserForm.role !== EMPTY_FORM.role;
+
   return (
     <ModalShell
       overlayRef={(el) => { rootRef.current = el as HTMLDivElement | null; }}
@@ -108,6 +116,12 @@ export const AddUserModal = ({
       currentTheme={currentTheme}
       titleId="modal-title-add-staff-account"
       ariaLabel={t.addStaffAccount}
+      closeLabel={t.close}
+      isDirty={isDirty}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       panelRadius="rounded-3xl"
       header={
         <div className="p-6 border-b border-white/10 bg-[#0F172A] text-white flex items-center justify-between">
@@ -126,6 +140,9 @@ export const AddUserModal = ({
           </div>
           <button
             onClick={onClose}
+            data-modal-close
+            aria-label={t.close}
+            title={t.close}
             className={`p-2 rounded-xl text-white/60 hover:text-white ${currentTheme.hoverSurfaceDark} transition-all flex items-center justify-center`}
           >
             <X size={16} />

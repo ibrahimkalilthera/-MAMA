@@ -22,6 +22,11 @@ export interface ExpenseFormModalProps {
 
 export function ExpenseFormModal(props: ExpenseFormModalProps) {
   const { t, currentTheme, expenseForm, setExpenseForm, handleExpenseSubmit, overlayRef, onClose } = props;
+  // Une dépense en cours ne se jette pas sur un clic à côté : le panneau ne
+  // porte que deux champs libres (la catégorie et la date ont une valeur par
+  // défaut), donc « modifié » = l'un des deux est rempli. Les vider à la main
+  // rend la garde muette — et c'est exact : il n'y a alors rien à perdre.
+  const isDirty = expenseForm.description.trim() !== '' || expenseForm.amount.trim() !== '';
   return (
     <ModalShell
       overlayRef={overlayRef}
@@ -29,6 +34,12 @@ export function ExpenseFormModal(props: ExpenseFormModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-add-expense"
       ariaLabel={t.addExpense}
+      closeLabel={t.close}
+      isDirty={isDirty}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       headerClassName="p-8 border-b border-rose-100 flex justify-between items-center bg-rose-600 text-white"
       icon={<Receipt size={24} />}
       title={t.addExpense}
@@ -83,7 +94,7 @@ export function ExpenseFormModal(props: ExpenseFormModalProps) {
                     />
                   </div>
                 </div>
-                <button type="submit" className={`w-full bg-rose-500 ${currentTheme.hoverAlertSolid} text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20`}>
+                <button type="submit" className={`w-full bg-rose-700 ${currentTheme.hoverAlertSolid} text-white py-5 rounded-2xl font-black text-sm transition-all shadow-xl shadow-rose-500/20`}>
                   {t.submit}
                 </button>
               </form>

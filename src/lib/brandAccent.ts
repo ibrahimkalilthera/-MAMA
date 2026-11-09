@@ -162,7 +162,7 @@ export function buildAccentVars(source: string | null | undefined, isDarkTheme =
     '--accent-primary-shadow': inMuted(0.22),
     '--accent-primary-border': inMuted(0.32),
     '--accent-ink': readableInk(parsed),
-    '--accent-soft-ink': isDarkTheme ? rgb(lighten(parsed)) : deep,
-    '--accent-soft-ink-lifted': rgb(lighten(parsed)),
+    '--accent-soft-ink': isDarkTheme ? rgb(lighten(parsed, 0.62)) : deep,
+    '--accent-soft-ink-lifted': rgb(lighten(parsed, 0.62)),
   };
 }

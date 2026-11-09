@@ -390,9 +390,13 @@ export function PaymentHistoryView() {
                 <th className="px-4 py-4">{t.actions}</th>
                 <th className="px-4 py-4 text-right">{t.amount2}</th>
                 <th className="px-4 py-4">{t.receipt}</th>
-                <th className="px-4 py-4">{t.paymentMotif}</th>
-                <th className="px-4 py-4">{t.paymentHistoryCollectedBy}</th>
-                <th className="px-4 py-4">{t.details}</th>
+                {/* Sous 640 px, huit colonnes ne se lisent pas : on fait défiler
+                    pour lire UNE ligne. Les colonnes de contexte (motif, auteur,
+                    détail) s'effacent donc par paliers — l'encaissement, lui,
+                    garde toujours sa date, son élève, son montant et son reçu. */}
+                <th className="px-4 py-4 hidden sm:table-cell">{t.paymentMotif}</th>
+                <th className="px-4 py-4 hidden md:table-cell">{t.paymentHistoryCollectedBy}</th>
+                <th className="px-4 py-4 hidden lg:table-cell">{t.details}</th>
               </tr>
             </thead>
             <tbody className={`divide-y ${currentTheme.border}`}>
@@ -522,7 +526,7 @@ export function PaymentHistoryView() {
                           sort de l'ordinaire (l'inscription) prend l'accent, parce
                           que c'est ce qu'une caisse doit repérer d'un coup d'œil
                           dans une liste d'encaissements. */}
-                      <td className="px-4 py-4 whitespace-nowrap align-top">
+                      <td className="px-4 py-4 whitespace-nowrap align-top hidden sm:table-cell">
                         <span
                           className={`text-2xs font-bold px-2 py-0.5 rounded-full border ${
                             row.motif === DEFAULT_PAYMENT_MOTIF
@@ -533,14 +537,14 @@ export function PaymentHistoryView() {
                           {paymentMotifLabel(row.motif, t)}
                         </span>
                       </td>
-                      <td className="px-4 py-4 align-top">
+                      <td className="px-4 py-4 align-top hidden md:table-cell">
                         <div className="flex flex-col">
                           <span className={`text-xs font-bold ${currentTheme.text}`}>{row.actorName || t.roleStaff}</span>
                           <span className="text-2xs text-slate-400 font-mono">{row.actorEmail || '—'}</span>
                           {row.actorRole && <span className={`text-2xs ${currentTheme.muted}`}>{row.actorRole}</span>}
                         </div>
                       </td>
-                      <td className="px-4 py-4 align-top">
+                      <td className="px-4 py-4 align-top hidden lg:table-cell">
                         <span className={`text-xs font-medium ${offline ? 'text-rose-600 dark:text-rose-300' : currentTheme.text}`}>
                           {localizeAuditDetails(row.log.details, lang) || '—'}
                         </span>

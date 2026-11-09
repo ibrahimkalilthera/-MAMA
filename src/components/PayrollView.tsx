@@ -124,7 +124,7 @@ export function PayrollView() {
                     boxClass = `${currentTheme.isDark ? 'bg-emerald-950/10 border-emerald-950/20 text-[#E2E8F0]/80' : 'bg-slate-50 border-slate-100 text-slate-500'}`;
                     statusText = cellStatus === 'open' ? t.open : t.scheduled;
                   } else if (cellStatus === 'unpaid') {
-                    boxClass = "bg-rose-500 text-white border-rose-600 animate-pulse shadow-lg shadow-rose-500/20";
+                    boxClass = "bg-rose-700 text-white border-rose-800 animate-pulse shadow-lg shadow-rose-700/20";
                     statusText = t.unpaid;
                   } else if (cellStatus === 'settle') {
                     boxClass = `${currentTheme.accentBg} ${currentTheme.accentText} border ${currentTheme.accentBorder} shadow-lg ${currentTheme.accentShadow}`;

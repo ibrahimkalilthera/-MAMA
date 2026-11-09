@@ -56,7 +56,7 @@ export function DashboardView() {
                         <h4 className="font-black text-sm">
                           {t.payrollWindowOpen.replace('{month}', currentMonthName)}
                         </h4>
-                        <p className="text-xs text-blue-600/80 dark:text-blue-300/80 font-semibold mt-0.5">
+                        <p className="text-xs text-blue-700 dark:text-blue-200 font-semibold mt-0.5">
                           {t.thePayrollWindowIsActiveFromThe1stToThe10thOfTheMonth}
                         </p>
                       </div>
@@ -126,7 +126,7 @@ export function DashboardView() {
                 <div className="absolute top-0 right-0 w-40 h-40 rounded-bl-full pointer-events-none" style={{ backgroundImage: 'linear-gradient(225deg, var(--accent-primary-muted), transparent)' }}></div>
                 <div className="flex justify-between items-start mb-5">
                   <div>
-                    <p className="text-2xs font-semibold text-white/40 uppercase tracking-[0.1em] mb-2">{t.cashBalance}</p>
+                    <p className="text-2xs font-semibold text-white/65 uppercase tracking-[0.1em] mb-2">{t.cashBalance}</p>
                     <h3 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight" style={{ fontVariantNumeric: 'tabular-nums' }}>
                       {formatCurrency(stats.totalFees - stats.totalExpenses)}
                     </h3>

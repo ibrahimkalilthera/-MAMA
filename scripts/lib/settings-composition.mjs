@@ -39,6 +39,10 @@ export const SETTINGS_PASSWORD_MODAL_SLOT = 'settings-password-modal';
  * écran.
  */
 export const SETTINGS_SECTIONS = [
+  // « Premiers pas » ouvre la pile : c'est la seule section qui s'adresse à
+  // quelqu'un qui ne connaît pas encore l'outil, et la placer après les
+  // préférences supposerait qu'il sache déjà ce qu'il est venu régler.
+  'SettingsHelpCard',
   'SettingsPreferencesCard',
   'SettingsSchoolCard',
   'SettingsBackupCard',
@@ -58,12 +62,14 @@ export const SETTINGS_STACK_SECTIONS = SETTINGS_SECTIONS.filter(
 
 /**
  * Les enfants de la pile, dans l'ordre du DOM. Ce sont les `data-slot` que les
- * composants de `SETTINGS_STACK_SECTIONS` déclarent : `SettingsPreferencesCard`
- * en porte six (langue, devise, densité des tableaux, verre des icônes, thème,
- * logo), `SettingsSchoolCard` un (le nom de l'école), et les quatre autres un
- * chacun. C'est CETTE longueur — 11 — que comptent les deux preuves.
+ * composants de `SETTINGS_STACK_SECTIONS` déclarent : `SettingsHelpCard` un
+ * (premiers pas), `SettingsPreferencesCard` six (langue, devise, densité des
+ * tableaux, verre des icônes, thème, logo), `SettingsSchoolCard` un (le nom de
+ * l'école), et les trois autres un chacun. C'est CETTE longueur — 12 — que
+ * comptent les deux preuves.
  */
 export const SETTINGS_STACK_SLOTS = [
+  'settings-first-steps',
   'settings-system-language',
   'settings-currency-format',
   'settings-table-density',

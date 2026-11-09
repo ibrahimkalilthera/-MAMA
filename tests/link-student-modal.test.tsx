@@ -114,7 +114,10 @@ describe('LinkStudentModal — recherche par nom ou matricule', () => {
   it('ne montre le bouton d’effacement que lorsqu’il y a quelque chose à effacer', () => {
     const h = mount();
     try {
-      assert.equal(h.container.querySelectorAll('button[aria-label]').length, 0);
+      // On vise LE bouton d'effacement, pas « tout bouton nommé » : le ✕ de la
+      // fenêtre porte désormais un `aria-label` (il n'en avait aucun), et le
+      // compte global mesurerait ce nom-là au lieu de l'effacement.
+      assert.equal(h.container.querySelectorAll('[data-slot="link-student-clear"]').length, 0);
     } finally { h.cleanup(); }
   });
 

@@ -53,10 +53,30 @@ const TOAST_STYLES: Record<ToastType, { bg: string; border: string; text: string
 interface ToastContainerProps {
   toasts: Toast[];
   onDismiss: (id: string) => void;
+  /** Libellé du bouton ✕ (traduit par l'appelant : `t.close`). */
+  dismissLabel?: string;
 }
 
-export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
-  if (toasts.length === 0) return null;
+/**
+ * Les toasts PARLENT aussi — la région live est permanente, le texte change.
+ *
+ * Elles ne l'étaient pas : la seule région `aria-live` du dépôt vivait dans
+ * l'annonceur hors ligne, et les ~79 retours qui passent par ici (paiement
+ * enregistré, refus de la base, file d'attente) n'existaient que pour l'œil.
+ * Un utilisateur au lecteur d'écran ne savait donc pas si son encaissement
+ * était passé.
+ *
+ * Deux régions, et elles sont montées MÊME QUAND LA LISTE EST VIDE : une région
+ * live qui apparaît avec son texte n'est annoncée par aucun lecteur (c'est la
+ * raison d'être de `OfflineAnnouncer`, juste en dessous). L'erreur part sur
+ * `role="alert"` — elle interrompt, comme le rouge à l'écran ; le reste sur
+ * `role="status"`, poli. Les cartes visibles, elles, ne portent AUCUN rôle :
+ * un rôle par carte annoncerait deux fois le même fait (une fois à l'insertion
+ * de la carte, une fois par la région).
+ */
+export function ToastContainer({ toasts, onDismiss, dismissLabel = 'Close' }: ToastContainerProps) {
+  const polite = [...toasts].reverse().find((toast) => toast.type !== 'error')?.message ?? '';
+  const assertive = [...toasts].reverse().find((toast) => toast.type === 'error')?.message ?? '';
 
   // Toasts anchor bottom-right with a 24px margin; the 380px design width
   // would overflow a 360px viewport, so clamp it to the viewport minus
@@ -67,6 +87,13 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
       className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none"
       style={{ maxWidth: 'min(380px, calc(100vw - 3rem))' }}
     >
+      <div data-slot="toast-announcer-status" role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {polite}
+      </div>
+      <div data-slot="toast-announcer-alert" role="alert" aria-live="assertive" aria-atomic="true" className="sr-only">
+        {assertive}
+      </div>
+
       {toasts.map((toast) => {
         const style = TOAST_STYLES[toast.type];
         const Icon = style.icon;
@@ -93,7 +120,8 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
             </p>
             <button
               onClick={() => onDismiss(toast.id)}
-              className={`${style.text} opacity-60 hover:opacity-100 transition-opacity flex-shrink-0`}
+              aria-label={dismissLabel}
+              className={`${style.text} opacity-60 hover:opacity-100 focus-visible:opacity-100 transition-opacity flex-shrink-0 rounded-md`}
             >
               <X size={14} />
             </button>

@@ -148,6 +148,7 @@ function mount(
         onOpenCalendarDate: noop,
         onOpenPayroll: noop,
         onOpenSettings: noop,
+        onOpenPalette: noop,
       }),
     );
   });

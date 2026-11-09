@@ -377,7 +377,7 @@ export function ProductivityPanel(props: ProductivityPanelProps) {
                       >
                         {section.todo.completed && <CheckCircle2 size={14} />}
                       </button>
-                      <span className={`text-sm font-bold ${section.todo.completed ? (currentTheme.isDark ? 'text-[#E2E8F0]/50 line-through' : 'text-slate-400 line-through') : (currentTheme.inkStrong)}`}>
+                      <span className={`text-sm font-bold ${section.todo.completed ? (currentTheme.isDark ? 'text-[#E2E8F0]/70 line-through' : 'text-slate-400 line-through') : (currentTheme.inkStrong)}`}>
                         {section.todo.text}
                       </span>
                       {editingDateId === section.todo.id ? (

@@ -59,6 +59,11 @@ export function AddClassModal(props: AddClassModalProps) {
   useFocusTrap(open, () => rootRef.current);
   useEscapeToClose(open, onClose);
 
+  // Ce que l'utilisateur a TAPÉ (et non les crans choisis dans un menu, qui se
+  // refont d'un clic) : la section ou le nom libre. C'est ce texte-là qui se
+  // perdrait sur un clic à côté.
+  const isDirty = newClassForm.section.trim() !== '' || newClassForm.customName.trim() !== '';
+
   return (
     <ModalShell
       overlayRef={(el) => { rootRef.current = el as HTMLDivElement | null; }}
@@ -66,6 +71,12 @@ export function AddClassModal(props: AddClassModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-add-class"
       ariaLabel={t.addClass}
+      closeLabel={t.close}
+      isDirty={isDirty}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       headerClassName="p-6 border-b border-white/10 flex justify-between items-center text-white"
       headerStyle={{ backgroundColor: currentTheme.header }}
       titleClassName="text-lg font-bold flex items-center gap-2.5"

@@ -1,0 +1,32 @@
+/**
+ * Mouvement réduit — le réglage SYSTÈME, respecté par toute l'app.
+ *
+ * Extrait de src/index.css (section 6) le 2026-11-08 : le fichier dépassait le
+ * budget de 700 lignes que défend `check-line-budget.mjs`. Le bloc est GLOBAL —
+ * il n'a rien d'un thème — et vit donc dans son propre fichier, importé par
+ * index.css, pour que le budget tienne sans effacer un commentaire.
+ *
+ * Le réglage n'était respecté que par les icônes (src/themes/icons.css, deux
+ * règles) alors que l'app porte des centaines de `transition` et des dizaines de
+ * classes `animate-`. La règle est GLOBALE et volontairement `!important` : un
+ * utilitaire `transition-all` (spécificité 0,1,0) doit perdre contre elle. Les
+ * animations `motion/react` ne passent pas par le CSS — elles suivent le même
+ * réglage via `<MotionConfig reducedMotion="user">` dans src/main.tsx.
+ * `scroll-behavior: auto` supprime le défilement animé.
+ *
+ * Ce n'est pas une préférence esthétique : pour une personne sensible au
+ * mouvement, un panneau qui glisse et un badge qui pulse sont une gêne réelle.
+ */
+/* stylelint-disable declaration-no-important -- reduced motion: the rule must
+   beat Tailwind utilities, whose transitions live at a lower specificity. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+/* stylelint-enable declaration-no-important -- reduced-motion zone ends */

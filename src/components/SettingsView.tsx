@@ -13,6 +13,7 @@
  * sans mettre la table à jour fait échouer les deux.
  */
 import { useMainViews } from '../app/mainViewsContext';
+import { SettingsHelpCard } from './SettingsHelpCard';
 import { SettingsPreferencesCard } from './SettingsPreferencesCard';
 import { SettingsSchoolCard } from './SettingsSchoolCard';
 import { SettingsBackupCard } from './SettingsBackupCard';
@@ -33,6 +34,7 @@ export function SettingsView() {
         <div className={`${currentTheme.card} p-10 rounded-3xl border ${currentTheme.border} shadow-xl shadow-slate-200/50`}>
           <h3 className={`text-xl font-bold ${currentTheme.inkStrong} mb-8`}>{t.localizationAndPreferences}</h3>
           <div data-slot="settings-sections" className="space-y-6">
+            <SettingsHelpCard />
             <SettingsPreferencesCard />
             {/* Le nom de l'école est une identité, pas une préférence : il suit
                 immédiatement les réglages d'affichage, avant les sections

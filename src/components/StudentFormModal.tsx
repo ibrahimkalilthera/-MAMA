@@ -141,6 +141,63 @@ export function StudentFormModal(props: StudentFormModalProps) {
   useFocusTrap(open, () => rootRef.current);
   useEscapeToClose(open, onClose);
 
+  /**
+   * La garde d'abandon : la saisie diffère-t-elle de ce que la fenêtre a ouvert ?
+   *
+   * En ÉDITION la référence est la fiche reçue (les mêmes valeurs que celles
+   * posées par `openEditModal`). À la CRÉATION, la référence est le formulaire
+   * vierge documenté par `useStudents.emptyStudentForm` ; les deux dates de
+   * défaut (échéance et inscription) prennent la valeur AFFICHÉE, parce qu'elles
+   * naissent au jour courant et qu'un formulaire neuf n'est pas « modifié » pour
+   * autant.
+   */
+  const openedValues: StudentForm = editingStudent
+    ? {
+        name: editingStudent.name,
+        parentName: editingStudent.parentName,
+        parentEmail: editingStudent.parentEmail || '',
+        parentPhone: editingStudent.parentPhone || '',
+        totalDue: String(editingStudent.totalDue ?? ''),
+        scholarshipDiscount: String(editingStudent.scholarshipDiscount ?? 0),
+        dueDate: editingStudent.dueDate || studentForm.dueDate,
+        academicYear: editingStudent.academicYear || selectedYear,
+        grade: editingStudent.grade || '',
+        studentId: editingStudent.studentId || '',
+        photo: editingStudent.photo || '',
+        emergencyContactName: editingStudent.emergencyContactName || '',
+        emergencyContactRelation: editingStudent.emergencyContactRelation || '',
+        emergencyContactPhone: editingStudent.emergencyContactPhone || '',
+        medicalNotes: editingStudent.medicalNotes || 'None',
+        enrollmentDate: editingStudent.enrollmentDate || studentForm.enrollmentDate,
+        previousSchool: editingStudent.previousSchool || '',
+        status: editingStudent.status || 'Active',
+        classScope: studentForm.classScope,
+      }
+    : {
+        name: '',
+        parentName: '',
+        parentEmail: '',
+        parentPhone: '',
+        totalDue: '',
+        scholarshipDiscount: '0',
+        dueDate: studentForm.dueDate,
+        academicYear: studentForm.academicYear,
+        grade: '',
+        studentId: '',
+        photo: '',
+        emergencyContactName: '',
+        emergencyContactRelation: '',
+        emergencyContactPhone: '',
+        medicalNotes: 'None',
+        enrollmentDate: studentForm.enrollmentDate,
+        previousSchool: '',
+        status: 'Active',
+        classScope: studentForm.classScope,
+      };
+  const isDirty = (Object.keys(openedValues) as Array<keyof StudentForm>).some(
+    (key) => String(studentForm[key] ?? '') !== String(openedValues[key] ?? ''),
+  );
+
   return (
     <ModalShell
       overlayRef={(el) => { rootRef.current = el as HTMLDivElement | null; }}
@@ -148,6 +205,12 @@ export function StudentFormModal(props: StudentFormModalProps) {
       currentTheme={currentTheme}
       titleId="modal-title-student-form"
       ariaLabel={formTitle}
+      closeLabel={t.close}
+      isDirty={isDirty}
+      discardTitle={t.discardChangesTitle}
+      discardMessage={t.discardChangesMessage}
+      discardConfirmLabel={t.discardChangesConfirm}
+      discardCancelLabel={t.keepEditing}
       icon={<Users size={24} className="text-blue-400" />}
       title={formTitle}
     >
@@ -190,7 +253,7 @@ export function StudentFormModal(props: StudentFormModalProps) {
                   <button
                     type="button"
                     onClick={onOpenAddClass}
-                    className={`text-2xs font-black text-blue-500 ${currentTheme.accentSoftTextHover} hover:underline flex items-center gap-1`}
+                    className={`text-2xs font-black text-blue-700 ${currentTheme.accentSoftTextHover} hover:underline flex items-center gap-1`}
                   >
                     <Plus size={12} />
                     <span>{t.newClass}</span>
