@@ -30,6 +30,38 @@ import { spawnSync } from 'node:child_process';
 const SHIM_SRC = join(process.cwd(), 'scripts', 'git-shim.cmd');
 
 /**
+ * Le contexte git que l'APPELANT exporte, et qu'une fixture ne doit jamais hériter.
+ *
+ * Mesuré : lancée depuis le hook `pre-commit`, cette suite échouait sur le
+ * `git commit -q -m init` de sa propre fixture — « invalid object 100644
+ * 48051f4… for '.agents/rules/sync_protocol.md' · Error building trees » — alors
+ * qu'elle passait 7/7 seule. Git exporte son contexte aux hooks (`GIT_DIR`,
+ * `GIT_INDEX_FILE`, `GIT_WORK_TREE`, …) ; un dépôt jetable qui en hérite
+ * construit l'arbre de l'index du dépôt APPELANT, et la fixture juge donc un
+ * dépôt qui n'est pas le sien. Un dépôt de fixture est neuf : il ne doit rien
+ * hériter. Ces clés sont donc retirées de chaque commande de fixture.
+ */
+const INHERITED_GIT_CONTEXT = [
+  'GIT_DIR',
+  'GIT_WORK_TREE',
+  'GIT_COMMON_DIR',
+  'GIT_INDEX_FILE',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_NAMESPACE',
+  'GIT_PREFIX',
+  'GIT_CEILING_DIRECTORIES',
+] as const;
+
+/** L'environnement d'une commande de FIXTURE : celui du processus, moins le
+ * contexte git hérité (voir `INHERITED_GIT_CONTEXT`). */
+function fixtureEnv(extra: Record<string, string | undefined> = {}): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { ...process.env, ...extra };
+  for (const key of INHERITED_GIT_CONTEXT) delete env[key];
+  return env;
+}
+
+/**
  * Une commande de FIXTURE, qui DOIT réussir — et qui le dit quand ce n'est pas
  * le cas.
  *
@@ -48,7 +80,7 @@ function setupStep(args: string[], cwd: string): void {
   let status: number | null = null;
   let detail = '';
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8', env: fixtureEnv(), windowsHide: true });
     status = r.status;
     detail = r.stderr || r.error?.message || '';
     if (r.status === 0) return;
@@ -76,7 +108,7 @@ function makeRepo(): string {
 // one, and a zero exit proves success is still passed through untouched.
 function makeClonedRepo(): { repo: string; origin: string } {
   const origin = mkdtempSync(join(tmpdir(), 'git-shim-origin-'));
-  spawnSync('git', ['init', '--bare', '-q'], { cwd: origin });
+  spawnSync('git', ['init', '--bare', '-q'], { cwd: origin, env: fixtureEnv() });
   const repo = mkdtempSync(join(tmpdir(), 'git-shim-e2e-'));
   for (const args of [
     ['init', '-q'],
@@ -93,7 +125,9 @@ function makeClonedRepo(): { repo: string; origin: string } {
   // aucun upstream derrière soi (git ne saurait alors pas quel nom de branche
   // distante inscrire), et la fixture doit garantir que `git pull` a quelque
   // chose à faire — c'est tout l'intérêt du cas.
-  const branch = spawnSync('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+  const branch = spawnSync('git', ['symbolic-ref', '--short', 'HEAD'], {
+    cwd: repo, encoding: 'utf8', env: fixtureEnv(),
+  }).stdout.trim();
   setupStep(['push', '-q', '--set-upstream', 'origin', branch], repo);
   setupStep(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], repo);
   return { repo, origin };
@@ -130,7 +164,7 @@ function runShim(args: string[], cwd: string, shimDir: string) {
   return spawnSync('cmd', ['/c', join(shimDir, 'git.cmd'), ...args], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, PATH: `${shimDir};${process.env.PATH || ''}` },
+    env: fixtureEnv({ PATH: `${shimDir};${process.env.PATH || ''}` }),
     windowsHide: true,
   });
 }
@@ -213,7 +247,9 @@ describe('git-shim.cmd (E2E cmd.exe réel)', { skip: process.platform !== 'win32
     try {
       copyFileSync(SHIM_SRC, join(shimDir, 'git.cmd'));
       copyWrapper(repo);
-      const direct = spawnSync('git', ['pull'], { cwd: repo, encoding: 'utf8', windowsHide: true });
+      const direct = spawnSync('git', ['pull'], {
+        cwd: repo, encoding: 'utf8', env: fixtureEnv(), windowsHide: true,
+      });
       const r = runShim(['pull'], repo, shimDir);
       assert.notEqual(r.status, 0, 'git pull sans remote échoue');
       assert.equal(r.status, direct.status, 'code de sortie de git préservé');
