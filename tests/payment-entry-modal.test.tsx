@@ -45,7 +45,7 @@ const asPayment = (p: PaymentLike): Payment => ({
   ...p, months: p.months ? [...p.months] : undefined,
 });
 
-function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '', receipts: PaymentLike[] = [], canDeletePayment = true) {
+function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '', receipts: PaymentLike[] = [], canDeletePayment = true, canEditMonthDue = false) {
   installDomGlobals();
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -53,6 +53,8 @@ function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '', receipts: PaymentL
   const submissions: string[] = [];
   /** Les reçus que la modale a demandé de retirer, dans l'ordre. */
   const deletions: { studentId: string; payment: Payment }[] = [];
+  /** Les montants de mois que la modale a demandé d'enregistrer. */
+  const dueDecisions: { studentId: string; month: string; amount: number }[] = [];
   const defaults = makeProps();
   function Host() {
     const [paymentStudentId, setPaymentStudentId] = useState(initialStudent);
@@ -100,6 +102,13 @@ function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '', receipts: PaymentL
       paidMonthFacts: history.facts,
       undeclaredPaymentCount: history.undeclared,
       canDeletePayment,
+      // Le montant d'un mois se décide ici, quand le rôle en a le droit : le
+      // geste est enregistré tel que la modale l'envoie (élève, mois, montant).
+      canEditMonthDue,
+      onSetMonthDue: async (studentId, month, amount) => {
+        dueDecisions.push({ studentId, month, amount });
+        return true;
+      },
       onDeletePayment: async (studentId, payment) => {
         deletions.push({ studentId, payment });
         setPaidReceipts((prev) => prev.filter((r) => r.id !== payment.id));
@@ -135,7 +144,7 @@ function mount(lang: 'en' | 'fr' = 'fr', initialStudent = '', receipts: PaymentL
   const monthsLine = () => container.querySelector<HTMLParagraphElement>('[data-slot="payment-months"] p:last-of-type');
   const motifSelect = () => container.querySelector<HTMLSelectElement>('#payment-motif-select');
   return {
-    container, select, change, submissions, deletions, chip, click, monthsLine, motifSelect,
+    container, select, change, submissions, deletions, dueDecisions, chip, click, monthsLine, motifSelect,
     reopen: () => { act(() => root.render(null)); render(); },
     cleanup: () => { act(() => root.unmount()); container.remove(); },
   };
@@ -652,6 +661,57 @@ describe('PaymentEntryModal — le reçu EN TROP d’un mois déclaré deux fois
       assert.equal(h.container.querySelectorAll('[data-receipt]').length, 2, 'les deux reçus se voient');
       assert.equal(h.container.querySelectorAll('[data-receipt-remove]').length, 0, 'mais rien ne s’offre à retirer');
       assert.equal(h.container.querySelectorAll('[data-slot="payment-receipt-remove"]').length, 0);
+    } finally { h.cleanup(); }
+  });
+});
+
+describe('PaymentEntryModal — le montant du mois, décidé par l’école', () => {
+  it('offre l’éditeur au rôle qui décide, avec le montant en vigueur, et l’enregistre', async () => {
+    // 100 000 FCFA sur dix mois : la ligne « à régler » vaut 10 000, et c'est ce
+    // que l'éditeur propose — il part de la valeur RÉELLE, pas d'un zéro.
+    const h = mount('fr', 'b', [], true, true);
+    try {
+      const dueLine = h.container.querySelector('[data-slot="payment-installment"] p');
+      assert.ok(dueLine?.textContent?.includes('10000 XOF'), 'la ligne « à régler » est affichée');
+      const edit = h.container.querySelector<HTMLButtonElement>('[data-slot="payment-month-due-edit"]');
+      assert.ok(edit, 'le droit ouvre « modifier le montant »');
+      assert.equal(edit.textContent, translations.fr.monthDueEdit);
+
+      act(() => edit.click());
+      const editor = h.container.querySelector('[data-slot="payment-month-due-editor"]');
+      assert.ok(editor, 'un champ de montant apparaît');
+      assert.equal(editor.querySelector<HTMLInputElement>('input')?.value, '10000');
+      assert.equal(editor.querySelector<HTMLInputElement>('input')?.min, '0');
+      assert.ok(editor.textContent?.includes(translations.fr.monthDueHint), 'la décision est expliquée');
+
+      // La frappe n'est pas simulable dans ce harnais (voir la suite de la
+      // recherche) : on enregistre la valeur proposée, et l'on vérifie que le
+      // geste part avec l'ÉLÈVE, le MOIS coché et le MONTANT.
+      const save = editor.querySelector<HTMLButtonElement>('[data-slot="payment-month-due-save"]');
+      assert.ok(save);
+      await act(async () => { save.click(); });
+      assert.deepEqual(h.dueDecisions, [{ studentId: 'b', month: '2026-10', amount: 10000 }]);
+      assert.equal(h.container.querySelector('[data-slot="payment-month-due-editor"]') !== null, false, 'l’éditeur se referme après écriture');
+    } finally { h.cleanup(); }
+  });
+
+  it('ne décide de rien quand le rôle n’a pas le droit', () => {
+    const h = mount('fr', 'b', [], false, false);
+    try {
+      assert.ok(h.container.querySelector('[data-slot="payment-installment"]'), 'la ligne « à régler » reste affichée');
+      assert.equal(h.container.querySelector('[data-slot="payment-month-due-edit"]') !== null, false);
+    } finally { h.cleanup(); }
+  });
+
+  it('localise le montant du mois et son explication', () => {
+    const h = mount('en', 'b', [], true, true);
+    try {
+      const edit = h.container.querySelector<HTMLButtonElement>('[data-slot="payment-month-due-edit"]');
+      assert.ok(edit);
+      assert.equal(edit.textContent, translations.en.monthDueEdit);
+      act(() => edit.click());
+      assert.equal(h.container.querySelector<HTMLInputElement>('[data-slot="payment-month-due-editor"] input')?.getAttribute('type'), 'number');
+      assert.ok(h.container.textContent?.includes(translations.en.monthDueHint));
     } finally { h.cleanup(); }
   });
 });

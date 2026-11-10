@@ -47,6 +47,12 @@ export interface AcademicYearRow {
   is_current?: boolean | null;
   start_month?: number | null;
   end_month?: number | null;
+  /**
+   * L'instant où un admin/dev a PUBLIÉ cette année pour tout le parc
+   * (`academic_years.selected_at`). `NULL` = aucune publication : les postes
+   * suivent leurs règles locales, exactement comme avant la colonne.
+   */
+  selected_at?: string | null;
 }
 
 /** La clé sous laquelle le choix de l'utilisateur survit à un rechargement. */
@@ -126,6 +132,49 @@ export function currentYearName(rows: AcademicYearRow[] = []): string | null {
   return flagged ? clean(flagged.year_name) : names[names.length - 1];
 }
 
+/**
+ * L'année PUBLIÉE pour tout le parc : la ligne marquée courante ET datée.
+ *
+ * Le drapeau `is_current` seul ne suffit pas à décider pour les postes :
+ * l'application l'ENTRETIENT elle-même (1er septembre, `keepAcademicYearCurrent`),
+ * et un poste qui consulte une archive ne doit pas déplacer le travail des
+ * autres. C'est `selected_at` qui distingue une DÉCISION d'une maintenance :
+ * lui seul est écrit par le geste « changer l'année » d'un admin/dev
+ * (`publishWorkingYear`).
+ *
+ * `null` quand aucune décision n'a été publiée — une base d'avant la colonne,
+ * ou une année simplement entretenue.
+ */
+export function publishedYear(rows: AcademicYearRow[] = []): StoredYearChoice | null {
+  const row = (rows ?? []).find(
+    (candidate) => candidate?.is_current && clean(candidate.year_name) && clean(candidate.selected_at),
+  );
+  return row ? { year: clean(row.year_name), at: clean(row.selected_at) } : null;
+}
+
+/** L'instant d'un horodatage ISO, ou `NaN` quand il est illisible. */
+function instantOf(iso: string): number {
+  const text = clean(iso);
+  if (!text) return Number.NaN;
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+/**
+ * La décision PARTAGÉE est-elle plus récente que le choix de ce poste ?
+ *
+ * « La dernière décision gagne » : un poste qui a choisi une archive APRÈS la
+ * publication garde son choix (il consulte), et la publication suivante le
+ * reprend. Un choix local illisible (écrit par une version sans date) ne peut
+ * pas retenir le parc : la décision partagée l'emporte.
+ */
+function publishedWins(published: StoredYearChoice, storedAt: string): boolean {
+  const publishedAt = instantOf(published.at);
+  if (!Number.isFinite(publishedAt)) return false;
+  const chosenAt = instantOf(storedAt);
+  return !Number.isFinite(chosenAt) || publishedAt >= chosenAt;
+}
+
 /** « 2027-2028 » est-il plus récent que « 2026-2027 » ? (l'ordre du texte suffit) */
 export const isLaterYear = (candidate: string, other: string): boolean =>
   Boolean(clean(candidate)) && Boolean(clean(other)) && clean(candidate) > clean(other);
@@ -176,8 +225,14 @@ export function storeYear(year: string, storage?: Pick<Storage, 'setItem'> | nul
 /**
  * L'année sur laquelle l'app doit travailler aujourd'hui.
  *
- * Trois règles, dans cet ordre, et chacune a une raison mesurée :
+ * Quatre règles, dans cet ordre, et chacune a une raison mesurée :
  *
+ *  0. **La décision PARTAGÉE de l'administration**, si elle est plus récente que
+ *     le choix de ce poste. C'est le geste « changer l'année » d'un admin/dev
+ *     (`publishWorkingYear`, `academic_years.selected_at`) : il vaut pour TOUS
+ *     les postes, sans que personne ne retouche le sélecteur de chaque guichet.
+ *     Une déclaration SANS date (l'entretien automatique du 1er septembre) ne
+ *     publie rien : elle n'a pas été décidée pour le parc.
  *  1. **Le choix de l'utilisateur, s'il appartient à l'année scolaire en
  *     cours.** Un poste resté sur « 2024-2025 » un 1er septembre 2026 ne doit pas
  *     continuer d'y saisir : son choix a été fait pour l'année précédente, donc
@@ -209,6 +264,14 @@ export function pickWorkingYear({
   const calendar = schoolYearName(today);
   const chosen = clean(stored?.year);
   const chosenAt = clean(stored?.at);
+
+  // 0. La décision PARTAGÉE de l'administration, si elle est plus récente que
+  //    le choix de ce poste : c'est ce qui fait qu'un changement d'année décidé
+  //    au bureau s'applique au guichet à sa prochaine lecture de la base.
+  const published = publishedYear(rows);
+  if (published && known(published.year) && publishedWins(published, chosenAt)) {
+    return published.year;
+  }
 
   // 1. Le choix de l'utilisateur, s'il vient de l'année scolaire en cours.
   if (chosen && known(chosen) && chosenAt) {

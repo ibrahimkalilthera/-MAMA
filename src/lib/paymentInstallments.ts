@@ -75,6 +75,12 @@ export interface InstallmentStudentLike {
   totalDue: number;
   scholarshipDiscount?: number;
   payments?: readonly InstallmentPaymentLike[];
+  /**
+   * Les montants de mois que l'école a DÉCIDÉS (`students.month_dues`) :
+   * `{ "2026-11": 9000 }`. Un mois absent retombe sur la part des frais
+   * annuels — `{}` veut dire « aucune décision », pas « ce mois est gratuit ».
+   */
+  monthDues?: Readonly<Record<string, number>>;
 }
 
 /**
@@ -115,6 +121,51 @@ export function monthlyFee(
   return net > 0 ? net / divisor : 0;
 }
 
+/** La forme stockée d'un mois (`YYYY-MM`) — la clé de `students.month_dues`. */
+const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/**
+ * Les montants de mois relus d'une ligne `students.month_dues`.
+ *
+ * La colonne est écrite par l'application, mais une base partagée n'est pas un
+ * contrat de type : une clé qui n'est pas un `YYYY-MM`, une valeur négative ou
+ * illisible sont ÉCARTÉES au lieu d'entrer dans un calcul de dette. Un mois
+ * écarté retombe alors sur la part des frais annuels — le comportement d'avant
+ * la colonne — plutôt que de produire un montant imaginaire.
+ *
+ * `undefined` quand il ne reste aucune décision : l'élève se comporte exactement
+ * comme une fiche d'avant cette migration.
+ */
+export function readMonthDues(value: unknown): Record<string, number> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const out: Record<string, number> = {};
+  for (const [month, amount] of Object.entries(value as Record<string, unknown>)) {
+    if (!MONTH_KEY.test(month)) continue;
+    const decided = Number(amount);
+    if (!Number.isFinite(decided) || decided < 0) continue;
+    out[month] = Math.round(decided);
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Ce qu'UN mois réclame : le montant DÉCIDÉ par l'école s'il existe, sinon la
+ * part des frais annuels de l'année (`monthlyFee`).
+ *
+ * C'est la seule lecture de cette décision : le guichet, le reste dû et la
+ * liste des versements partiels passent tous par ici, donc l'écran qui affiche
+ * « à régler » et le reçu qui l'imprime ne peuvent pas se contredire.
+ */
+export function monthDueOf(
+  student: InstallmentStudentLike,
+  month: string,
+  monthsInYear: number = DEFAULT_MONTHS_IN_YEAR,
+): number {
+  const decided = student.monthDues?.[month];
+  if (typeof decided === 'number' && Number.isFinite(decided) && decided >= 0) return decided;
+  return monthlyFee(student, monthsInYear);
+}
+
 /**
  * Ce que le guichet doit afficher pour un choix de mois : les frais de ces
  * mois, ce qui a déjà été versé en partie dessus, et ce qui reste.
@@ -140,7 +191,10 @@ export function installmentTarget(
   monthsInYear: number = DEFAULT_MONTHS_IN_YEAR,
 ): InstallmentTarget {
   const chosen = [...months];
-  const due = Math.round(monthlyFee(student, monthsInYear) * chosen.length);
+  // Le montant de chaque mois vient de la décision de l'école quand elle
+  // existe, sinon de la part des frais annuels : deux mois peuvent donc valoir
+  // des sommes différentes, et c'est l'école qui l'a voulu.
+  const due = Math.round(chosen.reduce((sum, month) => sum + monthDueOf(student, month, monthsInYear), 0));
   const partialPaid = (student.payments ?? [])
     .filter(isPartialPayment)
     .filter((p) => (p.months ?? []).some((m) => chosen.includes(m)))

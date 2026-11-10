@@ -139,7 +139,7 @@ export type OfflinePayload =
   | { type: 'deleteClass'; payload: { id: string } }
   | { type: 'addNote'; payload: { date: string; text: string } }
   | { type: 'deleteNote'; payload: { id: string } }
-  | { type: 'setCurrentYear'; payload: { year: string } }
+  | { type: 'setCurrentYear'; payload: { year: string; publish?: boolean } }
   | { type: 'addAuditLog'; payload: QueuedAuditEntry }
   | { type: 'updateUserRole'; payload: { id: string; role: string } }
   /**

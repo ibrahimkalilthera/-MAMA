@@ -138,6 +138,8 @@ export interface Database {
           notes: string | null;
           last_note_date: string | null;
           note_entries: Json;
+          /** Montants de mois décidés par l'école (`{ "YYYY-MM": montant }`). */
+          month_dues: Json;
           flagged: boolean | null;
           academic_year: string | null;
           grade: string | null;
@@ -167,6 +169,7 @@ export interface Database {
           notes?: string | null;
           last_note_date?: string | null;
           note_entries?: Json;
+          month_dues?: Json;
           flagged?: boolean | null;
           academic_year?: string | null;
           grade?: string | null;
@@ -196,6 +199,7 @@ export interface Database {
           notes?: string | null;
           last_note_date?: string | null;
           note_entries?: Json;
+          month_dues?: Json;
           flagged?: boolean | null;
           academic_year?: string | null;
           grade?: string | null;
@@ -529,6 +533,8 @@ export interface Database {
           start_month: number;
           /** Dernier mois de scolarité (1..12) — 6 = juin par défaut. */
           end_month: number;
+          /** Publication de l'année pour tout le parc ; `null` = aucune. */
+          selected_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -539,6 +545,7 @@ export interface Database {
           is_current?: boolean | null;
           start_month?: number;
           end_month?: number;
+          selected_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -549,6 +556,7 @@ export interface Database {
           is_current?: boolean | null;
           start_month?: number;
           end_month?: number;
+          selected_at?: string | null;
           created_at?: string;
         };
         Relationships: [];

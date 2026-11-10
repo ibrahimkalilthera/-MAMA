@@ -75,6 +75,12 @@ export interface Student {
   totalDue: number;
   amountPaid: number;
   scholarshipDiscount?: number; // Percentage
+  /**
+   * Les montants de mois DÉCIDÉS par l'école (`students.month_dues`) : la même
+   * forme que `lib/domainTypes.ts`. Un mois absent retombe sur la part des frais
+   * annuels (`monthlyFee`), donc une fiche d'avant la colonne se lit comme avant.
+   */
+  monthDues?: Record<string, number>;
   dueDate: string; // YYYY-MM-DD
   lastPaymentDate?: string;
   payments: Payment[];

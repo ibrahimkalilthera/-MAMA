@@ -65,7 +65,7 @@ function writeCachedAcademicYears(rows: AcademicYearRow[]): void {
 export async function fetchAcademicYears(): Promise<AcademicYearRow[] | null> {
   const { data, error } = await supabase
     .from('academic_years')
-    .select('year_name, is_current, start_month, end_month')
+    .select('year_name, is_current, start_month, end_month, selected_at')
     .order('year_name');
   if (error || !data) return readCachedAcademicYears();
   const rows = data.map((row) => ({
@@ -73,6 +73,10 @@ export async function fetchAcademicYears(): Promise<AcademicYearRow[] | null> {
     is_current: row.is_current,
     start_month: row.start_month,
     end_month: row.end_month,
+    // L'instant de la DÉCISION partagée, s'il y en a une : c'est lui qui fait
+    // qu'un poste adopte l'année publiée par l'administration (voir
+    // `pickWorkingYear`). Il voyage avec le cache hors ligne, comme le reste.
+    selected_at: row.selected_at ?? null,
   }));
   // Écrit APRÈS un vrai chargement : le cache ne peut donc jamais contenir autre
   // chose que ce que la base a réellement répondu.
@@ -191,5 +195,75 @@ export async function keepAcademicYearCurrent(year: string): Promise<boolean> {
     const { error } = await supabase.from('academic_years').update({ is_current: true }).eq('year_name', year);
     if (error) return false;
   }
+  return true;
+}
+
+/**
+ * PUBLIE l'année de travail pour TOUT LE PARC — le geste d'un admin/dev.
+ *
+ * La différence avec `keepAcademicYearCurrent` n'est pas technique, elle est de
+ * nature : celui-ci ENTRETIENT la déclaration (le 1er septembre, tout seul),
+ * celui-là DÉCIDE. Et une décision se date (`selected_at`), sinon les postes ne
+ * peuvent pas distinguer « l'administration a changé l'année » de « un poste a
+ * ouvert une archive hier ». `pickWorkingYear` ne suit une publication que si
+ * elle est plus récente que le choix du poste : la dernière décision gagne.
+ *
+ * Le drapeau est déplacé sur une seule ligne (l'ancienne le perd), et la ligne
+ * est CRÉÉE si l'année n'existe pas encore — un 1er septembre, personne ne l'a
+ * forcément créée. `.select('year_name')` : une écriture retirée par la policy
+ * revient en 200 avec un corps vide, et la compter comme publiée ferait croire
+ * à l'école que tout le parc a suivi.
+ *
+ * Hors ligne, la décision part dans la file AVEC son drapeau `publish` : le
+ * rejeu l'écrit telle quelle, datée au moment du rejeu (voir
+ * `offlineReplay.ts`). Un refus de la file rend `false` — l'écran ne dit pas
+ * « publié pour tous » quand rien n'est retenu.
+ */
+export async function publishWorkingYear(year: string): Promise<boolean> {
+  const name = String(year ?? '').trim();
+  if (!name) return false;
+  if (isStationOffline()) {
+    if (isActionQueued('setCurrentYear')) return true;
+    try {
+      enqueueOfflineAction('setCurrentYear', { year: name, publish: true });
+    } catch (err) {
+      console.error('Année scolaire non publiée (file refusée) :', (err as Error)?.message ?? err);
+      return false;
+    }
+    return true;
+  }
+  const existing = await fetchAcademicYears();
+  if (!existing) return false;
+
+  const selectedAt = new Date().toISOString();
+  const present = existing.some((row) => row.year_name === name);
+  if (!present) {
+    const { error } = await supabase
+      .from('academic_years')
+      .insert({ year_name: name, is_current: true, selected_at: selectedAt });
+    if (error) return false;
+  }
+
+  for (const row of existing.filter((candidate) => candidate.year_name !== name && candidate.is_current)) {
+    const { error } = await supabase
+      .from('academic_years')
+      .update({ is_current: false })
+      .eq('year_name', row.year_name);
+    if (error) return false;
+  }
+
+  const { data, error } = await supabase
+    .from('academic_years')
+    .update({ is_current: true, selected_at: selectedAt })
+    .eq('year_name', name)
+    .select('year_name');
+  if (error || !data || data.length === 0) return false;
+
+  void logAuditEvent({
+    action: 'UPDATE_SETTING',
+    targetType: 'academic_years',
+    targetId: name,
+    details: `academic_years ${name} publiée comme année de travail de tous les postes`,
+  });
   return true;
 }

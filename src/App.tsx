@@ -205,7 +205,7 @@ const { selectedYear, setSelectedYear, lockedYears, setLockedYears } = yearData;
   // `isAdmin` est passé parce que la maintenance de la déclaration partagée
   // (`is_current`) écrit dans `academic_years`, que la policy réserve à
   // `admin`/`dev` : la tenter pour un caissier ne produirait qu'un 403 muet.
-  const { academicYears, setAcademicYears } = useAcademicYears({ isAdmin: Boolean(auth?.isAdmin) });
+  const { academicYears, setAcademicYears, selectYear } = useAcademicYears({ isAdmin: Boolean(auth?.isAdmin) });
   const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
 
@@ -658,7 +658,7 @@ const {
     copyToClipboard,
     toggleLanguage: displayPreferences.setLanguage,
     openAddStudentModal,
-    setSelectedYear,
+    setSelectedYear: selectYear,
     lockedYears,
     academicYears,
     auditYear,
