@@ -175,6 +175,36 @@ function publishedWins(published: StoredYearChoice, storedAt: string): boolean {
   return !Number.isFinite(chosenAt) || publishedAt >= chosenAt;
 }
 
+/**
+ * Les lignes d'`academic_years` APRÈS un enregistrement de plage de scolarité :
+ * la ligne de l'année reçoit ses deux bornes, et elle est CRÉÉE si la liste ne
+ * la porte pas encore.
+ *
+ * La création n'est pas une coquetterie. L'écran des Paramètres lit la plage EN
+ * VIGUEUR sur ces lignes (`yearMonths`, `src/app/yearContext.ts`) et non sur une
+ * valeur d'écran ; si la liste est vide ou incomplète — une lecture d'années
+ * faite sans session, une base injoignable au démarrage — une mise à jour « par
+ * correspondance » ne toucherait AUCUNE ligne. L'administration enregistrerait
+ * octobre, la base le recevrait, et l'écran reviendrait à septembre en silence :
+ * c'est le défaut constaté au guichet.
+ *
+ * Le module reste PUR : il ne fait que rendre une nouvelle liste, sans écrire.
+ */
+export function withYearSpan(
+  rows: readonly AcademicYearRow[],
+  year: string,
+  startMonth: number,
+  endMonth: number,
+): AcademicYearRow[] {
+  const name = clean(year);
+  if (!name) return [...(rows ?? [])];
+  const present = (rows ?? []).some((row) => clean(row?.year_name) === name);
+  if (!present) return [...(rows ?? []), { year_name: name, start_month: startMonth, end_month: endMonth }];
+  return (rows ?? []).map((row) =>
+    clean(row?.year_name) === name ? { ...row, start_month: startMonth, end_month: endMonth } : row,
+  );
+}
+
 /** « 2027-2028 » est-il plus récent que « 2026-2027 » ? (l'ordre du texte suffit) */
 export const isLaterYear = (candidate: string, other: string): boolean =>
   Boolean(clean(candidate)) && Boolean(clean(other)) && clean(candidate) > clean(other);
