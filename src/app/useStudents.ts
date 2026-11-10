@@ -369,6 +369,23 @@ export function useStudents(deps: UseStudentsDeps) {
     await updateStudent(id, { flagged: !student.flagged });
   };
 
+  /**
+   * Le montant d'un mois, DÉCIDÉ au guichet (`students.month_dues`) : c'est la
+   * ligne « à régler pour ce mois ». La décision vit sur la fiche de l'élève,
+   * donc elle part avec lui sur tous les postes — le reçu, le reste dû et les
+   * versements partiels la lisent au même endroit. La porte d'écran est
+   * `canEditPaymentMonths` (admin, dev, économe) ; ici on ne vérifie que la forme
+   * de la clé et du montant, et on dit `false` quand la base refuse.
+   */
+  const setMonthDue = async (studentId: string, month: string, amount: number): Promise<boolean> => {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return false;
+    const value = Math.round(Number(amount));
+    if (!Number.isFinite(value) || value < 0) return false;
+    const student = students.find((candidate) => candidate.id === studentId);
+    if (!student) return false;
+    return updateStudent(studentId, { monthDues: { ...(student.monthDues ?? {}), [month]: value } });
+  };
+
   return {
     searchTerm, setSearchTerm,
     selectedStudent, setSelectedStudent,
@@ -391,5 +408,6 @@ export function useStudents(deps: UseStudentsDeps) {
     handleSaveNote,
     toggleFlag,
     canEditScholarship,
+    setMonthDue,
   };
 }

@@ -137,6 +137,18 @@ export interface AppModalsProps {
    */
   canEditPaymentMonths: boolean;
   /**
+   * Fixe le montant d'un mois pour un élève (`students.month_dues`) : la ligne
+   * « à régler pour ce mois » de la fenêtre de saisie. La décision vit sur la
+   * fiche de l'élève, donc elle part sur tous les postes. Rend `false` quand la
+   * base a refusé : l'éditeur reste ouvert, et rien n'est annoncé comme écrit.
+   *
+   * La porte d'écran est `canEditPaymentMonths` (admin, dev, économe) — le même
+   * office que renseigner les mois d'un reçu ; l'écriture passe par
+   * `students UPDATE`, ouvert à tout compte connecté, donc l'écran est ici plus
+   * ÉTROIT que la base : la seule direction que ce dépôt accepte.
+   */
+  setMonthDue: (studentId: string, month: string, amount: number) => Promise<boolean>;
+  /**
    * Le rôle peut-il REMETTRE une remise sur frais de scolarité ? — la surface
    * `scholarship-edit` (`src/app/sectionRights.ts`), décidée par
    * `public.is_finance_admin()` (`FINANCE_ADMIN_ROLES`, `src/lib/payrollRights.ts`).

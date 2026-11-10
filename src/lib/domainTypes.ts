@@ -91,6 +91,13 @@ export interface Student {
   totalDue: number;
   amountPaid: number;
   scholarshipDiscount?: number;
+  /**
+   * Les montants de mois DÉCIDÉS par l'école (`students.month_dues`) :
+   * `{ "2026-11": 9000 }`. Un mois absent retombe sur la part des frais
+   * annuels — c'est ce qui décide de ce que « à régler pour ce mois » affiche.
+   * Voir `src/lib/paymentInstallments.ts`.
+   */
+  monthDues?: Record<string, number>;
   dueDate: string;
   lastPaymentDate?: string;
   payments: Payment[];

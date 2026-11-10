@@ -123,6 +123,10 @@ export function studentUpdatesToRow(updates: Partial<Student>): DbUpdate<'studen
   if (updates.notes !== undefined) row.notes = updates.notes;
   if (updates.lastNoteDate !== undefined) row.last_note_date = updates.lastNoteDate;
   if (updates.noteEntries !== undefined) row.note_entries = updates.noteEntries as unknown as Json;
+  // Les montants de mois décidés par l'école : ils partent avec le reste de la
+  // fiche, sans quoi une décision prise hors ligne se perdrait à la première
+  // réouverture du poste.
+  if (updates.monthDues !== undefined) row.month_dues = updates.monthDues as unknown as Json;
   if (updates.flagged !== undefined) row.flagged = updates.flagged;
   if (updates.academicYear !== undefined) row.academic_year = updates.academicYear;
   if (updates.grade !== undefined) row.grade = updates.grade;
@@ -412,11 +416,24 @@ export async function replayOfflineItem(db: ReplayDb, item: QueueItem): Promise<
     // de l'année existe (ou est créée), puis le drapeau est déplacé dessus — et
     // l'ancienne le perd, sinon deux lignes se diraient courantes.
     const year = item.payload.year;
-    const inserted = await db.from('academic_years').insert({ year_name: year, is_current: true });
+    // `publish` : le geste vient d'un admin/dev qui a CHANGÉ l'année pour tout
+    // le parc (voir `publishWorkingYear`). Sa décision est donc DATÉE, et les
+    // autres postes la suivront (`pickWorkingYear`). L'entretien automatique
+    // (`keepAcademicYearCurrent`) n'en porte pas : il ne décide rien pour le
+    // parc, et le dater ferait suivre un simple passage de maintenance.
+    const publishedAt = item.payload.publish ? new Date().toISOString() : undefined;
+    const inserted = await db.from('academic_years').insert({
+      year_name: year,
+      is_current: true,
+      ...(publishedAt ? { selected_at: publishedAt } : {}),
+    });
     const existingRow = inserted.error?.code === '23505';
     if (!inserted.error || existingRow) {
       const cleared = await db.from('academic_years').update({ is_current: false }).neq('year_name', year);
-      const flagged = await db.from('academic_years').update({ is_current: true }).eq('year_name', year);
+      const flagged = await db.from('academic_years').update({
+        is_current: true,
+        ...(publishedAt ? { selected_at: publishedAt } : {}),
+      }).eq('year_name', year);
       if (!cleared.error && !flagged.error) success = true;
     }
   } else if (item.type === 'updateUserRole') {

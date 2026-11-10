@@ -60,6 +60,7 @@ import { PAYMENT_MOTIFS, isPaymentMotif, paymentMotifLabel, paymentMotifNeedsMon
 import type { PaymentMotif } from '../lib/paymentMotifs';
 import { ALL_CLASSES, filterStudents, matchesClass, matchesSearch } from '../lib/paymentStudentFilter';
 import { installmentTarget } from '../lib/paymentInstallments';
+import { PaymentMonthDueEditor } from './PaymentMonthDueEditor';
 
 export interface PaymentEntryModalProps {
   t: TranslationDict;
@@ -108,6 +109,18 @@ export interface PaymentEntryModalProps {
    */
   canDeletePayment: boolean;
   /**
+   * Le droit de DÉCIDER du montant d'un mois (« à régler pour ce mois ») — la
+   * même liste que `is_payment_month_editor()` : admin, dev, économe. La
+   * décision s'écrit sur la fiche de l'élève (`students.month_dues`), donc elle
+   * vaut pour tous les postes ; sans ce droit, la ligne reste un affichage.
+   */
+  canEditMonthDue: boolean;
+  /**
+   * Fixe le montant d'un mois pour l'élève choisi. Rend `false` quand la base a
+   * refusé : l'éditeur reste ouvert, rien ne prétend avoir été écrit.
+   */
+  onSetMonthDue: (studentId: string, month: string, amount: number) => Promise<boolean>;
+  /**
    * Retire un reçu — le chemin de la fiche élève (`deletePayment`) : le montant
    * sort du registre et du solde, l'acte est journalisé avec son instantané, et
    * il reste restaurable depuis le journal d'audit. Rend `false` si la base a
@@ -129,7 +142,7 @@ export interface PaymentEntryModalProps {
 }
 
 export function PaymentEntryModal(props: PaymentEntryModalProps) {
-  const { t, currentTheme, students, paymentStudentId, setPaymentStudentId, paymentAmount, setPaymentAmount, paymentDate, setPaymentDate, paymentMotif, setPaymentMotif, paymentMonthOptions, paymentMonths, paidMonthFacts, undeclaredPaymentCount, canDeletePayment, onDeletePayment, togglePaymentMonth, formatCurrency, availableClasses, getGradeDisplay, lang, handlePaymentSubmit, overlayRef, onClose } = props;
+  const { t, currentTheme, students, paymentStudentId, setPaymentStudentId, paymentAmount, setPaymentAmount, paymentDate, setPaymentDate, paymentMotif, setPaymentMotif, paymentMonthOptions, paymentMonths, paidMonthFacts, undeclaredPaymentCount, canDeletePayment, onDeletePayment, canEditMonthDue, onSetMonthDue, togglePaymentMonth, formatCurrency, availableClasses, getGradeDisplay, lang, handlePaymentSubmit, overlayRef, onClose } = props;
 
   // Les mots de la ligne « Mois » — le même module que le reçu, donc les mêmes
   // mots : ce qui se lit ici est ce qui s'imprime.
@@ -225,6 +238,7 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
   // La recherche repart vide à chaque montage, comme le filtre de classe.
   const [search, setSearch] = useState('');
 
+
   // Les classes réellement présentes dans la liste des élèves, dans l'ordre des
   // classes actives (celles qu'un élève peut porter), plus toute classe stockée
   // qui n'y figure plus — sinon un élève d'une classe retirée deviendrait
@@ -278,6 +292,7 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
     Number.isFinite(typedAmount) &&
     typedAmount > 0 &&
     Math.round(typedAmount) < installment.remaining;
+
 
   // Après un changement de filtre (classe ou recherche), efface la sélection si
   // l'élève choisi n'est plus proposé : aucun paiement ne doit être envoyé à un
@@ -462,6 +477,17 @@ export function PaymentEntryModal(props: PaymentEntryModalProps) {
                           .replace('{count}', String(installment.months.length))
                           .replace('{amount}', formatCurrency(installment.due))}
                     </p>
+                    {/* Le montant DÉCIDÉ : l'économe, l'admin ou le dev fixe ce
+                        que ce mois réclame — et la décision part sur la fiche de
+                        l'élève, donc tous les postes la lisent. */}
+                    {canEditMonthDue && installment.months.length === 1 && (
+                      <PaymentMonthDueEditor
+                        t={t}
+                        currentTheme={currentTheme}
+                        due={installment.due}
+                        onSave={(amount) => onSetMonthDue(paymentStudentId, installment.months[0], amount)}
+                      />
+                    )}
                     <div className="flex flex-wrap items-center gap-3">
                       <button
                         type="button"

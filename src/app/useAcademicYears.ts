@@ -20,7 +20,7 @@
  * tout le parc, donc il est réservé aux rôles que la policy autorise et son échec
  * ne casse rien : l'année du poste reste juste.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 
 import {
@@ -29,13 +29,20 @@ import {
   readStoredYear,
   yearNames,
 } from '../lib/academicYears';
-import { fetchAcademicYears, keepAcademicYearCurrent } from '../lib/dataOps/academicYears';
+import { fetchAcademicYears, keepAcademicYearCurrent, publishWorkingYear } from '../lib/dataOps/academicYears';
 import { useYear } from './yearContext';
 
 export function useAcademicYears({ isAdmin = false }: { isAdmin?: boolean } = {}): {
   academicYears: string[];
   /** Le setter reste exposé : fermer une année ajoute la suivante à la liste. */
   setAcademicYears: Dispatch<SetStateAction<string[]>>;
+  /**
+   * Le geste du SÉLECTEUR d'année. Un admin/dev ne change pas seulement SON
+   * poste : il PUBLIE l'année pour tout le parc (`publishWorkingYear`), et
+   * chaque poste l'adopte à sa prochaine lecture de la base. Un caissier, lui,
+   * change son poste — consulter une archive n'est pas une décision d'école.
+   */
+  selectYear: (year: string) => void;
 } {
   const { setSelectedYear, setYearRows } = useYear();
   const [academicYears, setAcademicYears] = useState<string[]>(FALLBACK_ACADEMIC_YEARS);
@@ -68,5 +75,21 @@ export function useAcademicYears({ isAdmin = false }: { isAdmin?: boolean } = {}
     void keepAcademicYearCurrent(workingYear);
   }, [workingYear, isAdmin]);
 
-  return { academicYears, setAcademicYears };
+  const selectYear = useCallback(
+    (year: string) => {
+      const name = String(year ?? '').trim();
+      setSelectedYear(name);
+      // Pas de publication sans année (le choix « toutes les années » du
+      // sélecteur) ni sans le droit : la policy d'`academic_years` est
+      // `is_admin()`, donc tenter l'écriture pour un caissier ne produirait
+      // qu'un 403 muet.
+      if (!name || !isAdmin) return;
+      void publishWorkingYear(name).then((published) => {
+        if (!published) console.warn('Année de travail non publiée pour le parc :', name);
+      });
+    },
+    [isAdmin, setSelectedYear],
+  );
+
+  return { academicYears, setAcademicYears, selectYear };
 }

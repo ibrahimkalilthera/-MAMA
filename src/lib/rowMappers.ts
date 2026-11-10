@@ -6,6 +6,7 @@ import type { Parent, Payment, SalaryPayment, Staff, Student, StudentNoteEntry, 
 import { studentMatricule } from './studentIdentifiers';
 import { isStaffCategory } from './adminPositions';
 import { isPaymentMotif } from './paymentMotifs';
+import { readMonthDues } from './paymentInstallments';
 
 // ─── IDs of records created OFFLINE ───────────────────────────────────────────
 // A record written without a network gets its DEFINITIVE id right here: the
@@ -97,6 +98,11 @@ export function mapStudentRow(row: DbRow<'students'>, payments: Payment[]): Stud
     totalDue: Number(row.total_due) || 0,
     amountPaid: Number(row.amount_paid) || 0,
     scholarshipDiscount: Number(row.scholarship_discount) || 0,
+    // Les montants de mois décidés par l'école. La relecture écarte une clé qui
+    // n'est pas un `YYYY-MM` ou une valeur illisible (voir `readMonthDues`) :
+    // une colonne JSONB n'est pas un contrat de type, et un mois inventé ferait
+    // afficher un reste dû que personne n'a fixé.
+    monthDues: readMonthDues(row.month_dues),
     dueDate: row.due_date ?? '',
     lastPaymentDate: row.last_payment_date ?? undefined,
     payments: payments,
