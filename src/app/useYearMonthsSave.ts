@@ -23,6 +23,7 @@
  */
 import { useCallback } from 'react';
 
+import { withYearSpan } from '../lib/academicYears';
 import type { AcademicYearMonthsSaveResult } from '../lib/dataOps/academicYears';
 import { saveAcademicYearMonths } from '../lib/dataOps/academicYears';
 import { isSchoolMonth } from '../lib/paymentMonths';
@@ -38,12 +39,14 @@ export function useYearMonthsSave() {
       const result = await saveAcademicYearMonths(year, startMonth, endMonth);
       // Rien n'a changé en base : ne rien publier. Ce qui a changé (enregistré ou
       // mis en file) se lit désormais sur les MÊMES lignes que le reste de l'app.
+      //
+      // `withYearSpan` et non un `map` : la liste peut ne PAS porter l'année —
+      // une lecture d'années faite sans session revient vide (la policy est
+      // `to authenticated`) — et un `map` sans correspondance laisserait alors
+      // l'écran sur la plage par défaut (septembre→juin) alors que la base a
+      // reçu octobre. L'administration verrait son geste « revenir tout seul ».
       if (result !== 'refused') {
-        setYearRows((rows) =>
-          rows.map((row) =>
-            row.year_name === year ? { ...row, start_month: startMonth, end_month: endMonth } : row,
-          ),
-        );
+        setYearRows((rows) => withYearSpan(rows, year, startMonth, endMonth));
       }
       return result;
     },

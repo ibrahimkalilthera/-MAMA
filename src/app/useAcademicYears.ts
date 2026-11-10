@@ -32,7 +32,22 @@ import {
 import { fetchAcademicYears, keepAcademicYearCurrent, publishWorkingYear } from '../lib/dataOps/academicYears';
 import { useYear } from './yearContext';
 
-export function useAcademicYears({ isAdmin = false }: { isAdmin?: boolean } = {}): {
+export function useAcademicYears({
+  isAdmin = false,
+  ready = true,
+}: {
+  isAdmin?: boolean;
+  /**
+   * La SESSION est-elle établie ? Tant que non, la lecture part en ANONYME — et
+   * les policies d'`academic_years` sont `to authenticated`, donc PostgREST
+   * répond 200 avec ZÉRO ligne, sans erreur. Cette liste vide n'écrit aucun
+   * cache, et l'effet ne se rejoue jamais : les mois de l'année restaient à leur
+   * valeur par défaut (septembre→juin) pendant toute la session, et
+   * l'enregistrement d'une plage (octobre→juin) semblait « revenir tout seul à
+   * septembre » alors que la base l'avait bien reçue.
+   */
+  ready?: boolean;
+} = {}): {
   academicYears: string[];
   /** Le setter reste exposé : fermer une année ajoute la suivante à la liste. */
   setAcademicYears: Dispatch<SetStateAction<string[]>>;
@@ -49,6 +64,9 @@ export function useAcademicYears({ isAdmin = false }: { isAdmin?: boolean } = {}
   const [workingYear, setWorkingYear] = useState('');
 
   useEffect(() => {
+    // Avant la session, la lecture ne dirait rien de vrai : elle reviendrait
+    // vide, et personne ne la referait. On attend donc le premier profil.
+    if (!ready) return;
     let cancelled = false;
     void (async () => {
       const rows = await fetchAcademicYears();
@@ -68,7 +86,7 @@ export function useAcademicYears({ isAdmin = false }: { isAdmin?: boolean } = {}
     return () => {
       cancelled = true;
     };
-  }, [setSelectedYear, setYearRows]);
+  }, [ready, setSelectedYear, setYearRows]);
 
   useEffect(() => {
     if (!workingYear || !isAdmin) return;
