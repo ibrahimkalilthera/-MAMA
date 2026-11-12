@@ -112,7 +112,7 @@
   },
   "main": "electron/main.cjs",
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.15",
+    "@electric-sql/pglite": "^0.5.16",
     "@eslint/js": "^10.0.1",
     "@napi-rs/canvas": "^1.1.0",
     "@tailwindcss/vite": "^4.3.5",
