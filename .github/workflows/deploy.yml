@@ -381,6 +381,13 @@ jobs:
       # commit ne doit pas dépendre du réseau, alors qu'un déploiement qui ne
       # livre personne ne doit jamais être vert.
       - name: Les liens embarqués par le poste aboutissent-ils tous ?
+        # Le jeton sert UNE question, et une seule : quand la page
+        # `/releases/latest` répond 5xx (hôte en panne), la preuve se repose à
+        # l'API — `scripts/lib/release-page-proof.mjs` ne l'envoie qu'à
+        # api.github.com. Sans lui, le 27/11 un 504 de GitHub a bloqué la
+        # publication alors que l'API nommait la version publiée.
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: npm run check:public-origin
 
       # La preuve est publiée par l'étape NOMMÉE, après le déploiement réussi :
