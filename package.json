@@ -58,6 +58,7 @@
     "tools:csslint:install": "npm ci --prefix tools/csslint",
     "git:retry": "node scripts/git-retry.mjs",
     "orphans:report": "node scripts/sweep-report.mjs",
+    "offline:recovery": "node scripts/offline-queue-recovery.mjs",
     "orphans:doctor": "node scripts/panic-doctor.mjs",
     "report:duplicates": "node scripts/report-duplicates.mjs",
     "branches:status": "node scripts/branch-status.mjs",
