@@ -400,6 +400,30 @@ export function formatSupabaseError(
     };
   }
 
+  // Unicité NOMMÉE — dire CE QUI est déjà pris, pas « cet enregistrement existe
+  // déjà ». Cas mesuré le 2026-11-24 : la base attribuait un matricule tronqué
+  // (`MT-2026-100` au lieu de `MT-2026-1000`), l'index refusait l'écriture, et
+  // l'écran annonçait un doublon pour un élève qui n'existait pas — l'école a
+  // cherché une fiche introuvable pendant trois jours.
+  if (msg.includes('students_student_id_key')) {
+    return {
+      title: lang === 'en' ? 'Student ID already taken' : 'Matricule déjà pris',
+      message: lang === 'en'
+        ? 'This student ID is already carried by another pupil. Leave the field empty: the database assigns one.'
+        : 'Ce matricule est déjà porté par un autre élève. Laissez le champ vide : la base en attribue un.',
+      isRetryable: false,
+    };
+  }
+  if (msg.includes('students_business_key_unique')) {
+    return {
+      title: lang === 'en' ? 'Student already recorded' : 'Élève déjà enregistré',
+      message: lang === 'en'
+        ? 'A pupil with the same name, parent phone and class already exists for this school year.'
+        : 'Un élève du même nom, du même téléphone de parent et de la même classe existe déjà pour cette année scolaire.',
+      isRetryable: false,
+    };
+  }
+
   // Duplicate key
   if (code === '23505' || msg.includes('duplicate') || msg.includes('unique')) {
     return {
