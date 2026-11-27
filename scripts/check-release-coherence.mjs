@@ -86,6 +86,7 @@ import { parseHoldsFile, parseLatestYml } from './lib/latest-yml.mjs';
 import { assetsToPublish, compareLatest, compareRelease, publishDecision } from './lib/release-compare.mjs';
 import { DEFAULT_RELEASE_DIR } from './lib/release-prune.mjs';
 import { channelSilenceVerdict, deliveryReach, pickLatestPublished } from './lib/release-reach.mjs';
+import { releaseApiProof } from './lib/release-page-proof.mjs';
 import { releaseTag } from './lib/release-version.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -234,7 +235,34 @@ async function clientLatestTag() {
       headers: { Accept: 'application/json', 'User-Agent': 'release-coherence' },
       redirect: 'follow',
     });
-    if (!res.ok) return { tag: null, detail: `l’endpoint du poste a répondu HTTP ${res.status} sur ${url}` };
+    if (!res.ok) {
+      // Un 5xx est une panne de l'HÔTE, pas un verdict sur le canal. Mesuré le
+      // 2026-11-27 : `/releases/latest` a répondu **504** pendant des heures
+      // pendant que `api.github.com` répondait 200 — et la release 1.0.53 ne
+      // pouvait plus être publiée, ni depuis Vercel (même page), ni par le
+      // publieur bureau. La question « quelle version un poste reçoit-il ? » est
+      // donc reposée à l'API, qui sert exactement la même réponse que cette page
+      // (`releases/latest`, celle que lit `electron-updater`), et le repli est
+      // DIT — un repli muet serait un vert qu'on ne saurait pas expliquer.
+      if (res.status >= 500) {
+        const proof = await releaseApiProof(url, token || null);
+        if (proof.ok && proof.tag) {
+          console.log(
+            `   ⚠️  l’endpoint public a répondu HTTP ${res.status} — tête lue par l’API authentifiée : ${proof.tag}` +
+              ' (repli nommé : la page est en panne, le canal n’est pas muet)',
+          );
+          return {
+            tag: proof.tag,
+            detail: `GET /releases/latest → HTTP ${res.status} (hôte en panne) ; API authentifiée → ${proof.tag}`,
+          };
+        }
+        return {
+          tag: null,
+          detail: `l’endpoint du poste a répondu HTTP ${res.status} sur ${url} — et le repli par l’API n’a rien prouvé (${proof.error})`,
+        };
+      }
+      return { tag: null, detail: `l’endpoint du poste a répondu HTTP ${res.status} sur ${url}` };
+    }
     const body = await res.json().catch(() => null);
     const tag = String(body?.tag_name ?? '').trim();
     return tag
