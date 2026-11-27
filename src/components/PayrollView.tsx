@@ -399,7 +399,7 @@ export function PayrollView() {
                           <h4 className={`font-bold ${paidThisMonth > 0 || payDatePassed ? 'text-white' : (currentTheme.inkStrong)}`}>
                             <HighlightText text={s.name} highlight={staffSearchTerm} />
                           </h4>
-                          <p className={`text-xs ${paidThisMonth > 0 || payDatePassed ? 'text-white/70' : currentTheme.muted} font-bold uppercase tracking-widest flex items-center gap-2`}>
+                          <p className={`text-xs ${paidThisMonth > 0 || payDatePassed ? 'text-white' : currentTheme.muted} font-bold uppercase tracking-widest flex items-center gap-2`}>
                             {s.position}
                             {staffCategory(s) === 'admin' && (
                               <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-3xs font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'bg-white/20 text-white' : 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300'}`}>
@@ -428,25 +428,25 @@ export function PayrollView() {
                     
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
-                        <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/70' : currentTheme.muted}>{t.monthlySalary}</span>
+                        <span className={paidThisMonth > 0 || payDatePassed ? 'text-white' : currentTheme.muted}>{t.monthlySalary}</span>
                         <span className={`font-bold ${paidThisMonth > 0 || payDatePassed ? 'text-white' : (currentTheme.inkStrong)}`}>{formatCurrency(s.salary)}</span>
                       </div>
                       
                       {/* Contact Details */}
                       <div className={`pt-4 border-t ${paidThisMonth > 0 || payDatePassed ? 'border-white/10' : currentTheme.border} space-y-3`}>
                         <div className="flex items-center gap-3 text-xs">
-                          <Phone size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted} />
-                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600 dark:text-slate-300'}>
+                          <Phone size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white' : currentTheme.muted} />
+                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white' : 'text-slate-600 dark:text-slate-300'}>
                             <HighlightText text={s.phone} highlight={staffSearchTerm} />
                           </span>
                         </div>
                         <div className="flex items-center gap-3 text-xs">
-                          <Mail size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted} />
-                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600 dark:text-slate-300'}>{s.email}</span>
+                          <Mail size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white' : currentTheme.muted} />
+                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white' : 'text-slate-600 dark:text-slate-300'}>{s.email}</span>
                         </div>
                         <div className="flex items-center gap-3 text-xs">
-                          <AlertCircle size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted} />
-                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/80' : 'text-slate-600 dark:text-slate-300'}>
+                          <AlertCircle size={14} className={paidThisMonth > 0 || payDatePassed ? 'text-white' : currentTheme.muted} />
+                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white' : 'text-slate-600 dark:text-slate-300'}>
                             <span className="font-bold mr-1">{t.emergencyContact}:</span> {s.emergencyContact}
                           </span>
                         </div>
@@ -455,10 +455,10 @@ export function PayrollView() {
                       {/* Bank Details with Privacy Toggle */}
                       <div className={`p-4 rounded-2xl ${paidThisMonth > 0 || payDatePassed ? 'bg-white/10' : `${currentTheme.surfaceInset}`} border ${paidThisMonth > 0 || payDatePassed ? 'border-white/10' : currentTheme.border}`}>
                         <div className="flex justify-between items-center mb-2">
-                          <span className={`text-2xs font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted}`}>{t.bankDetails}</span>
+                          <span className={`text-2xs font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white' : currentTheme.muted}`}>{t.bankDetails}</span>
                           <button 
                             onClick={() => setVisibleBankDetails(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
-                            className={`p-1 rounded-lg ${paidThisMonth > 0 || payDatePassed ? `${currentTheme.hoverSurfaceDark} text-white/80` : `${currentTheme.hoverSurfaceSolid} text-slate-400`} transition-all`}
+                            className={`p-1 rounded-lg ${paidThisMonth > 0 || payDatePassed ? `${currentTheme.hoverSurfaceDark} text-white` : `${currentTheme.hoverSurfaceSolid} text-slate-400`} transition-all`}
                             title={isBankVisible ? t.hideBankDetails : t.showBankDetails}
                           >
                             <Globe size={14} />
@@ -471,14 +471,14 @@ export function PayrollView() {
 
                       {paidThisMonth > 0 && (
                         <div className="flex justify-between items-center">
-                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/70' : currentTheme.muted}>{t.installment}</span>
+                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white' : currentTheme.muted}>{t.installment}</span>
                           <span className="font-bold text-white">{formatCurrency(paidThisMonth)}</span>
                         </div>
                       )}
 
                       {balance > 0 && (
                         <div className="flex justify-between items-center pt-2 border-t border-white/20">
-                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/70' : currentTheme.muted}>{t.remainingBalance}</span>
+                          <span className={paidThisMonth > 0 || payDatePassed ? 'text-white' : currentTheme.muted}>{t.remainingBalance}</span>
                           <span className={`font-black ${paidThisMonth > 0 || payDatePassed ? 'text-white' : 'text-rose-600'}`}>{formatCurrency(balance)}</span>
                         </div>
                       )}
@@ -486,10 +486,10 @@ export function PayrollView() {
                       {/* Ledger View (Mini) */}
                       {paymentsThisMonth.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
-                          <p className={`text-2xs font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white/80' : currentTheme.muted}`}>{t.paymentHistory}</p>
+                          <p className={`text-2xs font-black uppercase tracking-widest ${paidThisMonth > 0 || payDatePassed ? 'text-white' : currentTheme.muted}`}>{t.paymentHistory}</p>
                           {paymentsThisMonth.map(p => (
                             <div key={p.id} className="flex justify-between text-2xs font-bold">
-                              <span className={paidThisMonth > 0 || payDatePassed ? 'text-white/60' : currentTheme.muted}>{p.date}</span>
+                              <span className={paidThisMonth > 0 || payDatePassed ? 'text-white' : currentTheme.muted}>{p.date}</span>
                               <span className={paidThisMonth > 0 || payDatePassed ? 'text-white' : 'text-emerald-600'}>{formatCurrency(p.amount)}</span>
                             </div>
                           ))}
