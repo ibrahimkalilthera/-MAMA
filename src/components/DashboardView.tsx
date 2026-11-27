@@ -42,7 +42,7 @@ export function DashboardView() {
                         <h4 className="font-black text-sm">
                           {t.payrollWindowClosed.replace('{month}', currentMonthName)}
                         </h4>
-                        <p className="text-xs text-rose-600/80 dark:text-rose-300/80 font-semibold mt-0.5">
+                        <p className="text-xs text-rose-700 dark:text-rose-300 font-semibold mt-0.5">
                           {t.highPriorityActionRequiredToProcessCurrentMonthPayroll}
                         </p>
                       </div>
